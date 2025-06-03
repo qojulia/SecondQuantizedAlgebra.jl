@@ -1,36 +1,32 @@
-using SecondQuantizedAlgebra, Test
+names = [
+    "test_code_quality.jl"
+    "test_fock.jl"
+    "test_nlevel.jl"
+    "test_spin.jl"
+    "test_average.jl"
+    "test_numeric_conversion.jl"
+    "test_cluster.jl"
+    "test_index_basic.jl"
+    "test_average_sums.jl"
+    "test_double_sums.jl"
+]
 
-@testset "best practices" begin
-    using Aqua
+detected_tests = filter(
+    name->startswith(name, "test_") && endswith(name, ".jl"), readdir(".")
+)
 
-    Aqua.test_ambiguities([SecondQuantizedAlgebra]; broken=true)
-    Aqua.test_piracies(SecondQuantizedAlgebra; broken=true)
-    Aqua.test_all(SecondQuantizedAlgebra; ambiguities=false, piracies=false)
+unused_tests = setdiff(detected_tests, names)
+if length(unused_tests) != 0
+    @warn string("The following tests are not used:\n", join(unused_tests, "\n"))
 end
 
-@testset "ExplicitImports" begin
-    using ExplicitImports
-    @test check_no_implicit_imports(SecondQuantizedAlgebra) == nothing
-    @test check_all_explicit_imports_via_owners(SecondQuantizedAlgebra) == nothing
-    # @test check_all_explicit_imports_are_public(SecondQuantizedAlgebra) == nothing
-    @test check_no_stale_explicit_imports(SecondQuantizedAlgebra) == nothing
-    @test check_all_qualified_accesses_via_owners(SecondQuantizedAlgebra) == nothing
-    # @test check_all_qualified_accesses_are_public(SecondQuantizedAlgebra) == nothing
-    @test check_no_self_qualified_accesses(SecondQuantizedAlgebra) == nothing
+unavailable_tests = setdiff(names, detected_tests)
+if length(unavailable_tests) != 0
+    error("The following tests could not be found:\n", join(unavailable_tests, "\n"))
 end
 
-if isempty(VERSION.prerelease)
-    @testset "Code linting" begin
-        using JET
-        # JET.test_package(SecondQuantizedAlgebra; target_defined_modules=true)
-        rep = report_package("SecondQuantizedAlgebra")
-        @show rep
-        @test length(JET.get_reports(rep)) <= 249
-        @test_broken length(JET.get_reports(rep)) == 0
+for name in names
+    if startswith(name, "test_") && endswith(name, ".jl")
+        include(name)
     end
-end
-
-@testset "Concretely typed" begin
-    using SecondQuantizedAlgebra
-    using CheckConcreteStructs
 end
