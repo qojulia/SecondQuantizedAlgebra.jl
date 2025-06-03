@@ -1,21 +1,18 @@
 module SecondQuantizedAlgebra
 
-using SymbolicUtils: SymbolicUtils
-import SymbolicUtils: substitute, BasicSymbolic, arguments, iscall, operation
-
+using SymbolicUtils: SymbolicUtils, BasicSymbolic, arguments, iscall, operation
 using Symbolics: Symbolics
 using TermInterface: TermInterface
 
 using Combinatorics: combinations, levicivita
 
 using SciMLBase: SciMLBase
-using SciMLBase: SciMLBase
 using QuantumOpticsBase: QuantumOpticsBase
 import QuantumOpticsBase: ⊗, tensor
 
-using Latexify
+using LaTeXStrings: LaTeXStrings, @L_str, latexstring
+using Latexify: Latexify, @latexify, latexify, @latexrecipe
 using MacroTools: MacroTools
-using LaTeXStrings
 
 const NO_METADATA = SymbolicUtils.NO_METADATA
 

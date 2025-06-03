@@ -162,7 +162,7 @@ Fields:
 ======
 
 * term: A multiplication of q-number terms.
-* indexMapping: A Vector of [`Index`](@ref) tuples, specifying the contraints for the term. Each Tuple is considered to one constraint. e.g: (i,j) -> i ≠ j
+* indexMapping: A Vector of [`Index`](@ref) tuples, specifying the constraints for the term. Each Tuple is considered to one constraint. e.g: (i,j) -> i ≠ j
 
 """
 struct SpecialIndexedTerm <: QTerm    #A term, not in a sum, that has a condition on the indices, for example σⱼ*σₖ with condition j≠k
@@ -236,7 +236,7 @@ function SingleSum(term::QMul, sum_index, non_equal_indices; metadata=NO_METADAT
     if length(NEI) == 0 #NEI are newly found indices of all operators that do not have the summation index, or are not already in the non equals list
         #in this if-condition all operators always commute with the summation index (since there are no other indices left)
         args = copy(term.args_nc)
-        args_ = order_by_index(args, [sum_index]) #here all operators in the sum comute with operators indexed with the summation index -> push them in front
+        args_ = order_by_index(args, [sum_index]) #here all operators in the sum commute with operators indexed with the summation index -> push them in front
         term_ = 0
         if length(args_) == 1
             term_ = *(term.arg_c, args_[1])
@@ -268,7 +268,7 @@ function SingleSum(term::QMul, sum_index, non_equal_indices; metadata=NO_METADAT
         end
     end
     args = copy(term.args_nc)
-    args_ = order_by_index(args, [sum_index]) #here all operators in the sum comute with operators indexed with the summation index -> push them in front
+    args_ = order_by_index(args, [sum_index]) #here all operators in the sum commute with operators indexed with the summation index -> push them in front
     if length(args_) == 1
         term_ = *(term.arg_c, args_[1])
     else
@@ -622,8 +622,8 @@ Base.isless(a::IndexedOperator, b::IndexedOperator) = a.op.name < b.op.name
 Base.isless(a::QMul, b::QMul) = isless(a.args_nc, b.args_nc)
 Base.isless(a::IndexedOperator, b::QSym) = a.op.name < b.name
 Base.isless(a::QSym, b::IndexedOperator) = a.name < b.op.name
-Base.isless(nothing, b::Symbol) = true
-Base.isless(b::Symbol, nothing) = false
+Base.isless(nothing, b::Symbol) = true # TODO: type-piracy
+Base.isless(b::Symbol, nothing) = false # TODO: type-piracy
 
 Base.isless(a::Index, b::Index) = a.name < b.name
 Base.isless(a::SingleSum, b::SingleSum) = Base.isless(a.sum_index, b.sum_index)
@@ -667,7 +667,7 @@ end
 """
     change_index(term,from::Index,to::Index)
 
-Exchanges all occuring indices inside the given term, that are equal to the `from` to the `to` index.
+Exchanges all occurring indices inside the given term, that are equal to the `from` to the `to` index.
 
 Examples
 ========
@@ -692,13 +692,13 @@ end
 
 function change_index(op::BasicSymbolic{IndexedVariable}, from::Index, to::Index)
     if SymbolicUtils.hasmetadata(op, IndexedVariable)
-        meta = SymbolicUtils.metadata(op)[IndexedVariable]
+        meta = TermInterface.metadata(op)[IndexedVariable]
         return isequal(meta.ind, from) ? IndexedVariable(meta.name, to) : op
     end
 end
 function change_index(op::BasicSymbolic{DoubleIndexedVariable}, from::Index, to::Index)
     if SymbolicUtils.hasmetadata(op, DoubleIndexedVariable)
-        meta = SymbolicUtils.metadata(op)[DoubleIndexedVariable]
+        meta = TermInterface.metadata(op)[DoubleIndexedVariable]
         if meta.ind1 == from
             if meta.ind1 == meta.ind2 && meta.identical
                 return DoubleIndexedVariable(meta.name, to, to; identical=meta.identical)
@@ -963,13 +963,13 @@ function _to_expression(a::DoubleIndexedVariable)
 end
 function _to_expression(a::BasicSymbolic{IndexedVariable})
     if SymbolicUtils.hasmetadata(a, IndexedVariable)
-        meta = SymbolicUtils.metadata(a)[IndexedVariable]
+        meta = TermInterface.metadata(a)[IndexedVariable]
         return _to_expression(meta)
     end
 end
 function _to_expression(a::BasicSymbolic{DoubleIndexedVariable})
     if SymbolicUtils.hasmetadata(a, DoubleIndexedVariable)
-        meta = SymbolicUtils.metadata(a)[DoubleIndexedVariable]
+        meta = TermInterface.metadata(a)[DoubleIndexedVariable]
         return _to_expression(meta)
     end
 end

@@ -14,7 +14,7 @@ a parameter.
 struct Parameter <: CNumber
     function Parameter(name; metadata=source_metadata(:Parameter, name))
         s = SymbolicUtils.Sym{Complex{Real}}(name)
-        s = SymbolicUtils.setmetadata(s, MTK.VariableSource, (:Parameter, name))
+        s = SymbolicUtils.setmetadata(s, Symbolics.VariableSource, (:Parameter, name))
         return SymbolicUtils.setmetadata(s, MTK.MTKVariableTypeCtx, MTK.PARAMETER)
     end
 end
@@ -101,7 +101,7 @@ true
 cnumber(s::Symbol) = Parameter(s; metadata=source_metadata(:cnumbers, s))
 cnumber(s::String) = cnumber(Symbol(s))
 
-### real paramters ###
+### real parameters ###
 """
     RNumber <: Real
 
@@ -118,7 +118,7 @@ a real parameter.
 struct RealParameter <: RNumber
     function RealParameter(name; metadata=source_metadata(:RealParameter, name))
         s = SymbolicUtils.Sym{Real}(name)
-        s = SymbolicUtils.setmetadata(s, MTK.VariableSource, (:RealParameter, name))
+        s = SymbolicUtils.setmetadata(s, Symbolics.VariableSource, (:RealParameter, name))
         return SymbolicUtils.setmetadata(s, MTK.MTKVariableTypeCtx, MTK.PARAMETER)
     end
 end

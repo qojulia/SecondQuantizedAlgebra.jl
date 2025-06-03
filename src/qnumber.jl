@@ -111,7 +111,7 @@ Base.hash(q::QMul, h::UInt) = hash(QMul, hash(q.arg_c, SymbolicUtils.hashvec(q.a
 SymbolicUtils.operation(::QMul) = (*)
 SymbolicUtils.arguments(a::QMul) = vcat(a.arg_c, a.args_nc)
 
-function SymbolicUtils.maketerm(::Type{<:QMul}, ::typeof(*), args, metadata)
+function TermInterface.maketerm(::Type{<:QMul}, ::typeof(*), args, metadata)
     args_c = filter(x->!(x isa QNumber), args)
     args_nc = filter(x->x isa QNumber, args)
     arg_c = *(args_c...)
@@ -119,7 +119,7 @@ function SymbolicUtils.maketerm(::Type{<:QMul}, ::typeof(*), args, metadata)
     return QMul(arg_c, args_nc; metadata)
 end
 
-SymbolicUtils.metadata(a::QMul) = a.metadata
+TermInterface.metadata(a::QMul) = a.metadata
 
 function Base.adjoint(q::QMul)
     args_nc = map(adjoint, q.args_nc)
@@ -237,9 +237,9 @@ end
 
 SymbolicUtils.operation(::QAdd) = (+)
 SymbolicUtils.arguments(a::QAdd) = a.arguments
-SymbolicUtils.maketerm(::Type{<:QAdd}, ::typeof(+), args, metadata) = QAdd(args; metadata)
+TermInterface.maketerm(::Type{<:QAdd}, ::typeof(+), args, metadata) = QAdd(args; metadata)
 
-SymbolicUtils.metadata(q::QAdd) = q.metadata
+TermInterface.metadata(q::QAdd) = q.metadata
 
 Base.adjoint(q::QAdd) = QAdd(map(adjoint, q.arguments))
 
