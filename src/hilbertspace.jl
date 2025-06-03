@@ -60,7 +60,7 @@ julia> h = hf⊗ha
 Create a [`ProductSpace`](@ref) consisting of multiple subspaces.
 See also [`⊗`](@ref).
 """
-tensor(args...) = ⊗(args...)
+tensor(args::Vararg{HilbertSpace}) = ⊗(args...)
 
 """
     ClusterSpace <: HilbertSpace

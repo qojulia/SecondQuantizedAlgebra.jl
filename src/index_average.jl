@@ -266,19 +266,19 @@ end
 undo_average(a::SpecialIndexedAverage) = reorder(undo_average(a.term), a.indexMapping)
 function undo_average(a::BasicSymbolic{IndexedAverageSum})
     if SymbolicUtils.hasmetadata(a, IndexedAverageSum)
-        meta = SymbolicUtils.metadata(a)[IndexedAverageSum]
+        meta = TermInterface.metadata(a)[IndexedAverageSum]
         return undo_average(meta)
     end
 end
 function undo_average(a::BasicSymbolic{IndexedAverageDoubleSum})
     if SymbolicUtils.hasmetadata(a, IndexedAverageDoubleSum)
-        meta = SymbolicUtils.metadata(a)[IndexedAverageDoubleSum]
+        meta = TermInterface.metadata(a)[IndexedAverageDoubleSum]
         return undo_average(meta)
     end
 end
 function undo_average(a::BasicSymbolic{SpecialIndexedAverage})
     if SymbolicUtils.hasmetadata(a, SpecialIndexedAverage)
-        meta = SymbolicUtils.metadata(a)[SpecialIndexedAverage]
+        meta = TermInterface.metadata(a)[SpecialIndexedAverage]
         return undo_average(meta)
     end
 end
@@ -295,11 +295,11 @@ function DoubleIndexedVariable(x, num1::Int64, num2::Int64; kwargs...)
     DoubleNumberedVariable(x, num1, num2; kwargs...)
 end
 function get_indices(a::BasicSymbolic{DoubleIndexedVariable})
-    meta = SymbolicUtils.metadata(a)[DoubleIndexedVariable]
+    meta = TermInterface.metadata(a)[DoubleIndexedVariable]
     return unique([meta.ind1, meta.ind2])
 end
 function get_indices(a::BasicSymbolic{IndexedVariable})
-    [SymbolicUtils.metadata(a)[IndexedVariable].ind]
+    [TermInterface.metadata(a)[IndexedVariable].ind]
 end
 
 #Symbolics functions
@@ -359,8 +359,8 @@ Base.isless(a::IndexedAverageSum, b::IndexedAverageSum) = a.sum_index < b.sum_in
 function Base.isequal(
     a::BasicSymbolic{IndexedAverageSum}, b::BasicSymbolic{IndexedAverageSum}
 )
-    a_meta = SymbolicUtils.metadata(a)[IndexedAverageSum]
-    b_meta = SymbolicUtils.metadata(b)[IndexedAverageSum]
+    a_meta = TermInterface.metadata(a)[IndexedAverageSum]
+    b_meta = TermInterface.metadata(b)[IndexedAverageSum]
     return isequal(a_meta, b_meta)
 end
 function Base.isequal(a::IndexedAverageSum, b::IndexedAverageSum)
@@ -372,27 +372,27 @@ end
 function Base.isequal(
     a::BasicSymbolic{SpecialIndexedAverage}, b::BasicSymbolic{SpecialIndexedAverage}
 )
-    a_meta = SymbolicUtils.metadata(a)[SpecialIndexedAverage]
-    b_meta = SymbolicUtils.metadata(b)[SpecialIndexedAverage]
+    a_meta = TermInterface.metadata(a)[SpecialIndexedAverage]
+    b_meta = TermInterface.metadata(b)[SpecialIndexedAverage]
     return isequal(a_meta.term, b_meta.term) &&
            isequal(a_meta.indexMapping, b_meta.indexMapping)
 end
 
 function SymbolicUtils.arguments(op::BasicSymbolic{IndexedAverageSum})
-    arguments(SymbolicUtils.metadata(op)[IndexedAverageSum])
+    arguments(TermInterface.metadata(op)[IndexedAverageSum])
 end
 SymbolicUtils.arguments(op::IndexedAverageSum) = arguments(op.term)
 function SymbolicUtils.arguments(op::BasicSymbolic{IndexedAverageDoubleSum})
-    arguments(SymbolicUtils.metadata(op)[IndexedAverageDoubleSum])
+    arguments(TermInterface.metadata(op)[IndexedAverageDoubleSum])
 end
 SymbolicUtils.arguments(op::IndexedAverageDoubleSum) = op.innerSum
 function SymbolicUtils.arguments(op::BasicSymbolic{SpecialIndexedAverage})
-    arguments(SymbolicUtils.metadata(op)[SpecialIndexedAverage])
+    arguments(TermInterface.metadata(op)[SpecialIndexedAverage])
 end
 SymbolicUtils.arguments(op::SpecialIndexedAverage) = arguments(op.term)
 
 function SymbolicUtils.simplify(sym::BasicSymbolic{SpecialIndexedAverage})
-    meta = SymbolicUtils.metadata(sym)[SpecialIndexedAverage]
+    meta = TermInterface.metadata(sym)[SpecialIndexedAverage]
     SpecialIndexedAverage(SymbolicUtils.simplify(meta.term), meta.indexMapping)
 end
 
@@ -438,7 +438,7 @@ function _to_expression(x::NumberedOperator)
     x.op isa Create && return :(dagger(NumberedDestroy($(x.op.name), $(x.numb))))
 end
 function _to_expression(x::BasicSymbolic{IndexedAverageSum})
-    meta = SymbolicUtils.metadata(x)[IndexedAverageSum]
+    meta = TermInterface.metadata(x)[IndexedAverageSum]
     return :(IndexedAverageSum(
         $(_to_expression(meta.term)),
         $(meta.sum_index.name),
@@ -447,11 +447,11 @@ function _to_expression(x::BasicSymbolic{IndexedAverageSum})
     ))
 end
 function _to_expression(x::BasicSymbolic{SpecialIndexedAverage})
-    meta = SymbolicUtils.metadata(x)[SpecialIndexedAverage]
+    meta = TermInterface.metadata(x)[SpecialIndexedAverage]
     return _to_expression(meta.term)
 end
 function _to_expression(x::BasicSymbolic{IndexedAverageDoubleSum})
-    meta = SymbolicUtils.metadata(x)[IndexedAverageDoubleSum]
+    meta = TermInterface.metadata(x)[IndexedAverageDoubleSum]
     return :(IndexedAverageDoubleSum(
         $(_to_expression(meta.innerSum)),
         $(meta.sum_index.name),
@@ -461,7 +461,7 @@ function _to_expression(x::BasicSymbolic{IndexedAverageDoubleSum})
 end
 
 @latexrecipe function f(s_::BasicSymbolic{IndexedAverageSum})
-    s = SymbolicUtils.metadata(s_)[IndexedAverageSum]
+    s = TermInterface.metadata(s_)[IndexedAverageSum]
     neis = writeNEIs(s.non_equal_indices)
 
     ex = latexify(s.term)
