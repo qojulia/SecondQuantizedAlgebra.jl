@@ -1,8 +1,10 @@
 [deps]
 Documenter = "e30172f5-a6a5-5a46-863b-614d45cd2de4"
+Latexify = "23fbe1c1-3f47-55db-b15f-69d7ec21a316"
 DocumenterTools = "35a29f4d-8980-5a13-9543-d66fff28ecb8"
 Literate = "98b081ad-f1c9-55d3-8b20-4c87d4299306"
 Plots = "91a5bcdd-55d7-5caf-9e0b-520d859cae80"
+QuantumOpticsBase = "4f57444f-1401-5e15-980d-4471b28d5678"
 SecondQuantizedAlgebra = "f7aa4685-e143-4cb6-a7f3-073579757907"
 Term = "22787eb5-b846-44ae-b979-8e399b8463ab"
 

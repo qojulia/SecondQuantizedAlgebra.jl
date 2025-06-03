@@ -27,10 +27,9 @@ end
 
 makedocs(;
     sitename="SecondQuantizedAlgebra.jl",
-    authors="Orjan Ameye",
     modules=SecondQuantizedAlgebra,
     format=Documenter.HTML(;
-        canonical="https://oameye.github.io/SecondQuantizedAlgebra.jl"
+        canonical="https://qojulia.github.io/SecondQuantizedAlgebra.jl"
     ),
     pages=pages,
     clean=true,
@@ -43,7 +42,7 @@ makedocs(;
 
 if CI
     deploydocs(;
-        repo="github.com/oameye/SecondQuantizedAlgebra.jl",
+        repo="github.com/qojulia/SecondQuantizedAlgebra.jl",
         devbranch="main",
         target="build",
         branch="gh-pages",
