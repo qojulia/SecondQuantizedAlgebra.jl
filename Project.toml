@@ -26,15 +26,14 @@ SciMLBase = "1, 2"
 SymbolicUtils = "3.6.0 - 3.20.0"
 Symbolics = "6"
 TermInterface = "2"
-julia = "1.6"
+julia = "1.10"
 
 [extras]
-ModelingToolkit = "961ee093-0014-501f-94e3-6117800e7a78"
-OrdinaryDiffEq = "1dea7af3-3e70-54e6-95c3-0bf5283fa5ed"
-QuantumOptics = "6e0679c1-51ea-5a7c-ac74-d61b76210b0c"
-Random = "9a3f8284-a2c9-5f02-9a11-845980a1fd5c"
-SteadyStateDiffEq = "9672c7b4-1e72-59bd-8a11-6ac3964bc41f"
+Aqua = "4c88cf16-eb10-579e-8560-4a9242c79595"
+CheckConcreteStructs = "73c92db5-9da6-4938-911a-6443a7e94a58"
+ExplicitImports = "7d51a73a-1435-4ff3-83d9-f097790105c7"
+JET = "c3a54625-cd67-489e-a8e7-0a5a0ff4e31b"
 Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
 
 [targets]
-test = ["OrdinaryDiffEq", "SteadyStateDiffEq", "ModelingToolkit", "QuantumOptics", "Random", "Test"]
+test = ["JET", "CheckConcreteStructs", "ExplicitImports", "Test", "Aqua"]
