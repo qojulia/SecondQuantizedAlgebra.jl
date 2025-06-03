@@ -101,7 +101,7 @@ true
 cnumber(s::Symbol) = Parameter(s; metadata=source_metadata(:cnumbers, s))
 cnumber(s::String) = cnumber(Symbol(s))
 
-### real paramters ###
+### real parameters ###
 """
     RNumber <: Real
 

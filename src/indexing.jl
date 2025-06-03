@@ -162,7 +162,7 @@ Fields:
 ======
 
 * term: A multiplication of q-number terms.
-* indexMapping: A Vector of [`Index`](@ref) tuples, specifying the contraints for the term. Each Tuple is considered to one constraint. e.g: (i,j) -> i ≠ j
+* indexMapping: A Vector of [`Index`](@ref) tuples, specifying the constraints for the term. Each Tuple is considered to one constraint. e.g: (i,j) -> i ≠ j
 
 """
 struct SpecialIndexedTerm <: QTerm    #A term, not in a sum, that has a condition on the indices, for example σⱼ*σₖ with condition j≠k
@@ -236,7 +236,7 @@ function SingleSum(term::QMul, sum_index, non_equal_indices; metadata=NO_METADAT
     if length(NEI) == 0 #NEI are newly found indices of all operators that do not have the summation index, or are not already in the non equals list
         #in this if-condition all operators always commute with the summation index (since there are no other indices left)
         args = copy(term.args_nc)
-        args_ = order_by_index(args, [sum_index]) #here all operators in the sum comute with operators indexed with the summation index -> push them in front
+        args_ = order_by_index(args, [sum_index]) #here all operators in the sum commute with operators indexed with the summation index -> push them in front
         term_ = 0
         if length(args_) == 1
             term_ = *(term.arg_c, args_[1])
@@ -268,7 +268,7 @@ function SingleSum(term::QMul, sum_index, non_equal_indices; metadata=NO_METADAT
         end
     end
     args = copy(term.args_nc)
-    args_ = order_by_index(args, [sum_index]) #here all operators in the sum comute with operators indexed with the summation index -> push them in front
+    args_ = order_by_index(args, [sum_index]) #here all operators in the sum commute with operators indexed with the summation index -> push them in front
     if length(args_) == 1
         term_ = *(term.arg_c, args_[1])
     else
@@ -667,7 +667,7 @@ end
 """
     change_index(term,from::Index,to::Index)
 
-Exchanges all occuring indices inside the given term, that are equal to the `from` to the `to` index.
+Exchanges all occurring indices inside the given term, that are equal to the `from` to the `to` index.
 
 Examples
 ========
