@@ -31,16 +31,20 @@ pkg> add SecondQuantizedAlgebra
 ```julia
 using SecondQuantizedAlgebra
 
-# Define operators
-a = Destroy(:a)
-ad = Create(:a)
+ha = NLevelSpace(:atoms,2)
+hc = FockSpace(:cavity)
+h = hc ⊗ ha
 
-# Commutator
-comm = commutator(ad, a)  # returns 1 for bosons, or as defined
+@cnumbers N Δ κ γ ν
 
-# Normal ordering
-expr = ad * a * ad
-normal_ordered = normalorder(expr)
+i = Index(h,:i,N,ha)
+j = Index(h,:j,N,ha)
+
+@qnumbers b::Destroy(h)
+σ(x,y,z) = IndexedOperator(Transition(h,:σ,x,y),z)
+gi = IndexedVariable(:g,i)
+
+H = Δ*b'*b + ∑(gi*(b*σ(2,1,i) + b'*σ(1,2,i)),i)
 ```
 
 See the [documentation](https://qojulia.github.io/SecondQuantizedAlgebra.jl/) for more details and advanced usage.
