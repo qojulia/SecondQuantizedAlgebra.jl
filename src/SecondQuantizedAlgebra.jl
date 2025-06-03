@@ -8,19 +8,20 @@ using TermInterface: TermInterface
 
 using Combinatorics: combinations, levicivita
 
-import SciMLBase
+using SciMLBase: SciMLBase
 using SciMLBase: SciMLBase
 using QuantumOpticsBase: QuantumOpticsBase
 import QuantumOpticsBase: ⊗, tensor
 
 using Latexify
-import MacroTools
+using MacroTools: MacroTools
 using LaTeXStrings
 
 const NO_METADATA = SymbolicUtils.NO_METADATA
 
-source_metadata(source, name) =
-    Base.ImmutableDict{DataType, Any}(Symbolics.VariableSource, (source, name))
+function source_metadata(source, name)
+    Base.ImmutableDict{DataType,Any}(Symbolics.VariableSource, (source, name))
+end
 
 import ModelingToolkit as MTK
 
@@ -45,19 +46,56 @@ include("index_double_sums.jl")
 include("index_average.jl")
 include("index_utils.jl")
 
-export HilbertSpace, ProductSpace, ⊗, tensor,
-    QSym, QTerm, @qnumbers,
-    FockSpace, Destroy, Create,
-    NLevelSpace, Transition,
-    PauliSpace, Pauli, SpinSpace, Spin,
-    commutator, acts_on,
-    CNumber, Parameter, @cnumbers, cnumbers, cnumber, RNumber, RealParameter, @rnumbers,
-    rnumbers, rnumber,
-    unique_ops, unique_ops!, to_numeric, numeric_average,
-    ClusterSpace, find_operators, fundamental_operators,
-    transition_superscript, Average, average,
-    Index, reorder, IndexedOperator, SingleSum, IndexedVariable, DoubleIndexedVariable,
-    DoubleSum, SpecialIndexedTerm, Σ, ∑,
-    NumberedOperator, change_index, order_by_index
+export HilbertSpace,
+    ProductSpace,
+    ⊗,
+    tensor,
+    QSym,
+    QTerm,
+    @qnumbers,
+    FockSpace,
+    Destroy,
+    Create,
+    NLevelSpace,
+    Transition,
+    PauliSpace,
+    Pauli,
+    SpinSpace,
+    Spin,
+    commutator,
+    acts_on,
+    CNumber,
+    Parameter,
+    @cnumbers,
+    cnumbers,
+    cnumber,
+    RNumber,
+    RealParameter,
+    @rnumbers,
+    rnumbers,
+    rnumber,
+    unique_ops,
+    unique_ops!,
+    to_numeric,
+    numeric_average,
+    ClusterSpace,
+    find_operators,
+    fundamental_operators,
+    transition_superscript,
+    Average,
+    average,
+    Index,
+    reorder,
+    IndexedOperator,
+    SingleSum,
+    IndexedVariable,
+    DoubleIndexedVariable,
+    DoubleSum,
+    SpecialIndexedTerm,
+    Σ,
+    ∑,
+    NumberedOperator,
+    change_index,
+    order_by_index
 
 end

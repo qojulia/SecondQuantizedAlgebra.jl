@@ -1,13 +1,12 @@
 # get_indices functions
 function get_indices(term::QMul)
     args_nc = filter(x -> x isa IndexedOperator, term.args_nc)
-    return unique(vcat(get_indices(args_nc),get_indices(term.arg_c)))
+    return unique(vcat(get_indices(args_nc), get_indices(term.arg_c)))
 end
 get_indices(a::IndexedOperator) = [a.ind]
 get_indices(vec::Vector) = unique(vcat(get_indices.(vec)...))
 get_indices(x::AvgSums) = get_indices(arguments(x))
 get_indices(term::Average) = get_indices(arguments(term)[1])
-
 
 const Sums = Union{SingleSum,DoubleSum}
 # get_indices(x::Sums) = unique(get_indices(arguments(x)))
@@ -17,11 +16,11 @@ get_indices(x::Number) = []
 get_indices(term) = iscall(term) ? get_indices(arguments(term)) : []
 
 #Usability functions:
-Σ(a,b) = DoubleSum(a,b)  #Double-Sum here, because if variable a is not a single sum it will create a single sum anyway
-Σ(a,b,c;kwargs...) = DoubleSum(a,b,c;kwargs...)
+Σ(a, b) = DoubleSum(a, b)  #Double-Sum here, because if variable a is not a single sum it will create a single sum anyway
+Σ(a, b, c; kwargs...) = DoubleSum(a, b, c; kwargs...)
 ∑(args...; kwargs...) = Σ(args...; kwargs...)
 
-IndexedOperator(x::IndexableOps,numb::Int64) = NumberedOperator(x,numb)
+IndexedOperator(x::IndexableOps, numb::Int64) = NumberedOperator(x, numb)
 function IndexedOperator(x::QTerm, numb::Int64) # σ(1,1,2)
     f = SymbolicUtils.operation(x)
     args = SymbolicUtils.arguments(x)
@@ -29,9 +28,16 @@ function IndexedOperator(x::QTerm, numb::Int64) # σ(1,1,2)
 end
 
 #Numeric Conversion of NumberedOperators
-function to_numeric(op::NumberedOperator,b::QuantumOpticsBase.CompositeBasis; ranges::Vector{Int64}=Int64[],kwargs...)
+function to_numeric(
+    op::NumberedOperator,
+    b::QuantumOpticsBase.CompositeBasis;
+    ranges::Vector{Int64}=Int64[],
+    kwargs...,
+)
     if isempty(ranges)
-        error("When calling to_numeric for indexed Operators, specification of the \"ranges\" keyword is needed! This keyword requires a vector of Integers, which specify the maximum range of the index for each hilbertspace.")
+        error(
+            "When calling to_numeric for indexed Operators, specification of the \"ranges\" keyword is needed! This keyword requires a vector of Integers, which specify the maximum range of the index for each hilbertspace.",
+        )
     end
     h = hilbert(op)
     if h isa ProductSpace
@@ -46,7 +52,7 @@ function to_numeric(op::NumberedOperator,b::QuantumOpticsBase.CompositeBasis; ra
     start = 0
     if h !== nothing #this is fine here since there are assertions above
         aon_ = acts_on(op)
-        for i = 1:(aon_ - 1)
+        for i in 1:(aon_ - 1)
             start = start + ranges[i]
         end
     end
@@ -56,8 +62,8 @@ function to_numeric(op::NumberedOperator,b::QuantumOpticsBase.CompositeBasis; ra
     else
         aon = op.numb + start
     end
-    op_ = _to_numeric(op.op,b.bases[aon];kwargs...)
-    return QuantumOpticsBase.LazyTensor(b,[aon],(op_,))
+    op_ = _to_numeric(op.op, b.bases[aon]; kwargs...)
+    return QuantumOpticsBase.LazyTensor(b, [aon], (op_,))
 end
 
 function inadjoint(q::QMul)
@@ -69,14 +75,13 @@ inadjoint(op::QNumber) = adjoint(op)
 inadjoint(s::SymbolicUtils.BasicSymbolic{<:Number}) = _conj(s)
 inadjoint(x) = adjoint(x)
 
-
 function inorder!(q::QMul)
-    sort!(q.args_nc, by=get_numbers)
-    sort!(q.args_nc, by=getIndName)
-    sort!(q.args_nc, by=acts_on)
-    return merge_commutators(q.arg_c,q.args_nc)
+    sort!(q.args_nc; by=get_numbers)
+    sort!(q.args_nc; by=getIndName)
+    sort!(q.args_nc; by=acts_on)
+    return merge_commutators(q.arg_c, q.args_nc)
 end
-function inorder!(v::T) where T <: SymbolicUtils.BasicSymbolic
+function inorder!(v::T) where {T<:SymbolicUtils.BasicSymbolic}
     if SymbolicUtils.iscall(v)
         f = SymbolicUtils.operation(v)
         args = map(inorder!, SymbolicUtils.arguments(v))

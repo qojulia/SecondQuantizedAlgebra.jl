@@ -11,7 +11,7 @@ struct AvgSym <: CNumber end
 const Average = SymbolicUtils.BasicSymbolic{<:AvgSym}
 
 const sym_average = begin # Symbolic function for averages
-    T = SymbolicUtils.FnType{Tuple{QNumber}, AvgSym}
+    T = SymbolicUtils.FnType{Tuple{QNumber},AvgSym}
     SymbolicUtils.Sym{T}(:avg)
 end
 
@@ -19,7 +19,7 @@ end
 SymbolicUtils.promote_symtype(::typeof(sym_average), ::Type{<:QNumber}) = AvgSym
 
 # needs a specific symtype overload, otherwise we build the wrong expressions with maketerm
-SymbolicUtils.symtype(::T) where T <: Average = AvgSym
+SymbolicUtils.symtype(::T) where {T<:Average} = AvgSym
 
 # Direct construction of average symbolic expression
 function _average(operator)
@@ -27,17 +27,17 @@ function _average(operator)
 end
 
 # ensure that BasicSymbolic{<:AvgSym} are only single averages
-function *(a::Average,b::Average)
-    if isequal(a,b)
-        return SymbolicUtils.Mul(CNumber,1,Dict(a=>2))
+function *(a::Average, b::Average)
+    if isequal(a, b)
+        return SymbolicUtils.Mul(CNumber, 1, Dict(a=>2))
     end
-    return SymbolicUtils.Mul(CNumber,1,Dict(a=>1,b=>1))
+    return SymbolicUtils.Mul(CNumber, 1, Dict(a=>1, b=>1))
 end
-function +(a::Average,b::Average)
-    if isequal(a,b)
-        return SymbolicUtils.Add(CNumber,0,Dict(a=>2))
+function +(a::Average, b::Average)
+    if isequal(a, b)
+        return SymbolicUtils.Add(CNumber, 0, Dict(a=>2))
     end
-    return SymbolicUtils.Add(CNumber,0,Dict(a=>1,b=>1))
+    return SymbolicUtils.Add(CNumber, 0, Dict(a=>1, b=>1))
 end
 
 function acts_on(s::SymbolicUtils.Symbolic)
@@ -73,7 +73,7 @@ function average(op::QTerm)
     elseif f === (*)
         # Move constants out of average
         c = op.arg_c
-        op_ = QMul(1,op.args_nc)
+        op_ = QMul(1, op.args_nc)
         return c*_average(op_)
     else
         error("Unknown function $f")
@@ -85,7 +85,7 @@ average(x::SNuN) = x
 function undo_average(t)
     if SymbolicUtils.iscall(t)
         f = SymbolicUtils.operation(t)
-        if isequal(f,sym_average) # "===" results in false sometimes in Symbolics version > 5
+        if isequal(f, sym_average) # "===" results in false sometimes in Symbolics version > 5
             return SymbolicUtils.arguments(t)[1]
         else
             args = map(undo_average, SymbolicUtils.arguments(t))
@@ -99,7 +99,7 @@ end
 function undo_average(eq::Symbolics.Equation)
     lhs = undo_average(eq.lhs)
     rhs = undo_average(eq.rhs)
-    return Symbolics.Equation(lhs,rhs)
+    return Symbolics.Equation(lhs, rhs)
 end
 
-Base.:(==)(term1::Average,term2::Average) = isequal(arguments(term1), arguments(term2))
+Base.:(==)(term1::Average, term2::Average) = isequal(arguments(term1), arguments(term2))
