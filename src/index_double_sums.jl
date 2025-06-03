@@ -247,8 +247,8 @@ function Base.show(io::IO, elem::DoubleSum)
 end
 function Base.isequal(a::DoubleSum, b::DoubleSum)
     isequal(a.innerSum, b.innerSum) &&
-    isequal(a.sum_index, b.sum_index) &&
-    isequal(a.NEI, b.NEI)
+        isequal(a.sum_index, b.sum_index) &&
+        isequal(a.NEI, b.NEI)
 end
 function _to_expression(x::DoubleSum)
     :(DoubleSum(

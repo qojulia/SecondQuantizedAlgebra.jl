@@ -85,9 +85,9 @@ Base.hash(s::Pauli, h::UInt) = hash(s.hilbert, hash(s.name, hash(s.axis, hash(s.
 Base.adjoint(s::Pauli) = s
 function Base.isequal(s1::Pauli, s2::Pauli)
     isequal(s1.hilbert, s2.hilbert) &&
-    isequal(s1.name, s2.name) &&
-    isequal(s1.axis, s2.axis) &&
-    isequal(s1.aon, s2.aon)
+        isequal(s1.name, s2.name) &&
+        isequal(s1.axis, s2.axis) &&
+        isequal(s1.aon, s2.aon)
 end
 Base.:(==)(s1::Pauli, s2::Pauli) = isequal(s1, s2)
 
@@ -197,9 +197,9 @@ Base.hash(s::Spin, h::UInt) = hash(s.hilbert, hash(s.name, hash(s.axis, hash(s.a
 Base.adjoint(s::Spin) = s
 function Base.isequal(s1::Spin, s2::Spin)
     isequal(s1.hilbert, s2.hilbert) &&
-    isequal(s1.name, s2.name) &&
-    isequal(s1.axis, s2.axis) &&
-    isequal(s1.aon, s2.aon)
+        isequal(s1.name, s2.name) &&
+        isequal(s1.axis, s2.axis) &&
+        isequal(s1.aon, s2.aon)
 end
 Base.:(==)(s1::Spin, s2::Spin) = isequal(s1, s2)
 

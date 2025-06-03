@@ -1,6 +1,6 @@
 CI = get(ENV, "CI", nothing) == "true" || get(ENV, "GITHUB_TOKEN", nothing) !== nothing
 
-using KeldyshContraction
+using SecondQuantizedAlgebra
 using Documenter
 
 using Plots
@@ -29,7 +29,9 @@ makedocs(;
     sitename="SecondQuantizedAlgebra.jl",
     authors="Orjan Ameye",
     modules=KeldyshContraction,
-    format=Documenter.HTML(; canonical="https://oameye.github.io/SecondQuantizedAlgebra.jl"),
+    format=Documenter.HTML(;
+        canonical="https://oameye.github.io/SecondQuantizedAlgebra.jl"
+    ),
     pages=pages,
     clean=true,
     linkcheck=true,

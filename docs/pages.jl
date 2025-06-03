@@ -1,4 +1,1 @@
-pages = [
-    "Home" => "index.md",
-    "API" => "API.md",
-]
+pages = ["Home" => "index.md", "API" => "API.md"]

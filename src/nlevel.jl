@@ -151,10 +151,10 @@ function Base.adjoint(t::Transition)
 end
 function Base.isequal(t1::Transition, t2::Transition)
     isequal(t1.hilbert, t2.hilbert) &&
-    isequal(t1.name, t2.name) &&
-    isequal(t1.i, t2.i) &&
-    isequal(t1.j, t2.j) &&
-    isequal(t1.aon, t2.aon)
+        isequal(t1.name, t2.name) &&
+        isequal(t1.i, t2.i) &&
+        isequal(t1.j, t2.j) &&
+        isequal(t1.aon, t2.aon)
 end
 function Base.hash(t::Transition, h::UInt)
     hash(t.hilbert, hash(t.name, hash(t.i, hash(t.j, hash(t.aon, h)))))

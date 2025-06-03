@@ -147,8 +147,8 @@ struct SingleSum{M} <: QTerm #Sum with an index, the term inside the sum must be
             0
         else
             new{typeof(metadata)}(
-            term, sum_index, sort(non_equal_indices; by=getIndName), metadata
-        )
+                term, sum_index, sort(non_equal_indices; by=getIndName), metadata
+            )
         end
     end
 end
@@ -630,9 +630,9 @@ Base.isless(a::SingleSum, b::SingleSum) = Base.isless(a.sum_index, b.sum_index)
 
 function Base.isequal(ind1::Index, ind2::Index)
     (ind1.name == ind2.name) &&
-    isequal(ind1.range, ind2.range) &&
-    (ind1.hilb == ind2.hilb) &&
-    isequal(ind1.aon, ind2.aon)
+        isequal(ind1.range, ind2.range) &&
+        (ind1.hilb == ind2.hilb) &&
+        isequal(ind1.aon, ind2.aon)
 end
 
 function Base.isequal(op1::IndexedOperator, op2::IndexedOperator)
