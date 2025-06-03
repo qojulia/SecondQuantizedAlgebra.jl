@@ -10,6 +10,6 @@ Depth = 2:3
 ```
 
 ```@autodocs
-Modules = [VanVleckRecursion]
+Modules = [SecondQuantizedAlgebra]
 Private = false
 ```

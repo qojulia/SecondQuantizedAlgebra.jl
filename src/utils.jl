@@ -272,9 +272,6 @@ function _lazy_one(b::QuantumOpticsBase.CompositeBasis)
     QuantumOpticsBase.LazyTensor(b, [1:length(b.bases);], Tuple(one(b_) for b_ in b.bases))
 end
 
-
-
-
 """
     numeric_average(avg::Average, state; level_map = nothing)
     numeric_average(q::QNumber, state; level_map = nothing)
