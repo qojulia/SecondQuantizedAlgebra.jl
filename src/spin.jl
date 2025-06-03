@@ -10,8 +10,8 @@ Base.:(==)(h1::T, h2::T) where {T<:PauliSpace} = (h1.name==h2.name)
 
 """
     Pauli <: QSym
-Pauli operator on a [`PauliSpace`](@ref) representing the Pauli operators σx, σy and σz for two-level spin systems. 
-The field axis represents x, y and z as 1, 2 and 3, repectively. The used rewriting rule is σj⋅σk → δjk + i⋅ϵjkl⋅σl.
+Pauli operator on a [`PauliSpace`](@ref) representing the Pauli operators σx, σy and σz for two-level spin systems.
+The field axis represents x, y and z as 1, 2 and 3, respectively. The used rewriting rule is σj⋅σk → δjk + i⋅ϵjkl⋅σl.
 
 Examples
 =======
@@ -122,8 +122,8 @@ Base.:(==)(h1::T, h2::T) where {T<:SpinSpace} = (h1.name==h2.name)
 
 """
     Spin <: QSym
-Spin operator on a [`SpinSpace`](@ref) representing the Spin-operators Sx, Sy and Sz for collective spin systems. 
-The field axis represents x, y and z as 1, 2 and 3, repectively. The operators follow the rules for angular momentum operators:
+Spin operator on a [`SpinSpace`](@ref) representing the Spin-operators Sx, Sy and Sz for collective spin systems.
+The field axis represents x, y and z as 1, 2 and 3, respectively. The operators follow the rules for angular momentum operators:
 [Sj,Sk] = i⋅∑ϵjkl⋅Sl
 
 Examples
