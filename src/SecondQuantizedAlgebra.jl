@@ -93,6 +93,10 @@ export HilbertSpace,
     ∑,
     NumberedOperator,
     change_index,
-    order_by_index
+    order_by_index,
+    insert_index,
+    numeric_average,
+    IndexedAverageSum,
+    IndexedAverageDoubleSum
 
 end
