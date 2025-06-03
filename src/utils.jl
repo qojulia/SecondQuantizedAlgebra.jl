@@ -136,6 +136,9 @@ function to_numeric(op::QSym, b::QuantumOpticsBase.Basis; kwargs...)
     check_basis_match(op.hilbert, b; kwargs...)
     return _to_numeric(op, b; kwargs...)
 end
+function to_numeric(op::QNumber, state; kwargs...)
+    to_numeric(op, QuantumOpticsBase.basis(state); kwargs...)
+end
 
 function _to_numeric(op::Destroy, b::QuantumOpticsBase.FockBasis; kwargs...)
     QuantumOpticsBase.destroy(b)
@@ -269,21 +272,26 @@ function _lazy_one(b::QuantumOpticsBase.CompositeBasis)
     QuantumOpticsBase.LazyTensor(b, [1:length(b.bases);], Tuple(one(b_) for b_ in b.bases))
 end
 
+
+
+
 """
+    numeric_average(avg::Average, state; level_map = nothing)
     numeric_average(q::QNumber, state; level_map = nothing)
 
-From a symbolic operator `q`, compute the corresponding
+From a symbolic average `avg` or operator `q`, compute the corresponding
 numerical average value with the given quantum state `state`. This state
 can either be of type `QuantumOpticsBase.StateVector` or `QuantumOpticsBase.Operator`.
 
+See also: [`to_numeric`](@ref)
 """
-function to_numeric(op::QNumber, state; kwargs...)
-    to_numeric(op, QuantumOpticsBase.basis(state); kwargs...)
-end
-
 function numeric_average(op::QNumber, state; kwargs...)
     op_num = to_numeric(op, state; kwargs...)
     return QuantumOpticsBase.expect(op_num, state)
+end
+function numeric_average(avg::Average, state; kwargs...)
+    op = undo_average(avg)
+    return numeric_average(op, state; kwargs...)
 end
 
 function _conj(v::T) where {T<:SymbolicUtils.Symbolic}

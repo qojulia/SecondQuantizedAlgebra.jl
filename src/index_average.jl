@@ -512,3 +512,152 @@ function +(a::BasicSymbolic{DoubleIndexedVariable}, b::BasicSymbolic{DoubleIndex
     end
     return SymbolicUtils.Add(CNumber, 0, Dict(a=>1, b=>1))
 end
+
+#function that creates an array consisting of all possible number values for each index given
+#ind_vec should be sorted beforehand
+function create_index_arrays(ind_vec,ranges)
+    if length(ind_vec) == 1
+        return ranges[1]
+    end
+    @assert length(ind_vec) == length(ranges)
+    array = unique(collect(Iterators.product(ranges...)))
+    length(ind_vec) == 1 && return array
+    length(unique(get_spec_hilb.(ind_vec))) == length(ind_vec) && return array #every index has its own specHilb
+    for vec in get_not_allowed(ind_vec)
+        array = array[Bool[all_different(array[i],vec) for i=1:length(array)]]
+    end
+    return collect(array)
+end
+all_different(x,vec) = length(unique(getindex(x,vec))) == length(getindex(x,vec))
+function get_not_allowed(ind_vec)
+    spec_hilbs = get_spec_hilb.(ind_vec)
+    not_allowed = []
+    for ind in ind_vec
+        indices = findall(x -> isequal(x,ind.aon) ,spec_hilbs)
+        length(indices) == 1 && continue
+        if indices ∉ not_allowed
+            push!(not_allowed,indices)
+        end
+    end
+    return not_allowed
+end
+get_spec_hilb(ind::Index) = ind.aon
+
+
+#this is the new method, insert values directly into the average before calculating anything, simplifies evaluation afterwards extremely
+#function for inserting index, k -> 1,2,...,N
+"""
+    insert_index(term,ind::Index,value::Int)
+
+Function, that inserts an integer value for a index in a specified term.
+This function creates Numbered- Variables/Operators/Sums upon calls.
+
+Examples
+========
+
+    insert_index(σⱼ²¹,j,1) = σ₁²¹
+
+"""
+function insert_index(sum::BasicSymbolic{IndexedAverageSum}, ind::Index, value::Int64)
+    meta = TermInterface.metadata(sum)[IndexedAverageSum]
+    if ind == meta.sum_index
+        error("cannot exchange summation index with number!")
+    end
+    if ind in meta.non_equal_indices
+        newNEI = filter(x-> !isequal(x,ind),meta.non_equal_indices)
+        push!(newNEI,value)
+        return IndexedAverageSum(insert_index(meta.term,ind,value),meta.sum_index,newNEI)
+    else
+        return IndexedAverageSum(insert_index(meta.term,ind,value),meta.sum_index,meta.non_equal_indices)
+    end
+end
+function insert_index(sum::BasicSymbolic{IndexedAverageDoubleSum}, ind::Index,value::Int64)
+    meta = TermInterface.metadata(sum)[IndexedAverageDoubleSum]
+    inner = insert_index(meta.innerSum,ind,value)
+    return IndexedAverageDoubleSum(inner,meta.sum_index,meta.non_equal_indices)
+end
+function insert_index(term::BasicSymbolic{<:CNumber},ind::Index,value::Int64)
+    if iscall(term)
+        op = operation(term)
+        if op === *
+            return prod(insert_index(arg,ind,value) for arg in arguments(term))
+        elseif op === +
+            return sum(insert_index(arg,ind,value) for arg in arguments(term))
+        elseif op === ^
+            return insert_index(arguments(term)[1],ind,value)^insert_index(arguments(term)[2],ind,value)
+        # issue 198
+        elseif op === /
+            return insert_index(arguments(term)[1],ind,value)/insert_index(arguments(term)[2],ind,value)
+        elseif length(arguments(term)) == 1 # exp, sin, cos, ln, ... #TODO: write tests
+            return op(insert_index(arguments(term)[1],ind,value))
+        end
+    end
+    return term
+end
+function insert_index(term::Average,ind::Index,value::Int64)
+    f = operation(term)
+    if f == conj
+        return conj(insert_index(arguments(term)[1],ind,value))
+    end
+    return average(inorder!(insert_index(arguments(term)[1],ind,value)))
+end
+function insert_index(term_::BasicSymbolic{DoubleIndexedVariable},ind::Index,value::Int64)
+    term = TermInterface.metadata(term_)[DoubleIndexedVariable]
+    if term.ind1 == ind && term.ind2 == ind
+        return DoubleNumberedVariable(term.name,value,value)
+    elseif term.ind1 == ind
+        return DoubleNumberedVariable(term.name,value,term.ind2)
+    elseif term.ind2 == ind
+        return DoubleNumberedVariable(term.name,term.ind1,value)
+    end
+    return term_
+end
+function insert_index(term::BasicSymbolic{DoubleNumberedVariable},ind::Index,value::Int64)
+    if iscall(term)
+        op = operation(term)
+        if op === *
+            return prod(insert_index(arg,ind,value) for arg in arguments(term))
+        elseif op === +
+            return sum(insert_index(arg,ind,value) for arg in arguments(term))
+        elseif op === ^
+            return insert_index(arguments(term)[1],ind,value)^(arguments(term)[2])
+        end
+    end
+    data = TermInterface.metadata(term)[DoubleNumberedVariable]
+    if data.numb1 isa Index && data.numb1 == ind
+        return DoubleNumberedVariable(data.name,value,data.numb2)
+    elseif data.numb2 isa Index && data.numb2 == ind
+        return DoubleNumberedVariable(data.name,data.numb1,value)
+    end
+    return term
+end
+function insert_index(term::BasicSymbolic{SpecialIndexedAverage},ind::Index,value::Int64)
+    meta = TermInterface.metadata(term)[SpecialIndexedAverage]
+    newterm = insert_index(meta.term,ind,value)
+    newMapping = Tuple{IndexInt,IndexInt}[]
+    for tuple in meta.indexMapping
+        if first(tuple) == ind
+            if last(tuple) == value
+                return 0
+            end
+            push!(newMapping,(value,last(tuple)))
+        elseif last(tuple) == ind
+            if first(tuple) == value
+                return 0
+            end
+            push!(newMapping,(first(tuple),value))
+        else
+            push!(newMapping,tuple)
+        end
+    end
+    filter!(x -> !(first(x) isa Int64 && last(x) isa Int64),newMapping)
+    return SpecialIndexedAverage(newterm,newMapping)
+end
+insert_index(qmul::QMul,ind::Index,value::Int64) = qmul.arg_c*prod(insert_index(arg,ind,value) for arg in qmul.args_nc)
+insert_index(eq::Symbolics.Equation,ind::Index,value::Int64) = Symbolics.Equation(insert_index(eq.lhs,ind,value),insert_index(eq.rhs,ind,value))
+insert_index(term::IndexedOperator,ind::Index,value::Int64) = term.ind == ind ? NumberedOperator(term.op,value) : term
+function insert_index(term::BasicSymbolic{IndexedVariable},ind::Index,value::Int64)
+    meta = TermInterface.metadata(term)[IndexedVariable]
+    meta.ind == ind ? SingleNumberedVariable(meta.name,value) : term
+end
+insert_index(x,args...) = x
