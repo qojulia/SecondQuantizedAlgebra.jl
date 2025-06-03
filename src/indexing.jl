@@ -268,7 +268,7 @@ function SingleSum(term::QMul, sum_index, non_equal_indices; metadata=NO_METADAT
         end
     end
     args = copy(term.args_nc)
-    args_ = order_by_index(args, [sum_index]) #here all operators in the sum comute with operators indexed with the summation index -> push them in front
+    args_ = order_by_index(args, [sum_index]) #here all operators in the sum commute with operators indexed with the summation index -> push them in front
     if length(args_) == 1
         term_ = *(term.arg_c, args_[1])
     else
