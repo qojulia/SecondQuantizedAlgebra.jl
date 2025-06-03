@@ -116,7 +116,7 @@ specAvrg = sqa.SpecialIndexedAverage(average(σ(2,1,ind(:i))*σ(1,2,ind(:j))),[(
 @cnumbers N_
 ind2(i) = Index(h,i,N_,ha)
 
-#functions for checking if indices occure in specific terms
+#functions for checking if indices occurred in specific terms
 function containsIndexedOps(term::Average)
     arg_ = arguments(term)
     if arg_[1] isa sqa.QMul
