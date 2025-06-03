@@ -290,7 +290,7 @@ function _conj(v::T) where {T<:SymbolicUtils.Symbolic}
     if SymbolicUtils.iscall(v)
         f = SymbolicUtils.operation(v)
         args = map(_conj, SymbolicUtils.arguments(v))
-        return SymbolicUtils.maketerm(T, f, args, TermInterface.metadata(v))
+        return TermInterface.maketerm(T, f, args, TermInterface.metadata(v))
     else
         return conj(v)
     end
@@ -311,7 +311,7 @@ function _inconj(v::T) where {T<:SymbolicUtils.BasicSymbolic}
     if SymbolicUtils.iscall(v)
         f = SymbolicUtils.operation(v)
         args = map(_inconj, SymbolicUtils.arguments(v))
-        return SymbolicUtils.maketerm(T, f, args, TermInterface.metadata(v))
+        return TermInterface.maketerm(T, f, args, TermInterface.metadata(v))
     else
         return conj(v)
     end

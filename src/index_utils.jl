@@ -85,7 +85,7 @@ function inorder!(v::T) where {T<:SymbolicUtils.BasicSymbolic}
     if SymbolicUtils.iscall(v)
         f = SymbolicUtils.operation(v)
         args = map(inorder!, SymbolicUtils.arguments(v))
-        return SymbolicUtils.maketerm(T, f, args, TermInterface.metadata(v))
+        return TermInterface.maketerm(T, f, args, TermInterface.metadata(v))
     end
     return v
 end

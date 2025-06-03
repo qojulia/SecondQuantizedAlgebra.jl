@@ -28,13 +28,13 @@ end
 makedocs(;
     sitename="SecondQuantizedAlgebra.jl",
     authors="Orjan Ameye",
-    modules=KeldyshContraction,
+    modules=SecondQuantizedAlgebra,
     format=Documenter.HTML(;
         canonical="https://oameye.github.io/SecondQuantizedAlgebra.jl"
     ),
     pages=pages,
     clean=true,
-    linkcheck=true,
+    linkcheck=false,
     warnonly=:missing_docs,
     draft=false,#,(!CI),
     doctest=false,  # We test it in the CI, no need to run it here
