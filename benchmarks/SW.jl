@@ -1,15 +1,15 @@
 function SW(H0, V, S)
-     H0 + (1//2) * commutator(S, V)
+    H0 + (1//2) * commutator(S, V)
 end
 function benchmark_Schrieffer_Wolf!(SUITE)
-# 1. Define Hilbert spaces
+    # 1. Define Hilbert spaces
     h_boson = FockSpace(:cavity)
-    h_spin = NLevelSpace(:atom,(:g,:e))
+    h_spin = NLevelSpace(:atom, (:g, :e))
     h = h_boson ⊗ h_spin
 
     # 2. Define operators
     @qnumbers a::Destroy(h)
-    σp = Transition(h,:σ,:g,:e)
+    σp = Transition(h, :σ, :g, :e)
     σz = Transition(h, :σ, :e, :e)
 
     # 3. Hamiltonian
