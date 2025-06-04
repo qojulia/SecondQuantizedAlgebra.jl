@@ -147,7 +147,7 @@ Random.seed!(0)
         end
     end
 
-    # Test sufficiently large hilbert space; from issue #109
+    # Test sufficiently large hilbert space; from issue QuantumCumulants #109
     hfock = FockSpace(:fock)
     @qnumbers a::Destroy(hfock)
     bfock = FockBasis(100)

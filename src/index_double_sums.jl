@@ -130,7 +130,7 @@ end
 
 function *(elem::IndexedObSym, sum::DoubleSum)
     sum_ = SymbolicUtils.simplify(sum)
-    if !(sum_ isa DoubleSum) # issue 223
+    if !(sum_ isa DoubleSum) # issue QuantumCumulants 223
         return elem*sum_
     end
     NEI = copy(sum.NEI)
@@ -147,7 +147,7 @@ function *(elem::IndexedObSym, sum::DoubleSum)
             end
             return DoubleSum(elem*sum.innerSum, sum.sum_index, NEI)
         end
-        NEI_ = [NEI..., elem.ind] # issue #169 (scaling of double sum)
+        NEI_ = [NEI..., elem.ind] # issue QuantumCumulants #169 (scaling of double sum)
         ds_term = DoubleSum(
             SingleSum(
                 elem*sum.innerSum.term,
@@ -165,7 +165,7 @@ function *(elem::IndexedObSym, sum::DoubleSum)
         )
         new_non_equal_indices2 = unique([
             replace(sum.innerSum.non_equal_indices, sum.sum_index => elem.ind)..., elem.ind
-        ]) #issue #223
+        ]) #issue QuantumCumulants #223
         ss_term2 = SingleSum(
             elem*change_index(sum.innerSum.term, sum.sum_index, elem.ind),
             sum.innerSum.sum_index,
@@ -177,7 +177,7 @@ function *(elem::IndexedObSym, sum::DoubleSum)
 end
 function *(sum::DoubleSum, elem::IndexedObSym)
     sum_ = SymbolicUtils.simplify(sum)
-    if !(sum_ isa DoubleSum) # issue 223
+    if !(sum_ isa DoubleSum) # issue QuantumCumulants 223
         return sum_*elem
     end
     NEI = copy(sum.NEI)
@@ -194,7 +194,7 @@ function *(sum::DoubleSum, elem::IndexedObSym)
             end
             return DoubleSum(sum.innerSum*elem, sum.sum_index, NEI)
         end
-        NEI_ = [NEI..., elem.ind] # issue #169 (scaling of double sum)
+        NEI_ = [NEI..., elem.ind] # issue QuantumCumulants #169 (scaling of double sum)
         ds_term = DoubleSum(
             SingleSum(
                 sum.innerSum.term*elem,
@@ -213,7 +213,7 @@ function *(sum::DoubleSum, elem::IndexedObSym)
         # new_non_equal_indices2 = replace(sum.innerSum.non_equal_indices, sum.sum_index => elem.ind)
         new_non_equal_indices2 = unique([
             replace(sum.innerSum.non_equal_indices, sum.sum_index => elem.ind)..., elem.ind
-        ]) #issue #223
+        ]) #issue QuantumCumulants #223
         ss_term2 = SingleSum(
             change_index(sum.innerSum.term, sum.sum_index, elem.ind)*elem,
             sum.innerSum.sum_index,

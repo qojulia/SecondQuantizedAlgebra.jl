@@ -54,7 +54,7 @@ const sqa = SecondQuantizedAlgebra
     Ssum1 = Σ(g_ik*a(k_ind)*σ(2, 1, i_ind), i_ind)
     Ssum2 = Σ(g_ik*a(k_ind)'*σ(1, 2, i_ind), i_ind)
 
-    ### issue 221 (DoubleSum)
+    ### issue QuantumCumulants 221 (DoubleSum)
     @cnumbers c1 N1
     i_ind2 = Index(h, :i, N1, ha)
     j_ind2 = Index(h, :j, N1, ha)
@@ -157,7 +157,7 @@ const sqa = SecondQuantizedAlgebra
     @test !isequal(Γ(i, i), 0)
     @test !isequal(Γ(2, 2), 0)
 
-    ### issue 223
+    ### issue QuantumCumulants 223
     ha = NLevelSpace(:atom, 2)
     σ(α, β, i) = IndexedOperator(Transition(ha, :σ, α, β), i)
     @cnumbers N g
