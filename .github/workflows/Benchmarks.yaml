@@ -7,6 +7,7 @@ on:
       - '.github/workflows/Tests.yml'
       - 'src/**'
       - 'ext/**'
+      - 'benchmarks/**'
       - 'test/runtests.jl'
       - 'test/core-test/**'
       - 'test/ext-test/cpu/**'
@@ -19,6 +20,7 @@ on:
       - 'src/**'
       - 'ext/**'
       - 'test/**'
+      - 'benchmarks/**'
       - 'Project.toml'
     types:
       - opened
