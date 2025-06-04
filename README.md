@@ -17,7 +17,7 @@ The package provides:
 - Support for atom and spin operators
 - Extensible for custom operator types
 
-The code was refactored out of [QauntumCumulants.jl](https://github.com/qojulia/QuantumCumulants.jl).
+The code was refactored out of [QuantumCumulants.jl](https://github.com/qojulia/QuantumCumulants.jl).
 
 ### Installation
 
