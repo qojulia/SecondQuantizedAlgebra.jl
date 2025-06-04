@@ -209,7 +209,7 @@ function SingleSum(term::IndexedAdd, sum_index, non_equal_indices; metadata=NO_M
                 SingleSum(arg, sum_index, non_equal_indices; metadata=NO_METADATA) for
                 arg in args
             ])
-        elseif (op === *) && (sum_index ∈ get_indices(term)) #issue 188
+        elseif (op === *) && (sum_index ∈ get_indices(term)) #issue QuantumCumulants 188
             return SingleSum(term, sum_index, non_equal_indices, metadata)
         else
             return (sum_index.range - length(non_equal_indices))*term

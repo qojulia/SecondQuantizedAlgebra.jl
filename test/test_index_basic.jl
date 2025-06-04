@@ -332,7 +332,7 @@ const sqa=SecondQuantizedAlgebra
     )
     @test sqa.ismergeable(σ(2, 1, 5), σ(1, 2, 5))
 
-    # issue 188
+    # issue QuantumCumulants 188
     gi = IndexedVariable(:g, i)
     @test isa(∑(5gi, i), SingleSum)
     @test isa(∑(gi*α, i), SingleSum)

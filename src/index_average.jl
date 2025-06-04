@@ -590,7 +590,7 @@ function insert_index(term::BasicSymbolic{<:CNumber}, ind::Index, value::Int64)
             return insert_index(
                 arguments(term)[1], ind, value
             )^insert_index(arguments(term)[2], ind, value)
-            # issue 198
+            # issue QuantumCumulants 198
         elseif op === /
             return insert_index(
                 arguments(term)[1], ind, value
