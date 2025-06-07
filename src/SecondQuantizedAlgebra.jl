@@ -20,8 +20,6 @@ function source_metadata(source, name)
     Base.ImmutableDict{DataType,Any}(Symbolics.VariableSource, (source, name))
 end
 
-import ModelingToolkit as MTK
-
 include("hilbertspace.jl")
 include("qnumber.jl")
 include("cnumber.jl")

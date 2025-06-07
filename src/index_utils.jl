@@ -4,7 +4,7 @@ function get_indices(term::QMul)
     return unique(vcat(get_indices(args_nc), get_indices(term.arg_c)))
 end
 get_indices(a::IndexedOperator) = [a.ind]
-get_indices(vec::Vector) = unique(vcat(get_indices.(vec)...))
+get_indices(vec::AbstractVector) = unique(vcat(get_indices.(vec)...))
 get_indices(x::AvgSums) = get_indices(arguments(x))
 get_indices(term::Average) = get_indices(arguments(term)[1])
 
