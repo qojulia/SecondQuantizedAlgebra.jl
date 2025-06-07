@@ -3,7 +3,6 @@ using SymbolicUtils
 using Test
 
 @testset "fock" begin
-
     @testset "Basic Operator Creation and Properties" begin
         hf = FockSpace(:c)
         a = Destroy(hf, :a)

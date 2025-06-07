@@ -3,7 +3,6 @@ using SymbolicUtils
 using Test
 
 @testset "nlevel" begin
-
     @testset "Symbolic Level Systems" begin
         ha = NLevelSpace(:atom, (:g, :e))
         @test ha.GS == :g

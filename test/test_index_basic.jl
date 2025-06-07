@@ -7,7 +7,6 @@ using Symbolics
 const sqa = SecondQuantizedAlgebra
 
 @testset "index_basic" begin
-
     @testset "Index Creation and Comparison" begin
         N = 10
         ha = NLevelSpace(Symbol(:atom), 2)
@@ -41,7 +40,9 @@ const sqa = SecondQuantizedAlgebra
 
         Γij = DoubleIndexedVariable(:Γ, i_ind, j_ind)
         k_ind = indT(:k)
-        @test isequal(change_index(Γij, j_ind, k_ind), DoubleIndexedVariable(:Γ, i_ind, k_ind))
+        @test isequal(
+            change_index(Γij, j_ind, k_ind), DoubleIndexedVariable(:Γ, i_ind, k_ind)
+        )
         @test isequal(change_index(g(k_ind), k_ind, j_ind), g(j_ind))
     end
 
@@ -161,7 +162,8 @@ const sqa = SecondQuantizedAlgebra
         @test change_index(Ωij, i_ind, j_ind) == 0
         @test reorder(sqa.QAdd([]), [(i_ind, j_ind)]) == 0
         @test reorder(sqa.QAdd([0]), [(i_ind, j_ind)]) == 0
-        @test reorder(sqa.QAdd([σ(1, 2, i_ind), σ(2, 1, j_ind)]), [(i_ind, j_ind)]) isa sqa.QAdd
+        @test reorder(sqa.QAdd([σ(1, 2, i_ind), σ(2, 1, j_ind)]), [(i_ind, j_ind)]) isa
+            sqa.QAdd
         @test reorder(average(sqa.QAdd([0])), [(i_ind, j_ind)]) == 0
     end
 
@@ -439,7 +441,9 @@ const sqa = SecondQuantizedAlgebra
         σ(i, j, k) = IndexedOperator(Transition(ha, :σ, i, j), k)
 
         @test isequal(sqa.inorder!(σ(2, 1, 1)*σ(2, 2, 2)*σ(1, 2, 1)), σ(2, 2, 1)*σ(2, 2, 2))
-        @test isequal(sqa.inadjoint(σ(2, 1, 1)*σ(2, 2, 2)*σ(1, 2, 1)), σ(2, 2, 1)*σ(2, 2, 2))
+        @test isequal(
+            sqa.inadjoint(σ(2, 1, 1)*σ(2, 2, 2)*σ(1, 2, 1)), σ(2, 2, 1)*σ(2, 2, 2)
+        )
         @test isequal(
             sqa._inconj(average(σ(2, 1, 1)*σ(2, 2, 2)*σ(1, 2, 1))),
             (average(σ(2, 2, 1)*σ(2, 2, 2))),

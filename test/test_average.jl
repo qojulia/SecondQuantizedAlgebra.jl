@@ -48,7 +48,8 @@ using Test
         s2(i, j) = Transition(h_complex, :s2, i, j, 3)
 
         # Hamiltonian construction
-        H = Δ_*a_complex'*a_complex +
+        H =
+            Δ_*a_complex'*a_complex +
             g*(a_complex' + a_complex)*(s1(2, 1) + s1(1, 2) + s2(2, 1) + s2(1, 2)) +
             η*(a_complex' + a_complex)
 

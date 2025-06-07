@@ -6,7 +6,6 @@ using Symbolics
 const sqa = SecondQuantizedAlgebra
 
 @testset "double_sums" begin
-
     @testset "Basic DoubleSum Construction and Equivalence" begin
         N = 10
         ha = NLevelSpace(Symbol(:atom), 2)
@@ -151,7 +150,6 @@ const sqa = SecondQuantizedAlgebra
     end
 
     @testset "QuantumCumulants Issues" begin
-
         @testset "Issue 221 - DoubleSum Simplification" begin
             N = 10
             ha = NLevelSpace(Symbol(:atom), 2)
@@ -169,11 +167,11 @@ const sqa = SecondQuantizedAlgebra
             # Tests with fixed N - corrected expected values
             @test isequal(
                 simplify(Σ(-σ(2, 2, i_ind), i_ind, j_ind)),
-                simplify(Σ(-σ(2, 2, i_ind), i_ind)*N)
+                simplify(Σ(-σ(2, 2, i_ind), i_ind)*N),
             )
             @test isequal(
                 simplify(Σ(3*σ(2, 2, i_ind), i_ind, j_ind)),
-                simplify(Σ(3*σ(2, 2, i_ind), i_ind)*N)
+                simplify(Σ(3*σ(2, 2, i_ind), i_ind)*N),
             )
             @test isequal(
                 simplify(Σ(c1*σ(2, 2, i_ind), i_ind, j_ind)),
@@ -187,11 +185,14 @@ const sqa = SecondQuantizedAlgebra
             )
             @test isequal(
                 simplify(Σ(3*σ(2, 2, i_ind2), i_ind2, j_ind2)),
-                simplify(Σ(3*(N1-1)*σ(2, 2, i_ind2), i_ind2)) + 3*Σ(σ(2, 2, i_ind2), i_ind2),
+                simplify(Σ(3*(N1-1)*σ(2, 2, i_ind2), i_ind2)) +
+                3*Σ(σ(2, 2, i_ind2), i_ind2),
             )
             @test isequal(
                 simplify(Σ(c1*σ(2, 2, i_ind2), i_ind2, j_ind2)),
-                simplify(c1*Σ(σ(2, 2, i_ind2), i_ind2) + Σ(c1*(N1-1)*σ(2, 2, i_ind2), i_ind2)),
+                simplify(
+                    c1*Σ(σ(2, 2, i_ind2), i_ind2) + Σ(c1*(N1-1)*σ(2, 2, i_ind2), i_ind2)
+                ),
             )
         end
 
@@ -221,11 +222,19 @@ const sqa = SecondQuantizedAlgebra
             @test isequal(sub_dict(simplify(commutator(H_s, σ(1, 2, k)))), -20*σ(1, 2, k))
 
             @test isequal(sub_dict(simplify(commutator(H_g, σ(2, 1, k)))), 10*g*σ(2, 1, k))
-            @test isequal(sub_dict(simplify(commutator(H_ji_g, σ(2, 1, k)))), 10*g*σ(2, 1, k))
-            @test isequal(sub_dict(simplify(commutator(H_ji_g_s, σ(2, 1, k)))), 10*g*σ(2, 1, k))
+            @test isequal(
+                sub_dict(simplify(commutator(H_ji_g, σ(2, 1, k)))), 10*g*σ(2, 1, k)
+            )
+            @test isequal(
+                sub_dict(simplify(commutator(H_ji_g_s, σ(2, 1, k)))), 10*g*σ(2, 1, k)
+            )
             @test isequal(sub_dict(simplify(commutator(H_g, σ(1, 2, k)))), -10g*σ(1, 2, k))
-            @test isequal(sub_dict(simplify(commutator(H_ji_g, σ(1, 2, k)))), -10g*σ(1, 2, k))
-            @test isequal(sub_dict(simplify(commutator(H_ji_g_s, σ(1, 2, k)))), -10g*σ(1, 2, k))
+            @test isequal(
+                sub_dict(simplify(commutator(H_ji_g, σ(1, 2, k)))), -10g*σ(1, 2, k)
+            )
+            @test isequal(
+                sub_dict(simplify(commutator(H_ji_g_s, σ(1, 2, k)))), -10g*σ(1, 2, k)
+            )
         end
     end
 end

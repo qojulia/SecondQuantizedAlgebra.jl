@@ -26,8 +26,7 @@ const sqa = SecondQuantizedAlgebra
         @test Ω(ind(:i), ind(:i)) == 0
         @test isequal(average(2 * σ(1, 2, ind(:k))), 2 * average(σ(1, 2, ind(:k))))
         @test isequal(
-            average(g(ind(:k)) * σ(2, 2, ind(:k))),
-            g(ind(:k)) * average(σ(2, 2, ind(:k)))
+            average(g(ind(:k)) * σ(2, 2, ind(:k))), g(ind(:k)) * average(σ(2, 2, ind(:k)))
         )
         @test isequal(average(g(ind(:k))), g(ind(:k)))
     end
@@ -35,7 +34,7 @@ const sqa = SecondQuantizedAlgebra
     @testset "Numbered Operators" begin
         @test isequal(
             σn(1, 2, 1) + σn(2, 1, 1),
-            NumberedOperator(Transition(h, :σ, 1, 2) + Transition(h, :σ, 2, 1), 1)
+            NumberedOperator(Transition(h, :σ, 1, 2) + Transition(h, :σ, 2, 1), 1),
         )
     end
 
@@ -68,8 +67,8 @@ const sqa = SecondQuantizedAlgebra
             sqa.insert_index(
                 sqa.insert_index(σ(1, 2, ind(:i)) * σ(1, 2, ind(:j)), ind(:i), 2),
                 ind(:j),
-                1
-            )
+                1,
+            ),
         )
     end
 
@@ -95,12 +94,12 @@ const sqa = SecondQuantizedAlgebra
 
         @test isequal(
             average(Σ(σ(1, 2, ind(:i)), ind(:i))),
-            sqa.IndexedAverageSum(average(σ(1, 2, ind(:i))), ind(:i), [])
+            sqa.IndexedAverageSum(average(σ(1, 2, ind(:i))), ind(:i), []),
         )
 
         @test isequal(
             sqa.IndexedAverageSum(g(ind(:i)), ind(:i), []),
-            average(Σ(g(ind(:i)), ind(:i), []))
+            average(Σ(g(ind(:i)), ind(:i), [])),
         )
         @test sqa.IndexedAverageSum(g(ind(:i)), ind(:i), []) isa
             SymbolicUtils.BasicSymbolic{sqa.IndexedAverageSum}
@@ -115,11 +114,11 @@ const sqa = SecondQuantizedAlgebra
         ADsum1 = simplify(sqa.IndexedAverageDoubleSum(avrgTerm, ind(:j), [ind(:i)]))
         it_1 = findfirst(
             x -> typeof((x)) == SymbolicUtils.BasicSymbolic{IndexedAverageSum},
-            arguments(ADsum1)
+            arguments(ADsum1),
         )
         it_2 = findfirst(
             x -> typeof((x)) == SymbolicUtils.BasicSymbolic{IndexedAverageDoubleSum},
-            arguments(ADsum1)
+            arguments(ADsum1),
         )
 
         @test ADsum1 isa SymbolicUtils.BasicSymbolic && operation(ADsum1) === +
@@ -133,17 +132,17 @@ const sqa = SecondQuantizedAlgebra
             simplify(
                 Σ(Σ(σ(2, 1, ind(:i)) * σ(1, 2, ind(:j)), ind(:i)), ind(:j), [ind(:i)])
             ),
-            simplify(sqa.undo_average(ADsum1))
+            simplify(sqa.undo_average(ADsum1)),
         )
 
         # Argument order tests (SymbolicUtils v1.4.0 compatibility)
         @test (
             isequal(
                 SymbolicUtils.arguments(SymbolicUtils.arguments(ADsum1)[it_2]),
-                SymbolicUtils.arguments(avrgTerm)[1]
+                SymbolicUtils.arguments(avrgTerm)[1],
             ) || isequal(
                 SymbolicUtils.arguments(SymbolicUtils.arguments(ADsum1)[it_2]),
-                SymbolicUtils.arguments(avrgTerm)[2]
+                SymbolicUtils.arguments(avrgTerm)[2],
             )
         )
 
@@ -151,7 +150,7 @@ const sqa = SecondQuantizedAlgebra
             SymbolicUtils.arguments(
                 SymbolicUtils.arguments(SymbolicUtils.arguments(ADsum1)[it_2])
             ),
-            SymbolicUtils.arguments(average(σ(2, 1, ind(:i)) * σ(1, 2, ind(:j))))
+            SymbolicUtils.arguments(average(σ(2, 1, ind(:i)) * σ(1, 2, ind(:j)))),
         )
     end
 
@@ -161,7 +160,7 @@ const sqa = SecondQuantizedAlgebra
             sqa.SpecialIndexedAverage(average(σ(2, 1, ind(:j))), [(ind(:i), ind(:j))]),
             sqa.SpecialIndexedAverage(
                 average(σ(1, 2, ind(:i))) + average(σ(2, 1, ind(:j))), [(ind(:i), ind(:j))]
-            )
+            ),
         )
 
         @test sqa.SpecialIndexedAverage(average(0), [(ind(:i), ind(:j))]) == 0
@@ -176,7 +175,7 @@ const sqa = SecondQuantizedAlgebra
 
         @test isequal(
             SymbolicUtils.arguments(specAvrg),
-            SymbolicUtils.arguments(average(σ(2, 1, ind(:i)) * σ(1, 2, ind(:j))))
+            SymbolicUtils.arguments(average(σ(2, 1, ind(:i)) * σ(1, 2, ind(:j)))),
         )
     end
 

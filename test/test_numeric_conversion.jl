@@ -5,7 +5,6 @@ using Random;
 Random.seed!(0)
 
 @testset "numeric-conversion" begin
-
     @testset "Basic Fock Space Conversion" begin
         hfock = FockSpace(:fock)
         @qnumbers a::Destroy(hfock)
@@ -63,10 +62,14 @@ Random.seed!(0)
                 op1 = a*σprod(i, j)
                 op2 = a'*σprod(i, j)
                 @test to_numeric(op1, bprod) == LazyTensor(
-                    bprod, [1, 2], (destroy(bfock), QuantumOpticsBase.transition(bnlevel, i, j))
+                    bprod,
+                    [1, 2],
+                    (destroy(bfock), QuantumOpticsBase.transition(bnlevel, i, j)),
                 )
                 @test to_numeric(op2, bprod) == LazyTensor(
-                    bprod, [1, 2], (create(bfock), QuantumOpticsBase.transition(bnlevel, i, j))
+                    bprod,
+                    [1, 2],
+                    (create(bfock), QuantumOpticsBase.transition(bnlevel, i, j)),
                 )
             end
 
@@ -77,11 +80,13 @@ Random.seed!(0)
         @testset "Special Cases (LazySum)" begin
             op1_num = to_numeric(a*σprod(1, 1), bprod)
             @test op1_num isa LazySum
-            @test sparse(op1_num) == destroy(bfock) ⊗ QuantumOpticsBase.transition(bnlevel, 1, 1)
+            @test sparse(op1_num) ==
+                destroy(bfock) ⊗ QuantumOpticsBase.transition(bnlevel, 1, 1)
 
             op2_num = to_numeric(a'*σprod(1, 1), bprod)
             @test op2_num isa LazySum
-            @test sparse(op2_num) == create(bfock) ⊗ QuantumOpticsBase.transition(bnlevel, 1, 1)
+            @test sparse(op2_num) ==
+                create(bfock) ⊗ QuantumOpticsBase.transition(bnlevel, 1, 1)
         end
     end
 
@@ -113,7 +118,8 @@ Random.seed!(0)
 
         op1_num = to_numeric(a*σsym_prod(:g, :g), bprod; level_map=level_map)
         @test op1_num isa LazySum
-        @test sparse(op1_num) == destroy(bfock) ⊗ QuantumOpticsBase.transition(bnlevel, 1, 1)
+        @test sparse(op1_num) ==
+            destroy(bfock) ⊗ QuantumOpticsBase.transition(bnlevel, 1, 1)
 
         op2_num = to_numeric(a'*σsym_prod(:g, :g), bprod; level_map=level_map)
         @test op2_num isa LazySum
@@ -136,10 +142,14 @@ Random.seed!(0)
             op1 = a*σprod_gap(i, j)
             op2 = a'*σprod_gap(i, j)
             @test to_numeric(op1, bprod_gap) == LazyTensor(
-                bprod_gap, [1, 3], (destroy(bfock), QuantumOpticsBase.transition(bnlevel, i, j))
+                bprod_gap,
+                [1, 3],
+                (destroy(bfock), QuantumOpticsBase.transition(bnlevel, i, j)),
             )
             @test to_numeric(op2, bprod_gap) == LazyTensor(
-                bprod_gap, [1, 3], (create(bfock), QuantumOpticsBase.transition(bnlevel, i, j))
+                bprod_gap,
+                [1, 3],
+                (create(bfock), QuantumOpticsBase.transition(bnlevel, i, j)),
             )
         end
 
@@ -191,7 +201,8 @@ Random.seed!(0)
                 op_sym = σsym_prod(levels[i], levels[j])
                 op_num = idfock ⊗ QuantumOpticsBase.transition(bnlevel, i, j)
                 @test numeric_average(op, ψprod) ≈ expect(op_num, ψprod)
-                @test numeric_average(op_sym, ψprod; level_map=level_map) ≈ expect(op_num, ψprod)
+                @test numeric_average(op_sym, ψprod; level_map=level_map) ≈
+                    expect(op_num, ψprod)
             end
         end
 
@@ -217,7 +228,9 @@ Random.seed!(0)
                 for i in 1:3, j in 1:3
                     op = σprod(i, j)
                     op_sym = σsym_prod(levels[i], levels[j])
-                    op_num = LazyTensor(bprod, [2], (QuantumOpticsBase.transition(bnlevel, i, j),))
+                    op_num = LazyTensor(
+                        bprod, [2], (QuantumOpticsBase.transition(bnlevel, i, j),)
+                    )
                     @test numeric_average(op, ψlazy) ≈ expect(op_num, ψlazy)
                     @test numeric_average(op_sym, ψlazy; level_map=level_map) ≈
                         expect(op_num, ψlazy)
@@ -233,7 +246,9 @@ Random.seed!(0)
             bfock = FockBasis(100)
 
             diff = (2*create(bfock)+2*destroy(bfock)) - to_numeric((2*(a)+2*(a')), bfock)
-            @test isequal(2*create(bfock)+2*destroy(bfock), to_numeric((2*(a)+2*(a')), bfock))
+            @test isequal(
+                2*create(bfock)+2*destroy(bfock), to_numeric((2*(a)+2*(a')), bfock)
+            )
             @test iszero(diff)
 
             @test isequal(to_numeric(2*a, bfock), 2*to_numeric(a, bfock))
@@ -260,7 +275,9 @@ Random.seed!(0)
             ψ = tensor(ψc, [ψa for i in 1:order]...)
 
             a_ = LazyTensor(b, [1], (destroy(bc),))
-            σ_(i, j, k) = LazyTensor(b, [1+k], (QuantumOpticsBase.transition(basis_a, i, j),))
+            σ_(i, j, k) = LazyTensor(
+                b, [1+k], (QuantumOpticsBase.transition(basis_a, i, j),)
+            )
             ranges=[1, 2]
 
             @test to_numeric(σ(1, 2, 1), b; ranges=ranges) == σ_(1, 2, 1)

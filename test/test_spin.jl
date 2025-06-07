@@ -3,7 +3,6 @@ using QuantumOpticsBase
 using Test
 
 @testset "spin" begin
-
     @testset "Pauli Operators" begin
         @testset "Single Pauli Space" begin
             hs1 = PauliSpace(:Spin1)
