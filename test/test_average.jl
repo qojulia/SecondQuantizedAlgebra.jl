@@ -2,35 +2,54 @@ using SecondQuantizedAlgebra
 using SymbolicUtils
 using Test
 
+# ha1 = NLevelSpace(:atom1, 2)
+# ha2 = NLevelSpace(:atom2, 2)
+# h = ha1 ⊗ ha2
+# s1(i, j) = Transition(h, :s1, i, j, 1)
+# s2(i, j) = Transition(h, :s2, i, j, 2)
+
+# term = s1(2, 1) + s1(1, 2) + s2(2, 1) + s2(1, 2)
+# average(term)
+# args = map(average, SymbolicUtils.arguments(term))
+
+# # ∨ for SU@v3.29: calls SU types.jl#L1366
+# # ∨ for SU@v3.24: calls SQA average.jl#L30-41
+# # +(args...)
+
+# T = SecondQuantizedAlgebra.AvgSym
+# coeff = 0
+# dict = Dict{Any,Any}(zip(args, ones(Int, 4)))
+# SymbolicUtils.Add(T, coeff, dict)
+
 @testset "average" begin
     # Common setup
     hf = FockSpace(:cavity)
     ha = NLevelSpace(:atom, (:g, :e))
-    h = hf⊗ha
+    h = hf ⊗ ha
 
     a = Destroy(h, :a)
     σ = Transition(h, :σ, :g, :e)
 
     @testset "Basic Average Properties" begin
-        @test isequal(average(2a), 2*average(a))
-        @test isequal(average(2*(a+a)), 2*(average(a) + average(a)))
-        @test isequal(average(a^2), average(a*a))
+        @test isequal(average(2a), 2 * average(a))
+        @test isequal(average(2 * (a + a)), 2 * (average(a) + average(a)))
+        @test isequal(average(a^2), average(a * a))
     end
 
     @testset "Average Arithmetic" begin
-        @test isequal(simplify(average(σ)+average(σ)), average(2σ))
-        @test iszero(simplify(average(σ)-average(σ)))
+        @test isequal(simplify(average(σ) + average(σ)), average(2σ))
+        @test iszero(simplify(average(σ) - average(σ)))
     end
 
     @testset "C-Number Handling" begin
         ωc, ωa = cnumbers("ω_c ω_a")
         @test isequal(average(ωc), ωc)
-        @test isequal(average(ωc*a), ωc*average(a))
-        @test isequal(average(ωc*(a+a')), ωc*average(a) + ωc*average(a'))
+        @test isequal(average(ωc * a), ωc * average(a))
+        @test isequal(average(ωc * (a + a')), ωc * average(a) + ωc * average(a'))
     end
 
     @testset "Commutativity Properties" begin
-        @test iszero(average(a*σ)*average(a) - average(a)*average(a*σ))
+        @test iszero(average(a * σ) * average(a) - average(a) * average(a * σ))
     end
 
     @testset "Double Average" begin
@@ -49,15 +68,15 @@ using Test
 
         # Hamiltonian construction
         H =
-            Δ_*a_complex'*a_complex +
-            g*(a_complex' + a_complex)*(s1(2, 1) + s1(1, 2) + s2(2, 1) + s2(1, 2)) +
-            η*(a_complex' + a_complex)
+            Δ_ * a_complex' * a_complex +
+            g * (a_complex' + a_complex) * (s1(2, 1) + s1(1, 2) + s2(2, 1) + s2(1, 2)) +
+            η * (a_complex' + a_complex)
 
         J = [a_complex]
         rates = [κ]
 
         # Test double average operations
-        imH = im*H
+        imH = im * H
         op_ = a_complex'a_complex
         rhs_ = commutator(imH, op_)
         rhs_avg = average(rhs_)
@@ -66,6 +85,23 @@ using Test
 
         for arg in arguments(terms)
             @test arg isa SecondQuantizedAlgebra.QMul
+        end
+    end
+
+    @testset "Average addition/multiplication PR 28" begin
+        # https://github.com/qojulia/SecondQuantizedAlgebra.jl/issues/28
+        @testset "spin" begin
+            ha1 = NLevelSpace(:atom1, 2)
+            ha2 = NLevelSpace(:atom2, 2)
+            h = ha1 ⊗ ha2
+            s1(i, j) = Transition(h, :s1, i, j, 1)
+            s2(i, j) = Transition(h, :s2, i, j, 2)
+
+            expr = average(s1(2, 1) + s1(1, 2) + s2(2, 1) + s2(1, 2))
+            @test expr isa SymbolicUtils.BasicSymbolic{SecondQuantizedAlgebra.CNumber}
+
+            expr = simplify(average(s1(2, 1) + s1(1, 2)))
+            @test expr isa SymbolicUtils.BasicSymbolic{SecondQuantizedAlgebra.CNumber}
         end
     end
 end
