@@ -549,11 +549,6 @@ function SymbolicUtils.Mul(::Type{DoubleIndexedVariable}, coeff, dict; kw...)
     SymbolicUtils.Mul(CNumber, coeff, dict, kw...)
 end
 
-
-
-
-
-
 #function that creates an array consisting of all possible number values for each index given
 #ind_vec should be sorted beforehand
 function create_index_arrays(ind_vec, ranges)
