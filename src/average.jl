@@ -39,6 +39,12 @@ function +(a::Average, b::Average)
     end
     return SymbolicUtils.Add(CNumber, 0, Dict(a=>1, b=>1))
 end
+function SymbolicUtils.Add(::Type{AvgSym}, coeff, dict; kw...)
+    SymbolicUtils.Add(CNumber, coeff, dict, kw...)
+end
+function SymbolicUtils.Mul(::Type{AvgSym}, coeff, dict; kw...)
+    SymbolicUtils.Mul(CNumber, coeff, dict, kw...)
+end
 
 function acts_on(s::SymbolicUtils.Symbolic)
     if SymbolicUtils.iscall(s)
