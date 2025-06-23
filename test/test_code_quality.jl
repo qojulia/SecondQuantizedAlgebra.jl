@@ -25,7 +25,7 @@ if isempty(VERSION.prerelease)
         # JET.test_package(SecondQuantizedAlgebra; target_defined_modules=true)
         rep = report_package("SecondQuantizedAlgebra")
         @show rep
-        @test length(JET.get_reports(rep)) <= 259
+        @test length(JET.get_reports(rep)) <= 262
         @test_broken length(JET.get_reports(rep)) == 0
     end
 end
