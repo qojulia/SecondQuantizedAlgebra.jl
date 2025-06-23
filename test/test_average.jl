@@ -104,5 +104,4 @@ using Test
             @test expr isa SymbolicUtils.BasicSymbolic{SecondQuantizedAlgebra.CNumber}
         end
     end
-
 end
