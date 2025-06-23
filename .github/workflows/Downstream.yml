@@ -1,9 +1,10 @@
 name: IntegrationTest
 on:
   push:
-    branches: [master]
-    tags: [v*]
+    branches: [main]
   pull_request:
+
+  workflow_dispatch:
 
 jobs:
   test:
