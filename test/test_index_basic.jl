@@ -466,4 +466,18 @@ const sqa = SecondQuantizedAlgebra
         @test isequal(∑(α, i), N*α)
         @test isequal(∑(5α, i), 5*N*α)
     end
+
+    @testset "Average addition/multiplication PR 28" begin
+        # https://github.com/qojulia/SecondQuantizedAlgebra.jl/issues/28
+
+        h=NLevelSpace(:spin, 2)
+        @cnumbers N
+        i1 = Index(h, :i1, N, h)
+        i2 = Index(h, :i2, N, h)
+        i = Index(h, :i, N, h)
+        s(α, β, i) = IndexedOperator(Transition(h, :S, α, β, 1), i)
+
+        term = average(Σ(s(2, 1, i1) * s(1, 2, i2), i1, i2))
+        (term + term) isa SymbolicUtils.BasicSymbolic{CNumber}
+    end
 end

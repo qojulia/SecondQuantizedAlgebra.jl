@@ -474,45 +474,6 @@ end
     return sumString
 end
 
-function +(a::BasicSymbolic{SpecialIndexedAverage}, b::BasicSymbolic{SpecialIndexedAverage})
-    if isequal(a, b)
-        return SymbolicUtils.Add(CNumber, 0, Dict(a=>2))
-    end
-    return SymbolicUtils.Add(CNumber, 0, Dict(a=>1, b=>1))
-end
-function +(
-    a::BasicSymbolic{IndexedAverageDoubleSum}, b::BasicSymbolic{IndexedAverageDoubleSum}
-)
-    if isequal(a, b)
-        return SymbolicUtils.Add(CNumber, 0, Dict(a=>2))
-    end
-    return SymbolicUtils.Add(CNumber, 0, Dict(a=>1, b=>1))
-end
-function +(a::BasicSymbolic{IndexedAverageSum}, b::BasicSymbolic{IndexedAverageSum})
-    if isequal(a, b)
-        return SymbolicUtils.Add(CNumber, 0, Dict(a=>2))
-    end
-    return SymbolicUtils.Add(CNumber, 0, Dict(a=>1, b=>1))
-end
-function *(a::BasicSymbolic{SpecialIndexedAverage}, b::BasicSymbolic{SpecialIndexedAverage})
-    if isequal(a, b)
-        return SymbolicUtils.Mul(CNumber, 1, Dict(a=>2))
-    end
-    return SymbolicUtils.Mul(CNumber, 1, Dict(a=>1, b=>1))
-end
-function +(a::BasicSymbolic{IndexedVariable}, b::BasicSymbolic{IndexedVariable})
-    if isequal(a, b)
-        return SymbolicUtils.Add(CNumber, 0, Dict(a=>2))
-    end
-    return SymbolicUtils.Add(CNumber, 0, Dict(a=>1, b=>1))
-end
-function +(a::BasicSymbolic{DoubleIndexedVariable}, b::BasicSymbolic{DoubleIndexedVariable})
-    if isequal(a, b)
-        return SymbolicUtils.Add(CNumber, 0, Dict(a=>2))
-    end
-    return SymbolicUtils.Add(CNumber, 0, Dict(a=>1, b=>1))
-end
-
 # ∨ https://github.com/qojulia/SecondQuantizedAlgebra.jl/issues/28
 function SymbolicUtils.Add(::Type{SpecialIndexedAverage}, coeff, dict; kw...)
     SymbolicUtils.Add(CNumber, coeff, dict, kw...)
