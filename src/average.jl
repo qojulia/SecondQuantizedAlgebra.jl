@@ -19,7 +19,7 @@ end
 SymbolicUtils.promote_symtype(::typeof(sym_average), ::Type{<:QNumber}) = AvgSym
 
 # needs a specific symtype overload, otherwise we build the wrong expressions with maketerm
-SymbolicUtils.symtype(::T) where {T<:Average} = AvgSym
+SymbolicUtils.symtype(::T) where {T<:Average} = CNumber
 
 # Direct construction of average symbolic expression
 function _average(operator)
@@ -27,18 +27,18 @@ function _average(operator)
 end
 
 # ensure that BasicSymbolic{<:AvgSym} are only single averages
-function *(a::Average, b::Average)
-    if isequal(a, b)
-        return SymbolicUtils.Mul(CNumber, 1, Dict(a=>2))
-    end
-    return SymbolicUtils.Mul(CNumber, 1, Dict(a=>1, b=>1))
-end
-function +(a::Average, b::Average)
-    if isequal(a, b)
-        return SymbolicUtils.Add(CNumber, 0, Dict(a=>2))
-    end
-    return SymbolicUtils.Add(CNumber, 0, Dict(a=>1, b=>1))
-end
+# function *(a::Average, b::Average)
+#     if isequal(a, b)
+#         return SymbolicUtils.Mul(CNumber, 1, Dict(a=>2))
+#     end
+#     return SymbolicUtils.Mul(CNumber, 1, Dict(a=>1, b=>1))
+# end
+# function +(a::Average, b::Average)
+#     if isequal(a, b)
+#         return SymbolicUtils.Add(CNumber, 0, Dict(a=>2))
+#     end
+#     return SymbolicUtils.Add(CNumber, 0, Dict(a=>1, b=>1))
+# end
 
 function acts_on(s::SymbolicUtils.Symbolic)
     if SymbolicUtils.iscall(s)

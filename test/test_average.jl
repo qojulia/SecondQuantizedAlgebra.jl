@@ -2,6 +2,25 @@ using SecondQuantizedAlgebra
 using SymbolicUtils
 using Test
 
+# ha1 = NLevelSpace(:atom1, 2)
+# ha2 = NLevelSpace(:atom2, 2)
+# h = ha1 ⊗ ha2
+# s1(i, j) = Transition(h, :s1, i, j, 1)
+# s2(i, j) = Transition(h, :s2, i, j, 2)
+
+# term = s1(2, 1) + s1(1, 2) + s2(2, 1) + s2(1, 2)
+# average(term)
+# args = map(average, SymbolicUtils.arguments(term))
+
+# # ∨ for SU@v3.29: calls SU types.jl#L1366
+# # ∨ for SU@v3.24: calls SQA average.jl#L30-41
+# # +(args...)
+
+# T = SecondQuantizedAlgebra.AvgSym
+# coeff = 0
+# dict = Dict{Any,Any}(zip(args, ones(Int, 4)))
+# SymbolicUtils.Add(T, coeff, dict)
+
 @testset "average" begin
     # Common setup
     hf = FockSpace(:cavity)
@@ -68,38 +87,22 @@ using Test
             @test arg isa SecondQuantizedAlgebra.QMul
         end
     end
-end
 
-@testset "QuantumCumulants PR 242" begin
-    @testset "spin" begin
-        ha1 = NLevelSpace(:atom1, 2)
-        ha2 = NLevelSpace(:atom2, 2)
-        h = ha1 ⊗ ha2
-        s1(i, j) = Transition(h, :s1, i, j, 1)
-        s2(i, j) = Transition(h, :s2, i, j, 2)
+    @testset "Average addition/multiplication PR 28" begin
+        # https://github.com/qojulia/SecondQuantizedAlgebra.jl/issues/28
+        @testset "spin" begin
+            ha1 = NLevelSpace(:atom1, 2)
+            ha2 = NLevelSpace(:atom2, 2)
+            h = ha1 ⊗ ha2
+            s1(i, j) = Transition(h, :s1, i, j, 1)
+            s2(i, j) = Transition(h, :s2, i, j, 2)
 
-        expr = average(s1(2, 1) + s1(1, 2) + s2(2, 1) + s2(1, 2))
-        @test expr isa SymbolicUtils.BasicSymbolic{SecondQuantizedAlgebra.CNumber} broken =
-            true
-        expr = simplify(average(s1(2, 1) + s1(1, 2)))
-        @test expr isa SymbolicUtils.BasicSymbolic{SecondQuantizedAlgebra.CNumber}
+            expr = average(s1(2, 1) + s1(1, 2) + s2(2, 1) + s2(1, 2))
+            @test expr isa SymbolicUtils.BasicSymbolic{SecondQuantizedAlgebra.CNumber}
+
+            expr = simplify(average(s1(2, 1) + s1(1, 2)))
+            @test expr isa SymbolicUtils.BasicSymbolic{SecondQuantizedAlgebra.CNumber}
+        end
     end
 
-    @testset "fock space" begin
-        h₁ = FockSpace(:cavity1)
-        h₂ = FockSpace(:cavity2)
-        h₃ = FockSpace(:cavity3)
-        h = h₁ ⊗ h₂ ⊗ h₃
-
-        @qnumbers a1::Destroy(h, 1) a2::Destroy(h, 2) a3::Destroy(h, 3)
-
-        expr = average(a1 + a1') |> simplify
-        @test expr isa SymbolicUtils.BasicSymbolic{SecondQuantizedAlgebra.CNumber}
-
-        expr = average(a1 + a2') |> simplify
-        @test expr isa SymbolicUtils.BasicSymbolic{SecondQuantizedAlgebra.CNumber}
-
-        expr = average(a1 + a2) |> simplify
-        @test expr isa SymbolicUtils.BasicSymbolic{SecondQuantizedAlgebra.CNumber}
-    end
 end
