@@ -474,43 +474,40 @@ end
     return sumString
 end
 
-function +(a::BasicSymbolic{SpecialIndexedAverage}, b::BasicSymbolic{SpecialIndexedAverage})
-    if isequal(a, b)
-        return SymbolicUtils.Add(CNumber, 0, Dict(a=>2))
-    end
-    return SymbolicUtils.Add(CNumber, 0, Dict(a=>1, b=>1))
+# ∨ https://github.com/qojulia/SecondQuantizedAlgebra.jl/issues/28
+function SymbolicUtils.Add(::Type{SpecialIndexedAverage}, coeff, dict; kw...)
+    SymbolicUtils.Add(CNumber, coeff, dict, kw...)
 end
-function +(
-    a::BasicSymbolic{IndexedAverageDoubleSum}, b::BasicSymbolic{IndexedAverageDoubleSum}
-)
-    if isequal(a, b)
-        return SymbolicUtils.Add(CNumber, 0, Dict(a=>2))
-    end
-    return SymbolicUtils.Add(CNumber, 0, Dict(a=>1, b=>1))
+function SymbolicUtils.Mul(::Type{SpecialIndexedAverage}, coeff, dict; kw...)
+    SymbolicUtils.Mul(CNumber, coeff, dict, kw...)
 end
-function +(a::BasicSymbolic{IndexedAverageSum}, b::BasicSymbolic{IndexedAverageSum})
-    if isequal(a, b)
-        return SymbolicUtils.Add(CNumber, 0, Dict(a=>2))
-    end
-    return SymbolicUtils.Add(CNumber, 0, Dict(a=>1, b=>1))
+
+function SymbolicUtils.Add(::Type{IndexedAverageDoubleSum}, coeff, dict; kw...)
+    SymbolicUtils.Add(CNumber, coeff, dict, kw...)
 end
-function *(a::BasicSymbolic{SpecialIndexedAverage}, b::BasicSymbolic{SpecialIndexedAverage})
-    if isequal(a, b)
-        return SymbolicUtils.Mul(CNumber, 1, Dict(a=>2))
-    end
-    return SymbolicUtils.Mul(CNumber, 1, Dict(a=>1, b=>1))
+function SymbolicUtils.Mul(::Type{IndexedAverageDoubleSum}, coeff, dict; kw...)
+    SymbolicUtils.Mul(CNumber, coeff, dict, kw...)
 end
-function +(a::BasicSymbolic{IndexedVariable}, b::BasicSymbolic{IndexedVariable})
-    if isequal(a, b)
-        return SymbolicUtils.Add(CNumber, 0, Dict(a=>2))
-    end
-    return SymbolicUtils.Add(CNumber, 0, Dict(a=>1, b=>1))
+
+function SymbolicUtils.Add(::Type{IndexedAverageSum}, coeff, dict; kw...)
+    SymbolicUtils.Add(CNumber, coeff, dict, kw...)
 end
-function +(a::BasicSymbolic{DoubleIndexedVariable}, b::BasicSymbolic{DoubleIndexedVariable})
-    if isequal(a, b)
-        return SymbolicUtils.Add(CNumber, 0, Dict(a=>2))
-    end
-    return SymbolicUtils.Add(CNumber, 0, Dict(a=>1, b=>1))
+function SymbolicUtils.Mul(::Type{IndexedAverageSum}, coeff, dict; kw...)
+    SymbolicUtils.Mul(CNumber, coeff, dict, kw...)
+end
+
+function SymbolicUtils.Add(::Type{IndexedVariable}, coeff, dict; kw...)
+    SymbolicUtils.Add(CNumber, coeff, dict, kw...)
+end
+function SymbolicUtils.Mul(::Type{IndexedVariable}, coeff, dict; kw...)
+    SymbolicUtils.Mul(CNumber, coeff, dict, kw...)
+end
+
+function SymbolicUtils.Add(::Type{DoubleIndexedVariable}, coeff, dict; kw...)
+    SymbolicUtils.Add(CNumber, coeff, dict, kw...)
+end
+function SymbolicUtils.Mul(::Type{DoubleIndexedVariable}, coeff, dict; kw...)
+    SymbolicUtils.Mul(CNumber, coeff, dict, kw...)
 end
 
 #function that creates an array consisting of all possible number values for each index given
