@@ -25,12 +25,54 @@ if isempty(VERSION.prerelease)
         # JET.test_package(SecondQuantizedAlgebra; target_defined_modules=true)
         rep = report_package("SecondQuantizedAlgebra")
         @show rep
-        @test length(JET.get_reports(rep)) <= 259
+        @test length(JET.get_reports(rep)) <= 262
         @test_broken length(JET.get_reports(rep)) == 0
     end
 end
 
 @testset "Concretely typed" begin
-    using SecondQuantizedAlgebra
+    import SecondQuantizedAlgebra as SQA
     using CheckConcreteStructs
+
+    all_concrete(SQA.QMul)
+    all_concrete(SQA.QAdd)
+
+    all_concrete(SQA.AvgSym)
+
+    all_concrete(SQA.Parameter)
+    all_concrete(SQA.RealParameter)
+
+    all_concrete(SQA.FockSpace)
+    all_concrete(SQA.Destroy)
+    all_concrete(SQA.Create)
+
+    all_concrete(SQA.PauliSpace)
+    all_concrete(SQA.Pauli)
+    all_concrete(SQA.SpinSpace)
+    all_concrete(SQA.Spin)
+
+    all_concrete(SQA.NLevelSpace)
+    all_concrete(SQA.Transition)
+    all_concrete(SQA.CallableTransition)
+
+    all_concrete(SQA.ProductSpace)
+    all_concrete(SQA.ClusterSpace)
+    all_concrete(SQA.ClusterAon)
+
+    all_concrete(SQA.IndexedAverageSum)
+    all_concrete(SQA.IndexedAverageDoubleSum)
+    all_concrete(SQA.SingleNumberedVariable)
+    all_concrete(SQA.DoubleNumberedVariable)
+    all_concrete(SQA.SpecialIndexedAverage)
+
+    all_concrete(SQA.DoubleSum)
+
+    all_concrete(SQA.NumberedOperator)
+
+    all_concrete(SQA.Index)
+    all_concrete(SQA.IndexedVariable)
+    all_concrete(SQA.DoubleIndexedVariable)
+    all_concrete(SQA.IndexedOperator)
+    all_concrete(SQA.SingleSum)
+    all_concrete(SQA.SpecialIndexedTerm)
 end

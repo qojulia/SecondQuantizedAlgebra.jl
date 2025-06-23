@@ -27,17 +27,24 @@ function _average(operator)
 end
 
 # ensure that BasicSymbolic{<:AvgSym} are only single averages
-function *(a::Average, b::Average)
-    if isequal(a, b)
-        return SymbolicUtils.Mul(CNumber, 1, Dict(a=>2))
-    end
-    return SymbolicUtils.Mul(CNumber, 1, Dict(a=>1, b=>1))
+# function *(a::Average, b::Average)
+#     if isequal(a, b)
+#         return SymbolicUtils.Mul(CNumber, 1, Dict(a=>2))
+#     end
+#     return SymbolicUtils.Mul(CNumber, 1, Dict(a=>1, b=>1))
+# end
+# function +(a::Average, b::Average)
+#     if isequal(a, b)
+#         return SymbolicUtils.Add(CNumber, 0, Dict(a=>2))
+#     end
+#     return SymbolicUtils.Add(CNumber, 0, Dict(a=>1, b=>1))
+# end
+# ∨ https://github.com/qojulia/SecondQuantizedAlgebra.jl/issues/28
+function SymbolicUtils.Add(::Type{AvgSym}, coeff, dict; kw...)
+    SymbolicUtils.Add(CNumber, coeff, dict, kw...)
 end
-function +(a::Average, b::Average)
-    if isequal(a, b)
-        return SymbolicUtils.Add(CNumber, 0, Dict(a=>2))
-    end
-    return SymbolicUtils.Add(CNumber, 0, Dict(a=>1, b=>1))
+function SymbolicUtils.Mul(::Type{AvgSym}, coeff, dict; kw...)
+    SymbolicUtils.Mul(CNumber, coeff, dict, kw...)
 end
 
 function acts_on(s::SymbolicUtils.Symbolic)
