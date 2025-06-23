@@ -69,3 +69,16 @@ using Test
         end
     end
 end
+
+@testset "QuantumCumulants PR 242" begin
+    ha1 = NLevelSpace(:atom1, 2)
+    ha2 = NLevelSpace(:atom2, 2)
+    h = ha1 ⊗ ha2
+    s1(i, j) = Transition(h, :s1, i, j, 1)
+    s2(i, j) = Transition(h, :s2, i, j, 2)
+
+    expr = average(s1(2, 1) + s1(1, 2) + s2(2, 1) + s2(1, 2))
+    @test expr isa SymbolicUtils.BasicSymbolic{SecondQuantizedAlgebra.CNumber} broken = true
+    expr = simplify(average(s1(2, 1) + s1(1, 2)))
+    @test expr isa SymbolicUtils.BasicSymbolic{SecondQuantizedAlgebra.CNumber}
+end
