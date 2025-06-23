@@ -513,6 +513,30 @@ function +(a::BasicSymbolic{DoubleIndexedVariable}, b::BasicSymbolic{DoubleIndex
     return SymbolicUtils.Add(CNumber, 0, Dict(a=>1, b=>1))
 end
 
+# ∨ https://github.com/qojulia/SecondQuantizedAlgebra.jl/issues/28
+function SymbolicUtils.Add(::Type{SpecialIndexedAverage}, coeff, dict; kw...)
+    SymbolicUtils.Add(CNumber, coeff, dict, kw...)
+end
+function SymbolicUtils.Mul(::Type{SpecialIndexedAverage}, coeff, dict; kw...)
+    SymbolicUtils.Mul(CNumber, coeff, dict, kw...)
+end
+
+function SymbolicUtils.Add(::Type{IndexedAverageDoubleSum}, coeff, dict; kw...)
+    SymbolicUtils.Add(CNumber, coeff, dict, kw...)
+end
+function SymbolicUtils.Mul(::Type{IndexedAverageDoubleSum}, coeff, dict; kw...)
+    SymbolicUtils.Mul(CNumber, coeff, dict, kw...)
+end
+
+function SymbolicUtils.Add(::Type{SpecialIndexedAverage}, coeff, dict; kw...)
+    SymbolicUtils.Add(CNumber, coeff, dict, kw...)
+end
+function SymbolicUtils.Mul(::Type{SpecialIndexedAverage}, coeff, dict; kw...)
+    SymbolicUtils.Mul(CNumber, coeff, dict, kw...)
+end
+
+
+
 #function that creates an array consisting of all possible number values for each index given
 #ind_vec should be sorted beforehand
 function create_index_arrays(ind_vec, ranges)
