@@ -16,7 +16,6 @@ using MacroTools: MacroTools
 
 import ModelingToolkit as MTK
 
-
 const NO_METADATA = SymbolicUtils.NO_METADATA
 
 function source_metadata(source, name)
