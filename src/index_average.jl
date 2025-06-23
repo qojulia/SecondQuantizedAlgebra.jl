@@ -528,12 +528,29 @@ function SymbolicUtils.Mul(::Type{IndexedAverageDoubleSum}, coeff, dict; kw...)
     SymbolicUtils.Mul(CNumber, coeff, dict, kw...)
 end
 
-function SymbolicUtils.Add(::Type{SpecialIndexedAverage}, coeff, dict; kw...)
+function SymbolicUtils.Add(::Type{IndexedAverageSum}, coeff, dict; kw...)
     SymbolicUtils.Add(CNumber, coeff, dict, kw...)
 end
-function SymbolicUtils.Mul(::Type{SpecialIndexedAverage}, coeff, dict; kw...)
+function SymbolicUtils.Mul(::Type{IndexedAverageSum}, coeff, dict; kw...)
     SymbolicUtils.Mul(CNumber, coeff, dict, kw...)
 end
+
+function SymbolicUtils.Add(::Type{IndexedVariable}, coeff, dict; kw...)
+    SymbolicUtils.Add(CNumber, coeff, dict, kw...)
+end
+function SymbolicUtils.Mul(::Type{IndexedVariable}, coeff, dict; kw...)
+    SymbolicUtils.Mul(CNumber, coeff, dict, kw...)
+end
+
+function SymbolicUtils.Add(::Type{DoubleIndexedVariable}, coeff, dict; kw...)
+    SymbolicUtils.Add(CNumber, coeff, dict, kw...)
+end
+function SymbolicUtils.Mul(::Type{DoubleIndexedVariable}, coeff, dict; kw...)
+    SymbolicUtils.Mul(CNumber, coeff, dict, kw...)
+end
+
+
+
 
 
 
