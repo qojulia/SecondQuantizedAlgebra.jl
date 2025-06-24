@@ -622,8 +622,6 @@ Base.isless(a::IndexedOperator, b::IndexedOperator) = a.op.name < b.op.name
 Base.isless(a::QMul, b::QMul) = isless(a.args_nc, b.args_nc)
 Base.isless(a::IndexedOperator, b::QSym) = a.op.name < b.name
 Base.isless(a::QSym, b::IndexedOperator) = a.name < b.op.name
-Base.isless(nothing, b::Symbol) = true # TODO: type-piracy
-Base.isless(b::Symbol, nothing) = false # TODO: type-piracy
 
 Base.isless(a::Index, b::Index) = a.name < b.name
 Base.isless(a::SingleSum, b::SingleSum) = Base.isless(a.sum_index, b.sum_index)
