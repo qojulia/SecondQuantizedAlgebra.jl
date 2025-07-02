@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1751359301131,
+  "lastUpdate": 1751470830591,
   "repoUrl": "https://github.com/qojulia/SecondQuantizedAlgebra.jl",
   "entries": {
     "Benchmark Results": [
@@ -370,6 +370,42 @@ window.BENCHMARK_DATA = {
           {
             "name": "Micro Benchmarks/Nested commutator",
             "value": 43965105,
+            "unit": "ns",
+            "extra": "gctime=0\nmemory=19656720\nallocs=463760\nparams={\"gctrial\":true,\"time_tolerance\":0.05,\"evals_set\":false,\"samples\":10000,\"evals\":1,\"gcsample\":false,\"seconds\":20,\"overhead\":0,\"memory_tolerance\":0.01}"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "orjan.ameye@hotmail.com",
+            "name": "Orjan Ameye",
+            "username": "oameye"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "9a7817b987f433d2ff06a7d940943087ddacea33",
+          "message": "fix: update unnecessary ModelingToolkit strict compat (#37)",
+          "timestamp": "2025-07-02T17:38:51+02:00",
+          "tree_id": "5ca02df6da8782b4a1aec48551fac6a0b4587977",
+          "url": "https://github.com/qojulia/SecondQuantizedAlgebra.jl/commit/9a7817b987f433d2ff06a7d940943087ddacea33"
+        },
+        "date": 1751470830177,
+        "tool": "julia",
+        "benches": [
+          {
+            "name": "Jaynes–Cummings/First order Schrieffer-Wolf",
+            "value": 184774,
+            "unit": "ns",
+            "extra": "gctime=0\nmemory=51248\nallocs=1223\nparams={\"gctrial\":true,\"time_tolerance\":0.05,\"evals_set\":false,\"samples\":10000,\"evals\":1,\"gcsample\":false,\"seconds\":10,\"overhead\":0,\"memory_tolerance\":0.01}"
+          },
+          {
+            "name": "Micro Benchmarks/Nested commutator",
+            "value": 44498038,
             "unit": "ns",
             "extra": "gctime=0\nmemory=19656720\nallocs=463760\nparams={\"gctrial\":true,\"time_tolerance\":0.05,\"evals_set\":false,\"samples\":10000,\"evals\":1,\"gcsample\":false,\"seconds\":20,\"overhead\":0,\"memory_tolerance\":0.01}"
           }
