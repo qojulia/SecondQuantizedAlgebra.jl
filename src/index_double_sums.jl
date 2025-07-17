@@ -134,6 +134,9 @@ function *(elem::IndexedObSym, sum::DoubleSum)
         return elem*sum_
     end
     NEI = copy(sum.NEI)
+    if elem.ind ∉ [sum.sum_index, sum.innerSum.sum_index] 
+        return DoubleSum(elem*sum.innerSum, sum.sum_index, NEI)
+    end
     if elem.ind != sum.sum_index && elem.ind ∉ NEI
         if (sum.sum_index.aon != sum.innerSum.sum_index.aon) # indices for different ops
             if isequal(elem.ind.aon, sum.sum_index.aon)
@@ -181,6 +184,9 @@ function *(sum::DoubleSum, elem::IndexedObSym)
         return sum_*elem
     end
     NEI = copy(sum.NEI)
+    if elem.ind ∉ [sum.sum_index, sum.innerSum.sum_index]  
+        return DoubleSum(sum.innerSum*elem, sum.sum_index, NEI)
+    end
     if elem.ind != sum.sum_index && elem.ind ∉ NEI
         if (sum.sum_index.aon != sum.innerSum.sum_index.aon) # indices for different ops
             if isequal(elem.ind.aon, sum.sum_index.aon)

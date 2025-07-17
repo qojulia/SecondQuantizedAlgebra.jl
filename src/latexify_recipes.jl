@@ -53,7 +53,7 @@ function _postwalk_func(x)
         return s
     elseif MacroTools.@capture(x, SingleSum(term_, sumInd_, range_, NEI_))
         s = if NEI != ""
-            "\\underset{$(sumInd)≠$(NEI)}{\\overset{$(range)}{\\sum}} $(_postwalk_func(term))"
+            "\\underset{$(sumInd){\\neq}$(NEI)}{\\overset{$(range)}{\\sum}} $(_postwalk_func(term))"
         else
             "\\underset{$(sumInd)}{\\overset{$(range)}{\\sum}} $(_postwalk_func(term))"
         end
@@ -63,7 +63,7 @@ function _postwalk_func(x)
         return s
     elseif MacroTools.@capture(x, DoubleSum(term_, sumInd_, range_, NEI_))
         s = if NEI != ""
-            "\\underset{$(sumInd)≠$(NEI)}{\\overset{$(range)}{\\sum}} $(_postwalk_func(term))"
+            "\\underset{$(sumInd){\\neq}$(NEI)}{\\overset{$(range)}{\\sum}} $(_postwalk_func(term))"
         else
             "\\underset{$(sumInd)}{\\overset{$(range)}{\\sum}} $(_postwalk_func(term))"
         end
@@ -74,7 +74,7 @@ function _postwalk_func(x)
     elseif MacroTools.@capture(x, IndexedAverageSum(term_, sumInd_, range_, NEI_))
         term = MacroTools.postwalk(_postwalk_average, term)
         s = if NEI != ""
-            "\\underset{$(sumInd)≠$(NEI)}{\\overset{$(range)}{\\sum}} $(term)"
+            "\\underset{$(sumInd){\\neq}$(NEI)}{\\overset{$(range)}{\\sum}} $(term)"
         else
             "\\underset{$(sumInd)}{\\overset{$(range)}{\\sum}} $(term)"
         end
@@ -85,7 +85,7 @@ function _postwalk_func(x)
     elseif MacroTools.@capture(x, IndexedAverageDoubleSum(term_, sumInd_, range_, NEI_))
         term = MacroTools.postwalk(_postwalk_average, term)
         s = if NEI != ""
-            "\\underset{$(sumInd)≠$(NEI)}{\\overset{$(range)}{\\sum}} $(term)"
+            "\\underset{$(sumInd){\\neq}$(NEI)}{\\overset{$(range)}{\\sum}} $(term)"
         else
             "\\underset{$(sumInd)}{\\overset{$(range)}{\\sum}} $(term)"
         end
