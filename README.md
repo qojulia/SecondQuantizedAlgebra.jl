@@ -30,21 +30,23 @@ pkg> add SecondQuantizedAlgebra
 
 ```julia
 using SecondQuantizedAlgebra
+using SymbolicUtils
 
 ha = NLevelSpace(:atoms,2)
 hc = FockSpace(:cavity)
 h = hc ⊗ ha
 
-@cnumbers N Δ κ γ ν
-
-i = Index(h,:i,N,ha)
-j = Index(h,:j,N,ha)
-
 @qnumbers b::Destroy(h)
-σ(x,y,z) = IndexedOperator(Transition(h,:σ,x,y),z)
-gi = IndexedVariable(:g,i)
+σ(i,j) = Transition(h,:σ,i,j)
 
-H = Δ*b'*b + ∑(gi*(b*σ(2,1,i) + b'*σ(1,2,i)),i)
+@cnumbers g Δ
+
+H = Δ*b'*b + g*(b*σ(2,1) + b'*σ(1,2))
+
+@show b*b'
+@show σ(2,1)*σ(1,1)
+
+simplify(commutator(H, b))
 ```
 
 See the [documentation](https://qojulia.github.io/SecondQuantizedAlgebra.jl/) for more details and advanced usage.
