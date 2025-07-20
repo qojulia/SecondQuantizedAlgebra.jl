@@ -318,8 +318,9 @@ Random.seed!(0)
             ψ = tensor(ψc, [ψa for i in 1:order]...)
 
             a_ = LazyTensor(b, [1], (destroy(bc),))
-            σ_(i, j, k) =
-                LazyTensor(b, [1 + k], (QuantumOpticsBase.transition(basis_a, i, j),))
+            σ_(i, j, k) = LazyTensor(
+                b, [1 + k], (QuantumOpticsBase.transition(basis_a, i, j),)
+            )
             ranges = [1, 2]
 
             @test to_numeric(σ(1, 2, 1), b; ranges=ranges) == σ_(1, 2, 1)
