@@ -13,6 +13,9 @@ using Test
         @test isequal(p*x, x*p - 1im)
         @test isequal(simplify(p*x*x), simplify(x*x*p - 2im*x))
         @test isequal(substitute(x*x*p, Dict([x, p] .=> [2, 3])), 2*2*3)
+        @test isequal(adjoint(x), x)
+        @test isequal(adjoint(p), p)
+        @test SecondQuantizedAlgebra.ismergeable(p, x)
     end
 
     @testset "Multi-Pauli Space Operations" begin
@@ -27,6 +30,10 @@ using Test
 
         @test isequal(p1*x2, x2*p1)
         @test isequal(simplify(p1*x2*x1), simplify((x1*p1-1im)*x2))
+        @test isequal(adjoint(x1), x1)
+        @test isequal(adjoint(p1), p1)
+        @test SecondQuantizedAlgebra.ismergeable(p1, x1)
+        @test !SecondQuantizedAlgebra.ismergeable(p1, x2)
     end
 
     @testset "Pauli Hamiltonian Construction and Equations" begin
