@@ -67,4 +67,27 @@ using Test
             @test isequal(substitute(x*(a+a'), Dict(x => y)), y*(a + a'))
         end
     end
+    @testset "HilbertsSpace" begin
+        h1 = FockSpace(:c1)
+        h2 = FockSpace(:c2)
+        h3 = FockSpace(:c3)
+        h4 = FockSpace(:c4)
+
+        h12 = h1 ⊗ h2
+        h23 = h2 ⊗ h3
+        h34 = h3 ⊗ h4
+        h123 = h12 ⊗ h3
+        h1234 = h123 ⊗ h4
+        h1234_ = h12 ⊗ h34
+        h = h1 ⊗ h2 ⊗ h3 ⊗ h4
+
+        @test h123 == h1 ⊗ h2 ⊗ h3 == h1 ⊗ h23
+        @test h == h1234 == h1234_
+        @test ⊗(h1) == h1
+        @test tensor(h1, h2, h3, h4) == h
+        @test isless(h1, h2)
+        @test !isless(h3, h2)
+        @test isless(h12, h23)
+        @test copy(h1) == h1
+    end
 end
