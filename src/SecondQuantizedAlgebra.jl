@@ -26,6 +26,7 @@ include("cnumber.jl")
 include("fock.jl")
 include("nlevel.jl")
 include("spin.jl")
+include("phase_space.jl")
 include("commutator.jl")
 
 include("average.jl")
@@ -57,6 +58,9 @@ export HilbertSpace,
     Pauli,
     SpinSpace,
     Spin,
+    PhaseSpace,
+    Position,
+    Momentum,
     commutator,
     acts_on,
     CNumber,
