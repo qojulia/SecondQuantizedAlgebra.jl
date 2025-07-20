@@ -1,6 +1,6 @@
 module SecondQuantizedAlgebra
 
-using SymbolicUtils: SymbolicUtils, BasicSymbolic, arguments, iscall, operation
+using SymbolicUtils: SymbolicUtils, BasicSymbolic, arguments, iscall, operation, substitute
 using Symbolics: Symbolics
 using TermInterface: TermInterface
 
