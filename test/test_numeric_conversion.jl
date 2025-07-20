@@ -43,6 +43,36 @@ Random.seed!(0)
                     QuantumOpticsBase.transition(bnlevel, i, j)
             end
         end
+        @testset "PhaseSpace" begin
+            h = PhaseSpace(:motion)
+            x = Position(h, :x, 1)
+            p = Momentum(h, :p, 1)
+
+            xmin = -2.0
+            xmax = 4.0
+            N = 100
+            b_position = PositionBasis(xmin, xmax, N)
+            x_qo = to_numeric(x, b_position)
+            p_qo = to_numeric(p, b_position)
+
+            x0 = 1.2;
+            p0 = 0.4;
+            sigma = 0.2
+            ψ0 = gaussianstate(b_position, x0, p0, sigma)
+
+            x_qo_ = position(b_position)
+            p_qo_ = momentum(b_position)
+            @test isequal(dense(x_qo), dense(x_qo_))
+            @test isequal(dense(p_qo), dense(p_qo_))
+
+            @test abs(expect(x_qo, ψ0) - x0) < 1e-6
+            @test abs(expect(p_qo, ψ0) - p0) < 1e-6
+            @test abs(√(variance(x_qo, ψ0)*2) - sigma) < 1e-6
+
+            @test numeric_average(x, ψ0) ≈ x0
+            @test numeric_average(p, ψ0) ≈ p0
+            @test abs(numeric_average((x-x0)^2, ψ0) - variance(x_qo, ψ0)) < 1e-6
+        end
     end
 
     @testset "Composite Basis Conversion" begin

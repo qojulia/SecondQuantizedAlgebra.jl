@@ -171,6 +171,18 @@ function _to_numeric(op::Transition, b::QuantumOpticsBase.NLevelBasis; kwargs...
     i, j = _convert_levels(op; kwargs...)
     return QuantumOpticsBase.transition(b, i, j)
 end
+function _to_numeric(op::Position, b::QuantumOpticsBase.PositionBasis; kwargs...)
+    QuantumOpticsBase.position(b)
+end
+function _to_numeric(op::Momentum, b::QuantumOpticsBase.MomentumBasis; kwargs...)
+    QuantumOpticsBase.momentum(b)
+end
+function _to_numeric(op::Position, b::QuantumOpticsBase.MomentumBasis; kwargs...)
+    QuantumOpticsBase.position(b)
+end
+function _to_numeric(op::Momentum, b::QuantumOpticsBase.PositionBasis; kwargs...)
+    QuantumOpticsBase.momentum(b)
+end
 
 function _convert_levels(op; level_map=nothing)
     i, j = op.i, op.j
@@ -196,6 +208,8 @@ end
 check_basis_match(::FockSpace, ::QuantumOpticsBase.FockBasis; kwargs...) = nothing
 check_basis_match(::PauliSpace, ::QuantumOpticsBase.SpinBasis; kwargs...) = nothing
 check_basis_match(::SpinSpace, ::QuantumOpticsBase.SpinBasis; kwargs...) = nothing
+check_basis_match(::PhaseSpace, ::QuantumOpticsBase.PositionBasis; kwargs...) = nothing
+check_basis_match(::PhaseSpace, ::QuantumOpticsBase.MomentumBasis; kwargs...) = nothing
 function check_basis_match(h::NLevelSpace, b::QuantumOpticsBase.NLevelBasis; kwargs...)
     if length(h.levels) != length(b)
         throw(ArgumentError("Hilbert space $h and basis $b have incompatible levels!"))
