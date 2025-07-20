@@ -174,6 +174,14 @@ Random.seed!(0)
 
             @test numeric_average(a, ψ) ≈ numeric_average(average(a), ψ) ≈ α
             @test numeric_average(a'*a, ψ) ≈ numeric_average(average(a'*a), ψ) ≈ abs2(α)
+
+            @test numeric_average(a + a'a, ψ) ≈ numeric_average(average(a) + average(a'a), ψ) ≈ numeric_average(average(a + a'a), ψ) ≈ α + abs2(α)
+            @test numeric_average(average(a)*average(a'a), ψ) ≈ α*α'*α
+
+            @test numeric_average(average(a)^2, ψ) ≈ α^2
+            @test numeric_average(average(a)*average(a'a) + 3*average(a)^2 + 0.6, ψ) ≈ α*α'*α + 3α^2 + 0.6
+            @test numeric_average(3, ψ) ≈ 3
+
         end
 
         @testset "Product State Averages" begin
@@ -237,6 +245,32 @@ Random.seed!(0)
                 end
             end
         end
+    end
+
+    @testset "to_numeric and numeric_average with dictionary" begin
+        nQDs = 2
+        h_qc1 = FockSpace(:ada)
+        h_qc2 = FockSpace(:n)
+        h_qc = h_qc1 ⊗ h_qc2
+        a = Destroy(h_qc,:a,1)
+        n = Destroy(h_qc,:n,2)
+        ad = a'
+
+        bs = NLevelBasis(2)
+        b_all = tensor([bs for i=1:nQDs]...)
+        s(α,i,j) = embed(b_all, α, transition(bs,i,j))
+
+        dd = Dict([ad,a].=>[s(2,2,1),s(2,1,2)])
+
+        @test to_numeric(ad, b_all, dd) == s(2,2,1)
+        @test to_numeric(2*ad*a, b_all, dd) == 2*s(2,2,1)*s(2,1,2)
+        @test dense(to_numeric(3, b_all, dd)) == one(b_all)*3
+
+        ψ0 = tensor([nlevelstate(bs,2) for i=1:nQDs]...)
+        @test numeric_average(average(ad*a), ψ0, dd) == expect(s(2,2,1)*s(2,1,2), ψ0)
+        @test numeric_average(average(ad)*average(ad*a) + 3, ψ0, dd) == expect(s(2,2,1), ψ0)*expect(s(2,2,1)*s(2,1,2), ψ0) + 3
+        @test numeric_average(3*average(ad)^2, ψ0, dd) == 3*expect(s(2,2,1), ψ0)^2 
+        @test numeric_average(average(ad*a) + average(a), ψ0, dd) == expect(s(2,2,1)*s(2,1,2), ψ0) + expect(s(2,1,2), ψ0)
     end
 
     @testset "Edge Cases and Bug Fixes" begin
