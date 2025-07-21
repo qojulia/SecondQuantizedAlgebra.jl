@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1753061800842,
+  "lastUpdate": 1753066667799,
   "repoUrl": "https://github.com/qojulia/SecondQuantizedAlgebra.jl",
   "entries": {
     "Benchmark Results": [
@@ -550,6 +550,42 @@ window.BENCHMARK_DATA = {
           {
             "name": "Micro Benchmarks/Nested commutator",
             "value": 45109882,
+            "unit": "ns",
+            "extra": "gctime=0\nmemory=19656720\nallocs=463760\nparams={\"gctrial\":true,\"time_tolerance\":0.05,\"evals_set\":false,\"samples\":10000,\"evals\":1,\"gcsample\":false,\"seconds\":20,\"overhead\":0,\"memory_tolerance\":0.01}"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "52912924+ChristophHotter@users.noreply.github.com",
+            "name": "Christoph Hotter",
+            "username": "ChristophHotter"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "357221a26d4de44e01138d75696c000acfd82998",
+          "message": "added some utils for new operators; added more tests for spin.jl (#45)",
+          "timestamp": "2025-07-20T22:56:13-04:00",
+          "tree_id": "7af13ac66a82b204344749780c1404e9d0f63f51",
+          "url": "https://github.com/qojulia/SecondQuantizedAlgebra.jl/commit/357221a26d4de44e01138d75696c000acfd82998"
+        },
+        "date": 1753066667305,
+        "tool": "julia",
+        "benches": [
+          {
+            "name": "Jaynes–Cummings/First order Schrieffer-Wolf",
+            "value": 186360,
+            "unit": "ns",
+            "extra": "gctime=0\nmemory=51248\nallocs=1223\nparams={\"gctrial\":true,\"time_tolerance\":0.05,\"evals_set\":false,\"samples\":10000,\"evals\":1,\"gcsample\":false,\"seconds\":10,\"overhead\":0,\"memory_tolerance\":0.01}"
+          },
+          {
+            "name": "Micro Benchmarks/Nested commutator",
+            "value": 43917442,
             "unit": "ns",
             "extra": "gctime=0\nmemory=19656720\nallocs=463760\nparams={\"gctrial\":true,\"time_tolerance\":0.05,\"evals_set\":false,\"samples\":10000,\"evals\":1,\"gcsample\":false,\"seconds\":20,\"overhead\":0,\"memory_tolerance\":0.01}"
           }
