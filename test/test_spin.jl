@@ -8,6 +8,10 @@ using Test
             hs1 = PauliSpace(:Spin1)
             s(axis) = Pauli(hs1, :σ, axis) # axis ∈ [1,2,3] → [x,y,z]
 
+            @test s(1) == s(:x) == s(:X) == Pauli(hs1, :σ, 1)
+            @test s(2) == s(:y) == s(:Y) == Pauli(hs1, :σ, 2)
+            @test s(3) == s(:z) == s(:Z) == Pauli(hs1, :σ, 3)
+            @test hash(s(1)) != hash(s(2))
             # Basic Pauli algebra
             @test isequal(s(1)*s(2), 1im*s(3))
             @test !isequal(s(1)*s(2), 1im*s(2))
@@ -15,6 +19,11 @@ using Test
             @test isequal(s(3)*s(3), 1)
             @test isequal(s(3)*s(1), 1im*s(2))
             @test isequal(s(1)*s(2)*s(3), 1im)
+
+            # adjoint
+            @test adjoint(s(1)) == s(1)
+            @test adjoint(s(2)) == s(2)
+            @test adjoint(s(3)) == s(3)
         end
 
         @testset "Multi-Pauli Space Operations" begin
@@ -63,15 +72,17 @@ using Test
             S(axis) = Spin(hcs1, :S, axis) # axis ∈ [1,2,3] → [x,y,z]
 
             # Axis equivalences
-            @test S(1) == S(:x)
-            @test S(2) == S(:Y)
-            @test S(:z) == S(:Z)
+            @test S(1) == S(:x) == S(:X) == Spin(hcs1, :S, 1, 1)
+            @test S(2) == S(:y) == S(:Y) == Spin(hcs1, :S, 2, 1)
+            @test S(3) == S(:z) == S(:Z) == Spin(hcs1, :S, 3, 1)
             @test S(1) ≠ S(2)
 
             # Basic commutation relations
             @test isequal(simplify(S(:x)*S(:y) - S(:y)*S(:x)), 1im*S(:z))
             @test isequal(simplify(S(:x)*S(:z) - S(:z)*S(:x)), -1im*S(:y))
             @test isequal(simplify(S(:y)*S(:z) - S(:z)*S(:y)), 1im*S(:1))
+
+            @test adjoint(S(1)) == S(1)
         end
 
         @testset "Spin Operator Properties" begin

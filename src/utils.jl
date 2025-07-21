@@ -55,6 +55,27 @@ function fundamental_operators(h::NLevelSpace, aon::Int=1; names=nothing)
     end
     return sigmas
 end
+function fundamental_operators(h::PauliSpace, aon::Int=1; names=nothing)
+    name = names isa Nothing ? :σ : names[aon]
+    σx = Pauli(h, name, 1)
+    σy = Pauli(h, name, 2)
+    σz = Pauli(h, name, 3)
+    return [σx, σy, σz]
+end
+function fundamental_operators(h::SpinSpace, aon::Int=1; names=nothing)
+    name = names isa Nothing ? :S : names[aon]
+    Sx = Spin(h, name, 1)
+    Sy = Spin(h, name, 2)
+    Sz = Spin(h, name, 3)
+    return [Sx, Sy, Sz]
+end
+function fundamental_operators(h::PhaseSpace, aon::Int=1; names=nothing)
+    name = names isa Nothing ? (:x, :p) : names[aon]
+    x = Position(h, name[1])
+    p = Momentum(h, name[2])
+    return [x, p]
+end
+
 function fundamental_operators(h::ProductSpace; kwargs...)
     ops = []
     for i in 1:length(h.spaces)
@@ -65,7 +86,7 @@ function fundamental_operators(h::ProductSpace; kwargs...)
     return ops
 end
 
-for T in [:Destroy, :Create, :Transition]
+for T in [:Destroy, :Create, :Transition, :Pauli, :Spin, :Position, :Momentum]
     @eval function embed(h::ProductSpace, op::($T), i)
         fields = [getfield(op, s) for s in fieldnames($T) if s ≠ :metadata]
         fields[1] = h
