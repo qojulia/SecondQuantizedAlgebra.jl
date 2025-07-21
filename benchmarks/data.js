@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1753066667799,
+  "lastUpdate": 1753096958420,
   "repoUrl": "https://github.com/qojulia/SecondQuantizedAlgebra.jl",
   "entries": {
     "Benchmark Results": [
@@ -586,6 +586,42 @@ window.BENCHMARK_DATA = {
           {
             "name": "Micro Benchmarks/Nested commutator",
             "value": 43917442,
+            "unit": "ns",
+            "extra": "gctime=0\nmemory=19656720\nallocs=463760\nparams={\"gctrial\":true,\"time_tolerance\":0.05,\"evals_set\":false,\"samples\":10000,\"evals\":1,\"gcsample\":false,\"seconds\":20,\"overhead\":0,\"memory_tolerance\":0.01}"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "109228670+coding-xyz@users.noreply.github.com",
+            "name": "coding-xyz",
+            "username": "coding-xyz"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "20aec37151988473195c2f5b0d0e3c683f232c7b",
+          "message": "fix: double sum bugs (#40)\n\nCo-authored-by: Orjan Ameye <orjan.ameye@hotmail.com>",
+          "timestamp": "2025-07-21T13:21:00+02:00",
+          "tree_id": "05e59f9eb53d010ed504dc218caa7c628e03c456",
+          "url": "https://github.com/qojulia/SecondQuantizedAlgebra.jl/commit/20aec37151988473195c2f5b0d0e3c683f232c7b"
+        },
+        "date": 1753096957665,
+        "tool": "julia",
+        "benches": [
+          {
+            "name": "Jaynes–Cummings/First order Schrieffer-Wolf",
+            "value": 187071,
+            "unit": "ns",
+            "extra": "gctime=0\nmemory=51248\nallocs=1223\nparams={\"gctrial\":true,\"time_tolerance\":0.05,\"evals_set\":false,\"samples\":10000,\"evals\":1,\"gcsample\":false,\"seconds\":10,\"overhead\":0,\"memory_tolerance\":0.01}"
+          },
+          {
+            "name": "Micro Benchmarks/Nested commutator",
+            "value": 43575725,
             "unit": "ns",
             "extra": "gctime=0\nmemory=19656720\nallocs=463760\nparams={\"gctrial\":true,\"time_tolerance\":0.05,\"evals_set\":false,\"samples\":10000,\"evals\":1,\"gcsample\":false,\"seconds\":20,\"overhead\":0,\"memory_tolerance\":0.01}"
           }
