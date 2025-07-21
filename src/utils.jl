@@ -4,7 +4,7 @@
 Find all operators that fully define a system up to the given `order`.
 """
 function find_operators(h::HilbertSpace, order::Int; names=nothing, kwargs...)
-    if names isa Nothing && (unique(typeof.(h.spaces))!=typeof.(h.spaces))
+    if names isa Nothing && (unique(typeof.(h.spaces)) != typeof.(h.spaces))
         alph = 'a':'z'
         names_ = Symbol.(alph[1:length(h.spaces)])
     else
@@ -25,7 +25,7 @@ function find_operators(h::HilbertSpace, order::Int; names=nothing, kwargs...)
         end
     end
 
-    filter!(x->!(x isa QAdd), all_ops)
+    filter!(x -> !(x isa QAdd), all_ops)
     unique_ops!(all_ops)
     return all_ops
 end
@@ -48,13 +48,34 @@ function fundamental_operators(h::NLevelSpace, aon::Int=1; names=nothing)
     name = names isa Nothing ? :σ : names[aon]
     for i in 1:length(lvls)
         for j in i:length(lvls)
-            (i==j) && lvls[i]==ground_state(h) && continue
+            (i == j) && lvls[i] == ground_state(h) && continue
             s = Transition(h, name, lvls[i], lvls[j])
             push!(sigmas, s)
         end
     end
     return sigmas
 end
+function fundamental_operators(h::PauliSpace, aon::Int=1; names=nothing)
+    name = names isa Nothing ? :σ : names[aon]
+    σx = Pauli(h, name, 1)
+    σy = Pauli(h, name, 2)
+    σz = Pauli(h, name, 3)
+    return [σx, σy, σz]
+end
+function fundamental_operators(h::SpinSpace, aon::Int=1; names=nothing)
+    name = names isa Nothing ? :S : names[aon]
+    Sx = Spin(h, name, 1)
+    Sy = Spin(h, name, 2)
+    Sz = Spin(h, name, 3)
+    return [Sx, Sy, Sz]
+end
+function fundamental_operators(h::PhaseSpace, aon::Int=1; names=nothing)
+    name = names isa Nothing ? (:x, :p) : names[aon]
+    x = Position(h, name[1])
+    p = Momentum(h, name[2])
+    return [x, p]
+end
+
 function fundamental_operators(h::ProductSpace; kwargs...)
     ops = []
     for i in 1:length(h.spaces)
@@ -65,9 +86,9 @@ function fundamental_operators(h::ProductSpace; kwargs...)
     return ops
 end
 
-for T in [:Destroy, :Create, :Transition]
+for T in [:Destroy, :Create, :Transition, :Pauli, :Spin, :Position, :Momentum]
     @eval function embed(h::ProductSpace, op::($T), i)
-        fields = [getfield(op, s) for s in fieldnames($T) if s≠:metadata]
+        fields = [getfield(op, s) for s in fieldnames($T) if s ≠ :metadata]
         fields[1] = h
         fields[end] = i
         return $(T)(fields...)
@@ -103,7 +124,7 @@ function unique_ops!(ops)
             deleteat!(hashes′, i)
         else
             push!(seen_hashes, hashes[i])
-            hashes[i]==hashes′[i] || push!(seen_hashes, hashes′[i])
+            hashes[i] == hashes′[i] || push!(seen_hashes, hashes′[i])
             i += 1
         end
     end
@@ -137,17 +158,17 @@ function to_numeric(op::QSym, b::QuantumOpticsBase.Basis; kwargs...)
     return _to_numeric(op, b; kwargs...)
 end
 function to_numeric(op::QNumber, state; kwargs...)
-    to_numeric(op, QuantumOpticsBase.basis(state); kwargs...)
+    return to_numeric(op, QuantumOpticsBase.basis(state); kwargs...)
 end
 
 function _to_numeric(op::Destroy, b::QuantumOpticsBase.FockBasis; kwargs...)
-    QuantumOpticsBase.destroy(b)
+    return QuantumOpticsBase.destroy(b)
 end
 function _to_numeric(op::Create, b::QuantumOpticsBase.FockBasis; kwargs...)
-    QuantumOpticsBase.create(b)
+    return QuantumOpticsBase.create(b)
 end
 function _to_numeric(op::Pauli, b::QuantumOpticsBase.SpinBasis; kwargs...)
-    (b.spinnumber ≠ 1/2) && error("The SpinBasis needs to be Spin-1/2!")
+    (b.spinnumber ≠ 1 / 2) && error("The SpinBasis needs to be Spin-1/2!")
     axis = op.axis
     if axis == 1 # σx
         QuantumOpticsBase.sigmax(b)
@@ -160,16 +181,28 @@ end
 function _to_numeric(op::Spin, b::QuantumOpticsBase.SpinBasis; kwargs...)
     axis = op.axis
     if axis == 1 # Sx
-        QuantumOpticsBase.sigmax(b)*0.5
+        QuantumOpticsBase.sigmax(b) * 0.5
     elseif axis == 2 # Sy
-        QuantumOpticsBase.sigmay(b)*0.5
+        QuantumOpticsBase.sigmay(b) * 0.5
     elseif axis == 3 # Sz
-        QuantumOpticsBase.sigmaz(b)*0.5
+        QuantumOpticsBase.sigmaz(b) * 0.5
     end
 end
 function _to_numeric(op::Transition, b::QuantumOpticsBase.NLevelBasis; kwargs...)
     i, j = _convert_levels(op; kwargs...)
     return QuantumOpticsBase.transition(b, i, j)
+end
+function _to_numeric(op::Position, b::QuantumOpticsBase.PositionBasis; kwargs...)
+    QuantumOpticsBase.position(b)
+end
+function _to_numeric(op::Momentum, b::QuantumOpticsBase.MomentumBasis; kwargs...)
+    QuantumOpticsBase.momentum(b)
+end
+function _to_numeric(op::Position, b::QuantumOpticsBase.MomentumBasis; kwargs...)
+    QuantumOpticsBase.position(b)
+end
+function _to_numeric(op::Momentum, b::QuantumOpticsBase.PositionBasis; kwargs...)
+    QuantumOpticsBase.momentum(b)
 end
 
 function _convert_levels(op; level_map=nothing)
@@ -196,6 +229,8 @@ end
 check_basis_match(::FockSpace, ::QuantumOpticsBase.FockBasis; kwargs...) = nothing
 check_basis_match(::PauliSpace, ::QuantumOpticsBase.SpinBasis; kwargs...) = nothing
 check_basis_match(::SpinSpace, ::QuantumOpticsBase.SpinBasis; kwargs...) = nothing
+check_basis_match(::PhaseSpace, ::QuantumOpticsBase.PositionBasis; kwargs...) = nothing
+check_basis_match(::PhaseSpace, ::QuantumOpticsBase.MomentumBasis; kwargs...) = nothing
 function check_basis_match(h::NLevelSpace, b::QuantumOpticsBase.NLevelBasis; kwargs...)
     if length(h.levels) != length(b)
         throw(ArgumentError("Hilbert space $h and basis $b have incompatible levels!"))
@@ -264,12 +299,18 @@ function _to_numeric_term(::typeof(*), op::QTerm, b::QuantumOpticsBase.Basis; kw
 end
 
 function to_numeric(x::Number, b::QuantumOpticsBase.Basis; kwargs...)
-    op = _lazy_one(b)*x
+    op = _lazy_one(b) * x
+    return op
+end
+function to_numeric(x::Number, state; kwargs...)
+    op = _lazy_one(QuantumOpticsBase.basis(state)) * x
     return op
 end
 _lazy_one(b::QuantumOpticsBase.Basis) = one(b)
 function _lazy_one(b::QuantumOpticsBase.CompositeBasis)
-    QuantumOpticsBase.LazyTensor(b, [1:length(b.bases);], Tuple(one(b_) for b_ in b.bases))
+    return QuantumOpticsBase.LazyTensor(
+        b, [1:length(b.bases);], Tuple(one(b_) for b_ in b.bases)
+    )
 end
 
 """
@@ -289,6 +330,115 @@ end
 function numeric_average(avg::Average, state; kwargs...)
     op = undo_average(avg)
     return numeric_average(op, state; kwargs...)
+end
+function numeric_average(avg_term::SymbolicUtils.BasicSymbolic{CNumber}, state; kwargs...)
+    if SymbolicUtils.istree(avg_term)
+        op = operation(avg_term)
+        args = arguments(avg_term)
+        if op == ^
+            return (numeric_average(args[1], state; kwargs...))^(args[2])
+        end
+        return op([numeric_average(arg, state; kwargs...) for arg in args]...)
+    else
+        error(
+            "The numeric_average for the type $(typeof(avg_term)) is not implemented yet."
+        )
+    end
+end
+function numeric_average(op::Number, state; kwargs...)
+    op_num = to_numeric(op, state; kwargs...)
+    return QuantumOpticsBase.expect(op_num, state)
+end
+
+# numeric_average() and to_numeric() with Dictionary for the operators
+"""
+    to_numeric(q::QNumber, b::QuantumOpticsBase.Basis, d::Dict)
+    to_numeric(q::QNumber, state, d::Dict)
+
+Map a symbolic operator `q` to a numeric (matrix) defined in the 
+dictionary `d`. See also: [`numeric_average`](@ref)
+
+"""
+function to_numeric(op, b, d::Dict; kwargs...) # fallback
+    return to_numeric(op, b; kwargs...)
+end
+function to_numeric(op::QSym, b::QuantumOpticsBase.Basis, d::Dict; kwargs...)
+    op_QO = substitute(op, d)
+    if isa(op_QO, QuantumOpticsBase.AbstractOperator)
+        return op_QO
+    end
+    return to_numeric(op, b; kwargs)
+end
+function to_numeric(op::QNumber, state, d::Dict; kwargs...)
+    return to_numeric(op, QuantumOpticsBase.basis(state), d; kwargs...)
+end
+function to_numeric(op::QTerm, b::QuantumOpticsBase.Basis, d::Dict; kwargs...)
+    f = SymbolicUtils.operation(op)
+    return _to_numeric_term(f, op, b, d; kwargs...)
+end
+function _to_numeric_term(f::Function, op, b, d; kwargs...)
+    args = SymbolicUtils.arguments(op)
+    return f((to_numeric(arg, b, d; kwargs...) for arg in args)...)
+end
+function _to_numeric_term(
+    ::typeof(*), op::QTerm, b::QuantumOpticsBase.Basis, d::Dict; kwargs...
+)
+    args = SymbolicUtils.arguments(op)
+    factor = 1
+    args_num = Any[]
+    for arg in args
+        if arg isa Number
+            factor *= arg
+        else
+            push!(args_num, to_numeric(arg, b, d; kwargs...))
+        end
+    end
+
+    if length(args_num) == 0
+        return factor * one(b)
+    end
+
+    return *(factor, args_num...)
+end
+
+"""
+    numeric_average(avg::Average, state, d::Dict)
+    numeric_average(q::QNumber, state, d::Dict)
+
+From a symbolic average `avg` or operator `q`, map the operator defined in 
+the dictionary `d` and compute the numerical average value for an with the 
+given quantum state `state`. This state can either be of type 
+`QuantumOpticsBase.StateVector` or `QuantumOpticsBase.Operator`.
+
+See also: [`to_numeric`](@ref)
+"""
+function numeric_average(op::QNumber, state, d::Dict; kwargs...)
+    op_num = to_numeric(op, state, d; kwargs...)
+    return QuantumOpticsBase.expect(op_num, state)
+end
+function numeric_average(avg::Average, state, d::Dict; kwargs...)
+    op = undo_average(avg)
+    return numeric_average(op, state, d; kwargs...)
+end
+function numeric_average(
+    avg_term::SymbolicUtils.BasicSymbolic{CNumber}, state, d::Dict; kwargs...
+)
+    if SymbolicUtils.istree(avg_term)
+        op = operation(avg_term)
+        args = arguments(avg_term)
+        if op == ^
+            return (numeric_average(args[1], state, d; kwargs...))^(args[2])
+        end
+        return op([numeric_average(arg, state, d; kwargs...) for arg in args]...)
+    else
+        error(
+            "The numeric_average for the type $(typeof(avg_term)) is not implemented yet."
+        )
+    end
+end
+function numeric_average(op::Number, state, d::Dict; kwargs...)
+    op_num = to_numeric(op, state, d; kwargs...)
+    return QuantumOpticsBase.expect(op_num, state)
 end
 
 function _conj(v::T) where {T<:SymbolicUtils.Symbolic}
