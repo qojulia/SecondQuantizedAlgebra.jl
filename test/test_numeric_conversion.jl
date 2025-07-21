@@ -43,6 +43,28 @@ Random.seed!(0)
                     QuantumOpticsBase.transition(bnlevel, i, j)
             end
         end
+        @testset "Pauli Operators" begin
+            hp = PauliSpace(:p)
+            σx = Pauli(hp, :σ, 1)
+            σy = Pauli(hp, :σ, 2)
+            σz = Pauli(hp, :σ, 3)
+
+            bp = SpinBasis(1//2)
+            @test to_numeric(σx, bp) == sigmax(bp)
+            @test to_numeric(σy, bp) == sigmay(bp)
+            @test to_numeric(σz, bp) == sigmaz(bp)
+        end
+        @testset "Spin Operators" begin
+            hp = SpinSpace(:p)
+            Sx = Spin(hp, :S, 1)
+            Sy = Spin(hp, :S, 2)
+            Sz = Spin(hp, :S, 3)
+
+            bs = SpinBasis(5//2)
+            @test to_numeric(Sx, bs) == 0.5*sigmax(bs)
+            @test to_numeric(Sy, bs) == 0.5*sigmay(bs)
+            @test to_numeric(Sz, bs) == 0.5*sigmaz(bs)
+        end
         @testset "PhaseSpace" begin
             h = PhaseSpace(:motion)
             x = Position(h, :x, 1)

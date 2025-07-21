@@ -6,6 +6,7 @@ names = [
     "test_spin.jl"
     "test_phase_space.jl"
     "test_average.jl"
+    "test_utils.jl"
     "test_numeric_conversion.jl"
     "test_cluster.jl"
     "test_index_basic.jl"
