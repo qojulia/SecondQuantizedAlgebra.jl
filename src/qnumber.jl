@@ -237,9 +237,9 @@ end
 
 SymbolicUtils.operation(::QAdd) = (+)
 SymbolicUtils.arguments(a::QAdd) = a.arguments
-TermInterface.maketerm(::Type{<:QAdd}, ::typeof(+), args, metadata) = QAdd(args; metadata)
+TermInterface.maketerm(::Type{<:QAdd}, ::typeof(+), args, metadata) = QAdd(args)
 
-TermInterface.metadata(q::QAdd) = q.metadata
+TermInterface.metadata(q::QAdd) = NO_METADATA
 
 Base.adjoint(q::QAdd) = QAdd(map(adjoint, q.arguments))
 
