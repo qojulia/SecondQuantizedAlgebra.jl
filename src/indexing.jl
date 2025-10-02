@@ -490,17 +490,25 @@ end #put elements from outside into sum
 -(sum::SingleSum, op::Any) = -1*op + sum
 
 function *(op1::IndexedOperator, op2::IndexedOperator)
-    if isequal(op1.ind, op2.ind)
-        if op1.op isa Transition
-            return IndexedOperator(op1.op*op2.op, op1.ind)
-        end
-        if op1.op isa Destroy && op2.op isa Create
-            return op2*op1 + 1
+    aon1 = acts_on(op1) # sort by HilbertSpace
+    aon2 = acts_on(op2)
+    if aon1==aon2
+        if isequal(op1.ind, op2.ind)
+            if op1.op isa Transition
+                return IndexedOperator(op1.op*op2.op, op1.ind)
+            end
+            if op1.op isa Destroy && op2.op isa Create
+                return op2*op1 + 1
+            else
+                return QMul(1, [op1, op2])
+            end
         else
             return QMul(1, [op1, op2])
         end
-    else
+    elseif aon1 < aon2
         return QMul(1, [op1, op2])
+    else # aon2 < aon1
+        return QMul(1, [op2, op1])
     end
 end
 
