@@ -1,5 +1,4 @@
 using SymbolicUtils, Symbolics, SecondQuantizedAlgebra, Test
-SQA = SecondQuantizedAlgebra
 
 @testset "Parameter" begin
     @rnumbers ω
@@ -32,12 +31,10 @@ SQA = SecondQuantizedAlgebra
         @test isequal(adjoint(3ω), 3ω)
         @test isequal(adjoint(G), conj(G))
         @test_broken isequal(conj(3*G), 3*conj(G))
-        @test isequal(SQA._conj(3*G), 3*conj(G))
+        @test isequal(SecondQuantizedAlgebra._conj(3*G), 3*conj(G))
         @test isequal(simplify(adjoint(G*G1)), conj(G*G1))
-        @test isequal(SQA._adjoint(exp(1im*ϕ)*r1), exp(-1im*ϕ)*r1) 
-        @test isequal(SQA._conj(exp(1im*ϕ)*r1), exp(-1im*ϕ)*r1) 
-        @test simplify(SQA._adjoint(exp(1im*ϕ)*exp(-1im*ϕ))) == 1.0
+        @test isequal(SecondQuantizedAlgebra._adjoint(exp(1im*ϕ)*r1), exp(-1im*ϕ)*r1)
+        @test isequal(SecondQuantizedAlgebra._conj(exp(1im*ϕ)*r1), exp(-1im*ϕ)*r1)
+        @test simplify(SecondQuantizedAlgebra._adjoint(exp(1im*ϕ)*exp(-1im*ϕ))) == 1.0
     end
 end
-
-
