@@ -122,10 +122,10 @@ end
 TermInterface.metadata(a::QMul) = a.metadata
 
 function Base.adjoint(q::QMul)
-    args_nc = map(adjoint, q.args_nc)
+    args_nc = map(_adjoint, q.args_nc)
     reverse!(args_nc)
     sort!(args_nc; by=acts_on)
-    return QMul(conj(q.arg_c), args_nc; q.metadata)
+    return QMul(_conj(q.arg_c), args_nc; q.metadata)
 end
 
 function Base.isequal(a::QMul, b::QMul)
@@ -222,9 +222,11 @@ end
 
 Represent an addition involving [`QNumber`](@ref) and other types.
 """
-struct QAdd <: QTerm
+struct QAdd{M} <: QTerm
     arguments::Vector{Any}
+    metadata::M
 end
+QAdd(arguments; metadata::M=NO_METADATA) where {M} = QAdd{M}(arguments, metadata)
 
 Base.hash(q::T, h::UInt) where {T<:QAdd} = hash(T, SymbolicUtils.hashvec(q.arguments, h))
 function Base.isequal(a::QAdd, b::QAdd)
@@ -241,7 +243,7 @@ TermInterface.maketerm(::Type{<:QAdd}, ::typeof(+), args, metadata) = QAdd(args;
 
 TermInterface.metadata(q::QAdd) = q.metadata
 
-Base.adjoint(q::QAdd) = QAdd(map(adjoint, q.arguments))
+Base.adjoint(q::QAdd) = QAdd(map(_adjoint, q.arguments))
 
 -(a::QNumber) = -1*a
 -(a, b::QNumber) = a + (-b)
