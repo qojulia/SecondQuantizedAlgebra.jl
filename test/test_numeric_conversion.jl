@@ -314,9 +314,13 @@ Random.seed!(0)
         bs = NLevelBasis(2)
         b_all = tensor([bs for i in 1:nQDs]...)
         s(α, i, j) = embed(b_all, α, transition(bs, i, j))
+        b_test = FockBasis(2) ⊗ FockBasis(3)    
 
         dd = Dict([ad, a] .=> [s(2, 2, 1), s(2, 1, 2)])
 
+        @test to_numeric(a, b_test, Dict()) == to_numeric(a, b_test)
+        @test to_numeric(ad*n, b_test, Dict()) == to_numeric(ad*n, b_test)
+        @test to_numeric(2*ad*a, b_test, Dict()) == to_numeric(2*ad*a, b_test)
         @test to_numeric(ad, b_all, dd) == s(2, 2, 1)
         @test to_numeric(2 * ad * a, b_all, dd) == 2 * s(2, 2, 1) * s(2, 1, 2)
         @test dense(to_numeric(3, b_all, dd)) == one(b_all) * 3
