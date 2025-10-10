@@ -367,7 +367,7 @@ function to_numeric(op::QSym, b::QuantumOpticsBase.Basis, d::Dict; kwargs...)
     if isa(op_QO, QuantumOpticsBase.AbstractOperator)
         return op_QO
     end
-    return to_numeric(op, b; kwargs)
+    return to_numeric(op, b; kwargs...)
 end
 function to_numeric(op::QNumber, state, d::Dict; kwargs...)
     return to_numeric(op, QuantumOpticsBase.basis(state), d; kwargs...)
