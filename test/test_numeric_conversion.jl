@@ -314,7 +314,7 @@ Random.seed!(0)
         bs = NLevelBasis(2)
         b_all = tensor([bs for i in 1:nQDs]...)
         s(α, i, j) = embed(b_all, α, transition(bs, i, j))
-        b_test = FockBasis(2) ⊗ FockBasis(3)    
+        b_test = FockBasis(2) ⊗ FockBasis(3)
 
         dd = Dict([ad, a] .=> [s(2, 2, 1), s(2, 1, 2)])
 
