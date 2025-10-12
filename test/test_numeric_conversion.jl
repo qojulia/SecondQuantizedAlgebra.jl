@@ -318,6 +318,9 @@ Random.seed!(0)
 
         dd = Dict([ad, a] .=> [s(2, 2, 1), s(2, 1, 2)])
 
+        q_add = 3ad + a # test for QAdd metadata
+        @test isequal(substitute(q_add, dd), 3*s(2, 2, 1) + s(2, 1, 2))
+
         @test to_numeric(a, b_test, Dict()) == to_numeric(a, b_test)
         @test to_numeric(ad*n, b_test, Dict()) == to_numeric(ad*n, b_test)
         @test to_numeric(2*ad*a, b_test, Dict()) == to_numeric(2*ad*a, b_test)
