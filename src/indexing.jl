@@ -18,7 +18,7 @@ Fields:
 
 * hilb: The whole [`HilbertSpace`](@ref), the index will be defined on.
 * name: A Symbol, which defines the name of the index, and how product-terms of [`IndexedOperator`](@ref) are ordered (alphabetical)
-* range: The upper bound limit of the index. This can be a SymbolicUitls.Symbolic or any Number.
+* range: The upper bound limit of the index. This can be a SymbolicUtils.Symbolic or any Number.
 * aon: Number specifying the specific [`HilbertSpace`](@ref), where the Index acts on.
 
 """
