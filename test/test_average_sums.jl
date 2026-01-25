@@ -51,10 +51,10 @@ const sqa = SecondQuantizedAlgebra
         g_ = insert_index(g(ind(:j)), ind(:j), 1)
 
         @test g_ isa SymbolicUtils.BasicSymbolic
-        @test gamma isa SymbolicUtils.BasicSymbolic{sqa.DoubleNumberedVariable}
+        @test sqa.is_symtype(gamma, sqa.DoubleNumberedVariable)
 
         gamma_ = insert_index(gamma, ind(:j), 2)
-        @test gamma_ isa SymbolicUtils.BasicSymbolic{Complex{Real}}
+        @test sqa.is_symtype(gamma_, Complex{Real})
 
         @test !isequal(gamma, gamma_)
         @test !isequal(gamma, g_)
@@ -92,17 +92,16 @@ const sqa = SecondQuantizedAlgebra
         pind = Index(h, :p, 5, ha)
         @test isequal(4 * a, Σ(a, pind, [ind(:i)]))
 
-        @test isequal(
+        @test sqa.indexed_isequal(
             average(Σ(σ(1, 2, ind(:i)), ind(:i))),
             sqa.IndexedAverageSum(average(σ(1, 2, ind(:i))), ind(:i), []),
         )
 
-        @test isequal(
+        @test sqa.indexed_isequal(
             sqa.IndexedAverageSum(g(ind(:i)), ind(:i), []),
             average(Σ(g(ind(:i)), ind(:i), [])),
         )
-        @test sqa.IndexedAverageSum(g(ind(:i)), ind(:i), []) isa
-            SymbolicUtils.BasicSymbolic{sqa.IndexedAverageSum}
+        @test sqa.is_symtype(sqa.IndexedAverageSum(g(ind(:i)), ind(:i), []), sqa.IndexedAverageSum)
 
         @test sqa.IndexedAverageSum(1) == 1
     end
@@ -112,14 +111,8 @@ const sqa = SecondQuantizedAlgebra
         @test avrgTerm isa SymbolicUtils.BasicSymbolic && operation(avrgTerm) === +
 
         ADsum1 = simplify(sqa.IndexedAverageDoubleSum(avrgTerm, ind(:j), [ind(:i)]))
-        it_1 = findfirst(
-            x -> typeof((x)) == SymbolicUtils.BasicSymbolic{IndexedAverageSum},
-            arguments(ADsum1),
-        )
-        it_2 = findfirst(
-            x -> typeof((x)) == SymbolicUtils.BasicSymbolic{IndexedAverageDoubleSum},
-            arguments(ADsum1),
-        )
+        it_1 = findfirst(x -> sqa.is_symtype(x, IndexedAverageSum), arguments(ADsum1))
+        it_2 = findfirst(x -> sqa.is_symtype(x, IndexedAverageDoubleSum), arguments(ADsum1))
 
         @test ADsum1 isa SymbolicUtils.BasicSymbolic && operation(ADsum1) === +
         @test SymbolicUtils.metadata(arguments(ADsum1)[it_2])[sqa.IndexedAverageDoubleSum] isa
@@ -138,24 +131,22 @@ const sqa = SecondQuantizedAlgebra
         # Argument order tests (SymbolicUtils v1.4.0 compatibility)
         @test (
             isequal(
-                SymbolicUtils.arguments(SymbolicUtils.arguments(ADsum1)[it_2]),
+                sqa.sqa_arguments(sqa.sqa_arguments(ADsum1)[it_2]),
                 SymbolicUtils.arguments(avrgTerm)[1],
             ) || isequal(
-                SymbolicUtils.arguments(SymbolicUtils.arguments(ADsum1)[it_2]),
+                sqa.sqa_arguments(sqa.sqa_arguments(ADsum1)[it_2]),
                 SymbolicUtils.arguments(avrgTerm)[2],
             )
         )
 
         @test isequal(
-            SymbolicUtils.arguments(
-                SymbolicUtils.arguments(SymbolicUtils.arguments(ADsum1)[it_2])
-            ),
+            sqa.sqa_arguments(sqa.sqa_arguments(sqa.sqa_arguments(ADsum1)[it_2])),
             SymbolicUtils.arguments(average(σ(2, 1, ind(:i)) * σ(1, 2, ind(:j)))),
         )
     end
 
     @testset "Special Indexed Averages" begin
-        @test isequal(
+        @test sqa.indexed_isequal(
             sqa.SpecialIndexedAverage(average(σ(1, 2, ind(:i))), [(ind(:i), ind(:j))]) +
             sqa.SpecialIndexedAverage(average(σ(2, 1, ind(:j))), [(ind(:i), ind(:j))]),
             sqa.SpecialIndexedAverage(
@@ -174,7 +165,7 @@ const sqa = SecondQuantizedAlgebra
         )[sqa.SpecialIndexedAverage] isa sqa.SpecialIndexedAverage
 
         @test isequal(
-            SymbolicUtils.arguments(specAvrg),
+            sqa.sqa_arguments(specAvrg),
             SymbolicUtils.arguments(average(σ(2, 1, ind(:i)) * σ(1, 2, ind(:j)))),
         )
     end
@@ -191,7 +182,7 @@ const sqa = SecondQuantizedAlgebra
     @testset "Indexed Operator Detection" begin
         # Helper functions for checking if indices occurred in specific terms
         function containsIndexedOps(term::Average)
-            arg_ = arguments(term)
+            arg_ = map(unwrap_const, arguments(term))
             if arg_[1] isa sqa.QMul
                 for arg in arg_[1].args_nc
                     if arg isa sqa.IndexedOperator

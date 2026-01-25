@@ -43,13 +43,6 @@ function Base.show(io::IO, x::QMul)
     show_brackets[] && write(io, ")")
 end
 
-const T_LATEX = Union{<:QNumber,<:SymbolicUtils.Symbolic{<:CNumber}}
+const T_LATEX = Union{<:QNumber,SQABasicSymbolic}
 Base.show(io::IO, ::MIME"text/latex", x::T_LATEX) = write(io, latexify(x))
 
-function SymbolicUtils.show_term(io::IO, t::Average)
-    write(io, "⟨")
-    show_brackets[] = false
-    show(io, SymbolicUtils.arguments(t)[1])
-    show_brackets[] = true
-    write(io, "⟩")
-end

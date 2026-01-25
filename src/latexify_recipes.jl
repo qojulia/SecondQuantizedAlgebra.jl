@@ -127,17 +127,6 @@ end
     return ex
 end
 
-@latexrecipe function f(s::SymbolicUtils.Symbolic{<:CNumber})
-    # Options
-    mult_symbol --> ""
-
-    ex = _to_expression(s)
-    ex = MacroTools.postwalk(_postwalk_func, ex)
-    ex = MacroTools.postwalk(_postwalk_average, ex)
-    ex = isa(ex, String) ? latexstring(ex) : ex
-    return ex
-end
-
 _to_expression(x::Number) = x
 function _to_expression(x::Complex) # For brackets when using latexify
     iszero(x) && return x
@@ -179,7 +168,7 @@ _to_expression(p::Parameter) = p.name
 
 _to_expression(p::RealParameter) = p.name
 
-function _to_expression(s::SymbolicUtils.Symbolic)
+function _to_expression(s::SymbolicUtils.BasicSymbolic)
     if SymbolicUtils.iscall(s)
         f = SymbolicUtils.operation(s)
         fsym = if isequal(f, sym_average) # "===" results in false for symbolics version 5
@@ -189,7 +178,7 @@ function _to_expression(s::SymbolicUtils.Symbolic)
         else
             Symbol(f)
         end
-        args = map(_to_expression, SymbolicUtils.arguments(s))
+        args = map(arg -> _to_expression(unwrap_const(arg)), SymbolicUtils.arguments(s))
         return :($(fsym)($(args...)))
     else
         return nameof(s)

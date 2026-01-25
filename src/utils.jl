@@ -327,21 +327,24 @@ function numeric_average(op::QNumber, state; kwargs...)
     op_num = to_numeric(op, state; kwargs...)
     return QuantumOpticsBase.expect(op_num, state)
 end
-function numeric_average(avg::Average, state; kwargs...)
-    op = undo_average(avg)
-    return numeric_average(op, state; kwargs...)
-end
-function numeric_average(avg_term::SymbolicUtils.BasicSymbolic{CNumber}, state; kwargs...)
+function numeric_average(avg_term::SQABasicSymbolic, state; kwargs...)
+    if is_average(avg_term)
+        op = undo_average(avg_term)
+        return numeric_average(op, state; kwargs...)
+    end
+    is_symtype(avg_term, CNumber) || error(
+        "The numeric_average for the type $(SymbolicUtils.symtype(avg_term)) is not implemented yet.",
+    )
     if SymbolicUtils.iscall(avg_term)
         op = operation(avg_term)
-        args = arguments(avg_term)
+        args = map(unwrap_const, arguments(avg_term))
         if op == ^
             return (numeric_average(args[1], state; kwargs...))^(args[2])
         end
         return op([numeric_average(arg, state; kwargs...) for arg in args]...)
     else
         error(
-            "The numeric_average for the type $(typeof(avg_term)) is not implemented yet."
+            "The numeric_average for the type $(SymbolicUtils.symtype(avg_term)) is not implemented yet."
         )
     end
 end
@@ -416,23 +419,24 @@ function numeric_average(op::QNumber, state, d::Dict; kwargs...)
     op_num = to_numeric(op, state, d; kwargs...)
     return QuantumOpticsBase.expect(op_num, state)
 end
-function numeric_average(avg::Average, state, d::Dict; kwargs...)
-    op = undo_average(avg)
-    return numeric_average(op, state, d; kwargs...)
-end
-function numeric_average(
-    avg_term::SymbolicUtils.BasicSymbolic{CNumber}, state, d::Dict; kwargs...
-)
+function numeric_average(avg_term::SQABasicSymbolic, state, d::Dict; kwargs...)
+    if is_average(avg_term)
+        op = undo_average(avg_term)
+        return numeric_average(op, state, d; kwargs...)
+    end
+    is_symtype(avg_term, CNumber) || error(
+        "The numeric_average for the type $(SymbolicUtils.symtype(avg_term)) is not implemented yet.",
+    )
     if SymbolicUtils.iscall(avg_term)
         op = operation(avg_term)
-        args = arguments(avg_term)
+        args = map(unwrap_const, arguments(avg_term))
         if op == ^
             return (numeric_average(args[1], state, d; kwargs...))^(args[2])
         end
         return op([numeric_average(arg, state, d; kwargs...) for arg in args]...)
     else
         error(
-            "The numeric_average for the type $(typeof(avg_term)) is not implemented yet."
+            "The numeric_average for the type $(SymbolicUtils.symtype(avg_term)) is not implemented yet."
         )
     end
 end
@@ -441,14 +445,16 @@ function numeric_average(op::Number, state, d::Dict; kwargs...)
     return QuantumOpticsBase.expect(op_num, state)
 end
 
-function _conj(v::T) where {T<:SymbolicUtils.Symbolic}
+function _conj(v::T) where {T<:SymbolicUtils.BasicSymbolic}
     if SymbolicUtils.iscall(v)
         f = SymbolicUtils.operation(v)
-        args = map(_conj, SymbolicUtils.arguments(v))
+        args = map(arg -> _conj(unwrap_const(arg)), SymbolicUtils.arguments(v))
         return TermInterface.maketerm(T, f, args, TermInterface.metadata(v))
-    else
-        return conj(v)
     end
+    if is_symtype(v, Real) || is_symtype(v, RNumber)
+        return v
+    end
+    return TermInterface.maketerm(T, conj, [v], TermInterface.metadata(v))
 end
 _conj(x::Number) = conj(x)
 
@@ -456,23 +462,27 @@ _conj(x::Number) = conj(x)
 function _inconj(v::Average)
     f = operation(v)
     if f == conj
-        return _inconj(arguments(v)[1])
+        return _inconj(unwrap_const(arguments(v)[1]))
     end
-    arg = v.arguments[1]
+    arg = unwrap_const(arguments(v)[1])
     adj_arg = inadjoint(arg)
     return _average(adj_arg)
 end
 function _inconj(v::T) where {T<:SymbolicUtils.BasicSymbolic}
     if SymbolicUtils.iscall(v)
         f = SymbolicUtils.operation(v)
-        args = map(_inconj, SymbolicUtils.arguments(v))
+        args = map(arg -> _inconj(unwrap_const(arg)), SymbolicUtils.arguments(v))
         return TermInterface.maketerm(T, f, args, TermInterface.metadata(v))
-    else
-        return conj(v)
     end
+    if is_symtype(v, Real) || is_symtype(v, RNumber)
+        return v
+    end
+    return TermInterface.maketerm(T, conj, [v], TermInterface.metadata(v))
 end
 _inconj(x::Number) = conj(x)
 
 _adjoint(op::QNumber) = adjoint(op)
-_adjoint(s::SymbolicUtils.Symbolic{<:Number}) = _conj(s)
+function _adjoint(s::SQABasicSymbolic)
+    return _conj(s)
+end
 _adjoint(x) = adjoint(x)

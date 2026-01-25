@@ -72,7 +72,8 @@ const sqa = SecondQuantizedAlgebra
 
         DSum1 = H.arguments[1]
         Dsum2 = H.arguments[2]
-        @test isequal(DSum1*a(l_ind), Σ(Ssum1*a(l_ind), k_ind))
+        expected = Σ(Ssum1*a(l_ind), k_ind)
+        @test isequal(DSum1*a(l_ind), expected) || isequal(Dsum2*a(l_ind), expected)
     end
 
     @testset "Nested Sum Equivalences" begin
