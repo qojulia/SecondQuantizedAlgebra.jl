@@ -11,7 +11,7 @@ using QuantumOpticsBase: QuantumOpticsBase
 import QuantumOpticsBase: ⊗, tensor
 
 using LaTeXStrings: LaTeXStrings, @L_str, latexstring
-using Latexify: Latexify, @latexify, latexify, @latexrecipe
+using Latexify: Latexify, latexify, @latexrecipe
 using MacroTools: MacroTools
 
 const NO_METADATA = SymbolicUtils.NO_METADATA

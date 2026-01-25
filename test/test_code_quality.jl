@@ -23,7 +23,7 @@ if isempty(VERSION.prerelease)
     @testset "Code linting" begin
         using JET
         # JET.test_package(SecondQuantizedAlgebra; target_defined_modules=true)
-        rep = report_package("SecondQuantizedAlgebra")
+        rep = report_package(SecondQuantizedAlgebra)
         @show rep
         @test length(JET.get_reports(rep)) <= 262
         @test_broken length(JET.get_reports(rep)) == 0
