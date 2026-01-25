@@ -133,9 +133,7 @@ struct IndexedAverageDoubleSum <: CNumber
         end
         term_name = hasproperty(term, :name) ? String(term.name) : string(term)
         sym = SymbolicUtils.Sym{SQA_VARTYPE}(
-            Symbol(
-                "∑($(sum_index.name):=1:$(sum_index.range))$(neis_sym)$(term_name)"
-            );
+            Symbol("∑($(sum_index.name):=1:$(sum_index.range))$(neis_sym)$(term_name)");
             type=IndexedAverageDoubleSum,
         )
         sym = SymbolicUtils.setmetadata(sym, typeof(_metadata), _metadata)
@@ -234,7 +232,7 @@ struct SpecialIndexedAverage <: CNumber #An average-Term with special condition,
         if !is_symtype(term, AvgSym)
             return invoke(
                 SpecialIndexedAverage,
-                Tuple{symbolics_terms, typeof(indexMapping)},
+                Tuple{symbolics_terms,typeof(indexMapping)},
                 term,
                 indexMapping,
             )
@@ -247,7 +245,9 @@ struct SpecialIndexedAverage <: CNumber #An average-Term with special condition,
         end
         metadata = new(term, indexMapping)
         neis = writeIndexNEIs(indexMapping)
-        sym = SymbolicUtils.Sym{SQA_VARTYPE}(Symbol("$(neis)$(term)"); type=SpecialIndexedAverage)
+        sym = SymbolicUtils.Sym{SQA_VARTYPE}(
+            Symbol("$(neis)$(term)"); type=SpecialIndexedAverage
+        )
         sym = SymbolicUtils.setmetadata(sym, typeof(metadata), metadata)
         return sym
     end
@@ -277,10 +277,7 @@ end
 SpecialIndexedAverage(x, args...) = x
 
 const AvgSums = Union{
-    SQABasicSymbolic,
-    IndexedAverageSum,
-    IndexedAverageDoubleSum,
-    SpecialIndexedTerm,
+    SQABasicSymbolic,IndexedAverageSum,IndexedAverageDoubleSum,SpecialIndexedTerm
 }
 const AvgS = Union{IndexedAverageSum,IndexedAverageDoubleSum,SpecialIndexedTerm}
 
@@ -307,7 +304,8 @@ undo_average(a::SpecialIndexedAverage) = reorder(undo_average(a.term), a.indexMa
 function undo_average(a::SQABasicSymbolic)
     if is_symtype(a, AvgSym)
         return unwrap_const(sqa_arguments(a)[1])
-    elseif is_symtype(a, IndexedAverageSum) && SymbolicUtils.hasmetadata(a, IndexedAverageSum)
+    elseif is_symtype(a, IndexedAverageSum) &&
+        SymbolicUtils.hasmetadata(a, IndexedAverageSum)
         meta = TermInterface.metadata(a)[IndexedAverageSum]
         return undo_average(meta)
     elseif is_symtype(a, IndexedAverageDoubleSum) &&
@@ -403,14 +401,14 @@ function indexed_isequal(a::SQABasicSymbolic, b::SQABasicSymbolic)
     end
     if is_symtype(a, IndexedAverageSum) && is_symtype(b, IndexedAverageSum)
         if SymbolicUtils.hasmetadata(a, IndexedAverageSum) &&
-           SymbolicUtils.hasmetadata(b, IndexedAverageSum)
+            SymbolicUtils.hasmetadata(b, IndexedAverageSum)
             a_meta = TermInterface.metadata(a)[IndexedAverageSum]
             b_meta = TermInterface.metadata(b)[IndexedAverageSum]
             return isequal(a_meta, b_meta)
         end
     elseif is_symtype(a, SpecialIndexedAverage) && is_symtype(b, SpecialIndexedAverage)
         if SymbolicUtils.hasmetadata(a, SpecialIndexedAverage) &&
-           SymbolicUtils.hasmetadata(b, SpecialIndexedAverage)
+            SymbolicUtils.hasmetadata(b, SpecialIndexedAverage)
             a_meta = TermInterface.metadata(a)[SpecialIndexedAverage]
             b_meta = TermInterface.metadata(b)[SpecialIndexedAverage]
             return isequal(a_meta.term, b_meta.term) &&
@@ -429,8 +427,7 @@ SymbolicUtils.arguments(op::IndexedAverageSum) = arguments(op.term)
 SymbolicUtils.arguments(op::IndexedAverageDoubleSum) = op.innerSum
 SymbolicUtils.arguments(op::SpecialIndexedAverage) = arguments(op.term)
 function sqa_arguments(op::SQABasicSymbolic)
-    if is_symtype(op, IndexedAverageSum) &&
-       SymbolicUtils.hasmetadata(op, IndexedAverageSum)
+    if is_symtype(op, IndexedAverageSum) && SymbolicUtils.hasmetadata(op, IndexedAverageSum)
         return arguments(TermInterface.metadata(op)[IndexedAverageSum])
     elseif is_symtype(op, IndexedAverageDoubleSum) &&
         SymbolicUtils.hasmetadata(op, IndexedAverageDoubleSum)
@@ -446,7 +443,8 @@ function sqa_arguments(op::SQABasicSymbolic)
 end
 
 function sqa_simplify(sym::SQABasicSymbolic)
-    if is_symtype(sym, SpecialIndexedAverage) && SymbolicUtils.hasmetadata(sym, SpecialIndexedAverage)
+    if is_symtype(sym, SpecialIndexedAverage) &&
+        SymbolicUtils.hasmetadata(sym, SpecialIndexedAverage)
         meta = TermInterface.metadata(sym)[SpecialIndexedAverage]
         return SpecialIndexedAverage(SymbolicUtils.simplify(meta.term), meta.indexMapping)
     end
@@ -668,18 +666,16 @@ function insert_index(term::SQABasicSymbolic, ind::Index, value::Int64)
             op = operation(term)
             if op === *
                 return prod(
-                    insert_index(unwrap_const(arg), ind, value) for
-                    arg in arguments(term)
+                    insert_index(unwrap_const(arg), ind, value) for arg in arguments(term)
                 )
             elseif op === +
                 return sum(
-                    insert_index(unwrap_const(arg), ind, value) for
-                    arg in arguments(term)
+                    insert_index(unwrap_const(arg), ind, value) for arg in arguments(term)
                 )
             elseif op === ^
-                return insert_index(unwrap_const(arguments(term)[1]), ind, value)^(
-                    unwrap_const(arguments(term)[2])
-                )
+                return insert_index(
+                    unwrap_const(arguments(term)[1]), ind, value
+                )^(unwrap_const(arguments(term)[2]))
             end
         end
         data = TermInterface.metadata(term)[DoubleNumberedVariable]
@@ -697,13 +693,11 @@ function insert_index(term::SQABasicSymbolic, ind::Index, value::Int64)
             op = operation(term)
             if op === *
                 return prod(
-                    insert_index(unwrap_const(arg), ind, value) for
-                    arg in arguments(term)
+                    insert_index(unwrap_const(arg), ind, value) for arg in arguments(term)
                 )
             elseif op === +
                 return sum(
-                    insert_index(unwrap_const(arg), ind, value) for
-                    arg in arguments(term)
+                    insert_index(unwrap_const(arg), ind, value) for arg in arguments(term)
                 )
             elseif op === ^
                 return insert_index(

@@ -30,9 +30,11 @@ using Test
     end
 
     @testset "Commutativity Properties" begin
-        @test iszero(SymbolicUtils.unwrap_const(
-            average(a * σ) * average(a) - average(a) * average(a * σ)
-        ))
+        @test iszero(
+            SymbolicUtils.unwrap_const(
+                average(a * σ) * average(a) - average(a) * average(a * σ)
+            ),
+        )
     end
 
     @testset "Double Average" begin
@@ -67,7 +69,8 @@ using Test
         terms = SecondQuantizedAlgebra.undo_average(rhs_avg_simplified)
 
         for arg in map(SymbolicUtils.unwrap_const, arguments(terms))
-            @test arg isa SecondQuantizedAlgebra.QMul || arg isa SecondQuantizedAlgebra.SQABasicSymbolic
+            @test arg isa SecondQuantizedAlgebra.QMul ||
+                arg isa SecondQuantizedAlgebra.SQABasicSymbolic
         end
     end
 

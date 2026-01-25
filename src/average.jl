@@ -126,4 +126,3 @@ function undo_average(eq::Symbolics.Equation)
     rhs = undo_average(eq.rhs)
     return Symbolics.Equation(lhs, rhs)
 end
-

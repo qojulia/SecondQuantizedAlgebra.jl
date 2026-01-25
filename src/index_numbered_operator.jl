@@ -24,7 +24,9 @@ function NumberedOperator(op, numb::Int64)
     (op isa SNuN) && return op
     if SymbolicUtils.iscall(op)
         f = SymbolicUtils.operation(op)
-        args = [NumberedOperator(unwrap_const(arg), numb) for arg in SymbolicUtils.arguments(op)]
+        args = [
+            NumberedOperator(unwrap_const(arg), numb) for arg in SymbolicUtils.arguments(op)
+        ]
         isempty(args) && return 0
         isequal(length(args), 1) && return args[1]
         return f(args...)

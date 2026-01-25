@@ -376,8 +376,9 @@ function *(qmul::QMul, sum::SingleSum)
     return qmul.arg_c*sum_
 end
 
-_is_indexed_symbolic(elem::SQABasicSymbolic) =
+function _is_indexed_symbolic(elem::SQABasicSymbolic)
     is_symtype(elem, IndexedVariable) || is_symtype(elem, DoubleIndexedVariable)
+end
 _get_index(elem::IndexedOperator) = elem.ind
 function _get_index(elem::SQABasicSymbolic)
     if is_symtype(elem, IndexedVariable)
@@ -847,7 +848,9 @@ function change_index(op::SQABasicSymbolic, from::Index, to::Index)
             meta = TermInterface.metadata(op)[DoubleIndexedVariable]
             if meta.ind1 == from
                 if meta.ind1 == meta.ind2 && meta.identical
-                    return DoubleIndexedVariable(meta.name, to, to; identical=meta.identical)
+                    return DoubleIndexedVariable(
+                        meta.name, to, to; identical=meta.identical
+                    )
                 elseif meta.ind1 == meta.ind2
                     return 0
                 else
@@ -922,7 +925,8 @@ function SymbolicUtils.simplify(a::SingleSum)
 end
 
 function +(a::SingleSum, b::SingleSum)
-    if isequal(a.sum_index, b.sum_index) && isequal(a.non_equal_indices, b.non_equal_indices)
+    if isequal(a.sum_index, b.sum_index) &&
+        isequal(a.non_equal_indices, b.non_equal_indices)
         return SymbolicUtils.simplify(QAdd([a, b]))
     end
     return QAdd([a, b])

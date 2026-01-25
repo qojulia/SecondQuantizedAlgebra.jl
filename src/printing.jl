@@ -45,4 +45,3 @@ end
 
 const T_LATEX = Union{<:QNumber,SQABasicSymbolic}
 Base.show(io::IO, ::MIME"text/latex", x::T_LATEX) = write(io, latexify(x))
-

@@ -9,7 +9,8 @@ get_indices(term::SpecialIndexedTerm) = get_indices(term.term)
 get_indices(term::IndexedAverageSum) = get_indices(term.term)
 get_indices(term::IndexedAverageDoubleSum) = get_indices(term.innerSum)
 function get_indices(term::SQABasicSymbolic)
-    if is_symtype(term, IndexedAverageSum) && SymbolicUtils.hasmetadata(term, IndexedAverageSum)
+    if is_symtype(term, IndexedAverageSum) &&
+        SymbolicUtils.hasmetadata(term, IndexedAverageSum)
         return get_indices(TermInterface.metadata(term)[IndexedAverageSum])
     elseif is_symtype(term, IndexedAverageDoubleSum) &&
         SymbolicUtils.hasmetadata(term, IndexedAverageDoubleSum)
@@ -19,7 +20,7 @@ function get_indices(term::SQABasicSymbolic)
         return get_indices(TermInterface.metadata(term)[SpecialIndexedAverage])
     end
     if is_symtype(term, DoubleIndexedVariable) &&
-       SymbolicUtils.hasmetadata(term, DoubleIndexedVariable)
+        SymbolicUtils.hasmetadata(term, DoubleIndexedVariable)
         meta = TermInterface.metadata(term)[DoubleIndexedVariable]
         return unique([meta.ind1, meta.ind2])
     elseif is_symtype(term, IndexedVariable)

@@ -77,7 +77,9 @@ function _simplify_qnumber_noavg(x::QNumber; kwargs...)
         return SymbolicUtils.simplify(x)
     elseif x isa QMul || x isa QAdd
         f = SymbolicUtils.operation(x)
-        args = map(arg -> SymbolicUtils.simplify(arg; kwargs...), SymbolicUtils.arguments(x))
+        args = map(
+            arg -> SymbolicUtils.simplify(arg; kwargs...), SymbolicUtils.arguments(x)
+        )
         return f(args...)
     end
     return x
@@ -107,8 +109,13 @@ function Symbolics.substitute(x::QNumber, dict; kwargs...)
         if any(arg -> isequal(arg, 0) || SymbolicUtils._iszero(arg), args_c)
             return 0
         end
-        arg_c = isempty(args_c) ? arg_c :
-            length(args_c) == 1 ? arg_c * args_c[1] : arg_c * *(args_c...)
+        arg_c = if isempty(args_c)
+            arg_c
+        elseif length(args_c) == 1
+            arg_c * args_c[1]
+        else
+            arg_c * *(args_c...)
+        end
         if isequal(arg_c, 0) || SymbolicUtils._iszero(arg_c)
             return 0
         end
@@ -167,7 +174,8 @@ struct QMul{M} <: QTerm
         if SymbolicUtils._isone(arg_c) && length(args_nc)==1
             return args_nc[1]
         elseif any(arg -> isequal(arg, 0) || SymbolicUtils._iszero(arg), args_nc) ||
-            isequal(arg_c, 0) || SymbolicUtils._iszero(arg_c)
+            isequal(arg_c, 0) ||
+            SymbolicUtils._iszero(arg_c)
             return 0
         else
             return new(arg_c, args_nc, metadata)
@@ -308,7 +316,9 @@ struct QAdd <: QTerm
     arguments::Vector{Any}
 end
 
-Base.hash(q::T, h::UInt) where {T<:QAdd} = hash(T, hashvec(sort(copy(q.arguments); by=string), h))
+function Base.hash(q::T, h::UInt) where {T<:QAdd}
+    hash(T, hashvec(sort(copy(q.arguments); by=string), h))
+end
 function Base.isequal(a::QAdd, b::QAdd)
     length(a.arguments)==length(b.arguments) || return false
     args_a = sort(copy(a.arguments); by=string)
@@ -321,12 +331,24 @@ end
 
 SymbolicUtils.operation(::QAdd) = (+)
 SymbolicUtils.arguments(a::QAdd) = a.arguments
-TermInterface.maketerm(::Type{<:QAdd}, ::typeof(+), args, metadata) = QAdd(map(unwrap_const, args))
+function TermInterface.maketerm(::Type{<:QAdd}, ::typeof(+), args, metadata)
+    QAdd(map(unwrap_const, args))
+end
 TermInterface.metadata(::QAdd) = NO_METADATA
 
 Base.adjoint(q::QAdd) = QAdd(map(_adjoint, q.arguments))
 
-_qadd_key_tuple(x) = x isa Tuple ? x : x isa AbstractVector ? Tuple(x) : x === nothing ? () : (x,)
+function _qadd_key_tuple(x)
+    if x isa Tuple
+        x
+    elseif x isa AbstractVector
+        Tuple(x)
+    elseif x === nothing
+        ()
+    else
+        (x,)
+    end
+end
 
 function SymbolicUtils.simplify(a::QAdd; kwargs...)
     args = map(arg -> SymbolicUtils.simplify(arg; kwargs...), a.arguments)
@@ -348,12 +370,7 @@ function SymbolicUtils.simplify(a::QAdd; kwargs...)
             neis_tuple = _qadd_key_tuple(neis)
             args_nc = term.term.args_nc
             args_nc_tuple = _qadd_key_tuple(args_nc)
-            key = (
-                :singlesum,
-                term.sum_index,
-                neis_tuple,
-                args_nc_tuple,
-            )
+            key = (:singlesum, term.sum_index, neis_tuple, args_nc_tuple)
             coeff = term.term.arg_c
         elseif term isa QMul
             if length(term.args_nc) == 1

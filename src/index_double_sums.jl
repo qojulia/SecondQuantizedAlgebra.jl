@@ -286,7 +286,7 @@ end
 
 acts_on(sum::DoubleSum) = acts_on(sum.innerSum)
 
-_aon_vec(x) = (aon = acts_on(x); aon isa AbstractVector ? aon : [aon])
+_aon_vec(x) = (aon=acts_on(x); aon isa AbstractVector ? aon : [aon])
 function commutator(a::QSym, b::SingleSum)
     isempty(intersect(_aon_vec(a), _aon_vec(b))) && return 0
     return _commutator(a, b)

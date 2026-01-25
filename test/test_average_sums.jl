@@ -101,7 +101,9 @@ const sqa = SecondQuantizedAlgebra
             sqa.IndexedAverageSum(g(ind(:i)), ind(:i), []),
             average(Σ(g(ind(:i)), ind(:i), [])),
         )
-        @test sqa.is_symtype(sqa.IndexedAverageSum(g(ind(:i)), ind(:i), []), sqa.IndexedAverageSum)
+        @test sqa.is_symtype(
+            sqa.IndexedAverageSum(g(ind(:i)), ind(:i), []), sqa.IndexedAverageSum
+        )
 
         @test sqa.IndexedAverageSum(1) == 1
     end

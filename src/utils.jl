@@ -344,7 +344,7 @@ function numeric_average(avg_term::SQABasicSymbolic, state; kwargs...)
         return op([numeric_average(arg, state; kwargs...) for arg in args]...)
     else
         error(
-            "The numeric_average for the type $(SymbolicUtils.symtype(avg_term)) is not implemented yet."
+            "The numeric_average for the type $(SymbolicUtils.symtype(avg_term)) is not implemented yet.",
         )
     end
 end
@@ -436,7 +436,7 @@ function numeric_average(avg_term::SQABasicSymbolic, state, d::Dict; kwargs...)
         return op([numeric_average(arg, state, d; kwargs...) for arg in args]...)
     else
         error(
-            "The numeric_average for the type $(SymbolicUtils.symtype(avg_term)) is not implemented yet."
+            "The numeric_average for the type $(SymbolicUtils.symtype(avg_term)) is not implemented yet.",
         )
     end
 end

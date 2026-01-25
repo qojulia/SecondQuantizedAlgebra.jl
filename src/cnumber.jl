@@ -211,8 +211,6 @@ true
 rnumber(s::Symbol) = RealParameter(s; metadata=source_metadata(:rnumbers, s))
 rnumber(s::String) = rnumber(Symbol(s))
 
-
-
 Base.one(::Type{CNumber}) = 1
 Base.zero(::Type{CNumber}) = 0
 
