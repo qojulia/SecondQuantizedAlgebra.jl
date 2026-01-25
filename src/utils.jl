@@ -332,7 +332,7 @@ function numeric_average(avg::Average, state; kwargs...)
     return numeric_average(op, state; kwargs...)
 end
 function numeric_average(avg_term::SymbolicUtils.BasicSymbolic{CNumber}, state; kwargs...)
-    if SymbolicUtils.istree(avg_term)
+    if SymbolicUtils.iscall(avg_term)
         op = operation(avg_term)
         args = arguments(avg_term)
         if op == ^
@@ -355,7 +355,7 @@ end
     to_numeric(q::QNumber, b::QuantumOpticsBase.Basis, d::Dict)
     to_numeric(q::QNumber, state, d::Dict)
 
-Map a symbolic operator `q` to a numeric (matrix) defined in the 
+Map a symbolic operator `q` to a numeric (matrix) defined in the
 dictionary `d`. See also: [`numeric_average`](@ref)
 
 """
@@ -405,9 +405,9 @@ end
     numeric_average(avg::Average, state, d::Dict)
     numeric_average(q::QNumber, state, d::Dict)
 
-From a symbolic average `avg` or operator `q`, map the operator defined in 
-the dictionary `d` and compute the numerical average value for an with the 
-given quantum state `state`. This state can either be of type 
+From a symbolic average `avg` or operator `q`, map the operator defined in
+the dictionary `d` and compute the numerical average value for an with the
+given quantum state `state`. This state can either be of type
 `QuantumOpticsBase.StateVector` or `QuantumOpticsBase.Operator`.
 
 See also: [`to_numeric`](@ref)
@@ -423,7 +423,7 @@ end
 function numeric_average(
     avg_term::SymbolicUtils.BasicSymbolic{CNumber}, state, d::Dict; kwargs...
 )
-    if SymbolicUtils.istree(avg_term)
+    if SymbolicUtils.iscall(avg_term)
         op = operation(avg_term)
         args = arguments(avg_term)
         if op == ^
