@@ -1,4 +1,14 @@
 # get_indices functions
+function metadata_by_type(term::SQABasicSymbolic, ::Type{T}) where {T}
+    meta = TermInterface.metadata(term)
+    meta === nothing && return nothing
+    for (k, v) in meta
+        if k <: T
+            return v
+        end
+    end
+    return nothing
+end
 function get_indices(term::QMul)
     args_nc = filter(x -> x isa IndexedOperator, term.args_nc)
     return unique(vcat(get_indices(args_nc), get_indices(term.arg_c)))
@@ -9,22 +19,22 @@ get_indices(term::SpecialIndexedTerm) = get_indices(term.term)
 get_indices(term::IndexedAverageSum) = get_indices(term.term)
 get_indices(term::IndexedAverageDoubleSum) = get_indices(term.innerSum)
 function get_indices(term::SQABasicSymbolic)
-    if is_symtype(term, IndexedAverageSum) &&
-        SymbolicUtils.hasmetadata(term, IndexedAverageSum)
-        return get_indices(TermInterface.metadata(term)[IndexedAverageSum])
-    elseif is_symtype(term, IndexedAverageDoubleSum) &&
-        SymbolicUtils.hasmetadata(term, IndexedAverageDoubleSum)
-        return get_indices(TermInterface.metadata(term)[IndexedAverageDoubleSum])
-    elseif is_symtype(term, SpecialIndexedAverage) &&
-        SymbolicUtils.hasmetadata(term, SpecialIndexedAverage)
-        return get_indices(TermInterface.metadata(term)[SpecialIndexedAverage])
+    if is_symtype(term, IndexedAverageSum)
+        meta = metadata_by_type(term, IndexedAverageSum)
+        meta === nothing || return get_indices(meta)
+    elseif is_symtype(term, IndexedAverageDoubleSum)
+        meta = metadata_by_type(term, IndexedAverageDoubleSum)
+        meta === nothing || return get_indices(meta)
+    elseif is_symtype(term, SpecialIndexedAverage)
+        meta = metadata_by_type(term, SpecialIndexedAverage)
+        meta === nothing || return get_indices(meta)
     end
-    if is_symtype(term, DoubleIndexedVariable) &&
-        SymbolicUtils.hasmetadata(term, DoubleIndexedVariable)
-        meta = TermInterface.metadata(term)[DoubleIndexedVariable]
-        return unique([meta.ind1, meta.ind2])
+    if is_symtype(term, DoubleIndexedVariable)
+        meta = metadata_by_type(term, DoubleIndexedVariable)
+        meta === nothing || return unique([meta.ind1, meta.ind2])
     elseif is_symtype(term, IndexedVariable)
-        return [TermInterface.metadata(term)[IndexedVariable].ind]
+        meta = metadata_by_type(term, IndexedVariable)
+        meta === nothing || return [meta.ind]
     elseif is_average(term)
         return get_indices(unwrap_const(arguments(term)[1]))
     elseif iscall(term)

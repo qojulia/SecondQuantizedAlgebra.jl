@@ -21,11 +21,11 @@ Fields:
 * non_equal_indices: (optional) A vector of indices, for which the summation-index can not be equal with.
 
 """
-struct IndexedAverageSum <: CNumber
-    term::symbolics_terms
-    sum_index::Index
+struct IndexedAverageSum{T<:symbolics_terms,I<:Index,M} <: CNumber
+    term::T
+    sum_index::I
     non_equal_indices::Vector{IndexInt}
-    metadata
+    metadata::M
     function IndexedAverageSum(
         term::symbolics_terms, sum_index::Index, non_equal_indices::Vector, metadata
     )
@@ -36,10 +36,12 @@ struct IndexedAverageSum <: CNumber
             neis_sym = string(neis_sym, writeNEIs(non_equal_indices))
             neis_sym = string(neis_sym, ")")
         end
-        _metadata = new(term, sum_index, non_equal_indices, metadata)
+        _metadata = new{typeof(term),typeof(sum_index),typeof(metadata)}(
+            term, sum_index, non_equal_indices, metadata
+        )
         sym = SymbolicUtils.Sym{SQA_VARTYPE}(
             Symbol("∑($(sum_index.name)=1:$(sum_index.range))$(neis_sym)$(term)");
-            type=IndexedAverageSum,
+            type=IndexedAverageSum{typeof(term),typeof(sum_index),typeof(metadata)},
         )
         sym = SymbolicUtils.setmetadata(sym, typeof(_metadata), _metadata)
         sym = SymbolicUtils.setmetadata(sym, typeof(metadata), metadata)
@@ -97,9 +99,9 @@ Fields:
 * non_equal_indices: (optional) A vector of indices, for which the (outer) summation-index can not be equal with.
 
 """
-struct IndexedAverageDoubleSum <: CNumber
-    innerSum::SQABasicSymbolic
-    sum_index::Index
+struct IndexedAverageDoubleSum{T<:SQABasicSymbolic,I<:Index} <: CNumber
+    innerSum::T
+    sum_index::I
     non_equal_indices::Vector{IndexInt}
     function IndexedAverageDoubleSum(
         term::SQABasicSymbolic, sum_index::Index, non_equal_indices
@@ -125,7 +127,7 @@ struct IndexedAverageDoubleSum <: CNumber
         if !is_symtype(term, IndexedAverageSum)
             return IndexedAverageSum(term, sum_index, non_equal_indices)
         end
-        _metadata = new(term, sum_index, non_equal_indices)
+        _metadata = new{typeof(term),typeof(sum_index)}(term, sum_index, non_equal_indices)
         neis_sym = ""
         if !(isempty(non_equal_indices))
             neis_sym = string("(", neis_sym)
@@ -136,7 +138,7 @@ struct IndexedAverageDoubleSum <: CNumber
         term_name = hasproperty(term, :name) ? String(term.name) : string(term)
         sym = SymbolicUtils.Sym{SQA_VARTYPE}(
             Symbol("∑($(sum_index.name):=1:$(sum_index.range))$(neis_sym)$(term_name)");
-            type=IndexedAverageDoubleSum,
+            type=IndexedAverageDoubleSum{typeof(term),typeof(sum_index)},
         )
         sym = SymbolicUtils.setmetadata(sym, typeof(_metadata), _metadata)
         return sym
@@ -206,10 +208,10 @@ Fields:
 * numb2: Another Integer Number.
 
 """
-struct DoubleNumberedVariable <: numberedVariable
+struct DoubleNumberedVariable{N1,N2} <: numberedVariable
     name::Symbol
-    numb1::IndexInt
-    numb2::IndexInt
+    numb1::N1
+    numb2::N2
     function DoubleNumberedVariable(name, numb1, numb2; identical::Bool=true)
         if !(identical) && (numb1 == numb2)
             return 0
@@ -218,17 +220,18 @@ struct DoubleNumberedVariable <: numberedVariable
             sym_name = Symbol("$(name)_{$(numb1),$(numb2)}")
             return Parameter(sym_name)
         else
-            metadata = new(name, numb1, numb2)
+            metadata = new{typeof(numb1),typeof(numb2)}(name, numb1, numb2)
             sym = SymbolicUtils.Sym{SQA_VARTYPE}(
-                Symbol("$(name)_{$(numb1),$(numb2)}"); type=DoubleNumberedVariable
+                Symbol("$(name)_{$(numb1),$(numb2)}");
+                type=DoubleNumberedVariable{typeof(numb1),typeof(numb2)},
             )
             sym = SymbolicUtils.setmetadata(sym, typeof(metadata), metadata)
             return sym
         end
     end
 end
-struct SpecialIndexedAverage <: CNumber #An average-Term with special condition, for example l ≠ k; needed for correct calculus of Double indexed Sums
-    term::symbolics_terms
+struct SpecialIndexedAverage{T<:symbolics_terms} <: CNumber #An average-Term with special condition, for example l ≠ k; needed for correct calculus of Double indexed Sums
+    term::T
     indexMapping::Vector{Tuple{IndexInt,IndexInt}}
     function SpecialIndexedAverage(term::Average, indexMapping)
         if !is_symtype(term, AvgSym)
@@ -245,10 +248,10 @@ struct SpecialIndexedAverage <: CNumber #An average-Term with special condition,
         if SymbolicUtils._iszero(unwrap_const(arguments(term)[1]))
             return 0
         end
-        metadata = new(term, indexMapping)
+        metadata = new{typeof(term)}(term, indexMapping)
         neis = writeIndexNEIs(indexMapping)
         sym = SymbolicUtils.Sym{SQA_VARTYPE}(
-            Symbol("$(neis)$(term)"); type=SpecialIndexedAverage
+            Symbol("$(neis)$(term)"); type=SpecialIndexedAverage{typeof(term)}
         )
         sym = SymbolicUtils.setmetadata(sym, typeof(metadata), metadata)
         return sym
@@ -299,23 +302,24 @@ function undo_average(a::IndexedAverageSum)
     SingleSum(undo_average(a.term), a.sum_index, a.non_equal_indices)
 end
 function undo_average(a::IndexedAverageDoubleSum)
-    DoubleSum(undo_average(a.innerSum), a.sum_index, a.non_equal_indices)
+    nei = [x for x in a.non_equal_indices if x isa Index]
+    DoubleSum(undo_average(a.innerSum), a.sum_index, nei)
 end
 undo_average(a::SpecialIndexedAverage) = reorder(undo_average(a.term), a.indexMapping)
 function undo_average(a::SQABasicSymbolic)
     if is_symtype(a, AvgSym)
         return unwrap_const(sqa_arguments(a)[1])
-    elseif is_symtype(a, IndexedAverageSum) &&
-        SymbolicUtils.hasmetadata(a, IndexedAverageSum)
-        meta = TermInterface.metadata(a)[IndexedAverageSum]
+    elseif is_symtype(a, IndexedAverageSum)
+        meta = metadata_by_type(a, IndexedAverageSum)
+        meta === nothing && return a
         return undo_average(meta)
-    elseif is_symtype(a, IndexedAverageDoubleSum) &&
-        SymbolicUtils.hasmetadata(a, IndexedAverageDoubleSum)
-        meta = TermInterface.metadata(a)[IndexedAverageDoubleSum]
+    elseif is_symtype(a, IndexedAverageDoubleSum)
+        meta = metadata_by_type(a, IndexedAverageDoubleSum)
+        meta === nothing && return a
         return undo_average(meta)
-    elseif is_symtype(a, SpecialIndexedAverage) &&
-        SymbolicUtils.hasmetadata(a, SpecialIndexedAverage)
-        meta = TermInterface.metadata(a)[SpecialIndexedAverage]
+    elseif is_symtype(a, SpecialIndexedAverage)
+        meta = metadata_by_type(a, SpecialIndexedAverage)
+        meta === nothing && return a
         return undo_average(meta)
     elseif SymbolicUtils.iscall(a)
         f = SymbolicUtils.operation(a)
@@ -344,7 +348,7 @@ SymbolicUtils._isone(a::IndexedAverageSum) = SymbolicUtils._isone(a.term)
 SymbolicUtils.iscall(a::IndexedAverageSum) = false
 SymbolicUtils.iscall(a::IndexedAverageDoubleSum) = false
 
-function writeIndexNEIs(neis::Vector{Tuple{IndexInt,IndexInt}})
+function writeIndexNEIs(neis::AbstractVector{<:Tuple{<:IndexInt,<:IndexInt}})
     syms = ""
     syms = join([syms, "("])
     for i in 1:length(neis)
@@ -366,10 +370,10 @@ function writeIndexNEIs(neis::Vector{Tuple{IndexInt,IndexInt}})
     syms = join([syms, ")"])
     return syms
 end
-function writeIndexNEIs(neis::Vector{Tuple{Index,Index}})
+function writeIndexNEIs(neis::AbstractVector{<:Tuple{<:Index,<:Index}})
     writeIndexNEIs(convert(Vector{Tuple{IndexInt,IndexInt}}, neis))
 end
-function writeNeqs(vec::Vector{Tuple{Index,Int64}})
+function writeNeqs(vec::AbstractVector{<:Tuple{<:Index,Int64}})
     syms = ""
     for i in 1:length(vec)
         syms = join([syms, "("])
@@ -401,20 +405,16 @@ function indexed_isequal(a::SQABasicSymbolic, b::SQABasicSymbolic)
         )
     end
     if is_symtype(a, IndexedAverageSum) && is_symtype(b, IndexedAverageSum)
-        if SymbolicUtils.hasmetadata(a, IndexedAverageSum) &&
-            SymbolicUtils.hasmetadata(b, IndexedAverageSum)
-            a_meta = TermInterface.metadata(a)[IndexedAverageSum]
-            b_meta = TermInterface.metadata(b)[IndexedAverageSum]
-            return isequal(a_meta, b_meta)
-        end
+        a_meta = metadata_by_type(a, IndexedAverageSum)
+        b_meta = metadata_by_type(b, IndexedAverageSum)
+        (a_meta === nothing || b_meta === nothing) && return false
+        return isequal(a_meta, b_meta)
     elseif is_symtype(a, SpecialIndexedAverage) && is_symtype(b, SpecialIndexedAverage)
-        if SymbolicUtils.hasmetadata(a, SpecialIndexedAverage) &&
-            SymbolicUtils.hasmetadata(b, SpecialIndexedAverage)
-            a_meta = TermInterface.metadata(a)[SpecialIndexedAverage]
-            b_meta = TermInterface.metadata(b)[SpecialIndexedAverage]
-            return isequal(a_meta.term, b_meta.term) &&
-                   isequal(a_meta.indexMapping, b_meta.indexMapping)
-        end
+        a_meta = metadata_by_type(a, SpecialIndexedAverage)
+        b_meta = metadata_by_type(b, SpecialIndexedAverage)
+        (a_meta === nothing || b_meta === nothing) && return false
+        return isequal(a_meta.term, b_meta.term) &&
+               isequal(a_meta.indexMapping, b_meta.indexMapping)
     end
     return isequal(a, b)
 end
@@ -428,14 +428,15 @@ SymbolicUtils.arguments(op::IndexedAverageSum) = arguments(op.term)
 SymbolicUtils.arguments(op::IndexedAverageDoubleSum) = op.innerSum
 SymbolicUtils.arguments(op::SpecialIndexedAverage) = arguments(op.term)
 function sqa_arguments(op::SQABasicSymbolic)
-    if is_symtype(op, IndexedAverageSum) && SymbolicUtils.hasmetadata(op, IndexedAverageSum)
-        return arguments(TermInterface.metadata(op)[IndexedAverageSum])
-    elseif is_symtype(op, IndexedAverageDoubleSum) &&
-        SymbolicUtils.hasmetadata(op, IndexedAverageDoubleSum)
-        return TermInterface.metadata(op)[IndexedAverageDoubleSum].innerSum
-    elseif is_symtype(op, SpecialIndexedAverage) &&
-        SymbolicUtils.hasmetadata(op, SpecialIndexedAverage)
-        return arguments(TermInterface.metadata(op)[SpecialIndexedAverage])
+    if is_symtype(op, IndexedAverageSum)
+        meta = metadata_by_type(op, IndexedAverageSum)
+        meta === nothing || return arguments(meta)
+    elseif is_symtype(op, IndexedAverageDoubleSum)
+        meta = metadata_by_type(op, IndexedAverageDoubleSum)
+        meta === nothing || return meta.innerSum
+    elseif is_symtype(op, SpecialIndexedAverage)
+        meta = metadata_by_type(op, SpecialIndexedAverage)
+        meta === nothing || return arguments(meta)
     end
     if SymbolicUtils.iscall(op)
         return SymbolicUtils.arguments(op)
@@ -444,10 +445,10 @@ function sqa_arguments(op::SQABasicSymbolic)
 end
 
 function sqa_simplify(sym::SQABasicSymbolic)
-    if is_symtype(sym, SpecialIndexedAverage) &&
-        SymbolicUtils.hasmetadata(sym, SpecialIndexedAverage)
-        meta = TermInterface.metadata(sym)[SpecialIndexedAverage]
-        return SpecialIndexedAverage(SymbolicUtils.simplify(meta.term), meta.indexMapping)
+    if is_symtype(sym, SpecialIndexedAverage)
+        meta = metadata_by_type(sym, SpecialIndexedAverage)
+        meta === nothing ||
+            return SpecialIndexedAverage(SymbolicUtils.simplify(meta.term), meta.indexMapping)
     end
     return SymbolicUtils.simplify(sym)
 end
@@ -513,13 +514,12 @@ function _to_expression(x::SQABasicSymbolic)
             $(meta.sum_index.range),
             $(writeNEIs(meta.non_equal_indices)),
         ))
-    elseif is_symtype(x, IndexedVariable) && SymbolicUtils.hasmetadata(x, IndexedVariable)
-        meta = TermInterface.metadata(x)[IndexedVariable]
-        return _to_expression(meta)
-    elseif is_symtype(x, DoubleIndexedVariable) &&
-        SymbolicUtils.hasmetadata(x, DoubleIndexedVariable)
-        meta = TermInterface.metadata(x)[DoubleIndexedVariable]
-        return _to_expression(meta)
+    elseif is_symtype(x, IndexedVariable)
+        meta = metadata_by_type(x, IndexedVariable)
+        meta === nothing || return _to_expression(meta)
+    elseif is_symtype(x, DoubleIndexedVariable)
+        meta = metadata_by_type(x, DoubleIndexedVariable)
+        meta === nothing || return _to_expression(meta)
     end
     return x
 end
@@ -612,7 +612,8 @@ function insert_index(term::SQABasicSymbolic, ind::Index, value::Int64)
         end
         return average(inorder!(insert_index(unwrap_const(arguments(term)[1]), ind, value)))
     elseif is_symtype(term, IndexedAverageSum)
-        meta = TermInterface.metadata(term)[IndexedAverageSum]
+        meta = metadata_by_type(term, IndexedAverageSum)
+        meta === nothing && return term
         if ind == meta.sum_index
             error("cannot exchange summation index with number!")
         end
@@ -628,11 +629,13 @@ function insert_index(term::SQABasicSymbolic, ind::Index, value::Int64)
             )
         end
     elseif is_symtype(term, IndexedAverageDoubleSum)
-        meta = TermInterface.metadata(term)[IndexedAverageDoubleSum]
+        meta = metadata_by_type(term, IndexedAverageDoubleSum)
+        meta === nothing && return term
         inner = insert_index(meta.innerSum, ind, value)
         return IndexedAverageDoubleSum(inner, meta.sum_index, meta.non_equal_indices)
     elseif is_symtype(term, SpecialIndexedAverage)
-        meta = TermInterface.metadata(term)[SpecialIndexedAverage]
+        meta = metadata_by_type(term, SpecialIndexedAverage)
+        meta === nothing && return term
         newterm = insert_index(meta.term, ind, value)
         newMapping = Tuple{IndexInt,IndexInt}[]
         for tuple in meta.indexMapping
@@ -653,7 +656,8 @@ function insert_index(term::SQABasicSymbolic, ind::Index, value::Int64)
         filter!(x -> !(first(x) isa Int64 && last(x) isa Int64), newMapping)
         return SpecialIndexedAverage(newterm, newMapping)
     elseif is_symtype(term, DoubleIndexedVariable)
-        data = TermInterface.metadata(term)[DoubleIndexedVariable]
+        data = metadata_by_type(term, DoubleIndexedVariable)
+        data === nothing && return term
         if data.ind1 == ind && data.ind2 == ind
             return DoubleNumberedVariable(data.name, value, value)
         elseif data.ind1 == ind
@@ -679,7 +683,8 @@ function insert_index(term::SQABasicSymbolic, ind::Index, value::Int64)
                 )^(unwrap_const(arguments(term)[2]))
             end
         end
-        data = TermInterface.metadata(term)[DoubleNumberedVariable]
+        data = metadata_by_type(term, DoubleNumberedVariable)
+        data === nothing && return term
         if data.numb1 isa Index && data.numb1 == ind
             return DoubleNumberedVariable(data.name, value, data.numb2)
         elseif data.numb2 isa Index && data.numb2 == ind
@@ -687,7 +692,8 @@ function insert_index(term::SQABasicSymbolic, ind::Index, value::Int64)
         end
         return term
     elseif is_symtype(term, IndexedVariable)
-        meta = TermInterface.metadata(term)[IndexedVariable]
+        meta = metadata_by_type(term, IndexedVariable)
+        meta === nothing && return term
         return meta.ind == ind ? SingleNumberedVariable(meta.name, value) : term
     elseif is_symtype(term, CNumber)
         if iscall(term)

@@ -13,14 +13,16 @@ Fields:
 * NEI: (optional) A vector of indices, for which the (outer) summation-index can not be equal with.
 
 """
-struct DoubleSum{M} <: QTerm
-    innerSum::SingleSum
-    sum_index::Index
-    NEI::Vector{Index}
+struct DoubleSum{S<:SingleSum,I<:Index,N<:Index,M} <: QTerm
+    innerSum::S
+    sum_index::I
+    NEI::Vector{N}
     metadata::M
     function DoubleSum(innerSum::SingleSum, sum_index::Index, NEI::Vector, metadata)
         try
-            return new{typeof(metadata)}(innerSum, sum_index, NEI, metadata)
+            return new{typeof(innerSum),typeof(sum_index),eltype(NEI),typeof(metadata)}(
+                innerSum, sum_index, NEI, metadata
+            )
         catch e
             println(
                 "Could not create DoubleSum with input: term= $(innerSum) ; sum_index=c$(sum_index) ; NEI= $(NEI) ; metadata= $(metadata)",
@@ -30,9 +32,25 @@ struct DoubleSum{M} <: QTerm
     end
 end
 function DoubleSum(innerSum::SingleSum, sum_index::Index, NEI::Vector; metadata=NO_METADATA)
+    NEI = Index[x for x in NEI if x isa Index]
     if innerSum.sum_index == sum_index
         error("summation index is the same as the index of the inner sum")
     else
+            if (sum_index in get_indices(innerSum.term)) &&
+                isequal(sum_index.aon, innerSum.sum_index.aon) &&
+                (sum_index ∉ innerSum.non_equal_indices)
+                diag = SingleSum(
+                    change_index(innerSum.term, innerSum.sum_index, sum_index),
+                    sum_index,
+                    innerSum.non_equal_indices,
+                )
+                innerSum = SingleSum(
+                    innerSum.term,
+                    innerSum.sum_index,
+                    [innerSum.non_equal_indices..., sum_index],
+                )
+                return DoubleSum(innerSum, sum_index, NEI; metadata=metadata) + diag
+            end
         extraterm = 0
         NEI_ = copy(NEI)
         if sum_index in innerSum.non_equal_indices
@@ -81,6 +99,7 @@ end
 function DoubleSum(
     innerSum::IndexedAdd, sum_index::Index, NEI::Vector; metadata=NO_METADATA
 )
+    NEI = Index[x for x in NEI if x isa Index]
     if iscall(innerSum)
         op = operation(innerSum)
         if op === +
@@ -98,6 +117,7 @@ end
 function DoubleSum(
     innerSum::SQABasicSymbolic, sum_index::Index, NEI::Vector; metadata=NO_METADATA
 )
+    NEI = Index[x for x in NEI if x isa Index]
     if iscall(innerSum)
         op = operation(innerSum)
         if op === +
@@ -127,10 +147,10 @@ function DoubleSum(
 )
     if non_equal
         innerSum = SingleSum(term, innerInd, [outerInd])
-        return DoubleSum(innerSum, outerInd, []; metadata=metadata)
+        return DoubleSum(innerSum, outerInd, Index[]; metadata=metadata)
     else
-        innerSum = SingleSum(term, innerInd, [])
-        return DoubleSum(innerSum, outerInd, []; metadata=metadata)
+        innerSum = SingleSum(term, innerInd, Index[])
+        return DoubleSum(innerSum, outerInd, Index[]; metadata=metadata)
     end
 end
 
@@ -320,7 +340,7 @@ end
 SymbolicUtils.iscall(a::DoubleSum) = false
 SymbolicUtils.arguments(a::DoubleSum) = SymbolicUtils.arguments(a.innerSum)
 checkInnerSums(sum1::DoubleSum, sum2::DoubleSum) = ((sum1.innerSum + sum2.innerSum) == 0)
-function reorder(dsum::DoubleSum, indexMapping::Vector{Tuple{Index,Index}})
+function reorder(dsum::DoubleSum, indexMapping::AbstractVector{<:Tuple{<:Index,<:Index}})
     DoubleSum(reorder(dsum.innerSum, indexMapping), dsum.sum_index, dsum.NEI)
 end
 

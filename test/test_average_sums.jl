@@ -117,9 +117,9 @@ const sqa = SecondQuantizedAlgebra
         it_2 = findfirst(x -> sqa.is_symtype(x, IndexedAverageDoubleSum), arguments(ADsum1))
 
         @test ADsum1 isa SymbolicUtils.BasicSymbolic && operation(ADsum1) === +
-        @test SymbolicUtils.metadata(arguments(ADsum1)[it_2])[sqa.IndexedAverageDoubleSum] isa
+        @test sqa.metadata_by_type(arguments(ADsum1)[it_2], sqa.IndexedAverageDoubleSum) isa
             sqa.IndexedAverageDoubleSum
-        @test SymbolicUtils.metadata(arguments(ADsum1)[it_1])[sqa.IndexedAverageSum] isa
+        @test sqa.metadata_by_type(arguments(ADsum1)[it_1], sqa.IndexedAverageSum) isa
             sqa.IndexedAverageSum
 
         @test sqa.undo_average(arguments(ADsum1)[it_2]) isa sqa.DoubleSum
@@ -162,9 +162,10 @@ const sqa = SecondQuantizedAlgebra
             average(σ(2, 1, ind(:i)) * σ(1, 2, ind(:j))), [(ind(:i), ind(:j))]
         )
 
-        @test SymbolicUtils.metadata(
-            sqa.SpecialIndexedAverage(average(σ(2, 1, ind(:i))), [(ind(:i), ind(:j))])
-        )[sqa.SpecialIndexedAverage] isa sqa.SpecialIndexedAverage
+        @test sqa.metadata_by_type(
+            sqa.SpecialIndexedAverage(average(σ(2, 1, ind(:i))), [(ind(:i), ind(:j))]),
+            sqa.SpecialIndexedAverage,
+        ) isa sqa.SpecialIndexedAverage
 
         @test isequal(
             sqa.sqa_arguments(specAvrg),

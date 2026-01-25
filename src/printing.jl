@@ -18,6 +18,19 @@ Base.show(io::IO, x::Pauli) = write(io, Symbol(x.name, xyz_sym[x.axis]))
 Base.show(io::IO, x::Spin) = write(io, Symbol(x.name, xyz_sym[x.axis]))
 
 show_brackets = Ref(true)
+function Base.show(io::IO, x::QAdd)
+    if isempty(x.arguments)
+        write(io, "0")
+        return
+    end
+    show_brackets[] && write(io, "(")
+    show(io, x.arguments[1])
+    for i in 2:length(x.arguments)
+        show(io, +)
+        show(io, x.arguments[i])
+    end
+    show_brackets[] && write(io, ")")
+end
 function Base.show(io::IO, x::QTerm)
     show_brackets[] && write(io, "(")
     show(io, SymbolicUtils.arguments(x)[1])

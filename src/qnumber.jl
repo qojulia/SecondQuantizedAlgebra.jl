@@ -168,11 +168,11 @@ Fields:
 * arg_c: The commutative prefactor.
 * args_nc: A vector containing all [`QSym`](@ref) types.
 """
-struct QMul{M} <: QTerm
-    arg_c
-    args_nc::Vector{Any}
+struct QMul{C,M} <: QTerm
+    arg_c::C
+    args_nc::Vector{QNumber}
     metadata::M
-    function QMul{M}(arg_c, args_nc, metadata) where {M}
+    function QMul{C,M}(arg_c::C, args_nc::Vector{QNumber}, metadata::M) where {C,M}
         if SymbolicUtils._isone(arg_c) && length(args_nc)==1
             return args_nc[1]
         elseif any(arg -> isequal(arg, 0) || SymbolicUtils._iszero(arg), args_nc) ||
@@ -180,11 +180,12 @@ struct QMul{M} <: QTerm
             SymbolicUtils._iszero(arg_c)
             return 0
         else
-            return new(arg_c, args_nc, metadata)
+            return new{C,M}(arg_c, args_nc, metadata)
         end
     end
 end
-QMul(arg_c, args_nc; metadata::M=NO_METADATA) where {M} = QMul{M}(arg_c, args_nc, metadata)
+QMul(arg_c, args_nc; metadata::M=NO_METADATA) where {M} =
+    QMul{typeof(arg_c),M}(arg_c, QNumber[args_nc...], metadata)
 Base.hash(q::QMul, h::UInt) = hash(QMul, hash(q.arg_c, hashvec(q.args_nc, h)))
 
 SymbolicUtils.operation(::QMul) = (*)
@@ -282,10 +283,21 @@ function merge_commutators(arg_c, args_nc)
     was_merged = false
     while i<length(args_nc)
         if _ismergeable(args_nc[i], args_nc[i + 1])
-            args_nc[i] = *(args_nc[i], args_nc[i + 1])
-            iszero(args_nc[i]) && return 0
-            deleteat!(args_nc, i+1)
-            was_merged = true
+            merged = *(args_nc[i], args_nc[i + 1])
+            if merged isa QNumber
+                args_nc[i] = merged
+                iszero(args_nc[i]) && return 0
+                deleteat!(args_nc, i+1)
+                was_merged = true
+            else
+                arg_c *= merged
+                (isequal(arg_c, 0) || SymbolicUtils._iszero(arg_c)) && return 0
+                deleteat!(args_nc, i+1)
+                deleteat!(args_nc, i)
+                was_merged = true
+                i = max(i - 1, 1)
+                continue
+            end
         end
         i += 1
     end

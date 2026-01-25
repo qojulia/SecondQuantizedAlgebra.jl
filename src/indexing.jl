@@ -20,10 +20,10 @@ Fields:
 * aon: Number specifying the specific [`HilbertSpace`](@ref), where the Index acts on.
 
 """
-struct Index #main tool
-    hilb::HilbertSpace
+struct Index{H<:HilbertSpace,R} #main tool
+    hilb::H
     name::Symbol
-    range::Ranges
+    range::R
     aon::Int
 end
 
@@ -49,13 +49,13 @@ const IndexInt = Union{<:Index,<:Int64}
 A indexed symbolic variable. The variable can (once equations are calculated) be easily exchanged for numerical values. Calling
 a IndexedVariable using two different [`Index`](@ref) objects one can create [`DoubleIndexedVariable`](@ref) objects.
 """
-struct IndexedVariable <: CNumber #just a symbol, that can be manipulated via the metadata field
+struct IndexedVariable{I<:Index} <: CNumber #just a symbol, that can be manipulated via the metadata field
     name::Symbol
-    ind::Index
+    ind::I
     function IndexedVariable(name::Symbol, ind::Index)
-        metadata = new(name, ind)
+        metadata = new{typeof(ind)}(name, ind)
         sym = SymbolicUtils.Sym{SQA_VARTYPE}(
-            Symbol("$(name)$(ind.name)"); type=IndexedVariable
+            Symbol("$(name)$(ind.name)"); type=IndexedVariable{typeof(ind)}
         )
         sym = SymbolicUtils.setmetadata(sym, typeof(metadata), metadata)
         return sym
@@ -77,18 +77,19 @@ Fields:
 * identical: A Bool, defining if the variable can have non-zero main-diagonal terms, e.g: Γᵢᵢ ≠ 0 would be specified with true.
 
 """
-struct DoubleIndexedVariable <: CNumber #just a symbol, that can be manipulated via the metadata field
+struct DoubleIndexedVariable{I1<:Index,I2<:Index} <: CNumber #just a symbol, that can be manipulated via the metadata field
     name::Symbol
-    ind1::Index
-    ind2::Index
+    ind1::I1
+    ind2::I2
     identical::Bool
-    function DoubleIndexedVariable(name, ind1, ind2; identical::Bool=true)
+    function DoubleIndexedVariable(name, ind1::Index, ind2::Index; identical::Bool=true)
         if !(identical) && (ind1 == ind2)
             return 0
         end
-        metadata = new(name, ind1, ind2, identical)
+        metadata = new{typeof(ind1),typeof(ind2)}(name, ind1, ind2, identical)
         sym = SymbolicUtils.Sym{SQA_VARTYPE}(
-            Symbol("$(name)$(ind1.name)$(ind2.name)"); type=DoubleIndexedVariable
+            Symbol("$(name)$(ind1.name)$(ind2.name)");
+            type=DoubleIndexedVariable{typeof(ind1),typeof(ind2)},
         )
         sym = SymbolicUtils.setmetadata(sym, typeof(metadata), metadata)
         return sym
@@ -108,13 +109,13 @@ Fields:
 * ind: The index, the operator will be associated with.
 
 """
-struct IndexedOperator <: QSym
-    op::IndexableOps
-    ind::Index
+struct IndexedOperator{O<:IndexableOps,I<:Index} <: QSym
+    op::O
+    ind::I
     function IndexedOperator(op::IndexableOps, ind::Index)
         @assert isequal(ind.hilb, hilbert(op))
         isa(ind.hilb, ProductSpace) && (@assert isequal(acts_on(op), ind.aon))
-        return new(op, ind)
+        return new{typeof(op),typeof(ind)}(op, ind)
     end
 end
 
@@ -134,9 +135,9 @@ Fields:
 * non_equal_indices: (optional) A vector of indices, for which the summation-index can not be equal with.
 
 """
-struct SingleSum{M} <: QTerm #Sum with an index, the term inside the sum must be a multiplication, either a QMul or a Symbolic one
-    term::Summable
-    sum_index::Index
+struct SingleSum{T<:Summable,I<:Index,M} <: QTerm #Sum with an index, the term inside the sum must be a multiplication, either a QMul or a Symbolic one
+    term::T
+    sum_index::I
     non_equal_indices::Vector{IndexInt}  #indices not equal to the summation index
     metadata::M
     function SingleSum(
@@ -145,8 +146,11 @@ struct SingleSum{M} <: QTerm #Sum with an index, the term inside the sum must be
         if SymbolicUtils._iszero(term)
             0
         else
-            new{typeof(metadata)}(
-                term, sum_index, sort(non_equal_indices; by=getIndName), metadata
+            new{typeof(term),typeof(sum_index),typeof(metadata)}(
+                term,
+                sum_index,
+                sort(non_equal_indices; by=getIndName),
+                metadata,
             )
         end
     end
@@ -164,16 +168,16 @@ Fields:
 * indexMapping: A Vector of [`Index`](@ref) tuples, specifying the constraints for the term. Each Tuple is considered to one constraint. e.g: (i,j) -> i ≠ j
 
 """
-struct SpecialIndexedTerm <: QTerm    #A term, not in a sum, that has a condition on the indices, for example σⱼ*σₖ with condition j≠k
-    term::Summable
-    indexMapping::Vector{Tuple{Index,Index}}    #The conditions on indices are given via this tuple-vector, each tuple representing one condition (not to be confused with the numbered ones in averages)
+struct SpecialIndexedTerm{T<:Summable,M} <: QTerm    #A term, not in a sum, that has a condition on the indices, for example σⱼ*σₖ with condition j≠k
+    term::T
+    indexMapping::M    #The conditions on indices are given via this tuple-vector, each tuple representing one condition (not to be confused with the numbered ones in averages)
     function SpecialIndexedTerm(term, indexMapping)
         if length(indexMapping) == 0
             return term
         elseif SymbolicUtils._iszero(term)
             return 0
         else
-            return new(term, indexMapping)
+            return new{typeof(term),typeof(indexMapping)}(term, indexMapping)
         end
     end
 end
@@ -245,7 +249,7 @@ function SingleSum(term::QMul, sum_index, non_equal_indices; metadata=NO_METADAT
     NEI = Index[]
     NEI_ = copy(non_equal_indices)
     for arg in term.args_nc
-        if typeof(arg) == IndexedOperator || typeof(arg) == IndexedVariable
+        if arg isa IndexedOperator || arg isa IndexedVariable
             if arg.ind == sum_index || arg.ind in NEI_ || sum_index.aon != arg.ind.aon
                 continue
             else
@@ -382,9 +386,13 @@ end
 _get_index(elem::IndexedOperator) = elem.ind
 function _get_index(elem::SQABasicSymbolic)
     if is_symtype(elem, IndexedVariable)
-        return TermInterface.metadata(elem)[IndexedVariable].ind
+        meta = metadata_by_type(elem, IndexedVariable)
+        meta === nothing && error("Unsupported indexed symbolic element")
+        return meta.ind
     elseif is_symtype(elem, DoubleIndexedVariable)
-        return TermInterface.metadata(elem)[DoubleIndexedVariable].ind1
+        meta = metadata_by_type(elem, DoubleIndexedVariable)
+        meta === nothing && error("Unsupported indexed symbolic element")
+        return meta.ind1
     end
     error("Unsupported indexed symbolic element")
 end
@@ -392,9 +400,23 @@ end
 function *(sum::SingleSum, elem::IndexedOperator)
     NEIds = copy(sum.non_equal_indices)
     elem_ind = _get_index(elem)
+    mergeable_with_sum = false
+    if sum.term isa QMul
+        for arg in sum.term.args_nc
+            if arg isa IndexedOperator && isequal(arg.ind, sum.sum_index)
+                if ismergeable(elem.op, arg.op) &&
+                    isequal(hilbert(elem), hilbert(arg)) &&
+                    isequal(acts_on(elem), acts_on(arg))
+                    mergeable_with_sum = true
+                    break
+                end
+            end
+        end
+    end
     if !(elem_ind == sum.sum_index) &&
         (elem_ind ∉ NEIds) &&
-        (sum.sum_index.aon == elem_ind.aon)
+        (sum.sum_index.aon == elem_ind.aon) &&
+        mergeable_with_sum
         qaddterm = nothing
         term = sum.term
         if length(NEIds) == 0
@@ -409,9 +431,19 @@ function *(sum::SingleSum, elem::IndexedOperator)
             extraterm_ = change_index(term, sum.sum_index, elem_ind)
             qaddterm = reorder(extraterm_*elem, specNEIs)
         end
+        if isequal(qaddterm, 0) || SymbolicUtils._iszero(qaddterm)
+            qmul = sum.term*elem
+            if qmul isa QMul && !mergeable_with_sum
+                qmul = order_by_index(qmul, [sum.sum_index])
+            end
+            qmul isa QMul &&
+                (isequal(qmul.arg_c, 0) || SymbolicUtils._iszero(qmul.args_nc)) &&
+                return 0
+            return SingleSum(qmul, sum.sum_index, NEIds)
+        end
         push!(NEIds, elem_ind)
         qmul = sum.term*elem
-        if qmul isa QMul
+        if qmul isa QMul && !mergeable_with_sum
             qmul = order_by_index(qmul, [sum.sum_index])
         end
         if (
@@ -431,7 +463,7 @@ function *(sum::SingleSum, elem::IndexedOperator)
         return QAdd([newsum, qaddterm])
     else
         qmul = sum.term*elem
-        if qmul isa QMul
+        if qmul isa QMul && !mergeable_with_sum
             qmul = order_by_index(qmul, [sum.sum_index])
         end
         qmul isa QMul &&
@@ -443,9 +475,23 @@ end
 function *(elem::IndexedOperator, sum::SingleSum)
     NEIds = copy(sum.non_equal_indices)
     elem_ind = _get_index(elem)
+    mergeable_with_sum = false
+    if sum.term isa QMul
+        for arg in sum.term.args_nc
+            if arg isa IndexedOperator && isequal(arg.ind, sum.sum_index)
+                if ismergeable(elem.op, arg.op) &&
+                    isequal(hilbert(elem), hilbert(arg)) &&
+                    isequal(acts_on(elem), acts_on(arg))
+                    mergeable_with_sum = true
+                    break
+                end
+            end
+        end
+    end
     if !(elem_ind == sum.sum_index) &&
         (elem_ind ∉ NEIds) &&
-        (sum.sum_index.aon == elem_ind.aon)
+        (sum.sum_index.aon == elem_ind.aon) &&
+        mergeable_with_sum
         qaddterm = nothing
         term = sum.term
         if length(NEIds) == 0
@@ -460,9 +506,19 @@ function *(elem::IndexedOperator, sum::SingleSum)
             extraterm_ = change_index(term, sum.sum_index, elem_ind)
             qaddterm = reorder(elem*extraterm_, specNEIs)
         end
+        if isequal(qaddterm, 0) || SymbolicUtils._iszero(qaddterm)
+            qmul = elem*sum.term
+            if qmul isa QMul && !mergeable_with_sum
+                qmul = order_by_index(qmul, [sum.sum_index])
+            end
+            qmul isa QMul &&
+                (isequal(qmul.arg_c, 0) || SymbolicUtils._iszero(qmul.args_nc)) &&
+                return 0
+            return SingleSum(qmul, sum.sum_index, NEIds)
+        end
         push!(NEIds, elem_ind)
         qmul = elem*sum.term
-        if qmul isa QMul
+        if qmul isa QMul && !mergeable_with_sum
             qmul = order_by_index(qmul, [sum.sum_index])
         end
         if (
@@ -482,7 +538,7 @@ function *(elem::IndexedOperator, sum::SingleSum)
         return QAdd([newsum, qaddterm])
     else
         qmul = elem*sum.term
-        if qmul isa QMul
+        if qmul isa QMul && !mergeable_with_sum
             qmul = order_by_index(qmul, [sum.sum_index])
         end
         qmul isa QMul &&
@@ -742,7 +798,7 @@ end
 #Base Functionalities
 #Hashing
 function Base.hash(op::IndexedOperator, h::UInt)
-    n = fieldcount(IndexedOperator)
+    n = fieldcount(typeof(op))
     if n == 2
         # These three fields need to be defined for any QSym
         return hash(IndexedOperator, hash(op.ind, hash(op.op, h)))
@@ -751,26 +807,25 @@ function Base.hash(op::IndexedOperator, h::UInt)
         h_ = copy(h)
         for k in n:-1:4
             if fieldname(typeof(op), k) !== :metadata
-                h_ = hash(getfield(IndexedOperator, k), h_)
+                h_ = hash(getfield(op, k), h_)
             end
         end
         return hash(IndexedOperator, hash(op.ind, hash(op.op, h_)))
     end
 end
 function Base.hash(ind::Index, h::UInt)
-    n = fieldcount(Index)
-    if n == 3
-        # These three fields need to be defined for any QSym
-        return hash(Index, hash(ind.hilb, hash(ind.name, hash(ind.range, h))))
+    n = fieldcount(typeof(ind))
+    if n == 4
+        return hash(Index, hash(ind.hilb, hash(ind.name, hash(ind.range, hash(ind.aon, h)))))
     else
         # If there are more we'll need to iterate through
         h_ = copy(h)
         for k in n:-1:4
             if fieldname(typeof(ind), k) !== :metadata
-                h_ = hash(getfield(Index, k), h_)
+                h_ = hash(getfield(ind, k), h_)
             end
         end
-        return hash(Index, hash(ind.hilb, hash(ind.name, hash(ind.range, h))))
+        return hash(Index, hash(ind.hilb, hash(ind.name, hash(ind.range, hash(ind.aon, h)))))
     end
 end
 
@@ -846,30 +901,24 @@ function change_index(op::SQABasicSymbolic, from::Index, to::Index)
     if is_average(op)
         return average(change_index(unwrap_const(arguments(op)[1]), from, to))
     elseif is_symtype(op, IndexedVariable)
-        if SymbolicUtils.hasmetadata(op, IndexedVariable)
-            meta = TermInterface.metadata(op)[IndexedVariable]
-            return isequal(meta.ind, from) ? IndexedVariable(meta.name, to) : op
-        end
+        meta = metadata_by_type(op, IndexedVariable)
+        meta === nothing && return op
+        return isequal(meta.ind, from) ? IndexedVariable(meta.name, to) : op
     elseif is_symtype(op, DoubleIndexedVariable)
-        if SymbolicUtils.hasmetadata(op, DoubleIndexedVariable)
-            meta = TermInterface.metadata(op)[DoubleIndexedVariable]
-            if meta.ind1 == from
-                if meta.ind1 == meta.ind2 && meta.identical
-                    return DoubleIndexedVariable(
-                        meta.name, to, to; identical=meta.identical
-                    )
-                elseif meta.ind1 == meta.ind2
-                    return 0
-                else
-                    return DoubleIndexedVariable(
-                        meta.name, to, meta.ind2; identical=meta.identical
-                    )
-                end
-            elseif meta.ind2 == from
+        meta = metadata_by_type(op, DoubleIndexedVariable)
+        meta === nothing && return op
+        if meta.ind1 == from
+            if meta.ind1 == meta.ind2 && meta.identical
+                return DoubleIndexedVariable(meta.name, to, to; identical=meta.identical)
+            elseif meta.ind1 == meta.ind2
+                return 0
+            else
                 return DoubleIndexedVariable(
-                    meta.name, meta.ind1, to; identical=meta.identical
+                    meta.name, to, meta.ind2; identical=meta.identical
                 )
             end
+        elseif meta.ind2 == from
+            return DoubleIndexedVariable(meta.name, meta.ind1, to; identical=meta.identical)
         end
     elseif is_symtype(op, CNumber)
         if iscall(op)
@@ -941,18 +990,18 @@ end
 SymbolicUtils.arguments(a::IndexedOperator) = [a]
 
 #It is assumed that the term for which this operation is done already commutes with indices inside the indices-Vector
-function order_by_index(vec::Vector, indices::Vector{Index})
+function order_by_index(vec::Vector, indices::AbstractVector{<:Index})
     vec_ = copy(vec)
-    frontfront = filter(x -> !(typeof(x) == IndexedOperator), vec_)
-    front = filter(x -> typeof(x) == IndexedOperator && x.ind in indices, vec_)
-    back = filter(x -> typeof(x) == IndexedOperator && x.ind ∉ indices, vec_)
+    frontfront = filter(x -> !(x isa IndexedOperator), vec_)
+    front = filter(x -> x isa IndexedOperator && x.ind in indices, vec_)
+    back = filter(x -> x isa IndexedOperator && x.ind ∉ indices, vec_)
     sort!(front; by=getIndName)
     return vcat(frontfront, front, back)
 end
-function order_by_index(qmul::QMul, inds::Vector{Index})
+function order_by_index(qmul::QMul, inds::AbstractVector{<:Index})
     qmul.arg_c*prod(order_by_index(qmul.args_nc, inds))
 end
-function order_by_index(avrg::Average, inds::Vector{Index})
+function order_by_index(avrg::Average, inds::AbstractVector{<:Index})
     order_by_index(unwrap_const(arguments(avrg)[1]), inds)
 end
 order_by_index(x, inds) = x
@@ -974,7 +1023,7 @@ Examples
     reorder(σⱼ²¹ * σᵢ²¹ * σⱼ¹²,[(i,j)]) = σᵢ²¹ * σⱼ²²
 
 """
-function reorder(param::QMul, indexMapping::Vector{Tuple{Index,Index}})
+function reorder(param::QMul, indexMapping::AbstractVector{<:Tuple{<:Index,<:Index}})
     term = copy(param.args_nc)
     carg = param.arg_c
     indOps = []
@@ -1014,11 +1063,11 @@ function reorder(param::QMul, indexMapping::Vector{Tuple{Index,Index}})
         return reorder(qmul, indexMapping)
     end
 end
-function reorder(sum::SingleSum, indexMapping::Vector{Tuple{Index,Index}})
+function reorder(sum::SingleSum, indexMapping::AbstractVector{<:Tuple{<:Index,<:Index}})
     SingleSum(reorder(sum.term, indexMapping), sum.sum_index, sum.non_equal_indices)
 end
 reorder(op::SpecialIndexedTerm) = reorder(op.term, op.indexMapping)
-function reorder(term::QAdd, indexMapping::Vector{Tuple{Index,Index}})
+function reorder(term::QAdd, indexMapping::AbstractVector{<:Tuple{<:Index,<:Index}})
     args = []
     for arg in arguments(term)
         push!(args, reorder(unwrap_const(arg), indexMapping))
@@ -1031,14 +1080,14 @@ function reorder(term::QAdd, indexMapping::Vector{Tuple{Index,Index}})
     end
     return +(args...)
 end
-function reorder(x::IndexedOperator, indexMapping::Vector{Tuple{Index,Index}})
+function reorder(x::IndexedOperator, indexMapping::AbstractVector{<:Tuple{<:Index,<:Index}})
     SpecialIndexedTerm(x, indexMapping)
 end
 reorder(x::SpecialIndexedTerm, indexMapping::Vector) = reorder(x.term, indexMapping)
 reorder(x, indMap) = x
 
-function orderMapping(mapping::Vector{Tuple{Index,Index}})
-    mapping_ = Vector{Union{Missing,Tuple{Index,Index}}}(missing, length(mapping))
+function orderMapping(mapping::AbstractVector{<:Tuple{<:Index,<:Index}})
+    mapping_ = Vector{Tuple{Index,Index}}(undef, length(mapping))
     for i in 1:length(mapping)
         sort_ = sort([first(mapping[i]), last(mapping[i])]; by=getIndName)
         mapping_[i] = (sort_[1], sort_[2])
@@ -1091,7 +1140,7 @@ function Base.show(io::IO, op::SpecialIndexedTerm)
     Base.show(io, op.term)
 end
 #Functions for easier symbol creation in Constructor
-function writeNEIs(neis::Vector{IndexInt})
+function writeNEIs(neis::AbstractVector{<:IndexInt})
     syms = ""
     for i in 1:length(neis)
         syms = typeof(neis[i]) == Index ? join([syms, neis[i].name]) : join([syms, neis[i]])
@@ -1101,7 +1150,7 @@ function writeNEIs(neis::Vector{IndexInt})
     end
     return syms
 end
-function writeNEIs(neis::Vector{Index})
+function writeNEIs(neis::AbstractVector{<:Index})
     syms = ""
     for i in 1:length(neis)
         syms = join([syms, neis[i].name])
