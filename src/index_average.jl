@@ -78,7 +78,9 @@ function IndexedAverageSum(
     end
     return prefact*IndexedAverageSum(term, sum_index, non_equal_indices, metadata)
 end
-IndexedAverageSum(x, args...; kwargs...) = average(SingleSum(x, args...; kwargs...))
+function IndexedAverageSum(x::Union{symbolics_terms,QNumber}, args...; kwargs...)
+    average(SingleSum(x, args...; kwargs...))
+end
 IndexedAverageSum(x::Number) = x
 
 """
@@ -274,7 +276,6 @@ function SpecialIndexedAverage(term::symbolics_terms, indexMapping)
     end
     return term
 end
-SpecialIndexedAverage(x, args...) = x
 
 const AvgSums = Union{
     SQABasicSymbolic,IndexedAverageSum,IndexedAverageDoubleSum,SpecialIndexedTerm

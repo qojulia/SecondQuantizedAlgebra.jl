@@ -298,8 +298,24 @@ function commutator(a::QSym, b::DoubleSum)
 end
 commutator(a::DoubleSum, b::QSym) = -commutator(b, a)
 
-*(sum::DoubleSum, x) = DoubleSum(sum.innerSum*x, sum.sum_index, sum.NEI)
-*(x, sum::DoubleSum) = DoubleSum(x*sum.innerSum, sum.sum_index, sum.NEI)
+*(sum::DoubleSum, x::SQA_SumArg) = DoubleSum(sum.innerSum*x, sum.sum_index, sum.NEI)
+*(x::SQA_SumArg, sum::DoubleSum) = DoubleSum(x*sum.innerSum, sum.sum_index, sum.NEI)
+*(x::SNuN, sum::DoubleSum) = DoubleSum(x*sum.innerSum, sum.sum_index, sum.NEI)
+function *(a::QAdd, b::DoubleSum)
+    return DoubleSum(a * b.innerSum, b.sum_index, b.NEI)
+end
+function *(a::DoubleSum, b::QAdd)
+    return DoubleSum(a.innerSum * b, a.sum_index, a.NEI)
+end
+function *(term::SpecialIndexedTerm, sum::DoubleSum)
+    return reorder(term.term * sum, term.indexMapping)
+end
+function *(sum::DoubleSum, term::SpecialIndexedTerm)
+    return reorder(sum * term.term, term.indexMapping)
+end
+function *(sum1::DoubleSum, sum2::DoubleSum)
+    error("Multiplication of DoubleSum with DoubleSum is not defined")
+end
 
 SymbolicUtils.iscall(a::DoubleSum) = false
 SymbolicUtils.arguments(a::DoubleSum) = SymbolicUtils.arguments(a.innerSum)

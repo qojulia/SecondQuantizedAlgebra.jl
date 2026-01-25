@@ -47,12 +47,13 @@ SymbolicUtils.iscall(::QTerm) = true
 SymbolicUtils.iscall(::Type{T}) where {T<:QTerm} = true
 TermInterface.metadata(x::QNumber) = x.metadata
 
-# Symbolic type promotion
-SymbolicUtils.promote_symtype(f, Ts::Type{<:QNumber}...) = promote_type(Ts...)
-SymbolicUtils.promote_symtype(f, T::Type{<:QNumber}, Ts...) = T
-SymbolicUtils.promote_symtype(f, T::Type{<:QNumber}, S::Type{<:Number}) = T
-SymbolicUtils.promote_symtype(f, T::Type{<:Number}, S::Type{<:QNumber}) = S
-function SymbolicUtils.promote_symtype(f, T::Type{<:QNumber}, S::Type{<:QNumber})
+# Symbolic type promotion (narrow to arithmetic to avoid ambiguities)
+SymbolicUtils.promote_symtype(::typeof(+), Ts::Type{<:QNumber}...) = promote_type(Ts...)
+SymbolicUtils.promote_symtype(::typeof(-), Ts::Type{<:QNumber}...) = promote_type(Ts...)
+SymbolicUtils.promote_symtype(::typeof(*), Ts::Type{<:QNumber}...) = promote_type(Ts...)
+SymbolicUtils.promote_symtype(::typeof(/), T::Type{<:QNumber}, S::Type{<:Number}) = T
+SymbolicUtils.promote_symtype(::typeof(/), T::Type{<:Number}, S::Type{<:QNumber}) = S
+function SymbolicUtils.promote_symtype(::typeof(*), T::Type{<:QNumber}, S::Type{<:QNumber})
     promote_type(T, S)
 end
 
@@ -151,6 +152,7 @@ end
 ## Methods
 import Base: *, +, -
 const SNuN = Union{<:SymbolicUtils.BasicSymbolic{SQA_VARTYPE},<:Number}
+const SQA_MulArg = Union{QNumber,SQABasicSymbolic,Number}
 
 Base.:~(a::QNumber, b::QNumber) = Symbolics.Equation(a, b)
 
@@ -414,8 +416,8 @@ function SymbolicUtils.simplify(a::QAdd; kwargs...)
 end
 
 -(a::QNumber) = -1*a
--(a, b::QNumber) = a + (-b)
--(a::QNumber, b) = a + (-b)
+-(a::SQA_MulArg, b::QNumber) = a + (-b)
+-(a::QNumber, b::SQA_MulArg) = a + (-b)
 -(a::QNumber, b::QNumber) = a + (-b)
 
 function +(a::QNumber, b::SNuN)
@@ -451,7 +453,7 @@ function +(a::QAdd, b::QAdd)
     return QAdd(args)
 end
 
-function *(a::QAdd, b)
+function *(a::QAdd, b::SQA_MulArg)
     check_hilbert(a, b)
     args = Any[a_ * b for a_ in a.arguments]
     flatten_adds!(args)

@@ -3,7 +3,7 @@ using SecondQuantizedAlgebra, Test
 @testset "best practices" begin
     using Aqua
 
-    Aqua.test_ambiguities([SecondQuantizedAlgebra]; broken=true)
+    Aqua.test_ambiguities([SecondQuantizedAlgebra]; broken=false)
     Aqua.test_piracies(SecondQuantizedAlgebra; broken=false)
     Aqua.test_all(SecondQuantizedAlgebra; ambiguities=false, piracies=false)
 end

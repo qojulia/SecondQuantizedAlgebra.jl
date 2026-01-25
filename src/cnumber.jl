@@ -12,16 +12,20 @@ Type used as symbolic type in a `SymbolicUtils.Sym` variable to represent
 a parameter.
 """
 struct Parameter <: CNumber
-    function Parameter(name; metadata=source_metadata(:Parameter, name))
+    function Parameter(name::Symbol; metadata=source_metadata(:Parameter, name))
         s = SymbolicUtils.Sym{SQA_VARTYPE}(name; type=Complex{Real})
         s = SymbolicUtils.setmetadata(s, Symbolics.VariableSource, (:Parameter, name))
         return s
     end
 end
+function Parameter(name::AbstractString; metadata=source_metadata(:Parameter, Symbol(name)))
+    Parameter(Symbol(name); metadata=metadata)
+end
 
 # Promoting to CNumber ensures we own the symtype; could be used to dispatch
 # on Base methods (e.g. latex printing)
 Base.promote_rule(::Type{<:CNumber}, ::Type{<:Number}) = CNumber
+Base.promote_rule(::Type{<:CNumber}, ::Type{Symbolics.Num}) = CNumber
 
 Base.one(::Type{Parameter}) = 1
 Base.zero(::Type{Parameter}) = 0
@@ -107,6 +111,8 @@ cnumber(s::String) = cnumber(Symbol(s))
 Abstract type for real symbolic numbers [`RealParameter`](@ref).
 """
 abstract type RNumber <: Real end
+# Disambiguate promotion with Symbolics.Num
+Base.promote_rule(::Type{<:RNumber}, ::Type{Symbolics.Num}) = RNumber
 
 """
     RealParameter <: RNumber
@@ -115,11 +121,16 @@ Type used as symbolic type in a `SymbolicUtils.Sym` variable to represent
 a real parameter.
 """
 struct RealParameter <: RNumber
-    function RealParameter(name; metadata=source_metadata(:RealParameter, name))
+    function RealParameter(name::Symbol; metadata=source_metadata(:RealParameter, name))
         s = SymbolicUtils.Sym{SQA_VARTYPE}(name; type=Real)
         s = SymbolicUtils.setmetadata(s, Symbolics.VariableSource, (:RealParameter, name))
         return s
     end
+end
+function RealParameter(
+    name::AbstractString; metadata=source_metadata(:RealParameter, Symbol(name))
+)
+    RealParameter(Symbol(name); metadata=metadata)
 end
 
 # Promoting to RNumber ensures we own the symtype; could be used to dispatch

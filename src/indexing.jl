@@ -628,8 +628,9 @@ end #put elements from outside into sum
 -(sum::SingleSum, sum2::SingleSum) = sum + -1*sum2
 -(sum::SingleSum, op::QNumber) = sum + -1*op
 -(op::QNumber, sum::SingleSum) = -1*sum + op
--(op::Any, sum::SingleSum) = -1*sum + op
--(sum::SingleSum, op::Any) = -1*op + sum
+const SQA_SumArg = Union{QNumber,SQABasicSymbolic,Number}
+-(op::SQA_SumArg, sum::SingleSum) = -1*sum + op
+-(sum::SingleSum, op::SQA_SumArg) = -1*op + sum
 
 function *(op1::IndexedOperator, op2::IndexedOperator)
     aon1 = acts_on(op1) # sort by HilbertSpace
@@ -657,8 +658,14 @@ end
 # Special terms
 *(a::SNuN, b::SpecialIndexedTerm) = reorder(a*b.term, b.indexMapping)
 *(b::SpecialIndexedTerm, a::SNuN) = a*b
-*(a::SpecialIndexedTerm, b) = reorder(a.term*b, a.indexMapping)
-*(a, b::SpecialIndexedTerm) = reorder(a*b.term, b.indexMapping)
+*(a::SpecialIndexedTerm, b::SQA_SumArg) = reorder(a.term*b, a.indexMapping)
+*(a::SQA_SumArg, b::SpecialIndexedTerm) = reorder(a*b.term, b.indexMapping)
+*(a::SQABasicSymbolic, b::SpecialIndexedTerm) = reorder(a*b.term, b.indexMapping)
+*(a::SpecialIndexedTerm, b::SQABasicSymbolic) = reorder(a.term*b, a.indexMapping)
+function *(a::SpecialIndexedTerm, b::SpecialIndexedTerm)
+    map = vcat(a.indexMapping, b.indexMapping)
+    return reorder(a.term * b.term, map)
+end
 
 function *(a::QAdd, b::SpecialIndexedTerm)
     check_hilbert(a, b)
