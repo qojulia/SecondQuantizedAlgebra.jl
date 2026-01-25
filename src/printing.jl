@@ -21,7 +21,7 @@ show_brackets = Ref(true)
 function Base.show(io::IO, x::QAdd)
     if isempty(x.arguments)
         write(io, "0")
-        return
+        return nothing
     end
     show_brackets[] && write(io, "(")
     show(io, x.arguments[1])

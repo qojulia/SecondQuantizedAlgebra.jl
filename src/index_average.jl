@@ -447,8 +447,9 @@ end
 function sqa_simplify(sym::SQABasicSymbolic)
     if is_symtype(sym, SpecialIndexedAverage)
         meta = metadata_by_type(sym, SpecialIndexedAverage)
-        meta === nothing ||
-            return SpecialIndexedAverage(SymbolicUtils.simplify(meta.term), meta.indexMapping)
+        meta === nothing || return SpecialIndexedAverage(
+            SymbolicUtils.simplify(meta.term), meta.indexMapping
+        )
     end
     return SymbolicUtils.simplify(sym)
 end

@@ -184,8 +184,9 @@ struct QMul{C,M} <: QTerm
         end
     end
 end
-QMul(arg_c, args_nc; metadata::M=NO_METADATA) where {M} =
+function QMul(arg_c, args_nc; metadata::M=NO_METADATA) where {M}
     QMul{typeof(arg_c),M}(arg_c, QNumber[args_nc...], metadata)
+end
 Base.hash(q::QMul, h::UInt) = hash(QMul, hash(q.arg_c, hashvec(q.args_nc, h)))
 
 SymbolicUtils.operation(::QMul) = (*)

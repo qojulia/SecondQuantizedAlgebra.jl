@@ -147,10 +147,7 @@ struct SingleSum{T<:Summable,I<:Index,M} <: QTerm #Sum with an index, the term i
             0
         else
             new{typeof(term),typeof(sum_index),typeof(metadata)}(
-                term,
-                sum_index,
-                sort(non_equal_indices; by=getIndName),
-                metadata,
+                term, sum_index, sort(non_equal_indices; by=getIndName), metadata
             )
         end
     end
@@ -816,7 +813,9 @@ end
 function Base.hash(ind::Index, h::UInt)
     n = fieldcount(typeof(ind))
     if n == 4
-        return hash(Index, hash(ind.hilb, hash(ind.name, hash(ind.range, hash(ind.aon, h)))))
+        return hash(
+            Index, hash(ind.hilb, hash(ind.name, hash(ind.range, hash(ind.aon, h))))
+        )
     else
         # If there are more we'll need to iterate through
         h_ = copy(h)
@@ -825,7 +824,9 @@ function Base.hash(ind::Index, h::UInt)
                 h_ = hash(getfield(ind, k), h_)
             end
         end
-        return hash(Index, hash(ind.hilb, hash(ind.name, hash(ind.range, hash(ind.aon, h)))))
+        return hash(
+            Index, hash(ind.hilb, hash(ind.name, hash(ind.range, hash(ind.aon, h))))
+        )
     end
 end
 

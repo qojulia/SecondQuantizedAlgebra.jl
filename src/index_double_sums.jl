@@ -36,21 +36,21 @@ function DoubleSum(innerSum::SingleSum, sum_index::Index, NEI::Vector; metadata=
     if innerSum.sum_index == sum_index
         error("summation index is the same as the index of the inner sum")
     else
-            if (sum_index in get_indices(innerSum.term)) &&
-                isequal(sum_index.aon, innerSum.sum_index.aon) &&
-                (sum_index ∉ innerSum.non_equal_indices)
-                diag = SingleSum(
-                    change_index(innerSum.term, innerSum.sum_index, sum_index),
-                    sum_index,
-                    innerSum.non_equal_indices,
-                )
-                innerSum = SingleSum(
-                    innerSum.term,
-                    innerSum.sum_index,
-                    [innerSum.non_equal_indices..., sum_index],
-                )
-                return DoubleSum(innerSum, sum_index, NEI; metadata=metadata) + diag
-            end
+        if (sum_index in get_indices(innerSum.term)) &&
+            isequal(sum_index.aon, innerSum.sum_index.aon) &&
+            (sum_index ∉ innerSum.non_equal_indices)
+            diag = SingleSum(
+                change_index(innerSum.term, innerSum.sum_index, sum_index),
+                sum_index,
+                innerSum.non_equal_indices,
+            )
+            innerSum = SingleSum(
+                innerSum.term,
+                innerSum.sum_index,
+                [innerSum.non_equal_indices..., sum_index],
+            )
+            return DoubleSum(innerSum, sum_index, NEI; metadata=metadata) + diag
+        end
         extraterm = 0
         NEI_ = copy(NEI)
         if sum_index in innerSum.non_equal_indices
