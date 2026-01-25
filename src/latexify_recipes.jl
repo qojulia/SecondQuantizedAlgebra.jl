@@ -118,7 +118,7 @@ end
 
 @latexrecipe function f(op::QNumber)
     # Options
-    cdot --> false
+    mult_symbol --> ""
 
     ex = _to_expression(op)
     ex = MacroTools.postwalk(_postwalk_func, ex)
@@ -129,7 +129,7 @@ end
 
 @latexrecipe function f(s::SymbolicUtils.Symbolic{<:CNumber})
     # Options
-    cdot --> false
+    mult_symbol --> ""
 
     ex = _to_expression(s)
     ex = MacroTools.postwalk(_postwalk_func, ex)
