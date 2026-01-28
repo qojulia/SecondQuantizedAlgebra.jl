@@ -1,19 +1,56 @@
 # get_indices functions
+function metadata_by_type(term::SQABasicSymbolic, ::Type{T}) where {T}
+    meta = TermInterface.metadata(term)
+    meta === nothing && return nothing
+    for (k, v) in meta
+        if k <: T
+            return v
+        end
+    end
+    return nothing
+end
 function get_indices(term::QMul)
     args_nc = filter(x -> x isa IndexedOperator, term.args_nc)
     return unique(vcat(get_indices(args_nc), get_indices(term.arg_c)))
 end
 get_indices(a::IndexedOperator) = [a.ind]
 get_indices(vec::AbstractVector) = unique(vcat(get_indices.(vec)...))
-get_indices(x::AvgSums) = get_indices(arguments(x))
-get_indices(term::Average) = get_indices(arguments(term)[1])
+get_indices(term::SpecialIndexedTerm) = get_indices(term.term)
+get_indices(term::IndexedAverageSum) = get_indices(term.term)
+get_indices(term::IndexedAverageDoubleSum) = get_indices(term.innerSum)
+function get_indices(term::SQABasicSymbolic)
+    if is_symtype(term, IndexedAverageSum)
+        meta = metadata_by_type(term, IndexedAverageSum)
+        meta === nothing || return get_indices(meta)
+    elseif is_symtype(term, IndexedAverageDoubleSum)
+        meta = metadata_by_type(term, IndexedAverageDoubleSum)
+        meta === nothing || return get_indices(meta)
+    elseif is_symtype(term, SpecialIndexedAverage)
+        meta = metadata_by_type(term, SpecialIndexedAverage)
+        meta === nothing || return get_indices(meta)
+    end
+    if is_symtype(term, DoubleIndexedVariable)
+        meta = metadata_by_type(term, DoubleIndexedVariable)
+        meta === nothing || return unique([meta.ind1, meta.ind2])
+    elseif is_symtype(term, IndexedVariable)
+        meta = metadata_by_type(term, IndexedVariable)
+        meta === nothing || return [meta.ind]
+    elseif is_average(term)
+        return get_indices(unwrap_const(arguments(term)[1]))
+    elseif iscall(term)
+        return get_indices(map(unwrap_const, arguments(term)))
+    end
+    return Index[]
+end
 
 const Sums = Union{SingleSum,DoubleSum}
 # get_indices(x::Sums) = unique(get_indices(arguments(x)))
 get_indices(x::SingleSum) = get_indices(x.term)
 get_indices(x::DoubleSum) = get_indices(x.innerSum.term)
 get_indices(x::Number) = []
-get_indices(term) = iscall(term) ? get_indices(arguments(term)) : []
+function get_indices(term)
+    return iscall(term) ? get_indices(map(unwrap_const, arguments(term))) : []
+end
 
 #Usability functions:
 Σ(a, b) = DoubleSum(a, b)  #Double-Sum here, because if variable a is not a single sum it will create a single sum anyway
@@ -72,7 +109,7 @@ function inadjoint(q::QMul)
     return qad
 end
 inadjoint(op::QNumber) = adjoint(op)
-inadjoint(s::SymbolicUtils.BasicSymbolic{<:Number}) = _conj(s)
+inadjoint(s::SQABasicSymbolic) = _adjoint(s)
 inadjoint(x) = adjoint(x)
 
 function inorder!(q::QMul)
@@ -84,7 +121,7 @@ end
 function inorder!(v::T) where {T<:SymbolicUtils.BasicSymbolic}
     if SymbolicUtils.iscall(v)
         f = SymbolicUtils.operation(v)
-        args = map(inorder!, SymbolicUtils.arguments(v))
+        args = map(arg -> inorder!(unwrap_const(arg)), SymbolicUtils.arguments(v))
         return TermInterface.maketerm(T, f, args, TermInterface.metadata(v))
     end
     return v
@@ -94,13 +131,13 @@ inorder!(x) = x
 function inorder!(v::Average)
     f = operation(v)
     if f == conj
-        return conj(inorder!(arguments(v)[1]))
+        return conj(inorder!(unwrap_const(arguments(v)[1])))
     end
-    return average(inorder!(arguments(v)[1]))
+    return average(inorder!(unwrap_const(arguments(v)[1])))
 end
 
 get_numbers(term::QMul) = unique(vcat(get_numbers.(term.args_nc)...))
-get_numbers(term::Average) = get_numbers(arguments(term)[1])
+get_numbers(term::Average) = get_numbers(unwrap_const(arguments(term)[1]))
 get_numbers(x::NumberedOperator) = [x.numb]
 get_numbers(x::Vector) = unique(vcat(get_numbers.(x)...))
 get_numbers(x) = []

@@ -12,19 +12,21 @@ Fields:
 * numb: An Integer Number.
 
 """
-struct NumberedOperator <: QSym
-    op::IndexableOps
+struct NumberedOperator{O<:IndexableOps} <: QSym
+    op::O
     numb::Int64
     function NumberedOperator(op::IndexableOps, numb::Int64)
         (numb <= 0) && error("can not create numbered-operator with negative or 0 number")
-        return new(op, numb)
+        return new{typeof(op)}(op, numb)
     end
 end
 function NumberedOperator(op, numb::Int64)
     (op isa SNuN) && return op
     if SymbolicUtils.iscall(op)
         f = SymbolicUtils.operation(op)
-        args = [NumberedOperator(arg, numb) for arg in SymbolicUtils.arguments(op)]
+        args = [
+            NumberedOperator(unwrap_const(arg), numb) for arg in SymbolicUtils.arguments(op)
+        ]
         isempty(args) && return 0
         isequal(length(args), 1) && return args[1]
         return f(args...)

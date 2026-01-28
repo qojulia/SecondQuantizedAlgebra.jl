@@ -5,8 +5,8 @@ using SymbolicUtils, Symbolics, SecondQuantizedAlgebra, Test
     @cnumbers G G1
     @rnumbers r1 r2 ϕ
 
-    @test first(typeof(G).parameters) == Complex{Real}
-    @test first(typeof(ω).parameters) == Real
+    @test SymbolicUtils.symtype(G) == Complex{Real}
+    @test SymbolicUtils.symtype(ω) == Real
 
     @test SymbolicUtils.getmetadata(ω, Symbolics.VariableSource) == (:RealParameter, :ω)
     @test SymbolicUtils.getmetadata(G, Symbolics.VariableSource) == (:Parameter, :G)
@@ -35,6 +35,8 @@ using SymbolicUtils, Symbolics, SecondQuantizedAlgebra, Test
         @test isequal(simplify(adjoint(G*G1)), conj(G*G1))
         @test isequal(SecondQuantizedAlgebra._adjoint(exp(1im*ϕ)*r1), exp(-1im*ϕ)*r1)
         @test isequal(SecondQuantizedAlgebra._conj(exp(1im*ϕ)*r1), exp(-1im*ϕ)*r1)
-        @test simplify(SecondQuantizedAlgebra._adjoint(exp(1im*ϕ)*exp(-1im*ϕ))) == 1.0
+        @test SymbolicUtils.unwrap_const(
+            simplify(SecondQuantizedAlgebra._adjoint(exp(1im*ϕ)*exp(-1im*ϕ)))
+        ) == 1.0
     end
 end

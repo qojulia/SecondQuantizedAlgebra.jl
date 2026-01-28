@@ -8,22 +8,40 @@ See also: [`average`](@ref)
 """
 struct AvgSym <: CNumber end
 
-const Average = SymbolicUtils.BasicSymbolic{<:AvgSym}
+const Average = SQABasicSymbolic
+
+function is_average(x)
+    x isa SQABasicSymbolic || return false
+    is_symtype(x, AvgSym) && return true
+    if SymbolicUtils.iscall(x)
+        f = SymbolicUtils.operation(x)
+        if f === (+) || f === (-)
+            return all(arg -> is_average(unwrap_const(arg)), SymbolicUtils.arguments(x))
+        end
+    end
+    return false
+end
 
 const sym_average = begin # Symbolic function for averages
-    T = SymbolicUtils.FnType{Tuple{QNumber},AvgSym}
-    SymbolicUtils.Sym{T}(:avg)
+    T = SymbolicUtils.FnType{Tuple{QNumber},AvgSym,Nothing}
+    SymbolicUtils.Sym{SQA_VARTYPE}(:avg; type=T)
 end
 
 # Type promotion -- average(::QNumber)::Number
 SymbolicUtils.promote_symtype(::typeof(sym_average), ::Type{<:QNumber}) = AvgSym
-
-# needs a specific symtype overload, otherwise we build the wrong expressions with maketerm
-SymbolicUtils.symtype(::T) where {T<:Average} = AvgSym
+SymbolicUtils.promote_symtype(::typeof(*), ::Type{AvgSym}, ::Type{AvgSym}) = CNumber
+SymbolicUtils.promote_symtype(::typeof(*), ::Type{AvgSym}, ::Type{<:CNumber}) = CNumber
+SymbolicUtils.promote_symtype(::typeof(*), ::Type{<:CNumber}, ::Type{AvgSym}) = CNumber
+SymbolicUtils.promote_symtype(::typeof(+), ::Type{AvgSym}, ::Type{AvgSym}) = CNumber
+SymbolicUtils.promote_symtype(::typeof(+), ::Type{AvgSym}, ::Type{<:CNumber}) = CNumber
+SymbolicUtils.promote_symtype(::typeof(+), ::Type{<:CNumber}, ::Type{AvgSym}) = CNumber
+SymbolicUtils.promote_symtype(::typeof(-), ::Type{AvgSym}, ::Type{AvgSym}) = CNumber
+SymbolicUtils.promote_symtype(::typeof(-), ::Type{AvgSym}, ::Type{<:CNumber}) = CNumber
+SymbolicUtils.promote_symtype(::typeof(-), ::Type{<:CNumber}, ::Type{AvgSym}) = CNumber
 
 # Direct construction of average symbolic expression
 function _average(operator)
-    return SymbolicUtils.Term{AvgSym}(sym_average, [operator])
+    return SymbolicUtils.Term{SQA_VARTYPE}(sym_average, [operator]; type=AvgSym)
 end
 
 # ensure that BasicSymbolic{<:AvgSym} are only single averages
@@ -41,21 +59,21 @@ end
 # end
 # ∨ https://github.com/qojulia/SecondQuantizedAlgebra.jl/issues/28
 function SymbolicUtils.Add(::Type{AvgSym}, coeff, dict; kw...)
-    SymbolicUtils.Add(CNumber, coeff, dict, kw...)
+    SymbolicUtils.Add(SQA_VARTYPE, coeff, dict; type=CNumber, kw...)
 end
 function SymbolicUtils.Mul(::Type{AvgSym}, coeff, dict; kw...)
-    SymbolicUtils.Mul(CNumber, coeff, dict, kw...)
+    SymbolicUtils.Mul(SQA_VARTYPE, coeff, dict; type=CNumber, kw...)
 end
 
-function acts_on(s::SymbolicUtils.Symbolic)
+function acts_on(s::SymbolicUtils.BasicSymbolic)
     if SymbolicUtils.iscall(s)
         f = SymbolicUtils.operation(s)
         if f === sym_average
-            return acts_on(SymbolicUtils.arguments(s)[1])
+            return acts_on(unwrap_const(SymbolicUtils.arguments(s)[1]))
         else
             aon = []
             for arg in SymbolicUtils.arguments(s)
-                append!(aon, acts_on(arg))
+                append!(aon, acts_on(unwrap_const(arg)))
             end
             unique!(aon)
             sort!(aon)
@@ -93,9 +111,9 @@ function undo_average(t)
     if SymbolicUtils.iscall(t)
         f = SymbolicUtils.operation(t)
         if isequal(f, sym_average) # "===" results in false sometimes in Symbolics version > 5
-            return SymbolicUtils.arguments(t)[1]
+            return unwrap_const(SymbolicUtils.arguments(t)[1])
         else
-            args = map(undo_average, SymbolicUtils.arguments(t))
+            args = map(arg -> undo_average(unwrap_const(arg)), SymbolicUtils.arguments(t))
             return f(args...)
         end
     else
@@ -108,5 +126,3 @@ function undo_average(eq::Symbolics.Equation)
     rhs = undo_average(eq.rhs)
     return Symbolics.Equation(lhs, rhs)
 end
-
-Base.:(==)(term1::Average, term2::Average) = isequal(arguments(term1), arguments(term2))
