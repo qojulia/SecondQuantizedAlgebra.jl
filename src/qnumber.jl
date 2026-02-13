@@ -47,19 +47,49 @@ SymbolicUtils.iscall(::QTerm) = true
 SymbolicUtils.iscall(::Type{T}) where {T<:QTerm} = true
 TermInterface.metadata(x::QNumber) = x.metadata
 
-# Symbolic type promotion
-SymbolicUtils.promote_symtype(f, Ts::Type{<:QNumber}...) = promote_type(Ts...)
-SymbolicUtils.promote_symtype(f, T::Type{<:QNumber}, Ts...) = T
-SymbolicUtils.promote_symtype(f, T::Type{<:QNumber}, S::Type{<:Number}) = T
-SymbolicUtils.promote_symtype(f, T::Type{<:Number}, S::Type{<:QNumber}) = S
-function SymbolicUtils.promote_symtype(f, T::Type{<:QNumber}, S::Type{<:QNumber})
+# Symbolic type promotion (narrow to arithmetic to avoid ambiguities)
+SymbolicUtils.promote_symtype(::typeof(+), Ts::Type{<:QNumber}...) = promote_type(Ts...)
+SymbolicUtils.promote_symtype(::typeof(-), Ts::Type{<:QNumber}...) = promote_type(Ts...)
+SymbolicUtils.promote_symtype(::typeof(*), Ts::Type{<:QNumber}...) = promote_type(Ts...)
+SymbolicUtils.promote_symtype(::typeof(/), T::Type{<:QNumber}, S::Type{<:Number}) = T
+SymbolicUtils.promote_symtype(::typeof(/), T::Type{<:Number}, S::Type{<:QNumber}) = S
+function SymbolicUtils.promote_symtype(::typeof(*), T::Type{<:QNumber}, S::Type{<:QNumber})
     promote_type(T, S)
 end
 
 SymbolicUtils.symtype(x::T) where {T<:QNumber} = T
 
 # Standard simplify and expand functions
+function _has_index_sums(x)
+    if x isa SingleSum || x isa DoubleSum || x isa SpecialIndexedTerm
+        return true
+    end
+    if x isa QTerm && SymbolicUtils.iscall(x)
+        return any(_has_index_sums, SymbolicUtils.arguments(x))
+    end
+    if x isa SQABasicSymbolic && SymbolicUtils.iscall(x)
+        return any(_has_index_sums, SymbolicUtils.arguments(x))
+    end
+    return false
+end
+
+function _simplify_qnumber_noavg(x::QNumber; kwargs...)
+    if x isa SingleSum || x isa DoubleSum
+        return SymbolicUtils.simplify(x)
+    elseif x isa QMul || x isa QAdd
+        f = SymbolicUtils.operation(x)
+        args = map(
+            arg -> SymbolicUtils.simplify(arg; kwargs...), SymbolicUtils.arguments(x)
+        )
+        return f(args...)
+    end
+    return x
+end
+
 function SymbolicUtils.simplify(x::QNumber; kwargs...)
+    if _has_index_sums(x)
+        return _simplify_qnumber_noavg(x; kwargs...)
+    end
     avg = average(x)
     avg_ = SymbolicUtils.simplify(avg; kwargs...)
     return undo_average(avg_)
@@ -71,11 +101,58 @@ function Symbolics.expand(x::QNumber; kwargs...)
     return undo_average(expansion_)
 end
 
+function Symbolics.substitute(x::QNumber, dict; kwargs...)
+    if x isa QMul
+        arg_c = Symbolics.substitute(x.arg_c, dict; kwargs...)
+        args_sub = map(arg -> Symbolics.substitute(arg, dict; kwargs...), x.args_nc)
+        args_c = filter(arg -> !(arg isa QNumber), args_sub)
+        args_nc = filter(arg -> arg isa QNumber, args_sub)
+        if any(arg -> isequal(arg, 0) || SymbolicUtils._iszero(arg), args_c)
+            return 0
+        end
+        arg_c = if isempty(args_c)
+            arg_c
+        elseif length(args_c) == 1
+            arg_c * args_c[1]
+        else
+            arg_c * *(args_c...)
+        end
+        if isequal(arg_c, 0) || SymbolicUtils._iszero(arg_c)
+            return 0
+        end
+        isempty(args_nc) && return arg_c
+        return QMul(arg_c, args_nc)
+    elseif x isa QAdd
+        args = map(arg -> Symbolics.substitute(arg, dict; kwargs...), x.arguments)
+        if all(arg -> !(arg isa QNumber), args)
+            return +(args...)
+        end
+        return QAdd(args)
+    elseif x isa SingleSum
+        term = Symbolics.substitute(x.term, dict; kwargs...)
+        sum_index = Symbolics.substitute(x.sum_index, dict; kwargs...)
+        neis = map(nei -> Symbolics.substitute(nei, dict; kwargs...), x.non_equal_indices)
+        return SingleSum(term, sum_index, neis, x.metadata)
+    elseif x isa DoubleSum
+        inner = Symbolics.substitute(x.innerSum, dict; kwargs...)
+        sum_index = Symbolics.substitute(x.sum_index, dict; kwargs...)
+        neis = map(nei -> Symbolics.substitute(nei, dict; kwargs...), x.NEI)
+        return DoubleSum(inner, sum_index, neis; metadata=x.metadata)
+    end
+    return x
+end
+
+function Symbolics.substitute(x::QSym, dict; kwargs...)
+    haskey(dict, x) && return dict[x]
+    return x
+end
+
 ## End of interface
 
 ## Methods
 import Base: *, +, -
-const SNuN = Union{<:SymbolicUtils.Symbolic{<:Number},<:Number}
+const SNuN = Union{<:SymbolicUtils.BasicSymbolic{SQA_VARTYPE},<:Number}
+const SQA_MulArg = Union{QNumber,SQABasicSymbolic,Number}
 
 Base.:~(a::QNumber, b::QNumber) = Symbolics.Equation(a, b)
 
@@ -91,29 +168,40 @@ Fields:
 * arg_c: The commutative prefactor.
 * args_nc: A vector containing all [`QSym`](@ref) types.
 """
-struct QMul{M} <: QTerm
-    arg_c
-    args_nc::Vector{Any}
+struct QMul{C,M} <: QTerm
+    arg_c::C
+    args_nc::Vector{QNumber}
     metadata::M
-    function QMul{M}(arg_c, args_nc, metadata) where {M}
+    function QMul{C,M}(arg_c::C, args_nc::Vector{QNumber}, metadata::M) where {C,M}
         if SymbolicUtils._isone(arg_c) && length(args_nc)==1
             return args_nc[1]
-        elseif (0 in args_nc) || isequal(arg_c, 0)
+        elseif any(arg -> isequal(arg, 0) || SymbolicUtils._iszero(arg), args_nc) ||
+            isequal(arg_c, 0) ||
+            SymbolicUtils._iszero(arg_c)
             return 0
         else
-            return new(arg_c, args_nc, metadata)
+            return new{C,M}(arg_c, args_nc, metadata)
         end
     end
 end
-QMul(arg_c, args_nc; metadata::M=NO_METADATA) where {M} = QMul{M}(arg_c, args_nc, metadata)
-Base.hash(q::QMul, h::UInt) = hash(QMul, hash(q.arg_c, SymbolicUtils.hashvec(q.args_nc, h)))
+function QMul(arg_c, args_nc; metadata::M=NO_METADATA) where {M}
+    QMul{typeof(arg_c),M}(arg_c, QNumber[args_nc...], metadata)
+end
+Base.hash(q::QMul, h::UInt) = hash(QMul, hash(q.arg_c, hashvec(q.args_nc, h)))
 
 SymbolicUtils.operation(::QMul) = (*)
 SymbolicUtils.arguments(a::QMul) = vcat(a.arg_c, a.args_nc)
 
+function SymbolicUtils.simplify(a::QMul; kwargs...)
+    arg_c = SymbolicUtils.simplify(a.arg_c; kwargs...)
+    args_nc = map(arg -> SymbolicUtils.simplify(arg; kwargs...), a.args_nc)
+    return QMul(arg_c, args_nc; metadata=a.metadata)
+end
+
 function TermInterface.maketerm(::Type{<:QMul}, ::typeof(*), args, metadata)
-    args_c = filter(x->!(x isa QNumber), args)
-    args_nc = filter(x->x isa QNumber, args)
+    args_ = map(unwrap_const, args)
+    args_c = filter(x->!(x isa QNumber), args_)
+    args_nc = filter(x->x isa QNumber, args_)
     arg_c = *(args_c...)
     isempty(args_nc) && return arg_c
     return QMul(arg_c, args_nc; metadata)
@@ -128,8 +216,14 @@ function Base.adjoint(q::QMul)
     return QMul(_conj(q.arg_c), args_nc; q.metadata)
 end
 
+function _coeff_equal(a, b)
+    isequal(a, b) && return true
+    diff = SymbolicUtils.simplify(SymbolicUtils.expand(a - b))
+    return SymbolicUtils._iszero(diff) || isequal(diff, 0)
+end
+
 function Base.isequal(a::QMul, b::QMul)
-    isequal(a.arg_c, b.arg_c) || return false
+    _coeff_equal(a.arg_c, b.arg_c) || return false
     length(a.args_nc)==length(b.args_nc) || return false
     for (arg_a, arg_b) in zip(a.args_nc, b.args_nc)
         isequal(arg_a, arg_b) || return false
@@ -190,10 +284,21 @@ function merge_commutators(arg_c, args_nc)
     was_merged = false
     while i<length(args_nc)
         if _ismergeable(args_nc[i], args_nc[i + 1])
-            args_nc[i] = *(args_nc[i], args_nc[i + 1])
-            iszero(args_nc[i]) && return 0
-            deleteat!(args_nc, i+1)
-            was_merged = true
+            merged = *(args_nc[i], args_nc[i + 1])
+            if merged isa QNumber
+                args_nc[i] = merged
+                iszero(args_nc[i]) && return 0
+                deleteat!(args_nc, i+1)
+                was_merged = true
+            else
+                arg_c *= merged
+                (isequal(arg_c, 0) || SymbolicUtils._iszero(arg_c)) && return 0
+                deleteat!(args_nc, i+1)
+                deleteat!(args_nc, i)
+                was_merged = true
+                i = max(i - 1, 1)
+                continue
+            end
         end
         i += 1
     end
@@ -226,10 +331,14 @@ struct QAdd <: QTerm
     arguments::Vector{Any}
 end
 
-Base.hash(q::T, h::UInt) where {T<:QAdd} = hash(T, SymbolicUtils.hashvec(q.arguments, h))
+function Base.hash(q::T, h::UInt) where {T<:QAdd}
+    hash(T, hashvec(sort(copy(q.arguments); by=string), h))
+end
 function Base.isequal(a::QAdd, b::QAdd)
     length(a.arguments)==length(b.arguments) || return false
-    for (arg_a, arg_b) in zip(a.arguments, b.arguments)
+    args_a = sort(copy(a.arguments); by=string)
+    args_b = sort(copy(b.arguments); by=string)
+    for (arg_a, arg_b) in zip(args_a, args_b)
         isequal(arg_a, arg_b) || return false
     end
     return true
@@ -237,14 +346,91 @@ end
 
 SymbolicUtils.operation(::QAdd) = (+)
 SymbolicUtils.arguments(a::QAdd) = a.arguments
-TermInterface.maketerm(::Type{<:QAdd}, ::typeof(+), args, metadata) = QAdd(args)
+function TermInterface.maketerm(::Type{<:QAdd}, ::typeof(+), args, metadata)
+    QAdd(map(unwrap_const, args))
+end
 TermInterface.metadata(::QAdd) = NO_METADATA
 
 Base.adjoint(q::QAdd) = QAdd(map(_adjoint, q.arguments))
 
+function _qadd_key_tuple(x)
+    if x isa Tuple
+        x
+    elseif x isa AbstractVector
+        Tuple(x)
+    elseif x === nothing
+        ()
+    else
+        (x,)
+    end
+end
+
+function SymbolicUtils.simplify(a::QAdd; kwargs...)
+    args = map(arg -> SymbolicUtils.simplify(arg; kwargs...), a.arguments)
+    flat = Any[]
+    for arg in args
+        if arg isa QAdd
+            append!(flat, arg.arguments)
+        else
+            push!(flat, arg)
+        end
+    end
+    dict = Dict{Any,Any}()
+    for term in flat
+        if term isa Number
+            key = (:number,)
+            coeff = term
+        elseif term isa SingleSum && term.term isa QMul
+            neis = term.non_equal_indices
+            neis_tuple = _qadd_key_tuple(neis)
+            args_nc = term.term.args_nc
+            args_nc_tuple = _qadd_key_tuple(args_nc)
+            key = (:singlesum, term.sum_index, neis_tuple, args_nc_tuple)
+            coeff = term.term.arg_c
+        elseif term isa QMul
+            if length(term.args_nc) == 1
+                key = (:term, term.args_nc[1])
+                coeff = term.arg_c
+            else
+                key = (:qmul, _qadd_key_tuple(term.args_nc))
+                coeff = term.arg_c
+            end
+        else
+            key = (:term, term)
+            coeff = 1
+        end
+        dict[key] = get(dict, key, 0) + coeff
+    end
+    new_args = Any[]
+    for (key, coeff) in dict
+        coeff = SymbolicUtils.simplify(SymbolicUtils.expand(coeff; kwargs...); kwargs...)
+        if SymbolicUtils._iszero(coeff) || isequal(coeff, 0)
+            continue
+        end
+        if key[1] == :singlesum
+            _, sum_index, neis_tuple, args_nc_tuple = key
+            args_nc = collect(args_nc_tuple)
+            sum_term = length(args_nc) == 1 ? coeff * args_nc[1] : QMul(coeff, args_nc)
+            term = SingleSum(sum_term, sum_index, collect(neis_tuple))
+        elseif key[1] == :qmul
+            args_nc = collect(key[2])
+            term = length(args_nc) == 1 ? coeff * args_nc[1] : QMul(coeff, args_nc)
+        elseif key[1] == :number
+            term = coeff
+        else
+            term = isequal(coeff, 1) ? key[2] : coeff * key[2]
+        end
+        push!(new_args, term)
+    end
+    sort!(new_args; by=string)
+    isempty(new_args) && return 0
+    length(new_args) == 1 && return new_args[1]
+    return QAdd(new_args)
+end
+
 -(a::QNumber) = -1*a
--(a, b::QNumber) = a + (-b)
--(a::QNumber, b) = a + (-b)
+-(a::SQA_MulArg, b::QNumber) = a + (-b)
+-(a::QNumber, b::SQA_MulArg) = a + (-b)
 -(a::QNumber, b::QNumber) = a + (-b)
 
 function +(a::QNumber, b::SNuN)
@@ -280,7 +466,7 @@ function +(a::QAdd, b::QAdd)
     return QAdd(args)
 end
 
-function *(a::QAdd, b)
+function *(a::QAdd, b::SQA_MulArg)
     check_hilbert(a, b)
     args = Any[a_ * b for a_ in a.arguments]
     flatten_adds!(args)
