@@ -24,7 +24,8 @@ Random.seed!(0)
             for i in 1:3, j in 1:3
                 op = σ(i, j)
                 @test to_numeric(op, bnlevel) == QuantumOpticsBase.transition(bnlevel, i, j)
-                @test to_numeric(op, bnlevel, Dict()) == QuantumOpticsBase.transition(bnlevel, i, j)
+                @test to_numeric(op, bnlevel, Dict()) ==
+                    QuantumOpticsBase.transition(bnlevel, i, j)
             end
         end
 
