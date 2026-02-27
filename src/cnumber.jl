@@ -12,20 +12,23 @@ Type used as symbolic type in a `SymbolicUtils.Sym` variable to represent
 a parameter.
 """
 struct Parameter <: CNumber
-    function Parameter(name; metadata=source_metadata(:Parameter, name))
-        s = SymbolicUtils.Sym{Complex{Real}}(name)
+    function Parameter(name::Symbol; metadata=source_metadata(:Parameter, name))
+        s = SymbolicUtils.Sym{SQA_VARTYPE}(name; type=Complex{Real})
         s = SymbolicUtils.setmetadata(s, Symbolics.VariableSource, (:Parameter, name))
         return s
     end
+end
+function Parameter(name::AbstractString; metadata=source_metadata(:Parameter, Symbol(name)))
+    Parameter(Symbol(name); metadata=metadata)
 end
 
 # Promoting to CNumber ensures we own the symtype; could be used to dispatch
 # on Base methods (e.g. latex printing)
 Base.promote_rule(::Type{<:CNumber}, ::Type{<:Number}) = CNumber
+Base.promote_rule(::Type{<:CNumber}, ::Type{Symbolics.Num}) = CNumber
 
 Base.one(::Type{Parameter}) = 1
 Base.zero(::Type{Parameter}) = 0
-Base.adjoint(x::SymbolicUtils.Symbolic{<:CNumber}) = _conj(x)
 
 """
     @cnumbers(ps...)
@@ -108,6 +111,8 @@ cnumber(s::String) = cnumber(Symbol(s))
 Abstract type for real symbolic numbers [`RealParameter`](@ref).
 """
 abstract type RNumber <: Real end
+# Disambiguate promotion with Symbolics.Num
+Base.promote_rule(::Type{<:RNumber}, ::Type{Symbolics.Num}) = RNumber
 
 """
     RealParameter <: RNumber
@@ -116,11 +121,16 @@ Type used as symbolic type in a `SymbolicUtils.Sym` variable to represent
 a real parameter.
 """
 struct RealParameter <: RNumber
-    function RealParameter(name; metadata=source_metadata(:RealParameter, name))
-        s = SymbolicUtils.Sym{Real}(name)
+    function RealParameter(name::Symbol; metadata=source_metadata(:RealParameter, name))
+        s = SymbolicUtils.Sym{SQA_VARTYPE}(name; type=Real)
         s = SymbolicUtils.setmetadata(s, Symbolics.VariableSource, (:RealParameter, name))
         return s
     end
+end
+function RealParameter(
+    name::AbstractString; metadata=source_metadata(:RealParameter, Symbol(name))
+)
+    RealParameter(Symbol(name); metadata=metadata)
 end
 
 # Promoting to RNumber ensures we own the symtype; could be used to dispatch
@@ -129,7 +139,6 @@ Base.promote_rule(::Type{<:RNumber}, ::Type{<:Real}) = RNumber
 
 Base.one(::Type{RealParameter}) = 1
 Base.zero(::Type{RealParameter}) = 0
-Base.adjoint(x::SymbolicUtils.Symbolic{<:RNumber}) = x
 Base.adjoint(x::RNumber) = x
 Base.conj(x::RNumber) = x
 # Base.adjoint(x::SymbolicUtils.Symbolic{<:Real}) = conj(x)
@@ -213,27 +222,8 @@ true
 rnumber(s::Symbol) = RealParameter(s; metadata=source_metadata(:rnumbers, s))
 rnumber(s::String) = rnumber(Symbol(s))
 
-# this should be true for all analytic functions (write as Taylor-series)
-function Base.adjoint(x::SymbolicUtils.BasicSymbolic{Complex{RNumber}})
-    f = SymbolicUtils.operation(x)
-    args = SymbolicUtils.arguments(x)
-    return f(conj.(args)...)
-end
-function Base.conj(x::SymbolicUtils.BasicSymbolic{Complex{RNumber}})
-    f = SymbolicUtils.operation(x)
-    args = SymbolicUtils.arguments(x)
-    return f(conj.(args)...)
-end
-function Base.adjoint(x::SymbolicUtils.BasicSymbolic{CNumber})
-    f = SymbolicUtils.operation(x)
-    args = SymbolicUtils.arguments(x)
-    return f(conj.(args)...)
-end
-function Base.conj(x::SymbolicUtils.BasicSymbolic{CNumber})
-    f = SymbolicUtils.operation(x)
-    args = SymbolicUtils.arguments(x)
-    return f(conj.(args)...)
-end
+Base.one(::Type{CNumber}) = 1
+Base.zero(::Type{CNumber}) = 0
 
 const AbstractQCParameter = Union{CNumber,RNumber}
 

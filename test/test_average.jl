@@ -19,7 +19,7 @@ using Test
 
     @testset "Average Arithmetic" begin
         @test isequal(simplify(average(σ) + average(σ)), average(2σ))
-        @test iszero(simplify(average(σ) - average(σ)))
+        @test iszero(SymbolicUtils.unwrap_const(simplify(average(σ) - average(σ))))
     end
 
     @testset "C-Number Handling" begin
@@ -30,7 +30,11 @@ using Test
     end
 
     @testset "Commutativity Properties" begin
-        @test iszero(average(a * σ) * average(a) - average(a) * average(a * σ))
+        @test iszero(
+            SymbolicUtils.unwrap_const(
+                average(a * σ) * average(a) - average(a) * average(a * σ)
+            ),
+        )
     end
 
     @testset "Double Average" begin
@@ -64,8 +68,9 @@ using Test
         rhs_avg_simplified = SymbolicUtils.simplify(rhs_avg)
         terms = SecondQuantizedAlgebra.undo_average(rhs_avg_simplified)
 
-        for arg in arguments(terms)
-            @test arg isa SecondQuantizedAlgebra.QMul
+        for arg in map(SymbolicUtils.unwrap_const, arguments(terms))
+            @test arg isa SecondQuantizedAlgebra.QMul ||
+                arg isa SecondQuantizedAlgebra.SQABasicSymbolic
         end
     end
 
@@ -79,10 +84,10 @@ using Test
             s2(i, j) = Transition(h, :s2, i, j, 2)
 
             expr = average(s1(2, 1) + s1(1, 2) + s2(2, 1) + s2(1, 2))
-            @test expr isa SymbolicUtils.BasicSymbolic{SecondQuantizedAlgebra.CNumber}
+            @test SecondQuantizedAlgebra.is_average(expr)
 
             expr = simplify(average(s1(2, 1) + s1(1, 2)))
-            @test expr isa SymbolicUtils.BasicSymbolic{SecondQuantizedAlgebra.CNumber}
+            @test SecondQuantizedAlgebra.is_average(expr)
         end
     end
 end

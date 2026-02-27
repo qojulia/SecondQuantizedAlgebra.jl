@@ -97,6 +97,18 @@ end
 function Transition(hilbert::NLevelSpace, name, i, j; metadata=NO_METADATA)
     Transition(hilbert, name, i, j, 1; metadata)
 end
+function Transition(
+    hilbert::ClusterSpace{<:NLevelSpace},
+    name::S,
+    i::I,
+    j::I,
+    aon::Int64;
+    metadata=NO_METADATA,
+) where {S,I}
+    Transition{typeof(hilbert),S,I,Int64,typeof(metadata)}(
+        hilbert, name, i, j, aon, metadata
+    )
+end
 function Transition(hilbert::ProductSpace, name, i, j; metadata=NO_METADATA)
     inds = findall(
         x->isa(x, NLevelSpace) || isa(x, ClusterSpace{<:NLevelSpace}), hilbert.spaces

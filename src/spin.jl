@@ -61,6 +61,9 @@ function Pauli(hilbert::ProductSpace, name, axis; metadata=NO_METADATA)
         )
     end
 end
+function Pauli(hilbert::ProductSpace, name, axis::Symbol; metadata=NO_METADATA)
+    return Pauli(hilbert, name, axis; metadata=metadata)
+end
 function Pauli(hilbert::HilbertSpace, name, axis::Symbol, aon; kwargs...)
     if axis in [:x, :X]
         Pauli(hilbert, name, 1, aon; kwargs...)
@@ -173,6 +176,9 @@ function Spin(hilbert::ProductSpace, name, axis; metadata=NO_METADATA)
             "More than one SpinSpace in $(hilbert)! Specify on which Hilbert space Spin should be created with Spin(hilbert,name,axis,acts_on)!",
         )
     end
+end
+function Spin(hilbert::ProductSpace, name, axis::Symbol; metadata=NO_METADATA)
+    return Spin(hilbert, name, axis; metadata=metadata)
 end
 function Spin(hilbert::HilbertSpace, name, axis::Symbol, aon; kwargs...)
     if axis in [:x, :X]
