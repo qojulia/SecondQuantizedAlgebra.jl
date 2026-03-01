@@ -8,13 +8,18 @@ using Test
         a = Destroy(hf, :a)
         ad = a'
         b = Destroy(hf, :b)
-
+        
         # Hash uniqueness tests
         @test !isequal(hash(a), hash(ad))
         @test !isequal(hash(a), hash(b))
 
         # Basic operator relations
         @test isequal(a, ad')
+
+        # QMul(x,QMul)
+        @cnumbers x y
+        @test isequal(SecondQuantizedAlgebra.QMul(x, [x*a]), x^2*a)
+        @test isequal(substitute(y*a*a, Dict(a=>x*a)), y*x^2*a*a)
     end
 
     @testset "Algebraic Operations" begin

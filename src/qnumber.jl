@@ -96,6 +96,18 @@ struct QMul{M} <: QTerm
     args_nc::Vector{Any}
     metadata::M
     function QMul{M}(arg_c, args_nc, metadata) where {M}
+        if !isempty(args_nc) # needed for substitute, e.g. a => g*a
+            flat_args = Any[]
+            for arg in args_nc
+                if arg isa QMul
+                    arg_c = arg_c * arg.arg_c
+                    append!(flat_args, arg.args_nc)
+                else
+                    push!(flat_args, arg)
+                end
+            end
+            args_nc = flat_args
+        end
         if SymbolicUtils._isone(arg_c) && length(args_nc)==1
             return args_nc[1]
         elseif (0 in args_nc) || isequal(arg_c, 0)
