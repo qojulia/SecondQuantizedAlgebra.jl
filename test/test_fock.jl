@@ -8,7 +8,7 @@ using Test
         a = Destroy(hf, :a)
         ad = a'
         b = Destroy(hf, :b)
-        
+
         # Hash uniqueness tests
         @test !isequal(hash(a), hash(ad))
         @test !isequal(hash(a), hash(b))
