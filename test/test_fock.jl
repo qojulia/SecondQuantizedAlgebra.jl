@@ -15,6 +15,11 @@ using Test
 
         # Basic operator relations
         @test isequal(a, ad')
+
+        # QMul(x,QMul)
+        @cnumbers x y
+        @test isequal(SecondQuantizedAlgebra.QMul(x, [x*a]), x^2*a)
+        @test isequal(substitute(y*a*a, Dict(a=>x*a)), y*x^2*a*a)
     end
 
     @testset "Algebraic Operations" begin
