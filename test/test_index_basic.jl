@@ -478,6 +478,6 @@ const sqa = SecondQuantizedAlgebra
         s(α, β, i) = IndexedOperator(Transition(h, :S, α, β, 1), i)
 
         term = average(Σ(s(2, 1, i1) * s(1, 2, i2), i1, i2))
-        (term + term) isa SymbolicUtils.BasicSymbolic{CNumber}
+        @test sqa.is_symtype(term + term, sqa.CNumber)
     end
 end

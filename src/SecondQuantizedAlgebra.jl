@@ -1,6 +1,6 @@
 module SecondQuantizedAlgebra
 
-using SymbolicUtils: SymbolicUtils, BasicSymbolic, arguments, iscall, operation, substitute
+using SymbolicUtils: SymbolicUtils, arguments, iscall, operation, substitute
 using Symbolics: Symbolics
 using TermInterface: TermInterface
 
@@ -14,7 +14,22 @@ using LaTeXStrings: LaTeXStrings, @L_str, latexstring
 using Latexify: Latexify, latexify, @latexrecipe
 using MacroTools: MacroTools
 
-const NO_METADATA = SymbolicUtils.NO_METADATA
+const NO_METADATA = nothing
+
+# SymbolicUtils v4 compatibility: use SymReal as the default vartype
+const SQA_VARTYPE = SymbolicUtils.SymReal
+const SQABasicSymbolic = SymbolicUtils.BasicSymbolic{SQA_VARTYPE}
+
+symtypeof(x) = SymbolicUtils.symtype(x)
+is_symtype(x, ::Type{T}) where {T} = symtypeof(x) <: T
+unwrap_const(x) = SymbolicUtils.unwrap_const(x)
+
+function hashvec(vec, h::UInt)
+    for x in vec
+        h = hash(x, h)
+    end
+    return h
+end
 
 function source_metadata(source, name)
     Base.ImmutableDict{DataType,Any}(Symbolics.VariableSource, (source, name))
