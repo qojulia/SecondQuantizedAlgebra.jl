@@ -23,6 +23,8 @@ include("macros.jl")
 include("interface.jl")
 include("normal_order.jl")
 include("simplify.jl")
+include("printing.jl")
+include("latexify_recipes.jl")
 
 export QField, QSym, QTerm,
     HilbertSpace, FockSpace, ProductSpace,

@@ -1,4 +1,5 @@
-Base.show(io::IO, h::HilbertSpace) = write(io, "ℋ(", h.name, ")")
+# HilbertSpace
+Base.show(io::IO, h::FockSpace) = write(io, "ℋ(", string(h.name), ")")
 function Base.show(io::IO, h::ProductSpace)
     show(io, h.spaces[1])
     for i in 2:length(h.spaces)
@@ -6,50 +7,42 @@ function Base.show(io::IO, h::ProductSpace)
         show(io, h.spaces[i])
     end
 end
-function Base.show(io::IO, h::ClusterSpace)
-    write(io, "$(h.N)x")
-    show(io, h.original_space)
-end
 
-Base.show(io::IO, x::QSym) = write(io, x.name)
-Base.show(io::IO, x::Create) = write(io, string(x.name, "′"))
-Base.show(io::IO, x::Transition) = write(io, Symbol(x.name, x.i, x.j))
-Base.show(io::IO, x::Pauli) = write(io, Symbol(x.name, xyz_sym[x.axis]))
-Base.show(io::IO, x::Spin) = write(io, Symbol(x.name, xyz_sym[x.axis]))
+# Operators
+Base.show(io::IO, x::Destroy) = write(io, string(x.name))
+Base.show(io::IO, x::Create) = write(io, string(x.name), "†")
 
-show_brackets = Ref(true)
-function Base.show(io::IO, x::QTerm)
-    show_brackets[] && write(io, "(")
-    show(io, SymbolicUtils.arguments(x)[1])
-    f = SymbolicUtils.operation(x)
-    for i in 2:length(SymbolicUtils.arguments(x))
-        show(io, f)
-        show(io, SymbolicUtils.arguments(x)[i])
-    end
-    show_brackets[] && write(io, ")")
-end
-
+# QMul
 function Base.show(io::IO, x::QMul)
-    if !SymbolicUtils._isone(x.arg_c)
+    if isempty(x.args_nc)
         show(io, x.arg_c)
-        show(io, *)
+        return
     end
-    show_brackets[] && write(io, "(")
+    if x.arg_c == -1
+        write(io, "-")
+    elseif !isone(x.arg_c)
+        show(io, x.arg_c)
+        write(io, " * ")
+    end
     show(io, x.args_nc[1])
     for i in 2:length(x.args_nc)
-        show(io, *)
+        write(io, " * ")
         show(io, x.args_nc[i])
     end
-    show_brackets[] && write(io, ")")
 end
 
-const T_LATEX = Union{<:QNumber,<:SymbolicUtils.Symbolic{<:CNumber}}
-Base.show(io::IO, ::MIME"text/latex", x::T_LATEX) = write(io, latexify(x))
-
-function SymbolicUtils.show_term(io::IO, t::Average)
-    write(io, "⟨")
-    show_brackets[] = false
-    show(io, SymbolicUtils.arguments(t)[1])
-    show_brackets[] = true
-    write(io, "⟩")
+# QAdd
+function Base.show(io::IO, x::QAdd)
+    isempty(x.arguments) && return write(io, "0")
+    show(io, x.arguments[1])
+    for i in 2:length(x.arguments)
+        term = x.arguments[i]
+        if term.arg_c isa Real && term.arg_c < 0
+            write(io, " - ")
+            show(io, QMul(-term.arg_c, term.args_nc))
+        else
+            write(io, " + ")
+            show(io, term)
+        end
+    end
 end
