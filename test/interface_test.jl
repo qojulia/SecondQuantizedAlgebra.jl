@@ -1,0 +1,54 @@
+using SecondQuantizedAlgebra
+using SymbolicUtils
+using TermInterface
+using Test
+
+@testset "TermInterface" begin
+    h = FockSpace(:c)
+    a = Destroy(h, :a)
+    ad = a'
+
+    @testset "QSym is not callable" begin
+        @test SymbolicUtils.iscall(a) == false
+        @test SymbolicUtils.iscall(ad) == false
+    end
+
+    @testset "QMul TermInterface" begin
+        m = 3 * a * ad
+        @test SymbolicUtils.iscall(m) == true
+        @test SymbolicUtils.operation(m) == (*)
+        args = SymbolicUtils.arguments(m)
+        @test args[1] == 3
+        @test length(args) == 3
+        @test TermInterface.metadata(m) === nothing
+    end
+
+    @testset "QAdd TermInterface" begin
+        s = a + ad
+        @test SymbolicUtils.iscall(s) == true
+        @test SymbolicUtils.operation(s) == (+)
+        args = SymbolicUtils.arguments(s)
+        @test length(args) == 2
+        @test all(x -> x isa QMul, args)
+        @test TermInterface.metadata(s) === nothing
+    end
+
+    @testset "maketerm QMul" begin
+        m = 2 * a * ad
+        args = SymbolicUtils.arguments(m)
+        m2 = TermInterface.maketerm(typeof(m), *, args, nothing)
+        @test isequal(m, m2)
+    end
+
+    @testset "maketerm QAdd" begin
+        s = a + ad
+        args = SymbolicUtils.arguments(s)
+        s2 = TermInterface.maketerm(typeof(s), +, args, nothing)
+        @test isequal(s, s2)
+    end
+
+    @testset "symtype" begin
+        @test SymbolicUtils.symtype(a) == Destroy
+        @test SymbolicUtils.symtype(ad) == Create
+    end
+end

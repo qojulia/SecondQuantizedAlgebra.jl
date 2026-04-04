@@ -19,11 +19,14 @@ include("hilbertspace.jl")
 include("fock.jl")
 include("qmul.jl")
 include("qadd.jl")
+include("macros.jl")
+include("interface.jl")
 
 export QField, QSym, QTerm,
     HilbertSpace, FockSpace, ProductSpace,
     ⊗, tensor,
     Destroy, Create,
-    QMul, QAdd
+    QMul, QAdd,
+    @qnumbers
 
 end
