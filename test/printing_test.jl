@@ -48,7 +48,7 @@ using Test
     end
 
     @testset "Type inference" begin
-        s = IOBuffer(sizehint=0)
+        s = IOBuffer(sizehint = 0)
         @inferred show(s, a)
         @inferred show(s, ad)
     end

@@ -21,6 +21,7 @@ include("qadd.jl")
 include("macros.jl")
 include("interface.jl")
 include("simplify.jl")
+include("commutator.jl")
 include("normal_order.jl")
 include("printing.jl")
 include("latexify_recipes.jl")
@@ -37,7 +38,7 @@ export QField, QSym, QTerm,
     QMul, QAdd,
     @qnumbers,
     OrderingConvention, NormalOrder,
-    normal_order, simplify,
+    normal_order, simplify, commutator,
     to_numeric, numeric_average,
     transition_superscript
 

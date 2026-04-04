@@ -21,7 +21,7 @@ struct Pauli <: QSym
     space_index::Int
     function Pauli(name::Symbol, axis::Int, space_index::Int)
         1 <= axis <= 3 || throw(ArgumentError("Pauli axis must be 1, 2, or 3, got $axis"))
-        new(name, axis, space_index)
+        return new(name, axis, space_index)
     end
 end
 

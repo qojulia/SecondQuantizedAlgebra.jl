@@ -123,7 +123,7 @@ import SecondQuantizedAlgebra: simplify
         p_num = to_numeric(p, b)
         comm = x_num * p_num - p_num * x_num
         # Should be approximately i*I (exact in infinite basis, approximate in truncated)
-        @test comm.data[1, 1] ≈ im atol = 1e-10
+        @test comm.data[1, 1] ≈ im atol = 1.0e-10
     end
 
     @testset "Numeric: composite basis" begin

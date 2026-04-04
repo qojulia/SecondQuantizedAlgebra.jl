@@ -2,7 +2,7 @@
 function Base.show(io::IO, h::FockSpace)
     write(io, "ℋ(")
     print(io, h.name)
-    write(io, ")")
+    return write(io, ")")
 end
 function Base.show(io::IO, h::ProductSpace)
     show(io, h.spaces[1])
@@ -26,7 +26,7 @@ Base.show(io::IO, x::Create) = (print(io, x.name); write(io, "†"))
 # Operators — Transition: σ₁₂
 const _subscript_digits = ('₀', '₁', '₂', '₃', '₄', '₅', '₆', '₇', '₈', '₉')
 function _write_subscript(io::IO, n::Int)
-    if 0 <= n <= 9
+    return if 0 <= n <= 9
         write(io, _subscript_digits[n + 1])
     else
         for d in reverse(digits(n))
@@ -37,7 +37,7 @@ end
 function Base.show(io::IO, x::Transition)
     print(io, x.name)
     _write_subscript(io, x.i)
-    _write_subscript(io, x.j)
+    return _write_subscript(io, x.j)
 end
 
 # Operators — Pauli/Spin: σx, Sz
@@ -51,7 +51,7 @@ Base.show(io::IO, x::Momentum) = print(io, x.name)
 
 # Helper: clean display of a numeric prefactor
 function _show_prefactor(io::IO, c)
-    if c isa Complex
+    return if c isa Complex
         r, i = reim(c)
         if iszero(i)
             _show_prefactor(io, r)
@@ -69,7 +69,7 @@ function _show_prefactor(io::IO, c)
             show(io, c)
             write(io, ")")
         end
-    elseif !(c isa Union{Integer,AbstractFloat,Rational})
+    elseif !(c isa Union{Integer, AbstractFloat, Rational})
         write(io, "(")
         show(io, c)
         write(io, ")")
@@ -79,17 +79,17 @@ function _show_prefactor(io::IO, c)
 end
 
 # Check if a prefactor is effectively 1
-_is_unit(c::Union{Integer,AbstractFloat,Rational}) = isone(c)
+_is_unit(c::Union{Integer, AbstractFloat, Rational}) = isone(c)
 _is_unit(c::Complex) = isone(real(c)) && iszero(imag(c))
 _is_unit(::Any) = false
 
 # Check if a prefactor is effectively -1
-_is_neg_unit(c::Union{Integer,AbstractFloat,Rational}) = c == -1
+_is_neg_unit(c::Union{Integer, AbstractFloat, Rational}) = c == -1
 _is_neg_unit(c::Complex) = real(c) == -1 && iszero(imag(c))
 _is_neg_unit(::Any) = false
 
 # Check if a prefactor is a real negative number (safe for < comparison)
-_is_real_negative(c::Union{Integer,AbstractFloat,Rational}) = c < 0
+_is_real_negative(c::Union{Integer, AbstractFloat, Rational}) = c < 0
 _is_real_negative(c::Complex) = iszero(imag(c)) && real(c) < 0
 _is_real_negative(::Any) = false
 

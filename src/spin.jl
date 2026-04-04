@@ -9,7 +9,7 @@ struct SpinSpace <: HilbertSpace
     function SpinSpace(name::Symbol, spin::Rational{Int})
         spin > 0 || throw(ArgumentError("Spin must be positive, got $spin"))
         denominator(spin) in (1, 2) || throw(ArgumentError("Spin must be integer or half-integer, got $spin"))
-        new(name, spin)
+        return new(name, spin)
     end
     SpinSpace(name::Symbol, spin::Integer) = SpinSpace(name, spin // 1)
 end
@@ -28,7 +28,7 @@ struct Spin <: QSym
     space_index::Int
     function Spin(name::Symbol, axis::Int, space_index::Int)
         1 <= axis <= 3 || throw(ArgumentError("Spin axis must be 1, 2, or 3, got $axis"))
-        new(name, axis, space_index)
+        return new(name, axis, space_index)
     end
 end
 

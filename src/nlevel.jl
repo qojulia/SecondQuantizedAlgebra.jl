@@ -9,7 +9,7 @@ struct NLevelSpace <: HilbertSpace
     ground_state::Int
     function NLevelSpace(name::Symbol, n::Int, ground_state::Int)
         1 <= ground_state <= n || throw(ArgumentError("Ground state $ground_state out of range 1:$n"))
-        new(name, n, ground_state)
+        return new(name, n, ground_state)
     end
 end
 Base.:(==)(a::NLevelSpace, b::NLevelSpace) = a.name == b.name && a.n == b.n && a.ground_state == b.ground_state

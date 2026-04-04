@@ -56,4 +56,3 @@ Used for canonical ordering within `QMul.args_nc`.
 """
 ladder(::Create) = 0
 ladder(::Destroy) = 1
-

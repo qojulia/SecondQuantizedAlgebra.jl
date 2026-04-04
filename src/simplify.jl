@@ -94,8 +94,10 @@ Process one QMul term. Scans adjacent operator pairs for the first applicable
 rule, pushes resulting terms to `worklist`, or pushes to `done` if fully simplified.
 Mutates `m.args_nc` in-place for efficiency.
 """
-function _simplify_product!(m::QMul{CT}, ord::OrderingConvention,
-    worklist::Vector{QMul{CT}}, done::Vector{QMul{CT}}) where {CT}
+function _simplify_product!(
+        m::QMul{CT}, ord::OrderingConvention,
+        worklist::Vector{QMul{CT}}, done::Vector{QMul{CT}}
+    ) where {CT}
     ops = m.args_nc
     c = m.arg_c
     n = length(ops)
@@ -143,7 +145,7 @@ function _simplify_product!(m::QMul{CT}, ord::OrderingConvention,
     end
 
     # No rule applied — fully simplified
-    push!(done, m)
+    return push!(done, m)
 end
 
 """
@@ -154,8 +156,10 @@ was applied (new terms pushed to `worklist`), `false` otherwise.
 
 Same-space adjacent swaps preserve space_index ordering, so no re-sorting needed.
 """
-function _apply_ordering_swap!(a, b, i, c::CT, ops,
-    ::NormalOrder, worklist::Vector{QMul{CT}}) where {CT}
+function _apply_ordering_swap!(
+        a, b, i, c::CT, ops,
+        ::NormalOrder, worklist::Vector{QMul{CT}}
+    ) where {CT}
     # Fock: a·a† → a†·a + 1
     if a isa Destroy && b isa Create && a.space_index == b.space_index && a.name == b.name
         swapped = copy(ops)
@@ -228,7 +232,7 @@ function SymbolicUtils.simplify(s::QAdd; kwargs...)
     TT = promote_type((typeof(_simplify_prefactor(t.arg_c; kwargs...)) for t in args)...)
     result = QMul{TT}[
         QMul(convert(TT, _simplify_prefactor(t.arg_c; kwargs...)), t.args_nc)
-        for t in args
+            for t in args
     ]
     return QAdd(result)
 end
@@ -248,7 +252,7 @@ function Symbolics.expand(s::QAdd; kwargs...)
     TT = promote_type((typeof(_expand_prefactor(t.arg_c; kwargs...)) for t in args)...)
     result = QMul{TT}[
         QMul(convert(TT, _expand_prefactor(t.arg_c; kwargs...)), t.args_nc)
-        for t in args
+            for t in args
     ]
     return QAdd(result)
 end

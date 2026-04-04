@@ -92,6 +92,22 @@ SUITE["normal_order"]["ground state rewrite"] = @benchmarkable normal_order(
     $(σ12 * σ12' + σ13 * σ13'), $hn
 )
 
+# 12. Commutator
+SUITE["commutator"] = BenchmarkGroup()
+SUITE["commutator"]["[a, a'] Fock"] = @benchmarkable commutator($a, $(a'))
+SUITE["commutator"]["[a, a] zero"] = @benchmarkable commutator($a, $a)
+SUITE["commutator"]["[a'a, a] QMul,QSym"] = @benchmarkable commutator($(a' * a), $a)
+SUITE["commutator"]["[Sx, Sy] Spin"] = @benchmarkable commutator($Sx, $Sy)
+SUITE["commutator"]["[X, P] PhaseSpace"] = @benchmarkable commutator($X, $P)
+SUITE["commutator"]["[a+a', a] QAdd"] = @benchmarkable commutator($(a + a'), $a)
+SUITE["commutator"]["nested depth=3"] = let term = a' * a
+    function nested(t, n)
+        n == 0 && return t
+        return commutator(t, nested(t, n - 1))
+    end
+    @benchmarkable nested($term, 3)
+end
+
 # --- Run ---
 BenchmarkTools.tune!(SUITE)
 results = BenchmarkTools.run(SUITE; verbose=true)
