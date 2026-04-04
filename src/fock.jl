@@ -60,11 +60,10 @@ ladder(::Destroy) = 1
 """
     canonical_lt(a::QSym, b::QSym)
 
-Canonical ordering comparator: sort by (ladder, space_index, name).
+Canonical ordering comparator: sort by space_index only.
+Operators on the same space are NOT reordered — their relative order
+is preserved so that `normal_order()` can detect and apply commutation relations.
 """
 function canonical_lt(a::QSym, b::QSym)
-    la, lb = ladder(a), ladder(b)
-    la != lb && return la < lb
-    a.space_index != b.space_index && return a.space_index < b.space_index
-    return a.name < b.name
+    return a.space_index < b.space_index
 end

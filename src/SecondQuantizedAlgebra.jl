@@ -21,12 +21,15 @@ include("qmul.jl")
 include("qadd.jl")
 include("macros.jl")
 include("interface.jl")
+include("normal_order.jl")
+include("simplify.jl")
 
 export QField, QSym, QTerm,
     HilbertSpace, FockSpace, ProductSpace,
     ⊗, tensor,
     Destroy, Create,
     QMul, QAdd,
-    @qnumbers
+    @qnumbers,
+    normal_order, simplify
 
 end

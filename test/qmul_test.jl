@@ -11,9 +11,9 @@ using Test
         @test m isa QMul{Int}
         @test m.arg_c == 1
         @test length(m.args_nc) == 2
-        # Canonical order: Create before Destroy
-        @test m.args_nc[1] isa Create
-        @test m.args_nc[2] isa Destroy
+        # Same space: order preserved (a then a†)
+        @test m.args_nc[1] isa Destroy
+        @test m.args_nc[2] isa Create
     end
 
     @testset "Scalar multiplication" begin
