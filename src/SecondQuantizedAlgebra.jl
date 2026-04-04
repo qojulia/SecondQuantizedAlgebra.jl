@@ -4,13 +4,10 @@ using SymbolicUtils: SymbolicUtils
 using Symbolics: Symbolics
 using TermInterface: TermInterface
 
-using SciMLBase: SciMLBase
 using QuantumOpticsBase: QuantumOpticsBase
 import QuantumOpticsBase: ⊗, tensor
 
-using LaTeXStrings: LaTeXStrings
 using Latexify: Latexify, latexify, @latexrecipe
-using MacroTools: MacroTools
 
 include("types.jl")
 include("hilbertspace.jl")
