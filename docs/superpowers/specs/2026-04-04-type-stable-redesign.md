@@ -67,11 +67,11 @@ end
 
 ### Canonical Ordering
 
-Operators in `args_nc` are sorted by `(ladder, space_index, name)` where:
-- `ladder(::Create) = 0`
-- `ladder(::Destroy) = 1`
-
-Creation operators come first, then sorted by space index, then by name.
+Operators in `args_nc` are sorted by `space_index` only. Operators on the
+same space preserve their relative order (insertion order). This is essential
+for lazy multiplication: sorting by ladder type would eagerly reorder
+Create before Destroy, which conflicts with the "no commutation in `*`" invariant.
+`normal_order()` handles reordering within a space explicitly.
 
 ## Hilbert Spaces (Construction-Time Only)
 
@@ -357,6 +357,6 @@ These must hold at all times and should be enforced by tests:
 1. **Type stability:** every arithmetic operation returns a concrete type — `*` returns `QMul{T}`, `+` returns `QAdd{T}`.
 2. **No `Vector{Any}`:** all containers use concrete element types.
 3. **No abstract field types:** all struct fields are concrete.
-4. **Canonical ordering:** `args_nc` is always sorted by `(ladder, space_index, name)`.
+4. **Canonical ordering:** `args_nc` is sorted by `space_index`; order within a space is preserved.
 5. **Lazy multiplication:** `*` never applies commutation relations.
 6. **Closed algebra:** `normal_order()` and `simplify()` return `QAdd`.

@@ -29,7 +29,10 @@ SymbolicUtils.arguments(a::QAdd) = a.arguments
 TermInterface.metadata(::QAdd) = nothing
 
 function TermInterface.maketerm(::Type{<:QAdd}, ::typeof(+), args, metadata)
-    return QAdd(args)
+    # TermInterface may pass Vector{Any}; convert to concrete QMul vector
+    muls = QMul[x isa QMul ? x : QMul(1, QSym[x]) for x in args]
+    TT = promote_type((typeof(m.arg_c) for m in muls)...)
+    return QAdd(QMul{TT}[convert(QMul{TT}, m) for m in muls])
 end
 
 # Type promotion

@@ -5,63 +5,57 @@ Group terms with identical `args_nc`, sum their `arg_c` prefactors.
 Remove zero-prefactor terms. Returns `QAdd`.
 """
 function simplify(s::QAdd{T}) where {T}
-    # Group by args_nc identity
-    groups = Dict{UInt, Tuple{Vector{QSym}, Any}}()
-    order = UInt[]
+    # Collect unique operator patterns and their accumulated prefactors
+    unique_ops = Vector{QSym}[]
+    prefactors = T[]
 
     for term in s.arguments
-        key = hash(term.args_nc)
-        if haskey(groups, key)
-            existing_ops, existing_c = groups[key]
-            if isequal(existing_ops, term.args_nc)
-                groups[key] = (existing_ops, existing_c + term.arg_c)
-            else
-                # Hash collision fallback
-                key2 = hash(term.args_nc, key)
-                if haskey(groups, key2)
-                    _, ec = groups[key2]
-                    groups[key2] = (term.args_nc, ec + term.arg_c)
-                else
-                    groups[key2] = (term.args_nc, term.arg_c)
-                    push!(order, key2)
-                end
-            end
+        idx = _find_matching_ops(unique_ops, term.args_nc)
+        if idx === nothing
+            push!(unique_ops, term.args_nc)
+            push!(prefactors, term.arg_c)
         else
-            groups[key] = (term.args_nc, term.arg_c)
-            push!(order, key)
+            prefactors[idx] = prefactors[idx] + term.arg_c
         end
     end
 
-    # Collect results, determining the output prefactor type
-    terms = Tuple{Vector{QSym}, Any}[]
-    for key in order
-        ops, c = groups[key]
+    # Build result, skipping zeros
+    # Determine output type (prefactor addition may widen type, e.g. Int -> Num)
+    result_ops = Vector{QSym}[]
+    result_cs = []
+    for (ops, c) in zip(unique_ops, prefactors)
         iszero(c) && continue
-        push!(terms, (ops, c))
+        push!(result_ops, ops)
+        push!(result_cs, c)
     end
 
-    if isempty(terms)
+    if isempty(result_cs)
         return QAdd(QMul{T}[QMul(zero(T), QSym[])])
     end
 
-    # Determine common type for prefactors
-    TT = typeof(terms[1][2])
-    for i in 2:length(terms)
-        TT = promote_type(TT, typeof(terms[i][2]))
-    end
-    result = QMul{TT}[QMul(convert(TT, c), ops) for (ops, c) in terms]
+    TT = promote_type((typeof(c) for c in result_cs)...)
+    result = QMul{TT}[QMul(convert(TT, c), ops) for (ops, c) in zip(result_ops, result_cs)]
     return QAdd(result)
+end
+
+function _find_matching_ops(unique_ops::Vector{Vector{QSym}}, target::Vector{QSym})
+    for (i, ops) in enumerate(unique_ops)
+        isequal(ops, target) && return i
+    end
+    return nothing
 end
 
 simplify(m::QMul) = QAdd([m])
 simplify(op::QSym) = QAdd(QMul{Int}[QMul(1, QSym[op])])
 
 # SymbolicUtils.simplify — also simplify each prefactor
-function SymbolicUtils.simplify(s::QAdd{T}; kwargs...) where {T}
+function SymbolicUtils.simplify(s::QAdd; kwargs...)
     simplified = simplify(s)
-    result = QMul{T}[
-        QMul(convert(T, _simplify_prefactor(t.arg_c; kwargs...)), t.args_nc)
-            for t in simplified.arguments
+    args = simplified.arguments
+    TT = promote_type((typeof(_simplify_prefactor(t.arg_c; kwargs...)) for t in args)...)
+    result = QMul{TT}[
+        QMul(convert(TT, _simplify_prefactor(t.arg_c; kwargs...)), t.args_nc)
+        for t in args
     ]
     return QAdd(result)
 end
@@ -76,10 +70,12 @@ _simplify_prefactor(x::Number; kwargs...) = x
 _simplify_prefactor(x; kwargs...) = SymbolicUtils.simplify(x; kwargs...)
 
 # Symbolics.expand — distribute products, then expand prefactors
-function Symbolics.expand(s::QAdd{T}; kwargs...) where {T}
-    result = QMul{T}[
-        QMul(convert(T, _expand_prefactor(t.arg_c; kwargs...)), t.args_nc)
-            for t in s.arguments
+function Symbolics.expand(s::QAdd; kwargs...)
+    args = s.arguments
+    TT = promote_type((typeof(_expand_prefactor(t.arg_c; kwargs...)) for t in args)...)
+    result = QMul{TT}[
+        QMul(convert(TT, _expand_prefactor(t.arg_c; kwargs...)), t.args_nc)
+        for t in args
     ]
     return QAdd(result)
 end

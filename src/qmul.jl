@@ -32,9 +32,13 @@ function Base.isequal(a::QMul, b::QMul)
     end
     return true
 end
+Base.:(==)(a::QMul, b::QMul) = isequal(a, b)
 Base.hash(q::QMul, h::UInt) = hash(:QMul, hash(q.arg_c, hash(q.args_nc, h)))
 
-# Adjoint
+# Adjoint: (ABC)† = C†B†A† — reverse and adjoint each factor.
+# Re-sort by space_index to maintain canonical ordering across spaces.
+# Since canonical_lt is a stable sort on space_index only, the reversed
+# order within each space is preserved (which is correct for the adjoint).
 function Base.adjoint(q::QMul)
     args_nc = QSym[adjoint(op) for op in reverse(q.args_nc)]
     sort!(args_nc; lt = canonical_lt)
@@ -84,8 +88,10 @@ function Base.:*(a::QMul, b::QMul)
 end
 
 # Division
-Base.:/(a::QSym, b::Number) = QMul(1 // b, QSym[a])
-Base.:/(a::QMul, b::Number) = QMul(a.arg_c // b, a.args_nc)
+Base.:/(a::QSym, b::Integer) = QMul(1 // b, QSym[a])
+Base.:/(a::QSym, b::Number) = QMul(inv(b), QSym[a])
+Base.:/(a::QMul, b::Integer) = QMul(a.arg_c // b, a.args_nc)
+Base.:/(a::QMul, b::Number) = QMul(a.arg_c / b, a.args_nc)
 
 # Power
 function Base.:^(a::QSym, n::Integer)

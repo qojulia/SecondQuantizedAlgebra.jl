@@ -19,9 +19,10 @@ function Base.show(io::IO, x::QMul)
         show(io, x.arg_c)
         return
     end
-    if x.arg_c == -1
+    c = x.arg_c
+    if c isa Union{Integer,AbstractFloat,Rational} && c == -1
         write(io, "-")
-    elseif !isone(x.arg_c)
+    elseif !(c isa Union{Integer,AbstractFloat,Rational} && isone(c))
         show(io, x.arg_c)
         write(io, " * ")
     end
@@ -39,7 +40,7 @@ function Base.show(io::IO, x::QAdd)
     show(io, x.arguments[1])
     for i in 2:length(x.arguments)
         term = x.arguments[i]
-        if term.arg_c isa Real && term.arg_c < 0
+        if term.arg_c isa Union{Integer,AbstractFloat,Rational} && term.arg_c < 0
             write(io, " - ")
             show(io, QMul(-term.arg_c, term.args_nc))
         else

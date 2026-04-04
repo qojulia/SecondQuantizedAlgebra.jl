@@ -39,7 +39,7 @@ function _normal_order_qmul(arg_c::T, ops::Vector{QSym}) where {T}
     # Find first out-of-normal-order pair on the same space
     for i in 1:(length(ops) - 1)
         a, b = ops[i], ops[i + 1]
-        if a isa Destroy && b isa Create && a.space_index == b.space_index
+        if a isa Destroy && b isa Create && a.space_index == b.space_index && a.name == b.name
             # Apply [a, a†] = 1: swap and add identity
 
             # Term 1: swapped pair

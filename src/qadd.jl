@@ -23,6 +23,7 @@ function Base.isequal(a::QAdd, b::QAdd)
     end
     return true
 end
+Base.:(==)(a::QAdd, b::QAdd) = isequal(a, b)
 Base.hash(q::QAdd, h::UInt) = hash(:QAdd, hash(q.arguments, h))
 
 # Adjoint
@@ -149,4 +150,5 @@ function Base.:*(a::QAdd{S}, b::QAdd{T}) where {S, T}
 end
 
 # QAdd / Number
-Base.:/(a::QAdd, b::Number) = a * (1 // b)
+Base.:/(a::QAdd, b::Integer) = a * (1 // b)
+Base.:/(a::QAdd, b::Number) = a * inv(b)
