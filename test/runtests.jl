@@ -1,4 +1,4 @@
 using SecondQuantizedAlgebra
-import ParallelTestRunner
+using ParallelTestRunner: ParallelTestRunner
 
 ParallelTestRunner.runtests(SecondQuantizedAlgebra, ARGS)
