@@ -34,6 +34,7 @@ end
 _apply_ground_state(expr::QAdd, ::FockSpace) = expr
 _apply_ground_state(expr::QAdd, ::PauliSpace) = expr
 _apply_ground_state(expr::QAdd, ::SpinSpace) = expr
+_apply_ground_state(expr::QAdd, ::PhaseSpace) = expr
 
 # Expand a single QMul term, recursively until no ground state projections remain
 function _expand_ground_state(term::QMul, h::NLevelSpace)

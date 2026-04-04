@@ -142,6 +142,19 @@ function _apply_ordering_rule(a, b, same_space, i, arg_c, ops, ::NormalOrder)
         return _collect_qadd(all_terms)
     end
 
+    # PhaseSpace: [X, P] = i (swap P·X → X·P - i)
+    # Note: Position and Momentum have different names, so we check space_index only
+    if a isa Momentum && b isa Position && a.space_index == b.space_index
+        swapped = QSym[ops[1:(i - 1)]..., b, a, ops[(i + 2):end]...]
+        sort!(swapped; lt=canonical_lt)
+        term1 = _simplify_qmul(arg_c, swapped, NormalOrder())
+        contracted = QSym[ops[1:(i - 1)]..., ops[(i + 2):end]...]
+        sort!(contracted; lt=canonical_lt)
+        term2 = _simplify_qmul(-im * arg_c, contracted, NormalOrder())
+        all_terms = QMul[term1.arguments..., term2.arguments...]
+        return _collect_qadd(all_terms)
+    end
+
     return nothing
 end
 

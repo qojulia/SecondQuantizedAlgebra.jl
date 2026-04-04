@@ -34,6 +34,14 @@ end
     return Expr(:latexifymerge, "{$(x.name)}_{{$ax}}")
 end
 
+@latexrecipe function f(x::Position)
+    return Expr(:latexifymerge, "\\hat{$(x.name)}")
+end
+
+@latexrecipe function f(x::Momentum)
+    return Expr(:latexifymerge, "\\hat{$(x.name)}")
+end
+
 @latexrecipe function f(x::QMul)
     if isempty(x.args_nc)
         return x.arg_c

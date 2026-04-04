@@ -13,6 +13,7 @@ end
 Base.show(io::IO, h::NLevelSpace) = write(io, "ℋ(", string(h.name), ")")
 Base.show(io::IO, h::PauliSpace) = write(io, "ℋ(", string(h.name), ")")
 Base.show(io::IO, h::SpinSpace) = write(io, "ℋ(", string(h.name), ")")
+Base.show(io::IO, h::PhaseSpace) = write(io, "ℋ(", string(h.name), ")")
 
 # Operators — Fock
 Base.show(io::IO, x::Destroy) = write(io, string(x.name))
@@ -31,6 +32,10 @@ end
 const _xyz_sym = [:x, :y, :z]
 Base.show(io::IO, x::Pauli) = write(io, string(x.name), string(_xyz_sym[x.axis]))
 Base.show(io::IO, x::Spin) = write(io, string(x.name), string(_xyz_sym[x.axis]))
+
+# Operators — Position/Momentum
+Base.show(io::IO, x::Position) = write(io, string(x.name))
+Base.show(io::IO, x::Momentum) = write(io, string(x.name))
 
 # Helper: clean display of a numeric prefactor
 function _show_prefactor(io::IO, c)

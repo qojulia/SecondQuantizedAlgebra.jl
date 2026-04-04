@@ -38,6 +38,16 @@ function to_numeric(op::Spin, b::QuantumOpticsBase.SpinBasis; kwargs...)
     end
 end
 
+# Position: X = (a + a†) / √2
+function to_numeric(op::Position, b::QuantumOpticsBase.FockBasis; kwargs...)
+    return (QuantumOpticsBase.destroy(b) + QuantumOpticsBase.create(b)) / sqrt(2)
+end
+
+# Momentum: P = i(a† - a) / √2
+function to_numeric(op::Momentum, b::QuantumOpticsBase.FockBasis; kwargs...)
+    return im * (QuantumOpticsBase.create(b) - QuantumOpticsBase.destroy(b)) / sqrt(2)
+end
+
 # Composite basis — embed single operator
 function to_numeric(op::QSym, b::QuantumOpticsBase.CompositeBasis; kwargs...)
     idx = op.space_index
