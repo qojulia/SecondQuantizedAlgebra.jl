@@ -56,4 +56,37 @@ using Test
         all_concrete(Destroy)
         all_concrete(Create)
     end
+
+    @testset "Type stability" begin
+        import SecondQuantizedAlgebra: ladder
+        h = FockSpace(:c)
+        a = Destroy(h, :a)
+        @inferred Destroy(:a, 1)
+        @inferred Create(:a, 1)
+        @inferred adjoint(a)
+        @inferred adjoint(a')
+        @inferred isequal(a, a)
+        @inferred hash(a, UInt(0))
+        @inferred hash(a', UInt(0))
+        @inferred ladder(a)
+        @inferred ladder(a')
+    end
+
+    @testset "Allocations" begin
+        h = FockSpace(:c)
+        a = Destroy(h, :a)
+
+        # Construction
+        @test @allocations(Destroy(:a, 1)) == 0
+        @test @allocations(Create(:a, 1)) == 0
+
+        # Adjoint
+        @test @allocations(adjoint(a)) == 0
+        @test @allocations(adjoint(a')) == 0
+
+        # Equality / hashing
+        a2 = Destroy(h, :a)
+        @test @allocations(isequal(a, a2)) == 0
+        @test @allocations(hash(a, UInt(0))) == 0
+    end
 end

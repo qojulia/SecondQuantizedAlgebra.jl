@@ -37,11 +37,11 @@ Base.hash(q::QMul, h::UInt) = hash(:QMul, hash(q.arg_c, hash(q.args_nc, h)))
 
 # Adjoint: (ABC)† = C†B†A† — reverse and adjoint each factor.
 # Re-sort by space_index to maintain canonical ordering across spaces.
-# Since canonical_lt is a stable sort on space_index only, the reversed
-# order within each space is preserved (which is correct for the adjoint).
+# The stable sort on space_index only means the reversed order within
+# each space is preserved (which is correct for the adjoint).
 function Base.adjoint(q::QMul)
     args_nc = QSym[adjoint(op) for op in reverse(q.args_nc)]
-    sort!(args_nc; lt = canonical_lt)
+    sort!(args_nc; by = op -> op.space_index)
     return QMul(conj(q.arg_c), args_nc)
 end
 
@@ -56,7 +56,7 @@ end
 # QSym * QSym → QMul{Int}
 function Base.:*(a::QSym, b::QSym)
     args = QSym[a, b]
-    sort!(args; lt = canonical_lt)
+    sort!(args; by = op -> op.space_index)
     return QMul(1, args)
 end
 
@@ -70,20 +70,29 @@ Base.:*(b::Number, a::QMul) = a * b
 
 # QSym * QMul → QMul
 function Base.:*(a::QSym, b::QMul)
-    args_nc = QSym[a, b.args_nc...]
-    sort!(args_nc; lt = canonical_lt)
+    na = length(b.args_nc)
+    args_nc = Vector{QSym}(undef, 1 + na)
+    args_nc[1] = a
+    copyto!(args_nc, 2, b.args_nc, 1, na)
+    sort!(args_nc; by = op -> op.space_index)
     return QMul(b.arg_c, args_nc)
 end
 function Base.:*(a::QMul, b::QSym)
-    args_nc = QSym[a.args_nc..., b]
-    sort!(args_nc; lt = canonical_lt)
+    na = length(a.args_nc)
+    args_nc = Vector{QSym}(undef, na + 1)
+    copyto!(args_nc, 1, a.args_nc, 1, na)
+    args_nc[na + 1] = b
+    sort!(args_nc; by = op -> op.space_index)
     return QMul(a.arg_c, args_nc)
 end
 
 # QMul * QMul → QMul
 function Base.:*(a::QMul, b::QMul)
-    args_nc = QSym[a.args_nc..., b.args_nc...]
-    sort!(args_nc; lt = canonical_lt)
+    na, nb = length(a.args_nc), length(b.args_nc)
+    args_nc = Vector{QSym}(undef, na + nb)
+    copyto!(args_nc, 1, a.args_nc, 1, na)
+    copyto!(args_nc, na + 1, b.args_nc, 1, nb)
+    sort!(args_nc; by = op -> op.space_index)
     return QMul(a.arg_c * b.arg_c, args_nc)
 end
 
@@ -103,11 +112,9 @@ end
 function Base.:^(a::QMul, n::Integer)
     n >= 0 || throw(ArgumentError("Negative powers not supported"))
     n == 0 && return QMul(1, QSym[])
-    result = a
-    for _ in 2:n
-        result = result * a
-    end
-    return result
+    args_nc = repeat(a.args_nc, n)
+    sort!(args_nc; by = op -> op.space_index)
+    return QMul(a.arg_c^n, args_nc)
 end
 
 # Negation

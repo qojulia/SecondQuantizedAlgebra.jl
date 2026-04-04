@@ -75,4 +75,28 @@ using Test
         all_concrete(SpinSpace)
         all_concrete(Spin)
     end
+
+    @testset "Type stability" begin
+        h = SpinSpace(:s, 1 // 2)
+        Sx = Spin(h, :S, 1)
+        Sy = Spin(h, :S, 2)
+
+        @inferred Spin(:S, 1, 1)
+        @inferred adjoint(Sx)
+        @inferred isequal(Sx, Sy)
+        @inferred hash(Sx, UInt(0))
+        @inferred Sx * Sy
+        @inferred Sx + Sy
+    end
+
+    @testset "Allocations" begin
+        h = SpinSpace(:s, 1 // 2)
+        Sx = Spin(h, :S, 1)
+        Sx2 = Spin(h, :S, 1)
+
+        @test @allocations(Spin(:S, 1, 1)) == 0
+        @test @allocations(adjoint(Sx)) == 0
+        @test @allocations(isequal(Sx, Sx2)) == 0
+        @test @allocations(hash(Sx, UInt(0))) == 0
+    end
 end

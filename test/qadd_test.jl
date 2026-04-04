@@ -110,11 +110,77 @@ using Test
     end
 
     @testset "Type stability" begin
+        # QSym + QSym
         @inferred a + ad
+        # QMul + QMul
         @inferred (2 * a) + (3 * ad)
+        # QMul + QSym / QSym + QMul
+        @inferred (2 * a) + ad
+        @inferred ad + (2 * a)
+        # QAdd + QMul / QMul + QAdd
+        @inferred (a + ad) + (3 * a)
+        @inferred (3 * a) + (a + ad)
+        # QAdd + QSym / QSym + QAdd
         @inferred (a + ad) + a
+        @inferred a + (a + ad)
+        # QAdd + QAdd
+        @inferred (a + ad) + (a + ad)
+        # QField + Number / Number + QField
+        @inferred a + 5
+        @inferred 5 + a
+        @inferred (2 * a) + 5
+        @inferred 5 + (2 * a)
+        @inferred (a + ad) + 3
+        @inferred 3 + (a + ad)
+        # Subtraction
+        @inferred a - ad
+        @inferred a - 3
+        @inferred 3 - a
+        # Negation
+        @inferred -(a + ad)
+        # Distributive multiplication
         @inferred (a + ad) * 3
+        @inferred 3 * (a + ad)
         @inferred (a + ad) * a
+        @inferred a * (a + ad)
+        @inferred (a + ad) * (2 * a)
+        @inferred (2 * a) * (a + ad)
         @inferred (a + ad) * (a + ad)
+        # Division
+        @inferred (a + ad) / 2
+        @inferred (a + ad) / 2.0
+        # Adjoint
+        @inferred adjoint(a + 2 * ad)
+        # Equality / hashing
+        @inferred isequal(a + ad, a + ad)
+        @inferred hash(a + ad, UInt(0))
+    end
+
+    @testset "Allocations" begin
+        s = a + ad
+        m_2a = 2 * a
+        m_3ad = 3 * ad
+
+        # Warmup
+        a + ad; m_2a + m_3ad; s + m_2a; s + s; s * 3; s * a; s * s
+
+        # QSym + QSym
+        @test @allocations(a + ad) <= 4
+        # QMul + QMul
+        @test @allocations(m_2a + m_3ad) <= 3
+        # QAdd + QMul
+        @test @allocations(s + m_2a) <= 5
+        # QAdd + QAdd
+        @test @allocations(s + s) <= 7
+        # QAdd * Number
+        @test @allocations(s * 3) <= 4
+        # QAdd * QSym (distributive)
+        @test @allocations(s * a) <= 10
+        # QAdd * QAdd (distributive)
+        @test @allocations(s * s) <= 15
+        # Negation
+        @test @allocations(-s) <= 5
+        # Adjoint
+        @test @allocations(adjoint(s)) <= 15
     end
 end

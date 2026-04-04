@@ -57,13 +57,3 @@ Used for canonical ordering within `QMul.args_nc`.
 ladder(::Create) = 0
 ladder(::Destroy) = 1
 
-"""
-    canonical_lt(a::QSym, b::QSym)
-
-Canonical ordering comparator: sort by space_index only.
-Operators on the same space are NOT reordered — their relative order
-is preserved so that `normal_order()` can detect and apply commutation relations.
-"""
-function canonical_lt(a::QSym, b::QSym)
-    return a.space_index < b.space_index
-end

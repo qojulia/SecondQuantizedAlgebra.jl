@@ -74,4 +74,28 @@ using Test
         all_concrete(PauliSpace)
         all_concrete(Pauli)
     end
+
+    @testset "Type stability" begin
+        h = PauliSpace(:p)
+        σx = Pauli(h, :σ, 1)
+        σy = Pauli(h, :σ, 2)
+
+        @inferred Pauli(:σ, 1, 1)
+        @inferred adjoint(σx)
+        @inferred isequal(σx, σy)
+        @inferred hash(σx, UInt(0))
+        @inferred σx * σy
+        @inferred σx + σy
+    end
+
+    @testset "Allocations" begin
+        h = PauliSpace(:p)
+        σx = Pauli(h, :σ, 1)
+        σx2 = Pauli(h, :σ, 1)
+
+        @test @allocations(Pauli(:σ, 1, 1)) == 0
+        @test @allocations(adjoint(σx)) == 0
+        @test @allocations(isequal(σx, σx2)) == 0
+        @test @allocations(hash(σx, UInt(0))) == 0
+    end
 end

@@ -178,4 +178,38 @@ import SecondQuantizedAlgebra: simplify
         all_concrete(Position)
         all_concrete(Momentum)
     end
+
+    @testset "Type stability" begin
+        h = PhaseSpace(:q)
+        x = Position(h, :x)
+        p = Momentum(h, :p)
+
+        @inferred Position(:x, 1)
+        @inferred Momentum(:p, 1)
+        @inferred adjoint(x)
+        @inferred adjoint(p)
+        @inferred isequal(x, x)
+        @inferred isequal(p, p)
+        @inferred hash(x, UInt(0))
+        @inferred hash(p, UInt(0))
+        @inferred x * p
+        @inferred x + p
+    end
+
+    @testset "Allocations" begin
+        h = PhaseSpace(:q)
+        x = Position(h, :x)
+        p = Momentum(h, :p)
+        x2 = Position(h, :x)
+        p2 = Momentum(h, :p)
+
+        @test @allocations(Position(:x, 1)) == 0
+        @test @allocations(Momentum(:p, 1)) == 0
+        @test @allocations(adjoint(x)) == 0
+        @test @allocations(adjoint(p)) == 0
+        @test @allocations(isequal(x, x2)) == 0
+        @test @allocations(isequal(p, p2)) == 0
+        @test @allocations(hash(x, UInt(0))) == 0
+        @test @allocations(hash(p, UInt(0))) == 0
+    end
 end

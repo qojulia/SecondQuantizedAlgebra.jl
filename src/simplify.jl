@@ -8,154 +8,188 @@ Simplify a quantum expression by:
 
 Returns `QAdd`. The `ordering` argument controls which commutation rules are applied.
 Default is `NormalOrder()`.
+
+The output element type is always widened to `Complex{T}` for real `T`, so that
+commutation rules involving `im` (Pauli, Spin, PhaseSpace) are type-stable.
 """
 simplify(expr::QField) = simplify(expr, NormalOrder())
 simplify(expr::QField, h::HilbertSpace) = simplify(expr, NormalOrder(), h)
 
+# Widen real types to Complex for type-stable simplification.
+# Commutation rules for Pauli, Spin, and PhaseSpace multiply by `im`,
+# so the output type must be able to hold complex values.
+_complex_promote(::Type{T}) where {T <: Real} = Complex{T}
+_complex_promote(::Type{T}) where {T} = T  # already Complex or symbolic
+
 function simplify(op::QSym, ::OrderingConvention)
-    return QAdd(QMul{Int}[QMul(1, QSym[op])])
+    CT = Complex{Int}
+    return QAdd(QMul{CT}[QMul(one(CT), QSym[op])])
 end
 
-function simplify(m::QMul, ord::OrderingConvention)
-    expanded = _simplify_qmul(m.arg_c, m.args_nc, ord)
-    return _collect_like_terms(expanded)
+function simplify(m::QMul{T}, ord::OrderingConvention) where {T}
+    CT = _complex_promote(T)
+    terms = _simplify_qmul(convert(CT, m.arg_c), m.args_nc, ord)
+    return _collect_like_terms(QAdd(terms))
 end
 
-function simplify(s::QAdd, ord::OrderingConvention)
-    all_terms = QMul[]
+function simplify(s::QAdd{T}, ord::OrderingConvention) where {T}
+    CT = _complex_promote(T)
+    all_terms = QMul{CT}[]
     for term in s.arguments
-        expanded = _simplify_qmul(term.arg_c, term.args_nc, ord)
-        append!(all_terms, expanded.arguments)
+        append!(all_terms, _simplify_qmul(convert(CT, term.arg_c), term.args_nc, ord))
     end
-    return _collect_like_terms(_collect_qadd(all_terms))
+    return _collect_like_terms(QAdd(all_terms))
 end
 
 # With Hilbert space (ground state rewriting)
 function simplify(op::QSym, ord::OrderingConvention, h::HilbertSpace)
     return _collect_like_terms(_apply_ground_state(simplify(op, ord), h))
 end
-function simplify(m::QMul, ord::OrderingConvention, h::HilbertSpace)
-    expanded = _simplify_qmul(m.arg_c, m.args_nc, ord)
-    return _collect_like_terms(_apply_ground_state(_collect_qadd(expanded.arguments), h))
+function simplify(m::QMul{T}, ord::OrderingConvention, h::HilbertSpace) where {T}
+    CT = _complex_promote(T)
+    terms = _simplify_qmul(convert(CT, m.arg_c), m.args_nc, ord)
+    return _collect_like_terms(_apply_ground_state(QAdd(terms), h))
 end
-function simplify(s::QAdd, ord::OrderingConvention, h::HilbertSpace)
-    all_terms = QMul[]
+function simplify(s::QAdd{T}, ord::OrderingConvention, h::HilbertSpace) where {T}
+    CT = _complex_promote(T)
+    all_terms = QMul{CT}[]
     for term in s.arguments
-        expanded = _simplify_qmul(term.arg_c, term.args_nc, ord)
-        append!(all_terms, expanded.arguments)
+        append!(all_terms, _simplify_qmul(convert(CT, term.arg_c), term.args_nc, ord))
     end
-    return _collect_like_terms(_apply_ground_state(_collect_qadd(all_terms), h))
+    return _collect_like_terms(_apply_ground_state(QAdd(all_terms), h))
 end
 
-# Helper: collect QMul[] into a properly typed QAdd
-function _collect_qadd(terms::Vector{<:QMul})
-    isempty(terms) && return QAdd(QMul{Int}[QMul(0, QSym[])])
-    TT = promote_type((typeof(t.arg_c) for t in terms)...)
-    return QAdd(QMul{TT}[convert(QMul{TT}, t) for t in terms])
+# Levi-Civita lookup: _levi_civita[j][k] = ε_{jk(6-j-k)} for j,k ∈ {1,2,3}
+# Zero-allocation, constant-time replacement for Combinatorics.levicivita.
+const _levi_civita = ((0, 1, -1), (-1, 0, 1), (1, -1, 0))
+
+"""
+    _simplify_qmul(prefactor, ops, ordering) -> Vector{QMul{CT}}
+
+Simplify a product of operators using a worklist algorithm. Returns a flat
+`Vector{QMul{CT}}` of fully simplified terms (not wrapped in QAdd).
+
+The worklist and done vectors are typed `Vector{QMul{CT}}` where `CT` is the
+(pre-widened) prefactor type, ensuring full type stability throughout.
+"""
+function _simplify_qmul(arg_c::CT, ops::Vector{QSym}, ord::OrderingConvention) where {CT}
+    isempty(ops) && return QMul{CT}[QMul(arg_c, QSym[])]
+    length(ops) == 1 && return QMul{CT}[QMul(arg_c, copy(ops))]
+
+    worklist = QMul{CT}[QMul(arg_c, copy(ops))]
+    done = QMul{CT}[]
+
+    while !isempty(worklist)
+        term = pop!(worklist)
+        _simplify_product!(term, ord, worklist, done)
+    end
+
+    return done
 end
 
 """
-    _simplify_qmul(prefactor, ops, ordering)
+    _simplify_product!(m::QMul{CT}, ord, worklist, done)
 
-Recursively simplify a product of operators. Applies:
-1. Ordering-independent reductions (always)
-2. Ordering-dependent commutation swaps (depends on `ordering`)
+Process one QMul term. Scans adjacent operator pairs for the first applicable
+rule, pushes resulting terms to `worklist`, or pushes to `done` if fully simplified.
+Mutates `m.args_nc` in-place for efficiency.
 """
-# Note: sort!(... lt=canonical_lt) is a stable sort (Julia guarantee).
-# Since canonical_lt only compares space_index, operators on the same space
-# preserve their relative order after sorting — this is essential for correctness.
-function _simplify_qmul(arg_c, ops::Vector{QSym}, ord::OrderingConvention)
-    isempty(ops) && return QAdd([QMul(arg_c, QSym[])])
-    length(ops) == 1 && return QAdd([QMul(arg_c, copy(ops))])
+function _simplify_product!(m::QMul{CT}, ord::OrderingConvention,
+    worklist::Vector{QMul{CT}}, done::Vector{QMul{CT}}) where {CT}
+    ops = m.args_nc
+    c = m.arg_c
+    n = length(ops)
 
-    for i in 1:(length(ops) - 1)
+    if n <= 1
+        push!(done, m)
+        return
+    end
+
+    for i in 1:(n - 1)
         a, b = ops[i], ops[i + 1]
-        same_space = a.space_index == b.space_index && a.name == b.name
 
-        ## Ordering-independent reductions (always applied)
+        ## Ordering-independent reductions
 
         # Transition: |i⟩⟨j| · |k⟩⟨l|
-        if a isa Transition && b isa Transition && same_space
+        if a isa Transition && b isa Transition && a.space_index == b.space_index && a.name == b.name
             if a.j == b.i
-                composed = Transition(a.name, a.i, b.j, a.space_index)
-                new_ops = QSym[ops[1:(i - 1)]..., composed, ops[(i + 2):end]...]
-                return _simplify_qmul(arg_c, new_ops, ord)
+                ops[i] = Transition(a.name, a.i, b.j, a.space_index)
+                deleteat!(ops, i + 1)
+                push!(worklist, QMul(c, ops))
             else
-                return QAdd([QMul(zero(arg_c), QSym[])])
+                push!(done, QMul(zero(c), QSym[]))
             end
+            return
         end
 
-        # Pauli: σⱼ·σₖ = δⱼₖ + iϵⱼₖₗσₗ
-        if a isa Pauli && b isa Pauli && same_space
+        # Pauli: σⱼ·σₖ = δⱼₖI + iϵⱼₖₗσₗ
+        if a isa Pauli && b isa Pauli && a.space_index == b.space_index && a.name == b.name
             if a.axis == b.axis
-                new_ops = QSym[ops[1:(i - 1)]..., ops[(i + 2):end]...]
-                return _simplify_qmul(arg_c, new_ops, ord)
+                deleteat!(ops, i:(i + 1))
+                push!(worklist, QMul(c, ops))
             else
-                l = 6 - a.axis - b.axis
-                eps = levicivita([a.axis, b.axis, l])
-                new_op = Pauli(a.name, l, a.space_index)
-                new_ops = QSym[ops[1:(i - 1)]..., new_op, ops[(i + 2):end]...]
-                return _simplify_qmul(arg_c * im * eps, new_ops, ord)
+                eps = _levi_civita[a.axis][b.axis]
+                ops[i] = Pauli(a.name, 6 - a.axis - b.axis, a.space_index)
+                deleteat!(ops, i + 1)
+                push!(worklist, QMul(c * im * eps, ops))
             end
+            return
         end
 
-        ## Ordering-dependent swaps (dispatch on ordering convention)
-        result = _apply_ordering_rule(a, b, same_space, i, arg_c, ops, ord)
-        result !== nothing && return result
+        ## Ordering-dependent swaps
+        if _apply_ordering_swap!(a, b, i, c, ops, ord, worklist)
+            return
+        end
     end
 
-    # Already fully simplified
-    return QAdd([QMul(arg_c, ops)])
+    # No rule applied — fully simplified
+    push!(done, m)
 end
 
 """
-    _apply_ordering_rule(a, b, same_space, i, arg_c, ops, ordering)
+    _apply_ordering_swap!(a, b, i, c::CT, ops, ord, worklist) -> Bool
 
-Apply ordering-specific commutation rules. Returns `nothing` if no rule applies,
-or a `QAdd` with the expanded terms.
+Apply ordering-specific commutation rules in-place. Returns `true` if a rule
+was applied (new terms pushed to `worklist`), `false` otherwise.
+
+Same-space adjacent swaps preserve space_index ordering, so no re-sorting needed.
 """
-function _apply_ordering_rule(a, b, same_space, i, arg_c, ops, ::NormalOrder)
-    # Fock: [a, a†] = 1
-    if a isa Destroy && b isa Create && same_space
-        swapped = QSym[ops[1:(i - 1)]..., b, a, ops[(i + 2):end]...]
-        sort!(swapped; lt=canonical_lt)
-        term1 = _simplify_qmul(arg_c, swapped, NormalOrder())
-        contracted = QSym[ops[1:(i - 1)]..., ops[(i + 2):end]...]
-        sort!(contracted; lt=canonical_lt)
-        term2 = _simplify_qmul(arg_c, contracted, NormalOrder())
-        all_terms = QMul[term1.arguments..., term2.arguments...]
-        return _collect_qadd(all_terms)
+function _apply_ordering_swap!(a, b, i, c::CT, ops,
+    ::NormalOrder, worklist::Vector{QMul{CT}}) where {CT}
+    # Fock: a·a† → a†·a + 1
+    if a isa Destroy && b isa Create && a.space_index == b.space_index && a.name == b.name
+        swapped = copy(ops)
+        swapped[i], swapped[i + 1] = swapped[i + 1], swapped[i]
+        push!(worklist, QMul(c, swapped))
+        deleteat!(ops, i:(i + 1))
+        push!(worklist, QMul(c, ops))
+        return true
     end
 
     # Spin: [Sⱼ, Sₖ] = iϵⱼₖₗSₗ (swap out-of-order axes)
-    if a isa Spin && b isa Spin && same_space && a.axis > b.axis
-        swapped = QSym[ops[1:(i - 1)]..., b, a, ops[(i + 2):end]...]
-        sort!(swapped; lt=canonical_lt)
-        term1 = _simplify_qmul(arg_c, swapped, NormalOrder())
-        l = 6 - a.axis - b.axis
-        eps = levicivita([a.axis, b.axis, l])
-        comm_op = Spin(a.name, l, a.space_index)
-        comm_ops = QSym[ops[1:(i - 1)]..., comm_op, ops[(i + 2):end]...]
-        sort!(comm_ops; lt=canonical_lt)
-        term2 = _simplify_qmul(arg_c * im * eps, comm_ops, NormalOrder())
-        all_terms = QMul[term1.arguments..., term2.arguments...]
-        return _collect_qadd(all_terms)
+    if a isa Spin && b isa Spin && a.space_index == b.space_index && a.name == b.name && a.axis > b.axis
+        eps = _levi_civita[a.axis][b.axis]
+        swapped = copy(ops)
+        swapped[i], swapped[i + 1] = swapped[i + 1], swapped[i]
+        push!(worklist, QMul(c, swapped))
+        ops[i] = Spin(a.name, 6 - a.axis - b.axis, a.space_index)
+        deleteat!(ops, i + 1)
+        push!(worklist, QMul(c * im * eps, ops))
+        return true
     end
 
-    # PhaseSpace: [X, P] = i (swap P·X → X·P - i)
-    # Note: Position and Momentum have different names, so we check space_index only
+    # PhaseSpace: P·X → X·P - i
+    # Position and Momentum have different names, so check space_index only
     if a isa Momentum && b isa Position && a.space_index == b.space_index
-        swapped = QSym[ops[1:(i - 1)]..., b, a, ops[(i + 2):end]...]
-        sort!(swapped; lt=canonical_lt)
-        term1 = _simplify_qmul(arg_c, swapped, NormalOrder())
-        contracted = QSym[ops[1:(i - 1)]..., ops[(i + 2):end]...]
-        sort!(contracted; lt=canonical_lt)
-        term2 = _simplify_qmul(-im * arg_c, contracted, NormalOrder())
-        all_terms = QMul[term1.arguments..., term2.arguments...]
-        return _collect_qadd(all_terms)
+        swapped = copy(ops)
+        swapped[i], swapped[i + 1] = swapped[i + 1], swapped[i]
+        push!(worklist, QMul(c, swapped))
+        deleteat!(ops, i:(i + 1))
+        push!(worklist, QMul(-im * c, ops))
+        return true
     end
 
-    return nothing
+    return false
 end
 
 # TODO: SymmetricOrder for TWA (Truncated Wigner Approximation)
@@ -164,7 +198,8 @@ end
 # would use (a·a† + a†·a)/2 = a†·a + 1/2.
 # For Spin: symmetric ordering of Sⱼ·Sₖ = (SⱼSₖ + SₖSⱼ)/2.
 # Implement by adding:
-#   function _apply_ordering_rule(a, b, same_space, i, arg_c, ops, ::SymmetricOrder)
+#   function _apply_ordering_swap!(a, b, i, c::CT, ops,
+#       ::SymmetricOrder, worklist::Vector{QMul{CT}}) where {CT}
 #       ...
 #   end
 
@@ -172,44 +207,18 @@ end
     _collect_like_terms(expr::QAdd)
 
 Group terms with identical `args_nc`, sum their `arg_c` prefactors.
-Remove zero-prefactor terms.
+Remove zero-prefactor terms. Fully type-stable: input QAdd{T} → output QAdd{T}.
+Uses a Dict for O(n) amortized collection instead of O(n²) linear scan.
 """
 function _collect_like_terms(s::QAdd{T}) where {T}
-    unique_ops = Vector{QSym}[]
-    prefactors = T[]
-
+    d = Dict{Vector{QSym}, T}()
     for term in s.arguments
-        idx = _find_matching_ops(unique_ops, term.args_nc)
-        if idx === nothing
-            push!(unique_ops, term.args_nc)
-            push!(prefactors, term.arg_c)
-        else
-            prefactors[idx] = prefactors[idx] + term.arg_c
-        end
+        d[term.args_nc] = get(d, term.args_nc, zero(T)) + term.arg_c
     end
 
-    result_ops = Vector{QSym}[]
-    result_cs = []
-    for (ops, c) in zip(unique_ops, prefactors)
-        iszero(c) && continue
-        push!(result_ops, ops)
-        push!(result_cs, c)
-    end
-
-    if isempty(result_cs)
-        return QAdd(QMul{T}[QMul(zero(T), QSym[])])
-    end
-
-    TT = promote_type((typeof(c) for c in result_cs)...)
-    result = QMul{TT}[QMul(convert(TT, c), ops) for (ops, c) in zip(result_ops, result_cs)]
+    result = QMul{T}[QMul(c, ops) for (ops, c) in d if !iszero(c)]
+    isempty(result) && return QAdd(QMul{T}[QMul(zero(T), QSym[])])
     return QAdd(result)
-end
-
-function _find_matching_ops(unique_ops::Vector{Vector{QSym}}, target::Vector{QSym})
-    for (i, ops) in enumerate(unique_ops)
-        isequal(ops, target) && return i
-    end
-    return nothing
 end
 
 # SymbolicUtils.simplify — also simplify each prefactor

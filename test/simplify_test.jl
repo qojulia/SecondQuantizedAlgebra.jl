@@ -105,4 +105,131 @@ import SecondQuantizedAlgebra: simplify
         @test simplify(a) isa QAdd
         @test simplify(2 * a) isa QAdd
     end
+
+    @testset "Type stability" begin
+        @inferred simplify(a)
+        @inferred simplify(a * ad)
+        @inferred simplify(a + ad)
+        @inferred simplify(a * ad, NormalOrder())
+        @inferred simplify(ad * a)
+
+        hn = NLevelSpace(:atom, 3, 1)
+        σ12 = Transition(hn, :σ, 1, 2)
+        σ23 = Transition(hn, :σ, 2, 3)
+        @inferred simplify(σ12 * σ23)
+        @inferred simplify(σ12 + σ23)
+        @inferred simplify(σ12, NormalOrder(), hn)
+
+        hp = PauliSpace(:p)
+        σx = Pauli(hp, :σ, 1)
+        σy = Pauli(hp, :σ, 2)
+        @inferred simplify(σx * σy)
+        @inferred simplify(σx * σx)
+        @inferred simplify(σx + σy)
+
+        hs = SpinSpace(:s, 1 // 2)
+        Sx = Spin(hs, :S, 1)
+        Sy = Spin(hs, :S, 2)
+        Sz = Spin(hs, :S, 3)
+        @inferred simplify(Sz * Sy)
+        @inferred simplify(Sx + Sy)
+
+        hps = PhaseSpace(:q)
+        x = Position(hps, :x)
+        p = Momentum(hps, :p)
+        @inferred simplify(p * x)
+        @inferred simplify(x * p)
+        @inferred simplify(x + p)
+    end
+
+    @testset "Allocations — Fock" begin
+        # Warmup
+        simplify(a * ad)
+        simplify(ad * a)
+        simplify(a + ad)
+
+        allocs_swap = @allocations simplify(a * ad)
+        allocs_ordered = @allocations simplify(ad * a)
+        allocs_add = @allocations simplify(a + ad)
+        allocs_sym = @allocations simplify(a)
+
+        @test allocs_swap < 50
+        @test allocs_ordered < 50
+        @test allocs_add < 50
+        @test allocs_sym < 10
+
+        # Scaling: (a*a')^n allocations should grow, but not explosively
+        simplify((a * ad)^2)
+        simplify((a * ad)^3)
+        allocs_2 = @allocations simplify((a * ad)^2)
+        allocs_3 = @allocations simplify((a * ad)^3)
+        @test allocs_2 < 150
+        @test allocs_3 < 500
+    end
+
+    @testset "Allocations — Transition" begin
+        hn = NLevelSpace(:atom, 3, 1)
+        σ12 = Transition(hn, :σ, 1, 2)
+        σ23 = Transition(hn, :σ, 2, 3)
+        σ31 = Transition(hn, :σ, 3, 1)
+
+        # Warmup
+        simplify(σ12 * σ23)
+        simplify(σ12 * σ31)
+        simplify(σ12 + σ23)
+
+        @test @allocations(simplify(σ12 * σ23)) < 50  # composition
+        @test @allocations(simplify(σ12 * σ31)) < 50  # orthogonality → 0
+        @test @allocations(simplify(σ12 + σ23)) < 50
+    end
+
+    @testset "Allocations — Pauli" begin
+        hp = PauliSpace(:p)
+        σx = Pauli(hp, :σ, 1)
+        σy = Pauli(hp, :σ, 2)
+        σz = Pauli(hp, :σ, 3)
+
+        # Warmup
+        simplify(σx * σx)
+        simplify(σx * σy)
+        simplify(σx * σy * σz)
+
+        @test @allocations(simplify(σx * σx)) < 50   # σ² = I
+        @test @allocations(simplify(σx * σy)) < 50   # product rule
+        @test @allocations(simplify(σx * σy * σz)) < 50
+    end
+
+    @testset "Allocations — Spin" begin
+        hs = SpinSpace(:s, 1 // 2)
+        Sx = Spin(hs, :S, 1)
+        Sy = Spin(hs, :S, 2)
+        Sz = Spin(hs, :S, 3)
+
+        # Warmup
+        simplify(Sz * Sy)
+        simplify(Sz * Sy * Sx)
+
+        @test @allocations(simplify(Sz * Sy)) < 150
+        @test @allocations(simplify(Sz * Sy * Sx)) < 150
+    end
+
+    @testset "Allocations — PhaseSpace" begin
+        hps = PhaseSpace(:q)
+        x = Position(hps, :x)
+        p = Momentum(hps, :p)
+
+        # Warmup
+        simplify(p * x)
+        simplify(x * p)
+
+        @test @allocations(simplify(p * x)) < 50   # P·X → X·P - i
+        @test @allocations(simplify(x * p)) < 50   # already ordered
+    end
+
+    @testset "Allocations — collect like terms" begin
+        # Many duplicate terms: Dict-based collection should handle efficiently
+        many = sum(a' * a for _ in 1:20) + sum(a * a' for _ in 1:20)
+        simplify(many)  # warmup
+        @test @allocations(simplify(many)) < 2500
+    end
 end

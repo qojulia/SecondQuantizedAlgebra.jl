@@ -213,3 +213,61 @@ end
         @test length(result.arguments) == 1
     end
 end
+
+@testset "normal_order — Type stability" begin
+    hf = FockSpace(:c)
+    a = Destroy(hf, :a)
+
+    @inferred normal_order(a)
+    @inferred normal_order(a * a')
+    @inferred normal_order(a' * a)
+    @inferred normal_order(a * a' + a' * a)
+
+    hn = NLevelSpace(:atom, 3, 1)
+    σ12 = Transition(hn, :σ, 1, 2)
+    σ23 = Transition(hn, :σ, 2, 3)
+    @inferred normal_order(σ12 * σ23)
+    @inferred normal_order(σ12, hn)
+
+    hp = PauliSpace(:p)
+    σx = Pauli(hp, :σ, 1)
+    σy = Pauli(hp, :σ, 2)
+    @inferred normal_order(σx * σy)
+
+    hs = SpinSpace(:s, 1 // 2)
+    Sy = Spin(hs, :S, 2)
+    Sx = Spin(hs, :S, 1)
+    @inferred normal_order(Sy * Sx)
+
+    hps = PhaseSpace(:q)
+    x = Position(hps, :x)
+    p = Momentum(hps, :p)
+    @inferred normal_order(p * x)
+end
+
+@testset "normal_order — Allocations" begin
+    hf = FockSpace(:c)
+    a = Destroy(hf, :a)
+
+    # Warmup
+    normal_order(a * a')
+    normal_order(a' * a)
+    normal_order(a * a' + a' * a)
+
+    @test @allocations(normal_order(a * a')) < 50
+    @test @allocations(normal_order(a' * a)) < 50
+    @test @allocations(normal_order(a * a' + a' * a)) < 100
+
+    # Transition with ground state rewriting
+    hn = NLevelSpace(:atom, 3, 1)
+    σ11 = Transition(hn, :σ, 1, 1)
+    normal_order(QMul(1, QSym[σ11]), hn)
+    @test @allocations(normal_order(QMul(1, QSym[σ11]), hn)) < 250
+
+    # PhaseSpace
+    hps = PhaseSpace(:q)
+    x = Position(hps, :x)
+    p = Momentum(hps, :p)
+    normal_order(p * x)
+    @test @allocations(normal_order(p * x)) < 50
+end

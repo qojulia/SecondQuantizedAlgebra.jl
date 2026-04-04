@@ -95,4 +95,30 @@ using Test
         bc = bf ⊗ bn
         @test to_numeric(σ12, bc) isa LazyTensor
     end
+
+    # TODO: to_numeric is not type-stable due to QuantumOpticsBase dispatch.
+    # Fix upstream in QuantumOpticsBase.
+    # @testset "Type stability" begin
+    #     h = FockSpace(:fock)
+    #     @qnumbers a::Destroy(h)
+    #     b = FockBasis(7)
+    #     @inferred to_numeric(a, b)
+    #     @inferred to_numeric(a', b)
+    # end
+
+    @testset "Allocations — to_numeric" begin
+        h = FockSpace(:fock)
+        @qnumbers a::Destroy(h)
+        b = FockBasis(7)
+
+        # Warmup
+        to_numeric(a, b)
+        to_numeric(a', b)
+        to_numeric(a' * a, b)
+
+        # Single operators should be bounded
+        @test @allocations(to_numeric(a, b)) < 50
+        @test @allocations(to_numeric(a', b)) < 50
+        @test @allocations(to_numeric(a' * a, b)) < 100
+    end
 end

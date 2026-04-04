@@ -4,8 +4,6 @@ using SymbolicUtils: SymbolicUtils
 using Symbolics: Symbolics
 using TermInterface: TermInterface
 
-using Combinatorics: levicivita
-
 using QuantumOpticsBase: QuantumOpticsBase
 import QuantumOpticsBase: ⊗, tensor
 

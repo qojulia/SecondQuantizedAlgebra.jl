@@ -11,14 +11,25 @@ TermInterface.metadata(::QSym) = nothing
 SymbolicUtils.iscall(::QMul) = true
 SymbolicUtils.iscall(::Type{<:QMul}) = true
 SymbolicUtils.operation(::QMul) = (*)
-SymbolicUtils.arguments(a::QMul) = Any[a.arg_c, a.args_nc...]
+function SymbolicUtils.arguments(a::QMul)
+    result = Vector{Any}(undef, 1 + length(a.args_nc))
+    result[1] = a.arg_c
+    copyto!(result, 2, a.args_nc, 1, length(a.args_nc))
+    return result
+end
 TermInterface.metadata(::QMul) = nothing
 
 function TermInterface.maketerm(::Type{<:QMul}, ::typeof(*), args, metadata)
-    args_c = filter(x -> !(x isa QField), args)
-    args_nc = filter(x -> x isa QField, args)
-    arg_c = isempty(args_c) ? 1 : *(args_c...)
-    return QMul(arg_c, QSym[args_nc...])
+    arg_c = 1
+    args_nc = QSym[]
+    for x in args
+        if x isa QField
+            push!(args_nc, x)
+        else
+            arg_c *= x
+        end
+    end
+    return QMul(arg_c, args_nc)
 end
 
 # QAdd — sums

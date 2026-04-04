@@ -1,5 +1,9 @@
 # HilbertSpace
-Base.show(io::IO, h::FockSpace) = write(io, "ℋ(", string(h.name), ")")
+function Base.show(io::IO, h::FockSpace)
+    write(io, "ℋ(")
+    print(io, h.name)
+    write(io, ")")
+end
 function Base.show(io::IO, h::ProductSpace)
     show(io, h.spaces[1])
     for i in 2:length(h.spaces)
@@ -10,32 +14,40 @@ function Base.show(io::IO, h::ProductSpace)
 end
 
 # Hilbert spaces — new types
-Base.show(io::IO, h::NLevelSpace) = write(io, "ℋ(", string(h.name), ")")
-Base.show(io::IO, h::PauliSpace) = write(io, "ℋ(", string(h.name), ")")
-Base.show(io::IO, h::SpinSpace) = write(io, "ℋ(", string(h.name), ")")
-Base.show(io::IO, h::PhaseSpace) = write(io, "ℋ(", string(h.name), ")")
+Base.show(io::IO, h::NLevelSpace) = (write(io, "ℋ("); print(io, h.name); write(io, ")"))
+Base.show(io::IO, h::PauliSpace) = (write(io, "ℋ("); print(io, h.name); write(io, ")"))
+Base.show(io::IO, h::SpinSpace) = (write(io, "ℋ("); print(io, h.name); write(io, ")"))
+Base.show(io::IO, h::PhaseSpace) = (write(io, "ℋ("); print(io, h.name); write(io, ")"))
 
 # Operators — Fock
-Base.show(io::IO, x::Destroy) = write(io, string(x.name))
-Base.show(io::IO, x::Create) = write(io, string(x.name), "†")
+Base.show(io::IO, x::Destroy) = print(io, x.name)
+Base.show(io::IO, x::Create) = (print(io, x.name); write(io, "†"))
 
 # Operators — Transition: σ₁₂
-const _subscript_digits = ['₀', '₁', '₂', '₃', '₄', '₅', '₆', '₇', '₈', '₉']
-function _to_subscript(n::Int)
-    return join(_subscript_digits[d + 1] for d in reverse(digits(n)))
+const _subscript_digits = ('₀', '₁', '₂', '₃', '₄', '₅', '₆', '₇', '₈', '₉')
+function _write_subscript(io::IO, n::Int)
+    if 0 <= n <= 9
+        write(io, _subscript_digits[n + 1])
+    else
+        for d in reverse(digits(n))
+            write(io, _subscript_digits[d + 1])
+        end
+    end
 end
 function Base.show(io::IO, x::Transition)
-    write(io, string(x.name), _to_subscript(x.i), _to_subscript(x.j))
+    print(io, x.name)
+    _write_subscript(io, x.i)
+    _write_subscript(io, x.j)
 end
 
 # Operators — Pauli/Spin: σx, Sz
-const _xyz_sym = [:x, :y, :z]
-Base.show(io::IO, x::Pauli) = write(io, string(x.name), string(_xyz_sym[x.axis]))
-Base.show(io::IO, x::Spin) = write(io, string(x.name), string(_xyz_sym[x.axis]))
+const _xyz_sym = (:x, :y, :z)
+Base.show(io::IO, x::Pauli) = (print(io, x.name); print(io, _xyz_sym[x.axis]))
+Base.show(io::IO, x::Spin) = (print(io, x.name); print(io, _xyz_sym[x.axis]))
 
 # Operators — Position/Momentum
-Base.show(io::IO, x::Position) = write(io, string(x.name))
-Base.show(io::IO, x::Momentum) = write(io, string(x.name))
+Base.show(io::IO, x::Position) = print(io, x.name)
+Base.show(io::IO, x::Momentum) = print(io, x.name)
 
 # Helper: clean display of a numeric prefactor
 function _show_prefactor(io::IO, c)
@@ -78,12 +90,13 @@ _is_neg_unit(::Any) = false
 
 # Check if a prefactor is a real negative number (safe for < comparison)
 _is_real_negative(c::Union{Integer,AbstractFloat,Rational}) = c < 0
+_is_real_negative(c::Complex) = iszero(imag(c)) && real(c) < 0
 _is_real_negative(::Any) = false
 
 # QMul
 function Base.show(io::IO, x::QMul)
     if isempty(x.args_nc)
-        show(io, x.arg_c)
+        _show_prefactor(io, x.arg_c)
         return
     end
     c = x.arg_c

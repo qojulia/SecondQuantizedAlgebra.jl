@@ -42,15 +42,20 @@ end
     return Expr(:latexifymerge, "\\hat{$(x.name)}")
 end
 
+# Strip zero imaginary part from Complex for clean display
+_latex_prefactor(c::Complex) = iszero(imag(c)) ? real(c) : c
+_latex_prefactor(c) = c
+
 @latexrecipe function f(x::QMul)
+    c = _latex_prefactor(x.arg_c)
     if isempty(x.args_nc)
-        return x.arg_c
+        return c
     end
     parts = []
-    if x.arg_c == -1
+    if c == -1
         push!(parts, :(-))
-    elseif !isone(x.arg_c)
-        push!(parts, x.arg_c)
+    elseif !isone(c)
+        push!(parts, c)
     end
     for op in x.args_nc
         push!(parts, op)

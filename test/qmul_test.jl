@@ -119,10 +119,75 @@ using Test
     end
 
     @testset "Type stability" begin
+        # QSym * QSym
         @inferred a * ad
+        # Number * QSym / QSym * Number
         @inferred 3 * a
         @inferred a * 2.0
+        # QSym * QMul / QMul * QSym
         @inferred (2 * a) * ad
+        @inferred ad * (2 * a)
+        # QMul * QMul
         @inferred (2 * a) * (3 * ad)
+        # QMul * Number / Number * QMul
+        @inferred (2 * a) * 3
+        @inferred 3 * (2 * a)
+        # Division
+        @inferred a / 2
+        @inferred a / 2.0
+        @inferred (2 * a) / 3
+        @inferred (2 * a) / 3.0
+        # Power
+        @inferred a^3
+        @inferred (2 * a)^3
+        # Negation
+        @inferred -a
+        @inferred -(2 * a)
+        # Adjoint
+        @inferred adjoint(2 * ad * a)
+        # Equality / hashing
+        @inferred isequal(2 * a, 2 * a)
+        @inferred hash(2 * a, UInt(0))
+        # iszero / zero
+        @inferred iszero(0 * a)
+        @inferred zero(2 * a)
+    end
+
+    @testset "Allocations" begin
+        m_aa = a * ad
+        m_2a = 2 * a
+        m_3ad = 3 * ad
+
+        # Warmup all code paths
+        a * ad; 3 * a; a * 2; m_2a * 3; 3 * m_2a
+        a * m_3ad; m_2a * ad; m_2a * m_3ad
+        a^3; m_2a^3; -a; -m_2a; adjoint(m_aa)
+        m_2a_copy = 2 * a
+        isequal(m_2a, m_2a_copy); hash(m_2a, UInt(0))
+
+        # QSym * QSym
+        @test @allocations(a * ad) <= 5
+        # Number * QSym
+        @test @allocations(3 * a) <= 3
+        @test @allocations(a * 2) <= 3
+        # QMul * Number
+        @test @allocations(m_2a * 3) <= 2
+        @test @allocations(3 * m_2a) <= 2
+        # QSym * QMul
+        @test @allocations(a * m_3ad) <= 5
+        @test @allocations(m_2a * ad) <= 5
+        # QMul * QMul
+        @test @allocations(m_2a * m_3ad) <= 5
+        # Power
+        @test @allocations(a^3) <= 8
+        @test @allocations(m_2a^3) <= 5
+        # Negation
+        @test @allocations(-a) <= 3
+        @test @allocations(-m_2a) <= 2
+        # Adjoint
+        @test @allocations(adjoint(m_aa)) <= 7
+        # Equality / hashing
+        @test @allocations(isequal(m_2a, m_2a_copy)) <= 2
+        @test @allocations(hash(m_2a, UInt(0))) <= 3
     end
 end

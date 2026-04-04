@@ -76,4 +76,31 @@ using Test
         all_concrete(NLevelSpace)
         all_concrete(Transition)
     end
+
+    @testset "Type stability" begin
+        h = NLevelSpace(:atom, 3, 1)
+        σ12 = Transition(h, :σ, 1, 2)
+        σ21 = Transition(h, :σ, 2, 1)
+
+        @inferred Transition(:σ, 1, 2, 1)
+        @inferred adjoint(σ12)
+        @inferred isequal(σ12, σ21)
+        @inferred hash(σ12, UInt(0))
+        @inferred σ12 * σ21
+        @inferred σ12 + σ21
+    end
+
+    @testset "Allocations" begin
+        h = NLevelSpace(:atom, 3, 1)
+        σ12 = Transition(h, :σ, 1, 2)
+
+        # Construction and adjoint
+        @test @allocations(Transition(:σ, 1, 2, 1)) == 0
+        @test @allocations(adjoint(σ12)) == 0
+
+        # Equality / hashing
+        σ12b = Transition(h, :σ, 1, 2)
+        @test @allocations(isequal(σ12, σ12b)) == 0
+        @test @allocations(hash(σ12, UInt(0))) == 0
+    end
 end
