@@ -25,6 +25,7 @@ include("normal_order.jl")
 include("simplify.jl")
 include("printing.jl")
 include("latexify_recipes.jl")
+include("numeric.jl")
 
 export QField, QSym, QTerm,
     HilbertSpace, FockSpace, ProductSpace,
@@ -32,6 +33,7 @@ export QField, QSym, QTerm,
     Destroy, Create,
     QMul, QAdd,
     @qnumbers,
-    normal_order, simplify
+    normal_order, simplify,
+    to_numeric, numeric_average
 
 end
