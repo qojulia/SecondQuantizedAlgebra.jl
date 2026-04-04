@@ -15,7 +15,10 @@ using Latexify: Latexify, latexify, @latexrecipe
 using MacroTools: MacroTools
 
 include("types.jl")
+include("hilbertspace.jl")
 
-export QField, QSym, QTerm
+export QField, QSym, QTerm,
+    HilbertSpace, FockSpace, ProductSpace,
+    ⊗, tensor
 
 end
