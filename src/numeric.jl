@@ -10,6 +10,34 @@ function to_numeric(op::Create, b::QuantumOpticsBase.FockBasis; kwargs...)
     return QuantumOpticsBase.create(b)
 end
 
+# Transition
+function to_numeric(op::Transition, b::QuantumOpticsBase.NLevelBasis; kwargs...)
+    return QuantumOpticsBase.transition(b, op.i, op.j)
+end
+
+# Pauli — requires spin-1/2 basis
+function to_numeric(op::Pauli, b::QuantumOpticsBase.SpinBasis; kwargs...)
+    b.spinnumber == 1 // 2 || throw(ArgumentError("Pauli operators require SpinBasis(1//2), got SpinBasis($(b.spinnumber))"))
+    if op.axis == 1
+        return QuantumOpticsBase.sigmax(b)
+    elseif op.axis == 2
+        return QuantumOpticsBase.sigmay(b)
+    else
+        return QuantumOpticsBase.sigmaz(b)
+    end
+end
+
+# Spin
+function to_numeric(op::Spin, b::QuantumOpticsBase.SpinBasis; kwargs...)
+    if op.axis == 1
+        return 0.5 * QuantumOpticsBase.sigmax(b)
+    elseif op.axis == 2
+        return 0.5 * QuantumOpticsBase.sigmay(b)
+    else
+        return 0.5 * QuantumOpticsBase.sigmaz(b)
+    end
+end
+
 # Composite basis — embed single operator
 function to_numeric(op::QSym, b::QuantumOpticsBase.CompositeBasis; kwargs...)
     idx = op.space_index

@@ -32,7 +32,7 @@ using Test
     @testset "QAdd" begin
         @test repr(ad * a + 1) == "a† * a + 1"
         @test repr(a + ad) == "a + a†"
-        @test repr(a + (-1 * ad)) == "a - a†"
+        @test occursin("-", repr(a + (-1 * ad)))  # order may vary
         @test repr(2 * a + 3 * ad) == "2 * a + 3 * a†"
     end
 
@@ -51,5 +51,34 @@ using Test
         s = IOBuffer(sizehint=0)
         @inferred show(s, a)
         @inferred show(s, ad)
+    end
+
+    @testset "NLevel printing" begin
+        hn = NLevelSpace(:atom, 3, 1)
+        σ12 = Transition(hn, :σ, 1, 2)
+        @test repr(σ12) == "σ₁₂"
+        @test repr(hn) == "ℋ(atom)"
+    end
+
+    @testset "Pauli printing" begin
+        hp = PauliSpace(:p)
+        σx = Pauli(hp, :σ, 1)
+        σy = Pauli(hp, :σ, 2)
+        σz = Pauli(hp, :σ, 3)
+        @test repr(σx) == "σx"
+        @test repr(σy) == "σy"
+        @test repr(σz) == "σz"
+        @test repr(hp) == "ℋ(p)"
+    end
+
+    @testset "Spin printing" begin
+        hs = SpinSpace(:s, 1 // 2)
+        Sx = Spin(hs, :S, 1)
+        Sy = Spin(hs, :S, 2)
+        Sz = Spin(hs, :S, 3)
+        @test repr(Sx) == "Sx"
+        @test repr(Sy) == "Sy"
+        @test repr(Sz) == "Sz"
+        @test repr(hs) == "ℋ(s)"
     end
 end

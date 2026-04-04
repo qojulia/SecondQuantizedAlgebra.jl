@@ -55,4 +55,44 @@ using Test
         @test numeric_average(a, ψ) ≈ α
         @test numeric_average(a' * a, ψ) ≈ abs2(α)
     end
+
+    @testset "NLevel numeric" begin
+        h = NLevelSpace(:atom, 3, 1)
+        σ12 = Transition(h, :σ, 1, 2)
+        b = NLevelBasis(3)
+        @test to_numeric(σ12, b) == transition(b, 1, 2)
+        @test to_numeric(σ12', b) == transition(b, 2, 1)
+    end
+
+    @testset "Pauli numeric" begin
+        h = PauliSpace(:p)
+        σx = Pauli(h, :σ, 1)
+        σy = Pauli(h, :σ, 2)
+        σz = Pauli(h, :σ, 3)
+        b = SpinBasis(1 // 2)
+        @test to_numeric(σx, b) == sigmax(b)
+        @test to_numeric(σy, b) == sigmay(b)
+        @test to_numeric(σz, b) == sigmaz(b)
+    end
+
+    @testset "Spin numeric" begin
+        h = SpinSpace(:s, 5 // 2)
+        Sx = Spin(h, :S, 1)
+        Sy = Spin(h, :S, 2)
+        Sz = Spin(h, :S, 3)
+        b = SpinBasis(5 // 2)
+        @test to_numeric(Sx, b) == 0.5 * sigmax(b)
+        @test to_numeric(Sy, b) == 0.5 * sigmay(b)
+        @test to_numeric(Sz, b) == 0.5 * sigmaz(b)
+    end
+
+    @testset "Composite NLevel + Fock" begin
+        h = FockSpace(:c) ⊗ NLevelSpace(:atom, 3, 1)
+        @qnumbers a::Destroy(h, 1)
+        σ12 = Transition(h, :σ, 1, 2, 2)
+        bf = FockBasis(3)
+        bn = NLevelBasis(3)
+        bc = bf ⊗ bn
+        @test to_numeric(σ12, bc) isa LazyTensor
+    end
 end

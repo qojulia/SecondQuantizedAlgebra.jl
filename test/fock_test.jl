@@ -17,7 +17,7 @@ using Test
         b = Destroy(h, :b, 2)
         @test a.space_index == 1
         @test b.space_index == 2
-        @test_throws AssertionError Destroy(h, :c, 3)
+        @test_throws ArgumentError Destroy(h, :c, 3)
     end
 
     @testset "Adjoint" begin

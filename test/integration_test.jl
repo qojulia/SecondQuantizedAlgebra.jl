@@ -25,7 +25,7 @@ import SecondQuantizedAlgebra: simplify
 
         # a * a† normal-ordered → a†a + 1
         m = a * a'
-        result = simplify(normal_order(m))
+        result = normal_order(m)
         @test result isa QAdd
         @test length(result.arguments) == 2
     end
@@ -74,7 +74,7 @@ import SecondQuantizedAlgebra: simplify
 
         # Same-space commutation still works
         m2 = a * a'
-        result2 = simplify(normal_order(m2))
+        result2 = normal_order(m2)
         @test length(result2.arguments) == 2
     end
 
@@ -131,7 +131,7 @@ import SecondQuantizedAlgebra: simplify
 
         # a^2 * (a')^2 should produce multiple terms
         m = a * a * a' * a'
-        result = simplify(normal_order(m))
+        result = normal_order(m)
         @test result isa QAdd
         @test length(result.arguments) >= 3
     end
@@ -142,5 +142,53 @@ import SecondQuantizedAlgebra: simplify
 
         @test QMul(1, QSym[a]) == QMul(1, QSym[a])
         @test (a + a') == (a + a')
+    end
+
+    @testset "Jaynes-Cummings model" begin
+        hc = FockSpace(:cavity)
+        ha = NLevelSpace(:atom, 2, 1)
+        h = hc ⊗ ha
+        @qnumbers a::Destroy(h, 1)
+        σ12 = Transition(h, :σ, 1, 2, 2)
+        σ21 = Transition(h, :σ, 2, 1, 2)
+
+        @variables g_jc
+        H_int = g_jc * (a' * σ12 + a * σ21)
+        @test H_int isa QAdd
+
+        bf = FockBasis(5)
+        bn = NLevelBasis(2)
+        bc = bf ⊗ bn
+        H_num = to_numeric(H_int, bc)
+        @test H_num !== nothing
+    end
+
+    @testset "Pauli algebra via normal_order" begin
+        h = PauliSpace(:p)
+        σx = Pauli(h, :σ, 1)
+        σy = Pauli(h, :σ, 2)
+        σz = Pauli(h, :σ, 3)
+
+        # σx·σy·σz = iσz·σz = i·I
+        m = σx * σy * σz
+        result = normal_order(m)
+        @test result isa QAdd
+        @test length(result.arguments) == 1
+        @test isempty(result.arguments[1].args_nc)
+        @test result.arguments[1].arg_c == im
+    end
+
+    @testset "Mixed Fock + Pauli" begin
+        h = FockSpace(:c) ⊗ PauliSpace(:p)
+        @qnumbers a::Destroy(h, 1)
+        σz = Pauli(h, :σ, 3, 2)
+
+        m = a' * a * σz
+        @test m isa QMul
+        @test length(m.args_nc) == 3
+
+        # Normal order: commute a,a† on space 1, leave σz on space 2
+        result = normal_order(a * a' * σz)
+        @test result isa QAdd
     end
 end

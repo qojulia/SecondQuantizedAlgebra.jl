@@ -95,13 +95,13 @@ Base.:/(a::QMul, b::Number) = QMul(a.arg_c / b, a.args_nc)
 
 # Power
 function Base.:^(a::QSym, n::Integer)
-    @assert n >= 0 "Negative powers not supported"
+    n >= 0 || throw(ArgumentError("Negative powers not supported"))
     n == 0 && return QMul(1, QSym[])
     args_nc = QSym[a for _ in 1:n]
     return QMul(1, args_nc)
 end
 function Base.:^(a::QMul, n::Integer)
-    @assert n >= 0 "Negative powers not supported"
+    n >= 0 || throw(ArgumentError("Negative powers not supported"))
     n == 0 && return QMul(1, QSym[])
     result = a
     for _ in 2:n

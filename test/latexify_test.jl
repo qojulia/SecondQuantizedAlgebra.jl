@@ -47,4 +47,33 @@ using Test
         @test repr(MIME"text/latex"(), a * ad) == latexify(a * ad)
         @test repr(MIME"text/latex"(), a + ad) == latexify(a + ad)
     end
+
+    @testset "Transition LaTeX" begin
+        hn = NLevelSpace(:atom, 3, 1)
+        σ12 = Transition(hn, :σ, 1, 2)
+        s = latexify(σ12)
+        @test occursin("sigma", s) || occursin("σ", s)
+        @test occursin("12", s)
+
+        transition_superscript(false)
+        s2 = latexify(σ12)
+        @test occursin("_", s2)
+        transition_superscript(true)
+    end
+
+    @testset "Pauli LaTeX" begin
+        hp = PauliSpace(:p)
+        σx = Pauli(hp, :σ, 1)
+        s = latexify(σx)
+        @test occursin("sigma", s) || occursin("σ", s)
+        @test occursin("x", s)
+    end
+
+    @testset "Spin LaTeX" begin
+        hs = SpinSpace(:s, 1 // 2)
+        Sz = Spin(hs, :S, 3)
+        s = latexify(Sz)
+        @test occursin("S", s)
+        @test occursin("z", s)
+    end
 end

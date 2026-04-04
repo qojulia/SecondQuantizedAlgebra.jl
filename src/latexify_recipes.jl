@@ -1,9 +1,37 @@
+# Transition superscript toggle
+const transition_idx_script = Ref(:^)
+
+"""
+    transition_superscript(x::Bool)
+
+Toggle whether Transition level indices are printed as superscript (true)
+or subscript (false) in LaTeX. Default is superscript.
+"""
+function transition_superscript(x::Bool)
+    transition_idx_script[] = x ? :^ : :_
+    return x
+end
+
 @latexrecipe function f(x::Destroy)
     return Expr(:latexifymerge, x.name)
 end
 
 @latexrecipe function f(x::Create)
     return Expr(:latexifymerge, "$(x.name)^{\\dagger}")
+end
+
+@latexrecipe function f(x::Transition)
+    return Expr(:latexifymerge, "{$(x.name)}$(transition_idx_script[]){{$(x.i)$(x.j)}}")
+end
+
+@latexrecipe function f(x::Pauli)
+    ax = _xyz_sym[x.axis]
+    return Expr(:latexifymerge, "{$(x.name)}_{{$ax}}")
+end
+
+@latexrecipe function f(x::Spin)
+    ax = _xyz_sym[x.axis]
+    return Expr(:latexifymerge, "{$(x.name)}_{{$ax}}")
 end
 
 @latexrecipe function f(x::QMul)

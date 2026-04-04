@@ -35,9 +35,9 @@ Base.hash(a::ProductSpace, h::UInt) = hash(:ProductSpace, hash(a.spaces, h))
 Create a [`ProductSpace`](@ref) consisting of multiple subspaces.
 Unicode `\\otimes<tab>`.
 """
-⊗(a::FockSpace, b::FockSpace) = ProductSpace((a, b))
-⊗(a::ProductSpace, b::FockSpace) = ProductSpace((a.spaces..., b))
-⊗(a::FockSpace, b::ProductSpace) = ProductSpace((a, b.spaces...))
+⊗(a::HilbertSpace, b::HilbertSpace) = ProductSpace((a, b))
+⊗(a::ProductSpace, b::HilbertSpace) = ProductSpace((a.spaces..., b))
+⊗(a::HilbertSpace, b::ProductSpace) = ProductSpace((a, b.spaces...))
 ⊗(a::ProductSpace, b::ProductSpace) = ProductSpace((a.spaces..., b.spaces...))
 ⊗(a::HilbertSpace, b::HilbertSpace, c::HilbertSpace...) = ⊗(a ⊗ b, c...)
 ⊗(a::HilbertSpace) = a

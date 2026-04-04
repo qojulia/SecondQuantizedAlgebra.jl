@@ -23,13 +23,13 @@ Destroy(h::FockSpace, name::Symbol) = Destroy(name, 1)
 Create(h::FockSpace, name::Symbol) = Create(name, 1)
 
 function Destroy(h::ProductSpace, name::Symbol, idx::Int)
-    @assert 1 <= idx <= length(h.spaces) "Index $idx out of range for ProductSpace with $(length(h.spaces)) spaces"
-    @assert h.spaces[idx] isa FockSpace "Space at index $idx is not a FockSpace"
+    1 <= idx <= length(h.spaces) || throw(ArgumentError("Index $idx out of range for ProductSpace with $(length(h.spaces)) spaces"))
+    h.spaces[idx] isa FockSpace || throw(ArgumentError("Space at index $idx is not a FockSpace"))
     return Destroy(name, idx)
 end
 function Create(h::ProductSpace, name::Symbol, idx::Int)
-    @assert 1 <= idx <= length(h.spaces) "Index $idx out of range for ProductSpace with $(length(h.spaces)) spaces"
-    @assert h.spaces[idx] isa FockSpace "Space at index $idx is not a FockSpace"
+    1 <= idx <= length(h.spaces) || throw(ArgumentError("Index $idx out of range for ProductSpace with $(length(h.spaces)) spaces"))
+    h.spaces[idx] isa FockSpace || throw(ArgumentError("Space at index $idx is not a FockSpace"))
     return Create(name, idx)
 end
 
