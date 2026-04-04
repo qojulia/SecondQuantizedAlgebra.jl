@@ -16,9 +16,11 @@ using MacroTools: MacroTools
 
 include("types.jl")
 include("hilbertspace.jl")
+include("fock.jl")
 
 export QField, QSym, QTerm,
     HilbertSpace, FockSpace, ProductSpace,
-    ⊗, tensor
+    ⊗, tensor,
+    Destroy, Create
 
 end
