@@ -51,3 +51,7 @@ tensor(args::Vararg{HilbertSpace}) = ⊗(args...)
 
 Base.isless(h1::HilbertSpace, h2::HilbertSpace) = isless(h1.name, h2.name)
 Base.isless(h1::ProductSpace, h2::ProductSpace) = isless(h1.spaces, h2.spaces)
+
+# Unwrap ClusterSpace to get the original space for validation.
+# Base method returns the space as-is; ClusterSpace overrides in cluster.jl.
+_unwrap_space(h::HilbertSpace) = h

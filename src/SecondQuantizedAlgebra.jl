@@ -16,6 +16,7 @@ include("nlevel.jl")
 include("pauli.jl")
 include("spin.jl")
 include("phase_space.jl")
+include("cluster.jl")
 include("qmul.jl")
 include("qadd.jl")
 include("macros.jl")
@@ -33,6 +34,7 @@ export QField, QSym, QTerm,
     PauliSpace, Pauli,
     SpinSpace, Spin,
     PhaseSpace, Position, Momentum,
+    ClusterSpace, cluster_expand, has_cluster,
     ⊗, tensor,
     Destroy, Create,
     QMul, QAdd,

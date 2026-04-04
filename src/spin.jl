@@ -26,17 +26,19 @@ struct Spin <: QSym
     name::Symbol
     axis::Int
     space_index::Int
-    function Spin(name::Symbol, axis::Int, space_index::Int)
+    copy_index::Int
+    function Spin(name::Symbol, axis::Int, space_index::Int, copy_index::Int)
         1 <= axis <= 3 || throw(ArgumentError("Spin axis must be 1, 2, or 3, got $axis"))
-        return new(name, axis, space_index)
+        return new(name, axis, space_index, copy_index)
     end
 end
+Spin(name::Symbol, axis::Int, space_index::Int) = Spin(name, axis, space_index, 1)
 
 # Construction from Hilbert spaces
 Spin(h::SpinSpace, name::Symbol, axis::Int) = Spin(name, axis, 1)
 function Spin(h::ProductSpace, name::Symbol, axis::Int, idx::Int)
     1 <= idx <= length(h.spaces) || throw(ArgumentError("Index $idx out of range"))
-    h.spaces[idx] isa SpinSpace || throw(ArgumentError("Space at index $idx is not a SpinSpace"))
+    _unwrap_space(h.spaces[idx]) isa SpinSpace || throw(ArgumentError("Space at index $idx is not a SpinSpace"))
     return Spin(name, axis, idx)
 end
 
@@ -44,11 +46,11 @@ end
 Base.adjoint(op::Spin) = op
 
 # Equality
-Base.isequal(a::Spin, b::Spin) = a.name == b.name && a.axis == b.axis && a.space_index == b.space_index
+Base.isequal(a::Spin, b::Spin) = a.name == b.name && a.axis == b.axis && a.space_index == b.space_index && a.copy_index == b.copy_index
 Base.:(==)(a::Spin, b::Spin) = isequal(a, b)
 
 # Hashing
-Base.hash(a::Spin, h::UInt) = hash(:Spin, hash(a.name, hash(a.axis, hash(a.space_index, h))))
+Base.hash(a::Spin, h::UInt) = hash(:Spin, hash(a.name, hash(a.axis, hash(a.space_index, hash(a.copy_index, h)))))
 
 # Ladder (not applicable)
 ladder(::Spin) = 0

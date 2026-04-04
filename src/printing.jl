@@ -18,10 +18,19 @@ Base.show(io::IO, h::NLevelSpace) = (write(io, "ℋ("); print(io, h.name); write
 Base.show(io::IO, h::PauliSpace) = (write(io, "ℋ("); print(io, h.name); write(io, ")"))
 Base.show(io::IO, h::SpinSpace) = (write(io, "ℋ("); print(io, h.name); write(io, ")"))
 Base.show(io::IO, h::PhaseSpace) = (write(io, "ℋ("); print(io, h.name); write(io, ")"))
+function Base.show(io::IO, h::ClusterSpace)
+    write(io, "Cluster(")
+    show(io, h.original_space)
+    write(io, ", N=")
+    print(io, h.N)
+    write(io, ", order=")
+    print(io, h.order)
+    return write(io, ")")
+end
 
 # Operators — Fock
-Base.show(io::IO, x::Destroy) = print(io, x.name)
-Base.show(io::IO, x::Create) = (print(io, x.name); write(io, "†"))
+Base.show(io::IO, x::Destroy) = (print(io, x.name); _show_copy_suffix(io, x.copy_index))
+Base.show(io::IO, x::Create) = (print(io, x.name); _show_copy_suffix(io, x.copy_index); write(io, "†"))
 
 # Operators — Transition: σ₁₂
 const _subscript_digits = ('₀', '₁', '₂', '₃', '₄', '₅', '₆', '₇', '₈', '₉')
@@ -34,20 +43,29 @@ function _write_subscript(io::IO, n::Int)
         end
     end
 end
+function _show_copy_suffix(io::IO, ci::Int)
+    if ci > 1
+        write(io, "_")
+        print(io, ci)
+    end
+    return
+end
+
 function Base.show(io::IO, x::Transition)
     print(io, x.name)
+    _show_copy_suffix(io, x.copy_index)
     _write_subscript(io, x.i)
     return _write_subscript(io, x.j)
 end
 
 # Operators — Pauli/Spin: σx, Sz
 const _xyz_sym = (:x, :y, :z)
-Base.show(io::IO, x::Pauli) = (print(io, x.name); print(io, _xyz_sym[x.axis]))
-Base.show(io::IO, x::Spin) = (print(io, x.name); print(io, _xyz_sym[x.axis]))
+Base.show(io::IO, x::Pauli) = (print(io, x.name); _show_copy_suffix(io, x.copy_index); print(io, _xyz_sym[x.axis]))
+Base.show(io::IO, x::Spin) = (print(io, x.name); _show_copy_suffix(io, x.copy_index); print(io, _xyz_sym[x.axis]))
 
 # Operators — Position/Momentum
-Base.show(io::IO, x::Position) = print(io, x.name)
-Base.show(io::IO, x::Momentum) = print(io, x.name)
+Base.show(io::IO, x::Position) = (print(io, x.name); _show_copy_suffix(io, x.copy_index))
+Base.show(io::IO, x::Momentum) = (print(io, x.name); _show_copy_suffix(io, x.copy_index))
 
 # Helper: clean display of a numeric prefactor
 function _show_prefactor(io::IO, c)

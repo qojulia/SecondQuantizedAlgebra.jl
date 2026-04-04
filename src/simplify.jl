@@ -113,9 +113,9 @@ function _simplify_product!(
         ## Ordering-independent reductions
 
         # Transition: |i⟩⟨j| · |k⟩⟨l|
-        if a isa Transition && b isa Transition && a.space_index == b.space_index && a.name == b.name
+        if a isa Transition && b isa Transition && a.space_index == b.space_index && a.copy_index == b.copy_index && a.name == b.name
             if a.j == b.i
-                ops[i] = Transition(a.name, a.i, b.j, a.space_index)
+                ops[i] = Transition(a.name, a.i, b.j, a.space_index, a.copy_index)
                 deleteat!(ops, i + 1)
                 push!(worklist, QMul(c, ops))
             else
@@ -125,13 +125,13 @@ function _simplify_product!(
         end
 
         # Pauli: σⱼ·σₖ = δⱼₖI + iϵⱼₖₗσₗ
-        if a isa Pauli && b isa Pauli && a.space_index == b.space_index && a.name == b.name
+        if a isa Pauli && b isa Pauli && a.space_index == b.space_index && a.copy_index == b.copy_index && a.name == b.name
             if a.axis == b.axis
                 deleteat!(ops, i:(i + 1))
                 push!(worklist, QMul(c, ops))
             else
                 eps = _levi_civita[a.axis][b.axis]
-                ops[i] = Pauli(a.name, 6 - a.axis - b.axis, a.space_index)
+                ops[i] = Pauli(a.name, 6 - a.axis - b.axis, a.space_index, a.copy_index)
                 deleteat!(ops, i + 1)
                 push!(worklist, QMul(c * im * eps, ops))
             end
@@ -161,7 +161,7 @@ function _apply_ordering_swap!(
         ::NormalOrder, worklist::Vector{QMul{CT}}
     ) where {CT}
     # Fock: a·a† → a†·a + 1
-    if a isa Destroy && b isa Create && a.space_index == b.space_index && a.name == b.name
+    if a isa Destroy && b isa Create && a.space_index == b.space_index && a.copy_index == b.copy_index && a.name == b.name
         swapped = copy(ops)
         swapped[i], swapped[i + 1] = swapped[i + 1], swapped[i]
         push!(worklist, QMul(c, swapped))
@@ -171,12 +171,12 @@ function _apply_ordering_swap!(
     end
 
     # Spin: [Sⱼ, Sₖ] = iϵⱼₖₗSₗ (swap out-of-order axes)
-    if a isa Spin && b isa Spin && a.space_index == b.space_index && a.name == b.name && a.axis > b.axis
+    if a isa Spin && b isa Spin && a.space_index == b.space_index && a.copy_index == b.copy_index && a.name == b.name && a.axis > b.axis
         eps = _levi_civita[a.axis][b.axis]
         swapped = copy(ops)
         swapped[i], swapped[i + 1] = swapped[i + 1], swapped[i]
         push!(worklist, QMul(c, swapped))
-        ops[i] = Spin(a.name, 6 - a.axis - b.axis, a.space_index)
+        ops[i] = Spin(a.name, 6 - a.axis - b.axis, a.space_index, a.copy_index)
         deleteat!(ops, i + 1)
         push!(worklist, QMul(c * im * eps, ops))
         return true
@@ -184,7 +184,7 @@ function _apply_ordering_swap!(
 
     # PhaseSpace: P·X → X·P - i
     # Position and Momentum have different names, so check space_index only
-    if a isa Momentum && b isa Position && a.space_index == b.space_index
+    if a isa Momentum && b isa Position && a.space_index == b.space_index && a.copy_index == b.copy_index
         swapped = copy(ops)
         swapped[i], swapped[i + 1] = swapped[i + 1], swapped[i]
         push!(worklist, QMul(c, swapped))

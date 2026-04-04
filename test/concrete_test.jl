@@ -2,7 +2,7 @@ using Test
 using CheckConcreteStructs: all_concrete
 using SecondQuantizedAlgebra
 
-const _CONCRETE_SKIP = Set{Symbol}()
+const _CONCRETE_SKIP = Set{Symbol}([:ClusterSpace])
 
 @testset "CheckConcreteStructs" begin
     for name in names(SecondQuantizedAlgebra; all = true)

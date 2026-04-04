@@ -41,7 +41,7 @@ Base.hash(q::QMul, h::UInt) = hash(:QMul, hash(q.arg_c, hash(q.args_nc, h)))
 # each space is preserved (which is correct for the adjoint).
 function Base.adjoint(q::QMul)
     args_nc = QSym[adjoint(op) for op in reverse(q.args_nc)]
-    sort!(args_nc; by = op -> op.space_index)
+    sort!(args_nc; by = op -> (op.space_index, op.copy_index))
     return QMul(conj(q.arg_c), args_nc)
 end
 
@@ -56,7 +56,7 @@ end
 # QSym * QSym → QMul{Int}
 function Base.:*(a::QSym, b::QSym)
     args = QSym[a, b]
-    sort!(args; by = op -> op.space_index)
+    sort!(args; by = op -> (op.space_index, op.copy_index))
     return QMul(1, args)
 end
 
@@ -74,7 +74,7 @@ function Base.:*(a::QSym, b::QMul)
     args_nc = Vector{QSym}(undef, 1 + na)
     args_nc[1] = a
     copyto!(args_nc, 2, b.args_nc, 1, na)
-    sort!(args_nc; by = op -> op.space_index)
+    sort!(args_nc; by = op -> (op.space_index, op.copy_index))
     return QMul(b.arg_c, args_nc)
 end
 function Base.:*(a::QMul, b::QSym)
@@ -82,7 +82,7 @@ function Base.:*(a::QMul, b::QSym)
     args_nc = Vector{QSym}(undef, na + 1)
     copyto!(args_nc, 1, a.args_nc, 1, na)
     args_nc[na + 1] = b
-    sort!(args_nc; by = op -> op.space_index)
+    sort!(args_nc; by = op -> (op.space_index, op.copy_index))
     return QMul(a.arg_c, args_nc)
 end
 
@@ -92,7 +92,7 @@ function Base.:*(a::QMul, b::QMul)
     args_nc = Vector{QSym}(undef, na + nb)
     copyto!(args_nc, 1, a.args_nc, 1, na)
     copyto!(args_nc, na + 1, b.args_nc, 1, nb)
-    sort!(args_nc; by = op -> op.space_index)
+    sort!(args_nc; by = op -> (op.space_index, op.copy_index))
     return QMul(a.arg_c * b.arg_c, args_nc)
 end
 
@@ -113,7 +113,7 @@ function Base.:^(a::QMul, n::Integer)
     n >= 0 || throw(ArgumentError("Negative powers not supported"))
     n == 0 && return QMul(1, QSym[])
     args_nc = repeat(a.args_nc, n)
-    sort!(args_nc; by = op -> op.space_index)
+    sort!(args_nc; by = op -> (op.space_index, op.copy_index))
     return QMul(a.arg_c^n, args_nc)
 end
 

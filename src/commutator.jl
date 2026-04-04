@@ -16,18 +16,18 @@ commutator(::QField, ::Number) = _ZERO_QADD
 
 # QSym, QSym: short-circuit when on different spaces or identical
 function commutator(a::QSym, b::QSym)
-    a.space_index == b.space_index || return _ZERO_QADD
+    (a.space_index == b.space_index && a.copy_index == b.copy_index) || return _ZERO_QADD
     isequal(a, b) && return _ZERO_QADD
     return simplify(a * b - b * a)
 end
 
 # QMul, QSym: short-circuit when no shared space
 function commutator(a::QMul, b::QSym)
-    _has_space(a.args_nc, b.space_index) || return _ZERO_QADD
+    _has_space(a.args_nc, b.space_index, b.copy_index) || return _ZERO_QADD
     return simplify(a * b - b * a)
 end
 function commutator(a::QSym, b::QMul)
-    _has_space(b.args_nc, a.space_index) || return _ZERO_QADD
+    _has_space(b.args_nc, a.space_index, a.copy_index) || return _ZERO_QADD
     return simplify(a * b - b * a)
 end
 
@@ -38,16 +38,16 @@ function commutator(a::QMul, b::QMul)
 end
 
 # Zero-allocation space_index checks
-function _has_space(ops::Vector{QSym}, si::Int)
+function _has_space(ops::Vector{QSym}, si::Int, ci::Int)
     for op in ops
-        op.space_index == si && return true
+        op.space_index == si && op.copy_index == ci && return true
     end
     return false
 end
 
 function _has_shared_space(a::Vector{QSym}, b::Vector{QSym})
     for x in a, y in b
-        x.space_index == y.space_index && return true
+        x.space_index == y.space_index && x.copy_index == y.copy_index && return true
     end
     return false
 end

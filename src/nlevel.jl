@@ -25,7 +25,9 @@ struct Transition <: QSym
     i::Int
     j::Int
     space_index::Int
+    copy_index::Int
 end
+Transition(name::Symbol, i::Int, j::Int, space_index::Int) = Transition(name, i, j, space_index, 1)
 
 # Construction from Hilbert spaces
 function Transition(h::NLevelSpace, name::Symbol, i::Int, j::Int)
@@ -35,7 +37,7 @@ function Transition(h::NLevelSpace, name::Symbol, i::Int, j::Int)
 end
 function Transition(h::ProductSpace, name::Symbol, i::Int, j::Int, idx::Int)
     1 <= idx <= length(h.spaces) || throw(ArgumentError("Index $idx out of range"))
-    space = h.spaces[idx]
+    space = _unwrap_space(h.spaces[idx])
     space isa NLevelSpace || throw(ArgumentError("Space at index $idx is not an NLevelSpace"))
     1 <= i <= space.n || throw(ArgumentError("Level i=$i out of range 1:$(space.n)"))
     1 <= j <= space.n || throw(ArgumentError("Level j=$j out of range 1:$(space.n)"))
@@ -43,14 +45,14 @@ function Transition(h::ProductSpace, name::Symbol, i::Int, j::Int, idx::Int)
 end
 
 # Adjoint: |i⟩⟨j|† = |j⟩⟨i|
-Base.adjoint(op::Transition) = Transition(op.name, op.j, op.i, op.space_index)
+Base.adjoint(op::Transition) = Transition(op.name, op.j, op.i, op.space_index, op.copy_index)
 
 # Equality
-Base.isequal(a::Transition, b::Transition) = a.name == b.name && a.i == b.i && a.j == b.j && a.space_index == b.space_index
+Base.isequal(a::Transition, b::Transition) = a.name == b.name && a.i == b.i && a.j == b.j && a.space_index == b.space_index && a.copy_index == b.copy_index
 Base.:(==)(a::Transition, b::Transition) = isequal(a, b)
 
 # Hashing
-Base.hash(a::Transition, h::UInt) = hash(:Transition, hash(a.name, hash(a.i, hash(a.j, hash(a.space_index, h)))))
+Base.hash(a::Transition, h::UInt) = hash(:Transition, hash(a.name, hash(a.i, hash(a.j, hash(a.space_index, hash(a.copy_index, h))))))
 
 # Ladder (not applicable to Transition)
 ladder(::Transition) = 0

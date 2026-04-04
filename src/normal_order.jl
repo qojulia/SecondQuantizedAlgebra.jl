@@ -35,6 +35,7 @@ _apply_ground_state(expr::QAdd, ::FockSpace) = expr
 _apply_ground_state(expr::QAdd, ::PauliSpace) = expr
 _apply_ground_state(expr::QAdd, ::SpinSpace) = expr
 _apply_ground_state(expr::QAdd, ::PhaseSpace) = expr
+_apply_ground_state(expr::QAdd, ::ClusterSpace) = expr
 
 # Expand a single QMul term, recursively until no ground state projections remain
 function _expand_ground_state(term::QMul{CT}, h::NLevelSpace) where {CT}
@@ -49,7 +50,7 @@ function _expand_ground_state(term::QMul{CT}, h::NLevelSpace) where {CT}
             # Subtraction terms
             for k in 1:n
                 k == g && continue
-                new_op = Transition(op.name, k, k, op.space_index)
+                new_op = Transition(op.name, k, k, op.space_index, op.copy_index)
                 sub_ops = QSym[term.args_nc[1:(idx - 1)]..., new_op, term.args_nc[(idx + 1):end]...]
                 push!(terms, QMul(-term.arg_c, sub_ops))
             end
