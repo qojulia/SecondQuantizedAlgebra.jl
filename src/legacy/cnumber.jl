@@ -12,7 +12,7 @@ Type used as symbolic type in a `SymbolicUtils.Sym` variable to represent
 a parameter.
 """
 struct Parameter <: CNumber
-    function Parameter(name; metadata=source_metadata(:Parameter, name))
+    function Parameter(name; metadata = source_metadata(:Parameter, name))
         s = SymbolicUtils.Sym{Complex{Real}}(name)
         s = SymbolicUtils.setmetadata(s, Symbolics.VariableSource, (:Parameter, name))
         return s
@@ -74,7 +74,7 @@ true
 ```
 """
 function cnumbers(syms::Symbol...)
-    ps = Tuple(Parameter(s; metadata=source_metadata(:cnumbers, s)) for s in syms)
+    ps = Tuple(Parameter(s; metadata = source_metadata(:cnumbers, s)) for s in syms)
     return ps
 end
 function cnumbers(s::String)
@@ -98,7 +98,7 @@ julia> cnumber("a") == ps
 true
 ```
 """
-cnumber(s::Symbol) = Parameter(s; metadata=source_metadata(:cnumbers, s))
+cnumber(s::Symbol) = Parameter(s; metadata = source_metadata(:cnumbers, s))
 cnumber(s::String) = cnumber(Symbol(s))
 
 ### real parameters ###
@@ -116,7 +116,7 @@ Type used as symbolic type in a `SymbolicUtils.Sym` variable to represent
 a real parameter.
 """
 struct RealParameter <: RNumber
-    function RealParameter(name; metadata=source_metadata(:RealParameter, name))
+    function RealParameter(name; metadata = source_metadata(:RealParameter, name))
         s = SymbolicUtils.Sym{Real}(name)
         s = SymbolicUtils.setmetadata(s, Symbolics.VariableSource, (:RealParameter, name))
         return s
@@ -186,7 +186,7 @@ true
 ```
 """
 function rnumbers(syms::Symbol...)
-    ps = Tuple(RealParameter(s; metadata=source_metadata(:rnumbers, s)) for s in syms)
+    ps = Tuple(RealParameter(s; metadata = source_metadata(:rnumbers, s)) for s in syms)
     return ps
 end
 function rnumbers(s::String)
@@ -210,7 +210,7 @@ julia> rnumber("a") == ps
 true
 ```
 """
-rnumber(s::Symbol) = RealParameter(s; metadata=source_metadata(:rnumbers, s))
+rnumber(s::Symbol) = RealParameter(s; metadata = source_metadata(:rnumbers, s))
 rnumber(s::String) = rnumber(Symbol(s))
 
 # this should be true for all analytic functions (write as Taylor-series)
@@ -235,6 +235,6 @@ function Base.conj(x::SymbolicUtils.BasicSymbolic{CNumber})
     return f(conj.(args)...)
 end
 
-const AbstractQCParameter = Union{CNumber,RNumber}
+const AbstractQCParameter = Union{CNumber, RNumber}
 
 # TODO: real IndexedVariables

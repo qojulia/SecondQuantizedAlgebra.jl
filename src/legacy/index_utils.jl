@@ -8,7 +8,7 @@ get_indices(vec::AbstractVector) = unique(vcat(get_indices.(vec)...))
 get_indices(x::AvgSums) = get_indices(arguments(x))
 get_indices(term::Average) = get_indices(arguments(term)[1])
 
-const Sums = Union{SingleSum,DoubleSum}
+const Sums = Union{SingleSum, DoubleSum}
 # get_indices(x::Sums) = unique(get_indices(arguments(x)))
 get_indices(x::SingleSum) = get_indices(x.term)
 get_indices(x::DoubleSum) = get_indices(x.innerSum.term)
@@ -24,16 +24,16 @@ IndexedOperator(x::IndexableOps, numb::Int64) = NumberedOperator(x, numb)
 function IndexedOperator(x::QTerm, numb::Int64) # σ(1,1,2)
     f = SymbolicUtils.operation(x)
     args = SymbolicUtils.arguments(x)
-    f([NumberedOperator(arg, numb) for arg in args]...)
+    return f([NumberedOperator(arg, numb) for arg in args]...)
 end
 
 #Numeric Conversion of NumberedOperators
 function to_numeric(
-    op::NumberedOperator,
-    b::QuantumOpticsBase.CompositeBasis;
-    ranges::Vector{Int64}=Int64[],
-    kwargs...,
-)
+        op::NumberedOperator,
+        b::QuantumOpticsBase.CompositeBasis;
+        ranges::Vector{Int64} = Int64[],
+        kwargs...,
+    )
     if isempty(ranges)
         error(
             "When calling to_numeric for indexed Operators, specification of the \"ranges\" keyword is needed! This keyword requires a vector of Integers, which specify the maximum range of the index for each hilbertspace.",
@@ -76,12 +76,12 @@ inadjoint(s::SymbolicUtils.BasicSymbolic{<:Number}) = _conj(s)
 inadjoint(x) = adjoint(x)
 
 function inorder!(q::QMul)
-    sort!(q.args_nc; by=get_numbers)
-    sort!(q.args_nc; by=getIndName)
-    sort!(q.args_nc; by=acts_on)
+    sort!(q.args_nc; by = get_numbers)
+    sort!(q.args_nc; by = getIndName)
+    sort!(q.args_nc; by = acts_on)
     return merge_commutators(q.arg_c, q.args_nc)
 end
-function inorder!(v::T) where {T<:SymbolicUtils.BasicSymbolic}
+function inorder!(v::T) where {T <: SymbolicUtils.BasicSymbolic}
     if SymbolicUtils.iscall(v)
         f = SymbolicUtils.operation(v)
         args = map(inorder!, SymbolicUtils.arguments(v))

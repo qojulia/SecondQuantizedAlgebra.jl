@@ -5,10 +5,11 @@ function Base.show(io::IO, h::ProductSpace)
         write(io, " ⊗ ")
         show(io, h.spaces[i])
     end
+    return
 end
 function Base.show(io::IO, h::ClusterSpace)
     write(io, "$(h.N)x")
-    show(io, h.original_space)
+    return show(io, h.original_space)
 end
 
 Base.show(io::IO, x::QSym) = write(io, x.name)
@@ -26,7 +27,7 @@ function Base.show(io::IO, x::QTerm)
         show(io, f)
         show(io, SymbolicUtils.arguments(x)[i])
     end
-    show_brackets[] && write(io, ")")
+    return show_brackets[] && write(io, ")")
 end
 
 function Base.show(io::IO, x::QMul)
@@ -40,10 +41,10 @@ function Base.show(io::IO, x::QMul)
         show(io, *)
         show(io, x.args_nc[i])
     end
-    show_brackets[] && write(io, ")")
+    return show_brackets[] && write(io, ")")
 end
 
-const T_LATEX = Union{<:QNumber,<:SymbolicUtils.Symbolic{<:CNumber}}
+const T_LATEX = Union{<:QNumber, <:SymbolicUtils.Symbolic{<:CNumber}}
 Base.show(io::IO, ::MIME"text/latex", x::T_LATEX) = write(io, latexify(x))
 
 function SymbolicUtils.show_term(io::IO, t::Average)
@@ -51,5 +52,5 @@ function SymbolicUtils.show_term(io::IO, t::Average)
     show_brackets[] = false
     show(io, SymbolicUtils.arguments(t)[1])
     show_brackets[] = true
-    write(io, "⟩")
+    return write(io, "⟩")
 end

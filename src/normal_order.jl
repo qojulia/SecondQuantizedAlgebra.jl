@@ -43,13 +43,13 @@ function _normal_order_qmul(arg_c::T, ops::Vector{QSym}) where {T}
             # Apply [a, a†] = 1: swap and add identity
 
             # Term 1: swapped pair
-            swapped = QSym[ops[1:i-1]..., b, a, ops[i+2:end]...]
-            sort!(swapped; lt=canonical_lt)
+            swapped = QSym[ops[1:(i - 1)]..., b, a, ops[(i + 2):end]...]
+            sort!(swapped; lt = canonical_lt)
             term1 = _normal_order_qmul(arg_c, swapped)
 
             # Term 2: contracted (remove both operators)
-            contracted = QSym[ops[1:i-1]..., ops[i+2:end]...]
-            sort!(contracted; lt=canonical_lt)
+            contracted = QSym[ops[1:(i - 1)]..., ops[(i + 2):end]...]
+            sort!(contracted; lt = canonical_lt)
             term2 = _normal_order_qmul(arg_c, contracted)
 
             return QAdd(QMul{T}[term1.arguments..., term2.arguments...])

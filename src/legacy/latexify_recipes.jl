@@ -17,9 +17,9 @@ function transition_superscript(x::Bool)
 end
 
 function _postwalk_func(x)
-    if x==:𝟙
+    if x == :𝟙
         return "\\mathbb{1}"
-    elseif x==:im
+    elseif x == :im
         return :i
     elseif MacroTools.@capture(x, dagger(arg_))
         s = "$(arg)^\\dagger"
@@ -142,11 +142,11 @@ _to_expression(x::Number) = x
 function _to_expression(x::Complex) # For brackets when using latexify
     iszero(x) && return x
     if iszero(real(x))
-        return :($(imag(x))*im)
+        return :($(imag(x)) * im)
     elseif iszero(imag(x))
         return real(x)
     else
-        return :($(real(x)) + $(imag(x))*im)
+        return :($(real(x)) + $(imag(x)) * im)
     end
 end
 function _to_expression(x::Complex{Symbolics.Num}) # forward complex Nums to Symbolics recipes
@@ -162,7 +162,7 @@ end
 _to_expression(op::QSym) = op.name
 _to_expression(op::Create) = :(dagger($(op.name)))
 _to_expression(op::Transition) = :(Transition($(op.name), $(op.i), $(op.j)))
-xyz_sym=[:x, :y, :z]
+xyz_sym = [:x, :y, :z]
 _to_expression(op::Pauli) = :(Pauli($(op.name), $(xyz_sym[op.axis])))
 _to_expression(op::Spin) = :(Spin($(op.name), $(xyz_sym[op.axis])))
 function _to_expression(t::QMul)

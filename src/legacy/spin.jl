@@ -6,7 +6,7 @@ See also: [`Pauli`](@ref), [`Create`](@ref)
 struct PauliSpace{S} <: ConcreteHilbertSpace
     name::S
 end
-Base.:(==)(h1::T, h2::T) where {T<:PauliSpace} = (h1.name==h2.name)
+Base.:(==)(h1::T, h2::T) where {T <: PauliSpace} = (h1.name == h2.name)
 
 """
     Pauli <: QSym
@@ -23,46 +23,46 @@ julia> σx = Pauli(h,:σ,1)
 σx
 ```
 """
-struct Pauli{H<:HilbertSpace,S,AX<:Int,A,M} <: QSym
+struct Pauli{H <: HilbertSpace, S, AX <: Int, A, M} <: QSym
     hilbert::H
     name::S
     axis::AX
     aon::A
     metadata::M
-    function Pauli{H,S,AX,A,M}(
-        hilbert::H, name::S, axis::AX, aon::A, metadata::M
-    ) where {H,S,AX,A,M}
+    function Pauli{H, S, AX, A, M}(
+            hilbert::H, name::S, axis::AX, aon::A, metadata::M
+        ) where {H, S, AX, A, M}
         @assert has_hilbert(PauliSpace, hilbert, aon)
-        new(hilbert, name, axis, aon, metadata)
+        return new(hilbert, name, axis, aon, metadata)
     end
 end
 function Pauli(
-    hilbert::H, name::S, axis::AX, aon::A; metadata::M=NO_METADATA
-) where {H,S,AX,A,M}
-    Pauli{H,S,AX,A,M}(hilbert, name, axis, aon, metadata)
+        hilbert::H, name::S, axis::AX, aon::A; metadata::M = NO_METADATA
+    ) where {H, S, AX, A, M}
+    return Pauli{H, S, AX, A, M}(hilbert, name, axis, aon, metadata)
 end
-function Pauli(hilbert::PauliSpace, name, axis; metadata=NO_METADATA)
-    Pauli(hilbert, name, axis, 1; metadata)
+function Pauli(hilbert::PauliSpace, name, axis; metadata = NO_METADATA)
+    return Pauli(hilbert, name, axis, 1; metadata)
 end
-function Pauli(hilbert::PauliSpace, name, axis::Symbol; metadata=NO_METADATA)
-    Pauli(hilbert, name, axis, 1; metadata)
+function Pauli(hilbert::PauliSpace, name, axis::Symbol; metadata = NO_METADATA)
+    return Pauli(hilbert, name, axis, 1; metadata)
 end
-function Pauli(hilbert::ProductSpace, name, axis; metadata=NO_METADATA)
+function Pauli(hilbert::ProductSpace, name, axis; metadata = NO_METADATA)
     inds = findall(
-        x->isa(x, PauliSpace) || isa(x, ClusterSpace{<:PauliSpace}), hilbert.spaces
+        x -> isa(x, PauliSpace) || isa(x, ClusterSpace{<:PauliSpace}), hilbert.spaces
     )
-    if length(inds)==1
+    if length(inds) == 1
         return Pauli(hilbert, name, axis, inds[1]; metadata)
     else
         isempty(inds) &&
             error("Can only create Pauli on PauliSpace! Not included in $(hilbert)")
-        length(inds)>1 && error(
+        length(inds) > 1 && error(
             "More than one PauliSpace in $(hilbert)! Specify on which Hilbert space Pauli should be created with Pauli(hilbert,name,axis,acts_on)!",
         )
     end
 end
 function Pauli(hilbert::HilbertSpace, name, axis::Symbol, aon; kwargs...)
-    if axis in [:x, :X]
+    return if axis in [:x, :X]
         Pauli(hilbert, name, 1, aon; kwargs...)
     elseif axis in [:y, :Y]
         Pauli(hilbert, name, 2, aon; kwargs...)
@@ -71,7 +71,7 @@ function Pauli(hilbert::HilbertSpace, name, axis::Symbol, aon; kwargs...)
     end
 end
 function Pauli(hilbert::HilbertSpace, name, axis::Symbol; kwargs...)
-    if axis in [:x, :X]
+    return if axis in [:x, :X]
         Pauli(hilbert, name, 1; kwargs...)
     elseif axis in [:y, :Y]
         Pauli(hilbert, name, 2; kwargs...)
@@ -84,7 +84,7 @@ end
 Base.hash(s::Pauli, h::UInt) = hash(s.hilbert, hash(s.name, hash(s.axis, hash(s.aon, h))))
 Base.adjoint(s::Pauli) = s
 function Base.isequal(s1::Pauli, s2::Pauli)
-    isequal(s1.hilbert, s2.hilbert) &&
+    return isequal(s1.hilbert, s2.hilbert) &&
         isequal(s1.name, s2.name) &&
         isequal(s1.axis, s2.axis) &&
         isequal(s1.aon, s2.aon)
@@ -97,11 +97,11 @@ function Base.:*(si::Pauli, sj::Pauli)
     aon_si = acts_on(si)
     aon_sj = acts_on(sj)
     if aon_si == aon_sj
-        i=si.axis
-        j=sj.axis
-        k = filter(x->x ∉ [i, j], [1, 2, 3])[1]
+        i = si.axis
+        j = sj.axis
+        k = filter(x -> x ∉ [i, j], [1, 2, 3])[1]
         sk = Pauli(si.hilbert, si.name, k, aon_si)
-        return (i==j) + 1im*levicivita([i, j, k])*sk
+        return (i == j) + 1im * levicivita([i, j, k]) * sk
     elseif aon_si < aon_sj
         return QMul(1, [si, sj])
     else
@@ -118,7 +118,7 @@ See also: [`Spin`](@ref), [`Create`](@ref)
 struct SpinSpace{S} <: ConcreteHilbertSpace
     name::S
 end
-Base.:(==)(h1::T, h2::T) where {T<:SpinSpace} = (h1.name==h2.name)
+Base.:(==)(h1::T, h2::T) where {T <: SpinSpace} = (h1.name == h2.name)
 
 """
     Spin <: QSym
@@ -136,46 +136,46 @@ julia> Sx = Spin(h,:S,1)
 Sx
 ```
 """
-struct Spin{H<:HilbertSpace,S,AX<:Int,A,M} <: QSym
+struct Spin{H <: HilbertSpace, S, AX <: Int, A, M} <: QSym
     hilbert::H
     name::S
     axis::AX
     aon::A
     metadata::M
-    function Spin{H,S,AX,A,M}(
-        hilbert::H, name::S, axis::AX, aon::A, metadata::M
-    ) where {H,S,AX,A,M}
+    function Spin{H, S, AX, A, M}(
+            hilbert::H, name::S, axis::AX, aon::A, metadata::M
+        ) where {H, S, AX, A, M}
         @assert has_hilbert(SpinSpace, hilbert, aon)
-        new(hilbert, name, axis, aon, metadata)
+        return new(hilbert, name, axis, aon, metadata)
     end
 end
 function Spin(
-    hilbert::H, name::S, axis::AX, aon::A; metadata::M=NO_METADATA
-) where {H,S,AX,A,M}
-    Spin{H,S,AX,A,M}(hilbert, name, axis, aon, metadata)
+        hilbert::H, name::S, axis::AX, aon::A; metadata::M = NO_METADATA
+    ) where {H, S, AX, A, M}
+    return Spin{H, S, AX, A, M}(hilbert, name, axis, aon, metadata)
 end
-function Spin(hilbert::SpinSpace, name, axis; metadata=NO_METADATA)
-    Spin(hilbert, name, axis, 1; metadata)
+function Spin(hilbert::SpinSpace, name, axis; metadata = NO_METADATA)
+    return Spin(hilbert, name, axis, 1; metadata)
 end
-function Spin(hilbert::SpinSpace, name, axis::Symbol; metadata=NO_METADATA)
-    Spin(hilbert, name, axis, 1; metadata)
+function Spin(hilbert::SpinSpace, name, axis::Symbol; metadata = NO_METADATA)
+    return Spin(hilbert, name, axis, 1; metadata)
 end
-function Spin(hilbert::ProductSpace, name, axis; metadata=NO_METADATA)
+function Spin(hilbert::ProductSpace, name, axis; metadata = NO_METADATA)
     inds = findall(
-        x->isa(x, SpinSpace) || isa(x, ClusterSpace{<:SpinSpace}), hilbert.spaces
+        x -> isa(x, SpinSpace) || isa(x, ClusterSpace{<:SpinSpace}), hilbert.spaces
     )
-    if length(inds)==1
+    if length(inds) == 1
         return Spin(hilbert, name, axis, inds[1]; metadata)
     else
         isempty(inds) &&
             error("Can only create Spin on SpinSpace! Not included in $(hilbert)")
-        length(inds)>1 && error(
+        length(inds) > 1 && error(
             "More than one SpinSpace in $(hilbert)! Specify on which Hilbert space Spin should be created with Spin(hilbert,name,axis,acts_on)!",
         )
     end
 end
 function Spin(hilbert::HilbertSpace, name, axis::Symbol, aon; kwargs...)
-    if axis in [:x, :X]
+    return if axis in [:x, :X]
         Spin(hilbert, name, 1, aon; kwargs...)
     elseif axis in [:y, :Y]
         Spin(hilbert, name, 2, aon; kwargs...)
@@ -184,7 +184,7 @@ function Spin(hilbert::HilbertSpace, name, axis::Symbol, aon; kwargs...)
     end
 end
 function Spin(hilbert::HilbertSpace, name, axis::Symbol; kwargs...)
-    if axis in [:x, :X]
+    return if axis in [:x, :X]
         Spin(hilbert, name, 1; kwargs...)
     elseif axis in [:y, :Y]
         Spin(hilbert, name, 2; kwargs...)
@@ -196,7 +196,7 @@ end
 Base.hash(s::Spin, h::UInt) = hash(s.hilbert, hash(s.name, hash(s.axis, hash(s.aon, h))))
 Base.adjoint(s::Spin) = s
 function Base.isequal(s1::Spin, s2::Spin)
-    isequal(s1.hilbert, s2.hilbert) &&
+    return isequal(s1.hilbert, s2.hilbert) &&
         isequal(s1.name, s2.name) &&
         isequal(s1.axis, s2.axis) &&
         isequal(s1.aon, s2.aon)
@@ -211,15 +211,15 @@ function Base.:*(si::Spin, sj::Spin)
     aon_si = acts_on(si)
     aon_sj = acts_on(sj)
     if aon_si == aon_sj
-        i=si.axis
-        j=sj.axis
+        i = si.axis
+        j = sj.axis
 
-        if i==2 && j==1 #SySx
-            SiSj = sj*si - 1im*Spin(si.hilbert, si.name, 3, aon_si)
-        elseif i==3 && j==2 #SzSy
-            SiSj = sj*si - 1im*Spin(si.hilbert, si.name, 1, aon_si)
-        elseif i==3 && j==1 #SySx
-            SiSj = sj*si + 1im*Spin(si.hilbert, si.name, 2, aon_si)
+        if i == 2 && j == 1 #SySx
+            SiSj = sj * si - 1im * Spin(si.hilbert, si.name, 3, aon_si)
+        elseif i == 3 && j == 2 #SzSy
+            SiSj = sj * si - 1im * Spin(si.hilbert, si.name, 1, aon_si)
+        elseif i == 3 && j == 1 #SySx
+            SiSj = sj * si + 1im * Spin(si.hilbert, si.name, 2, aon_si)
         else # SxSx, SySy, SzSz, SxSy, Sx,Sz, SySz
             SiSj = QMul(1, [si, sj])
         end

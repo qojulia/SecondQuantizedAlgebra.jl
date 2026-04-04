@@ -1,4 +1,3 @@
-
 ## Commutator methods
 """
     commutator(a,b)
@@ -6,25 +5,25 @@
 Computes the commutator `a*b - b*a`.
 """
 commutator(a, b) = _commutator(a, b)
-_commutator(a, b) = a*b - b*a
+_commutator(a, b) = a * b - b * a
 commutator(a::QNumber, b::SNuN) = 0
 commutator(a::SNuN, b::QNumber) = 0
 commutator(::SNuN, ::SNuN) = 0
 function commutator(a::QSym, b::QSym)
-    acts_on(a)==acts_on(b) || return 0
+    acts_on(a) == acts_on(b) || return 0
     isequal(a, b) && return 0
     return _commutator(a, b)
 end
 function commutator(a::QMul, b::QSym)
     aon = acts_on(b)
-    idx = findfirst(x->isequal(acts_on(x), aon), a.args_nc)
-    idx===nothing && return 0
+    idx = findfirst(x -> isequal(acts_on(x), aon), a.args_nc)
+    idx === nothing && return 0
     return _commutator(a, b)
 end
 function commutator(a::QSym, b::QMul)
     aon = acts_on(a)
-    idx = findfirst(x->isequal(acts_on(x), aon), b.args_nc)
-    idx===nothing && return 0
+    idx = findfirst(x -> isequal(acts_on(x), aon), b.args_nc)
+    idx === nothing && return 0
     return _commutator(a, b)
 end
 function commutator(a::QMul, b::QMul)
@@ -54,25 +53,25 @@ function commutator(a::QNumber, b::QAdd)
         Computes the commutator `a*b - b*a`.
         """
         commutator(a, b) = _commutator(a, b)
-        _commutator(a, b) = a*b - b*a
+        _commutator(a, b) = a * b - b * a
         commutator(a::QNumber, b::SNuN) = 0
         commutator(a::SNuN, b::QNumber) = 0
         commutator(::SNuN, ::SNuN) = 0
         function commutator(a::QSym, b::QSym)
-            acts_on(a)==acts_on(b) || return 0
+            acts_on(a) == acts_on(b) || return 0
             isequal(a, b) && return 0
             return _commutator(a, b)
         end
         function commutator(a::QMul, b::QSym)
             aon = acts_on(b)
-            idx = findfirst(x->isequal(acts_on(x), aon), a.args_nc)
-            idx===nothing && return 0
+            idx = findfirst(x -> isequal(acts_on(x), aon), a.args_nc)
+            idx === nothing && return 0
             return _commutator(a, b)
         end
         function commutator(a::QSym, b::QMul)
             aon = acts_on(a)
-            idx = findfirst(x->isequal(acts_on(x), aon), b.args_nc)
-            idx===nothing && return 0
+            idx = findfirst(x -> isequal(acts_on(x), aon), b.args_nc)
+            idx === nothing && return 0
             return _commutator(a, b)
         end
         function commutator(a::QMul, b::QMul)

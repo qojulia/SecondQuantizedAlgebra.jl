@@ -6,6 +6,7 @@ function Base.show(io::IO, h::ProductSpace)
         write(io, " ⊗ ")
         show(io, h.spaces[i])
     end
+    return
 end
 
 # Operators
@@ -29,6 +30,7 @@ function Base.show(io::IO, x::QMul)
         write(io, " * ")
         show(io, x.args_nc[i])
     end
+    return
 end
 
 # QAdd
@@ -45,4 +47,5 @@ function Base.show(io::IO, x::QAdd)
             show(io, term)
         end
     end
+    return
 end

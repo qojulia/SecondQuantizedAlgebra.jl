@@ -1,5 +1,5 @@
 function SW(H0, V, S)
-    H0 + (1//2) * commutator(S, V)
+    return H0 + (1 // 2) * commutator(S, V)
 end
 function benchmark_Schrieffer_Wolf!(SUITE)
     # 1. Define Hilbert spaces
@@ -19,7 +19,7 @@ function benchmark_Schrieffer_Wolf!(SUITE)
     H = H0 + V
 
     # https://arxiv.org/pdf/2004.06534
-    S = g/(ω0 + ε) * (a'*σp' - a*σp)
+    S = g / (ω0 + ε) * (a' * σp' - a * σp)
 
     # 5. Compute H_eff = H0 + 1/2 [S, V]
     SUITE["Jaynes–Cummings"]["First order Schrieffer-Wolf"] = @benchmarkable SW($H0, $V, $S) seconds =

@@ -29,8 +29,8 @@ struct DoubleSum{M} <: QTerm
         end
     end
 end
-function DoubleSum(innerSum::SingleSum, sum_index::Index, NEI::Vector; metadata=NO_METADATA)
-    if innerSum.sum_index == sum_index
+function DoubleSum(innerSum::SingleSum, sum_index::Index, NEI::Vector; metadata = NO_METADATA)
+    return if innerSum.sum_index == sum_index
         error("summation index is the same as the index of the inner sum")
     else
         extraterm = 0
@@ -43,16 +43,16 @@ function DoubleSum(innerSum::SingleSum, sum_index::Index, NEI::Vector; metadata=
             if index != sum_index && index ∉ NEI && isequal(index.aon, sum_index.aon)
                 extraterm =
                     extraterm + SingleSum(
-                        change_index(innerSum.term, sum_index, index),
-                        innerSum.sum_index,
-                        innerSum.non_equal_indices,
-                    )
+                    change_index(innerSum.term, sum_index, index),
+                    innerSum.sum_index,
+                    innerSum.non_equal_indices,
+                )
                 push!(NEI_, index)
             end
         end
         if innerSum.term isa QMul
             # put terms of the outer index in front
-            indicesToOrder = sort([innerSum.sum_index, sum_index]; by=getIndName)
+            indicesToOrder = sort([innerSum.sum_index, sum_index]; by = getIndName)
             newargs = order_by_index(innerSum.term.args_nc, indicesToOrder)
             qmul = 0
             if length(newargs) == 1
@@ -68,7 +68,7 @@ function DoubleSum(innerSum::SingleSum, sum_index::Index, NEI::Vector; metadata=
                 end
                 return DoubleSum(innerSum_, sum_index, NEI_, metadata) + extraterm
             else
-                return DoubleSum(innerSum_, sum_index, NEI_; metadata=metadata) + extraterm
+                return DoubleSum(innerSum_, sum_index, NEI_; metadata = metadata) + extraterm
             end
         else # this case is only reachable if innersum has only one operator ->  no extraterm anyway
             sort!(NEI)
@@ -77,85 +77,85 @@ function DoubleSum(innerSum::SingleSum, sum_index::Index, NEI::Vector; metadata=
     end
 end
 function DoubleSum(
-    innerSum::IndexedAdd, sum_index::Index, NEI::Vector; metadata=NO_METADATA
-)
+        innerSum::IndexedAdd, sum_index::Index, NEI::Vector; metadata = NO_METADATA
+    )
     if iscall(innerSum)
         op = operation(innerSum)
         if op === +
             sums = [
-                DoubleSum(arg, sum_index, NEI; metadata=metadata) for
-                arg in arguments(innerSum)
+                DoubleSum(arg, sum_index, NEI; metadata = metadata) for
+                    arg in arguments(innerSum)
             ]
             isempty(sums) && return 0
             length(sums) == 1 && return sums[1]
             return +(sums...)
         end
     end
-    return SingleSum(innerSum, sum_index, NEI; metadata=metadata)
+    return SingleSum(innerSum, sum_index, NEI; metadata = metadata)
 end
-DoubleSum(x, ind::Index, NEI::Vector; metadata=NO_METADATA) = SingleSum(x, ind, NEI)
-DoubleSum(x, ind::Index; metadata=NO_METADATA) = DoubleSum(x, ind, Index[])
+DoubleSum(x, ind::Index, NEI::Vector; metadata = NO_METADATA) = SingleSum(x, ind, NEI)
+DoubleSum(x, ind::Index; metadata = NO_METADATA) = DoubleSum(x, ind, Index[])
 
 #In this constructor the NEI is considered so, that all indices given in ind are unequal to any of the NEI
-function DoubleSum(term::QMul, ind::Vector{Index}, NEI::Vector{Index}; metadata=NO_METADATA)
+function DoubleSum(term::QMul, ind::Vector{Index}, NEI::Vector{Index}; metadata = NO_METADATA)
     if length(ind) != 2
         error("Can only create Double-Sum with 2 indices!")
     end
-    return DoubleSum(SingleSum(term, ind[1], NEI), ind[2], NEI; metadata=metadata)
+    return DoubleSum(SingleSum(term, ind[1], NEI), ind[2], NEI; metadata = metadata)
 end
 function DoubleSum(
-    term, outerInd::Index, innerInd::Index; non_equal::Bool=false, metadata=NO_METADATA
-)
+        term, outerInd::Index, innerInd::Index; non_equal::Bool = false, metadata = NO_METADATA
+    )
     if non_equal
         innerSum = SingleSum(term, innerInd, [outerInd])
-        return DoubleSum(innerSum, outerInd, []; metadata=metadata)
+        return DoubleSum(innerSum, outerInd, []; metadata = metadata)
     else
         innerSum = SingleSum(term, innerInd, [])
-        return DoubleSum(innerSum, outerInd, []; metadata=metadata)
+        return DoubleSum(innerSum, outerInd, []; metadata = metadata)
     end
 end
 
 hilbert(elem::DoubleSum) = hilbert(elem.sum_index)
 #multiplications
-*(elem::SNuN, sum::DoubleSum) = DoubleSum(elem*sum.innerSum, sum.sum_index, sum.NEI)
-*(sum::DoubleSum, elem::SNuN) = DoubleSum(sum.innerSum*elem, sum.sum_index, sum.NEI)
-*(sum::DoubleSum, qmul::QMul) = qmul.arg_c*(*(sum, qmul.args_nc...))
+*(elem::SNuN, sum::DoubleSum) = DoubleSum(elem * sum.innerSum, sum.sum_index, sum.NEI)
+*(sum::DoubleSum, elem::SNuN) = DoubleSum(sum.innerSum * elem, sum.sum_index, sum.NEI)
+*(sum::DoubleSum, qmul::QMul) = qmul.arg_c * (*(sum, qmul.args_nc...))
 function *(qmul::QMul, sum::DoubleSum)
     sum_ = sum
     for i in length(qmul.args_nc):-1:1
         sum_ = qmul.args_nc[i] * sum_
     end
-    return qmul.arg_c*sum_
+    return qmul.arg_c * sum_
 end
 
 function *(elem::IndexedObSym, sum::DoubleSum)
     sum_ = SymbolicUtils.simplify(sum)
     if !(sum_ isa DoubleSum) # issue QuantumCumulants 223
-        return elem*sum_
+        return elem * sum_
     end
     NEI = copy(sum.NEI)
     aon_sum = sum.sum_index.aon
     aon_elem = elem.ind.aon
     if aon_sum ≠ aon_elem # issue QuantumCumulants 256
-        return DoubleSum(elem*sum.innerSum, sum.sum_index, NEI)
+        return DoubleSum(elem * sum.innerSum, sum.sum_index, NEI)
     end
     if elem.ind != sum.sum_index && elem.ind ∉ NEI
         if (sum.sum_index.aon != sum.innerSum.sum_index.aon) # indices for different ops
             if isequal(elem.ind.aon, sum.sum_index.aon)
                 push!(NEI, elem.ind)
                 addterm = SingleSum(
-                    elem*change_index(sum.innerSum.term, sum.sum_index, elem.ind),
+                    elem * change_index(sum.innerSum.term, sum.sum_index, elem.ind),
                     sum.innerSum.sum_index,
                     sum.innerSum.non_equal_indices,
                 )
-                return DoubleSum(elem*sum.innerSum, sum.sum_index, NEI) + addterm
+                return DoubleSum(elem * sum.innerSum, sum.sum_index, NEI) + addterm
             end
-            return DoubleSum(elem*sum.innerSum, sum.sum_index, NEI)
+            return DoubleSum(elem * sum.innerSum, sum.sum_index, NEI)
         end
         NEI_ = [NEI..., elem.ind] # issue QuantumCumulants #169 (scaling of double sum)
         ds_term = DoubleSum(
             SingleSum(
-                elem*sum.innerSum.term,
+                elem * sum.innerSum.term,
                 sum.innerSum.sum_index,
                 [sum.innerSum.non_equal_indices..., elem.ind],
             ),
@@ -164,50 +164,52 @@ function *(elem::IndexedObSym, sum::DoubleSum)
         )
         new_non_equal_indices1 = replace(sum.NEI, sum.innerSum.sum_index => elem.ind)
         ss_term1 = SingleSum(
-            elem*change_index(sum.innerSum.term, sum.innerSum.sum_index, elem.ind),
+            elem * change_index(sum.innerSum.term, sum.innerSum.sum_index, elem.ind),
             sum.sum_index,
             new_non_equal_indices1,
         )
-        new_non_equal_indices2 = unique([
-            replace(sum.innerSum.non_equal_indices, sum.sum_index => elem.ind)..., elem.ind
-        ]) #issue QuantumCumulants #223
+        new_non_equal_indices2 = unique(
+            [
+                replace(sum.innerSum.non_equal_indices, sum.sum_index => elem.ind)..., elem.ind,
+            ]
+        ) #issue QuantumCumulants #223
         ss_term2 = SingleSum(
-            elem*change_index(sum.innerSum.term, sum.sum_index, elem.ind),
+            elem * change_index(sum.innerSum.term, sum.sum_index, elem.ind),
             sum.innerSum.sum_index,
             new_non_equal_indices2,
         )
         return ds_term + ss_term1 + ss_term2
     end
-    return DoubleSum(elem*sum.innerSum, sum.sum_index, NEI)
+    return DoubleSum(elem * sum.innerSum, sum.sum_index, NEI)
 end
 function *(sum::DoubleSum, elem::IndexedObSym)
     sum_ = SymbolicUtils.simplify(sum)
     if !(sum_ isa DoubleSum) # issue QuantumCumulants 223
-        return sum_*elem
+        return sum_ * elem
     end
     NEI = copy(sum.NEI)
     aon_sum = sum.sum_index.aon
     aon_elem = elem.ind.aon
     if aon_sum ≠ aon_elem # issue QuantumCumulants 256
-        return DoubleSum(sum.innerSum*elem, sum.sum_index, NEI)
+        return DoubleSum(sum.innerSum * elem, sum.sum_index, NEI)
     end
     if elem.ind != sum.sum_index && elem.ind ∉ NEI # TODO: What if elem is a BasicSymboli{IndexedVariable}?
         if (sum.sum_index.aon != sum.innerSum.sum_index.aon) # indices for different ops
             if isequal(elem.ind.aon, sum.sum_index.aon)
                 push!(NEI, elem.ind)
                 addterm = SingleSum(
-                    change_index(sum.innerSum.term, sum.sum_index, elem.ind)*elem,
+                    change_index(sum.innerSum.term, sum.sum_index, elem.ind) * elem,
                     sum.innerSum.sum_index,
                     sum.innerSum.non_equal_indices,
                 )
-                return DoubleSum(sum.innerSum*elem, sum.sum_index, NEI) + addterm
+                return DoubleSum(sum.innerSum * elem, sum.sum_index, NEI) + addterm
             end
-            return DoubleSum(sum.innerSum*elem, sum.sum_index, NEI)
+            return DoubleSum(sum.innerSum * elem, sum.sum_index, NEI)
         end
         NEI_ = [NEI..., elem.ind] # issue QuantumCumulants #169 (scaling of double sum)
         ds_term = DoubleSum(
             SingleSum(
-                sum.innerSum.term*elem,
+                sum.innerSum.term * elem,
                 sum.innerSum.sum_index,
                 [sum.innerSum.non_equal_indices..., elem.ind],
             ),
@@ -216,32 +218,34 @@ function *(sum::DoubleSum, elem::IndexedObSym)
         )
         new_non_equal_indices1 = replace(sum.NEI, sum.innerSum.sum_index => elem.ind)
         ss_term1 = SingleSum(
-            change_index(sum.innerSum.term, sum.innerSum.sum_index, elem.ind)*elem,
+            change_index(sum.innerSum.term, sum.innerSum.sum_index, elem.ind) * elem,
             sum.sum_index,
             new_non_equal_indices1,
         )
         # new_non_equal_indices2 = replace(sum.innerSum.non_equal_indices, sum.sum_index => elem.ind)
-        new_non_equal_indices2 = unique([
-            replace(sum.innerSum.non_equal_indices, sum.sum_index => elem.ind)..., elem.ind
-        ]) #issue QuantumCumulants #223
+        new_non_equal_indices2 = unique(
+            [
+                replace(sum.innerSum.non_equal_indices, sum.sum_index => elem.ind)..., elem.ind,
+            ]
+        ) #issue QuantumCumulants #223
         ss_term2 = SingleSum(
-            change_index(sum.innerSum.term, sum.sum_index, elem.ind)*elem,
+            change_index(sum.innerSum.term, sum.sum_index, elem.ind) * elem,
             sum.innerSum.sum_index,
             new_non_equal_indices2,
         )
         return ds_term + ss_term1 + ss_term2
     end #with else it does not work?
-    return DoubleSum(sum.innerSum*elem, sum.sum_index, NEI)
+    return DoubleSum(sum.innerSum * elem, sum.sum_index, NEI)
 end
 
-*(sum::DoubleSum, x) = DoubleSum(sum.innerSum*x, sum.sum_index, sum.NEI)
-*(x, sum::DoubleSum) = DoubleSum(x*sum.innerSum, sum.sum_index, sum.NEI)
+*(sum::DoubleSum, x) = DoubleSum(sum.innerSum * x, sum.sum_index, sum.NEI)
+*(x, sum::DoubleSum) = DoubleSum(x * sum.innerSum, sum.sum_index, sum.NEI)
 
 SymbolicUtils.iscall(a::DoubleSum) = false
 SymbolicUtils.arguments(a::DoubleSum) = SymbolicUtils.arguments(a.innerSum)
 checkInnerSums(sum1::DoubleSum, sum2::DoubleSum) = ((sum1.innerSum + sum2.innerSum) == 0)
-function reorder(dsum::DoubleSum, indexMapping::Vector{Tuple{Index,Index}})
-    DoubleSum(reorder(dsum.innerSum, indexMapping), dsum.sum_index, dsum.NEI)
+function reorder(dsum::DoubleSum, indexMapping::Vector{Tuple{Index, Index}})
+    return DoubleSum(reorder(dsum.innerSum, indexMapping), dsum.sum_index, dsum.NEI)
 end
 
 #Base functions
@@ -253,25 +257,27 @@ function Base.show(io::IO, elem::DoubleSum)
             write(io, "$(elem.NEI[i].name))")
         end
     end
-    show(io, elem.innerSum)
+    return show(io, elem.innerSum)
 end
 function Base.isequal(a::DoubleSum, b::DoubleSum)
-    isequal(a.innerSum, b.innerSum) &&
+    return isequal(a.innerSum, b.innerSum) &&
         isequal(a.sum_index, b.sum_index) &&
         isequal(a.NEI, b.NEI)
 end
 function _to_expression(x::DoubleSum)
-    :(DoubleSum(
-        $(_to_expression(x.innerSum)),
-        $(x.sum_index.name),
-        $(x.sum_index.range),
-        $(writeNEIs(x.NEI)),
-    ))
+    return :(
+        DoubleSum(
+            $(_to_expression(x.innerSum)),
+            $(x.sum_index.name),
+            $(x.sum_index.range),
+            $(writeNEIs(x.NEI)),
+        )
+    )
 end
 
-function *(sum1::SingleSum, sum2::SingleSum; ind=nothing)
+function *(sum1::SingleSum, sum2::SingleSum; ind = nothing)
     if sum1.sum_index != sum2.sum_index
-        term = sum1.term*sum2.term
+        term = sum1.term * sum2.term
         return DoubleSum(
             SingleSum(term, sum1.sum_index, sum1.non_equal_indices),
             sum2.sum_index,
@@ -283,7 +289,7 @@ function *(sum1::SingleSum, sum2::SingleSum; ind=nothing)
         end
         term2 = change_index(sum2.term, sum2.sum_index, ind)
         return DoubleSum(
-            SingleSum(sum1.term*term2, sum1.sum_index, sum1.non_equal_indices),
+            SingleSum(sum1.term * term2, sum1.sum_index, sum1.non_equal_indices),
             ind,
             sum1.non_equal_indices,
         )

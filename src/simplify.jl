@@ -6,7 +6,7 @@ Remove zero-prefactor terms. Returns `QAdd`.
 """
 function simplify(s::QAdd{T}) where {T}
     # Group by args_nc identity
-    groups = Dict{UInt,Tuple{Vector{QSym},Any}}()
+    groups = Dict{UInt, Tuple{Vector{QSym}, Any}}()
     order = UInt[]
 
     for term in s.arguments
@@ -33,7 +33,7 @@ function simplify(s::QAdd{T}) where {T}
     end
 
     # Collect results, determining the output prefactor type
-    terms = Tuple{Vector{QSym},Any}[]
+    terms = Tuple{Vector{QSym}, Any}[]
     for key in order
         ops, c = groups[key]
         iszero(c) && continue
@@ -61,7 +61,7 @@ function SymbolicUtils.simplify(s::QAdd{T}; kwargs...) where {T}
     simplified = simplify(s)
     result = QMul{T}[
         QMul(convert(T, _simplify_prefactor(t.arg_c; kwargs...)), t.args_nc)
-        for t in simplified.arguments
+            for t in simplified.arguments
     ]
     return QAdd(result)
 end
@@ -79,7 +79,7 @@ _simplify_prefactor(x; kwargs...) = SymbolicUtils.simplify(x; kwargs...)
 function Symbolics.expand(s::QAdd{T}; kwargs...) where {T}
     result = QMul{T}[
         QMul(convert(T, _expand_prefactor(t.arg_c; kwargs...)), t.args_nc)
-        for t in s.arguments
+            for t in s.arguments
     ]
     return QAdd(result)
 end

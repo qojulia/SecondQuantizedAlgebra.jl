@@ -16,7 +16,7 @@ function benchmark_numeric_conversion!(SUITE)
 
     avg = average(a' * s)
 
-    SUITE["Three Level Atom"]["Numeric conversion"] = @benchmarkable numeric_average(
-        $avg, $psi; level_map=($levelmap)
+    return SUITE["Three Level Atom"]["Numeric conversion"] = @benchmarkable numeric_average(
+        $avg, $psi; level_map = ($levelmap)
     ) seconds = 10
 end

@@ -1,6 +1,6 @@
 #Main file for manipulating indexed averages and sums over averages.
 
-const symbolics_terms = Union{<:Average,<:BasicSymbolic{<:CNumber}}
+const symbolics_terms = Union{<:Average, <:BasicSymbolic{<:CNumber}}
 """
     numberedVariable <: CNumber
 
@@ -27,8 +27,8 @@ struct IndexedAverageSum <: CNumber
     non_equal_indices::Vector{IndexInt}
     metadata
     function IndexedAverageSum(
-        term::symbolics_terms, sum_index::Index, non_equal_indices::Vector, metadata
-    )
+            term::symbolics_terms, sum_index::Index, non_equal_indices::Vector, metadata
+        )
         neis_sym = ""
         if !(isempty(non_equal_indices))
             neis_sym = string("(", neis_sym)
@@ -46,8 +46,8 @@ struct IndexedAverageSum <: CNumber
     end
 end
 function IndexedAverageSum(
-    term::symbolics_terms, sum_index::Index, non_equal_indices::Vector; metadata=NO_METADATA
-)
+        term::symbolics_terms, sum_index::Index, non_equal_indices::Vector; metadata = NO_METADATA
+    )
     if sum_index ∉ get_indices(term)
         return (sum_index.range - length(non_equal_indices)) * term
     end
@@ -69,12 +69,12 @@ function IndexedAverageSum(
         end
         if op === +
             return sum(
-                IndexedAverageSum(arg, sum_index, non_equal_indices; metadata=metadata) for
-                arg in arguments(term)
+                IndexedAverageSum(arg, sum_index, non_equal_indices; metadata = metadata) for
+                    arg in arguments(term)
             )
         end
     end
-    return prefact*IndexedAverageSum(term, sum_index, non_equal_indices, metadata)
+    return prefact * IndexedAverageSum(term, sum_index, non_equal_indices, metadata)
 end
 IndexedAverageSum(x, args...; kwargs...) = average(SingleSum(x, args...; kwargs...))
 IndexedAverageSum(x::Number) = x
@@ -98,8 +98,8 @@ struct IndexedAverageDoubleSum <: CNumber
     sum_index::Index
     non_equal_indices::Vector{IndexInt}
     function IndexedAverageDoubleSum(
-        term::BasicSymbolic{IndexedAverageSum}, sum_index::Index, non_equal_indices
-    )
+            term::BasicSymbolic{IndexedAverageSum}, sum_index::Index, non_equal_indices
+        )
         _metadata = new(term, sum_index, non_equal_indices)
         neis_sym = ""
         if !(isempty(non_equal_indices))
@@ -128,12 +128,12 @@ function IndexedAverageDoubleSum(term::symbolics_terms, sum_index::Index, non_eq
                 deleteat!(args, 1)
             end
             if length(args) == 1 && args[1] isa BasicSymbolic{IndexedAverageSum}
-                return param*IndexedAverageDoubleSum(args[1], sum_index, non_equal_indices)
+                return param * IndexedAverageDoubleSum(args[1], sum_index, non_equal_indices)
             end
         elseif op === +
             return sum(
                 IndexedAverageDoubleSum(arg, sum_index, non_equal_indices) for
-                arg in arguments(term)
+                    arg in arguments(term)
             )
         end
     end
@@ -181,7 +181,7 @@ struct DoubleNumberedVariable <: numberedVariable
     name::Symbol
     numb1::IndexInt
     numb2::IndexInt
-    function DoubleNumberedVariable(name, numb1, numb2; identical::Bool=true)
+    function DoubleNumberedVariable(name, numb1, numb2; identical::Bool = true)
         if !(identical) && (numb1 == numb2)
             return 0
         end
@@ -200,7 +200,7 @@ struct DoubleNumberedVariable <: numberedVariable
 end
 struct SpecialIndexedAverage <: CNumber #An average-Term with special condition, for example l ≠ k; needed for correct calculus of Double indexed Sums
     term::symbolics_terms
-    indexMapping::Vector{Tuple{IndexInt,IndexInt}}
+    indexMapping::Vector{Tuple{IndexInt, IndexInt}}
     function SpecialIndexedAverage(term::Average, indexMapping)
         if isempty(indexMapping)
             return term
@@ -246,22 +246,22 @@ const AvgSums = Union{
     IndexedAverageDoubleSum,
     SpecialIndexedTerm,
 }
-const AvgS = Union{IndexedAverageSum,IndexedAverageDoubleSum,SpecialIndexedTerm}
+const AvgS = Union{IndexedAverageSum, IndexedAverageDoubleSum, SpecialIndexedTerm}
 
 average(indOp::IndexedOperator) = SymbolicUtils._iszero(indOp) ? 0 : _average(indOp)
 average(x::SpecialIndexedTerm) = SpecialIndexedAverage(average(x.term), x.indexMapping)
 function average(indSum::SingleSum; kwargs...)
-    IndexedAverageSum(average(indSum.term), indSum.sum_index, indSum.non_equal_indices)
+    return IndexedAverageSum(average(indSum.term), indSum.sum_index, indSum.non_equal_indices)
 end
 function average(indDSum::DoubleSum)
-    IndexedAverageDoubleSum(average(indDSum.innerSum), indDSum.sum_index, indDSum.NEI)
+    return IndexedAverageDoubleSum(average(indDSum.innerSum), indDSum.sum_index, indDSum.NEI)
 end
 
 function undo_average(a::IndexedAverageSum)
-    SingleSum(undo_average(a.term), a.sum_index, a.non_equal_indices)
+    return SingleSum(undo_average(a.term), a.sum_index, a.non_equal_indices)
 end
 function undo_average(a::IndexedAverageDoubleSum)
-    DoubleSum(undo_average(a.innerSum), a.sum_index, a.non_equal_indices)
+    return DoubleSum(undo_average(a.innerSum), a.sum_index, a.non_equal_indices)
 end
 undo_average(a::SpecialIndexedAverage) = reorder(undo_average(a.term), a.indexMapping)
 function undo_average(a::BasicSymbolic{IndexedAverageSum})
@@ -286,20 +286,20 @@ end
 # variable
 IndexedVariable(x, numb::Int64) = SingleNumberedVariable(x, numb)
 function IndexedVariable(x, num1::Int64, num2::Int64; kwargs...)
-    DoubleNumberedVariable(x, num1, num2; kwargs...)
+    return DoubleNumberedVariable(x, num1, num2; kwargs...)
 end
 function IndexedVariable(name::Symbol, ind1::Index, ind2::Index; kwargs...)
-    DoubleIndexedVariable(name, ind1, ind2; kwargs...)
+    return DoubleIndexedVariable(name, ind1, ind2; kwargs...)
 end
 function DoubleIndexedVariable(x, num1::Int64, num2::Int64; kwargs...)
-    DoubleNumberedVariable(x, num1, num2; kwargs...)
+    return DoubleNumberedVariable(x, num1, num2; kwargs...)
 end
 function get_indices(a::BasicSymbolic{DoubleIndexedVariable})
     meta = TermInterface.metadata(a)[DoubleIndexedVariable]
     return unique([meta.ind1, meta.ind2])
 end
 function get_indices(a::BasicSymbolic{IndexedVariable})
-    [TermInterface.metadata(a)[IndexedVariable].ind]
+    return [TermInterface.metadata(a)[IndexedVariable].ind]
 end
 
 #Symbolics functions
@@ -311,7 +311,7 @@ SymbolicUtils.iscall(a::BasicSymbolic{SpecialIndexedAverage}) = false
 SymbolicUtils.iscall(a::IndexedAverageDoubleSum) = false
 SymbolicUtils.iscall(a::BasicSymbolic{IndexedAverageDoubleSum}) = false
 
-function writeIndexNEIs(neis::Vector{Tuple{IndexInt,IndexInt}})
+function writeIndexNEIs(neis::Vector{Tuple{IndexInt, IndexInt}})
     syms = ""
     syms = join([syms, "("])
     for i in 1:length(neis)
@@ -333,10 +333,10 @@ function writeIndexNEIs(neis::Vector{Tuple{IndexInt,IndexInt}})
     syms = join([syms, ")"])
     return syms
 end
-function writeIndexNEIs(neis::Vector{Tuple{Index,Index}})
-    writeIndexNEIs(convert(Vector{Tuple{IndexInt,IndexInt}}, neis))
+function writeIndexNEIs(neis::Vector{Tuple{Index, Index}})
+    return writeIndexNEIs(convert(Vector{Tuple{IndexInt, IndexInt}}, neis))
 end
-function writeNeqs(vec::Vector{Tuple{Index,Int64}})
+function writeNeqs(vec::Vector{Tuple{Index, Int64}})
     syms = ""
     for i in 1:length(vec)
         syms = join([syms, "("])
@@ -357,8 +357,8 @@ end
 
 Base.isless(a::IndexedAverageSum, b::IndexedAverageSum) = a.sum_index < b.sum_index
 function Base.isequal(
-    a::BasicSymbolic{IndexedAverageSum}, b::BasicSymbolic{IndexedAverageSum}
-)
+        a::BasicSymbolic{IndexedAverageSum}, b::BasicSymbolic{IndexedAverageSum}
+    )
     a_meta = TermInterface.metadata(a)[IndexedAverageSum]
     b_meta = TermInterface.metadata(b)[IndexedAverageSum]
     return isequal(a_meta, b_meta)
@@ -370,30 +370,30 @@ function Base.isequal(a::IndexedAverageSum, b::IndexedAverageSum)
     return true
 end
 function Base.isequal(
-    a::BasicSymbolic{SpecialIndexedAverage}, b::BasicSymbolic{SpecialIndexedAverage}
-)
+        a::BasicSymbolic{SpecialIndexedAverage}, b::BasicSymbolic{SpecialIndexedAverage}
+    )
     a_meta = TermInterface.metadata(a)[SpecialIndexedAverage]
     b_meta = TermInterface.metadata(b)[SpecialIndexedAverage]
     return isequal(a_meta.term, b_meta.term) &&
-           isequal(a_meta.indexMapping, b_meta.indexMapping)
+        isequal(a_meta.indexMapping, b_meta.indexMapping)
 end
 
 function SymbolicUtils.arguments(op::BasicSymbolic{IndexedAverageSum})
-    arguments(TermInterface.metadata(op)[IndexedAverageSum])
+    return arguments(TermInterface.metadata(op)[IndexedAverageSum])
 end
 SymbolicUtils.arguments(op::IndexedAverageSum) = arguments(op.term)
 function SymbolicUtils.arguments(op::BasicSymbolic{IndexedAverageDoubleSum})
-    arguments(TermInterface.metadata(op)[IndexedAverageDoubleSum])
+    return arguments(TermInterface.metadata(op)[IndexedAverageDoubleSum])
 end
 SymbolicUtils.arguments(op::IndexedAverageDoubleSum) = op.innerSum
 function SymbolicUtils.arguments(op::BasicSymbolic{SpecialIndexedAverage})
-    arguments(TermInterface.metadata(op)[SpecialIndexedAverage])
+    return arguments(TermInterface.metadata(op)[SpecialIndexedAverage])
 end
 SymbolicUtils.arguments(op::SpecialIndexedAverage) = arguments(op.term)
 
 function SymbolicUtils.simplify(sym::BasicSymbolic{SpecialIndexedAverage})
     meta = TermInterface.metadata(sym)[SpecialIndexedAverage]
-    SpecialIndexedAverage(SymbolicUtils.simplify(meta.term), meta.indexMapping)
+    return SpecialIndexedAverage(SymbolicUtils.simplify(meta.term), meta.indexMapping)
 end
 
 function Base.show(io::IO, indSum::IndexedAverageSum)
@@ -409,7 +409,7 @@ function Base.show(io::IO, indSum::IndexedAverageSum)
             end
         end
     end
-    Base.show(io, indSum.term)
+    return Base.show(io, indSum.term)
 end
 function Base.show(io::IO, indSum::IndexedAverageDoubleSum)
     write(io, "Σ", "($(indSum.sum_index.name)", "=1:$(indSum.sum_index.range))")
@@ -424,27 +424,29 @@ function Base.show(io::IO, indSum::IndexedAverageDoubleSum)
             end
         end
     end
-    Base.show(io, indSum.innerSum)
+    return Base.show(io, indSum.innerSum)
 end
 function Base.show(io::IO, numbOp::NumberedOperator)
     Base.show(io, numbOp.op)
-    Base.show(io, numbOp.numb)
+    return Base.show(io, numbOp.numb)
 end
 
 function _to_expression(x::NumberedOperator)
     x.op isa Transition &&
         return :(NumberedOperator($(x.op.name), $(x.numb), $(x.op.i), $(x.op.j)))
     x.op isa Destroy && return :(NumberedDestroy($(x.op.name), $(x.numb)))
-    x.op isa Create && return :(dagger(NumberedDestroy($(x.op.name), $(x.numb))))
+    return x.op isa Create && return :(dagger(NumberedDestroy($(x.op.name), $(x.numb))))
 end
 function _to_expression(x::BasicSymbolic{IndexedAverageSum})
     meta = TermInterface.metadata(x)[IndexedAverageSum]
-    return :(IndexedAverageSum(
-        $(_to_expression(meta.term)),
-        $(meta.sum_index.name),
-        $(meta.sum_index.range),
-        $(writeNEIs(meta.non_equal_indices)),
-    ))
+    return :(
+        IndexedAverageSum(
+            $(_to_expression(meta.term)),
+            $(meta.sum_index.name),
+            $(meta.sum_index.range),
+            $(writeNEIs(meta.non_equal_indices)),
+        )
+    )
 end
 function _to_expression(x::BasicSymbolic{SpecialIndexedAverage})
     meta = TermInterface.metadata(x)[SpecialIndexedAverage]
@@ -452,12 +454,14 @@ function _to_expression(x::BasicSymbolic{SpecialIndexedAverage})
 end
 function _to_expression(x::BasicSymbolic{IndexedAverageDoubleSum})
     meta = TermInterface.metadata(x)[IndexedAverageDoubleSum]
-    return :(IndexedAverageDoubleSum(
-        $(_to_expression(meta.innerSum)),
-        $(meta.sum_index.name),
-        $(meta.sum_index.range),
-        $(writeNEIs(meta.non_equal_indices)),
-    ))
+    return :(
+        IndexedAverageDoubleSum(
+            $(_to_expression(meta.innerSum)),
+            $(meta.sum_index.name),
+            $(meta.sum_index.range),
+            $(writeNEIs(meta.non_equal_indices)),
+        )
+    )
 end
 
 @latexrecipe function f(s_::BasicSymbolic{IndexedAverageSum})
@@ -476,38 +480,38 @@ end
 
 # ∨ https://github.com/qojulia/SecondQuantizedAlgebra.jl/issues/28
 function SymbolicUtils.Add(::Type{SpecialIndexedAverage}, coeff, dict; kw...)
-    SymbolicUtils.Add(CNumber, coeff, dict, kw...)
+    return SymbolicUtils.Add(CNumber, coeff, dict, kw...)
 end
 function SymbolicUtils.Mul(::Type{SpecialIndexedAverage}, coeff, dict; kw...)
-    SymbolicUtils.Mul(CNumber, coeff, dict, kw...)
+    return SymbolicUtils.Mul(CNumber, coeff, dict, kw...)
 end
 
 function SymbolicUtils.Add(::Type{IndexedAverageDoubleSum}, coeff, dict; kw...)
-    SymbolicUtils.Add(CNumber, coeff, dict, kw...)
+    return SymbolicUtils.Add(CNumber, coeff, dict, kw...)
 end
 function SymbolicUtils.Mul(::Type{IndexedAverageDoubleSum}, coeff, dict; kw...)
-    SymbolicUtils.Mul(CNumber, coeff, dict, kw...)
+    return SymbolicUtils.Mul(CNumber, coeff, dict, kw...)
 end
 
 function SymbolicUtils.Add(::Type{IndexedAverageSum}, coeff, dict; kw...)
-    SymbolicUtils.Add(CNumber, coeff, dict, kw...)
+    return SymbolicUtils.Add(CNumber, coeff, dict, kw...)
 end
 function SymbolicUtils.Mul(::Type{IndexedAverageSum}, coeff, dict; kw...)
-    SymbolicUtils.Mul(CNumber, coeff, dict, kw...)
+    return SymbolicUtils.Mul(CNumber, coeff, dict, kw...)
 end
 
 function SymbolicUtils.Add(::Type{IndexedVariable}, coeff, dict; kw...)
-    SymbolicUtils.Add(CNumber, coeff, dict, kw...)
+    return SymbolicUtils.Add(CNumber, coeff, dict, kw...)
 end
 function SymbolicUtils.Mul(::Type{IndexedVariable}, coeff, dict; kw...)
-    SymbolicUtils.Mul(CNumber, coeff, dict, kw...)
+    return SymbolicUtils.Mul(CNumber, coeff, dict, kw...)
 end
 
 function SymbolicUtils.Add(::Type{DoubleIndexedVariable}, coeff, dict; kw...)
-    SymbolicUtils.Add(CNumber, coeff, dict, kw...)
+    return SymbolicUtils.Add(CNumber, coeff, dict, kw...)
 end
 function SymbolicUtils.Mul(::Type{DoubleIndexedVariable}, coeff, dict; kw...)
-    SymbolicUtils.Mul(CNumber, coeff, dict, kw...)
+    return SymbolicUtils.Mul(CNumber, coeff, dict, kw...)
 end
 
 #function that creates an array consisting of all possible number values for each index given
@@ -560,7 +564,7 @@ function insert_index(sum::BasicSymbolic{IndexedAverageSum}, ind::Index, value::
         error("cannot exchange summation index with number!")
     end
     if ind in meta.non_equal_indices
-        newNEI = filter(x->!isequal(x, ind), meta.non_equal_indices)
+        newNEI = filter(x -> !isequal(x, ind), meta.non_equal_indices)
         push!(newNEI, value)
         return IndexedAverageSum(
             insert_index(meta.term, ind, value), meta.sum_index, newNEI
@@ -591,7 +595,7 @@ function insert_index(term::BasicSymbolic{<:CNumber}, ind::Index, value::Int64)
         elseif op === /
             return insert_index(
                 arguments(term)[1], ind, value
-            )/insert_index(arguments(term)[2], ind, value)
+            ) / insert_index(arguments(term)[2], ind, value)
         elseif length(arguments(term)) == 1 # exp, sin, cos, ln, ... #TODO: write tests
             return op(insert_index(arguments(term)[1], ind, value))
         end
@@ -638,7 +642,7 @@ end
 function insert_index(term::BasicSymbolic{SpecialIndexedAverage}, ind::Index, value::Int64)
     meta = TermInterface.metadata(term)[SpecialIndexedAverage]
     newterm = insert_index(meta.term, ind, value)
-    newMapping = Tuple{IndexInt,IndexInt}[]
+    newMapping = Tuple{IndexInt, IndexInt}[]
     for tuple in meta.indexMapping
         if first(tuple) == ind
             if last(tuple) == value
@@ -658,16 +662,16 @@ function insert_index(term::BasicSymbolic{SpecialIndexedAverage}, ind::Index, va
     return SpecialIndexedAverage(newterm, newMapping)
 end
 function insert_index(qmul::QMul, ind::Index, value::Int64)
-    qmul.arg_c*prod(insert_index(arg, ind, value) for arg in qmul.args_nc)
+    return qmul.arg_c * prod(insert_index(arg, ind, value) for arg in qmul.args_nc)
 end
 function insert_index(eq::Symbolics.Equation, ind::Index, value::Int64)
-    Symbolics.Equation(insert_index(eq.lhs, ind, value), insert_index(eq.rhs, ind, value))
+    return Symbolics.Equation(insert_index(eq.lhs, ind, value), insert_index(eq.rhs, ind, value))
 end
 function insert_index(term::IndexedOperator, ind::Index, value::Int64)
-    term.ind == ind ? NumberedOperator(term.op, value) : term
+    return term.ind == ind ? NumberedOperator(term.op, value) : term
 end
 function insert_index(term::BasicSymbolic{IndexedVariable}, ind::Index, value::Int64)
     meta = TermInterface.metadata(term)[IndexedVariable]
-    meta.ind == ind ? SingleNumberedVariable(meta.name, value) : term
+    return meta.ind == ind ? SingleNumberedVariable(meta.name, value) : term
 end
 insert_index(x, args...) = x

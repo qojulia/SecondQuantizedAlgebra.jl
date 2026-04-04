@@ -10,8 +10,8 @@ function benchmark_commutator!(SUITE)
     h = FockSpace(:cavity)
     @qnumbers a::Destroy(h)
 
-    term = a'*a
-    n=5
+    term = a' * a
+    n = 5
 
     SUITE["Micro Benchmarks"]["Nested commutator"] = @benchmarkable nested_commutator(
         $term, $n

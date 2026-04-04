@@ -23,7 +23,7 @@ Base.hash(a::FockSpace, h::UInt) = hash(:FockSpace, hash(a.name, h))
 Composite Hilbert space consisting of multiple subspaces.
 Uses a Tuple for fully concrete storage.
 """
-struct ProductSpace{T<:Tuple{Vararg{HilbertSpace}}} <: HilbertSpace
+struct ProductSpace{T <: Tuple{Vararg{HilbertSpace}}} <: HilbertSpace
     spaces::T
 end
 Base.:(==)(a::ProductSpace, b::ProductSpace) = a.spaces == b.spaces

@@ -9,10 +9,10 @@ Fields:
 - `arg_c::T` — commutative (c-number) prefactor
 - `args_nc::Vector{QSym}` — non-commutative operator factors, canonically sorted
 """
-struct QMul{T<:Number} <: QTerm
+struct QMul{T <: Number} <: QTerm
     arg_c::T
     args_nc::Vector{QSym}
-    function QMul(arg_c::T, args_nc::Vector{QSym}) where {T<:Number}
+    function QMul(arg_c::T, args_nc::Vector{QSym}) where {T <: Number}
         return new{T}(arg_c, args_nc)
     end
     QMul(args_nc::Vector{QSym}) = new{Int}(1, args_nc)
@@ -37,13 +37,13 @@ Base.hash(q::QMul, h::UInt) = hash(:QMul, hash(q.arg_c, hash(q.args_nc, h)))
 # Adjoint
 function Base.adjoint(q::QMul)
     args_nc = QSym[adjoint(op) for op in reverse(q.args_nc)]
-    sort!(args_nc; lt=canonical_lt)
+    sort!(args_nc; lt = canonical_lt)
     return QMul(conj(q.arg_c), args_nc)
 end
 
 # Promote rules
-Base.promote_rule(::Type{QMul{S}}, ::Type{QMul{T}}) where {S,T} = QMul{promote_type(S, T)}
-function Base.convert(::Type{QMul{T}}, x::QMul{S}) where {T<:Number,S<:Number}
+Base.promote_rule(::Type{QMul{S}}, ::Type{QMul{T}}) where {S, T} = QMul{promote_type(S, T)}
+function Base.convert(::Type{QMul{T}}, x::QMul{S}) where {T <: Number, S <: Number}
     return QMul(convert(T, x.arg_c), x.args_nc)
 end
 
@@ -52,7 +52,7 @@ end
 # QSym * QSym → QMul{Int}
 function Base.:*(a::QSym, b::QSym)
     args = QSym[a, b]
-    sort!(args; lt=canonical_lt)
+    sort!(args; lt = canonical_lt)
     return QMul(1, args)
 end
 
@@ -67,19 +67,19 @@ Base.:*(b::Number, a::QMul) = a * b
 # QSym * QMul → QMul
 function Base.:*(a::QSym, b::QMul)
     args_nc = QSym[a, b.args_nc...]
-    sort!(args_nc; lt=canonical_lt)
+    sort!(args_nc; lt = canonical_lt)
     return QMul(b.arg_c, args_nc)
 end
 function Base.:*(a::QMul, b::QSym)
     args_nc = QSym[a.args_nc..., b]
-    sort!(args_nc; lt=canonical_lt)
+    sort!(args_nc; lt = canonical_lt)
     return QMul(a.arg_c, args_nc)
 end
 
 # QMul * QMul → QMul
 function Base.:*(a::QMul, b::QMul)
     args_nc = QSym[a.args_nc..., b.args_nc...]
-    sort!(args_nc; lt=canonical_lt)
+    sort!(args_nc; lt = canonical_lt)
     return QMul(a.arg_c * b.arg_c, args_nc)
 end
 

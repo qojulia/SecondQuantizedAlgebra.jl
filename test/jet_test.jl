@@ -4,8 +4,6 @@ using Test
 if isempty(VERSION.prerelease)
     @testset "Code linting" begin
         using JET
-        rep = report_package(SecondQuantizedAlgebra)
-        @show rep
-        @test_broken length(JET.get_reports(rep)) == 0
+        JET.test_package(SecondQuantizedAlgebra; target_modules=(SecondQuantizedAlgebra,))
     end
 end

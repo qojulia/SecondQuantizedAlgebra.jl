@@ -33,7 +33,7 @@ function TermInterface.maketerm(::Type{<:QAdd}, ::typeof(+), args, metadata)
 end
 
 # Type promotion
-SymbolicUtils.symtype(x::T) where {T<:QField} = T
+SymbolicUtils.symtype(x::T) where {T <: QField} = T
 
 for f in SymbolicUtils.basic_diadic
     @eval SymbolicUtils.promote_symtype(::$(typeof(f)), Ts::Type{<:QField}...) = promote_type(Ts...)
@@ -44,8 +44,8 @@ for f in SymbolicUtils.basic_diadic
 end
 
 # one / zero / isone / iszero for QField
-Base.one(::T) where {T<:QField} = one(T)
+Base.one(::T) where {T <: QField} = one(T)
 Base.one(::Type{<:QField}) = 1
 Base.isone(::QField) = false
-Base.zero(::T) where {T<:QField} = zero(T)
+Base.zero(::T) where {T <: QField} = zero(T)
 Base.zero(::Type{<:QField}) = 0

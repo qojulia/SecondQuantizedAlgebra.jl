@@ -34,29 +34,29 @@ end
 #define calculus for numbered operators -> break it down into QNumber multiplication
 
 function ismergeable(a::NumberedOperator, b::NumberedOperator)
-    isequal(a.numb, b.numb) ? ismergeable(a.op, b.op) : false
+    return isequal(a.numb, b.numb) ? ismergeable(a.op, b.op) : false
 end
 
 function *(numOp::NumberedOperator, qmul::QMul)
-    inorder!(QMul(qmul.arg_c, vcat(numOp, qmul.args_nc)))
+    return inorder!(QMul(qmul.arg_c, vcat(numOp, qmul.args_nc)))
 end
 function *(qmul::QMul, numOp::NumberedOperator)
-    inorder!(QMul(qmul.arg_c, vcat(qmul.args_nc, numOp)))
+    return inorder!(QMul(qmul.arg_c, vcat(qmul.args_nc, numOp)))
 end
 
 function *(numOp1::NumberedOperator, numOp2::NumberedOperator)
     if numOp1.op isa Create ||
-        numOp1.op isa Destroy ||
-        numOp2.op isa Create ||
-        numOp2.op isa Destroy
+            numOp1.op isa Destroy ||
+            numOp2.op isa Create ||
+            numOp2.op isa Destroy
         return merge_commutators(1, [numOp1, numOp2])
     end
     return if (
-        numOp1.numb == numOp2.numb && isequal(acts_on(numOp1.op), acts_on(numOp2.op))
-    )
-        NumberedOperator(numOp1.op*numOp2.op, numOp1.numb)
+            numOp1.numb == numOp2.numb && isequal(acts_on(numOp1.op), acts_on(numOp2.op))
+        )
+        NumberedOperator(numOp1.op * numOp2.op, numOp1.numb)
     else
-        QMul(1, sort([numOp1, numOp2]; by=get_numbers))
+        QMul(1, sort([numOp1, numOp2]; by = get_numbers))
     end
 end
 
@@ -69,7 +69,7 @@ function Base.hash(a::NumberedOperator, h::UInt)
     return hash(NumberedOperator, hash(a.op, hash(a.numb, h)))
 end
 function Base.isequal(x::NumberedOperator, y::NumberedOperator)
-    isequal(x.op, y.op) && isequal(x.numb, y.numb)
+    return isequal(x.op, y.op) && isequal(x.numb, y.numb)
 end
 
 average(x::NumberedOperator) = _average(x)

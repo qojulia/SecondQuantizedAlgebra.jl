@@ -11,7 +11,7 @@ struct AvgSym <: CNumber end
 const Average = SymbolicUtils.BasicSymbolic{<:AvgSym}
 
 const sym_average = begin # Symbolic function for averages
-    T = SymbolicUtils.FnType{Tuple{QNumber},AvgSym}
+    T = SymbolicUtils.FnType{Tuple{QNumber}, AvgSym}
     SymbolicUtils.Sym{T}(:avg)
 end
 
@@ -19,7 +19,7 @@ end
 SymbolicUtils.promote_symtype(::typeof(sym_average), ::Type{<:QNumber}) = AvgSym
 
 # needs a specific symtype overload, otherwise we build the wrong expressions with maketerm
-SymbolicUtils.symtype(::T) where {T<:Average} = AvgSym
+SymbolicUtils.symtype(::T) where {T <: Average} = AvgSym
 
 # Direct construction of average symbolic expression
 function _average(operator)
@@ -41,10 +41,10 @@ end
 # end
 # ∨ https://github.com/qojulia/SecondQuantizedAlgebra.jl/issues/28
 function SymbolicUtils.Add(::Type{AvgSym}, coeff, dict; kw...)
-    SymbolicUtils.Add(CNumber, coeff, dict, kw...)
+    return SymbolicUtils.Add(CNumber, coeff, dict, kw...)
 end
 function SymbolicUtils.Mul(::Type{AvgSym}, coeff, dict; kw...)
-    SymbolicUtils.Mul(CNumber, coeff, dict, kw...)
+    return SymbolicUtils.Mul(CNumber, coeff, dict, kw...)
 end
 
 function acts_on(s::SymbolicUtils.Symbolic)
@@ -74,14 +74,14 @@ Compute the average of an operator.
 average(op::QSym) = _average(op)
 function average(op::QTerm)
     f = SymbolicUtils.operation(op)
-    if f===(+) || f===(-) # linearity
+    if f === (+) || f === (-) # linearity
         args = map(average, SymbolicUtils.arguments(op))
         return f(args...)
     elseif f === (*)
         # Move constants out of average
         c = op.arg_c
         op_ = QMul(1, op.args_nc)
-        return c*_average(op_)
+        return c * _average(op_)
     else
         error("Unknown function $f")
     end

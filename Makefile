@@ -5,8 +5,8 @@ default: help
 setup:
 	${JULIA} -e 'import Pkg; Pkg.add(["JuliaFormatter", "Changelog", "LiveServer"])'
 
-format:
-	${JULIA} -e 'using JuliaFormatter; format(".")'
+format: ## Format all Julia files with Runic
+	runic --inplace src/ test/ benchmark/
 
 servedocs:
 	${JULIA} --project=docs -e 'using LiveServer; LiveServer.servedocs()'
