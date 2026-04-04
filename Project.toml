@@ -26,6 +26,7 @@ Latexify = "0.13, 0.14, 0.15, 0.16"
 LinearAlgebra = "1.6"
 MacroTools = "0.5"
 ModelingToolkit = "9,10"
+ParallelTestRunner = "2"
 QuantumOpticsBase = "0.4, 0.5"
 Random = "1.10"
 SciMLBase = "1, 2"
@@ -43,8 +44,9 @@ Aqua = "4c88cf16-eb10-579e-8560-4a9242c79595"
 CheckConcreteStructs = "73c92db5-9da6-4938-911a-6443a7e94a58"
 ExplicitImports = "7d51a73a-1435-4ff3-83d9-f097790105c7"
 JET = "c3a54625-cd67-489e-a8e7-0a5a0ff4e31b"
+ParallelTestRunner = "d3525ed8-44d0-4b2c-a655-542cee43accc"
 Random = "9a3f8284-a2c9-5f02-9a11-845980a1fd5c"
 Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
 
 [targets]
-test = ["JET", "CheckConcreteStructs", "ExplicitImports", "Test", "Aqua", "Random"]
+test = ["JET", "CheckConcreteStructs", "ExplicitImports", "Test", "Aqua", "Random", "ParallelTestRunner"]
