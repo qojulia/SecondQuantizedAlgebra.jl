@@ -23,7 +23,10 @@ function Base.show(io::IO, x::QMul)
     if c isa Union{Integer,AbstractFloat,Rational} && c == -1
         write(io, "-")
     elseif !(c isa Union{Integer,AbstractFloat,Rational} && isone(c))
-        show(io, x.arg_c)
+        _needs_parens = !(c isa Union{Integer,AbstractFloat,Rational,Complex})
+        _needs_parens && write(io, "(")
+        show(io, c)
+        _needs_parens && write(io, ")")
         write(io, " * ")
     end
     show(io, x.args_nc[1])
