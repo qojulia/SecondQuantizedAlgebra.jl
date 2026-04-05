@@ -31,4 +31,4 @@
 
 ## Minor
 - [ ] **Symbol-level NLevelSpace API** — `NLevelSpace(:atom, (:g,:e))` and `Transition(h, :s, :g, :e)` convenience constructors.
-- [ ] **`order_by_index`** — canonical ordering of operators by index name within `QMul.args_nc` (cosmetic, helps `_collect_like_terms` merge).
+- [x] **`order_by_index`** — canonical ordering of operators by index name within `QMul.args_nc` via `_sort_key(op) = (space_index, copy_index, index.name)`.
