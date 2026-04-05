@@ -12,38 +12,61 @@ function transition_superscript(x::Bool)
     return x
 end
 
+# Helper: format index suffix for LaTeX
+function _latex_index_suffix(idx::Index)
+    has_index(idx) || return ""
+    return "_{$(idx.name)}"
+end
+
 @latexrecipe function f(x::Destroy)
-    return Expr(:latexifymerge, x.name)
+    suffix = _latex_index_suffix(x.index)
+    return Expr(:latexifymerge, "$(x.name)$(suffix)")
 end
 
 @latexrecipe function f(x::Create)
-    return Expr(:latexifymerge, "$(x.name)^{\\dagger}")
+    suffix = _latex_index_suffix(x.index)
+    return Expr(:latexifymerge, "$(x.name)$(suffix)^{\\dagger}")
 end
 
 @latexrecipe function f(x::Transition)
-    return Expr(:latexifymerge, "{$(x.name)}$(transition_idx_script[]){{$(x.i)$(x.j)}}")
+    suffix = _latex_index_suffix(x.index)
+    return Expr(:latexifymerge, "{$(x.name)}$(suffix)$(transition_idx_script[]){{$(x.i)$(x.j)}}")
 end
 
 @latexrecipe function f(x::Pauli)
     ax = _xyz_sym[x.axis]
-    return Expr(:latexifymerge, "{$(x.name)}_{{$ax}}")
+    suffix = _latex_index_suffix(x.index)
+    return Expr(:latexifymerge, "{$(x.name)}$(suffix)_{{$ax}}")
 end
 
 @latexrecipe function f(x::Spin)
     ax = _xyz_sym[x.axis]
-    return Expr(:latexifymerge, "{$(x.name)}_{{$ax}}")
+    suffix = _latex_index_suffix(x.index)
+    return Expr(:latexifymerge, "{$(x.name)}$(suffix)_{{$ax}}")
 end
 
 @latexrecipe function f(x::Position)
-    return Expr(:latexifymerge, "\\hat{$(x.name)}")
+    suffix = _latex_index_suffix(x.index)
+    return Expr(:latexifymerge, "\\hat{$(x.name)}$(suffix)")
 end
 
 @latexrecipe function f(x::Momentum)
-    return Expr(:latexifymerge, "\\hat{$(x.name)}")
+    suffix = _latex_index_suffix(x.index)
+    return Expr(:latexifymerge, "\\hat{$(x.name)}$(suffix)")
 end
 
-# Strip zero imaginary part from Complex for clean display
-_latex_prefactor(c::Complex) = iszero(imag(c)) ? real(c) : c
+# Extract a plain Julia number from CNum for comparison in LaTeX recipes
+function _latex_prefactor(c::CNum)
+    r_val = Symbolics.value(Symbolics.unwrap(real(c)))
+    i_val = Symbolics.value(Symbolics.unwrap(imag(c)))
+    if iszero(i_val)
+        return r_val
+    elseif iszero(r_val)
+        return complex(zero(r_val), i_val)
+    else
+        return complex(r_val, i_val)
+    end
+end
 _latex_prefactor(c) = c
 
 @latexrecipe function f(x::QMul)
@@ -52,9 +75,11 @@ _latex_prefactor(c) = c
         return c
     end
     parts = []
-    if c == -1
+    if c isa Number && c == -1
         push!(parts, :(-))
-    elseif !isone(c)
+    elseif c isa Number && isone(c)
+        # skip prefactor
+    else
         push!(parts, c)
     end
     for op in x.args_nc
@@ -64,6 +89,21 @@ _latex_prefactor(c) = c
 end
 
 @latexrecipe function f(x::QAdd)
+    if !isempty(x.indices)
+        # Sum notation: Σ_{i=1}^{N} (terms)
+        idx_parts = []
+        for idx in x.indices
+            r = Symbolics.value(Symbolics.unwrap(idx.range))
+            push!(idx_parts, "\\underset{$(idx.name)}{\\overset{$r}{\\sum}}")
+        end
+        if !isempty(x.non_equal)
+            ne_str = join(["$(a.name){\\ne}$(b.name)" for (a, b) in x.non_equal], ",")
+            idx_parts[end] = replace(idx_parts[end], "$(x.indices[end].name)" => "$(x.indices[end].name){\\ne}$(ne_str)")
+        end
+        prefix = join(idx_parts, " ")
+        # Wrap sum contents
+        return Expr(:latexifymerge, prefix, " ", Expr(:call, :+, x.arguments...))
+    end
     return Expr(:call, :+, x.arguments...)
 end
 

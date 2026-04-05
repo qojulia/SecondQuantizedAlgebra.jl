@@ -1,113 +1,113 @@
 """
-    QAdd{T<:Number} <: QTerm
+    QAdd <: QTerm
 
-Sum of [`QMul{T}`](@ref) terms.
+Sum of [`QMul`](@ref) terms, optionally with summation indices for symbolic sums.
 
 Fields:
-- `arguments::Vector{QMul{T}}` — terms of the sum
+- `arguments::Vector{QMul}` — terms of the sum
+- `indices::Vector{Index}` — summation indices (empty = regular sum)
+- `non_equal::Vector{Tuple{Index,Index}}` — pairwise inequality constraints
 """
-struct QAdd{T <: Number} <: QTerm
-    arguments::Vector{QMul{T}}
-    function QAdd(args::Vector{QMul{T}}) where {T <: Number}
-        return new{T}(args)
+struct QAdd <: QTerm
+    arguments::Vector{QMul}
+    indices::Vector{Index}
+    non_equal::Vector{Tuple{Index, Index}}
+    function QAdd(args::Vector{QMul}, indices::Vector{Index},
+        non_equal::Vector{Tuple{Index, Index}})
+        return new(args, indices, non_equal)
     end
 end
+QAdd(args::Vector{QMul}) = QAdd(args, Index[], Tuple{Index, Index}[])
 
 Base.length(a::QAdd) = length(a.arguments)
 
 # Equality and hashing
 function Base.isequal(a::QAdd, b::QAdd)
     length(a.arguments) == length(b.arguments) || return false
+    a.indices == b.indices || return false
+    a.non_equal == b.non_equal || return false
     for (x, y) in zip(a.arguments, b.arguments)
         isequal(x, y) || return false
     end
     return true
 end
 Base.:(==)(a::QAdd, b::QAdd) = isequal(a, b)
-Base.hash(q::QAdd, h::UInt) = hash(:QAdd, hash(q.arguments, h))
+Base.hash(q::QAdd, h::UInt) = hash(:QAdd, hash(q.arguments, hash(q.indices, hash(q.non_equal, h))))
 
 # Adjoint
-function Base.adjoint(q::QAdd{T}) where {T}
-    return QAdd(QMul{T}[adjoint(t) for t in q.arguments])
-end
-
-# Promote
-Base.promote_rule(::Type{QAdd{S}}, ::Type{QAdd{T}}) where {S, T} = QAdd{promote_type(S, T)}
-function Base.convert(::Type{QAdd{T}}, x::QAdd{S}) where {T <: Number, S <: Number}
-    return QAdd(QMul{T}[convert(QMul{T}, m) for m in x.arguments])
+function Base.adjoint(q::QAdd)
+    return QAdd(QMul[adjoint(t) for t in q.arguments], q.indices, q.non_equal)
 end
 
 # Helpers: wrap QSym/scalar as QMul
-_to_qmul(a::QSym, ::Type{T}) where {T} = QMul(one(T), QSym[a])
-_to_qmul(a::QMul{S}, ::Type{T}) where {S, T} = convert(QMul{promote_type(S, T)}, a)
-_scalar_qmul(x::T) where {T <: Number} = QMul(x, QSym[])
+_to_qmul(a::QSym) = QMul(_to_cnum(1), QSym[a])
+_to_qmul(a::QMul) = a
+_scalar_qmul(x::Number) = QMul(_to_cnum(x), QSym[])
 
 ## Addition — always returns QAdd
 
 # QSym + QSym
 function Base.:+(a::QSym, b::QSym)
-    return QAdd(QMul{Int}[_to_qmul(a, Int), _to_qmul(b, Int)])
+    return QAdd(QMul[_to_qmul(a), _to_qmul(b)])
 end
 
 # QMul + QMul
-function Base.:+(a::QMul{S}, b::QMul{T}) where {S, T}
-    TT = promote_type(S, T)
-    return QAdd(QMul{TT}[convert(QMul{TT}, a), convert(QMul{TT}, b)])
+function Base.:+(a::QMul, b::QMul)
+    return QAdd(QMul[a, b])
 end
 
 # QMul + QSym
-function Base.:+(a::QMul{T}, b::QSym) where {T}
-    return QAdd(QMul{T}[a, _to_qmul(b, T)])
+function Base.:+(a::QMul, b::QSym)
+    return QAdd(QMul[a, _to_qmul(b)])
 end
-Base.:+(a::QSym, b::QMul{T}) where {T} = b + a
+Base.:+(a::QSym, b::QMul) = b + a
 
 # QAdd + QMul
-function Base.:+(a::QAdd{S}, b::QMul{T}) where {S, T}
-    TT = promote_type(S, T)
-    args = QMul{TT}[convert(QMul{TT}, x) for x in a.arguments]
-    push!(args, convert(QMul{TT}, b))
-    return QAdd(args)
+function Base.:+(a::QAdd, b::QMul)
+    args = QMul[x for x in a.arguments]
+    push!(args, b)
+    return QAdd(args, a.indices, a.non_equal)
 end
 Base.:+(a::QMul, b::QAdd) = b + a
 
 # QAdd + QSym
-function Base.:+(a::QAdd{T}, b::QSym) where {T}
-    return a + _to_qmul(b, T)
+function Base.:+(a::QAdd, b::QSym)
+    return a + _to_qmul(b)
 end
 Base.:+(a::QSym, b::QAdd) = b + a
 
 # QAdd + QAdd
-function Base.:+(a::QAdd{S}, b::QAdd{T}) where {S, T}
-    TT = promote_type(S, T)
-    args = QMul{TT}[convert(QMul{TT}, x) for x in a.arguments]
+function Base.:+(a::QAdd, b::QAdd)
+    args = QMul[x for x in a.arguments]
     for x in b.arguments
-        push!(args, convert(QMul{TT}, x))
+        push!(args, x)
     end
-    return QAdd(args)
+    # Merge indices if both have the same (or combine)
+    indices = vcat(a.indices, b.indices) |> unique
+    non_equal = vcat(a.non_equal, b.non_equal) |> unique
+    return QAdd(args, indices, non_equal)
 end
 
 # QField + Number
-function Base.:+(a::QSym, b::T) where {T <: Number}
-    return QAdd(QMul{T}[_to_qmul(a, T), _scalar_qmul(b)])
+function Base.:+(a::QSym, b::Number)
+    return QAdd(QMul[_to_qmul(a), _scalar_qmul(b)])
 end
 Base.:+(a::Number, b::QSym) = b + a
 
-function Base.:+(a::QMul{S}, b::T) where {S, T <: Number}
-    TT = promote_type(S, T)
-    return QAdd(QMul{TT}[convert(QMul{TT}, a), QMul(convert(TT, b), QSym[])])
+function Base.:+(a::QMul, b::Number)
+    return QAdd(QMul[a, _scalar_qmul(b)])
 end
 Base.:+(a::Number, b::QMul) = b + a
 
-function Base.:+(a::QAdd{S}, b::T) where {S, T <: Number}
-    TT = promote_type(S, T)
-    args = QMul{TT}[convert(QMul{TT}, x) for x in a.arguments]
-    push!(args, QMul(convert(TT, b), QSym[]))
-    return QAdd(args)
+function Base.:+(a::QAdd, b::Number)
+    args = QMul[x for x in a.arguments]
+    push!(args, _scalar_qmul(b))
+    return QAdd(args, a.indices, a.non_equal)
 end
 Base.:+(a::Number, b::QAdd) = b + a
 
 # Subtraction
-Base.:-(a::QAdd{T}) where {T} = QAdd(QMul{T}[-t for t in a.arguments])
+Base.:-(a::QAdd) = QAdd(QMul[-t for t in a.arguments], a.indices, a.non_equal)
 Base.:-(a::QField, b::QField) = a + (-b)
 Base.:-(a::QField, b::Number) = a + (-b)
 Base.:-(a::Number, b::QField) = a + (-b)
@@ -115,40 +115,37 @@ Base.:-(a::Number, b::QField) = a + (-b)
 ## QAdd * ... (distributive)
 
 # QAdd * Number
-function Base.:*(a::QAdd{S}, b::T) where {S, T <: Number}
-    TT = promote_type(S, T)
-    return QAdd(QMul{TT}[convert(QMul{TT}, t) * b for t in a.arguments])
+function Base.:*(a::QAdd, b::Number)
+    return QAdd(QMul[t * b for t in a.arguments], a.indices, a.non_equal)
 end
 Base.:*(a::Number, b::QAdd) = b * a
 
 # QAdd * QSym
-function Base.:*(a::QAdd{T}, b::QSym) where {T}
-    return QAdd(QMul{T}[t * b for t in a.arguments])
+function Base.:*(a::QAdd, b::QSym)
+    return QAdd(QMul[t * b for t in a.arguments], a.indices, a.non_equal)
 end
-function Base.:*(a::QSym, b::QAdd{T}) where {T}
-    return QAdd(QMul{T}[a * t for t in b.arguments])
+function Base.:*(a::QSym, b::QAdd)
+    return QAdd(QMul[a * t for t in b.arguments], b.indices, b.non_equal)
 end
 
 # QAdd * QMul
-function Base.:*(a::QAdd{S}, b::QMul{T}) where {S, T}
-    TT = promote_type(S, T)
-    return QAdd(QMul{TT}[t * b for t in a.arguments])
+function Base.:*(a::QAdd, b::QMul)
+    return QAdd(QMul[t * b for t in a.arguments], a.indices, a.non_equal)
 end
-function Base.:*(a::QMul{S}, b::QAdd{T}) where {S, T}
-    TT = promote_type(S, T)
-    return QAdd(QMul{TT}[a * t for t in b.arguments])
+function Base.:*(a::QMul, b::QAdd)
+    return QAdd(QMul[a * t for t in b.arguments], b.indices, b.non_equal)
 end
 
 # QAdd * QAdd
-function Base.:*(a::QAdd{S}, b::QAdd{T}) where {S, T}
-    TT = promote_type(S, T)
-    args = QMul{TT}[]
+function Base.:*(a::QAdd, b::QAdd)
+    args = QMul[]
     for ai in a.arguments, bi in b.arguments
         push!(args, ai * bi)
     end
-    return QAdd(args)
+    indices = vcat(a.indices, b.indices) |> unique
+    non_equal = vcat(a.non_equal, b.non_equal) |> unique
+    return QAdd(args, indices, non_equal)
 end
 
 # QAdd / Number
-Base.:/(a::QAdd, b::Integer) = a * (1 // b)
 Base.:/(a::QAdd, b::Number) = a * inv(b)

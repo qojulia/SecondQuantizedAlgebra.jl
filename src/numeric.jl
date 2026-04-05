@@ -58,10 +58,10 @@ end
 # QMul
 function to_numeric(m::QMul, b::QuantumOpticsBase.Basis; kwargs...)
     if isempty(m.args_nc)
-        return m.arg_c * _lazy_one(b)
+        return _to_number(m.arg_c) * _lazy_one(b)
     end
     ops_num = [to_numeric(op, b; kwargs...) for op in m.args_nc]
-    return m.arg_c * prod(ops_num)
+    return _to_number(m.arg_c) * prod(ops_num)
 end
 
 # QAdd
@@ -72,7 +72,22 @@ end
 
 # Number
 function to_numeric(x::Number, b::QuantumOpticsBase.Basis; kwargs...)
-    return x * _lazy_one(b)
+    return _to_number(x) * _lazy_one(b)
+end
+
+# Convert CNum/Num to plain Julia number for numeric evaluation.
+# If the value is a literal number, extract it. If symbolic, return as-is.
+_to_number(x::Number) = x
+function _to_number(x::Num)
+    v = Symbolics.unwrap(x)
+    n = Symbolics.value(v)
+    return n isa Number ? n : x  # return Num as-is if still symbolic
+end
+function _to_number(x::CNum)
+    r = _to_number(real(x))
+    i = _to_number(imag(x))
+    iszero(i) && return r
+    return complex(r, i)
 end
 
 # State-based dispatch

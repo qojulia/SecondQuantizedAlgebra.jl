@@ -1,4 +1,5 @@
 using SecondQuantizedAlgebra
+import SecondQuantizedAlgebra: QMul, QAdd, QSym, HilbertSpace
 using Test
 
 @testset "pauli" begin
@@ -54,11 +55,11 @@ using Test
         σy = Pauli(h, :σ, 2)
 
         m = σx * σy
-        @test m isa QMul{Int}
+        @test m isa QMul
         @test length(m.args_nc) == 2
 
         s = σx + σy
-        @test s isa QAdd{Int}
+        @test s isa QAdd
     end
 
     @testset "@qnumbers" begin

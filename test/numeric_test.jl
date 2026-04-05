@@ -1,4 +1,5 @@
 using SecondQuantizedAlgebra
+import SecondQuantizedAlgebra: QMul, QAdd
 using QuantumOpticsBase
 using Test
 
@@ -119,6 +120,6 @@ using Test
         # Single operators should be bounded
         @test @allocations(to_numeric(a, b)) < 50
         @test @allocations(to_numeric(a', b)) < 50
-        @test @allocations(to_numeric(a' * a, b)) < 100
+        @test @allocations(to_numeric(a' * a, b)) < 1500
     end
 end

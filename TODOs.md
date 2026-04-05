@@ -5,8 +5,14 @@
 
 ## Legacy features to port
 - [ ] **Average system** — `average()`, `undo_average()`, symbolic `<a'a>` expressions. Legacy: `src/legacy/average.jl`. Related: qojulia/SecondQuantizedAlgebra.jl#57 (double average bug), qojulia/SecondQuantizedAlgebra.jl#61 (change average representation to MTK-compatible time-dependent variables).
-- [ ] **Indexed operators** — `Index`, `IndexedOperator`, `SingleSum`, `DoubleSum`, symbolic summations. Legacy: `src/legacy/indexing.jl`, `index_average.jl`, `index_double_sums.jl`.
-- [ ] **Cluster spaces** — `ClusterSpace` for mean-field cluster expansions. Legacy: `src/legacy/cluster.jl`.
+- [x] **Indexed operators** — `Index`, `IndexedOperator`, `IndexedVariable`, `DoubleIndexedVariable`, `Σ`/`∑`, `change_index`, `expand_sums`, `get_indices`, commutator diagonal collapse. All operator types carry `index::Index` field. Tested in `test/indexing_test.jl`.
+- [x] **Cluster spaces** — `ClusterSpace` for mean-field cluster expansions. Legacy: `src/legacy/cluster.jl`.
+
+## QC integration hooks (SQA-side complete, QC must build on top)
+- [ ] **Averaging types** — QC needs `IndexedAverageSum`, `IndexedAverageDoubleSum` wrapping `average()` on `QAdd` with indices. SQA exports: `Index`, `has_index`, `QAdd.indices`, `QAdd.non_equal`.
+- [ ] **NumberedOperator** — QC needs concrete integer-indexed operators for numeric evaluation (`σ_i` → `σ₃` → matrix). Lives in QC, not SQA.
+- [ ] **`scale()` orchestration** — QC calls `expand_sums()` for diagonal splitting, then does QC-specific post-processing (N-dependent factors, averaging).
+- [ ] **`value_map`** — QC substitutes concrete index values for numeric solving.
 
 ## Issues from GitHub
 - [ ] **expand() and simplify() for QNumbers** — qojulia/SecondQuantizedAlgebra.jl#70. Current impl goes through `average`/`undo_average` round-trip, causes problems.
@@ -18,6 +24,11 @@
 ## Done (in redesign-v2)
 - [x] **Concretely typed structs** — qojulia/SecondQuantizedAlgebra.jl#25.
 - [x] **Symbolics v7 / SymbolicUtils v4 migration** — qojulia/SecondQuantizedAlgebra.jl#82.
+- [x] **`QMul`/`QAdd` use `Complex{Num}` prefactors** — dropped type parameters, always use `CNum = Complex{Num}`.
+- [x] **`simplify` extends `SymbolicUtils.simplify`** — public API delegates to internal `_qsimplify`.
+- [x] **Export pruning** — minimal public API, no internal types exported.
+- [x] **Indexed operators** — ground-up redesign with `index::Index` field on all `QSym` subtypes.
 
 ## Minor
 - [ ] **Symbol-level NLevelSpace API** — `NLevelSpace(:atom, (:g,:e))` and `Transition(h, :s, :g, :e)` convenience constructors.
+- [ ] **`order_by_index`** — canonical ordering of operators by index name within `QMul.args_nc` (cosmetic, helps `_collect_like_terms` merge).

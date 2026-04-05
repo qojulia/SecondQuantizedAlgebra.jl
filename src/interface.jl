@@ -9,7 +9,7 @@ TermInterface.metadata(::QSym) = nothing
 
 # QMul — products
 SymbolicUtils.iscall(::QMul) = true
-SymbolicUtils.iscall(::Type{<:QMul}) = true
+SymbolicUtils.iscall(::Type{QMul}) = true
 SymbolicUtils.operation(::QMul) = (*)
 function SymbolicUtils.arguments(a::QMul)
     result = Vector{Any}(undef, 1 + length(a.args_nc))
@@ -19,8 +19,8 @@ function SymbolicUtils.arguments(a::QMul)
 end
 TermInterface.metadata(::QMul) = nothing
 
-function TermInterface.maketerm(::Type{<:QMul}, ::typeof(*), args, metadata)
-    arg_c = 1
+function TermInterface.maketerm(::Type{QMul}, ::typeof(*), args, metadata)
+    arg_c = _to_cnum(1)
     args_nc = QSym[]
     for x in args
         if x isa QField
@@ -34,16 +34,14 @@ end
 
 # QAdd — sums
 SymbolicUtils.iscall(::QAdd) = true
-SymbolicUtils.iscall(::Type{<:QAdd}) = true
+SymbolicUtils.iscall(::Type{QAdd}) = true
 SymbolicUtils.operation(::QAdd) = (+)
 SymbolicUtils.arguments(a::QAdd) = a.arguments
 TermInterface.metadata(::QAdd) = nothing
 
-function TermInterface.maketerm(::Type{<:QAdd}, ::typeof(+), args, metadata)
-    # TermInterface may pass Vector{Any}; convert to concrete QMul vector
-    muls = QMul[x isa QMul ? x : QMul(1, QSym[x]) for x in args]
-    TT = promote_type((typeof(m.arg_c) for m in muls)...)
-    return QAdd(QMul{TT}[convert(QMul{TT}, m) for m in muls])
+function TermInterface.maketerm(::Type{QAdd}, ::typeof(+), args, metadata)
+    muls = QMul[x isa QMul ? x : QMul(_to_cnum(1), QSym[x]) for x in args]
+    return QAdd(muls)
 end
 
 # Type promotion

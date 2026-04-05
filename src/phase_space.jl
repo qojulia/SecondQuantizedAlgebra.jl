@@ -18,8 +18,10 @@ struct Position <: QSym
     name::Symbol
     space_index::Int
     copy_index::Int
+    index::Index
 end
-Position(name::Symbol, space_index::Int) = Position(name, space_index, 1)
+Position(name::Symbol, si::Int, ci::Int) = Position(name, si, ci, NO_INDEX)
+Position(name::Symbol, si::Int) = Position(name, si, 1, NO_INDEX)
 
 """
     Momentum <: QSym
@@ -30,8 +32,10 @@ struct Momentum <: QSym
     name::Symbol
     space_index::Int
     copy_index::Int
+    index::Index
 end
-Momentum(name::Symbol, space_index::Int) = Momentum(name, space_index, 1)
+Momentum(name::Symbol, si::Int, ci::Int) = Momentum(name, si, ci, NO_INDEX)
+Momentum(name::Symbol, si::Int) = Momentum(name, si, 1, NO_INDEX)
 
 # Construction from Hilbert spaces
 Position(h::PhaseSpace, name::Symbol) = Position(name, 1)
@@ -48,20 +52,24 @@ function Momentum(h::ProductSpace, name::Symbol, idx::Int)
     return Momentum(name, idx)
 end
 
+# IndexedOperator convenience
+IndexedOperator(op::Position, i::Index) = Position(op.name, op.space_index, op.copy_index, i)
+IndexedOperator(op::Momentum, i::Index) = Momentum(op.name, op.space_index, op.copy_index, i)
+
 # Adjoint — Hermitian
 Base.adjoint(op::Position) = op
 Base.adjoint(op::Momentum) = op
 
 # Equality
-Base.isequal(a::Position, b::Position) = a.name == b.name && a.space_index == b.space_index && a.copy_index == b.copy_index
-Base.isequal(a::Momentum, b::Momentum) = a.name == b.name && a.space_index == b.space_index && a.copy_index == b.copy_index
+Base.isequal(a::Position, b::Position) = a.name == b.name && a.space_index == b.space_index && a.copy_index == b.copy_index && a.index == b.index
+Base.isequal(a::Momentum, b::Momentum) = a.name == b.name && a.space_index == b.space_index && a.copy_index == b.copy_index && a.index == b.index
 Base.:(==)(a::Position, b::Position) = isequal(a, b)
 Base.:(==)(a::Momentum, b::Momentum) = isequal(a, b)
 
 # Hashing
-Base.hash(a::Position, h::UInt) = hash(:Position, hash(a.name, hash(a.space_index, hash(a.copy_index, h))))
-Base.hash(a::Momentum, h::UInt) = hash(:Momentum, hash(a.name, hash(a.space_index, hash(a.copy_index, h))))
+Base.hash(a::Position, h::UInt) = hash(:Position, hash(a.name, hash(a.space_index, hash(a.copy_index, hash(a.index, h)))))
+Base.hash(a::Momentum, h::UInt) = hash(:Momentum, hash(a.name, hash(a.space_index, hash(a.copy_index, hash(a.index, h)))))
 
-# Ladder (not applicable — Hermitian operators, no creation/annihilation distinction)
+# Ladder
 ladder(::Position) = 0
 ladder(::Momentum) = 1

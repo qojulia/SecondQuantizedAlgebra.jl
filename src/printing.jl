@@ -13,7 +13,7 @@ function Base.show(io::IO, h::ProductSpace)
     return
 end
 
-# Hilbert spaces — new types
+# Hilbert spaces — other types
 Base.show(io::IO, h::NLevelSpace) = (write(io, "ℋ("); print(io, h.name); write(io, ")"))
 Base.show(io::IO, h::PauliSpace) = (write(io, "ℋ("); print(io, h.name); write(io, ")"))
 Base.show(io::IO, h::SpinSpace) = (write(io, "ℋ("); print(io, h.name); write(io, ")"))
@@ -28,11 +28,37 @@ function Base.show(io::IO, h::ClusterSpace)
     return write(io, ")")
 end
 
-# Operators — Fock
-Base.show(io::IO, x::Destroy) = (print(io, x.name); _show_copy_suffix(io, x.copy_index))
-Base.show(io::IO, x::Create) = (print(io, x.name); _show_copy_suffix(io, x.copy_index); write(io, "†"))
+# Index suffix helpers
+function _show_copy_suffix(io::IO, ci::Int)
+    if ci > 1
+        write(io, "_")
+        print(io, ci)
+    end
+    return
+end
 
-# Operators — Transition: σ₁₂
+function _show_index_suffix(io::IO, idx::Index)
+    if has_index(idx)
+        write(io, "_")
+        print(io, idx.name)
+    end
+    return
+end
+
+# Operators — Fock
+function Base.show(io::IO, x::Destroy)
+    print(io, x.name)
+    _show_copy_suffix(io, x.copy_index)
+    _show_index_suffix(io, x.index)
+end
+function Base.show(io::IO, x::Create)
+    print(io, x.name)
+    _show_copy_suffix(io, x.copy_index)
+    _show_index_suffix(io, x.index)
+    write(io, "†")
+end
+
+# Operators — Transition: σ₁₂ or σ_i₁₂
 const _subscript_digits = ('₀', '₁', '₂', '₃', '₄', '₅', '₆', '₇', '₈', '₉')
 function _write_subscript(io::IO, n::Int)
     return if 0 <= n <= 9
@@ -43,72 +69,85 @@ function _write_subscript(io::IO, n::Int)
         end
     end
 end
-function _show_copy_suffix(io::IO, ci::Int)
-    if ci > 1
-        write(io, "_")
-        print(io, ci)
-    end
-    return
-end
-
 function Base.show(io::IO, x::Transition)
     print(io, x.name)
     _show_copy_suffix(io, x.copy_index)
+    _show_index_suffix(io, x.index)
     _write_subscript(io, x.i)
     return _write_subscript(io, x.j)
 end
 
 # Operators — Pauli/Spin: σx, Sz
 const _xyz_sym = (:x, :y, :z)
-Base.show(io::IO, x::Pauli) = (print(io, x.name); _show_copy_suffix(io, x.copy_index); print(io, _xyz_sym[x.axis]))
-Base.show(io::IO, x::Spin) = (print(io, x.name); _show_copy_suffix(io, x.copy_index); print(io, _xyz_sym[x.axis]))
-
-# Operators — Position/Momentum
-Base.show(io::IO, x::Position) = (print(io, x.name); _show_copy_suffix(io, x.copy_index))
-Base.show(io::IO, x::Momentum) = (print(io, x.name); _show_copy_suffix(io, x.copy_index))
-
-# Helper: clean display of a numeric prefactor
-function _show_prefactor(io::IO, c)
-    return if c isa Complex
-        r, i = reim(c)
-        if iszero(i)
-            _show_prefactor(io, r)
-        elseif iszero(r)
-            if isone(i)
-                write(io, "im")
-            elseif i == -1
-                write(io, "-im")
-            else
-                show(io, i)
-                write(io, "im")
-            end
-        else
-            write(io, "(")
-            show(io, c)
-            write(io, ")")
-        end
-    elseif !(c isa Union{Integer, AbstractFloat, Rational})
-        write(io, "(")
-        show(io, c)
-        write(io, ")")
-    else
-        show(io, c)
-    end
+function Base.show(io::IO, x::Pauli)
+    print(io, x.name)
+    _show_copy_suffix(io, x.copy_index)
+    _show_index_suffix(io, x.index)
+    print(io, _xyz_sym[x.axis])
+end
+function Base.show(io::IO, x::Spin)
+    print(io, x.name)
+    _show_copy_suffix(io, x.copy_index)
+    _show_index_suffix(io, x.index)
+    print(io, _xyz_sym[x.axis])
 end
 
-# Check if a prefactor is effectively 1
-_is_unit(c::Union{Integer, AbstractFloat, Rational}) = isone(c)
-_is_unit(c::Complex) = isone(real(c)) && iszero(imag(c))
-_is_unit(::Any) = false
+# Operators — Position/Momentum
+function Base.show(io::IO, x::Position)
+    print(io, x.name)
+    _show_copy_suffix(io, x.copy_index)
+    _show_index_suffix(io, x.index)
+end
+function Base.show(io::IO, x::Momentum)
+    print(io, x.name)
+    _show_copy_suffix(io, x.copy_index)
+    _show_index_suffix(io, x.index)
+end
 
-# Check if a prefactor is effectively -1
-_is_neg_unit(c::Union{Integer, AbstractFloat, Rational}) = c == -1
-_is_neg_unit(c::Complex) = real(c) == -1 && iszero(imag(c))
-_is_neg_unit(::Any) = false
+# Helper: clean display of a numeric prefactor
+function _show_prefactor(io::IO, c::CNum)
+    if iszero(imag(c))
+        print(io, real(c))
+    elseif iszero(real(c))
+        i = imag(c)
+        if isone(i)
+            write(io, "im")
+        elseif isequal(i, Num(-1))
+            write(io, "-im")
+        else
+            print(io, i)
+            write(io, "im")
+        end
+    else
+        write(io, "(")
+        print(io, real(c))
+        write(io, " + ")
+        print(io, imag(c))
+        write(io, "im)")
+    end
+end
+_show_prefactor(io::IO, c) = print(io, c)
 
-# Check if a prefactor is a real negative number (safe for < comparison)
-_is_real_negative(c::Union{Integer, AbstractFloat, Rational}) = c < 0
-_is_real_negative(c::Complex) = iszero(imag(c)) && real(c) < 0
+# Check if a CNum prefactor is effectively 1 (real part 1, imag part 0)
+function _is_unit(c::CNum)
+    return iszero(imag(c)) && isone(real(c))
+end
+_is_unit(c) = isone(c)
+
+# Check if a CNum prefactor is effectively -1
+function _is_neg_unit(c::CNum)
+    return iszero(imag(c)) && isequal(real(c), Num(-1))
+end
+_is_neg_unit(c) = isequal(c, -1)
+
+# Check if a prefactor is a real negative number
+function _is_real_negative(c::CNum)
+    if iszero(imag(c))
+        r = Symbolics.unwrap(real(c))
+        return r isa Real && r < 0
+    end
+    return false
+end
 _is_real_negative(::Any) = false
 
 # QMul
@@ -134,6 +173,24 @@ end
 
 # QAdd
 function Base.show(io::IO, x::QAdd)
+    # Show Σ prefix if this is a sum
+    if !isempty(x.indices)
+        for idx in x.indices
+            write(io, "Σ($(idx.name)=1:")
+            print(io, idx.range)
+            write(io, ")")
+        end
+        if !isempty(x.non_equal)
+            write(io, "(")
+            for (k, (a, b)) in enumerate(x.non_equal)
+                k > 1 && write(io, ",")
+                write(io, "$(a.name)≠$(b.name)")
+            end
+            write(io, ")")
+        end
+        write(io, " ")
+    end
+
     isempty(x.arguments) && return write(io, "0")
     show(io, x.arguments[1])
     for i in 2:length(x.arguments)

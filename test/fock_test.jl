@@ -1,4 +1,5 @@
 using SecondQuantizedAlgebra
+import SecondQuantizedAlgebra: QSym
 using Test
 
 @testset "fock operators" begin

@@ -1,4 +1,5 @@
 using SecondQuantizedAlgebra
+import SecondQuantizedAlgebra: HilbertSpace
 using Test
 
 @testset "hilbert spaces" begin

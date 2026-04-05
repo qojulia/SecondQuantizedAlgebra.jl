@@ -1,4 +1,5 @@
 using SecondQuantizedAlgebra
+import SecondQuantizedAlgebra: QField, QSym, QTerm
 using Test
 
 @testset "type hierarchy" begin

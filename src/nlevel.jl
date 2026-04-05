@@ -26,8 +26,10 @@ struct Transition <: QSym
     j::Int
     space_index::Int
     copy_index::Int
+    index::Index
 end
-Transition(name::Symbol, i::Int, j::Int, space_index::Int) = Transition(name, i, j, space_index, 1)
+Transition(name::Symbol, i::Int, j::Int, si::Int, ci::Int) = Transition(name, i, j, si, ci, NO_INDEX)
+Transition(name::Symbol, i::Int, j::Int, si::Int) = Transition(name, i, j, si, 1, NO_INDEX)
 
 # Construction from Hilbert spaces
 function Transition(h::NLevelSpace, name::Symbol, i::Int, j::Int)
@@ -44,15 +46,18 @@ function Transition(h::ProductSpace, name::Symbol, i::Int, j::Int, idx::Int)
     return Transition(name, i, j, idx)
 end
 
+# IndexedOperator convenience
+IndexedOperator(op::Transition, i::Index) = Transition(op.name, op.i, op.j, op.space_index, op.copy_index, i)
+
 # Adjoint: |i⟩⟨j|† = |j⟩⟨i|
-Base.adjoint(op::Transition) = Transition(op.name, op.j, op.i, op.space_index, op.copy_index)
+Base.adjoint(op::Transition) = Transition(op.name, op.j, op.i, op.space_index, op.copy_index, op.index)
 
 # Equality
-Base.isequal(a::Transition, b::Transition) = a.name == b.name && a.i == b.i && a.j == b.j && a.space_index == b.space_index && a.copy_index == b.copy_index
+Base.isequal(a::Transition, b::Transition) = a.name == b.name && a.i == b.i && a.j == b.j && a.space_index == b.space_index && a.copy_index == b.copy_index && a.index == b.index
 Base.:(==)(a::Transition, b::Transition) = isequal(a, b)
 
 # Hashing
-Base.hash(a::Transition, h::UInt) = hash(:Transition, hash(a.name, hash(a.i, hash(a.j, hash(a.space_index, hash(a.copy_index, h))))))
+Base.hash(a::Transition, h::UInt) = hash(:Transition, hash(a.name, hash(a.i, hash(a.j, hash(a.space_index, hash(a.copy_index, hash(a.index, h)))))))
 
 # Ladder (not applicable to Transition)
 ladder(::Transition) = 0

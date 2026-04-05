@@ -7,8 +7,10 @@ struct Destroy <: QSym
     name::Symbol
     space_index::Int
     copy_index::Int
+    index::Index
 end
-Destroy(name::Symbol, space_index::Int) = Destroy(name, space_index, 1)
+Destroy(name::Symbol, si::Int, ci::Int) = Destroy(name, si, ci, NO_INDEX)
+Destroy(name::Symbol, si::Int) = Destroy(name, si, 1, NO_INDEX)
 
 """
     Create <: QSym
@@ -19,10 +21,12 @@ struct Create <: QSym
     name::Symbol
     space_index::Int
     copy_index::Int
+    index::Index
 end
-Create(name::Symbol, space_index::Int) = Create(name, space_index, 1)
+Create(name::Symbol, si::Int, ci::Int) = Create(name, si, ci, NO_INDEX)
+Create(name::Symbol, si::Int) = Create(name, si, 1, NO_INDEX)
 
-# Construction from Hilbert spaces (validation, then discard)
+# Construction from Hilbert spaces
 Destroy(h::FockSpace, name::Symbol) = Destroy(name, 1)
 Create(h::FockSpace, name::Symbol) = Create(name, 1)
 
@@ -37,21 +41,25 @@ function Create(h::ProductSpace, name::Symbol, idx::Int)
     return Create(name, idx)
 end
 
+# IndexedOperator convenience
+IndexedOperator(op::Destroy, i::Index) = Destroy(op.name, op.space_index, op.copy_index, i)
+IndexedOperator(op::Create, i::Index) = Create(op.name, op.space_index, op.copy_index, i)
+
 # Adjoint
-Base.adjoint(op::Destroy) = Create(op.name, op.space_index, op.copy_index)
-Base.adjoint(op::Create) = Destroy(op.name, op.space_index, op.copy_index)
+Base.adjoint(op::Destroy) = Create(op.name, op.space_index, op.copy_index, op.index)
+Base.adjoint(op::Create) = Destroy(op.name, op.space_index, op.copy_index, op.index)
 
 # Equality
-Base.isequal(a::Destroy, b::Destroy) = a.name == b.name && a.space_index == b.space_index && a.copy_index == b.copy_index
-Base.isequal(a::Create, b::Create) = a.name == b.name && a.space_index == b.space_index && a.copy_index == b.copy_index
+Base.isequal(a::Destroy, b::Destroy) = a.name == b.name && a.space_index == b.space_index && a.copy_index == b.copy_index && a.index == b.index
+Base.isequal(a::Create, b::Create) = a.name == b.name && a.space_index == b.space_index && a.copy_index == b.copy_index && a.index == b.index
 Base.:(==)(a::Destroy, b::Destroy) = isequal(a, b)
 Base.:(==)(a::Create, b::Create) = isequal(a, b)
 
 # Hashing
-Base.hash(a::Destroy, h::UInt) = hash(:Destroy, hash(a.name, hash(a.space_index, hash(a.copy_index, h))))
-Base.hash(a::Create, h::UInt) = hash(:Create, hash(a.name, hash(a.space_index, hash(a.copy_index, h))))
+Base.hash(a::Destroy, h::UInt) = hash(:Destroy, hash(a.name, hash(a.space_index, hash(a.copy_index, hash(a.index, h)))))
+Base.hash(a::Create, h::UInt) = hash(:Create, hash(a.name, hash(a.space_index, hash(a.copy_index, hash(a.index, h)))))
 
-# Canonical ordering: Create (0) before Destroy (1), then by space_index, then name
+# Canonical ordering
 """
     ladder(op::QSym)
 

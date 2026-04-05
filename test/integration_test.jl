@@ -3,7 +3,7 @@ using SymbolicUtils: SymbolicUtils
 using Symbolics: Symbolics, @variables
 using QuantumOpticsBase
 using Test
-import SecondQuantizedAlgebra: simplify
+import SecondQuantizedAlgebra: simplify, QMul, QAdd, QSym
 
 @testset "integration" begin
     @testset "Basic operator creation and algebra" begin

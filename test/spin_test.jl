@@ -1,4 +1,5 @@
 using SecondQuantizedAlgebra
+import SecondQuantizedAlgebra: QMul, QAdd, QSym, HilbertSpace
 using Test
 
 @testset "spin" begin
@@ -55,11 +56,11 @@ using Test
         Sy = Spin(h, :S, 2)
 
         m = Sx * Sy
-        @test m isa QMul{Int}
+        @test m isa QMul
         @test length(m.args_nc) == 2
 
         s = Sx + Sy
-        @test s isa QAdd{Int}
+        @test s isa QAdd
     end
 
     @testset "@qnumbers" begin

@@ -1,7 +1,7 @@
 using SecondQuantizedAlgebra
 using Symbolics: @variables
 using Test
-import SecondQuantizedAlgebra: _unwrap_space, has_cluster, _ZERO_QADD, simplify
+import SecondQuantizedAlgebra: _unwrap_space, has_cluster, _ZERO_QADD, simplify, QMul, QAdd, QSym
 
 @testset "ClusterSpace" begin
     @testset "Construction" begin
