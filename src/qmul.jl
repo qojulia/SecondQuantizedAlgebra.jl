@@ -11,10 +11,28 @@ Fields:
 """
 const CNum = Complex{Num}
 
+# Cached constants — avoids repeated Num() allocations on the hot path
+const _NUM_ZERO = Num(0)
+const _NUM_ONE = Num(1)
+const _CNUM_ZERO = Complex(_NUM_ONE - _NUM_ONE, _NUM_ONE - _NUM_ONE)
+const _CNUM_ONE = Complex(_NUM_ONE, _NUM_ZERO)
+const _CNUM_NEG1 = Complex(-_NUM_ONE, _NUM_ZERO)
+const _CNUM_IM = Complex(_NUM_ZERO, _NUM_ONE)
+const _CNUM_NEG_IM = Complex(_NUM_ZERO, -_NUM_ONE)
+
 _to_cnum(x::Complex{Num}) = x
-_to_cnum(x::Num) = Complex(x, Num(0))
-_to_cnum(x::Real) = Complex(Num(x), Num(0))
-_to_cnum(x::Complex) = Complex(Num(real(x)), Num(imag(x)))
+_to_cnum(x::Num) = Complex(x, _NUM_ZERO)
+function _to_cnum(x::Real)
+    x == 0 && return _CNUM_ZERO
+    x == 1 && return _CNUM_ONE
+    x == -1 && return _CNUM_NEG1
+    return Complex(Num(x), _NUM_ZERO)
+end
+function _to_cnum(x::Complex)
+    x == im && return _CNUM_IM
+    x == -im && return _CNUM_NEG_IM
+    return Complex(Num(real(x)), Num(imag(x)))
+end
 
 _sort_key(op::QSym) = (op.space_index, op.copy_index, op.index.name)
 

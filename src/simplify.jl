@@ -72,6 +72,8 @@ function _simplify_qmul(arg_c::CNum, ops::Vector{QSym}, ord::OrderingConvention)
     isempty(ops) && return QMul[QMul(arg_c, QSym[])]
     length(ops) == 1 && return QMul[QMul(arg_c, copy(ops))]
 
+    # copy(ops) is critical: _simplify_product! mutates the ops vector in-place
+    # (deleteat!, element swaps). Without this copy, the caller's vector is corrupted.
     worklist = QMul[QMul(arg_c, copy(ops))]
     done = QMul[]
 
@@ -194,12 +196,20 @@ function _collect_like_terms(s::QAdd)
         d[term.args_nc] = get(d, term.args_nc, _to_cnum(0)) + term.arg_c
     end
 
-    result = QMul[QMul(c, ops) for (ops, c) in d if !iszero(c)]
+    result = QMul[]
+    for (ops, c) in d
+        iszero(c) && continue
+        cs = _simplify_prefactor(c)
+        iszero(cs) && continue
+        push!(result, QMul(cs, ops))
+    end
     isempty(result) && return QAdd(QMul[QMul(_to_cnum(0), QSym[])], s.indices, s.non_equal)
     return QAdd(result, s.indices, s.non_equal)
 end
 
-# Symbolics.expand — distribute products, then expand prefactors
+# Symbolics.expand — expand symbolic prefactors (e.g. (a+b)² → a²+2ab+b²)
+# Note: operator products are already distributed at the QAdd*QAdd level;
+# this only calls Symbolics.expand on the c-number prefactors.
 function Symbolics.expand(s::QAdd; kwargs...)
     result = QMul[
         QMul(_expand_prefactor(t.arg_c; kwargs...), t.args_nc)
@@ -214,10 +224,15 @@ function Symbolics.expand(op::QSym; kwargs...)
     return QAdd(QMul[QMul(_to_cnum(1), QSym[op])])
 end
 
-function _expand_prefactor(x::CNum; kwargs...)
+function _simplify_prefactor(x::CNum)
     iszero(x) && return x
-    r = Symbolics.expand(Symbolics.unwrap(real(x)); kwargs...)
-    i = Symbolics.expand(Symbolics.unwrap(imag(x)); kwargs...)
-    return Complex(Num(r), Num(i))
+    r, i = Symbolics.unwrap(real(x)), Symbolics.unwrap(imag(x))
+    # Fast path: skip Symbolics.simplify for purely numeric prefactors
+    (SymbolicUtils.iscall(r) || SymbolicUtils.issym(r) ||
+     SymbolicUtils.iscall(i) || SymbolicUtils.issym(i)) || return x
+    return Symbolics.simplify(x)
 end
+_simplify_prefactor(x::Number) = x
+
+_expand_prefactor(x::CNum; kwargs...) = iszero(x) ? x : Symbolics.expand(x; kwargs...)
 _expand_prefactor(x::Number; kwargs...) = x

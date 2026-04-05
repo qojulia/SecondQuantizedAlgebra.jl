@@ -2,6 +2,7 @@
 
 ## Ready to implement
 - [ ] **SymmetricOrder** — `struct SymmetricOrder <: OrderingConvention` for TWA (Truncated Wigner Approximation). Spec in `src/simplify.jl:195` and `src/types.jl:37`.
+- [ ] **Dict-based QAdd** — Replace `Vector{QMul}` storage with `Dict{Vector{QSym}, CNum}` for auto like-term collection, order-independent equality, and elimination of `_collect_like_terms`. Resolves audit issues #2 (fragile Dict keys), #4 (order-dependent equality), #5 (`_ZERO_QADD` mutable singleton), #10 (redundant Dict allocation in simplify). Plan: `docs/superpowers/plans/2026-04-05-dict-based-qadd.md`.
 
 ## Legacy features to port
 - [ ] **Average system** — `average()`, `undo_average()`, symbolic `<a'a>` expressions. Legacy: `src/legacy/average.jl`. Related: qojulia/SecondQuantizedAlgebra.jl#57 (double average bug), qojulia/SecondQuantizedAlgebra.jl#61 (change average representation to MTK-compatible time-dependent variables).
