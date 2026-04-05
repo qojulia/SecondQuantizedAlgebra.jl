@@ -1,21 +1,21 @@
 """
-    ClusterSpace{T} <: HilbertSpace
+    ClusterSpace{H,T} <: HilbertSpace
 
 Hilbert space representing N identical copies of another space, with
 correlations tracked up to a specified order.
 
 Fields:
-- `original_space::HilbertSpace` — the space being replicated
+- `original_space::H` — the space being replicated
 - `N::T` — total number of copies (Int or symbolic, used by QC for scaling)
 - `order::Int` — number of distinct copies to track in the algebra
 """
-struct ClusterSpace{T} <: HilbertSpace
-    original_space::HilbertSpace
+struct ClusterSpace{H<:HilbertSpace,T} <: HilbertSpace
+    original_space::H
     N::T
     order::Int
-    function ClusterSpace(original_space::HilbertSpace, N::T, order::Int) where {T}
+    function ClusterSpace(original_space::H, N::T, order::Int) where {H<:HilbertSpace,T}
         order >= 1 || throw(ArgumentError("Order must be >= 1, got $order"))
-        return new{T}(original_space, N, order)
+        return new{H,T}(original_space, N, order)
     end
 end
 
