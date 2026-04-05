@@ -17,6 +17,34 @@ using Test
         @test m.args_nc[2] isa Create
     end
 
+    @testset "Stable sort: same-site order preserved" begin
+        # a·a† and a†·a must produce distinct QMul (not commuted)
+        m1 = a * ad   # [Destroy, Create]
+        m2 = ad * a   # [Create, Destroy]
+        @test m1.args_nc[1] isa Destroy
+        @test m1.args_nc[2] isa Create
+        @test m2.args_nc[1] isa Create
+        @test m2.args_nc[2] isa Destroy
+        @test !isequal(m1, m2)
+
+        # Multi-operator: a·a†·a must keep that order within the site
+        m3 = a * ad * a
+        @test m3.args_nc[1] isa Destroy
+        @test m3.args_nc[2] isa Create
+        @test m3.args_nc[3] isa Destroy
+
+        # Cross-site operators reorder freely, but within-site order is preserved
+        h2 = FockSpace(:a) ⊗ FockSpace(:b)
+        a1 = Destroy(h2, :a, 1)
+        a2 = Destroy(h2, :b, 2)
+        # a2 * a1' * a1: cross-site sort groups space-1 ops together,
+        # but a1' must stay left of a1 within space 1
+        m4 = a2 * a1' * a1
+        space1_ops = filter(op -> op.space_index == 1, m4.args_nc)
+        @test space1_ops[1] isa Create
+        @test space1_ops[2] isa Destroy
+    end
+
     @testset "Scalar multiplication" begin
         m1 = 3 * a
         @test m1 isa QMul
