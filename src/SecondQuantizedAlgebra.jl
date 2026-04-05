@@ -29,6 +29,7 @@ include("commutator.jl")
 include("change_index.jl")
 include("expand_sums.jl")
 include("normal_order.jl")
+include("average.jl")
 include("printing.jl")
 include("latexify_recipes.jl")
 include("numeric.jl")
@@ -46,6 +47,9 @@ export FockSpace, ProductSpace,
     Destroy, Create,
     @qnumbers,
     NormalOrder,
+    average, undo_average,
+    acts_on, is_average,
+    has_sum_metadata, get_sum_indices, get_sum_non_equal,
     normal_order, simplify, expand, commutator,
     to_numeric, numeric_average,
     transition_superscript
