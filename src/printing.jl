@@ -49,13 +49,13 @@ end
 function Base.show(io::IO, x::Destroy)
     print(io, x.name)
     _show_copy_suffix(io, x.copy_index)
-    _show_index_suffix(io, x.index)
+    return _show_index_suffix(io, x.index)
 end
 function Base.show(io::IO, x::Create)
     print(io, x.name)
     _show_copy_suffix(io, x.copy_index)
     _show_index_suffix(io, x.index)
-    write(io, "†")
+    return write(io, "†")
 end
 
 # Operators — Transition: σ₁₂ or σ_i₁₂
@@ -83,30 +83,30 @@ function Base.show(io::IO, x::Pauli)
     print(io, x.name)
     _show_copy_suffix(io, x.copy_index)
     _show_index_suffix(io, x.index)
-    print(io, _xyz_sym[x.axis])
+    return print(io, _xyz_sym[x.axis])
 end
 function Base.show(io::IO, x::Spin)
     print(io, x.name)
     _show_copy_suffix(io, x.copy_index)
     _show_index_suffix(io, x.index)
-    print(io, _xyz_sym[x.axis])
+    return print(io, _xyz_sym[x.axis])
 end
 
 # Operators — Position/Momentum
 function Base.show(io::IO, x::Position)
     print(io, x.name)
     _show_copy_suffix(io, x.copy_index)
-    _show_index_suffix(io, x.index)
+    return _show_index_suffix(io, x.index)
 end
 function Base.show(io::IO, x::Momentum)
     print(io, x.name)
     _show_copy_suffix(io, x.copy_index)
-    _show_index_suffix(io, x.index)
+    return _show_index_suffix(io, x.index)
 end
 
 # Helper: clean display of a numeric prefactor
 function _show_prefactor(io::IO, c::CNum)
-    if iszero(imag(c))
+    return if iszero(imag(c))
         print(io, real(c))
     elseif iszero(real(c))
         i = imag(c)

@@ -27,8 +27,8 @@ function benchmark_simplify_and_normal_order!(SUITE)
 
     @variables Ω_p Ω_c Δ_p Δ_c
     H_lambda = Δ_p * σ(2, 2) + (Δ_p - Δ_c) * σ(3, 3) +
-               Ω_p * (a3' * σ(1, 2) + a3 * σ(2, 1)) +
-               Ω_c * (σ(2, 3) + σ(3, 2))
+        Ω_p * (a3' * σ(1, 2) + a3 * σ(2, 1)) +
+        Ω_c * (σ(2, 3) + σ(3, 2))
 
     SUITE["Simplify"]["Λ-system"]["H"] = @benchmarkable simplify($H_lambda) seconds = 3
     SUITE["Simplify"]["Λ-system"]["H²"] = @benchmarkable simplify(

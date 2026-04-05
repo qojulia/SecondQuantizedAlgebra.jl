@@ -7,8 +7,12 @@ via `Symbolics.substitute` using the `sym` fields of the indices.
 """
 change_index(x::Number, ::Index, ::Index) = x
 function change_index(x::Num, from::Index, to::Index)
-    return Num(Symbolics.substitute(Symbolics.unwrap(x),
-        Dict(Symbolics.unwrap(from.sym) => Symbolics.unwrap(to.sym))))
+    return Num(
+        Symbolics.substitute(
+            Symbolics.unwrap(x),
+            Dict(Symbolics.unwrap(from.sym) => Symbolics.unwrap(to.sym))
+        )
+    )
 end
 function change_index(x::CNum, from::Index, to::Index)
     return Complex(change_index(real(x), from, to), change_index(imag(x), from, to))
@@ -52,8 +56,10 @@ end
 function change_index(s::QAdd, from::Index, to::Index)
     new_terms = QMul[change_index(t, from, to) for t in s.arguments]
     new_indices = [idx == from ? to : idx for idx in s.indices]
-    new_ne = Tuple{Index, Index}[(a == from ? to : a, b == from ? to : b)
-                                  for (a, b) in s.non_equal]
+    new_ne = Tuple{Index, Index}[
+        (a == from ? to : a, b == from ? to : b)
+            for (a, b) in s.non_equal
+    ]
     return QAdd(new_terms, new_indices, new_ne)
 end
 

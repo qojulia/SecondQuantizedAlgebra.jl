@@ -122,7 +122,7 @@ import SecondQuantizedAlgebra: simplify, QMul, QAdd, QSym
         σ_i = IndexedOperator(Transition(h2, :σ, 1, 2, 2), i)
 
         @test latexify(IndexedVariable(:g, i) * b' * σ_i) ==
-              L"g\left( i \right)b^{\dagger}{\sigma}_{i}^{{12}}"
+            L"g\left( i \right)b^{\dagger}{\sigma}_{i}^{{12}}"
     end
 
     @testset "Sum" begin
@@ -134,7 +134,7 @@ import SecondQuantizedAlgebra: simplify, QMul, QAdd, QSym
 
         H = Σ(IndexedVariable(:g, i) * b' * σ_i, i)
         @test latexify(H) ==
-              L"\underset{i}{\overset{N}{\sum}}\left(  g\left( i \right)b^{\dagger}{\sigma}_{i}^{{12}} \right)"
+            L"\underset{i}{\overset{N}{\sum}}\left(  g\left( i \right)b^{\dagger}{\sigma}_{i}^{{12}} \right)"
     end
 
     @testset "MIME text/latex" begin

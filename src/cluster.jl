@@ -9,13 +9,13 @@ Fields:
 - `N::T` — total number of copies (Int or symbolic, used by QC for scaling)
 - `order::Int` — number of distinct copies to track in the algebra
 """
-struct ClusterSpace{H<:HilbertSpace,T} <: HilbertSpace
+struct ClusterSpace{H <: HilbertSpace, T} <: HilbertSpace
     original_space::H
     N::T
     order::Int
-    function ClusterSpace(original_space::H, N::T, order::Int) where {H<:HilbertSpace,T}
+    function ClusterSpace(original_space::H, N::T, order::Int) where {H <: HilbertSpace, T}
         order >= 1 || throw(ArgumentError("Order must be >= 1, got $order"))
-        return new{H,T}(original_space, N, order)
+        return new{H, T}(original_space, N, order)
     end
 end
 

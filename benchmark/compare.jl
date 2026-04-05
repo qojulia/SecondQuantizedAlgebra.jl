@@ -110,14 +110,14 @@ end
 
 # --- Run ---
 BenchmarkTools.tune!(SUITE)
-results = BenchmarkTools.run(SUITE; verbose=true)
+results = BenchmarkTools.run(SUITE; verbose = true)
 
 println("\n" * "="^70)
 println("RESULTS (median)")
 println("="^70)
-for (group_name, group) in sort(collect(results), by=first)
+for (group_name, group) in sort(collect(results), by = first)
     println("\n[$group_name]")
-    for (bench_name, trial) in sort(collect(group), by=first)
+    for (bench_name, trial) in sort(collect(group), by = first)
         m = median(trial)
         println("  $bench_name: $(BenchmarkTools.prettytime(time(m)))  ($(BenchmarkTools.prettymemory(memory(m))), $(allocs(m)) allocs)")
     end

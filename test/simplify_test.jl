@@ -118,8 +118,10 @@ import SecondQuantizedAlgebra: simplify, QMul, QAdd, QSym, QField
         # Transition — ground state rewriting
         σ11 = Transition(hn, :σ, 1, 1)
         σ21 = Transition(hn, :σ, 2, 1)
-        @test isequal(simplify(simplify(σ11 * σ12 * σ21, hn), hn),
-            simplify(σ11 * σ12 * σ21, hn))
+        @test isequal(
+            simplify(simplify(σ11 * σ12 * σ21, hn), hn),
+            simplify(σ11 * σ12 * σ21, hn)
+        )
 
         # Pauli — long chain
         hp = PauliSpace(:p)
@@ -127,8 +129,10 @@ import SecondQuantizedAlgebra: simplify, QMul, QAdd, QSym, QField
         σy = Pauli(hp, :σ, 2)
         σz = Pauli(hp, :σ, 3)
         @test isequal(simplify(simplify(σx * σy * σz)), simplify(σx * σy * σz))
-        @test isequal(simplify(simplify(σx * σy * σz * σx * σy)),
-            simplify(σx * σy * σz * σx * σy))
+        @test isequal(
+            simplify(simplify(σx * σy * σz * σx * σy)),
+            simplify(σx * σy * σz * σx * σy)
+        )
 
         # Pauli — sum-of-products
         pauli_expr = (σx + σy) * (σy + σz)

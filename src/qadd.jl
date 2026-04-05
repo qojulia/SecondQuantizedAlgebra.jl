@@ -12,8 +12,10 @@ struct QAdd <: QTerm
     arguments::Vector{QMul}
     indices::Vector{Index}
     non_equal::Vector{Tuple{Index, Index}}
-    function QAdd(args::Vector{QMul}, indices::Vector{Index},
-        non_equal::Vector{Tuple{Index, Index}})
+    function QAdd(
+            args::Vector{QMul}, indices::Vector{Index},
+            non_equal::Vector{Tuple{Index, Index}}
+        )
         return new(args, indices, non_equal)
     end
 end

@@ -18,8 +18,8 @@ Only operators on the same site can interact (apply commutation/composition rule
 """
 function _same_site(a::QSym, b::QSym)
     return a.space_index == b.space_index &&
-           a.copy_index == b.copy_index &&
-           a.index == b.index
+        a.copy_index == b.copy_index &&
+        a.index == b.index
 end
 
 # Internal quantum simplification — applies operator algebra rules
@@ -91,8 +91,10 @@ end
 Process one QMul term. Scans adjacent operator pairs for the first applicable
 rule, pushes resulting terms to `worklist`, or pushes to `done` if fully simplified.
 """
-function _simplify_product!(m::QMul, ord::OrderingConvention,
-    worklist::Vector{QMul}, done::Vector{QMul})
+function _simplify_product!(
+        m::QMul, ord::OrderingConvention,
+        worklist::Vector{QMul}, done::Vector{QMul}
+    )
     ops = m.args_nc
     c = m.arg_c
     n = length(ops)
@@ -148,8 +150,10 @@ end
 
 Apply ordering-specific commutation rules in-place.
 """
-function _apply_ordering_swap!(a, b, i, c::CNum, ops,
-    ::NormalOrder, worklist::Vector{QMul})
+function _apply_ordering_swap!(
+        a, b, i, c::CNum, ops,
+        ::NormalOrder, worklist::Vector{QMul}
+    )
     # Fock: a·a† → a†·a + 1
     if a isa Destroy && b isa Create && _same_site(a, b) && a.name == b.name
         swapped = copy(ops)
@@ -228,8 +232,10 @@ function _simplify_prefactor(x::CNum)
     iszero(x) && return x
     r, i = Symbolics.unwrap(real(x)), Symbolics.unwrap(imag(x))
     # Fast path: skip Symbolics.simplify for purely numeric prefactors
-    (SymbolicUtils.iscall(r) || SymbolicUtils.issym(r) ||
-     SymbolicUtils.iscall(i) || SymbolicUtils.issym(i)) || return x
+    (
+        SymbolicUtils.iscall(r) || SymbolicUtils.issym(r) ||
+            SymbolicUtils.iscall(i) || SymbolicUtils.issym(i)
+    ) || return x
     return Symbolics.simplify(x)
 end
 _simplify_prefactor(x::Number) = x

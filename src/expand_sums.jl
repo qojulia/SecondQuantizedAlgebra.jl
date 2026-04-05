@@ -19,9 +19,9 @@ function expand_sums(s::QAdd)
         for idx in term_indices
             for sum_idx in s.indices
                 if idx != sum_idx &&
-                    idx.space_index == sum_idx.space_index &&
-                    !((sum_idx, idx) in s.non_equal) &&
-                    !((idx, sum_idx) in s.non_equal)
+                        idx.space_index == sum_idx.space_index &&
+                        !((sum_idx, idx) in s.non_equal) &&
+                        !((idx, sum_idx) in s.non_equal)
                     # Diagonal split: generate term with sum_idx → idx
                     diag_term = change_index(term, sum_idx, idx)
                     push!(result_terms, diag_term)

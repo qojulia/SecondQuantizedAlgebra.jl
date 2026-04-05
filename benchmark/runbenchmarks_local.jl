@@ -43,9 +43,11 @@ println("\nResults saved to: ", filename)
 # ── Prune old results (keep last 5 per CPU) ──────────────────────────────────
 
 let
-    all_jsons = sort(filter(readdir(datadir; join = true)) do f
-        endswith(f, ".json") && contains(basename(f), cpu_name)
-    end)
+    all_jsons = sort(
+        filter(readdir(datadir; join = true)) do f
+            endswith(f, ".json") && contains(basename(f), cpu_name)
+        end
+    )
     if length(all_jsons) > 5
         for old in all_jsons[1:(end - 5)]
             rm(old)
@@ -112,7 +114,7 @@ function fmt_change(old, new)
 end
 
 function rpad_or_trim(s::AbstractString, n::Int)
-    length(s) >= n ? s[1:min(n, end)] : rpad(s, n)
+    return length(s) >= n ? s[1:min(n, end)] : rpad(s, n)
 end
 
 function print_changelog(datadir::String, cpu_name::String)
@@ -167,7 +169,7 @@ function print_changelog(datadir::String, cpu_name::String)
     end
 
     println()
-    println("Legend: Δ = change from previous run. Negative = faster.")
+    return println("Legend: Δ = change from previous run. Negative = faster.")
 end
 
 print_changelog(datadir, cpu_name)
