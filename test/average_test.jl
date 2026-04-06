@@ -2,8 +2,8 @@ using SecondQuantizedAlgebra
 using Test
 using SymbolicUtils: SymbolicUtils, SymReal, symtype
 using Symbolics: Symbolics, @variables
-import SecondQuantizedAlgebra: QMul, QAdd, QSym, QField, CNum, _to_cnum, _to_qmul,
-    AvgSym, AvgFunc, sym_average, SumIndices, SumNonEqual
+import SecondQuantizedAlgebra: simplify, QMul, QAdd, QSym, QField, CNum, _to_cnum,
+    _to_qmul, AvgSym, AvgFunc, sym_average, SumIndices, SumNonEqual
 
 @testset "Average" begin
 
@@ -284,6 +284,118 @@ import SecondQuantizedAlgebra: QMul, QAdd, QSym, QField, CNum, _to_cnum, _to_qmu
 
         # Average of average (passthrough — averages are BasicSymbolic scalars)
         @test isequal(average(avg_a), avg_a)
+    end
+
+    @testset "Average extracts indexed variable prefactor" begin
+        ha = NLevelSpace(:atom, 2, 1)
+        hf = FockSpace(:f)
+        h = hf ⊗ ha
+        @variables N
+        i = Index(h, :i, N, ha)
+        gi = IndexedVariable(:g, i)
+        σi = IndexedOperator(Transition(h, :σ, 1, 2, 2), i)
+
+        # average of indexed variable alone is itself (it's a c-number)
+        @test isequal(average(gi), gi)
+
+        # average(2*σ) = 2*average(σ)
+        # TODO: isequal fails on structurally equivalent symbolic Mul trees
+        @test_broken isequal(average(2 * σi), 2 * average(σi))
+
+        # average(g(i)*σ(i)) pulls g(i) out as prefactor
+        avg = average(gi * Transition(h, :σ, 2, 2, 2))
+        @test SymbolicUtils.iscall(avg)
+    end
+
+    @testset "Commutativity of average products" begin
+        hf = FockSpace(:cavity)
+        ha = NLevelSpace(:atom, 2, 1)
+        h = hf ⊗ ha
+        a = Destroy(h, :a, 1)
+        σ = Transition(h, :σ, 1, 2, 2)
+
+        @test isequal(
+            average(a * σ) * average(a) - average(a) * average(a * σ),
+            Symbolics.Num(0),
+        )
+    end
+
+    @testset "get_indices on averages" begin
+        ha = NLevelSpace(:atom, 2, 1)
+        hf = FockSpace(:f)
+        h = hf ⊗ ha
+        @variables N_gi
+        i = Index(h, :i, N_gi, ha)
+        j = Index(h, :j, N_gi, ha)
+        σi = IndexedOperator(Transition(h, :σ, 1, 2, 2), i)
+        σj = IndexedOperator(Transition(h, :σ, 2, 1, 2), j)
+
+        # get_indices on QAdd of indexed operators
+        @test isequal(get_indices(σi + σj), [i, j])
+
+        # get_indices on average expressions (TODO: not yet supported)
+        @test_broken isequal(
+            sort(get_indices(average(σi) + 3 + average(σj))), sort([i, j])
+        )
+    end
+
+    @testset "C-number handling" begin
+        hf = FockSpace(:cavity)
+        ha = NLevelSpace(:atom, 2, 1)
+        h = hf ⊗ ha
+
+        a = Destroy(h, :a, 1)
+
+        @variables ωc::Real
+        @test isequal(average(ωc), ωc)
+        # average pulls scalar prefactors out
+        avg_ωa = average(ωc * a)
+        @test is_average(avg_ωa) || SymbolicUtils.iscall(avg_ωa)
+    end
+
+    @testset "Double average (QC#242)" begin
+        @variables Δ_::Real g::Real κ::Real η::Real
+
+        hf = FockSpace(:cavity)
+        ha1 = NLevelSpace(:atom1, 2, 1)
+        ha2 = NLevelSpace(:atom2, 2, 1)
+        h = hf ⊗ ha1 ⊗ ha2
+
+        a = Destroy(h, :a, 1)
+        s1(i, j) = Transition(h, :s1, i, j, 2)
+        s2(i, j) = Transition(h, :s2, i, j, 3)
+
+        H =
+            Δ_ * a' * a +
+            g * (a' + a) * (s1(2, 1) + s1(1, 2) + s2(2, 1) + s2(1, 2)) +
+            η * (a' + a)
+
+        imH = im * H
+        op_ = a' * a
+        rhs_ = commutator(imH, op_)
+        rhs_avg = average(rhs_)
+        rhs_avg_simplified = SymbolicUtils.simplify(rhs_avg)
+
+        # TODO: undo_average hits complex(BasicSymbolic, BasicSymbolic) MethodError
+        # when symbolic prefactors (from @variables) are present
+        @test_broken begin
+            terms = undo_average(rhs_avg_simplified)
+            all(arg -> arg isa QMul, SymbolicUtils.arguments(terms))
+        end
+    end
+
+    @testset "Average addition/multiplication (PR 28)" begin
+        ha1 = NLevelSpace(:atom1, 2, 1)
+        ha2 = NLevelSpace(:atom2, 2, 1)
+        h = ha1 ⊗ ha2
+        s1(i, j) = Transition(h, :s1, i, j, 1)
+        s2(i, j) = Transition(h, :s2, i, j, 2)
+
+        expr = average(s1(2, 1) + s1(1, 2) + s2(2, 1) + s2(1, 2))
+        @test expr isa SymbolicUtils.BasicSymbolic
+
+        expr2 = simplify(average(s1(2, 1) + s1(1, 2)))
+        @test expr2 isa SymbolicUtils.BasicSymbolic
     end
 
     @testset "Multi-space averaging" begin

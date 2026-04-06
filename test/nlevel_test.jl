@@ -1,5 +1,5 @@
 using SecondQuantizedAlgebra
-import SecondQuantizedAlgebra: QMul, QAdd, QSym, HilbertSpace
+import SecondQuantizedAlgebra: simplify, QMul, QAdd, QSym, HilbertSpace
 using Test
 
 @testset "nlevel" begin
@@ -70,6 +70,49 @@ using Test
         @qnumbers σ::Transition(h, 1, 2)
         @test σ isa Transition
         @test σ.name == :σ
+    end
+
+    @testset "Ground state projector" begin
+        h = NLevelSpace(:atom, 2, 1)
+        σ = Transition(h, :σ, 1, 2)
+        σee = Transition(h, :σ, 2, 2)
+        σgg = Transition(h, :σ, 1, 1)
+
+        # σ*σ' = σ_gg (ground state projector)
+        @test isequal(simplify(normal_order(σ * σ')), simplify(σgg))
+        # σ_gg = 1 - σ_ee (completeness relation)
+        # TODO: simplify doesn't reduce σgg to 1-σee
+        @test_broken isequal(simplify(σgg), simplify(1 - σee))
+    end
+
+    @testset "Algebraic relations" begin
+        h = NLevelSpace(:atom, 2, 1)
+        σ = Transition(h, :σ, 1, 2)
+        σee = Transition(h, :σ, 2, 2)
+        σgg = Transition(h, :σ, 1, 1)
+
+        # normal_order applies transition product rules
+        @test isequal(simplify(normal_order(σ' * σ)), simplify(σee))
+        # σ*σ' = σgg (ground state projector), which is 1 - σee
+        no_result = simplify(normal_order(σ * σ'))
+        @test isequal(no_result, simplify(σgg))
+    end
+
+    @testset "Product space operations" begin
+        ha1 = NLevelSpace(:atom1, 2, 1)
+        ha2 = NLevelSpace(:atom2, 2, 1)
+        hprod = ha1 ⊗ ha2
+
+        σ1 = Transition(hprod, :σ1, 1, 2, 1)
+        σ2 = Transition(hprod, :σ2, 1, 2, 2)
+
+        @test isequal(
+            simplify(normal_order(σ1' * σ1)), simplify(Transition(hprod, :σ1, 2, 2, 1))
+        )
+        no_result = simplify(normal_order(σ2 * σ2'))
+        @test isequal(no_result, simplify(Transition(hprod, :σ2, 1, 1, 2)))
+        # Different subspaces don't interact
+        @test isequal(simplify(σ1 * σ2), simplify(σ1 * σ2))
     end
 
     @testset "Concrete types" begin

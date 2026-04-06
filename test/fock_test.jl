@@ -1,5 +1,5 @@
 using SecondQuantizedAlgebra
-import SecondQuantizedAlgebra: QSym
+import SecondQuantizedAlgebra: simplify, QMul, QAdd, QSym
 using Test
 
 @testset "fock operators" begin
@@ -50,6 +50,53 @@ using Test
         import SecondQuantizedAlgebra: ladder
         @test ladder(a) == 1
         @test ladder(a') == 0
+    end
+
+    @testset "Algebraic simplification" begin
+        h = FockSpace(:c)
+        a = Destroy(h, :a)
+
+        @test isequal(simplify(a + a), simplify(2 * a))
+        @test isequal(simplify(a / 2 + 0.5 * a), simplify(1.0 * a))
+    end
+
+    @testset "Commutation relations" begin
+        h = FockSpace(:c)
+        a = Destroy(h, :a)
+
+        # Lazy multiplication — normal_order applies commutation rules
+        @test isequal(simplify(normal_order(a * a')), simplify(1 + a' * a))
+        @test isequal(simplify(normal_order(a * a') + 1), simplify(2 + a' * a))
+    end
+
+    @testset "Hamiltonian evolution" begin
+        h = FockSpace(:c)
+        a = Destroy(h, :a)
+
+        ωc = 0.1313
+        H = ωc * a' * a
+        da = simplify(1.0im * commutator(H, a))
+        @test isequal(da, simplify((0.0 - 1.0im) * ωc * a))
+    end
+
+    @testset "Multi-space commutators" begin
+        h1 = FockSpace(:c1)
+        h2 = FockSpace(:c2)
+        h3 = FockSpace(:c3)
+        h4 = FockSpace(:c4)
+        h = h1 ⊗ h2 ⊗ h3 ⊗ h4
+
+        a1 = Destroy(h, :a1, 1)
+        a2 = Destroy(h, :a2, 2)
+
+        @test isequal(
+            simplify(commutator(a1 + a2, a1')), QAdd(QMul[QMul(1, QSym[])])
+        )
+        @test isequal(
+            simplify(commutator(a2', a1 + a2)), QAdd(QMul[QMul(-1, QSym[])])
+        )
+
+        @test commutator(a1, 1) == commutator(1, a2)
     end
 
     @testset "Concrete types" begin

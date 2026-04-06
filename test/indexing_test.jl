@@ -1,7 +1,8 @@
 using SecondQuantizedAlgebra
 using Test
+using SymbolicUtils: SymbolicUtils
 using Symbolics: Symbolics, @variables
-import SecondQuantizedAlgebra: QMul, QAdd, QSym, CNum, _to_cnum, NO_INDEX
+import SecondQuantizedAlgebra: simplify, QMul, QAdd, QSym, CNum, _to_cnum, NO_INDEX
 
 @testset "Indexing" begin
 
@@ -647,6 +648,233 @@ import SecondQuantizedAlgebra: QMul, QAdd, QSym, CNum, _to_cnum, NO_INDEX
         sum_expr = Σ(ai, i)
         result = commutator(qmul_expr, sum_expr)
         @test result isa QAdd
+    end
+
+    # ========== Single Hilbert space (non-ProductSpace) ==========
+    @testset "Index on single HilbertSpace" begin
+        N = 10
+        h = NLevelSpace(:atom, 2, 1)
+        i = Index(h, :i, N, h)
+
+        σ(x, y, k) = IndexedOperator(Transition(h, :σ, x, y), k)
+        @test σ(1, 2, i) == (σ(1, 2, i)')'
+    end
+
+    # ========== Mixed operator types (NLevel × NLevel) ==========
+    @testset "Mixed NLevel operator types across subspaces" begin
+        hc = NLevelSpace(:cavity, 3, 1)
+        ha = NLevelSpace(:atom, 2, 1)
+        h = hc ⊗ ha
+
+        @variables N::Real
+        i = Index(h, :i, N, ha)
+
+        S(x, y) = Transition(h, :S, x, y, 1)
+        σ(x, y, k) = IndexedOperator(Transition(h, :σ, x, y, 2), k)
+
+        @test S(2, 1) * σ(1, 2, i) isa QMul
+        @test σ(1, 2, i) * S(2, 1) isa QMul
+        @test isequal(S(2, 1) * σ(1, 2, i), σ(1, 2, i) * S(2, 1))
+    end
+
+    # ========== Indexed variable arithmetic ==========
+    @testset "IndexedVariable in prefactor" begin
+        i = Index(h_prod, :i, 10, hn)
+        gi = IndexedVariable(:g, i)
+
+        # g(i)*a puts indexed variable in prefactor, operator in args_nc
+        m = gi * a
+        @test m isa QMul
+        @test isequal(m.args_nc, [a])
+
+        # a*g(i) same
+        m2 = a * gi
+        @test m2 isa QMul
+        @test isequal(m2.args_nc, [a])
+
+        # g(i)*a†
+        m3 = gi * a'
+        @test m3 isa QMul
+        @test isequal(m3.args_nc, [a'])
+
+        # a†*g(i)
+        m4 = a' * gi
+        @test m4 isa QMul
+        @test isequal(m4.args_nc, [a'])
+
+        # σ*g(i)
+        σi = IndexedOperator(sigma, i)
+        m5 = σi * gi
+        @test m5 isa QMul
+        @test isequal(m5.args_nc, [σi])
+
+        # g(i)*σ
+        m6 = gi * σi
+        @test m6 isa QMul
+        @test isequal(m6.args_nc, [σi])
+
+        # g(i)*QMul preserves operators
+        qmul = a' * a
+        m7 = gi * qmul
+        @test length(m7.args_nc) == 2
+        m8 = qmul * gi
+        @test length(m8.args_nc) == 2
+    end
+
+    @testset "IndexedVariable addition commutativity" begin
+        i = Index(h_prod, :i, 10, hn)
+        j = Index(h_prod, :j, 10, hn)
+        gi = IndexedVariable(:g, i)
+        σi = IndexedOperator(sigma, i)
+        σj = IndexedOperator(sigma, j)
+
+        @test isequal(gi + a, a + gi)
+        # TODO: QAdd isequal is not order-independent for indexed operators
+        @test_broken isequal(a + σi, σi + a)
+        @test_broken isequal(σj + σi, σi + σj)
+
+        qadd = a + a'
+        @test isequal(gi + qadd, qadd + gi)
+        @test length((qadd + gi).arguments) == 3
+        @test length((qadd + σi).arguments) == 3
+        @test isequal(σi + qadd, qadd + σi)
+
+        qmul = a' * a
+        @test isequal(gi + qmul, qmul + gi)
+        @test isequal(gi + σj, σj + gi)
+    end
+
+    @testset "Negation of indexed operators" begin
+        i = Index(h_prod, :i, 10, hn)
+        gi = IndexedVariable(:g, i)
+        σi = IndexedOperator(sigma, i)
+
+        @test isequal(-σi, -1 * σi)
+        @test isequal(-gi, -1 * gi)
+    end
+
+    # ========== Indexed commutators across spaces ==========
+    @testset "Indexed commutator — different spaces vanish" begin
+        i = Index(h_prod, :i, 10, hn)
+        σi = IndexedOperator(sigma, i)
+        qadd = a + a'
+        qmul = a' * a
+
+        # σ on NLevel space, a on Fock space → different spaces → commutator = 0
+        @test all(iszero, simplify(commutator(σi, qadd)).arguments)
+        @test all(iszero, simplify(commutator(σi, qmul)).arguments)
+    end
+
+    # ========== Same-index Fock normal ordering ==========
+    @testset "Same-index Fock: a_m · a_m† = a_m† · a_m + 1" begin
+        m = Index(hf, :m, 10, hf)
+        ai = IndexedOperator(a, m)
+        result = simplify(normal_order(ai * ai'))
+        expected = simplify(ai' * ai + 1)
+        @test isequal(result, expected)
+    end
+
+    # ========== Same-site transition product = 0 ==========
+    @testset "Same-site σ₁₂·σ₁₂ = 0 via normal_order" begin
+        i = Index(h_prod, :i, 10, hn)
+        σi = IndexedOperator(sigma, i)
+        result = simplify(normal_order(σi * σi))
+        @test all(iszero, result.arguments)
+    end
+
+    # ========== change_index producing zero ==========
+    @testset "change_index — DoubleIndexedVariable identical=false → 0" begin
+        i = Index(hf, :i, 10, hf)
+        j = Index(hf, :j, 10, hf)
+        Ωij = DoubleIndexedVariable(:Ω, i, j; identical = false)
+        # When both indices become the same, identical=false should give 0
+        @test isequal(DoubleIndexedVariable(:Ω, i, i; identical = false), Symbolics.Num(0))
+    end
+
+    # ========== Single sums ==========
+    @testset "Single sum operations" begin
+        N = 10
+        i = Index(h_prod, :i, N, hn)
+        j = Index(h_prod, :j, N, hn)
+        gi = IndexedVariable(:g, i)
+        gj = IndexedVariable(:g, j)
+        σi(x, y) = IndexedOperator(Transition(h_prod, :σ, x, y, 2), i)
+        Γij = DoubleIndexedVariable(:Γ, i, j)
+
+        s1 = Σ(σi(1, 2) * a', i)
+        s2 = Σ(IndexedOperator(Transition(h_prod, :σ, 2, 1, 2), i) * a, i)
+        s3 = Σ(a' * σi(1, 2) + a * IndexedOperator(Transition(h_prod, :σ, 2, 1, 2), i), i)
+
+        # adjoint distributes over sums
+        @test isequal(adjoint(s1), s2)
+        # sum of sum = sum of terms
+        @test isequal(s3, s1 + s2)
+
+        # Σ(0, i) stays as a QAdd (lazy)
+        @test Σ(0, i) isa QAdd
+
+        # Sum of variable over unrelated index → N * variable (TODO: not simplified yet)
+        @test_broken isequal(Σ(gj, i), N * gj)
+        @test_broken isequal(Σ(Γij, Index(h_prod, :k, N, hn)), N * Γij)
+
+        # ∑ and Σ equivalence
+        @test isequal(∑(σi(1, 2), i), Σ(σi(1, 2), i))
+        @test isequal(
+            ∑(σi(1, 2) * IndexedOperator(Transition(h_prod, :σ, 2, 1, 2), j), i, j),
+            Σ(σi(1, 2) * IndexedOperator(Transition(h_prod, :σ, 2, 1, 2), j), i, j),
+        )
+
+        # change_index on ∑
+        @test isequal(
+            change_index(∑(2gj, j), j, i),
+            ∑(2gi, i),
+        )
+    end
+
+    @testset "Sum addition" begin
+        N = 10
+        i = Index(h_prod, :i, N, hn)
+        σi = IndexedOperator(sigma, i)
+        s1 = Σ(σi * a', i)
+
+        # Sum + operator
+        @test (s1 + a') isa QAdd
+        @test (s1 + σi) isa QAdd
+
+        # Sum + QAdd
+        qadd = a + a'
+        @test length((qadd + s1).arguments) == 3
+        # TODO: QAdd isequal is not order-independent for sums
+        @test_broken isequal(s1 + qadd, qadd + s1)
+
+        # Sum + QMul
+        qmul = a' * a
+        @test s1 + qmul isa QAdd
+    end
+
+    # ========== Sum of a constant ==========
+    @testset "Sum of constant over index" begin
+        @variables α::Real
+        N = 10
+        i = Index(h_prod, :i, N, hn)
+        s = Σ(Symbolics.Num(α), i)
+        @test s isa QAdd
+        @test i in s.indices
+    end
+
+    # ========== Average addition with indexed sums (PR 28) ==========
+    @testset "Average addition with indexed sums (PR 28)" begin
+        ha = NLevelSpace(:atom1, 2, 1)
+        hb = NLevelSpace(:atom2, 2, 1)
+        h = ha ⊗ hb
+        @variables N
+        i1 = Index(h, :i1, N, ha)
+        i2 = Index(h, :i2, N, hb)
+        s1(α, β, i) = IndexedOperator(Transition(h, :S1, α, β, 1), i)
+        s2(α, β, i) = IndexedOperator(Transition(h, :S2, α, β, 2), i)
+
+        term = average(Σ(s1(2, 1, i1) * s2(1, 2, i2), i1, i2))
+        @test (term + term) isa SymbolicUtils.BasicSymbolic
     end
 
     # ========== Type stability ==========

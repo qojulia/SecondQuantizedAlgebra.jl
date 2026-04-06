@@ -1,8 +1,9 @@
 using SecondQuantizedAlgebra
 using QuantumOpticsBase
 using Latexify
+using Symbolics: @variables, Num
 using Test
-import SecondQuantizedAlgebra: simplify, QMul, QAdd, QSym, HilbertSpace
+import SecondQuantizedAlgebra: simplify, _ZERO_QADD, QMul, QAdd, QSym, HilbertSpace
 
 @testset "phase_space" begin
     @testset "PhaseSpace" begin
@@ -99,6 +100,54 @@ import SecondQuantizedAlgebra: simplify, QMul, QAdd, QSym, HilbertSpace
         # Different spaces — no commutation
         result = simplify(p2 * x1)
         @test length(result.arguments) == 1
+    end
+
+    @testset "Higher-order algebra" begin
+        h = PhaseSpace(:motion)
+        x = Position(h, :x)
+        p = Momentum(h, :p)
+
+        @test isequal(
+            simplify(normal_order(p * x * x)), simplify(x * x * p - 2im * x)
+        )
+    end
+
+    @testset "Multi-space algebra" begin
+        hps1 = PhaseSpace(:motion1)
+        hps2 = PhaseSpace(:motion2)
+        h = hps1 ⊗ hps2
+
+        x1 = Position(h, :x_1, 1)
+        p1 = Momentum(h, :p_1, 1)
+        x2 = Position(h, :x_2, 2)
+
+        @test isequal(p1 * x2, x2 * p1)
+        @test isequal(
+            simplify(normal_order(p1 * x2 * x1)),
+            simplify((x1 * p1 - 1im) * x2),
+        )
+    end
+
+    @testset "Hamiltonian construction and commutators" begin
+        hps1 = PhaseSpace(:motion1)
+        hps2 = PhaseSpace(:motion2)
+        h = hps1 ⊗ hps2
+
+        x1 = Position(h, :x_1, 1)
+        p1 = Momentum(h, :p_1, 1)
+        x2 = Position(h, :x_2, 2)
+        p2 = Momentum(h, :p_2, 2)
+
+        @variables ω::Real m::Real miv::Real c::Real
+        H = 0.5 * Num(miv) * p1^2 + 0.5Num(m) * Num(ω)^2 * x1^2 + Num(c) * x1^4
+
+        @test isequal(simplify(commutator(H, x2)), _ZERO_QADD)
+        @test isequal(simplify(commutator(H, p2)), _ZERO_QADD)
+        @test isequal(simplify(1im * commutator(H, x1)), simplify(p1 * Num(miv)))
+        @test isequal(
+            simplify(1im * commutator(H, p1)),
+            simplify(-x1 * Num(m) * Num(ω)^2 - 4 * Num(c) * x1^3),
+        )
     end
 
     @testset "Numeric conversion" begin

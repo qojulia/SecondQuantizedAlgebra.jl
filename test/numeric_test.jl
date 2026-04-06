@@ -164,6 +164,123 @@ using Test
         @test numeric_average(3, ψ, d) === 3
     end
 
+    @testset "Composite basis with gaps" begin
+        hfock = FockSpace(:fock)
+        hnlevel = NLevelSpace(:nlevel, 3, 1)
+        hprod_gap = hfock ⊗ hnlevel ⊗ hnlevel
+        bfock = FockBasis(7)
+        bnlevel = NLevelBasis(3)
+        bprod_gap = bfock ⊗ bnlevel ⊗ bnlevel
+
+        a = Destroy(hprod_gap, :a, 1)
+        σprod_gap(i, j) = Transition(hprod_gap, :σ, i, j, 3)
+
+        for i in 1:3, j in 1:3
+            i == j == 1 && continue
+            op1 = a * σprod_gap(i, j)
+            op2 = a' * σprod_gap(i, j)
+            @test to_numeric(op1, bprod_gap) == LazyTensor(
+                bprod_gap,
+                [1, 3],
+                (destroy(bfock), QuantumOpticsBase.transition(bnlevel, i, j)),
+            )
+            @test to_numeric(op2, bprod_gap) == LazyTensor(
+                bprod_gap,
+                [1, 3],
+                (create(bfock), QuantumOpticsBase.transition(bnlevel, i, j)),
+            )
+        end
+    end
+
+    @testset "Large Hilbert space" begin
+        hfock = FockSpace(:fock)
+        @qnumbers a::Destroy(hfock)
+        bfock = FockBasis(100)
+
+        @test isequal(
+            2 * create(bfock) + 2 * destroy(bfock),
+            to_numeric(2 * a + 2 * a', bfock),
+        )
+        @test iszero(
+            (2 * create(bfock) + 2 * destroy(bfock)) -
+            to_numeric(2 * a + 2 * a', bfock),
+        )
+        @test isequal(to_numeric(2 * a, bfock), 2 * to_numeric(a, bfock))
+    end
+
+    @testset "numeric_average — product state" begin
+        hfock = FockSpace(:fock)
+        hnlevel = NLevelSpace(:nlevel, 3, 1)
+        hprod = hfock ⊗ hnlevel
+        bfock = FockBasis(7)
+        bnlevel = NLevelBasis(3)
+        bprod = bfock ⊗ bnlevel
+
+        α = 0.1 + 0.2im
+        ψ = coherentstate(bfock, α)
+        ψprod = ψ ⊗ nlevelstate(bnlevel, 1)
+
+        σprod(i, j) = Transition(hprod, :σ, i, j, 2)
+
+        idfock = one(bfock)
+        for i in 1:3, j in 1:3
+            op = σprod(i, j)
+            op_num = idfock ⊗ QuantumOpticsBase.transition(bnlevel, i, j)
+            @test numeric_average(op, ψprod) ≈ expect(op_num, ψprod)
+        end
+    end
+
+    @testset "numeric_average — comprehensive expressions" begin
+        h = FockSpace(:fock)
+        @qnumbers a::Destroy(h)
+        b = FockBasis(7)
+        α = 0.1 + 0.2im
+        ψ = coherentstate(b, α)
+
+        @test numeric_average(a + a'a, ψ) ≈ α + abs2(α)
+        @test numeric_average(average(a) + average(a'a), ψ) ≈ α + abs2(α)
+        @test numeric_average(average(a + a'a), ψ) ≈ α + abs2(α)
+        @test numeric_average(average(a) * average(a'a), ψ) ≈ α * α' * α
+        # TODO: numeric_average with ^ hits _to_number(BasicSymbolic)
+        @test_broken numeric_average(average(a)^2, ψ) ≈ α^2
+        @test numeric_average(3, ψ) ≈ 3
+    end
+
+    @testset "numeric_average — Dict comprehensive" begin
+        nQDs = 2
+        h_qc1 = FockSpace(:ada)
+        h_qc2 = FockSpace(:n)
+        h_qc = h_qc1 ⊗ h_qc2
+        a = Destroy(h_qc, :a, 1)
+        n = Destroy(h_qc, :n, 2)
+        ad = a'
+
+        bs = NLevelBasis(2)
+        b_all = tensor([bs for i in 1:nQDs]...)
+        s(α, i, j) = embed(b_all, α, transition(bs, i, j))
+        b_test = FockBasis(2) ⊗ FockBasis(3)
+
+        dd = Dict([ad, a] .=> [s(2, 2, 1), s(2, 1, 2)])
+
+        @test to_numeric(a, b_test, Dict()) == to_numeric(a, b_test)
+        @test to_numeric(ad * n, b_test, Dict()) == to_numeric(ad * n, b_test)
+        @test to_numeric(2 * ad * a, b_test, Dict()) == to_numeric(2 * ad * a, b_test)
+        @test to_numeric(ad, b_all, dd) == s(2, 2, 1)
+        @test to_numeric(2 * ad * a, b_all, dd) == 2 * s(2, 2, 1) * s(2, 1, 2)
+        @test dense(to_numeric(3, b_all, dd)) == one(b_all) * 3
+
+        ψ0 = tensor([nlevelstate(bs, 2) for i in 1:nQDs]...)
+        @test numeric_average(average(ad * a), ψ0, dd) ==
+            expect(s(2, 2, 1) * s(2, 1, 2), ψ0)
+        @test numeric_average(average(ad) * average(ad * a) + 3, ψ0, dd) ==
+            expect(s(2, 2, 1), ψ0) * expect(s(2, 2, 1) * s(2, 1, 2), ψ0) + 3
+        # TODO: numeric_average with Dict and ^ hits _to_number(BasicSymbolic)
+        @test_broken numeric_average(3 * average(ad)^2, ψ0, dd) ==
+            3 * expect(s(2, 2, 1), ψ0)^2
+        @test numeric_average(average(ad * a) + average(a), ψ0, dd) ==
+            expect(s(2, 2, 1) * s(2, 1, 2), ψ0) + expect(s(2, 1, 2), ψ0)
+    end
+
     @testset "Allocations — to_numeric" begin
         h = FockSpace(:fock)
         @qnumbers a::Destroy(h)

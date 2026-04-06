@@ -1,5 +1,6 @@
 using SecondQuantizedAlgebra
 using Test
+using Symbolics: @variables
 import SecondQuantizedAlgebra: QMul, QAdd, QSym, QField, _conj, _inconj, _adjoint,
     AvgFunc, _average
 
@@ -109,6 +110,103 @@ import SecondQuantizedAlgebra: QMul, QAdd, QSym, QField, _conj, _inconj, _adjoin
         names = [op isa QMul ? op.args_nc[1].name : op.name for op in ops]
         @test :a in names
         @test :b in names
+    end
+
+    @testset "fundamental_operators — all 6 types in ProductSpace with custom names" begin
+        h1 = FockSpace(:s1)
+        h2 = NLevelSpace(:s2, 2, 1)
+        h3 = FockSpace(:s3)
+        h4 = PauliSpace(:s4)
+        h5 = SpinSpace(:s5, 1 // 2)
+        h6 = PhaseSpace(:s6)
+        h = h1 ⊗ h2 ⊗ h3 ⊗ h4 ⊗ h5 ⊗ h6
+
+        a = Destroy(h, :a, 1)
+        σ(i, j) = Transition(h, :σ, i, j, 2)
+        b = Destroy(h, :b, 3)
+        pauli(i) = Pauli(h, :σP, i, 4)
+        spin(i) = Spin(h, :S, i, 5)
+        x = Position(h, :x, 6)
+        p = Momentum(h, :p, 6)
+
+        @test fundamental_operators(h; names = [:a, :σ, :b, :σP, :S, (:x, :p)]) == [
+            a,
+            σ(1, 2),
+            σ(2, 2),
+            b,
+            pauli(1),
+            pauli(2),
+            pauli(3),
+            spin(1),
+            spin(2),
+            spin(3),
+            x,
+            p,
+        ]
+    end
+
+    @testset "unique_ops — all operator types" begin
+        h1 = FockSpace(:s1)
+        h2 = NLevelSpace(:s2, 2, 1)
+        h3 = FockSpace(:s3)
+        h4 = PauliSpace(:s4)
+        h5 = SpinSpace(:s5, 1 // 2)
+        h6 = PhaseSpace(:s6)
+        h = h1 ⊗ h2 ⊗ h3 ⊗ h4 ⊗ h5 ⊗ h6
+
+        a = Destroy(h, :a, 1)
+        σ(i, j) = Transition(h, :σ, i, j, 2)
+        b = Destroy(h, :b, 3)
+        pauli(i) = Pauli(h, :σP, i, 4)
+        spin(i) = Spin(h, :S, i, 5)
+        x = Position(h, :x, 6)
+        p = Momentum(h, :p, 6)
+
+        ops = [
+            a,
+            a',
+            σ(1, 2),
+            σ(2, 2),
+            b,
+            σ(2, 1),
+            pauli(1),
+            pauli(2),
+            pauli(3),
+            spin(1),
+            spin(2),
+            spin(3),
+            x,
+            p,
+        ]
+        @test isequal(
+            unique_ops(ops),
+            [
+                a,
+                σ(1, 2),
+                σ(2, 2),
+                b,
+                pauli(1),
+                pauli(2),
+                pauli(3),
+                spin(1),
+                spin(2),
+                spin(3),
+                x,
+                p,
+            ],
+        )
+    end
+
+    @testset "Symbolic variable adjoint and conj" begin
+        @variables ω_test::Real
+        @variables G_test::Complex
+
+        # Real variable: adjoint is identity
+        @test isequal(adjoint(ω_test), ω_test)
+        @test isequal(adjoint(3ω_test), 3ω_test)
+
+        # Complex variable: adjoint is conj
+        @test isequal(adjoint(G_test), conj(G_test))
     end
 
     @testset "_conj" begin
