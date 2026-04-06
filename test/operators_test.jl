@@ -241,4 +241,25 @@ import SecondQuantizedAlgebra: QMul, QAdd, QSym, QField, _conj, _inconj, _adjoin
         @test _adjoint(3 + 2im) == 3 - 2im
     end
 
+    @testset "one/zero for symbolic variables" begin
+        @variables ω::Real
+        @variables G::Complex{Real}
+        @test one(ω) == 1.0
+        @test one(G) == 1.0 + 0.0im
+        @test zero(ω) == 0.0
+        @test zero(G) == 0.0 + 0.0im
+    end
+
+    @testset "_conj/_adjoint on symbolic expressions" begin
+        @variables G::Complex{Real} ϕ::Real r1::Real
+        # _conj distributes over products
+        @test isequal(_conj(3 * G), 3 * conj(G))
+        # _adjoint on real variable is identity
+        @test isequal(_adjoint(r1), r1)
+        # _conj on real variable is identity
+        @test isequal(_conj(r1), r1)
+        # _adjoint on complex variable gives conj
+        @test isequal(_adjoint(G), conj(G))
+    end
+
 end

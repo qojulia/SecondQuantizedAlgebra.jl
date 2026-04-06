@@ -97,8 +97,8 @@ end
             push!(idx_parts, "\\underset{$(idx.name)}{\\overset{$r}{\\sum}}")
         end
         if !isempty(x.non_equal)
-            ne_str = join(["$(a.name){\\ne}$(b.name)" for (a, b) in x.non_equal], ",")
-            idx_parts[end] = replace(idx_parts[end], "$(x.indices[end].name)" => "$(x.indices[end].name){\\ne}$(ne_str)")
+            ne_str = join(["$(a.name){\\neq}$(b.name)" for (a, b) in x.non_equal], ",")
+            idx_parts[end] = replace(idx_parts[end], "$(x.indices[end].name)" => "$(x.indices[end].name){\\neq}$(ne_str)")
         end
         prefix = join(idx_parts, " ")
         # Wrap sum contents

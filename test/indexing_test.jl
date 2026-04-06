@@ -884,6 +884,22 @@ import SecondQuantizedAlgebra: simplify, QMul, QAdd, QSym, CNum, _to_cnum, NO_IN
         @test (term + term) isa SymbolicUtils.BasicSymbolic
     end
 
+    # ========== conj on indexed variables ==========
+    @testset "conj on indexed variables" begin
+        i = Index(hf, :i, 10, hf)
+        gi = IndexedVariable(:g, i)  # Real-typed
+        # conj of real indexed variable is identity
+        @test isequal(conj(gi), gi)
+
+        # conj distributes through products with indexed variables
+        ai = IndexedOperator(a, i)
+        expr = gi * ai
+        adj_expr = adjoint(expr)
+        # adjoint of g_i * a_i should be g_i * a_i† (g_i is real)
+        @test adj_expr isa QMul
+        @test adj_expr.args_nc[1] == ai'
+    end
+
     # ========== Type stability ==========
     @testset "Type stability" begin
         i = Index(hf, :i, 10, hf)

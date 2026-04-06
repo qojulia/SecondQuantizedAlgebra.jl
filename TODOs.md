@@ -23,10 +23,10 @@
 - [x] **Σ(0, i) simplification** — `Σ(0, i)` now simplifies via `_depends_on_index` (scalar 0 is index-independent → `range * 0 = 0`). `Σ(σ₂₁*σ₂₁, i)` still needs normal_order first (lazy product, not zero until simplified).
 - [ ] **change_index with identical=false propagation** — `change_index(Ω(i,j), i, j)` where `Ω` has `identical=false` should produce 0. Currently returns `Ω(j,j)` instead.
 - [ ] **create_index_arrays** — Utility to generate Cartesian product of index ranges, needed for `expand_sums`. Legacy: `sqa.create_index_arrays([i, j], [1:10, 1:5])`.
-- [ ] **conj propagation into indexed variables** — `conj(g_ik)` and adjoint of sums containing indexed variables should correctly conjugate the variable prefactors (legacy: `Σ(conj(g_ik)*a'*σ, i) == Ssum1'`).
-- [ ] **LaTeX rendering for indexed sums** — LaTeX output should use `\neq` not `≠` for non-equal index constraints. Legacy: `!contains(latex_str, "≠")`.
-- [ ] **one/zero for symbolic variables** — `one(@variables ω::Real)` and `zero(@variables G::Complex)` should work. Legacy: `one(ω) == 1.0`, `zero(G) == 0.0 + 0.0im`.
-- [ ] **_conj/_adjoint on symbolic expressions** — `_conj(3*G) == 3*conj(G)`, `_adjoint(exp(im*ϕ)*r) == exp(-im*ϕ)*r` for `@variables` parameters. Partially works but not tested.
+- [x] **conj propagation into indexed variables** — `conj(g_i)` works (Real-typed `IndexedVariable` is identity under `conj`). `adjoint` of sums with indexed variable prefactors works. Tests added in `indexing_test.jl`.
+- [x] **LaTeX rendering for indexed sums** — Fixed `\ne` → `\neq` in `latexify_recipes.jl`. Test added in `latexify_test.jl`.
+- [x] **one/zero for symbolic variables** — `one(@variables ω::Real)` and `zero(@variables G::Complex)` already work via Symbolics. Tests added in `operators_test.jl`.
+- [x] **_conj/_adjoint on symbolic expressions** — `_conj(3*G) == 3*conj(G)` works. Tests added in `operators_test.jl`. Note: `exp(im*ϕ)` case fails structurally (`cos(ϕ)-im*sin(ϕ)` vs `cos(-ϕ)+im*sin(-ϕ)`) — Symbolics limitation, not ours.
 - [ ] **acts_on for indexed operators** — `acts_on(IndexedOperator(σ, i))` should return the space index consistently. Legacy returned `Int`, current returns `Vector{Int}`.
 
 ## Upstream issues

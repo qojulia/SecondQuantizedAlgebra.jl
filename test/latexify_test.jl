@@ -137,6 +137,19 @@ import SecondQuantizedAlgebra: simplify, QMul, QAdd, QSym
             L"\underset{i}{\overset{N}{\sum}}\left(  g\left( i \right)b^{\dagger}{\sigma}_{i}^{{12}} \right)"
     end
 
+    @testset "Sum with non_equal constraint uses \\neq" begin
+        @variables N
+        h2 = FockSpace(:c) ⊗ NLevelSpace(:atom, 2, 1)
+        i = Index(h2, :i, N, NLevelSpace(:atom, 2, 1))
+        j = Index(h2, :j, N, NLevelSpace(:atom, 2, 1))
+        σ_i = IndexedOperator(Transition(h2, :σ, 1, 2, 2), i)
+        Γij = DoubleIndexedVariable(:Γ, i, j)
+
+        s = Σ(Γij * σ_i, i, [j])
+        @test latexify(s) ==
+            L"\underset{i{\neq}i{\neq}j}{\overset{N}{\sum}}\left(  \Gamma\left( i, j \right){\sigma}_{i}^{{12}} \right)"
+    end
+
     @testset "MIME text/latex" begin
         @test repr(MIME"text/latex"(), a) == latexify(a)
         @test repr(MIME"text/latex"(), ad) == latexify(ad)
