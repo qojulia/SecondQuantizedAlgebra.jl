@@ -241,8 +241,7 @@ using Test
         @test numeric_average(average(a) + average(a'a), ψ) ≈ α + abs2(α)
         @test numeric_average(average(a + a'a), ψ) ≈ α + abs2(α)
         @test numeric_average(average(a) * average(a'a), ψ) ≈ α * α' * α
-        # TODO: numeric_average with ^ hits _to_number(BasicSymbolic)
-        @test_broken numeric_average(average(a)^2, ψ) ≈ α^2
+        @test numeric_average(average(a)^2, ψ) ≈ α^2
         @test numeric_average(3, ψ) ≈ 3
     end
 
@@ -274,8 +273,7 @@ using Test
             expect(s(2, 2, 1) * s(2, 1, 2), ψ0)
         @test numeric_average(average(ad) * average(ad * a) + 3, ψ0, dd) ==
             expect(s(2, 2, 1), ψ0) * expect(s(2, 2, 1) * s(2, 1, 2), ψ0) + 3
-        # TODO: numeric_average with Dict and ^ hits _to_number(BasicSymbolic)
-        @test_broken numeric_average(3 * average(ad)^2, ψ0, dd) ==
+        @test numeric_average(3 * average(ad)^2, ψ0, dd) ==
             3 * expect(s(2, 2, 1), ψ0)^2
         @test numeric_average(average(ad * a) + average(a), ψ0, dd) ==
             expect(s(2, 2, 1) * s(2, 1, 2), ψ0) + expect(s(2, 1, 2), ψ0)

@@ -146,13 +146,20 @@ function undo_average(x::SymbolicUtils.BasicSymbolic)
             # so we access .val directly (SymbolicUtils internal).
             result = SymbolicUtils.isconst(arg) ? arg.val : arg
             return _restore_sum_metadata(result, x)
-        else
+        elseif f === (+) || f === (*)
+            # Additive/multiplicative nodes may contain averages as children.
+            # Recurse into args and reconstruct with QField algebra.
             args = map(undo_average, SymbolicUtils.arguments(x))
             result = f(args...)
             return _restore_sum_metadata(result, x)
+        else
+            # Any other call (complex, ^, conj, etc.) is a pure c-number node.
+            # Convert to CNum to stay in the QField type domain.
+            return _to_cnum(x)
         end
     else
-        return x
+        # Non-call BasicSymbolic (bare symbol or Const) — convert to CNum
+        return _to_cnum(x)
     end
 end
 

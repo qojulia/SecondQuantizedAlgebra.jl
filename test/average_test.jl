@@ -376,12 +376,9 @@ import SecondQuantizedAlgebra: simplify, QMul, QAdd, QSym, QField, CNum, _to_cnu
         rhs_avg = average(rhs_)
         rhs_avg_simplified = SymbolicUtils.simplify(rhs_avg)
 
-        # TODO: undo_average hits complex(BasicSymbolic, BasicSymbolic) MethodError
-        # when symbolic prefactors (from @variables) are present
-        @test_broken begin
-            terms = undo_average(rhs_avg_simplified)
-            all(arg -> arg isa QMul, SymbolicUtils.arguments(terms))
-        end
+        terms = undo_average(rhs_avg_simplified)
+        @test terms isa QAdd
+        @test all(arg -> arg isa QMul, terms.arguments)
     end
 
     @testset "Average addition/multiplication (PR 28)" begin

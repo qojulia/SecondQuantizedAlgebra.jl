@@ -32,6 +32,13 @@ function _to_cnum(x::Complex)
     x == -im && return _CNUM_NEG_IM
     return Complex(Num(real(x)), Num(imag(x)))
 end
+function _to_cnum(x::SymbolicUtils.BasicSymbolic)
+    if SymbolicUtils.iscall(x) && SymbolicUtils.operation(x) === complex
+        args = SymbolicUtils.arguments(x)
+        return Complex(Num(args[1]), Num(args[2]))
+    end
+    return Complex(Num(x), _NUM_ZERO)
+end
 
 _sort_key(op::QSym) = (op.space_index, op.copy_index, op.index.name)
 

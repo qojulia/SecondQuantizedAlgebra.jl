@@ -89,6 +89,10 @@ function _to_number(x::CNum)
     iszero(i) && return r
     return complex(r, i)
 end
+function _to_number(x::SymbolicUtils.BasicSymbolic)
+    SymbolicUtils.isconst(x) && return _to_number(x.val)
+    return _to_number(Num(x))
+end
 
 # State-based dispatch
 function to_numeric(op::QField, state; kwargs...)
@@ -121,7 +125,7 @@ end
 
 # Average expressions: unwrap and compute expectation value
 function numeric_average(avg::SymbolicUtils.BasicSymbolic, state; kwargs...)
-    if is_average(avg)
+    if SymbolicUtils.iscall(avg) && SymbolicUtils.operation(avg) isa AvgFunc
         op = undo_average(avg)
         return numeric_average(op, state; kwargs...)
     end
@@ -181,7 +185,7 @@ function numeric_average(x::Number, state, d::Dict; kwargs...)
     return x
 end
 function numeric_average(avg::SymbolicUtils.BasicSymbolic, state, d::Dict; kwargs...)
-    if is_average(avg)
+    if SymbolicUtils.iscall(avg) && SymbolicUtils.operation(avg) isa AvgFunc
         op = undo_average(avg)
         return numeric_average(op, state, d; kwargs...)
     end
