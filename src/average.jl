@@ -213,6 +213,30 @@ function get_sum_non_equal(x::SymbolicUtils.BasicSymbolic)
     return SymbolicUtils.getmetadata(x, SumNonEqual)
 end
 
+# --- get_indices for BasicSymbolic (averages, sums of averages) ---
+
+function get_indices(x::SymbolicUtils.BasicSymbolic)
+    if SymbolicUtils.isconst(x)
+        return get_indices(x.val)
+    end
+    if SymbolicUtils.iscall(x)
+        f = SymbolicUtils.operation(x)
+        if f isa AvgFunc
+            arg = SymbolicUtils.arguments(x)[1]
+            inner = SymbolicUtils.isconst(arg) ? arg.val : arg
+            return get_indices(inner)
+        end
+        inds = Index[]
+        for arg in SymbolicUtils.arguments(x)
+            for idx in get_indices(arg)
+                idx ∉ inds && push!(inds, idx)
+            end
+        end
+        return inds
+    end
+    return Index[]
+end
+
 # --- acts_on ---
 
 """

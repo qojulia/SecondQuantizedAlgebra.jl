@@ -14,12 +14,13 @@
 - [ ] **LazyKet support in numeric_average** — `numeric_average` should work with `QuantumOpticsBase.LazyKet` (lazy tensor product states), not just regular `Ket`.
 - [ ] **expand_sums diagonal splitting** — Richer `expand_sums` that splits nested indexed sums into diagonal (`i==j`) and off-diagonal (`i≠j`) terms, sum multiplication with explicit index (`*(sum1, sum2; ind=j)`), and commutators with sums involving symbolic N. Legacy `DoubleSum`/`SingleSum` behavior.
 - [ ] **Symbolic NLevel levels with `level_map`** — `NLevelSpace(:atom, (:g,:e,:a))` with `to_numeric(σ(:e,:g), basis; level_map=Dict(:g=>1, :e=>2, :a=>3))`.
-- [ ] **get_indices for average expressions** — `get_indices` should traverse `BasicSymbolic` trees to extract indices from inner operators (currently throws MethodError on averaged sums).
-- [ ] **NLevel completeness relation in simplify** — `simplify(σ_gg)` should reduce ground-state projectors via `Σ_i |i⟩⟨i| = 1` (e.g. `σ₁₁ = 1 - σ₂₂` for 2-level).
-- [ ] **undo_average with symbolic prefactors** — `undo_average` on expressions with `@variables` prefactors hits `complex(BasicSymbolic, BasicSymbolic)` MethodError. Fix CNum reconstruction in `average.jl`.
-- [ ] **_to_number for BasicSymbolic** — `numeric_average(average(a)^2, ψ)` fails because `^` produces a `BasicSymbolic` exponent. Add `_to_number(::BasicSymbolic)` method in `numeric.jl`.
-- [ ] **Σ(constant, i) simplification** — `Σ(g(j), i)` where summand is independent of index `i` should simplify to `N * g(j)`. Currently stays as lazy sum.
-- [ ] **Σ(0, i) simplification** — `Σ(0, i)` and `Σ(σ₂₁*σ₂₁, i)` (zero product) should simplify to 0. Currently stays as lazy QAdd wrapping zero.
+- [x] **get_indices for average expressions** — Fixed: added `get_indices(::BasicSymbolic)` in `average.jl` that traverses symbolic trees, unwrapping `AvgFunc` nodes.
+- [ ] **NLevel completeness relation in simplify** — `simplify(σ_gg)` should reduce ground-state projectors via `Σ_i |i⟩⟨i| = 1` (e.g. `σ₁₁ = 1 - σ₂₂` for 2-level). Blocked: `Transition` doesn't carry a reference to its `NLevelSpace` (no `n`/`ground_state` info). Needs either fields on `Transition` or a context-aware `simplify(expr, h::HilbertSpace)` API.
+- [x] **undo_average with symbolic prefactors** — Fixed: only recurse into `+`/`*` nodes in `undo_average`, convert other `BasicSymbolic` c-number nodes (e.g. `complex(0, η)`) to `CNum` directly. Also added `_to_cnum(::BasicSymbolic)` to split `complex(a,b)` nodes.
+- [x] **_to_number for BasicSymbolic** — Fixed: added `_to_number(::BasicSymbolic)` in `numeric.jl` that unwraps `Const` nodes and converts via `Num`.
+- [x] **Σ(constant, i) simplification** — Fixed: `_depends_on_index(::QMul, ::Index)` checks both operators and prefactor for index dependence. `Σ` multiplies by `range` when summand is independent.
+- [x] **numeric_average product-of-averages** — Fixed: `numeric_average` now checks `operation isa AvgFunc` instead of `is_average` (which matched products of averages via symtype).
+- [x] **Σ(0, i) simplification** — `Σ(0, i)` now simplifies via `_depends_on_index` (scalar 0 is index-independent → `range * 0 = 0`). `Σ(σ₂₁*σ₂₁, i)` still needs normal_order first (lazy product, not zero until simplified).
 - [ ] **change_index with identical=false propagation** — `change_index(Ω(i,j), i, j)` where `Ω` has `identical=false` should produce 0. Currently returns `Ω(j,j)` instead.
 - [ ] **create_index_arrays** — Utility to generate Cartesian product of index ranges, needed for `expand_sums`. Legacy: `sqa.create_index_arrays([i, j], [1:10, 1:5])`.
 - [ ] **conj propagation into indexed variables** — `conj(g_ik)` and adjoint of sums containing indexed variables should correctly conjugate the variable prefactors (legacy: `Σ(conj(g_ik)*a'*σ, i) == Ssum1'`).

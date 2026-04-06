@@ -81,7 +81,7 @@ using Test
         # σ*σ' = σ_gg (ground state projector)
         @test isequal(simplify(normal_order(σ * σ')), simplify(σgg))
         # σ_gg = 1 - σ_ee (completeness relation)
-        # TODO: simplify doesn't reduce σgg to 1-σee
+        # Requires Hilbert space context — Transition doesn't carry n/ground_state
         @test_broken isequal(simplify(σgg), simplify(1 - σee))
     end
 

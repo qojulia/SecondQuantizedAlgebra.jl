@@ -333,10 +333,10 @@ import SecondQuantizedAlgebra: simplify, QMul, QAdd, QSym, QField, CNum, _to_cnu
         # get_indices on QAdd of indexed operators
         @test isequal(get_indices(σi + σj), [i, j])
 
-        # get_indices on average expressions (TODO: not yet supported)
-        @test_broken isequal(
-            sort(get_indices(average(σi) + 3 + average(σj))), sort([i, j])
-        )
+        inds = get_indices(average(σi) + 3 + average(σj))
+        @test i in inds
+        @test j in inds
+        @test length(inds) == 2
     end
 
     @testset "C-number handling" begin
