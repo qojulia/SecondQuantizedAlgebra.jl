@@ -151,3 +151,81 @@ end
 
 # QAdd / Number
 Base.:/(a::QAdd, b::Number) = a * inv(b)
+
+
+"""
+    Σ(expr, i::Index, non_equal::Vector{Index}=Index[])
+
+Create a symbolic sum over index `i`. Returns a `QAdd` with summation indices.
+
+    Σ(expr, i::Index, j::Index, ...)
+
+Create a multi-index sum.
+"""
+function Σ(expr::QMul, i::Index, non_equal::Vector{Index} = Index[])
+    ne_pairs = Tuple{Index, Index}[(i, j) for j in non_equal]
+    return QAdd(QMul[expr], [i], ne_pairs)
+end
+function Σ(expr::QAdd, i::Index, non_equal::Vector{Index} = Index[])
+    ne_pairs = Tuple{Index, Index}[(i, j) for j in non_equal]
+    all_indices = vcat(expr.indices, [i])
+    all_ne = vcat(expr.non_equal, ne_pairs)
+    return QAdd(expr.arguments, all_indices, all_ne)
+end
+function Σ(expr::QSym, i::Index, non_equal::Vector{Index} = Index[])
+    return Σ(_to_qmul(expr), i, non_equal)
+end
+function Σ(expr::Number, i::Index, non_equal::Vector{Index} = Index[])
+    return Σ(_scalar_qmul(expr), i, non_equal)
+end
+
+# Multi-index: Σ(expr, i, j) = double sum
+function Σ(expr, i::Index, j::Index, rest::Index...)
+    inner = Σ(expr, i)
+    return Σ(inner, j, rest...)
+end
+
+const ∑ = Σ
+
+"""
+    expand_sums(expr::QAdd) -> QAdd
+
+Explicit diagonal splitting for symbolic sums. Called by QC's `scale()`.
+
+Core rule: `Σ_i(A_i * B_j)` where i,j same space, j not in non_equal
+→ `Σ_{i≠j}(A_i * B_j) + A_j * B_j`
+"""
+function expand_sums(s::QAdd)
+    isempty(s.indices) && return s  # Nothing to expand
+
+    result_terms = QMul[]
+    result_ne = copy(s.non_equal)
+
+    for term in s.arguments
+        term_indices = get_indices(term)
+        needs_split = false
+
+        for idx in term_indices
+            for sum_idx in s.indices
+                if idx != sum_idx &&
+                        idx.space_index == sum_idx.space_index &&
+                        !((sum_idx, idx) in s.non_equal) &&
+                        !((idx, sum_idx) in s.non_equal)
+                    # Diagonal split: generate term with sum_idx → idx
+                    diag_term = change_index(term, sum_idx, idx)
+                    push!(result_terms, diag_term)
+                    push!(result_ne, (sum_idx, idx))
+                    needs_split = true
+                end
+            end
+        end
+
+        push!(result_terms, term)
+    end
+
+    return QAdd(result_terms, copy(s.indices), result_ne)
+end
+
+# Passthrough for non-sum types
+expand_sums(m::QMul) = m
+expand_sums(op::QSym) = op

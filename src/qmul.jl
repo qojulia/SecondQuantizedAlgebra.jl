@@ -9,7 +9,6 @@ Fields:
 - `arg_c::Num` — commutative (c-number) prefactor
 - `args_nc::Vector{QSym}` — non-commutative operator factors, canonically sorted
 """
-const CNum = Complex{Num}
 
 # Cached constants — avoids repeated Num() allocations on the hot path
 const _NUM_ZERO = Num(0)
