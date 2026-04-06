@@ -233,11 +233,20 @@ import SecondQuantizedAlgebra: simplify, QMul, QAdd, QSym, CNum, _to_cnum, NO_IN
         j = Index(hf, :j, 10, hf)
         ai = IndexedOperator(a, i)
 
+        # Σ(a_i, i, j) — j is independent → folds to 10 * Σ(a_i, i)
         s = Σ(ai, i, j)
         @test s isa QAdd
-        @test length(s.indices) == 2
+        @test length(s.indices) == 1
         @test i in s.indices
-        @test j in s.indices
+        @test isequal(s, Σ(ai, i) * 10)
+
+        # Multi-index where both are needed (different spaces, both indexed)
+        i_n = Index(h_prod, :i, 10, hn)
+        m_f = Index(h_prod, :m, 5, hf)
+        σi = IndexedOperator(sigma, i_n)
+        am = IndexedOperator(a, m_f)
+        s2 = Σ(σi * am, i_n, m_f)
+        @test length(s2.indices) == 2
     end
 
     @testset "Sigma with scalar" begin
@@ -440,46 +449,227 @@ import SecondQuantizedAlgebra: simplify, QMul, QAdd, QSym, CNum, _to_cnum, NO_IN
         @test i in inds
     end
 
-    # ========== expand_sums ==========
-    @testset "expand_sums — passthrough for non-sums" begin
+    # ========== Eager diagonal splitting ==========
+    @testset "Σ construction — diagonal split on QMul" begin
+        i = Index(hf, :i, 10, hf)
+        j = Index(hf, :j, 10, hf)
+        ai = IndexedOperator(a, i)
+        adj = IndexedOperator(a', j)
+
+        # Σ_i(a†_j * a_i) — splits into: Σ_{i≠j}(a†_j * a_i) + a†_j * a_j
+        expr = Σ(adj * ai, i)
+        @test expr isa QAdd
+        # Should have 2 terms: off-diagonal + diagonal
+        @test length(expr) == 2
+        # Should have i≠j constraint
+        @test any(p -> p == (i, j) || p == (j, i), expr.non_equal)
+        # Diagonal term: a_j * a†_j (change_index i→j in a†_j * a_i → preserves order)
+        aj = IndexedOperator(a, j)
+        diag_key = QSym[aj, adj]
+        @test haskey(expr.arguments, diag_key)
+    end
+
+    @testset "Σ construction — already non_equal → no split" begin
+        i = Index(hf, :i, 10, hf)
+        j = Index(hf, :j, 10, hf)
+        ai = IndexedOperator(a, i)
+        adj = IndexedOperator(a', j)
+
+        # Σ_{i≠j}(a†_j * a_i) — already constrained, no diagonal extraction
+        expr = Σ(adj * ai, i, [j])
+        @test length(expr) == 1
+    end
+
+    @testset "Σ construction — independent index folds to range" begin
+        i = Index(hf, :i, 10, hf)
+        j = Index(hf, :j, 10, hf)
+        ai = IndexedOperator(a, i)
+
+        # Σ(Σ(a_i, i), j) — j is independent → 10 * Σ(a_i, i)
+        inner = Σ(ai, i)
+        outer = Σ(inner, j)
+        expected = inner * 10
+        @test isequal(outer, expected)
+    end
+
+    @testset "Σ construction — symbolic N independent index" begin
+        @variables N_sym::Real
+        i = Index(hf, :i, N_sym, hf)
+        j = Index(hf, :j, N_sym, hf)
+        ai = IndexedOperator(a, i)
+
+        # Σ(-a_i, i, j) = N * Σ(-a_i, i) since j is independent
+        result = Σ(-ai, i, j)
+        expected = Σ(-ai, i) * N_sym
+        @test isequal(simplify(result), simplify(expected))
+    end
+
+    @testset "Σ construction — nested same-space double sum" begin
+        i = Index(hf, :i, 10, hf)
+        j = Index(hf, :j, 10, hf)
+        ai = IndexedOperator(a, i)
+        adj = IndexedOperator(a', j)
+
+        # Σ(Σ(a†_j * a_i, i), j) — nested sum, same space
+        # Should split: Σ_{i≠j} Σ_j(a†_j a_i) + Σ_j(a†_j a_j)
+        result = Σ(Σ(adj * ai, i), j)
+        @test result isa QAdd
+        @test length(result) > 1
+    end
+
+    @testset "expand_sums — no-op passthrough" begin
         @test expand_sums(a) === a
         m = a' * a
         @test expand_sums(m) === m
-    end
-
-    @testset "expand_sums — no indices → passthrough" begin
         s = a + a'
         @test expand_sums(s) === s
+
+        i = Index(hf, :i, 10, hf)
+        ai = IndexedOperator(a, i)
+        sum_expr = Σ(ai, i)
+        @test expand_sums(sum_expr) === sum_expr
     end
 
-    @testset "expand_sums — diagonal split" begin
+    @testset "Sum * QSym — diagonal split" begin
         i = Index(hf, :i, 10, hf)
         j = Index(hf, :j, 10, hf)
         ai = IndexedOperator(a, i)
         adj = IndexedOperator(a', j)
 
-        # Σ_i(a†_j * a_i) — sum over i, j is external
-        # Should split into: a†_j * a_j (diagonal, i→j) + Σ_{i≠j}(a†_j * a_i)
-        expr = Σ(adj * ai, i)
-        expanded = expand_sums(expr)
-        @test expanded isa QAdd
-        # Should have more terms than original
-        @test length(expanded) > length(expr)
-        # Should have i≠j constraint
-        @test any(p -> p == (i, j) || p == (j, i), expanded.non_equal)
+        # Σ_i(a_i) * a†_j — splits diagonal
+        sum_expr = Σ(ai, i)
+        result = sum_expr * adj
+        @test result isa QAdd
+        @test length(result) == 2
+        @test any(p -> p == (i, j) || p == (j, i), result.non_equal)
     end
 
-    @testset "expand_sums — already non_equal → no split" begin
+    @testset "QSym * Sum — diagonal split" begin
         i = Index(hf, :i, 10, hf)
         j = Index(hf, :j, 10, hf)
         ai = IndexedOperator(a, i)
         adj = IndexedOperator(a', j)
 
-        # Σ_{i≠j}(a†_j * a_i) — already constrained
-        expr = Σ(adj * ai, i, [j])
-        expanded = expand_sums(expr)
-        # No new terms should be added (already non_equal)
-        @test length(expanded) == length(expr)
+        # a†_j * Σ_i(a_i) — splits diagonal
+        sum_expr = Σ(ai, i)
+        result = adj * sum_expr
+        @test result isa QAdd
+        @test length(result) == 2
+        @test any(p -> p == (i, j) || p == (j, i), result.non_equal)
+    end
+
+    @testset "Sum * QSym — different space, no split" begin
+        i = Index(h_prod, :i, 10, hn)
+        σi = IndexedOperator(sigma, i)
+        sum_expr = Σ(σi, i)
+
+        # Σ_i(σ_i) * a — different spaces, no diagonal split
+        result = sum_expr * a
+        @test result isa QAdd
+        @test length(result) == 1
+    end
+
+    @testset "QAdd * QAdd — clashing index error" begin
+        i = Index(hf, :i, 10, hf)
+        ai = IndexedOperator(a, i)
+
+        s1 = Σ(ai, i)
+        s2 = Σ(ai', i)
+        @test_throws ArgumentError s1 * s2
+    end
+
+    @testset "QAdd * QAdd — different indices, same space splits" begin
+        i = Index(hf, :i, 10, hf)
+        j = Index(hf, :j, 10, hf)
+        ai = IndexedOperator(a, i)
+        adj = IndexedOperator(a', j)
+
+        s1 = Σ(ai, i)
+        s2 = Σ(adj, j)
+        result = s1 * s2
+        @test result isa QAdd
+        @test length(result) > 1
+        @test any(p -> p == (i, j) || p == (j, i), result.non_equal)
+    end
+
+    @testset "Legacy: NLevel diagonal splitting (DoubleSum equivalence)" begin
+        ha2 = NLevelSpace(:atom, 2, 1)
+        hf2 = FockSpace(:cavity)
+        h2 = hf2 ⊗ ha2
+
+        i2 = Index(h2, :i, 10, ha2)
+        j2 = Index(h2, :j, 10, ha2)
+        σ2(α, β, k) = IndexedOperator(Transition(h2, :σ, α, β, 2), k)
+
+        # Σ(Σ(σ_21_i * σ_12_j, i), j) splits into off-diagonal + diagonal
+        inner = Σ(σ2(2, 1, i2) * σ2(1, 2, j2), i2)
+        double = Σ(inner, j2)
+        @test double isa QAdd
+
+        # The diagonal term should contain σ_21_j * σ_12_j (from i→j in σ_21_i * σ_12_j)
+        diag_ops = QSym[σ2(2, 1, j2), σ2(1, 2, j2)]
+        @test haskey(double.arguments, diag_ops)
+    end
+
+    @testset "Legacy: Issue #221 — symbolic N double sum" begin
+        ha2 = NLevelSpace(:atom, 2, 1)
+        hf2 = FockSpace(:cavity)
+        h2 = hf2 ⊗ ha2
+
+        @variables N_s::Real
+        i2 = Index(h2, :i, N_s, ha2)
+        j2 = Index(h2, :j, N_s, ha2)
+        σ2(α, β, k) = IndexedOperator(Transition(h2, :σ, α, β, 2), k)
+
+        # Σ(-σ_22_i, i, j) where j is independent → N * Σ(-σ_22_i, i)
+        @test isequal(
+            simplify(Σ(-σ2(2, 2, i2), i2, j2)),
+            simplify(Σ(-σ2(2, 2, i2), i2) * N_s),
+        )
+    end
+
+    @testset "Legacy: Issue #223 — commutators with sums" begin
+        ha2 = NLevelSpace(:atom, 2, 1)
+        hf2 = FockSpace(:cavity)
+        h2 = hf2 ⊗ ha2
+
+        @variables N_c::Real
+        i2 = Index(h2, :i, N_c, ha2)
+        j2 = Index(h2, :j, N_c, ha2)
+        k2 = Index(h2, :k, N_c, ha2)
+        σ2(α, β, m) = IndexedOperator(Transition(h2, :σ, α, β, 2), m)
+
+        H = Σ(2 * σ2(2, 2, j2), i2, j2)
+        dict_N = Dict(Symbolics.unwrap(N_c) => 10)
+        sub_dict(x) = simplify(substitute(x, dict_N))
+
+        @test isequal(sub_dict(simplify(commutator(H, σ2(2, 1, k2)))), simplify(20 * σ2(2, 1, k2)))
+        @test isequal(sub_dict(simplify(commutator(H, σ2(1, 2, k2)))), simplify(-20 * σ2(1, 2, k2)))
+    end
+
+    @testset "Legacy: Issue #256 — cross-subspace sum * operator" begin
+        @variables N_a::Real M_b::Real
+        hA = NLevelSpace(:atomA, (:g, :r))
+        hB = NLevelSpace(:atomB, (:g, :r))
+        h2 = hA ⊗ hB
+
+        σA(α, β, m) = IndexedOperator(Transition(h2, :σA, α, β, 1), m)
+        σB(α, β, m) = IndexedOperator(Transition(h2, :σB, α, β, 2), m)
+
+        i = Index(h2, :i, N_a, hA)
+        j = Index(h2, :j, M_b, hB)
+        k = Index(h2, :k, M_b, hB)
+
+        op = σA(:g, :r, i)
+        doublesum = Σ(σB(:r, :r, j) * σB(:r, :r, k), j, k)
+
+        # Different subspaces: no diagonal split, no error
+        result = op * doublesum
+        @test result isa QAdd
+        @test !iszero(result)
+
+        # Commutator of different subspaces = 0
+        @test iszero(simplify(commutator(op, doublesum)))
     end
 
     # ========== Arithmetic with indexed operators ==========
@@ -568,6 +758,9 @@ import SecondQuantizedAlgebra: simplify, QMul, QAdd, QSym, CNum, _to_cnum, NO_IN
         @test result isa QAdd
         @test i in result.indices
         @test j in result.indices
+        # Same space → eager diagonal split produces off-diagonal + diagonal
+        @test length(result) > 1
+        @test any(p -> p == (i, j) || p == (j, i), result.non_equal)
     end
 
     @testset "Subtraction preserves indices" begin

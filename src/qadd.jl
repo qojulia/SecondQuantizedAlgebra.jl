@@ -205,51 +205,7 @@ Base.:-(a::QField, b::QField) = a + (-b)
 Base.:-(a::QField, b::Number) = a + (-b)
 Base.:-(a::Number, b::QField) = a + (-b)
 
-## QAdd * ... (distributive)
-
-# QAdd * Number
-function Base.:*(a::QAdd, b::Number)
-    cb = _to_cnum(b)
-    d = QTermDict(ops => c * cb for (ops, c) in a.arguments)
-    _drop_zeros!(d)
-    return QAdd(d, a.indices, a.non_equal)
-end
-Base.:*(a::Number, b::QAdd) = b * a
-
-# QAdd * QSym
-function Base.:*(a::QAdd, b::QSym)
-    result = QMul[QMul(c, ops) * b for (ops, c) in a.arguments]
-    return QAdd(result, a.indices, a.non_equal)
-end
-function Base.:*(a::QSym, b::QAdd)
-    result = QMul[a * QMul(c, ops) for (ops, c) in b.arguments]
-    return QAdd(result, b.indices, b.non_equal)
-end
-
-# QAdd * QMul
-function Base.:*(a::QAdd, b::QMul)
-    result = QMul[QMul(c, ops) * b for (ops, c) in a.arguments]
-    return QAdd(result, a.indices, a.non_equal)
-end
-function Base.:*(a::QMul, b::QAdd)
-    result = QMul[a * QMul(c, ops) for (ops, c) in b.arguments]
-    return QAdd(result, b.indices, b.non_equal)
-end
-
-# QAdd * QAdd
-function Base.:*(a::QAdd, b::QAdd)
-    result = QMul[]
-    for (ops_a, c_a) in a.arguments, (ops_b, c_b) in b.arguments
-        push!(result, QMul(c_a, ops_a) * QMul(c_b, ops_b))
-    end
-    indices = _merge_unique(a.indices, b.indices)
-    non_equal = _merge_unique(a.non_equal, b.non_equal)
-    return QAdd(result, indices, non_equal)
-end
-
-# QAdd / Number
-Base.:/(a::QAdd, b::Number) = a * inv(b)
-
+## Index helpers (must precede multiplication methods that use them)
 
 """
     _depends_on_index(m::QMul, idx::Index) -> Bool
@@ -271,6 +227,159 @@ function _depends_on_index(m::QMul, idx::Index)
     return false
 end
 
+function _any_depends_on_index(s::QAdd, idx::Index)
+    for (ops, c) in s.arguments
+        _depends_on_index(QMul(c, ops), idx) && return true
+    end
+    return false
+end
+
+"""
+    _diagonal_split(terms, sum_idx::Index, non_equal::Vector{Tuple{Index,Index}})
+
+Extract diagonal terms for summation index `sum_idx`. For each term containing a free
+index `j` on the same space as `sum_idx` (and not already constrained `sum_idx != j`),
+create the diagonal term via `change_index(term, sum_idx, j)` and record the constraint.
+
+Returns `(diag_terms::Vector{QMul}, new_non_equal::Vector{Tuple{Index,Index}})`.
+"""
+function _diagonal_split(
+        terms, sum_idx::Index,
+        non_equal::Vector{Tuple{Index, Index}}
+    )
+    diag_terms = QMul[]
+    new_ne = copy(non_equal)
+    for term in terms
+        term_indices = get_indices(term)
+        for idx in term_indices
+            if idx != sum_idx &&
+                    idx.space_index == sum_idx.space_index &&
+                    !((sum_idx, idx) in new_ne) &&
+                    !((idx, sum_idx) in new_ne)
+                diag_term = change_index(term, sum_idx, idx)
+                push!(diag_terms, diag_term)
+                push!(new_ne, (sum_idx, idx))
+            end
+        end
+    end
+    return diag_terms, new_ne
+end
+
+"""
+    _apply_diagonal_split(s::QAdd, ext_idx::Index) -> QAdd
+
+For a QAdd with summation indices, split out diagonal terms for any summation index
+on the same space as `ext_idx`. Called after multiplication introduces `ext_idx`
+into the terms.
+"""
+function _apply_diagonal_split(s::QAdd, ext_idx::Index)
+    result = s
+    for sum_idx in s.indices
+        if sum_idx != ext_idx &&
+                sum_idx.space_index == ext_idx.space_index &&
+                !((sum_idx, ext_idx) in result.non_equal) &&
+                !((ext_idx, sum_idx) in result.non_equal)
+            diag_terms, new_ne = _diagonal_split(terms(result), sum_idx, result.non_equal)
+            result = QAdd(result.arguments, result.indices, new_ne)
+            if !isempty(diag_terms)
+                result = result + QAdd(diag_terms)
+            end
+        end
+    end
+    return result
+end
+
+## QAdd * ... (distributive)
+
+# QAdd * Number
+function Base.:*(a::QAdd, b::Number)
+    cb = _to_cnum(b)
+    d = QTermDict(ops => c * cb for (ops, c) in a.arguments)
+    _drop_zeros!(d)
+    return QAdd(d, a.indices, a.non_equal)
+end
+Base.:*(a::Number, b::QAdd) = b * a
+
+# QAdd * QSym
+function Base.:*(a::QAdd, b::QSym)
+    result = QMul[QMul(c, ops) * b for (ops, c) in a.arguments]
+    product = QAdd(result, copy(a.indices), copy(a.non_equal))
+    if has_index(b.index) && !isempty(a.indices)
+        return _apply_diagonal_split(product, b.index)
+    end
+    return product
+end
+function Base.:*(a::QSym, b::QAdd)
+    result = QMul[a * QMul(c, ops) for (ops, c) in b.arguments]
+    product = QAdd(result, copy(b.indices), copy(b.non_equal))
+    if has_index(a.index) && !isempty(b.indices)
+        return _apply_diagonal_split(product, a.index)
+    end
+    return product
+end
+
+# QAdd * QMul
+function Base.:*(a::QAdd, b::QMul)
+    result = QMul[QMul(c, ops) * b for (ops, c) in a.arguments]
+    product = QAdd(result, copy(a.indices), copy(a.non_equal))
+    if !isempty(a.indices)
+        for op in b.args_nc
+            if has_index(op.index)
+                product = _apply_diagonal_split(product, op.index)
+            end
+        end
+    end
+    return product
+end
+function Base.:*(a::QMul, b::QAdd)
+    result = QMul[a * QMul(c, ops) for (ops, c) in b.arguments]
+    product = QAdd(result, copy(b.indices), copy(b.non_equal))
+    if !isempty(b.indices)
+        for op in a.args_nc
+            if has_index(op.index)
+                product = _apply_diagonal_split(product, op.index)
+            end
+        end
+    end
+    return product
+end
+
+# QAdd * QAdd
+function Base.:*(a::QAdd, b::QAdd)
+    # Check for clashing summation indices
+    if !isempty(a.indices) && !isempty(b.indices)
+        for idx in a.indices
+            if idx in b.indices
+                throw(ArgumentError(
+                    "Summation index $(idx.name) appears in both factors. " *
+                    "Use `change_index` to re-index one side, or use different indices."
+                ))
+            end
+        end
+    end
+    result = QMul[]
+    for (ops_a, c_a) in a.arguments, (ops_b, c_b) in b.arguments
+        push!(result, QMul(c_a, ops_a) * QMul(c_b, ops_b))
+    end
+    indices = _merge_unique(a.indices, b.indices)
+    non_equal = _merge_unique(a.non_equal, b.non_equal)
+    product = QAdd(result, indices, non_equal)
+    # Apply diagonal splitting for cross-space index pairs
+    if !isempty(a.indices) && !isempty(b.indices)
+        for idx_a in a.indices, idx_b in b.indices
+            if idx_a.space_index == idx_b.space_index
+                product = _apply_diagonal_split(product, idx_a)
+                product = _apply_diagonal_split(product, idx_b)
+            end
+        end
+    end
+    return product
+end
+
+# QAdd / Number
+Base.:/(a::QAdd, b::Number) = a * inv(b)
+
+
 """
     Σ(expr, i::Index, non_equal::Vector{Index}=Index[])
 
@@ -286,13 +395,22 @@ function Σ(expr::QMul, i::Index, non_equal::Vector{Index} = Index[])
         return QAdd(QMul[QMul(i.range * expr.arg_c, expr.args_nc)])
     end
     ne_pairs = Tuple{Index, Index}[(i, j) for j in non_equal]
-    return QAdd(QMul[expr], [i], ne_pairs)
+    diag_terms, ne_pairs = _diagonal_split([expr], i, ne_pairs)
+    off_diag = QAdd(QMul[expr], [i], ne_pairs)
+    isempty(diag_terms) && return off_diag
+    return off_diag + QAdd(diag_terms)
 end
 function Σ(expr::QAdd, i::Index, non_equal::Vector{Index} = Index[])
+    if !_any_depends_on_index(expr, i)
+        return expr * i.range
+    end
     ne_pairs = Tuple{Index, Index}[(i, j) for j in non_equal]
-    all_indices = vcat(expr.indices, [i])
     all_ne = vcat(expr.non_equal, ne_pairs)
-    return QAdd(expr.arguments, all_indices, all_ne)
+    diag_terms, all_ne = _diagonal_split(terms(expr), i, all_ne)
+    all_indices = vcat(expr.indices, [i])
+    off_diag = QAdd(expr.arguments, all_indices, all_ne)
+    isempty(diag_terms) && return off_diag
+    return off_diag + QAdd(diag_terms)
 end
 function Σ(expr::QSym, i::Index, non_equal::Vector{Index} = Index[])
     return Σ(_to_qmul(expr), i, non_equal)
@@ -310,42 +428,11 @@ end
 const ∑ = Σ
 
 """
-    expand_sums(expr::QAdd) -> QAdd
+    expand_sums(expr)
 
-Explicit diagonal splitting for symbolic sums. Called by QC's `scale()`.
-
-Core rule: `Σ_i(A_i * B_j)` where i,j same space, j not in non_equal
-→ `Σ_{i≠j}(A_i * B_j) + A_j * B_j`
+No-op passthrough. Diagonal splitting is now performed eagerly at construction time
+by `Σ` and `QAdd` multiplication. Kept for API compatibility.
 """
-function expand_sums(s::QAdd)
-    isempty(s.indices) && return s  # Nothing to expand
-
-    d = QTermDict()
-    result_ne = copy(s.non_equal)
-
-    for (ops, c) in s.arguments
-        term = QMul(c, ops)
-        term_indices = get_indices(term)
-
-        for idx in term_indices
-            for sum_idx in s.indices
-                if idx != sum_idx &&
-                        idx.space_index == sum_idx.space_index &&
-                        !((sum_idx, idx) in s.non_equal) &&
-                        !((idx, sum_idx) in s.non_equal)
-                    diag_term = change_index(term, sum_idx, idx)
-                    d[diag_term.args_nc] = diag_term.arg_c
-                    push!(result_ne, (sum_idx, idx))
-                end
-            end
-        end
-
-        d[ops] = c
-    end
-
-    return QAdd(d, copy(s.indices), result_ne)
-end
-
-# Passthrough for non-sum types
+expand_sums(s::QAdd) = s
 expand_sums(m::QMul) = m
 expand_sums(op::QSym) = op
