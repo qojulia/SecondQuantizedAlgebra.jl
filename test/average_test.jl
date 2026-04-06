@@ -299,8 +299,7 @@ import SecondQuantizedAlgebra: simplify, QMul, QAdd, QSym, QField, CNum, _to_cnu
         @test isequal(average(gi), gi)
 
         # average(2*σ) = 2*average(σ)
-        # TODO: isequal fails on structurally equivalent symbolic Mul trees
-        @test_broken isequal(average(2 * σi), 2 * average(σi))
+        @test isequal(average(2 * σi), 2 * average(σi))
 
         # average(g(i)*σ(i)) pulls g(i) out as prefactor
         avg = average(gi * Transition(h, :σ, 2, 2, 2))
@@ -378,7 +377,7 @@ import SecondQuantizedAlgebra: simplify, QMul, QAdd, QSym, QField, CNum, _to_cnu
 
         terms = undo_average(rhs_avg_simplified)
         @test terms isa QAdd
-        @test all(arg -> arg isa QMul, terms.arguments)
+        @test all(arg -> arg isa QMul, terms)
     end
 
     @testset "Average addition/multiplication (PR 28)" begin

@@ -7,33 +7,34 @@ Always returns `QAdd`. Short-circuits to zero when operands commute
 """
 function commutator end
 
-const _ZERO_QADD = QAdd(QMul[QMul(_to_cnum(0), QSym[])])
+const _ZERO_QADD = QAdd(QTermDict(), Index[], Tuple{Index, Index}[])
+_zero_qadd() = _ZERO_QADD
 
 # Scalars commute with everything
-commutator(::Number, ::Number) = _ZERO_QADD
-commutator(::Number, ::QField) = _ZERO_QADD
-commutator(::QField, ::Number) = _ZERO_QADD
+commutator(::Number, ::Number) = _zero_qadd()
+commutator(::Number, ::QField) = _zero_qadd()
+commutator(::QField, ::Number) = _zero_qadd()
 
 # QSym, QSym: short-circuit when on different sites or identical
 function commutator(a::QSym, b::QSym)
-    _same_site(a, b) || return _ZERO_QADD
-    isequal(a, b) && return _ZERO_QADD
+    _same_site(a, b) || return _zero_qadd()
+    isequal(a, b) && return _zero_qadd()
     return _qsimplify(a * b - b * a, NormalOrder())
 end
 
 # QMul, QSym: short-circuit when no shared site
 function commutator(a::QMul, b::QSym)
-    _has_site(a.args_nc, b) || return _ZERO_QADD
+    _has_site(a.args_nc, b) || return _zero_qadd()
     return _qsimplify(a * b - b * a, NormalOrder())
 end
 function commutator(a::QSym, b::QMul)
-    _has_site(b.args_nc, a) || return _ZERO_QADD
+    _has_site(b.args_nc, a) || return _zero_qadd()
     return _qsimplify(a * b - b * a, NormalOrder())
 end
 
 # QMul, QMul: short-circuit when no shared sites
 function commutator(a::QMul, b::QMul)
-    _has_shared_site(a.args_nc, b.args_nc) || return _ZERO_QADD
+    _has_shared_site(a.args_nc, b.args_nc) || return _zero_qadd()
     return _qsimplify(a * b - b * a, NormalOrder())
 end
 
@@ -68,11 +69,11 @@ function commutator(a::QAdd, b::QSym)
         end
     end
     # Regular distribution
-    all_terms = QMul[]
-    for a_ in a.arguments
-        _append_terms!(all_terms, commutator(a_, b))
+    d = QTermDict()
+    for a_ in terms(a)
+        _merge_terms!(d, commutator(a_, b))
     end
-    return QAdd(all_terms, a.indices, a.non_equal)
+    return QAdd(d, a.indices, a.non_equal)
 end
 
 function commutator(a::QSym, b::QAdd)
@@ -87,31 +88,31 @@ function commutator(a::QSym, b::QAdd)
             end
         end
     end
-    all_terms = QMul[]
-    for b_ in b.arguments
-        _append_terms!(all_terms, commutator(a, b_))
+    d = QTermDict()
+    for b_ in terms(b)
+        _merge_terms!(d, commutator(a, b_))
     end
-    return QAdd(all_terms, b.indices, b.non_equal)
+    return QAdd(d, b.indices, b.non_equal)
 end
 
 function commutator(a::QAdd, b::QAdd)
     # Handle sum-sum: collapse inner first
     if !isempty(a.indices) && !isempty(b.indices)
         # Distribute outer over inner
-        all_terms = QMul[]
-        for b_ in b.arguments
-            _append_terms!(all_terms, commutator(a, b_))
+        d = QTermDict()
+        for b_ in terms(b)
+            _merge_terms!(d, commutator(a, b_))
         end
-        return QAdd(all_terms, b.indices, b.non_equal)
+        return QAdd(d, b.indices, b.non_equal)
     end
     # Regular distribution
-    all_terms = QMul[]
-    for a_ in a.arguments, b_ in b.arguments
-        _append_terms!(all_terms, commutator(a_, b_))
+    d = QTermDict()
+    for a_ in terms(a), b_ in terms(b)
+        _merge_terms!(d, commutator(a_, b_))
     end
-    indices = vcat(a.indices, b.indices) |> unique
-    non_equal = vcat(a.non_equal, b.non_equal) |> unique
-    return QAdd(all_terms, indices, non_equal)
+    indices = _merge_unique(a.indices, b.indices)
+    non_equal = _merge_unique(a.non_equal, b.non_equal)
+    return QAdd(d, indices, non_equal)
 end
 
 function commutator(a::QAdd, b::QMul)
@@ -131,11 +132,11 @@ function commutator(a::QAdd, b::QMul)
             end
         end
     end
-    all_terms = QMul[]
-    for a_ in a.arguments
-        _append_terms!(all_terms, commutator(a_, b))
+    d = QTermDict()
+    for a_ in terms(a)
+        _merge_terms!(d, commutator(a_, b))
     end
-    return QAdd(all_terms, a.indices, a.non_equal)
+    return QAdd(d, a.indices, a.non_equal)
 end
 function commutator(a::QMul, b::QAdd)
     # Diagonal collapse: if b is a sum and a contains an operator indexed on same space
@@ -154,16 +155,16 @@ function commutator(a::QMul, b::QAdd)
             end
         end
     end
-    all_terms = QMul[]
-    for b_ in b.arguments
-        _append_terms!(all_terms, commutator(a, b_))
+    d = QTermDict()
+    for b_ in terms(b)
+        _merge_terms!(d, commutator(a, b_))
     end
-    return QAdd(all_terms, b.indices, b.non_equal)
+    return QAdd(d, b.indices, b.non_equal)
 end
 
-function _append_terms!(all_terms::Vector{QMul}, result::QAdd)
-    for t in result.arguments
-        push!(all_terms, t)
+function _merge_terms!(d::QTermDict, result::QAdd)
+    for (ops, c) in result.arguments
+        _addto!(d, ops, c)
     end
-    return all_terms
+    return d
 end

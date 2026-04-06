@@ -3,7 +3,7 @@ using QuantumOpticsBase
 using Latexify
 using Symbolics: @variables, Num
 using Test
-import SecondQuantizedAlgebra: simplify, _ZERO_QADD, QMul, QAdd, QSym, HilbertSpace
+import SecondQuantizedAlgebra: simplify, QMul, QAdd, QSym, HilbertSpace
 
 @testset "phase_space" begin
     @testset "PhaseSpace" begin
@@ -84,12 +84,12 @@ import SecondQuantizedAlgebra: simplify, _ZERO_QADD, QMul, QAdd, QSym, HilbertSp
         # p*x out of order → x*p - i
         result = simplify(p * x)
         @test result isa QAdd
-        @test length(result.arguments) == 2  # x·p + (-i)
+        @test length(result) == 2  # x·p + (-i)
 
         # x*p already ordered → x·p (1 term)
         result2 = simplify(x * p)
         @test result2 isa QAdd
-        @test length(result2.arguments) == 1
+        @test length(result2) == 1
     end
 
     @testset "Simplify: mixed spaces don't interact" begin
@@ -99,7 +99,7 @@ import SecondQuantizedAlgebra: simplify, _ZERO_QADD, QMul, QAdd, QSym, HilbertSp
 
         # Different spaces — no commutation
         result = simplify(p2 * x1)
-        @test length(result.arguments) == 1
+        @test length(result) == 1
     end
 
     @testset "Higher-order algebra" begin
@@ -141,8 +141,8 @@ import SecondQuantizedAlgebra: simplify, _ZERO_QADD, QMul, QAdd, QSym, HilbertSp
         @variables ω::Real m::Real miv::Real c::Real
         H = 0.5 * Num(miv) * p1^2 + 0.5Num(m) * Num(ω)^2 * x1^2 + Num(c) * x1^4
 
-        @test isequal(simplify(commutator(H, x2)), _ZERO_QADD)
-        @test isequal(simplify(commutator(H, p2)), _ZERO_QADD)
+        @test iszero(simplify(commutator(H, x2)))
+        @test iszero(simplify(commutator(H, p2)))
         @test isequal(simplify(1im * commutator(H, x1)), simplify(p1 * Num(miv)))
         @test isequal(
             simplify(1im * commutator(H, p1)),

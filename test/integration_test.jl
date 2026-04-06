@@ -27,7 +27,7 @@ import SecondQuantizedAlgebra: simplify, QMul, QAdd, QSym
         m = a * a'
         result = normal_order(m)
         @test result isa QAdd
-        @test length(result.arguments) == 2
+        @test length(result) == 2
     end
 
     @testset "Distinct modes on same space don't commute" begin
@@ -38,7 +38,7 @@ import SecondQuantizedAlgebra: simplify, QMul, QAdd, QSym
         # a and b have same space_index=1 but different names
         m = a * b'
         result = normal_order(m)
-        @test length(result.arguments) == 1  # no commutation applied
+        @test length(result) == 1  # no commutation applied
     end
 
     @testset "Numeric conversion round-trip" begin
@@ -70,12 +70,12 @@ import SecondQuantizedAlgebra: simplify, QMul, QAdd, QSym
         # Operators on different spaces — normal_order doesn't commute them
         m = a * b'
         result = normal_order(m)
-        @test length(result.arguments) == 1
+        @test length(result) == 1
 
         # Same-space commutation still works
         m2 = a * a'
         result2 = normal_order(m2)
-        @test length(result2.arguments) == 2
+        @test length(result2) == 2
     end
 
     @testset "Symbolic parameters" begin
@@ -85,7 +85,7 @@ import SecondQuantizedAlgebra: simplify, QMul, QAdd, QSym
 
         expr = g * a' * a + ω * a' * a
         result = simplify(expr)
-        @test length(result.arguments) == 1
+        @test length(result) == 1
 
         # Printing with symbolic prefactors should not crash
         @test repr(g * a) isa String
@@ -133,7 +133,7 @@ import SecondQuantizedAlgebra: simplify, QMul, QAdd, QSym
         m = a * a * a' * a'
         result = normal_order(m)
         @test result isa QAdd
-        @test length(result.arguments) >= 3
+        @test length(result) >= 3
     end
 
     @testset "== consistency" begin
@@ -173,9 +173,9 @@ import SecondQuantizedAlgebra: simplify, QMul, QAdd, QSym
         m = σx * σy * σz
         result = normal_order(m)
         @test result isa QAdd
-        @test length(result.arguments) == 1
-        @test isempty(result.arguments[1].args_nc)
-        @test result.arguments[1].arg_c == im
+        @test length(result) == 1
+        @test isempty(only(collect(result)).args_nc)
+        @test only(collect(result)).arg_c == im
     end
 
     @testset "Mixed Fock + Pauli" begin

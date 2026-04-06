@@ -191,10 +191,11 @@ function Base.show(io::IO, x::QAdd)
         write(io, " ")
     end
 
-    isempty(x.arguments) && return write(io, "0")
-    show(io, x.arguments[1])
-    for i in 2:length(x.arguments)
-        term = x.arguments[i]
+    st = sorted_terms(x)
+    isempty(st) && return write(io, "0")
+    show(io, st[1])
+    for i in 2:length(st)
+        term = st[i]
         if _is_real_negative(term.arg_c)
             write(io, " - ")
             show(io, QMul(-term.arg_c, term.args_nc))

@@ -78,11 +78,14 @@ average(x::SymbolicUtils.BasicSymbolic) = x
 
 function average(op::QMul)
     isempty(op.args_nc) && return op.arg_c
+    # Normalize: single-operator QMul → bare QSym so that _average always wraps
+    # the same type regardless of whether the caller wrote average(σ) or average(1*σ).
+    # For multi-operator QMul, strip the prefactor to get a unit-prefactor QMul.
+    inner = length(op.args_nc) == 1 ? only(op.args_nc) : QMul(op.args_nc)
     # Fast path: unit prefactor, avoid allocating a new QMul
-    isone(op.arg_c) && return _average(op)
-    # Pull out prefactor. QMul(args_nc) creates a unit-prefactor QMul sharing
-    # the args_nc vector; safe because QMul is treated as immutable after construction.
-    avg = _average(QMul(op.args_nc))
+    isone(op.arg_c) && return _average(inner)
+    # Pull out prefactor: _average wraps the pure operator part.
+    avg = _average(inner)
     # CNum = Complex{Num}. Multiplying Complex{Num} * BasicSymbolic may not
     # dispatch correctly, so split into real/imag parts which are Num values
     # and multiply through Symbolics arithmetic.
@@ -93,7 +96,7 @@ function average(op::QMul)
 end
 
 function average(op::QAdd)
-    result = mapreduce(average, +, op.arguments)
+    result = mapreduce(t -> average(t), +, terms(op))
     if !isempty(op.indices)
         result = SymbolicUtils.setmetadata(result, SumIndices, op.indices)
         result = SymbolicUtils.setmetadata(result, SumNonEqual, op.non_equal)
@@ -255,7 +258,7 @@ end
 
 function acts_on(op::QAdd)
     aon = Int[]
-    for t in op.arguments
+    for t in terms(op)
         append!(aon, acts_on(t))
     end
     unique!(sort!(aon))

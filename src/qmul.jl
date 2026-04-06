@@ -40,6 +40,15 @@ function _to_cnum(x::SymbolicUtils.BasicSymbolic)
     return Complex(Num(x), _NUM_ZERO)
 end
 
+function _iszero_cnum(c::CNum)
+    r = Symbolics.unwrap(real(c))
+    i = Symbolics.unwrap(imag(c))
+    # Fast path: plain numbers avoid SymbolicUtils structural comparison
+    r isa Number && i isa Number && return iszero(r) && iszero(i)
+    return isequal(real(c), _NUM_ZERO) && isequal(imag(c), _NUM_ZERO)
+end
+
+
 _sort_key(op::QSym) = (op.space_index, op.copy_index, op.index.name)
 
 # Group operators by site. Must be stable: same-site operators preserve
@@ -55,6 +64,20 @@ struct QMul <: QTerm
 end
 QMul(arg_c::Number, args_nc::Vector{QSym}) = QMul(_to_cnum(arg_c), args_nc)
 QMul(args_nc::Vector{QSym}) = QMul(_to_cnum(1), args_nc)
+
+"""
+    prefactor(m::QMul) -> CNum
+
+The commutative (c-number) prefactor of the product.
+"""
+prefactor(m::QMul) = m.arg_c
+
+"""
+    operators(m::QMul) -> Vector{QSym}
+
+The non-commutative operator factors, in canonical (site-sorted) order.
+"""
+operators(m::QMul) = m.args_nc
 
 Base.length(a::QMul) = length(a.args_nc)
 Base.iszero(a::QMul) = iszero(a.arg_c)

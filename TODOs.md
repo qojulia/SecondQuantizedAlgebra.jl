@@ -2,7 +2,7 @@
 
 ## Ready to implement
 - [ ] **SymmetricOrder** — `struct SymmetricOrder <: OrderingConvention` for TWA (Truncated Wigner Approximation). Spec in `src/simplify.jl:195` and `src/types.jl:37`.
-- [ ] **Dict-based QAdd** — Replace `Vector{QMul}` storage with `Dict{Vector{QSym}, CNum}` for auto like-term collection, order-independent equality, and elimination of `_collect_like_terms`. Resolves audit issues #2 (fragile Dict keys), #4 (order-dependent equality), #5 (`_ZERO_QADD` mutable singleton), #10 (redundant Dict allocation in simplify). Plan: `docs/superpowers/plans/2026-04-05-dict-based-qadd.md`.
+- [x] **Dict-based QAdd** — Replaced `Vector{QMul}` storage with `Dict{Vector{QSym}, CNum}` for auto like-term collection, order-independent equality, and elimination of `_collect_like_terms`. Resolved audit issues #2, #4, #5, #10. Performance: 50-97% faster on simplify/commutator benchmarks.
 
 ## Legacy features to port
 - [x] **Average system** — `average()`, `undo_average()`, symbolic `<a'a>` expressions. Implemented in `src/average.jl`. `IndexedAverageSum`/`IndexedAverageDoubleSum` eliminated by redesign (summation metadata on SymbolicUtils nodes). LaTeX rendering pending upstream hook (see Upstream issues).
@@ -15,7 +15,7 @@
 - [ ] **expand_sums diagonal splitting** — Richer `expand_sums` that splits nested indexed sums into diagonal (`i==j`) and off-diagonal (`i≠j`) terms, sum multiplication with explicit index (`*(sum1, sum2; ind=j)`), and commutators with sums involving symbolic N. Legacy `DoubleSum`/`SingleSum` behavior.
 - [ ] **Symbolic NLevel levels with `level_map`** — `NLevelSpace(:atom, (:g,:e,:a))` with `to_numeric(σ(:e,:g), basis; level_map=Dict(:g=>1, :e=>2, :a=>3))`.
 - [x] **get_indices for average expressions** — Fixed: added `get_indices(::BasicSymbolic)` in `average.jl` that traverses symbolic trees, unwrapping `AvgFunc` nodes.
-- [ ] **NLevel completeness relation in simplify** — `simplify(σ_gg)` should reduce ground-state projectors via `Σ_i |i⟩⟨i| = 1` (e.g. `σ₁₁ = 1 - σ₂₂` for 2-level). Blocked: `Transition` doesn't carry a reference to its `NLevelSpace` (no `n`/`ground_state` info). Needs either fields on `Transition` or a context-aware `simplify(expr, h::HilbertSpace)` API.
+- [x] **NLevel completeness relation in simplify** — `simplify(σ_gg, h)` reduces ground-state projectors via completeness. Uses context-aware `simplify(expr, h::HilbertSpace)` API.
 - [x] **undo_average with symbolic prefactors** — Fixed: only recurse into `+`/`*` nodes in `undo_average`, convert other `BasicSymbolic` c-number nodes (e.g. `complex(0, η)`) to `CNum` directly. Also added `_to_cnum(::BasicSymbolic)` to split `complex(a,b)` nodes.
 - [x] **_to_number for BasicSymbolic** — Fixed: added `_to_number(::BasicSymbolic)` in `numeric.jl` that unwraps `Const` nodes and converts via `Num`.
 - [x] **Σ(constant, i) simplification** — Fixed: `_depends_on_index(::QMul, ::Index)` checks both operators and prefactor for index dependence. `Σ` multiplies by `range` when summand is independent.

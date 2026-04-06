@@ -66,7 +66,7 @@ end
 
 # QAdd
 function to_numeric(s::QAdd, b::QuantumOpticsBase.Basis; kwargs...)
-    terms_num = [to_numeric(t, b; kwargs...) for t in s.arguments]
+    terms_num = [to_numeric(QMul(c, ops), b; kwargs...) for (ops, c) in s.arguments]
     return sum(terms_num)
 end
 
@@ -166,7 +166,7 @@ function to_numeric(m::QMul, b::QuantumOpticsBase.Basis, d::Dict; kwargs...)
     return _to_number(m.arg_c) * prod(ops_num)
 end
 function to_numeric(s::QAdd, b::QuantumOpticsBase.Basis, d::Dict; kwargs...)
-    return sum(to_numeric(t, b, d; kwargs...) for t in s.arguments)
+    return sum(to_numeric(QMul(c, ops), b, d; kwargs...) for (ops, c) in s.arguments)
 end
 function to_numeric(x::Number, b::QuantumOpticsBase.Basis, d::Dict; kwargs...)
     return _to_number(x) * _lazy_one(b)

@@ -28,32 +28,46 @@ function _qsimplify(op::QSym, ::OrderingConvention)
 end
 
 function _qsimplify(m::QMul, ord::OrderingConvention)
-    terms = _simplify_qmul(m.arg_c, m.args_nc, ord)
-    return _collect_like_terms(QAdd(terms))
+    raw = _simplify_qmul(m.arg_c, m.args_nc, ord)
+    return _collect_to_qadd(raw)
 end
 
 function _qsimplify(s::QAdd, ord::OrderingConvention)
-    all_terms = QMul[]
-    for term in s.arguments
-        append!(all_terms, _simplify_qmul(term.arg_c, term.args_nc, ord))
+    d = QTermDict()
+    for (ops, c) in s.arguments
+        _collect_terms!(d, _simplify_qmul(c, ops, ord))
     end
-    return _collect_like_terms(QAdd(all_terms, s.indices, s.non_equal))
+    return QAdd(d, s.indices, s.non_equal)
 end
 
 # With Hilbert space (ground state rewriting)
 function _qsimplify(op::QSym, ord::OrderingConvention, h::HilbertSpace)
-    return _collect_like_terms(_apply_ground_state(_qsimplify(op, ord), h))
+    return _apply_ground_state(_qsimplify(op, ord), h)
 end
 function _qsimplify(m::QMul, ord::OrderingConvention, h::HilbertSpace)
-    terms = _simplify_qmul(m.arg_c, m.args_nc, ord)
-    return _collect_like_terms(_apply_ground_state(QAdd(terms), h))
+    raw = _simplify_qmul(m.arg_c, m.args_nc, ord)
+    return _apply_ground_state(_collect_to_qadd(raw), h)
 end
 function _qsimplify(s::QAdd, ord::OrderingConvention, h::HilbertSpace)
-    all_terms = QMul[]
-    for term in s.arguments
-        append!(all_terms, _simplify_qmul(term.arg_c, term.args_nc, ord))
+    d = QTermDict()
+    for (ops, c) in s.arguments
+        _collect_terms!(d, _simplify_qmul(c, ops, ord))
     end
-    return _collect_like_terms(_apply_ground_state(QAdd(all_terms, s.indices, s.non_equal), h))
+    return _apply_ground_state(QAdd(d, s.indices, s.non_equal), h)
+end
+
+# Build QAdd from Vector{QMul} by collecting into Dict directly
+function _collect_to_qadd(terms::Vector{QMul})
+    d = QTermDict()
+    _collect_terms!(d, terms)
+    return QAdd(d, Index[], Tuple{Index, Index}[])
+end
+
+function _collect_terms!(d::QTermDict, terms::Vector{QMul})
+    for t in terms
+        _addto!(d, t.args_nc, t.arg_c)
+    end
+    return d
 end
 
 # Public API: SymbolicUtils.simplify dispatches to _qsimplify
@@ -189,43 +203,22 @@ function _apply_ordering_swap!(
     return false
 end
 
-"""
-    _collect_like_terms(expr::QAdd)
-
-Group terms with identical `args_nc`, sum their `arg_c` prefactors.
-"""
-function _collect_like_terms(s::QAdd)
-    d = Dict{Vector{QSym}, CNum}()
-    for term in s.arguments
-        d[term.args_nc] = get(d, term.args_nc, _to_cnum(0)) + term.arg_c
-    end
-
-    result = QMul[]
-    for (ops, c) in d
-        iszero(c) && continue
-        cs = _simplify_prefactor(c)
-        iszero(cs) && continue
-        push!(result, QMul(cs, ops))
-    end
-    isempty(result) && return QAdd(QMul[QMul(_to_cnum(0), QSym[])], s.indices, s.non_equal)
-    return QAdd(result, s.indices, s.non_equal)
-end
-
 # Symbolics.expand — expand symbolic prefactors (e.g. (a+b)² → a²+2ab+b²)
 # Note: operator products are already distributed at the QAdd*QAdd level;
 # this only calls Symbolics.expand on the c-number prefactors.
 function Symbolics.expand(s::QAdd; kwargs...)
-    result = QMul[
-        QMul(_expand_prefactor(t.arg_c; kwargs...), t.args_nc)
-            for t in s.arguments
-    ]
-    return QAdd(result, s.indices, s.non_equal)
+    d = QTermDict(ops => _expand_prefactor(c; kwargs...) for (ops, c) in s.arguments)
+    _drop_zeros!(d)
+    return QAdd(d, s.indices, s.non_equal)
 end
 function Symbolics.expand(m::QMul; kwargs...)
-    return Symbolics.expand(QAdd(QMul[m]); kwargs...)
+    c = _expand_prefactor(m.arg_c; kwargs...)
+    d = QTermDict(m.args_nc => c)
+    _iszero_cnum(c) && empty!(d)
+    return QAdd(d, Index[], Tuple{Index, Index}[])
 end
 function Symbolics.expand(op::QSym; kwargs...)
-    return QAdd(QMul[QMul(_to_cnum(1), QSym[op])])
+    return QAdd(QTermDict(QSym[op] => _CNUM_ONE), Index[], Tuple{Index, Index}[])
 end
 
 function _simplify_prefactor(x::CNum)

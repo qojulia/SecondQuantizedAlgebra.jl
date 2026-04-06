@@ -130,7 +130,7 @@ import SecondQuantizedAlgebra: simplify, QMul, QAdd, QSym, CNum, _to_cnum, NO_IN
         # Different index → different site → commute
         @test commutator(ai, aj') isa QAdd
         result = commutator(ai, aj')
-        @test all(iszero, result.arguments)
+        @test iszero(result)
     end
 
     @testset "Indexed operators on same index interact" begin
@@ -141,9 +141,9 @@ import SecondQuantizedAlgebra: simplify, QMul, QAdd, QSym, CNum, _to_cnum, NO_IN
         # Same index → same site → [a_i, a†_i] = 1
         result = commutator(ai, adi)
         @test result isa QAdd
-        @test length(result.arguments) == 1
-        @test isempty(result.arguments[1].args_nc)
-        @test result.arguments[1].arg_c == 1
+        @test length(result) == 1
+        @test isempty(only(collect(result)).args_nc)
+        @test only(collect(result)).arg_c == 1
     end
 
     @testset "Indexed vs non-indexed are different sites" begin
@@ -152,7 +152,7 @@ import SecondQuantizedAlgebra: simplify, QMul, QAdd, QSym, CNum, _to_cnum, NO_IN
 
         # Non-indexed a and indexed a_i have different indices (NO_INDEX vs i)
         result = commutator(a, ai')
-        @test all(iszero, result.arguments)
+        @test iszero(result)
     end
 
     # ========== IndexedVariable ==========
@@ -213,8 +213,8 @@ import SecondQuantizedAlgebra: simplify, QMul, QAdd, QSym, CNum, _to_cnum, NO_IN
         s = Σ(adi * ai, i)
         @test s isa QAdd
         @test length(s.indices) == 1
-        @test length(s.arguments) == 1
-        @test length(s.arguments[1].args_nc) == 2
+        @test length(s) == 1
+        @test length(only(collect(s)).args_nc) == 2
     end
 
     @testset "Sigma with non_equal" begin
@@ -252,7 +252,7 @@ import SecondQuantizedAlgebra: simplify, QMul, QAdd, QSym, CNum, _to_cnum, NO_IN
         ai = IndexedOperator(a, i)
         s = Σ(ai, i)
         @test s isa QAdd
-        @test length(s.arguments) == 1
+        @test length(s) == 1
     end
 
     @testset "Sigma alias ∑" begin
@@ -364,7 +364,7 @@ import SecondQuantizedAlgebra: simplify, QMul, QAdd, QSym, CNum, _to_cnum, NO_IN
         s = ai + adi  # a_i + a†_i
         sj = change_index(s, i, j)
         @test sj isa QAdd
-        for term in sj.arguments
+        for term in sj
             for op in term.args_nc
                 @test op.index == j
             end
@@ -463,7 +463,7 @@ import SecondQuantizedAlgebra: simplify, QMul, QAdd, QSym, CNum, _to_cnum, NO_IN
         expanded = expand_sums(expr)
         @test expanded isa QAdd
         # Should have more terms than original
-        @test length(expanded.arguments) > length(expr.arguments)
+        @test length(expanded) > length(expr)
         # Should have i≠j constraint
         @test any(p -> p == (i, j) || p == (j, i), expanded.non_equal)
     end
@@ -478,7 +478,7 @@ import SecondQuantizedAlgebra: simplify, QMul, QAdd, QSym, CNum, _to_cnum, NO_IN
         expr = Σ(adj * ai, i, [j])
         expanded = expand_sums(expr)
         # No new terms should be added (already non_equal)
-        @test length(expanded.arguments) == length(expr.arguments)
+        @test length(expanded) == length(expr)
     end
 
     # ========== Arithmetic with indexed operators ==========
@@ -495,7 +495,7 @@ import SecondQuantizedAlgebra: simplify, QMul, QAdd, QSym, CNum, _to_cnum, NO_IN
         # Addition
         s = ai + adi
         @test s isa QAdd
-        @test length(s.arguments) == 2
+        @test length(s) == 2
 
         # Scalar multiplication
         m2 = 2 * ai
@@ -517,7 +517,7 @@ import SecondQuantizedAlgebra: simplify, QMul, QAdd, QSym, CNum, _to_cnum, NO_IN
         result = simplify(ai * adi)
         @test result isa QAdd
         # Should be a†_i * a_i + 1
-        @test length(result.arguments) == 2
+        @test length(result) == 2
     end
 
     @testset "Normal order indexed" begin
@@ -588,7 +588,7 @@ import SecondQuantizedAlgebra: simplify, QMul, QAdd, QSym, CNum, _to_cnum, NO_IN
 
         # [a_i, a†_j] = 0 (different indices → different sites)
         result = commutator(ai, adj)
-        @test all(iszero, result.arguments)
+        @test iszero(result)
     end
 
     @testset "Commutator — sum with external operator (diagonal collapse)" begin
@@ -603,9 +603,9 @@ import SecondQuantizedAlgebra: simplify, QMul, QAdd, QSym, CNum, _to_cnum, NO_IN
         @test result isa QAdd
         # Should yield [a_j, a†_j] = 1
         simplified = simplify(result)
-        @test length(simplified.arguments) == 1
-        @test isempty(simplified.arguments[1].args_nc)
-        @test simplified.arguments[1].arg_c == 1
+        @test length(simplified) == 1
+        @test isempty(only(collect(simplified)).args_nc)
+        @test only(collect(simplified)).arg_c == 1
     end
 
     @testset "Commutator — external operator with sum (diagonal collapse)" begin
@@ -620,9 +620,9 @@ import SecondQuantizedAlgebra: simplify, QMul, QAdd, QSym, CNum, _to_cnum, NO_IN
         @test result isa QAdd
         # Should yield [a_j, a†_j] = 1
         simplified = simplify(result)
-        @test length(simplified.arguments) == 1
-        @test isempty(simplified.arguments[1].args_nc)
-        @test simplified.arguments[1].arg_c == 1
+        @test length(simplified) == 1
+        @test isempty(only(collect(simplified)).args_nc)
+        @test only(collect(simplified)).arg_c == 1
     end
 
     @testset "Commutator — sum with QMul (diagonal collapse)" begin
@@ -730,14 +730,13 @@ import SecondQuantizedAlgebra: simplify, QMul, QAdd, QSym, CNum, _to_cnum, NO_IN
         σj = IndexedOperator(sigma, j)
 
         @test isequal(gi + a, a + gi)
-        # TODO: QAdd isequal is not order-independent for indexed operators
-        @test_broken isequal(a + σi, σi + a)
-        @test_broken isequal(σj + σi, σi + σj)
+        @test isequal(a + σi, σi + a)
+        @test isequal(σj + σi, σi + σj)
 
         qadd = a + a'
         @test isequal(gi + qadd, qadd + gi)
-        @test length((qadd + gi).arguments) == 3
-        @test length((qadd + σi).arguments) == 3
+        @test length(qadd + gi) == 3
+        @test length(qadd + σi) == 3
         @test isequal(σi + qadd, qadd + σi)
 
         qmul = a' * a
@@ -762,8 +761,8 @@ import SecondQuantizedAlgebra: simplify, QMul, QAdd, QSym, CNum, _to_cnum, NO_IN
         qmul = a' * a
 
         # σ on NLevel space, a on Fock space → different spaces → commutator = 0
-        @test all(iszero, simplify(commutator(σi, qadd)).arguments)
-        @test all(iszero, simplify(commutator(σi, qmul)).arguments)
+        @test iszero(simplify(commutator(σi, qadd)))
+        @test iszero(simplify(commutator(σi, qmul)))
     end
 
     # ========== Same-index Fock normal ordering ==========
@@ -780,7 +779,7 @@ import SecondQuantizedAlgebra: simplify, QMul, QAdd, QSym, CNum, _to_cnum, NO_IN
         i = Index(h_prod, :i, 10, hn)
         σi = IndexedOperator(sigma, i)
         result = simplify(normal_order(σi * σi))
-        @test all(iszero, result.arguments)
+        @test iszero(result)
     end
 
     # ========== change_index producing zero ==========
@@ -848,9 +847,8 @@ import SecondQuantizedAlgebra: simplify, QMul, QAdd, QSym, CNum, _to_cnum, NO_IN
 
         # Sum + QAdd
         qadd = a + a'
-        @test length((qadd + s1).arguments) == 3
-        # TODO: QAdd isequal is not order-independent for sums
-        @test_broken isequal(s1 + qadd, qadd + s1)
+        @test length(qadd + s1) == 3
+        @test isequal(s1 + qadd, qadd + s1)
 
         # Sum + QMul
         qmul = a' * a

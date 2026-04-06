@@ -102,9 +102,9 @@ end
         end
         prefix = join(idx_parts, " ")
         # Wrap sum contents
-        return Expr(:latexifymerge, prefix, " ", Expr(:call, :+, x.arguments...))
+        return Expr(:latexifymerge, prefix, " ", Expr(:call, :+, sorted_terms(x)...))
     end
-    return Expr(:call, :+, x.arguments...)
+    return Expr(:call, :+, sorted_terms(x)...)
 end
 
 const QLaTeX = Union{<:QField}

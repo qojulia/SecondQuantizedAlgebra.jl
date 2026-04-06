@@ -88,6 +88,7 @@ export FockSpace, ProductSpace,
     acts_on, is_average,
     has_sum_metadata, get_sum_indices, get_sum_non_equal,
     fundamental_operators, find_operators, unique_ops,
+    prefactor, operators,
     normal_order, simplify, expand, commutator,
     to_numeric, numeric_average,
     transition_superscript

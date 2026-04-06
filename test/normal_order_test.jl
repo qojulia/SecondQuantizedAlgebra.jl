@@ -11,21 +11,21 @@ import SecondQuantizedAlgebra: simplify, QMul, QAdd, QSym
         m = ad * a
         result = normal_order(m)
         @test result isa QAdd
-        @test length(result.arguments) == 1
-        @test isequal(result.arguments[1], m)
+        @test length(result) == 1
+        @test isequal(only(collect(result)), m)
     end
 
     @testset "Single commutation: a*a† → a†a + 1" begin
         m = a * ad
         result = normal_order(m)
         @test result isa QAdd
-        @test length(result.arguments) == 2
+        @test length(result) == 2
     end
 
     @testset "QSym passthrough" begin
         result = normal_order(a)
         @test result isa QAdd
-        @test length(result.arguments) == 1
+        @test length(result) == 1
     end
 
     @testset "QAdd — normal-orders each term" begin
@@ -41,7 +41,7 @@ import SecondQuantizedAlgebra: simplify, QMul, QAdd, QSym
         m = a1 * a2'
         result = normal_order(m)
         @test result isa QAdd
-        @test length(result.arguments) == 1
+        @test length(result) == 1
     end
 
     @testset "Return type is always QAdd" begin
@@ -60,8 +60,8 @@ end
         m = σ12 * σ23
         result = normal_order(m)
         @test result isa QAdd
-        @test length(result.arguments) == 1
-        op = result.arguments[1].args_nc[1]
+        @test length(result) == 1
+        op = only(collect(result)).args_nc[1]
         @test op isa Transition
         @test op.i == 1 && op.j == 3
     end
@@ -72,7 +72,7 @@ end
         m = σ12 * σ31
         result = normal_order(m)
         @test result isa QAdd
-        @test all(iszero, result.arguments)
+        @test iszero(result)
     end
 
     @testset "Orthogonality in longer product" begin
@@ -83,7 +83,7 @@ end
         m = σ12 * σ31 * σ23
         result = normal_order(m)
         @test result isa QAdd
-        @test all(iszero, result.arguments)
+        @test iszero(result)
     end
 
     @testset "Ground state rewriting — single space" begin
@@ -92,10 +92,10 @@ end
         result = normal_order(m, h)
         # |1⟩⟨1| = 1 - |2⟩⟨2| - |3⟩⟨3| for ground_state=1, n=3
         @test result isa QAdd
-        @test length(result.arguments) == 3
+        @test length(result) == 3
         # Verify content: one scalar term (1), two diagonal transitions with -1
         simplified = simplify(result)
-        @test length(simplified.arguments) == 3
+        @test length(simplified) == 3
     end
 
     @testset "Ground state rewriting — ProductSpace" begin
@@ -107,7 +107,7 @@ end
         result = normal_order(m, hp)
         # |1⟩⟨1| = 1 - |2⟩⟨2| for ground_state=1, n=2
         @test result isa QAdd
-        @test length(result.arguments) == 2
+        @test length(result) == 2
     end
 
     @testset "Ground state rewriting — recursive (double projection)" begin
@@ -130,17 +130,18 @@ end
         m = σx * σx
         result = normal_order(m)
         @test result isa QAdd
-        @test length(result.arguments) == 1
-        @test isempty(result.arguments[1].args_nc)
-        @test result.arguments[1].arg_c == 1
+        @test length(result) == 1
+        t = only(collect(result))
+        @test isempty(t.args_nc)
+        @test t.arg_c == 1
     end
 
     @testset "σx·σy = iσz" begin
         m = σx * σy
         result = normal_order(m)
         @test result isa QAdd
-        @test length(result.arguments) == 1
-        t = result.arguments[1]
+        @test length(result) == 1
+        t = only(collect(result))
         @test t.arg_c == im
         @test length(t.args_nc) == 1
         @test t.args_nc[1] isa Pauli
@@ -151,8 +152,8 @@ end
         m = σy * σx
         result = normal_order(m)
         @test result isa QAdd
-        @test length(result.arguments) == 1
-        t = result.arguments[1]
+        @test length(result) == 1
+        t = only(collect(result))
         @test t.arg_c == -im
         @test t.args_nc[1].axis == 3
     end
@@ -160,28 +161,32 @@ end
     @testset "Full Pauli cycle" begin
         # σy·σz = iσx
         result = normal_order(σy * σz)
-        @test result.arguments[1].arg_c == im
-        @test result.arguments[1].args_nc[1].axis == 1
+        t = only(collect(result))
+        @test t.arg_c == im
+        @test t.args_nc[1].axis == 1
 
         # σz·σx = iσy
         result = normal_order(σz * σx)
-        @test result.arguments[1].arg_c == im
-        @test result.arguments[1].args_nc[1].axis == 2
+        t = only(collect(result))
+        @test t.arg_c == im
+        @test t.args_nc[1].axis == 2
 
         # σz·σy = -iσx
         result = normal_order(σz * σy)
-        @test result.arguments[1].arg_c == -im
-        @test result.arguments[1].args_nc[1].axis == 1
+        t = only(collect(result))
+        @test t.arg_c == -im
+        @test t.args_nc[1].axis == 1
 
         # σx·σz = -iσy
         result = normal_order(σx * σz)
-        @test result.arguments[1].arg_c == -im
-        @test result.arguments[1].args_nc[1].axis == 2
+        t = only(collect(result))
+        @test t.arg_c == -im
+        @test t.args_nc[1].axis == 2
     end
 
     @testset "σy·σy = 1, σz·σz = 1" begin
-        @test normal_order(σy * σy).arguments[1].arg_c == 1
-        @test normal_order(σz * σz).arguments[1].arg_c == 1
+        @test only(collect(normal_order(σy * σy))).arg_c == 1
+        @test only(collect(normal_order(σz * σz))).arg_c == 1
     end
 end
 
@@ -196,21 +201,21 @@ end
         result = normal_order(m)
         @test result isa QAdd
         # SySx = SxSy - iSz → two terms
-        @test length(result.arguments) >= 2
+        @test length(result) >= 2
     end
 
     @testset "Same axis — already ordered" begin
         m = Sx * Sx
         result = normal_order(m)
         @test result isa QAdd
-        @test length(result.arguments) == 1
+        @test length(result) == 1
     end
 
     @testset "Sx·Sy already in order" begin
         m = Sx * Sy  # axes 1,2 — already in order
         result = normal_order(m)
         @test result isa QAdd
-        @test length(result.arguments) == 1
+        @test length(result) == 1
     end
 end
 

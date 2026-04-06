@@ -76,7 +76,7 @@ using Test
         ωc = 0.1313
         H = ωc * a' * a
         da = simplify(1.0im * commutator(H, a))
-        @test isequal(da, simplify((0.0 - 1.0im) * ωc * a))
+        @test isequal(da, simplify(-1.0im * ωc * a))
     end
 
     @testset "Multi-space commutators" begin

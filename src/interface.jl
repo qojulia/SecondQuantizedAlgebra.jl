@@ -36,7 +36,7 @@ end
 SymbolicUtils.iscall(::QAdd) = true
 SymbolicUtils.iscall(::Type{QAdd}) = true
 SymbolicUtils.operation(::QAdd) = (+)
-SymbolicUtils.arguments(a::QAdd) = a.arguments
+SymbolicUtils.arguments(a::QAdd) = sorted_terms(a)
 TermInterface.metadata(::QAdd) = nothing
 
 function TermInterface.maketerm(::Type{QAdd}, ::typeof(+), args, metadata)

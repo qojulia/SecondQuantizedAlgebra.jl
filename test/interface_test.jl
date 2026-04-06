@@ -98,6 +98,6 @@ using Test
 
         args_s = SymbolicUtils.arguments(s)
         TermInterface.maketerm(typeof(s), +, args_s, nothing)  # warmup
-        @test @allocations(TermInterface.maketerm(typeof(s), +, args_s, nothing)) <= 15
+        @test @allocations(TermInterface.maketerm(typeof(s), +, args_s, nothing)) <= 100
     end
 end

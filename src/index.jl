@@ -90,7 +90,7 @@ function change_index(m::QMul, from::Index, to::Index)
 end
 
 function change_index(s::QAdd, from::Index, to::Index)
-    new_terms = QMul[change_index(t, from, to) for t in s.arguments]
+    new_terms = QMul[change_index(QMul(c, ops), from, to) for (ops, c) in s.arguments]
     new_indices = [idx == from ? to : idx for idx in s.indices]
     new_ne = Tuple{Index, Index}[
         (a == from ? to : a, b == from ? to : b)
@@ -118,9 +118,9 @@ function get_indices(m::QMul)
 end
 function get_indices(s::QAdd)
     inds = copy(s.indices)
-    for t in s.arguments
-        for idx in get_indices(t)
-            idx ∉ inds && push!(inds, idx)
+    for (ops, _) in s.arguments
+        for op in ops
+            has_index(op.index) && op.index ∉ inds && push!(inds, op.index)
         end
     end
     return inds

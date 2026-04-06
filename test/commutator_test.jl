@@ -1,6 +1,6 @@
 using SecondQuantizedAlgebra
 using Test
-import SecondQuantizedAlgebra: _ZERO_QADD, simplify, QMul, QAdd, QSym
+import SecondQuantizedAlgebra: simplify, QMul, QAdd, QSym
 
 @testset "commutator" begin
     h = FockSpace(:c)
@@ -8,39 +8,38 @@ import SecondQuantizedAlgebra: _ZERO_QADD, simplify, QMul, QAdd, QSym
     ad = a'
 
     @testset "Scalar short-circuits" begin
-        @test commutator(1, 2) === _ZERO_QADD
-        @test commutator(3, a) === _ZERO_QADD
-        @test commutator(a, 5) === _ZERO_QADD
-        @test commutator(2.0, ad) === _ZERO_QADD
+        @test iszero(commutator(1, 2))
+        @test iszero(commutator(3, a))
+        @test iszero(commutator(a, 5))
+        @test iszero(commutator(2.0, ad))
     end
 
     @testset "Fock: [a, a†] = 1" begin
         result = commutator(a, ad)
         @test result isa QAdd
         # simplify(a*a' - a'*a) = 1 (scalar identity)
-        @test length(result.arguments) == 1
-        @test isempty(result.arguments[1].args_nc)
-        @test result.arguments[1].arg_c == 1
+        @test length(result) == 1
+        @test isempty(only(collect(result)).args_nc)
+        @test only(collect(result)).arg_c == 1
     end
 
     @testset "Fock: [a†, a] = -1" begin
         result = commutator(ad, a)
         @test result isa QAdd
-        @test length(result.arguments) == 1
-        @test result.arguments[1].arg_c == -1
+        @test length(result) == 1
+        @test only(collect(result)).arg_c == -1
     end
 
     @testset "Identical operators: [a, a] = 0" begin
-        result = commutator(a, a)
-        @test result === _ZERO_QADD
+        @test iszero(commutator(a, a))
     end
 
     @testset "Different spaces: [a, b] = 0" begin
         h2 = FockSpace(:a) ⊗ FockSpace(:b)
         a1 = Destroy(h2, :a, 1)
         a2 = Destroy(h2, :b, 2)
-        @test commutator(a1, a2) === _ZERO_QADD
-        @test commutator(a1, a2') === _ZERO_QADD
+        @test iszero(commutator(a1, a2))
+        @test iszero(commutator(a1, a2'))
     end
 
     @testset "QMul with QSym — shared space" begin
@@ -52,15 +51,15 @@ import SecondQuantizedAlgebra: _ZERO_QADD, simplify, QMul, QAdd, QSym
         h2 = FockSpace(:a) ⊗ FockSpace(:b)
         a1 = Destroy(h2, :a, 1)
         a2 = Destroy(h2, :b, 2)
-        @test commutator(a1' * a1, a2) === _ZERO_QADD
-        @test commutator(a2, a1' * a1) === _ZERO_QADD
+        @test iszero(commutator(a1' * a1, a2))
+        @test iszero(commutator(a2, a1' * a1))
     end
 
     @testset "QMul with QMul — no shared space" begin
         h2 = FockSpace(:a) ⊗ FockSpace(:b)
         a1 = Destroy(h2, :a, 1)
         a2 = Destroy(h2, :b, 2)
-        @test commutator(a1' * a1, a2' * a2) === _ZERO_QADD
+        @test iszero(commutator(a1' * a1, a2' * a2))
     end
 
     @testset "QAdd bilinearity: [a + a†, a] = [a,a] + [a†,a]" begin
@@ -69,8 +68,8 @@ import SecondQuantizedAlgebra: _ZERO_QADD, simplify, QMul, QAdd, QSym
         @test result isa QAdd
         # [a,a] = 0, [a†,a] = -1 → total = -1
         simplified = simplify(result)
-        @test length(simplified.arguments) == 1
-        @test simplified.arguments[1].arg_c == -1
+        @test length(simplified) == 1
+        @test only(collect(simplified)).arg_c == -1
     end
 
     @testset "QAdd, QAdd bilinearity" begin
@@ -78,7 +77,7 @@ import SecondQuantizedAlgebra: _ZERO_QADD, simplify, QMul, QAdd, QSym
         @test result isa QAdd
         # [a+a†, a+a†] = [a,a]+[a,a†]+[a†,a]+[a†,a†] = 0+1-1+0 = 0
         simplified = simplify(result)
-        @test all(iszero, simplified.arguments)
+        @test iszero(simplified)
     end
 
     @testset "Nested commutator" begin
@@ -86,7 +85,7 @@ import SecondQuantizedAlgebra: _ZERO_QADD, simplify, QMul, QAdd, QSym
         inner = commutator(a, ad)
         result = commutator(a, inner)
         @test result isa QAdd
-        @test all(iszero, simplify(result).arguments)
+        @test iszero(simplify(result))
     end
 
     @testset "Spin: [Sx, Sy] = iSz" begin

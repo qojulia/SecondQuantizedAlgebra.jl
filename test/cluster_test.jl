@@ -1,7 +1,7 @@
 using SecondQuantizedAlgebra
 using Symbolics: @variables
 using Test
-import SecondQuantizedAlgebra: _unwrap_space, has_cluster, _ZERO_QADD, simplify, QMul, QAdd, QSym
+import SecondQuantizedAlgebra: _unwrap_space, has_cluster, simplify, QMul, QAdd, QSym
 
 @testset "ClusterSpace" begin
     @testset "Construction" begin
@@ -135,12 +135,12 @@ import SecondQuantizedAlgebra: _unwrap_space, has_cluster, _ZERO_QADD, simplify,
         a2 = Destroy(:a, 1, 2)
 
         # Different copy → short-circuit to zero
-        @test commutator(a1, a2') === _ZERO_QADD
+        @test iszero(commutator(a1, a2'))
 
         # Same copy → non-trivial
         result = commutator(a1, a1')
         @test result isa QAdd
-        @test !all(iszero, result.arguments)
+        @test !iszero(result)
     end
 
     @testset "Simplify respects copy_index" begin
@@ -149,12 +149,12 @@ import SecondQuantizedAlgebra: _unwrap_space, has_cluster, _ZERO_QADD, simplify,
 
         # Same copy: a·a† → a†·a + 1
         result = simplify(a1 * a1')
-        @test length(result.arguments) == 2
+        @test length(result) == 2
 
         # Different copy: a₁·a₂† stays as-is (no commutation rule)
         result = simplify(a1 * a2')
-        @test length(result.arguments) == 1
-        @test length(result.arguments[1].args_nc) == 2
+        @test length(result) == 1
+        @test length(only(collect(result)).args_nc) == 2
     end
 
     @testset "Symbolic N" begin
