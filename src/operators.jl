@@ -104,7 +104,7 @@ function find_operators(h::HilbertSpace, order::Int; names = nothing)
 
     all_ops = QField[]
     for i in 1:order
-        for c in _combinations(fund_ops, i)
+        for c in with_replacement_combinations(fund_ops, i)
             c_ = prod(reverse(c))
             iszero(c_) || push!(all_ops, c_)
         end
@@ -115,29 +115,6 @@ function find_operators(h::HilbertSpace, order::Int; names = nothing)
     return all_ops
 end
 
-# Simple combinations with replacement (no Combinatorics dependency)
-function _combinations(pool::AbstractVector, k::Int)
-    n = length(pool)
-    result = Vector{Vector{eltype(pool)}}()
-    _combinations_recurse!(result, eltype(pool)[], pool, k, 1, n)
-    return result
-end
-
-function _combinations_recurse!(
-        result::Vector, current::Vector, pool::AbstractVector,
-        k::Int, start::Int, n::Int
-    )
-    if length(current) == k
-        push!(result, copy(current))
-        return
-    end
-    for i in start:n
-        push!(current, pool[i])
-        _combinations_recurse!(result, current, pool, k, i, n)
-        pop!(current)
-    end
-    return
-end
 
 # --- Conjugation helpers ---
 

@@ -7,6 +7,7 @@ using TermInterface: TermInterface
 using QuantumOpticsBase: QuantumOpticsBase
 import QuantumOpticsBase: ⊗, tensor
 
+using Combinatorics: with_replacement_combinations
 using Latexify: Latexify, latexify, @latexrecipe
 
 include("types.jl")
