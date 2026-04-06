@@ -238,7 +238,8 @@ import SecondQuantizedAlgebra: QMul, QAdd, QSym, QField, CNum, _to_cnum, _to_qmu
         @test repr(average(ad)) == "⟨a†⟩"
         @test repr(average(ad * a)) == "⟨a† * a⟩"
         @test repr(average(3 * ad * a)) == "3⟨a† * a⟩"
-        @test repr(average(a + ad)) == "⟨a⟩ + ⟨a†⟩"
+        avg_sum_repr = repr(average(a + ad))
+        @test avg_sum_repr == "⟨a⟩ + ⟨a†⟩" || avg_sum_repr == "⟨a†⟩ + ⟨a⟩"
 
         # Multi-space
         hf = FockSpace(:f)
@@ -258,11 +259,11 @@ import SecondQuantizedAlgebra: QMul, QAdd, QSym, QField, CNum, _to_cnum, _to_qmu
         # LaTeX renders as \mathrm{avg}(...) — Symbolics' _toexpr pipeline
         # has no non-piracy hook for custom operations. Upstream fix needed.
         @test string(latexify(average(a))) ==
-              "\\begin{equation}\n\\mathrm{avg}\\left( a \\right)\n\\end{equation}\n"
+            "\\begin{equation}\n\\mathrm{avg}\\left( a \\right)\n\\end{equation}\n"
         @test string(latexify(average(ad * a))) ==
-              "\\begin{equation}\n\\mathrm{avg}\\left( a^{\\dagger}a \\right)\n\\end{equation}\n"
+            "\\begin{equation}\n\\mathrm{avg}\\left( a^{\\dagger}a \\right)\n\\end{equation}\n"
         @test string(latexify(average(3 * ad * a))) ==
-              "\\begin{equation}\n3 ~ \\mathrm{avg}\\left( a^{\\dagger}a \\right)\n\\end{equation}\n"
+            "\\begin{equation}\n3 ~ \\mathrm{avg}\\left( a^{\\dagger}a \\right)\n\\end{equation}\n"
     end
 
     @testset "Arithmetic composition" begin

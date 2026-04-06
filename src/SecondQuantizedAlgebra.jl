@@ -32,6 +32,7 @@ include("normal_order.jl")
 include("average.jl")
 include("printing.jl")
 include("latexify_recipes.jl")
+include("operators.jl")
 include("numeric.jl")
 
 export FockSpace, ProductSpace,
@@ -50,6 +51,7 @@ export FockSpace, ProductSpace,
     average, undo_average,
     acts_on, is_average,
     has_sum_metadata, get_sum_indices, get_sum_non_equal,
+    fundamental_operators, find_operators, unique_ops,
     normal_order, simplify, expand, commutator,
     to_numeric, numeric_average,
     transition_superscript

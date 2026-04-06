@@ -107,6 +107,63 @@ using Test
     #     @inferred to_numeric(a', b)
     # end
 
+    @testset "numeric_average — Average expressions" begin
+        h = FockSpace(:fock)
+        @qnumbers a::Destroy(h)
+        b = FockBasis(7)
+        α = 0.1 + 0.2im
+        ψ = coherentstate(b, α)
+
+        # numeric_average on average(a) should give ⟨a⟩ = α
+        avg_a = average(a)
+        @test numeric_average(avg_a, ψ) ≈ α
+
+        # Sum of averages
+        avg_sum = average(a) + average(a')
+        @test numeric_average(avg_sum, ψ) ≈ α + conj(α)
+
+        # Scalar times average
+        avg_scaled = 2 * average(a)
+        @test numeric_average(avg_scaled, ψ) ≈ 2α
+    end
+
+    @testset "to_numeric — Dict substitution" begin
+        h = FockSpace(:fock)
+        @qnumbers a::Destroy(h)
+        b = FockBasis(7)
+
+        custom_op = 2 * destroy(b)
+        d = Dict(a => custom_op)
+
+        # Dict substitution replaces operator
+        @test to_numeric(a, b, d) == custom_op
+        # Adjoint not in dict → falls back to normal
+        @test to_numeric(a', b, d) == create(b)
+
+        # QMul with Dict
+        result_mul = to_numeric(a' * a, b, d)
+        expected_mul = create(b) * custom_op
+        @test result_mul == expected_mul
+    end
+
+    @testset "numeric_average — Dict substitution" begin
+        h = FockSpace(:fock)
+        @qnumbers a::Destroy(h)
+        b = FockBasis(7)
+        α = 0.1 + 0.2im
+        ψ = coherentstate(b, α)
+
+        d = Dict{Any, Any}()  # empty dict — same as no dict
+        @test numeric_average(a, ψ, d) ≈ α
+
+        # Average expression with dict
+        avg_a = average(a)
+        @test numeric_average(avg_a, ψ, d) ≈ α
+
+        # Number passthrough
+        @test numeric_average(3, ψ, d) === 3
+    end
+
     @testset "Allocations — to_numeric" begin
         h = FockSpace(:fock)
         @qnumbers a::Destroy(h)

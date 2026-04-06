@@ -91,8 +91,11 @@ function _to_number(x::CNum)
 end
 
 # State-based dispatch
-function to_numeric(op, state; kwargs...)
+function to_numeric(op::QField, state; kwargs...)
     return to_numeric(op, QuantumOpticsBase.basis(state); kwargs...)
+end
+function to_numeric(x::Number, state; kwargs...)
+    return to_numeric(x, QuantumOpticsBase.basis(state); kwargs...)
 end
 
 # Lazy identity helper
@@ -114,4 +117,84 @@ function numeric_average(op::QField, state; kwargs...)
 end
 function numeric_average(x::Number, state; kwargs...)
     return x
+end
+
+# Average expressions: unwrap and compute expectation value
+function numeric_average(avg::SymbolicUtils.BasicSymbolic, state; kwargs...)
+    if is_average(avg)
+        op = undo_average(avg)
+        return numeric_average(op, state; kwargs...)
+    end
+    # Const nodes wrap plain values (e.g. numeric coefficients in Mul)
+    if SymbolicUtils.isconst(avg)
+        return numeric_average(avg.val, state; kwargs...)
+    end
+    if SymbolicUtils.iscall(avg)
+        f = SymbolicUtils.operation(avg)
+        args = SymbolicUtils.arguments(avg)
+        if f === (^)
+            return numeric_average(args[1], state; kwargs...)^_to_number(args[2])
+        end
+        return f(numeric_average.(args, Ref(state); kwargs...)...)
+    end
+    error("numeric_average not implemented for $(typeof(avg))")
+end
+
+# --- to_numeric / numeric_average with Dict parameter substitution ---
+
+"""
+    to_numeric(op, basis, d::Dict; kwargs...)
+
+Convert a symbolic operator to numeric form, substituting operators found in `d`.
+"""
+function to_numeric(op::QSym, b::QuantumOpticsBase.Basis, d::Dict; kwargs...)
+    haskey(d, op) && return d[op]
+    return to_numeric(op, b; kwargs...)
+end
+function to_numeric(op::QField, state, d::Dict; kwargs...)
+    return to_numeric(op, QuantumOpticsBase.basis(state), d; kwargs...)
+end
+function to_numeric(m::QMul, b::QuantumOpticsBase.Basis, d::Dict; kwargs...)
+    if isempty(m.args_nc)
+        return _to_number(m.arg_c) * _lazy_one(b)
+    end
+    ops_num = [to_numeric(op, b, d; kwargs...) for op in m.args_nc]
+    return _to_number(m.arg_c) * prod(ops_num)
+end
+function to_numeric(s::QAdd, b::QuantumOpticsBase.Basis, d::Dict; kwargs...)
+    return sum(to_numeric(t, b, d; kwargs...) for t in s.arguments)
+end
+function to_numeric(x::Number, b::QuantumOpticsBase.Basis, d::Dict; kwargs...)
+    return _to_number(x) * _lazy_one(b)
+end
+
+"""
+    numeric_average(op, state, d::Dict; kwargs...)
+
+Compute expectation value, substituting operators from `d` before numeric conversion.
+"""
+function numeric_average(op::QField, state, d::Dict; kwargs...)
+    op_num = to_numeric(op, state, d; kwargs...)
+    return QuantumOpticsBase.expect(op_num, state)
+end
+function numeric_average(x::Number, state, d::Dict; kwargs...)
+    return x
+end
+function numeric_average(avg::SymbolicUtils.BasicSymbolic, state, d::Dict; kwargs...)
+    if is_average(avg)
+        op = undo_average(avg)
+        return numeric_average(op, state, d; kwargs...)
+    end
+    if SymbolicUtils.isconst(avg)
+        return numeric_average(avg.val, state, d; kwargs...)
+    end
+    if SymbolicUtils.iscall(avg)
+        f = SymbolicUtils.operation(avg)
+        args = SymbolicUtils.arguments(avg)
+        if f === (^)
+            return numeric_average(args[1], state, d; kwargs...)^_to_number(args[2])
+        end
+        return f(numeric_average.(args, Ref(state), Ref(d); kwargs...)...)
+    end
+    error("numeric_average not implemented for $(typeof(avg))")
 end
