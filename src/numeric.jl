@@ -202,3 +202,75 @@ function numeric_average(avg::SymbolicUtils.BasicSymbolic, state, d::Dict; kwarg
     end
     error("numeric_average not implemented for $(typeof(avg))")
 end
+
+# --- to_numeric / numeric_average with ranges (indexed operators on composite bases) ---
+
+"""
+    _ranges_position(space_index, copy_index, ranges) -> Int
+
+Compute the position in a composite basis from `ranges`.
+Position = sum(ranges[1:space_index-1]) + copy_index.
+"""
+function _ranges_position(space_index::Int, copy_index::Int, ranges::Vector{Int})
+    offset = sum(ranges[k] for k in 1:(space_index - 1); init = 0)
+    return offset + copy_index
+end
+
+"""
+    to_numeric(op, basis, ranges::Vector{Int})
+
+Convert a symbolic operator to numeric form using `ranges` to map indexed operators
+to positions in a composite basis. Position = sum(ranges[1:space_index-1]) + copy_index.
+"""
+function to_numeric(op::QSym, b::QuantumOpticsBase.CompositeBasis, ranges::Vector{Int})
+    pos = _ranges_position(op.space_index, op.copy_index, ranges)
+    op_num = to_numeric(op, b.bases[pos])
+    return QuantumOpticsBase.LazyTensor(b, [pos], (op_num,))
+end
+function to_numeric(m::QMul, b::QuantumOpticsBase.CompositeBasis, ranges::Vector{Int})
+    if isempty(m.args_nc)
+        return _to_number(m.arg_c) * _lazy_one(b)
+    end
+    ops_num = [to_numeric(op, b, ranges) for op in m.args_nc]
+    return _to_number(m.arg_c) * prod(ops_num)
+end
+function to_numeric(s::QAdd, b::QuantumOpticsBase.CompositeBasis, ranges::Vector{Int})
+    terms_num = [to_numeric(QMul(c, ops), b, ranges) for (ops, c) in s.arguments]
+    return sum(terms_num)
+end
+
+# State-based dispatch with ranges
+function to_numeric(op::QField, state, ranges::Vector{Int})
+    return to_numeric(op, QuantumOpticsBase.basis(state), ranges)
+end
+
+"""
+    numeric_average(op, state, ranges::Vector{Int})
+
+Compute expectation value of an indexed operator using `ranges` for basis mapping.
+"""
+function numeric_average(op::QField, state, ranges::Vector{Int})
+    op_num = to_numeric(op, state, ranges)
+    return QuantumOpticsBase.expect(op_num, state)
+end
+function numeric_average(avg::SymbolicUtils.BasicSymbolic, state, ranges::Vector{Int})
+    if SymbolicUtils.iscall(avg) && SymbolicUtils.operation(avg) isa AvgFunc
+        op = undo_average(avg)
+        return numeric_average(op, state, ranges)
+    end
+    if SymbolicUtils.isconst(avg)
+        return numeric_average(avg.val, state, ranges)
+    end
+    if SymbolicUtils.iscall(avg)
+        f = SymbolicUtils.operation(avg)
+        args = SymbolicUtils.arguments(avg)
+        if f === (^)
+            return numeric_average(args[1], state, ranges)^_to_number(args[2])
+        end
+        return f(map(a -> numeric_average(a, state, ranges), args)...)
+    end
+    error("numeric_average not implemented for $(typeof(avg))")
+end
+function numeric_average(x::Number, state, ranges::Vector{Int})
+    return x
+end

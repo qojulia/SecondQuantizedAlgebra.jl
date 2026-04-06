@@ -45,6 +45,10 @@ end
 IndexedOperator(op::Destroy, i::Index) = Destroy(op.name, op.space_index, op.copy_index, i)
 IndexedOperator(op::Create, i::Index) = Create(op.name, op.space_index, op.copy_index, i)
 
+# NumberedOperator: concrete integer index sets copy_index, clears symbolic index
+IndexedOperator(op::Destroy, k::Int) = Destroy(op.name, op.space_index, k, NO_INDEX)
+IndexedOperator(op::Create, k::Int) = Create(op.name, op.space_index, k, NO_INDEX)
+
 # Adjoint
 Base.adjoint(op::Destroy) = Create(op.name, op.space_index, op.copy_index, op.index)
 Base.adjoint(op::Create) = Destroy(op.name, op.space_index, op.copy_index, op.index)

@@ -55,6 +55,8 @@ end
 # IndexedOperator convenience
 IndexedOperator(op::Position, i::Index) = Position(op.name, op.space_index, op.copy_index, i)
 IndexedOperator(op::Momentum, i::Index) = Momentum(op.name, op.space_index, op.copy_index, i)
+IndexedOperator(op::Position, k::Int) = Position(op.name, op.space_index, k, NO_INDEX)
+IndexedOperator(op::Momentum, k::Int) = Momentum(op.name, op.space_index, k, NO_INDEX)
 
 # Adjoint — Hermitian
 Base.adjoint(op::Position) = op

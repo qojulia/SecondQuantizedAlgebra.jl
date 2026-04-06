@@ -55,14 +55,7 @@ function change_index(x::Num, from::Index, to::Index)
         raw,
         Dict(Symbolics.unwrap(from.sym) => Symbolics.unwrap(to.sym))
     )
-    # DoubleIndexedVariable with identical=false → 0 when both args become equal
-    if SymbolicUtils.iscall(result) &&
-       SymbolicUtils.hasmetadata(result, NotIdentical) &&
-       length(SymbolicUtils.arguments(result)) == 2
-        a1, a2 = SymbolicUtils.arguments(result)
-        isequal(a1, a2) && return Num(0)
-    end
-    return Num(result)
+    return _check_not_identical(result)
 end
 function change_index(x::CNum, from::Index, to::Index)
     return Complex(change_index(real(x), from, to), change_index(imag(x), from, to))
@@ -143,10 +136,84 @@ end
 """
     create_index_arrays(indices::Vector{Index}, ranges::Vector{<:AbstractRange}) -> Vector
 
-Cartesian product of `ranges`, returned as a flat vector of tuples.
-Single-index case returns the range directly.
+Cartesian product of `ranges`, returned as a flat vector.
+Single-index case returns `collect(only(ranges))`.
 """
 function create_index_arrays(indices::Vector{Index}, ranges::Vector{<:AbstractRange})
-    length(indices) == 1 && return only(ranges)
+    length(indices) == 1 && return collect(only(ranges))
     return vec(collect(Iterators.product(ranges...)))
+end
+
+# --- Shared helper for NotIdentical check ---
+
+"""Check if a substituted BasicSymbolic node with NotIdentical metadata has equal args → 0."""
+function _check_not_identical(result)
+    if SymbolicUtils.iscall(result) &&
+       SymbolicUtils.hasmetadata(result, NotIdentical) &&
+       length(SymbolicUtils.arguments(result)) == 2
+        a1, a2 = SymbolicUtils.arguments(result)
+        isequal(a1, a2) && return Num(0)
+    end
+    return Num(result)
+end
+
+# --- insert_index ---
+
+"""
+    insert_index(expr, idx::Index, val::Int)
+
+Substitute a concrete integer `val` for symbolic `idx` in an expression.
+Operators get `copy_index = val` and `index = NO_INDEX`.
+Symbolic variables (IndexedVariable, DoubleIndexedVariable) are substituted via Symbolics.
+"""
+insert_index(x::Number, ::Index, ::Int) = x
+
+function insert_index(x::Num, idx::Index, val::Int)
+    raw = Symbolics.unwrap(x)
+    result = Symbolics.substitute(raw, Dict(Symbolics.unwrap(idx.sym) => val))
+    return _check_not_identical(result)
+end
+function insert_index(x::CNum, idx::Index, val::Int)
+    return Complex(insert_index(real(x), idx, val), insert_index(imag(x), idx, val))
+end
+
+function insert_index(op::Destroy, idx::Index, val::Int)
+    op.index == idx || return op
+    return Destroy(op.name, op.space_index, val, NO_INDEX)
+end
+function insert_index(op::Create, idx::Index, val::Int)
+    op.index == idx || return op
+    return Create(op.name, op.space_index, val, NO_INDEX)
+end
+function insert_index(op::Transition, idx::Index, val::Int)
+    op.index == idx || return op
+    return Transition(op.name, op.i, op.j, op.space_index, val, NO_INDEX)
+end
+function insert_index(op::Pauli, idx::Index, val::Int)
+    op.index == idx || return op
+    return Pauli(op.name, op.axis, op.space_index, val, NO_INDEX)
+end
+function insert_index(op::Spin, idx::Index, val::Int)
+    op.index == idx || return op
+    return Spin(op.name, op.axis, op.space_index, val, NO_INDEX)
+end
+function insert_index(op::Position, idx::Index, val::Int)
+    op.index == idx || return op
+    return Position(op.name, op.space_index, val, NO_INDEX)
+end
+function insert_index(op::Momentum, idx::Index, val::Int)
+    op.index == idx || return op
+    return Momentum(op.name, op.space_index, val, NO_INDEX)
+end
+
+function insert_index(m::QMul, idx::Index, val::Int)
+    new_c = insert_index(m.arg_c, idx, val)
+    new_ops = QSym[insert_index(op, idx, val) for op in m.args_nc]
+    _iszero_cnum(new_c) && return QMul(_to_cnum(0), QSym[])
+    return QMul(new_c, new_ops)
+end
+
+function insert_index(s::QAdd, idx::Index, val::Int)
+    new_terms = QMul[insert_index(QMul(c, ops), idx, val) for (ops, c) in s.arguments]
+    return QAdd(new_terms)
 end

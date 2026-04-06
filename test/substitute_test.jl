@@ -1,7 +1,7 @@
 using SecondQuantizedAlgebra
 using Test
 using Symbolics: Symbolics, @variables
-import SecondQuantizedAlgebra: substitute, QMul, QAdd, CNum
+import SecondQuantizedAlgebra: substitute, QMul, QAdd, QSym, CNum, _substitute_qmul, _split_sub_dict
 
 @testset "Substitute" begin
     hf = FockSpace(:c)
@@ -40,5 +40,12 @@ import SecondQuantizedAlgebra: substitute, QMul, QAdd, CNum
         b = Destroy(h, :b, 2)
         expr = x * a' * b
         @test isequal(substitute(expr, Dict(x => 2)), 2 * a' * b)
+    end
+
+    @testset "Type stability — internal _substitute_qmul" begin
+        d = Dict(x => y)
+        sym_dict, op_dict = _split_sub_dict(d)
+        m = x * a
+        @inferred _substitute_qmul(m, sym_dict, op_dict)
     end
 end

@@ -21,8 +21,9 @@ struct NLevelSpace <: HilbertSpace
         return new(name, n, ground_state, levels)
     end
 end
-NLevelSpace(name::Symbol, n::Int, ground_state::Int) = NLevelSpace(name, n, ground_state, Symbol[])
-NLevelSpace(name::Symbol, n::Int) = NLevelSpace(name, n, 1, Symbol[])
+const _EMPTY_LEVELS = Symbol[]
+NLevelSpace(name::Symbol, n::Int, ground_state::Int) = NLevelSpace(name, n, ground_state, _EMPTY_LEVELS)
+NLevelSpace(name::Symbol, n::Int) = NLevelSpace(name, n, 1, _EMPTY_LEVELS)
 function NLevelSpace(name::Symbol, levels::Tuple{Vararg{Symbol}})
     return NLevelSpace(name, length(levels), 1, collect(levels))
 end
@@ -84,6 +85,7 @@ end
 
 # IndexedOperator convenience
 IndexedOperator(op::Transition, i::Index) = Transition(op.name, op.i, op.j, op.space_index, op.copy_index, i)
+IndexedOperator(op::Transition, k::Int) = Transition(op.name, op.i, op.j, op.space_index, k, NO_INDEX)
 
 # Adjoint: |i⟩⟨j|† = |j⟩⟨i|
 Base.adjoint(op::Transition) = Transition(op.name, op.j, op.i, op.space_index, op.copy_index, op.index)

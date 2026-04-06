@@ -915,9 +915,10 @@ import SecondQuantizedAlgebra: simplify, QMul, QAdd, QSym, CNum, _to_cnum, NO_IN
         i = Index(h_prod, :i, 10, hn)
         j = Index(h_prod, :j, 5, hn)
 
-        # Single index → returns the range directly
+        # Single index → returns a collected vector
         arr1 = create_index_arrays([i], [1:10])
-        @test isequal(arr1, 1:10)
+        @test arr1 isa Vector{Int}
+        @test arr1 == collect(1:10)
 
         # Multi-index → flat Cartesian product
         ranges = [1:10, 1:5]
@@ -935,5 +936,22 @@ import SecondQuantizedAlgebra: simplify, QMul, QAdd, QSym, CNum, _to_cnum, NO_IN
         @inferred change_index(ai, i, Index(hf, :j, 10, hf))
         @inferred get_indices(ai)
         @inferred commutator(ai, adi)
+        @inferred insert_index(ai, i, 1)
+        @inferred insert_index(ai', i, 1)
+        @inferred IndexedOperator(a, 3)
+
+        # insert_index on Transition, Pauli, Spin, Position, Momentum
+        σi = IndexedOperator(Transition(h_prod, :σ, 1, 2, 2), i)
+        @inferred insert_index(σi, i, 1)
+        pi_ = IndexedOperator(Pauli(PauliSpace(:p), :σ, 1), i)
+        @inferred insert_index(pi_, i, 1)
+
+        # insert_index on QMul
+        m = ai * σi
+        @inferred insert_index(m, i, 1)
+
+        # _ranges_position
+        import SecondQuantizedAlgebra: _ranges_position
+        @inferred _ranges_position(2, 1, [1, 2])
     end
 end

@@ -46,6 +46,7 @@ end
 
 # IndexedOperator convenience
 IndexedOperator(op::Spin, i::Index) = Spin(op.name, op.axis, op.space_index, op.copy_index, i)
+IndexedOperator(op::Spin, k::Int) = Spin(op.name, op.axis, op.space_index, k, NO_INDEX)
 
 # Adjoint — Hermitian
 Base.adjoint(op::Spin) = op

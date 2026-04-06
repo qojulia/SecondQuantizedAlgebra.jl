@@ -39,6 +39,7 @@ end
 
 # IndexedOperator convenience
 IndexedOperator(op::Pauli, i::Index) = Pauli(op.name, op.axis, op.space_index, op.copy_index, i)
+IndexedOperator(op::Pauli, k::Int) = Pauli(op.name, op.axis, op.space_index, k, NO_INDEX)
 
 # Adjoint — Hermitian
 Base.adjoint(op::Pauli) = op
