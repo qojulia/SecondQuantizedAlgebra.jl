@@ -125,6 +125,7 @@ function print_changelog(datadir::String, cpu_name::String)
     length(json_files) < 2 && (println("\nOnly one run recorded — changelog available after the next run."); return)
 
     entries = sort([load_result(f) for f in json_files]; by = e -> e.timestamp)
+    entries = entries[max(1, end - 2):end]  # keep last 3 runs
 
     all_ids = String[]
     for e in entries
