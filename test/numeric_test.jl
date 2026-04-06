@@ -1,5 +1,5 @@
 using SecondQuantizedAlgebra
-import SecondQuantizedAlgebra: QMul, QAdd
+import SecondQuantizedAlgebra: QAdd
 using QuantumOpticsBase
 using Test
 
@@ -13,7 +13,7 @@ using Test
         @test to_numeric(a', b) == create(b)
     end
 
-    @testset "QMul" begin
+    @testset "Products" begin
         h = FockSpace(:fock)
         @qnumbers a::Destroy(h)
         b = FockBasis(7)
@@ -140,7 +140,7 @@ using Test
         # Adjoint not in dict → falls back to normal
         @test to_numeric(a', b, d) == create(b)
 
-        # QMul with Dict
+        # QAdd with Dict
         result_mul = to_numeric(a' * a, b, d)
         expected_mul = create(b) * custom_op
         @test result_mul == expected_mul
@@ -203,7 +203,7 @@ using Test
         )
         @test iszero(
             (2 * create(bfock) + 2 * destroy(bfock)) -
-            to_numeric(2 * a + 2 * a', bfock),
+                to_numeric(2 * a + 2 * a', bfock),
         )
         @test isequal(to_numeric(2 * a, bfock), 2 * to_numeric(a, bfock))
     end

@@ -12,7 +12,6 @@ function transition_superscript(x::Bool)
     return x
 end
 
-# Helper: format index suffix for LaTeX
 function _latex_index_suffix(idx::Index)
     has_index(idx) || return ""
     return "_{$(idx.name)}"
@@ -55,7 +54,7 @@ end
     return Expr(:latexifymerge, "\\hat{$(x.name)}$(suffix)")
 end
 
-# Extract a plain Julia number from CNum for comparison in LaTeX recipes
+# Extract a plain Julia number from CNum for LaTeX rendering
 function _latex_prefactor(c::CNum)
     r_val = Symbolics.value(Symbolics.unwrap(real(c)))
     i_val = Symbolics.value(Symbolics.unwrap(imag(c)))
@@ -69,28 +68,29 @@ function _latex_prefactor(c::CNum)
 end
 _latex_prefactor(c) = c
 
-@latexrecipe function f(x::QMul)
-    c = _latex_prefactor(x.arg_c)
-    if isempty(x.args_nc)
-        return c
+# Helper: render a single term (prefactor * operators) as LaTeX
+function _latex_term(c::CNum, ops::Vector{QSym})
+    pf = _latex_prefactor(c)
+    if isempty(ops)
+        return pf
     end
     parts = []
-    if c isa Number && c == -1
+    if pf isa Number && pf == -1
         push!(parts, :(-))
-    elseif c isa Number && isone(c)
+    elseif pf isa Number && isone(pf)
         # skip prefactor
     else
-        push!(parts, c)
+        push!(parts, pf)
     end
-    for op in x.args_nc
+    for op in ops
         push!(parts, op)
     end
     return Expr(:latexifymerge, parts...)
 end
 
 @latexrecipe function f(x::QAdd)
+    st = sorted_arguments(x)
     if !isempty(x.indices)
-        # Sum notation: Σ_{i=1}^{N} (terms)
         idx_parts = []
         for idx in x.indices
             r = Symbolics.value(Symbolics.unwrap(idx.range))
@@ -101,10 +101,11 @@ end
             idx_parts[end] = replace(idx_parts[end], "$(x.indices[end].name)" => "$(x.indices[end].name){\\neq}$(ne_str)")
         end
         prefix = join(idx_parts, " ")
-        # Wrap sum contents
-        return Expr(:latexifymerge, prefix, " ", Expr(:call, :+, sorted_terms(x)...))
+        terms = [_latex_term(first(values(t.arguments)), first(keys(t.arguments))) for t in st]
+        return Expr(:latexifymerge, prefix, " ", Expr(:call, :+, terms...))
     end
-    return Expr(:call, :+, sorted_terms(x)...)
+    terms = [_latex_term(first(values(t.arguments)), first(keys(t.arguments))) for t in st]
+    return Expr(:call, :+, terms...)
 end
 
 const QLaTeX = Union{<:QField}

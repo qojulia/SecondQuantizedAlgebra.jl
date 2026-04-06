@@ -1,7 +1,7 @@
 using SecondQuantizedAlgebra
 using Test
 using Symbolics: Symbolics, @variables
-import SecondQuantizedAlgebra: substitute, QMul, QAdd, QSym, CNum, _substitute_qmul, _split_sub_dict
+import SecondQuantizedAlgebra: substitute, QAdd, QSym, CNum, _substitute_term, _split_sub_dict, _CNUM_ONE, _to_cnum
 
 @testset "Substitute" begin
     hf = FockSpace(:c)
@@ -18,15 +18,19 @@ import SecondQuantizedAlgebra: substitute, QMul, QAdd, QSym, CNum, _substitute_q
         @test isequal(substitute(a, Dict(a' => a)), a)  # no match, unchanged
     end
 
-    @testset "QMul — symbolic variable substitution" begin
+    @testset "QAdd — symbolic variable substitution" begin
         @test iszero(substitute(x * a, Dict(x => 0)))
-        @test isequal(substitute(x * a, Dict(x => 1)), a)
+        @test isequal(substitute(x * a, Dict(x => 1)), 1 * a)
         @test isequal(substitute(x * a, Dict(x => y)), y * a)
     end
 
-    @testset "QMul — operator substitution" begin
+    @testset "QAdd — operator substitution" begin
         @test iszero(substitute(x * a, Dict(a => 0)))
-        @test isequal(substitute(x * a, Dict(a => y)), x * y)
+        # Substituting op with scalar gives a scalar QAdd
+        sub_scalar = substitute(x * a, Dict(a => y))
+        @test sub_scalar isa QAdd
+        @test length(sub_scalar) == 1
+        @test isempty(operators(sub_scalar))
         @test isequal(substitute(x * a, Dict(a => a')), x * a')
     end
 
@@ -42,10 +46,11 @@ import SecondQuantizedAlgebra: substitute, QMul, QAdd, QSym, CNum, _substitute_q
         @test isequal(substitute(expr, Dict(x => 2)), 2 * a' * b)
     end
 
-    @testset "Type stability — internal _substitute_qmul" begin
+    @testset "Type stability — internal _substitute_term" begin
         d = Dict(x => y)
         sym_dict, op_dict = _split_sub_dict(d)
-        m = x * a
-        @inferred _substitute_qmul(m, sym_dict, op_dict)
+        c = _to_cnum(x)
+        ops = QSym[a]
+        @inferred _substitute_term(c, ops, sym_dict, op_dict)
     end
 end

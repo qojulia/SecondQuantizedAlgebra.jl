@@ -1,7 +1,7 @@
 using SecondQuantizedAlgebra
 using Test
 using Symbolics: @variables
-import SecondQuantizedAlgebra: QMul, QAdd, QSym, QField, _conj, _inconj, _adjoint,
+import SecondQuantizedAlgebra: QAdd, QSym, QField, _conj, _inconj, _adjoint,
     AvgFunc, _average
 
 @testset "Operators" begin
@@ -107,7 +107,7 @@ import SecondQuantizedAlgebra: QMul, QAdd, QSym, QField, _conj, _inconj, _adjoin
         # Two FockSpaces → duplicate types → auto-named a, b
         h = FockSpace(:f1) ⊗ FockSpace(:f2)
         ops = find_operators(h, 1)
-        names = [op isa QMul ? op.args_nc[1].name : op.name for op in ops]
+        names = [op isa QAdd ? first(keys(op.arguments))[1].name : op.name for op in ops]
         @test :a in names
         @test :b in names
     end

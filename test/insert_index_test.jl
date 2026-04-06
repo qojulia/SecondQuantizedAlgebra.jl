@@ -2,7 +2,7 @@ using SecondQuantizedAlgebra
 using Test
 using SymbolicUtils: SymbolicUtils
 using Symbolics: Symbolics, @variables
-import SecondQuantizedAlgebra: QMul, QAdd, QSym, CNum, NO_INDEX
+import SecondQuantizedAlgebra: QAdd, QSym, CNum, NO_INDEX
 
 @testset "insert_index" begin
     hf = FockSpace(:f)
@@ -69,13 +69,13 @@ import SecondQuantizedAlgebra: QMul, QAdd, QSym, CNum, NO_INDEX
         @test isequal(Ω11, Symbolics.Num(0))
     end
 
-    @testset "QMul" begin
+    @testset "QAdd (product)" begin
         gi = IndexedVariable(:g, i)
         m = gi * σ(1, 2, i)
         m1 = insert_index(m, i, 1)
-        @test m1 isa QMul
-        @test m1.args_nc[1].copy_index == 1
-        @test !has_index(m1.args_nc[1].index)
+        @test m1 isa QAdd
+        @test operators(m1)[1].copy_index == 1
+        @test !has_index(operators(m1)[1].index)
     end
 
     @testset "QAdd" begin
@@ -90,7 +90,7 @@ import SecondQuantizedAlgebra: QMul, QAdd, QSym, CNum, NO_INDEX
         σ1_numbered = IndexedOperator(Transition(h, :σ, 1, 2, 2), 2)
         expr = σ(1, 2, i) * σ1_numbered
         result = insert_index(expr, i, 1)
-        @test result isa QMul
-        @test all(!has_index(op.index) for op in result.args_nc)
+        @test result isa QAdd
+        @test all(!has_index(op.index) for op in operators(result))
     end
 end

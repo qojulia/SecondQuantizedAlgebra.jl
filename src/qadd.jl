@@ -1,27 +1,24 @@
 """
     QAdd <: QTerm
 
-Sum of [`QMul`](@ref) terms, optionally with summation indices for symbolic sums.
+The sole compound expression type. Represents a sum of ordered operator terms.
 
 Internally stores a `Dict{Vector{QSym}, CNum}` mapping operator sequences to prefactors.
 Like terms are auto-collected on construction. Zero-prefactor terms are dropped.
 
 Fields:
-- `dict::QTermDict` — operator sequence → prefactor
+- `arguments::QTermDict` — operator sequence → prefactor
 - `indices::Vector{Index}` — summation indices (empty = regular sum)
 - `non_equal::Vector{Tuple{Index,Index}}` — pairwise inequality constraints
 """
 const QTermDict = Dict{Vector{QSym}, CNum}
 
-# Add a prefactor to an operator key in a QTermDict.
-# Drops the entry immediately if the sum is zero — avoids needing a full-dict scan.
 function _addto!(d::QTermDict, key::Vector{QSym}, val::CNum)
     existing = get(d, key, nothing)
     if existing === nothing
-        # New key — just insert, skip the expensive CNum zero-addition
         _iszero_cnum(val) || (d[key] = val)
     else
-        new_val = existing + val
+        new_val = _add_cnum(existing, val)
         if _iszero_cnum(new_val)
             delete!(d, key)
         else
@@ -31,9 +28,6 @@ function _addto!(d::QTermDict, key::Vector{QSym}, val::CNum)
     return d
 end
 
-# Drop zero-prefactor entries from a QTermDict.
-# Only needed after bulk operations (e.g. scalar multiply) that may produce zeros.
-# IMPORTANT: Do NOT use filter!(predicate, ::Dict) — it allocates heavily in Julia.
 function _drop_zeros!(d::QTermDict)
     for (ops, c) in d
         _iszero_cnum(c) && delete!(d, ops)
@@ -41,11 +35,14 @@ function _drop_zeros!(d::QTermDict)
     return d
 end
 
-# Merge two index/non_equal vectors, avoiding allocation when one is empty
 function _merge_unique(a::Vector{T}, b::Vector{T}) where {T}
     isempty(a) && return b
     isempty(b) && return a
-    return unique!(vcat(a, b))
+    result = copy(a)
+    for x in b
+        x ∉ result && push!(result, x)
+    end
+    return result
 end
 
 struct QAdd <: QTerm
@@ -54,23 +51,29 @@ struct QAdd <: QTerm
     non_equal::Vector{Tuple{Index, Index}}
 end
 
-# Primary constructor from QMul vector — auto-collects like terms, drops zeros
-function QAdd(
-        terms::Vector{QMul}, indices::Vector{Index},
+# Convenience: single-term QAdd
+function _single_qadd(c::CNum, ops::Vector{QSym})
+    _iszero_cnum(c) && return QAdd(QTermDict(), Index[], Tuple{Index, Index}[])
+    return QAdd(QTermDict(ops => c), Index[], Tuple{Index, Index}[])
+end
+
+# Internal: build QAdd from ordering worklist output, applying eager ordering
+function _qadd_from_oterms(
+        terms::Vector{_OTerm}, indices::Vector{Index},
         non_equal::Vector{Tuple{Index, Index}}
     )
     d = QTermDict()
-    for t in terms
-        _addto!(d, t.args_nc, t.arg_c)
+    for (c, ops) in terms
+        for (oc, oops) in _apply_ordering(c, ops, ORDERING[])
+            _addto!(d, oops, oc)
+        end
     end
     return QAdd(d, indices, non_equal)
 end
-QAdd(terms::Vector{QMul}) = QAdd(terms, Index[], Tuple{Index, Index}[])
 
 Base.length(a::QAdd) = length(a.arguments)
 Base.iszero(a::QAdd) = isempty(a.arguments)
 
-# Equality and hashing — order-independent via Dict comparison
 function Base.isequal(a::QAdd, b::QAdd)
     isequal(a.arguments, b.arguments) || return false
     a.indices == b.indices || return false
@@ -82,7 +85,6 @@ function Base.hash(q::QAdd, h::UInt)
     return hash(:QAdd, hash(q.arguments, hash(q.indices, hash(q.non_equal, h))))
 end
 
-# Adjoint
 function Base.adjoint(q::QAdd)
     d = QTermDict()
     for (ops, c) in q.arguments
@@ -93,30 +95,26 @@ function Base.adjoint(q::QAdd)
     return QAdd(d, q.indices, q.non_equal)
 end
 
-# --- Iteration helpers ---
+# --- Iteration: yields Pair{Vector{QSym}, CNum} from Dict directly ---
+
+Base.iterate(q::QAdd) = iterate(q.arguments)
+Base.iterate(q::QAdd, state) = iterate(q.arguments, state)
+Base.eltype(::Type{QAdd}) = Pair{Vector{QSym}, CNum}
+
+# --- Sorted term access for printing and TermInterface ---
 
 """
-    terms(q::QAdd)
+    sorted_arguments(q::QAdd) -> Vector{QAdd}
 
-Iterate over `QMul` views of each term (unordered). For internal computation only.
-The returned QMul shares its `args_nc` vector with the Dict key — callers must not mutate it.
+Return each term as a single-entry QAdd, in deterministic sort order.
+Used by TermInterface and printing.
 """
-terms(q::QAdd) = (QMul(c, ops) for (ops, c) in q.arguments)
-
-"""
-    sorted_terms(q::QAdd) -> Vector{QMul}
-
-Return terms in deterministic order. For printing, TermInterface, and iteration.
-Uses a richer sort key than `_sort_key` to distinguish operator types for display.
-"""
-function sorted_terms(q::QAdd)
-    isempty(q.arguments) && return QMul[]
+function sorted_arguments(q::QAdd)
+    isempty(q.arguments) && return QAdd[]
     pairs = sort!(collect(q.arguments); by = p -> _term_sort_key(p.first))
-    return QMul[QMul(c, ops) for (ops, c) in pairs]
+    return QAdd[_single_qadd(c, ops) for (ops, c) in pairs]
 end
 
-# Sort key for QAdd term ordering — richer than _sort_key to distinguish types.
-# This does NOT affect _site_sort! (which preserves same-site operator order).
 _term_sort_key(ops::Vector{QSym}) = (length(ops), map(_full_op_key, ops)...)
 _full_op_key(op::QSym) = (_sort_key(op)..., _type_order(op), op.name)
 _type_order(::Destroy) = 0
@@ -134,53 +132,163 @@ Look up the prefactor for a given operator sequence. Returns zero if absent.
 """
 Base.getindex(q::QAdd, key::Vector{QSym}) = get(q.arguments, key, _CNUM_ZERO)
 
-# Iterator interface — yields QMul terms in Dict order (fast, no allocation per step).
-# For deterministic order use sorted_terms() or SymbolicUtils.arguments().
-function Base.iterate(q::QAdd)
-    it = iterate(q.arguments)
-    it === nothing && return nothing
-    (ops, c), state = it
-    return (QMul(c, ops), state)
+# --- QAdd accessor helpers ---
+
+"""
+    prefactor(s::QAdd) -> CNum
+
+For a single-term QAdd, return the c-number prefactor.
+"""
+function prefactor(s::QAdd)
+    length(s.arguments) == 1 || throw(ArgumentError("prefactor requires a single-term expression, got $(length(s.arguments)) terms"))
+    return first(values(s.arguments))
 end
-function Base.iterate(q::QAdd, state)
-    it = iterate(q.arguments, state)
-    it === nothing && return nothing
-    (ops, c), state = it
-    return (QMul(c, ops), state)
+
+"""
+    operators(s::QAdd) -> Vector{QSym}
+
+For a single-term QAdd, return the operator sequence.
+"""
+function operators(s::QAdd)
+    length(s.arguments) == 1 || throw(ArgumentError("operators requires a single-term expression, got $(length(s.arguments)) terms"))
+    return first(keys(s.arguments))
 end
-Base.eltype(::Type{QAdd}) = QMul
 
-# --- Helpers: wrap QSym/scalar as QMul ---
+# --- Eagerly ordered product helper ---
 
-_to_qmul(a::QSym) = QMul(_to_cnum(1), QSym[a])
-_to_qmul(a::QMul) = a
-_scalar_qmul(x::Number) = QMul(_to_cnum(x), QSym[])
+function _ordered_qadd(c::CNum, ops::Vector{QSym})
+    _iszero_cnum(c) && return QAdd(QTermDict(), Index[], Tuple{Index, Index}[])
+    ordered = _apply_ordering(c, ops, ORDERING[])
+    d = QTermDict()
+    for (oc, oops) in ordered
+        _addto!(d, oops, oc)
+    end
+    return QAdd(d, Index[], Tuple{Index, Index}[])
+end
 
-## Addition — always returns QAdd
+# ============================================================================
+#  Multiplication — always returns QAdd, eagerly ordered
+# ============================================================================
 
-# QSym + QSym
-Base.:+(a::QSym, b::QSym) = QAdd(QMul[_to_qmul(a), _to_qmul(b)])
+function Base.:*(a::QSym, b::QSym)
+    ops = QSym[a, b]
+    _site_sort!(ops)
+    return _ordered_qadd(_CNUM_ONE, ops)
+end
 
-# QMul + QMul
-Base.:+(a::QMul, b::QMul) = QAdd(QMul[a, b])
+Base.:*(a::QSym, b::Number) = _single_qadd(_to_cnum(b), QSym[a])
+Base.:*(b::Number, a::QSym) = a * b
 
-# QMul + QSym
-Base.:+(a::QMul, b::QSym) = QAdd(QMul[a, _to_qmul(b)])
-Base.:+(a::QSym, b::QMul) = b + a
-
-# QAdd + QMul — merge into existing dict
-function Base.:+(a::QAdd, b::QMul)
-    d = copy(a.arguments)
-    _addto!(d, b.args_nc, b.arg_c)
+function Base.:*(a::QAdd, b::Number)
+    cb = _to_cnum(b)
+    d = QTermDict(ops => _mul_cnum(c, cb) for (ops, c) in a.arguments)
+    _drop_zeros!(d)
     return QAdd(d, a.indices, a.non_equal)
 end
-Base.:+(a::QMul, b::QAdd) = b + a
+Base.:*(a::Number, b::QAdd) = b * a
 
-# QAdd + QSym
-Base.:+(a::QAdd, b::QSym) = a + _to_qmul(b)
+function Base.:*(a::QAdd, b::QSym)
+    d = QTermDict()
+    for (ops, c) in a.arguments
+        n = length(ops)
+        new_ops = Vector{QSym}(undef, n + 1)
+        copyto!(new_ops, 1, ops, 1, n)
+        new_ops[n + 1] = b
+        _site_sort!(new_ops)
+        for (oc, oops) in _apply_ordering(c, new_ops, ORDERING[])
+            _addto!(d, oops, oc)
+        end
+    end
+    product = QAdd(d, copy(a.indices), copy(a.non_equal))
+    if has_index(b.index) && !isempty(a.indices)
+        return _apply_diagonal_split(product, b.index)
+    end
+    return product
+end
+function Base.:*(a::QSym, b::QAdd)
+    d = QTermDict()
+    for (ops, c) in b.arguments
+        n = length(ops)
+        new_ops = Vector{QSym}(undef, n + 1)
+        new_ops[1] = a
+        copyto!(new_ops, 2, ops, 1, n)
+        _site_sort!(new_ops)
+        for (oc, oops) in _apply_ordering(c, new_ops, ORDERING[])
+            _addto!(d, oops, oc)
+        end
+    end
+    product = QAdd(d, copy(b.indices), copy(b.non_equal))
+    if has_index(a.index) && !isempty(b.indices)
+        return _apply_diagonal_split(product, a.index)
+    end
+    return product
+end
+
+function Base.:*(a::QAdd, b::QAdd)
+    if !isempty(a.indices) && !isempty(b.indices)
+        for idx in a.indices
+            if idx in b.indices
+                throw(
+                    ArgumentError(
+                        "Summation index $(idx.name) appears in both factors. " *
+                            "Use `change_index` to re-index one side, or use different indices."
+                    )
+                )
+            end
+        end
+    end
+    d = QTermDict()
+    for (ops_a, c_a) in a.arguments, (ops_b, c_b) in b.arguments
+        new_ops = vcat(ops_a, ops_b)
+        _site_sort!(new_ops)
+        for (oc, oops) in _apply_ordering(_mul_cnum(c_a, c_b), new_ops, ORDERING[])
+            _addto!(d, oops, oc)
+        end
+    end
+    indices = _merge_unique(a.indices, b.indices)
+    non_equal = _merge_unique(a.non_equal, b.non_equal)
+    product = QAdd(d, indices, non_equal)
+    if !isempty(a.indices) || !isempty(b.indices)
+        if !isempty(a.indices)
+            for ext_idx in _get_indices_from_terms(b)
+                has_index(ext_idx) && (product = _apply_diagonal_split(product, ext_idx))
+            end
+        end
+        if !isempty(b.indices)
+            for ext_idx in _get_indices_from_terms(a)
+                has_index(ext_idx) && (product = _apply_diagonal_split(product, ext_idx))
+            end
+        end
+        if !isempty(a.indices) && !isempty(b.indices)
+            for idx_a in a.indices, idx_b in b.indices
+                if idx_a.space_index == idx_b.space_index
+                    product = _apply_diagonal_split(product, idx_a)
+                    product = _apply_diagonal_split(product, idx_b)
+                end
+            end
+        end
+    end
+    return product
+end
+
+# ============================================================================
+#  Addition — always returns QAdd
+# ============================================================================
+
+function Base.:+(a::QSym, b::QSym)
+    d = QTermDict()
+    _addto!(d, QSym[a], _CNUM_ONE)
+    _addto!(d, QSym[b], _CNUM_ONE)
+    return QAdd(d, Index[], Tuple{Index, Index}[])
+end
+
+function Base.:+(a::QAdd, b::QSym)
+    d = copy(a.arguments)
+    _addto!(d, QSym[b], _CNUM_ONE)
+    return QAdd(d, a.indices, a.non_equal)
+end
 Base.:+(a::QSym, b::QAdd) = b + a
 
-# QAdd + QAdd — merge dicts
 function Base.:+(a::QAdd, b::QAdd)
     d = copy(a.arguments)
     for (ops, c) in b.arguments
@@ -191,35 +299,80 @@ function Base.:+(a::QAdd, b::QAdd)
     return QAdd(d, indices, non_equal)
 end
 
-# QField + Number
-Base.:+(a::QSym, b::Number) = QAdd(QMul[_to_qmul(a), _scalar_qmul(b)])
+function Base.:+(a::QSym, b::Number)
+    d = QTermDict()
+    _addto!(d, QSym[a], _CNUM_ONE)
+    _addto!(d, QSym[], _to_cnum(b))
+    return QAdd(d, Index[], Tuple{Index, Index}[])
+end
 Base.:+(a::Number, b::QSym) = b + a
-Base.:+(a::QMul, b::Number) = QAdd(QMul[a, _scalar_qmul(b)])
-Base.:+(a::Number, b::QMul) = b + a
-Base.:+(a::QAdd, b::Number) = a + _scalar_qmul(b)
+function Base.:+(a::QAdd, b::Number)
+    d = copy(a.arguments)
+    _addto!(d, QSym[], _to_cnum(b))
+    return QAdd(d, a.indices, a.non_equal)
+end
 Base.:+(a::Number, b::QAdd) = b + a
 
-# Subtraction
+# Efficient sum/reduce: accumulate into a single dict, avoiding N-1 intermediate copies.
+function Base.mapreduce(
+        f, ::typeof(Base.add_sum), iter::AbstractArray{QAdd};
+        dims = :, init = Base._InitialValue()
+    )
+    isempty(iter) && return _zero_qadd()
+    first_q = f(first(iter))
+    d = copy(first_q.arguments)
+    indices = copy(first_q.indices)
+    non_equal = copy(first_q.non_equal)
+    for i in 2:length(iter)
+        q = f(iter[i])
+        for (ops, c) in q.arguments
+            _addto!(d, ops, c)
+        end
+        indices = _merge_unique(indices, q.indices)
+        non_equal = _merge_unique(non_equal, q.non_equal)
+    end
+    return QAdd(d, indices, non_equal)
+end
+
+# ============================================================================
+#  Subtraction, negation, division, power
+# ============================================================================
+
+Base.:-(a::QSym) = _single_qadd(_CNUM_NEG1, QSym[a])
 Base.:-(a::QAdd) = QAdd(QTermDict(ops => -c for (ops, c) in a.arguments), a.indices, a.non_equal)
 Base.:-(a::QField, b::QField) = a + (-b)
 Base.:-(a::QField, b::Number) = a + (-b)
 Base.:-(a::Number, b::QField) = a + (-b)
 
-## Index helpers (must precede multiplication methods that use them)
+Base.:/(a::QSym, b::Number) = a * inv(b)
+Base.:/(a::QAdd, b::Number) = a * inv(b)
 
-"""
-    _depends_on_index(m::QMul, idx::Index) -> Bool
+function Base.:^(a::QSym, n::Integer)
+    n >= 0 || throw(ArgumentError("Negative powers not supported"))
+    n == 0 && return _single_qadd(_CNUM_ONE, QSym[])
+    ops = QSym[a for _ in 1:n]
+    return _ordered_qadd(_CNUM_ONE, ops)
+end
 
-Check whether a `QMul` term depends on the given `Index`.
-Checks both operators (via `.index`) and the c-number prefactor
-(via `Symbolics.get_variables` for the index symbol).
-"""
-function _depends_on_index(m::QMul, idx::Index)
-    for op in m.args_nc
+function Base.:^(a::QAdd, n::Integer)
+    n >= 0 || throw(ArgumentError("Negative powers not supported"))
+    n == 0 && return _single_qadd(_CNUM_ONE, QSym[])
+    result = a
+    for _ in 2:n
+        result = result * a
+    end
+    return result
+end
+
+# ============================================================================
+#  Index helpers
+# ============================================================================
+
+function _depends_on_index_term(c::CNum, ops::Vector{QSym}, idx::Index)
+    for op in ops
         op.index == idx && return true
     end
     isym = SymbolicUtils.unwrap(idx.sym)
-    c = m.arg_c
     for part in (real(c), imag(c))
         vars = Symbolics.get_variables(part)
         any(v -> isequal(v, isym), vars) && return true
@@ -229,35 +382,41 @@ end
 
 function _any_depends_on_index(s::QAdd, idx::Index)
     for (ops, c) in s.arguments
-        _depends_on_index(QMul(c, ops), idx) && return true
+        _depends_on_index_term(c, ops, idx) && return true
     end
     return false
 end
 
 """
-    _diagonal_split(terms, sum_idx::Index, non_equal::Vector{Tuple{Index,Index}})
+    _diagonal_split(qadd, sum_idx, non_equal)
 
 Extract diagonal terms for summation index `sum_idx`. For each term containing a free
 index `j` on the same space as `sum_idx` (and not already constrained `sum_idx != j`),
 create the diagonal term via `change_index(term, sum_idx, j)` and record the constraint.
 
-Returns `(diag_terms::Vector{QMul}, new_non_equal::Vector{Tuple{Index,Index}})`.
+Returns `(diag_terms::Vector{_OTerm}, new_non_equal::Vector{Tuple{Index,Index}})`.
 """
 function _diagonal_split(
-        terms, sum_idx::Index,
+        qadd::QAdd, sum_idx::Index,
         non_equal::Vector{Tuple{Index, Index}}
     )
-    diag_terms = QMul[]
+    diag_terms = _OTerm[]
     new_ne = copy(non_equal)
-    for term in terms
-        term_indices = get_indices(term)
-        for idx in term_indices
+    seen = Index[]
+    for (ops, c) in qadd.arguments
+        empty!(seen)
+        for op in ops
+            idx = op.index
+            has_index(idx) || continue
+            idx ∈ seen && continue
+            push!(seen, idx)
             if idx != sum_idx &&
                     idx.space_index == sum_idx.space_index &&
                     !((sum_idx, idx) in new_ne) &&
                     !((idx, sum_idx) in new_ne)
-                diag_term = change_index(term, sum_idx, idx)
-                push!(diag_terms, diag_term)
+                new_ops = QSym[change_index(op, sum_idx, idx) for op in ops]
+                new_c = change_index(c, sum_idx, idx)
+                push!(diag_terms, (new_c, new_ops))
                 push!(new_ne, (sum_idx, idx))
             end
         end
@@ -265,12 +424,22 @@ function _diagonal_split(
     return diag_terms, new_ne
 end
 
+function _get_indices_from_terms(s::QAdd)
+    inds = Index[]
+    for (ops, _) in s.arguments
+        for op in ops
+            idx = op.index
+            has_index(idx) && idx ∉ inds && push!(inds, idx)
+        end
+    end
+    return inds
+end
+
 """
     _apply_diagonal_split(s::QAdd, ext_idx::Index) -> QAdd
 
-For a QAdd with summation indices, split out diagonal terms for any summation index
-on the same space as `ext_idx`. Called after multiplication introduces `ext_idx`
-into the terms.
+Apply diagonal splitting for each summation index in `s` that shares a space with `ext_idx`.
+Called after multiplication introduces `ext_idx` into the terms.
 """
 function _apply_diagonal_split(s::QAdd, ext_idx::Index)
     result = s
@@ -279,147 +448,46 @@ function _apply_diagonal_split(s::QAdd, ext_idx::Index)
                 sum_idx.space_index == ext_idx.space_index &&
                 !((sum_idx, ext_idx) in result.non_equal) &&
                 !((ext_idx, sum_idx) in result.non_equal)
-            diag_terms, new_ne = _diagonal_split(terms(result), sum_idx, result.non_equal)
+            diag_terms, new_ne = _diagonal_split(result, sum_idx, result.non_equal)
             result = QAdd(result.arguments, result.indices, new_ne)
             if !isempty(diag_terms)
-                result = result + QAdd(diag_terms)
+                result = result + _qadd_from_oterms(diag_terms, Index[], Tuple{Index, Index}[])
             end
         end
     end
     return result
 end
 
-## QAdd * ... (distributive)
-
-# QAdd * Number
-function Base.:*(a::QAdd, b::Number)
-    cb = _to_cnum(b)
-    d = QTermDict(ops => c * cb for (ops, c) in a.arguments)
-    _drop_zeros!(d)
-    return QAdd(d, a.indices, a.non_equal)
-end
-Base.:*(a::Number, b::QAdd) = b * a
-
-# QAdd * QSym
-function Base.:*(a::QAdd, b::QSym)
-    result = QMul[QMul(c, ops) * b for (ops, c) in a.arguments]
-    product = QAdd(result, copy(a.indices), copy(a.non_equal))
-    if has_index(b.index) && !isempty(a.indices)
-        return _apply_diagonal_split(product, b.index)
-    end
-    return product
-end
-function Base.:*(a::QSym, b::QAdd)
-    result = QMul[a * QMul(c, ops) for (ops, c) in b.arguments]
-    product = QAdd(result, copy(b.indices), copy(b.non_equal))
-    if has_index(a.index) && !isempty(b.indices)
-        return _apply_diagonal_split(product, a.index)
-    end
-    return product
-end
-
-# QAdd * QMul
-function Base.:*(a::QAdd, b::QMul)
-    result = QMul[QMul(c, ops) * b for (ops, c) in a.arguments]
-    product = QAdd(result, copy(a.indices), copy(a.non_equal))
-    if !isempty(a.indices)
-        for op in b.args_nc
-            if has_index(op.index)
-                product = _apply_diagonal_split(product, op.index)
-            end
-        end
-    end
-    return product
-end
-function Base.:*(a::QMul, b::QAdd)
-    result = QMul[a * QMul(c, ops) for (ops, c) in b.arguments]
-    product = QAdd(result, copy(b.indices), copy(b.non_equal))
-    if !isempty(b.indices)
-        for op in a.args_nc
-            if has_index(op.index)
-                product = _apply_diagonal_split(product, op.index)
-            end
-        end
-    end
-    return product
-end
-
-# QAdd * QAdd
-function Base.:*(a::QAdd, b::QAdd)
-    # Check for clashing summation indices
-    if !isempty(a.indices) && !isempty(b.indices)
-        for idx in a.indices
-            if idx in b.indices
-                throw(ArgumentError(
-                    "Summation index $(idx.name) appears in both factors. " *
-                    "Use `change_index` to re-index one side, or use different indices."
-                ))
-            end
-        end
-    end
-    result = QMul[]
-    for (ops_a, c_a) in a.arguments, (ops_b, c_b) in b.arguments
-        push!(result, QMul(c_a, ops_a) * QMul(c_b, ops_b))
-    end
-    indices = _merge_unique(a.indices, b.indices)
-    non_equal = _merge_unique(a.non_equal, b.non_equal)
-    product = QAdd(result, indices, non_equal)
-    # Apply diagonal splitting for cross-space index pairs
-    if !isempty(a.indices) && !isempty(b.indices)
-        for idx_a in a.indices, idx_b in b.indices
-            if idx_a.space_index == idx_b.space_index
-                product = _apply_diagonal_split(product, idx_a)
-                product = _apply_diagonal_split(product, idx_b)
-            end
-        end
-    end
-    return product
-end
-
-# QAdd / Number
-Base.:/(a::QAdd, b::Number) = a * inv(b)
-
+# ============================================================================
+#  Σ — symbolic sums
+# ============================================================================
 
 """
     Σ(expr, i::Index, non_equal::Vector{Index}=Index[])
 
 Create a symbolic sum over index `i`. Returns a `QAdd` with summation indices.
 If the expression does not depend on `i`, returns `range * expr` instead.
-
-    Σ(expr, i::Index, j::Index, ...)
-
-Create a multi-index sum.
 """
-function Σ(expr::QMul, i::Index, non_equal::Vector{Index} = Index[])
-    if !_depends_on_index(expr, i)
-        return QAdd(QMul[QMul(i.range * expr.arg_c, expr.args_nc)])
-    end
-    ne_pairs = Tuple{Index, Index}[(i, j) for j in non_equal]
-    diag_terms, ne_pairs = _diagonal_split([expr], i, ne_pairs)
-    off_diag = QAdd(QMul[expr], [i], ne_pairs)
-    isempty(diag_terms) && return off_diag
-    return off_diag + QAdd(diag_terms)
-end
 function Σ(expr::QAdd, i::Index, non_equal::Vector{Index} = Index[])
     if !_any_depends_on_index(expr, i)
         return expr * i.range
     end
     ne_pairs = Tuple{Index, Index}[(i, j) for j in non_equal]
     all_ne = vcat(expr.non_equal, ne_pairs)
-    diag_terms, all_ne = _diagonal_split(terms(expr), i, all_ne)
+    diag_terms, all_ne = _diagonal_split(expr, i, all_ne)
     all_indices = vcat(expr.indices, [i])
     off_diag = QAdd(expr.arguments, all_indices, all_ne)
     isempty(diag_terms) && return off_diag
-    return off_diag + QAdd(diag_terms)
-end
-function Σ(expr::QSym, i::Index, non_equal::Vector{Index} = Index[])
-    return Σ(_to_qmul(expr), i, non_equal)
-end
-function Σ(expr::Number, i::Index, non_equal::Vector{Index} = Index[])
-    return Σ(_scalar_qmul(expr), i, non_equal)
+    return off_diag + _qadd_from_oterms(diag_terms, Index[], Tuple{Index, Index}[])
 end
 
-# Multi-index: Σ(expr, i, j) = double sum
+function Σ(expr::QSym, i::Index, non_equal::Vector{Index} = Index[])
+    return Σ(_single_qadd(_CNUM_ONE, QSym[expr]), i, non_equal)
+end
+function Σ(expr::Number, i::Index, non_equal::Vector{Index} = Index[])
+    return Σ(_single_qadd(_to_cnum(expr), QSym[]), i, non_equal)
+end
+
 function Σ(expr, i::Index, j::Index, rest::Index...)
     inner = Σ(expr, i)
     return Σ(inner, j, rest...)
@@ -434,5 +502,4 @@ No-op passthrough. Diagonal splitting is now performed eagerly at construction t
 by `Σ` and `QAdd` multiplication. Kept for API compatibility.
 """
 expand_sums(s::QAdd) = s
-expand_sums(m::QMul) = m
 expand_sums(op::QSym) = op

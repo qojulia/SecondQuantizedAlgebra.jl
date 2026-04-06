@@ -1,5 +1,5 @@
 using SecondQuantizedAlgebra
-import SecondQuantizedAlgebra: simplify, QMul, QAdd, QSym
+import SecondQuantizedAlgebra: simplify, QAdd, QSym, QTermDict, _CNUM_ONE, _to_cnum
 using Test
 
 @testset "fock operators" begin
@@ -64,9 +64,9 @@ using Test
         h = FockSpace(:c)
         a = Destroy(h, :a)
 
-        # Lazy multiplication — normal_order applies commutation rules
-        @test isequal(simplify(normal_order(a * a')), simplify(1 + a' * a))
-        @test isequal(simplify(normal_order(a * a') + 1), simplify(2 + a' * a))
+        # Eager ordering: a * a' is already normal-ordered
+        @test isequal(a * a', 1 + a' * a)
+        @test isequal(a * a' + 1, 2 + a' * a)
     end
 
     @testset "Hamiltonian evolution" begin
@@ -90,10 +90,10 @@ using Test
         a2 = Destroy(h, :a2, 2)
 
         @test isequal(
-            simplify(commutator(a1 + a2, a1')), QAdd(QMul[QMul(1, QSym[])])
+            simplify(commutator(a1 + a2, a1')), QAdd(QTermDict(QSym[] => _to_cnum(1)), Index[], Tuple{Index, Index}[])
         )
         @test isequal(
-            simplify(commutator(a2', a1 + a2)), QAdd(QMul[QMul(-1, QSym[])])
+            simplify(commutator(a2', a1 + a2)), QAdd(QTermDict(QSym[] => _to_cnum(-1)), Index[], Tuple{Index, Index}[])
         )
 
         @test commutator(a1, 1) == commutator(1, a2)

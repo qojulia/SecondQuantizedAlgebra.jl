@@ -28,7 +28,6 @@ const sym_average = AvgFunc()
 Base.nameof(::AvgFunc) = :avg
 Base.show(io::IO, ::AvgFunc) = print(io, "avg")
 
-# ⟨op⟩ display for average Term nodes
 function SymbolicUtils.show_call(
         io::IO, ::AvgFunc, x::SymbolicUtils.BasicSymbolic; kw...
     )
@@ -53,13 +52,9 @@ function is_average(x::SymbolicUtils.BasicSymbolic)
 end
 is_average(x) = false
 
-# --- Internal constructor ---
-
 function _average(op::QField)
     return SymbolicUtils.Term{SymbolicUtils.SymReal}(sym_average, Any[op]; type = AvgSym)
 end
-
-# --- Public API ---
 
 """
     average(expr)
@@ -68,7 +63,7 @@ Compute the symbolic average of a quantum operator expression.
 Returns a `BasicSymbolic{SymReal}` scalar with `symtype = AvgSym` that participates
 in Symbolics arithmetic.
 
-Linearity: distributes over `QAdd` and pulls c-number prefactors out of `QMul`.
+Linearity: distributes over `QAdd` and pulls c-number prefactors out.
 """
 function average end
 
@@ -76,27 +71,26 @@ average(op::QSym) = _average(op)
 average(x::Number) = x
 average(x::SymbolicUtils.BasicSymbolic) = x
 
-function average(op::QMul)
-    isempty(op.args_nc) && return op.arg_c
-    # Normalize: single-operator QMul → bare QSym so that _average always wraps
-    # the same type regardless of whether the caller wrote average(σ) or average(1*σ).
-    # For multi-operator QMul, strip the prefactor to get a unit-prefactor QMul.
-    inner = length(op.args_nc) == 1 ? only(op.args_nc) : QMul(op.args_nc)
-    # Fast path: unit prefactor, avoid allocating a new QMul
-    isone(op.arg_c) && return _average(inner)
-    # Pull out prefactor: _average wraps the pure operator part.
-    avg = _average(inner)
-    # CNum = Complex{Num}. Multiplying Complex{Num} * BasicSymbolic may not
-    # dispatch correctly, so split into real/imag parts which are Num values
-    # and multiply through Symbolics arithmetic.
-    r, i = real(op.arg_c), imag(op.arg_c)
-    iszero(i) && return r * avg
-    iszero(r) && return im * i * avg
-    return (r + im * i) * avg
-end
-
 function average(op::QAdd)
-    result = mapreduce(t -> average(t), +, terms(op))
+    result = Num(0)
+    for (ops, c) in op.arguments
+        if isempty(ops)
+            result += c
+        else
+            # Wrap the operator product for _average.
+            # For single ops, pass the QSym directly; for multi-op, pass a QAdd.
+            inner = length(ops) == 1 ? only(ops) : _single_qadd(_CNUM_ONE, ops)
+            avg = _average(inner)
+            r, i = real(c), imag(c)
+            if iszero(i)
+                result += r * avg
+            elseif iszero(r)
+                result += im * i * avg
+            else
+                result += (r + im * i) * avg
+            end
+        end
+    end
     if !isempty(op.indices)
         result = SymbolicUtils.setmetadata(result, SumIndices, op.indices)
         result = SymbolicUtils.setmetadata(result, SumNonEqual, op.non_equal)
@@ -104,7 +98,7 @@ function average(op::QAdd)
     return result
 end
 
-# --- Internal helpers ---
+# --- undo_average ---
 
 """Restore summation metadata from a SymbolicUtils node onto the result QField expression."""
 function _restore_sum_metadata(result, x::SymbolicUtils.BasicSymbolic)
@@ -113,16 +107,13 @@ function _restore_sum_metadata(result, x::SymbolicUtils.BasicSymbolic)
         non_equal = SymbolicUtils.getmetadata(x, SumNonEqual)
         if result isa QAdd
             return QAdd(result.arguments, indices, non_equal)
-        elseif result isa QMul
-            return QAdd(QMul[result], indices, non_equal)
         elseif result isa QSym
-            return QAdd(QMul[_to_qmul(result)], indices, non_equal)
+            d = QTermDict(QSym[result] => _CNUM_ONE)
+            return QAdd(d, indices, non_equal)
         end
     end
     return result
 end
-
-# --- undo_average ---
 
 """
     undo_average(expr)
@@ -133,35 +124,28 @@ Summation metadata is restored to the resulting `QAdd`.
 Note: this function is inherently non-inferrable because it walks SymbolicUtils expression
 trees via `operation(x)` (type `Any`) and `f(args...)` (dynamic dispatch with splatting).
 This is acceptable — `undo_average` is not a hot path.
-
-For Add/Mul nodes, `f(args...)` calls `+`/`*` on QField values which creates QAdd/QMul
-via SQA's algebra. For non-standard operations (Pow, Div, etc.), `f(args...)` reconstructs
-through Julia's generic dispatch — this is correct but may not preserve SymbolicUtils node
-structure exactly. In practice, QC only produces Add/Mul trees from averaging.
 """
 function undo_average(x::SymbolicUtils.BasicSymbolic)
     if SymbolicUtils.iscall(x)
         f = SymbolicUtils.operation(x)
         if f isa AvgFunc
             arg = SymbolicUtils.arguments(x)[1]
-            # SymbolicUtils wraps non-symbolic args as Const{SymReal}(val);
-            # extract the original QField. Const has no public extraction API,
-            # so we access .val directly (SymbolicUtils internal).
             result = SymbolicUtils.isconst(arg) ? arg.val : arg
+            # Ensure we return QAdd or QSym, never an internal type
+            if result isa QAdd && length(result.arguments) == 1
+                # Already a proper QAdd
+            elseif result isa QSym
+                # Fine as-is
+            end
             return _restore_sum_metadata(result, x)
         elseif f === (+) || f === (*)
-            # Additive/multiplicative nodes may contain averages as children.
-            # Recurse into args and reconstruct with QField algebra.
             args = map(undo_average, SymbolicUtils.arguments(x))
             result = f(args...)
             return _restore_sum_metadata(result, x)
         else
-            # Any other call (complex, ^, conj, etc.) is a pure c-number node.
-            # Convert to CNum to stay in the QField type domain.
             return _to_cnum(x)
         end
     else
-        # Non-call BasicSymbolic (bare symbol or Const) — convert to CNum
         return _to_cnum(x)
     end
 end
@@ -169,14 +153,11 @@ end
 undo_average(x::Number) = x
 function undo_average(x::Num)
     inner = undo_average(Symbolics.unwrap(x))
-    # Num only wraps BasicSymbolic; if undo_average recovered a QField/Number, return as-is
     return inner isa SymbolicUtils.BasicSymbolic ? Num(inner) : inner
 end
 undo_average(x::QField) = x
-undo_average(x) = x  # catch-all for types not covered above (e.g. Symbol)
+undo_average(x) = x
 
-# Symbolics.Equation fields are BasicSymbolic{SymReal}, so we can only reconstruct an
-# Equation when the un-averaged results are still BasicSymbolic. Return a Pair otherwise.
 function undo_average(eq::Symbolics.Equation)
     lhs = undo_average(eq.lhs)
     rhs = undo_average(eq.rhs)
@@ -216,7 +197,7 @@ function get_sum_non_equal(x::SymbolicUtils.BasicSymbolic)
     return SymbolicUtils.getmetadata(x, SumNonEqual)
 end
 
-# --- get_indices for BasicSymbolic (averages, sums of averages) ---
+# --- get_indices for BasicSymbolic ---
 
 function get_indices(x::SymbolicUtils.BasicSymbolic)
     if SymbolicUtils.isconst(x)
@@ -250,24 +231,18 @@ Not intended for hot-path use — allocates a fresh `Vector{Int}` on each call.
 """
 acts_on(op::QSym) = Int[op.space_index]
 
-function acts_on(op::QMul)
-    aon = Int[x.space_index for x in op.args_nc]
-    unique!(sort!(aon))
-    return aon
-end
-
 function acts_on(op::QAdd)
     aon = Int[]
-    for t in terms(op)
-        append!(aon, acts_on(t))
+    for (ops, _) in op.arguments
+        for x in ops
+            push!(aon, x.space_index)
+        end
     end
     unique!(sort!(aon))
     return aon
 end
 
 function acts_on(s::SymbolicUtils.BasicSymbolic)
-    # Const nodes wrap non-symbolic values (e.g., QField inside avg args).
-    # Const has no public extraction API, so we access .val directly (SymbolicUtils internal).
     if SymbolicUtils.isconst(s)
         return acts_on(s.val)
     end

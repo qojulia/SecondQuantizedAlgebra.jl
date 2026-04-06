@@ -3,7 +3,7 @@ using Latexify
 using LaTeXStrings
 using Symbolics: @variables
 using Test
-import SecondQuantizedAlgebra: simplify, QMul, QAdd, QSym
+import SecondQuantizedAlgebra: simplify, QAdd, QSym, _single_qadd, _to_cnum
 
 @testset "latexify" begin
     h = FockSpace(:c)
@@ -58,12 +58,12 @@ import SecondQuantizedAlgebra: simplify, QMul, QAdd, QSym
         transition_superscript(true)  # reset
     end
 
-    @testset "QMul" begin
+    @testset "Products and scalars" begin
         input = [
             1 * ad * a,
             3 * ad * a,
             -1 * a,
-            QMul(5, QSym[]),
+            _single_qadd(_to_cnum(5), QSym[]),
         ]
         output = [
             L"a^{\dagger}a",

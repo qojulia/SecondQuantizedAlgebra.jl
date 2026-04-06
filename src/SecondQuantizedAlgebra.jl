@@ -21,7 +21,8 @@ include("pauli.jl")
 include("spin.jl")
 include("phase_space.jl")
 include("cluster.jl")
-include("qmul.jl")
+include("cnum.jl")
+include("ordering.jl")
 include("qadd.jl")
 include("index.jl")
 include("interface.jl")
@@ -84,14 +85,14 @@ export FockSpace, ProductSpace,
     ⊗, tensor,
     Destroy, Create,
     @qnumbers,
-    NormalOrder,
+    NormalOrder, LazyOrder, set_ordering!, get_ordering,
     average, undo_average,
     acts_on, is_average,
     has_sum_metadata, get_sum_indices, get_sum_non_equal,
     fundamental_operators, find_operators, unique_ops,
     prefactor, operators,
     substitute,
-    normal_order, simplify, expand, commutator,
+    normal_order, normal_to_symmetric, symmetric_to_normal, simplify, expand, commutator,
     to_numeric, numeric_average,
     transition_superscript
 

@@ -15,28 +15,30 @@ function substitute(op::QSym, d::Dict)
     return op
 end
 
-# Internal: always returns QMul (type-stable for QAdd aggregation)
-function _substitute_qmul(m::QMul, sym_dict::Dict, op_dict::Dict{QSym, Any})
-    # Substitute in prefactor
+# Internal: substitute within a single term (prefactor + operator sequence)
+function _substitute_term(
+        c::CNum, ops::Vector{QSym},
+        sym_dict::Dict, op_dict::Dict{QSym, Any}
+    )
     new_c = if isempty(sym_dict)
-        m.arg_c
+        c
     else
-        r = Symbolics.substitute(Symbolics.unwrap(real(m.arg_c)), sym_dict)
-        i = Symbolics.substitute(Symbolics.unwrap(imag(m.arg_c)), sym_dict)
+        r = Symbolics.substitute(Symbolics.unwrap(real(c)), sym_dict)
+        i = Symbolics.substitute(Symbolics.unwrap(imag(c)), sym_dict)
         Complex(Num(r), Num(i))
     end
 
-    # Substitute operators — replacements that are numbers fold into prefactor
     new_ops = QSym[]
     extra_c = _CNUM_ONE
-    for op in m.args_nc
+    for op in ops
         if haskey(op_dict, op)
             v = op_dict[op]
             if v isa QSym
                 push!(new_ops, v)
-            elseif v isa QMul
-                extra_c *= v.arg_c
-                append!(new_ops, v.args_nc)
+            elseif v isa QAdd && length(v.arguments) == 1
+                (vops, vc) = only(v.arguments)
+                extra_c *= vc
+                append!(new_ops, vops)
             else
                 extra_c *= _to_cnum(v)
             end
@@ -45,12 +47,12 @@ function _substitute_qmul(m::QMul, sym_dict::Dict, op_dict::Dict{QSym, Any})
         end
     end
 
-    return QMul(new_c * extra_c, new_ops)
+    return (new_c * extra_c)::CNum, new_ops
 end
 
 # Split a user Dict into symbolic and operator substitution dicts
 function _split_sub_dict(d::Dict)
-    sym_dict = Dict{Any, Any}()
+    sym_dict = Dict{SymbolicUtils.BasicSymbolic, SymbolicUtils.BasicSymbolic}()
     op_dict = Dict{QSym, Any}()
     for (k, v) in d
         if k isa QSym
@@ -62,23 +64,13 @@ function _split_sub_dict(d::Dict)
     return sym_dict, op_dict
 end
 
-function substitute(m::QMul, d::Dict)
-    sym_dict, op_dict = _split_sub_dict(d)
-    result = _substitute_qmul(m, sym_dict, op_dict)
-    # Simplify output: unwrap trivial cases
-    iszero(result) && return 0
-    if isempty(result.args_nc)
-        c = result.arg_c
-        return iszero(imag(c)) ? real(c) : c
-    end
-    if length(result.args_nc) == 1 && isequal(result.arg_c, _CNUM_ONE)
-        return result.args_nc[1]
-    end
-    return result
-end
-
 function substitute(s::QAdd, d::Dict)
     sym_dict, op_dict = _split_sub_dict(d)
-    new_terms = QMul[_substitute_qmul(QMul(c, ops), sym_dict, op_dict) for (ops, c) in s.arguments]
-    return QAdd(new_terms)
+    new_d = QTermDict()
+    for (ops, c) in s.arguments
+        new_c, new_ops = _substitute_term(c, ops, sym_dict, op_dict)
+        _iszero_cnum(new_c) && continue
+        _addto!(new_d, new_ops, new_c)
+    end
+    return QAdd(new_d, s.indices, s.non_equal)
 end

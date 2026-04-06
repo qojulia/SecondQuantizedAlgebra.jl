@@ -156,9 +156,9 @@ function compare(baseline_path::String, target_path::String)
         alloc_change = if b !== nothing && t !== nothing
             ab, at = allocs(b), allocs(t)
             ab == 0 ? "" : begin
-                pct = (at / ab - 1) * 100
-                abs(pct) < 1 ? "  ~same" : pct < 0 ? " $(round(Int, pct))%" : " +$(round(Int, pct))%"
-            end
+                    pct = (at / ab - 1) * 100
+                    abs(pct) < 1 ? "  ~same" : pct < 0 ? " $(round(Int, pct))%" : " +$(round(Int, pct))%"
+                end
         else
             ""
         end
@@ -190,7 +190,7 @@ function compare(baseline_path::String, target_path::String)
     println()
     println("Summary: $n_faster faster, $n_slower slower, $n_same unchanged")
     println("Legend: Δ = change from baseline → target. Negative = faster/fewer.")
-    println()
+    return println()
 end
 
 # ── Entry point ──────────────────────────────────────────────────────────────

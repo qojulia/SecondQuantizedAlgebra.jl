@@ -1,7 +1,7 @@
 using SecondQuantizedAlgebra
 using Symbolics: @variables
 using Test
-import SecondQuantizedAlgebra: _unwrap_space, has_cluster, simplify, QMul, QAdd, QSym
+import SecondQuantizedAlgebra: _unwrap_space, has_cluster, simplify, QAdd, QSym, sorted_arguments
 
 @testset "ClusterSpace" begin
     @testset "Construction" begin
@@ -126,8 +126,9 @@ import SecondQuantizedAlgebra: _unwrap_space, has_cluster, simplify, QMul, QAdd,
         a1 = Destroy(:a, 1, 1)
         a2 = Destroy(:a, 1, 2)
         m = a2 * a1  # should sort by copy_index
-        @test m.args_nc[1].copy_index == 1
-        @test m.args_nc[2].copy_index == 2
+        ops = operators(only(sorted_arguments(m)))
+        @test ops[1].copy_index == 1
+        @test ops[2].copy_index == 2
     end
 
     @testset "Different copy_index operators commute" begin
@@ -154,7 +155,7 @@ import SecondQuantizedAlgebra: _unwrap_space, has_cluster, simplify, QMul, QAdd,
         # Different copy: a₁·a₂† stays as-is (no commutation rule)
         result = simplify(a1 * a2')
         @test length(result) == 1
-        @test length(only(collect(result)).args_nc) == 2
+        @test length(operators(only(sorted_arguments(result)))) == 2
     end
 
     @testset "Symbolic N" begin

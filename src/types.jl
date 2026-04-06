@@ -34,10 +34,10 @@ Applies `[a, a†] = 1` for Fock and `[Sⱼ, Sₖ] = iϵⱼₖₗSₗ` for Spin.
 """
 struct NormalOrder <: OrderingConvention end
 
-# TODO: SymmetricOrder for TWA (Truncated Wigner Approximation)
-# Symmetric (Weyl) ordering places operators in symmetrized form: (ab + ba)/2.
-# To implement:
-#   struct SymmetricOrder <: OrderingConvention end
-# Then add a method for _apply_ordering_rule(a, b, same_space, i, arg_c, ops, ::SymmetricOrder)
-# in simplify.jl. The ordering-independent reductions (Transition, Pauli) still apply;
-# only the Fock and Spin commutation swap rules change.
+"""
+    LazyOrder <: OrderingConvention
+
+Lazy ordering: no rules applied during `*`. Operator algebra rules are deferred
+until `simplify()` or `normal_order()` is called explicitly.
+"""
+struct LazyOrder <: OrderingConvention end

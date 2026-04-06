@@ -1,6 +1,6 @@
 using SecondQuantizedAlgebra
 using Test
-import SecondQuantizedAlgebra: simplify, QMul, QAdd, QSym
+import SecondQuantizedAlgebra: simplify, QAdd, QSym, CNum
 
 @testset "normal_order" begin
     h = FockSpace(:c)
@@ -12,7 +12,7 @@ import SecondQuantizedAlgebra: simplify, QMul, QAdd, QSym
         result = normal_order(m)
         @test result isa QAdd
         @test length(result) == 1
-        @test isequal(only(collect(result)), m)
+        @test isequal(result, m)
     end
 
     @testset "Single commutation: a*a† → a†a + 1" begin
@@ -57,21 +57,18 @@ end
     @testset "Composition: |1⟩⟨2| · |2⟩⟨3| = |1⟩⟨3|" begin
         σ12 = Transition(h, :σ, 1, 2)
         σ23 = Transition(h, :σ, 2, 3)
-        m = σ12 * σ23
-        result = normal_order(m)
+        result = σ12 * σ23  # eager composition
         @test result isa QAdd
         @test length(result) == 1
-        op = only(collect(result)).args_nc[1]
-        @test op isa Transition
-        @test op.i == 1 && op.j == 3
+        ops = first(keys(result.arguments))
+        @test ops[1] isa Transition
+        @test ops[1].i == 1 && ops[1].j == 3
     end
 
     @testset "Orthogonality: |1⟩⟨2| · |3⟩⟨1| = 0" begin
         σ12 = Transition(h, :σ, 1, 2)
         σ31 = Transition(h, :σ, 3, 1)
-        m = σ12 * σ31
-        result = normal_order(m)
-        @test result isa QAdd
+        result = σ12 * σ31
         @test iszero(result)
     end
 
@@ -79,21 +76,15 @@ end
         σ12 = Transition(h, :σ, 1, 2)
         σ31 = Transition(h, :σ, 3, 1)
         σ23 = Transition(h, :σ, 2, 3)
-        # σ12 * σ31 = 0, so σ12 * σ31 * σ23 = 0
-        m = σ12 * σ31 * σ23
-        result = normal_order(m)
-        @test result isa QAdd
+        result = σ12 * σ31 * σ23
         @test iszero(result)
     end
 
     @testset "Ground state rewriting — single space" begin
         σ11 = Transition(h, :σ, 1, 1)
-        m = QMul(1, QSym[σ11])
-        result = normal_order(m, h)
-        # |1⟩⟨1| = 1 - |2⟩⟨2| - |3⟩⟨3| for ground_state=1, n=3
+        result = normal_order(σ11, h)
         @test result isa QAdd
         @test length(result) == 3
-        # Verify content: one scalar term (1), two diagonal transitions with -1
         simplified = simplify(result)
         @test length(simplified) == 3
     end
@@ -103,9 +94,7 @@ end
         ha = NLevelSpace(:atom, 2, 1)
         hp = hc ⊗ ha
         σ11 = Transition(hp, :σ, 1, 1, 2)
-        m = QMul(1, QSym[σ11])
-        result = normal_order(m, hp)
-        # |1⟩⟨1| = 1 - |2⟩⟨2| for ground_state=1, n=2
+        result = normal_order(σ11, hp)
         @test result isa QAdd
         @test length(result) == 2
     end
@@ -113,7 +102,6 @@ end
     @testset "Ground state rewriting — recursive (double projection)" begin
         h2 = NLevelSpace(:atom, 2, 1)
         σ11 = Transition(h2, :σ, 1, 1)
-        # σ11 * σ11 — both get ground-state expanded
         m = σ11 * σ11
         result = normal_order(m, h2)
         @test result isa QAdd
@@ -127,66 +115,58 @@ end
     σz = Pauli(h, :σ, 3)
 
     @testset "σx·σx = 1" begin
-        m = σx * σx
-        result = normal_order(m)
+        result = σx * σx  # eager: identity
         @test result isa QAdd
         @test length(result) == 1
-        t = only(collect(result))
-        @test isempty(t.args_nc)
-        @test t.arg_c == 1
+        ops, c = only(collect(result))
+        @test isempty(ops)
+        @test c == 1
     end
 
     @testset "σx·σy = iσz" begin
-        m = σx * σy
-        result = normal_order(m)
+        result = σx * σy  # eager: iσz
         @test result isa QAdd
         @test length(result) == 1
-        t = only(collect(result))
-        @test t.arg_c == im
-        @test length(t.args_nc) == 1
-        @test t.args_nc[1] isa Pauli
-        @test t.args_nc[1].axis == 3
+        ops, c = only(collect(result))
+        @test c == im
+        @test length(ops) == 1
+        @test ops[1] isa Pauli
+        @test ops[1].axis == 3
     end
 
     @testset "σy·σx = -iσz" begin
-        m = σy * σx
-        result = normal_order(m)
-        @test result isa QAdd
+        result = σy * σx
         @test length(result) == 1
-        t = only(collect(result))
-        @test t.arg_c == -im
-        @test t.args_nc[1].axis == 3
+        ops, c = only(collect(result))
+        @test c == -im
+        @test ops[1].axis == 3
     end
 
     @testset "Full Pauli cycle" begin
         # σy·σz = iσx
-        result = normal_order(σy * σz)
-        t = only(collect(result))
-        @test t.arg_c == im
-        @test t.args_nc[1].axis == 1
+        ops, c = only(collect(σy * σz))
+        @test c == im
+        @test ops[1].axis == 1
 
         # σz·σx = iσy
-        result = normal_order(σz * σx)
-        t = only(collect(result))
-        @test t.arg_c == im
-        @test t.args_nc[1].axis == 2
+        ops, c = only(collect(σz * σx))
+        @test c == im
+        @test ops[1].axis == 2
 
         # σz·σy = -iσx
-        result = normal_order(σz * σy)
-        t = only(collect(result))
-        @test t.arg_c == -im
-        @test t.args_nc[1].axis == 1
+        ops, c = only(collect(σz * σy))
+        @test c == -im
+        @test ops[1].axis == 1
 
         # σx·σz = -iσy
-        result = normal_order(σx * σz)
-        t = only(collect(result))
-        @test t.arg_c == -im
-        @test t.args_nc[1].axis == 2
+        ops, c = only(collect(σx * σz))
+        @test c == -im
+        @test ops[1].axis == 2
     end
 
     @testset "σy·σy = 1, σz·σz = 1" begin
-        @test only(collect(normal_order(σy * σy))).arg_c == 1
-        @test only(collect(normal_order(σz * σz))).arg_c == 1
+        @test only(collect(σy * σy)).second == 1
+        @test only(collect(σz * σz)).second == 1
     end
 end
 
@@ -197,23 +177,19 @@ end
     Sz = Spin(h, :S, 3)
 
     @testset "Sy·Sx gets reordered (swap + commutator)" begin
-        m = Sy * Sx  # out of axis order (2 > 1)
-        result = normal_order(m)
+        result = Sy * Sx  # eager ordering
         @test result isa QAdd
-        # SySx = SxSy - iSz → two terms
         @test length(result) >= 2
     end
 
     @testset "Same axis — already ordered" begin
-        m = Sx * Sx
-        result = normal_order(m)
+        result = Sx * Sx
         @test result isa QAdd
         @test length(result) == 1
     end
 
     @testset "Sx·Sy already in order" begin
-        m = Sx * Sy  # axes 1,2 — already in order
-        result = normal_order(m)
+        result = Sx * Sy
         @test result isa QAdd
         @test length(result) == 1
     end
@@ -254,7 +230,6 @@ end
     hf = FockSpace(:c)
     a = Destroy(hf, :a)
 
-    # Warmup
     normal_order(a * a')
     normal_order(a' * a)
     normal_order(a * a' + a' * a)
@@ -263,13 +238,11 @@ end
     @test @allocations(normal_order(a' * a)) < 1000
     @test @allocations(normal_order(a * a' + a' * a)) < 2000
 
-    # Transition with ground state rewriting
     hn = NLevelSpace(:atom, 3, 1)
     σ11 = Transition(hn, :σ, 1, 1)
-    normal_order(QMul(1, QSym[σ11]), hn)
-    @test @allocations(normal_order(QMul(1, QSym[σ11]), hn)) < 5000
+    normal_order(σ11, hn)
+    @test @allocations(normal_order(σ11, hn)) < 5000
 
-    # PhaseSpace
     hps = PhaseSpace(:q)
     x = Position(hps, :x)
     p = Momentum(hps, :p)

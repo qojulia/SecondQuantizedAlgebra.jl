@@ -1,7 +1,7 @@
 using SecondQuantizedAlgebra
 using Symbolics: @variables
 using Test
-import SecondQuantizedAlgebra: simplify, QMul, QAdd, QSym
+import SecondQuantizedAlgebra: simplify, QAdd, QSym, QTermDict, _to_cnum
 
 @testset "printing" begin
     h = FockSpace(:cavity)
@@ -71,13 +71,13 @@ import SecondQuantizedAlgebra: simplify, QMul, QAdd, QSym
         end
     end
 
-    @testset "QMul" begin
+    @testset "Single-term QAdd" begin
         input = [
             1 * ad * a,
             3 * ad * a,
             -1 * a,
             -3 * a,
-            QMul(5, QSym[]),
+            QAdd(QTermDict(QSym[] => _to_cnum(5)), Index[], Tuple{Index, Index}[]),
             0.5 * a,
         ]
         output = [
@@ -164,8 +164,7 @@ import SecondQuantizedAlgebra: simplify, QMul, QAdd, QSym
     end
 
     @testset "Edge cases — no crash" begin
-        @test repr(QMul(0, QSym[])) == "0"
-        @test repr(QAdd(QMul[])) == "0"
+        @test repr(QAdd(QTermDict(), Index[], Tuple{Index, Index}[])) == "0"
     end
 
     @testset "Type inference" begin

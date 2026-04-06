@@ -1,5 +1,5 @@
 using SecondQuantizedAlgebra
-import SecondQuantizedAlgebra: QMul, QAdd, QSym
+import SecondQuantizedAlgebra: QAdd, QSym
 using SymbolicUtils
 using TermInterface
 using Test
@@ -14,13 +14,15 @@ using Test
         @test SymbolicUtils.iscall(ad) == false
     end
 
-    @testset "QMul TermInterface" begin
+    @testset "QAdd from product — TermInterface" begin
+        # With eager ordering, 3 * a * a† = 3(1 + a†a) = 3 + 3a†a
         m = 3 * a * ad
+        @test m isa QAdd
         @test SymbolicUtils.iscall(m) == true
-        @test SymbolicUtils.operation(m) == (*)
+        @test SymbolicUtils.operation(m) == (+)
         args = SymbolicUtils.arguments(m)
-        @test args[1] == 3
-        @test length(args) == 3
+        @test length(args) == 2  # scalar 3 + 3*a†a
+        @test all(x -> x isa QAdd, args)
         @test TermInterface.metadata(m) === nothing
     end
 
@@ -30,14 +32,14 @@ using Test
         @test SymbolicUtils.operation(s) == (+)
         args = SymbolicUtils.arguments(s)
         @test length(args) == 2
-        @test all(x -> x isa QMul, args)
+        @test all(x -> x isa QAdd, args)
         @test TermInterface.metadata(s) === nothing
     end
 
-    @testset "maketerm QMul" begin
-        m = 2 * a * ad
+    @testset "maketerm QAdd from product" begin
+        m = 3 * ad * a  # single-term QAdd (already normal ordered)
         args = SymbolicUtils.arguments(m)
-        m2 = TermInterface.maketerm(typeof(m), *, args, nothing)
+        m2 = TermInterface.maketerm(typeof(m), +, args, nothing)
         @test isequal(m, m2)
     end
 
@@ -54,7 +56,7 @@ using Test
     end
 
     @testset "Type stability" begin
-        m = 2 * a * ad
+        m = ad * a  # QAdd
         s = a + ad
 
         @inferred SymbolicUtils.iscall(a)
@@ -75,7 +77,7 @@ using Test
     end
 
     @testset "Allocations" begin
-        m = 2 * a * ad
+        m = ad * a  # QAdd
         s = a + ad
 
         # iscall: zero alloc for leaf checks
@@ -92,12 +94,8 @@ using Test
         @test @allocations(TermInterface.metadata(m)) == 0
 
         # maketerm roundtrip
-        args_m = SymbolicUtils.arguments(m)
-        TermInterface.maketerm(typeof(m), *, args_m, nothing)  # warmup
-        @test @allocations(TermInterface.maketerm(typeof(m), *, args_m, nothing)) <= 300
-
         args_s = SymbolicUtils.arguments(s)
         TermInterface.maketerm(typeof(s), +, args_s, nothing)  # warmup
-        @test @allocations(TermInterface.maketerm(typeof(s), +, args_s, nothing)) <= 100
+        @test @allocations(TermInterface.maketerm(typeof(s), +, args_s, nothing)) <= 300
     end
 end

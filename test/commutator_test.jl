@@ -1,6 +1,6 @@
 using SecondQuantizedAlgebra
 using Test
-import SecondQuantizedAlgebra: simplify, QMul, QAdd, QSym
+import SecondQuantizedAlgebra: simplify, QAdd, QSym, sorted_arguments
 
 @testset "commutator" begin
     h = FockSpace(:c)
@@ -19,15 +19,15 @@ import SecondQuantizedAlgebra: simplify, QMul, QAdd, QSym
         @test result isa QAdd
         # simplify(a*a' - a'*a) = 1 (scalar identity)
         @test length(result) == 1
-        @test isempty(only(collect(result)).args_nc)
-        @test only(collect(result)).arg_c == 1
+        @test isempty(operators(only(sorted_arguments(result))))
+        @test prefactor(only(sorted_arguments(result))) == 1
     end
 
     @testset "Fock: [a†, a] = -1" begin
         result = commutator(ad, a)
         @test result isa QAdd
         @test length(result) == 1
-        @test only(collect(result)).arg_c == -1
+        @test prefactor(only(sorted_arguments(result))) == -1
     end
 
     @testset "Identical operators: [a, a] = 0" begin
@@ -42,12 +42,12 @@ import SecondQuantizedAlgebra: simplify, QMul, QAdd, QSym
         @test iszero(commutator(a1, a2'))
     end
 
-    @testset "QMul with QSym — shared space" begin
+    @testset "QAdd with QSym — shared space" begin
         result = commutator(ad * a, a)
         @test result isa QAdd
     end
 
-    @testset "QMul with QSym — no shared space" begin
+    @testset "QAdd with QSym — no shared space" begin
         h2 = FockSpace(:a) ⊗ FockSpace(:b)
         a1 = Destroy(h2, :a, 1)
         a2 = Destroy(h2, :b, 2)
@@ -55,7 +55,7 @@ import SecondQuantizedAlgebra: simplify, QMul, QAdd, QSym
         @test iszero(commutator(a2, a1' * a1))
     end
 
-    @testset "QMul with QMul — no shared space" begin
+    @testset "QAdd with QAdd — no shared space" begin
         h2 = FockSpace(:a) ⊗ FockSpace(:b)
         a1 = Destroy(h2, :a, 1)
         a2 = Destroy(h2, :b, 2)
@@ -69,7 +69,7 @@ import SecondQuantizedAlgebra: simplify, QMul, QAdd, QSym
         # [a,a] = 0, [a†,a] = -1 → total = -1
         simplified = simplify(result)
         @test length(simplified) == 1
-        @test only(collect(simplified)).arg_c == -1
+        @test prefactor(only(sorted_arguments(simplified))) == -1
     end
 
     @testset "QAdd, QAdd bilinearity" begin
@@ -78,6 +78,19 @@ import SecondQuantizedAlgebra: simplify, QMul, QAdd, QSym
         # [a+a†, a+a†] = [a,a]+[a,a†]+[a†,a]+[a†,a†] = 0+1-1+0 = 0
         simplified = simplify(result)
         @test iszero(simplified)
+    end
+
+    @testset "Sum-sum commutator preserves indices" begin
+        i = Index(h, :i, 10, h)
+        j = Index(h, :j, 10, h)
+        ai = IndexedOperator(a, i)
+        adj = IndexedOperator(ad, j)
+
+        s1 = Σ(ai, i)
+        s2 = Σ(adj, j)
+        result = commutator(s1, s2)
+        @test result isa QAdd
+        @test Set(result.indices) == Set([i, j])
     end
 
     @testset "Nested commutator" begin

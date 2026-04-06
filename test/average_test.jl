@@ -2,8 +2,8 @@ using SecondQuantizedAlgebra
 using Test
 using SymbolicUtils: SymbolicUtils, SymReal, symtype
 using Symbolics: Symbolics, @variables
-import SecondQuantizedAlgebra: simplify, QMul, QAdd, QSym, QField, CNum, _to_cnum,
-    _to_qmul, AvgSym, AvgFunc, sym_average, SumIndices, SumNonEqual
+import SecondQuantizedAlgebra: simplify, QAdd, QSym, QField, CNum, _to_cnum,
+    QTermDict, AvgSym, AvgFunc, sym_average, SumIndices, SumNonEqual, sorted_arguments
 
 @testset "Average" begin
 
@@ -35,7 +35,7 @@ import SecondQuantizedAlgebra: simplify, QMul, QAdd, QSym, QField, CNum, _to_cnu
         @test !is_average(nothing)
     end
 
-    @testset "average(QMul) — prefactor extraction" begin
+    @testset "average(QAdd) — prefactor extraction" begin
         h = FockSpace(:c)
         a = Destroy(h, :a)
         ad = a'
@@ -44,20 +44,20 @@ import SecondQuantizedAlgebra: simplify, QMul, QAdd, QSym, QField, CNum, _to_cnu
         ada = ad * a
         avg_ada = average(ada)
         @test is_average(avg_ada)
-        # SymbolicUtils wraps the QMul argument as Const; extract via .val
+        # SymbolicUtils wraps the QAdd argument as Const; extract via .val
         inner_wrapped = SymbolicUtils.arguments(avg_ada)[1]
         inner = SymbolicUtils.isconst(inner_wrapped) ? inner_wrapped.val : inner_wrapped
-        @test inner isa QMul
-        @test length(inner.args_nc) == 2
+        @test inner isa QAdd
+        @test length(operators(only(sorted_arguments(inner)))) == 2
 
         # Numeric prefactor: average(3 * a†a) = 3⟨a†a⟩
         three_ada = 3 * ad * a
         avg_3 = average(three_ada)
         @test !is_average(avg_3)  # prefactor pulled out
 
-        # Pure scalar QMul (empty args_nc)
-        scalar_mul = QMul(_to_cnum(5), QSym[])
-        @test average(scalar_mul) == _to_cnum(5)
+        # Pure scalar QAdd (empty operator key)
+        scalar_add = QAdd(QTermDict(QSym[] => _to_cnum(5)), Index[], Tuple{Index, Index}[])
+        @test average(scalar_add) == _to_cnum(5)
 
         # Scalar passthrough
         @test average(3) === 3
@@ -214,7 +214,7 @@ import SecondQuantizedAlgebra: simplify, QMul, QAdd, QSym, QField, CNum, _to_cnu
         @test acts_on(a) == [1]
         @test acts_on(σ) == [2]
 
-        # QMul
+        # QAdd (product)
         @test acts_on(a' * σ) == [1, 2]
 
         # QAdd
@@ -377,7 +377,7 @@ import SecondQuantizedAlgebra: simplify, QMul, QAdd, QSym, QField, CNum, _to_cnu
 
         terms = undo_average(rhs_avg_simplified)
         @test terms isa QAdd
-        @test all(arg -> arg isa QMul, terms)
+        @test terms isa QAdd
     end
 
     @testset "Average addition/multiplication (PR 28)" begin

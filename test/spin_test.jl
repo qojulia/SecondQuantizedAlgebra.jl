@@ -1,5 +1,5 @@
 using SecondQuantizedAlgebra
-import SecondQuantizedAlgebra: simplify, QMul, QAdd, QSym, HilbertSpace
+import SecondQuantizedAlgebra: simplify, QAdd, QSym, HilbertSpace, QTermDict, _to_cnum, Index
 using Test
 
 @testset "spin" begin
@@ -56,8 +56,7 @@ using Test
         Sy = Spin(h, :S, 2)
 
         m = Sx * Sy
-        @test m isa QMul
-        @test length(m.args_nc) == 2
+        @test m isa QAdd
 
         s = Sx + Sy
         @test s isa QAdd
@@ -81,10 +80,10 @@ using Test
         @test isequal(simplify(normal_order(s(1) * s(2))), simplify(1im * s(3)))
         @test !isequal(simplify(normal_order(s(1) * s(2))), simplify(1im * s(2)))
         @test isequal(simplify(normal_order(s(1) * s(3))), simplify(-1im * s(2)))
-        @test isequal(simplify(normal_order(s(3) * s(3))), QAdd(QMul[QMul(1, QSym[])]))
+        @test isequal(simplify(normal_order(s(3) * s(3))), QAdd(QTermDict(QSym[] => _to_cnum(1)), Index[], Tuple{Index, Index}[]))
         @test isequal(simplify(normal_order(s(3) * s(1))), simplify(1im * s(2)))
         @test isequal(
-            simplify(normal_order(s(1) * s(2) * s(3))), QAdd(QMul[QMul(1im, QSym[])])
+            simplify(normal_order(s(1) * s(2) * s(3))), QAdd(QTermDict(QSym[] => _to_cnum(1im)), Index[], Tuple{Index, Index}[])
         )
 
         # adjoint (Hermitian)

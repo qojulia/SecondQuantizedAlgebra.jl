@@ -65,21 +65,21 @@ end
 In-place version of [`unique_ops`](@ref).
 """
 function unique_ops!(ops::AbstractVector)
-    hashes = map(hash, ops)
-    hashes_adj = map(x -> hash(adjoint(x)), ops)
-    seen = UInt[]
-    i = 1
-    while i <= length(ops)
-        if hashes[i] in seen || hashes_adj[i] in seen
-            deleteat!(ops, i)
-            deleteat!(hashes, i)
-            deleteat!(hashes_adj, i)
-        else
-            push!(seen, hashes[i])
-            hashes[i] == hashes_adj[i] || push!(seen, hashes_adj[i])
-            i += 1
+    seen = Set{UInt}()
+    j = 0
+    for i in eachindex(ops)
+        h = hash(ops[i])
+        h_adj = hash(adjoint(ops[i]))
+        if h ∉ seen && h_adj ∉ seen
+            push!(seen, h)
+            h == h_adj || push!(seen, h_adj)
+            j += 1
+            if j != i
+                ops[j] = ops[i]
+            end
         end
     end
+    resize!(ops, j)
     return ops
 end
 
@@ -106,11 +106,16 @@ function find_operators(h::HilbertSpace, order::Int; names = nothing)
     for i in 1:order
         for c in with_replacement_combinations(fund_ops, i)
             c_ = prod(reverse(c))
-            iszero(c_) || push!(all_ops, c_)
+            iszero(c_) && continue
+            # With eager ordering, c_ is QAdd. Keep only single-term products.
+            if c_ isa QAdd && length(c_.arguments) == 1
+                push!(all_ops, c_)
+            elseif c_ isa QSym
+                push!(all_ops, c_)
+            end
         end
     end
 
-    filter!(x -> !(x isa QAdd), all_ops)
     unique_ops!(all_ops)
     return all_ops
 end

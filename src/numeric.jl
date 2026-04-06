@@ -55,19 +55,18 @@ function to_numeric(op::QSym, b::QuantumOpticsBase.CompositeBasis; kwargs...)
     return QuantumOpticsBase.LazyTensor(b, [idx], (op_num,))
 end
 
-# QMul
-function to_numeric(m::QMul, b::QuantumOpticsBase.Basis; kwargs...)
-    if isempty(m.args_nc)
-        return _to_number(m.arg_c) * _lazy_one(b)
+# Internal: convert a single term (ops, prefactor) to numeric
+function _term_to_numeric(c::CNum, ops::Vector{QSym}, b::QuantumOpticsBase.Basis; kwargs...)
+    if isempty(ops)
+        return _to_number(c) * _lazy_one(b)
     end
-    ops_num = [to_numeric(op, b; kwargs...) for op in m.args_nc]
-    return _to_number(m.arg_c) * prod(ops_num)
+    ops_num = [to_numeric(op, b; kwargs...) for op in ops]
+    return _to_number(c) * prod(ops_num)
 end
 
 # QAdd
 function to_numeric(s::QAdd, b::QuantumOpticsBase.Basis; kwargs...)
-    terms_num = [to_numeric(QMul(c, ops), b; kwargs...) for (ops, c) in s.arguments]
-    return sum(terms_num)
+    return sum(_term_to_numeric(c, ops, b; kwargs...) for (ops, c) in s.arguments)
 end
 
 # Number
@@ -76,12 +75,11 @@ function to_numeric(x::Number, b::QuantumOpticsBase.Basis; kwargs...)
 end
 
 # Convert CNum/Num to plain Julia number for numeric evaluation.
-# If the value is a literal number, extract it. If symbolic, return as-is.
 _to_number(x::Number) = x
 function _to_number(x::Num)
     v = Symbolics.unwrap(x)
     n = Symbolics.value(v)
-    return n isa Number ? n : x  # return Num as-is if still symbolic
+    return n isa Number ? n : x
 end
 function _to_number(x::CNum)
     r = _to_number(real(x))
@@ -129,7 +127,6 @@ function numeric_average(avg::SymbolicUtils.BasicSymbolic, state; kwargs...)
         op = undo_average(avg)
         return numeric_average(op, state; kwargs...)
     end
-    # Const nodes wrap plain values (e.g. numeric coefficients in Mul)
     if SymbolicUtils.isconst(avg)
         return numeric_average(avg.val, state; kwargs...)
     end
@@ -158,15 +155,17 @@ end
 function to_numeric(op::QField, state, d::Dict; kwargs...)
     return to_numeric(op, QuantumOpticsBase.basis(state), d; kwargs...)
 end
-function to_numeric(m::QMul, b::QuantumOpticsBase.Basis, d::Dict; kwargs...)
-    if isempty(m.args_nc)
-        return _to_number(m.arg_c) * _lazy_one(b)
+
+function _term_to_numeric(c::CNum, ops::Vector{QSym}, b::QuantumOpticsBase.Basis, d::Dict; kwargs...)
+    if isempty(ops)
+        return _to_number(c) * _lazy_one(b)
     end
-    ops_num = [to_numeric(op, b, d; kwargs...) for op in m.args_nc]
-    return _to_number(m.arg_c) * prod(ops_num)
+    ops_num = [to_numeric(op, b, d; kwargs...) for op in ops]
+    return _to_number(c) * prod(ops_num)
 end
+
 function to_numeric(s::QAdd, b::QuantumOpticsBase.Basis, d::Dict; kwargs...)
-    return sum(to_numeric(QMul(c, ops), b, d; kwargs...) for (ops, c) in s.arguments)
+    return sum(_term_to_numeric(c, ops, b, d; kwargs...) for (ops, c) in s.arguments)
 end
 function to_numeric(x::Number, b::QuantumOpticsBase.Basis, d::Dict; kwargs...)
     return _to_number(x) * _lazy_one(b)
@@ -203,7 +202,7 @@ function numeric_average(avg::SymbolicUtils.BasicSymbolic, state, d::Dict; kwarg
     error("numeric_average not implemented for $(typeof(avg))")
 end
 
-# --- to_numeric / numeric_average with ranges (indexed operators on composite bases) ---
+# --- to_numeric / numeric_average with ranges ---
 
 """
     _ranges_position(space_index, copy_index, ranges) -> Int
@@ -227,19 +226,19 @@ function to_numeric(op::QSym, b::QuantumOpticsBase.CompositeBasis, ranges::Vecto
     op_num = to_numeric(op, b.bases[pos])
     return QuantumOpticsBase.LazyTensor(b, [pos], (op_num,))
 end
-function to_numeric(m::QMul, b::QuantumOpticsBase.CompositeBasis, ranges::Vector{Int})
-    if isempty(m.args_nc)
-        return _to_number(m.arg_c) * _lazy_one(b)
+
+function _term_to_numeric(c::CNum, ops::Vector{QSym}, b::QuantumOpticsBase.CompositeBasis, ranges::Vector{Int})
+    if isempty(ops)
+        return _to_number(c) * _lazy_one(b)
     end
-    ops_num = [to_numeric(op, b, ranges) for op in m.args_nc]
-    return _to_number(m.arg_c) * prod(ops_num)
-end
-function to_numeric(s::QAdd, b::QuantumOpticsBase.CompositeBasis, ranges::Vector{Int})
-    terms_num = [to_numeric(QMul(c, ops), b, ranges) for (ops, c) in s.arguments]
-    return sum(terms_num)
+    ops_num = [to_numeric(op, b, ranges) for op in ops]
+    return _to_number(c) * prod(ops_num)
 end
 
-# State-based dispatch with ranges
+function to_numeric(s::QAdd, b::QuantumOpticsBase.CompositeBasis, ranges::Vector{Int})
+    return sum(_term_to_numeric(c, ops, b, ranges) for (ops, c) in s.arguments)
+end
+
 function to_numeric(op::QField, state, ranges::Vector{Int})
     return to_numeric(op, QuantumOpticsBase.basis(state), ranges)
 end

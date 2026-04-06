@@ -2,8 +2,8 @@ using SecondQuantizedAlgebra
 using Test
 using SymbolicUtils: SymbolicUtils
 using Symbolics: Symbolics, @variables
-import SecondQuantizedAlgebra: simplify, QMul, QAdd, QSym, CNum, _to_cnum, NO_INDEX,
-    create_index_arrays
+import SecondQuantizedAlgebra: simplify, QAdd, QSym, CNum, _to_cnum, NO_INDEX,
+    create_index_arrays, operators, prefactor, sorted_arguments
 
 @testset "Indexing" begin
 
@@ -143,8 +143,8 @@ import SecondQuantizedAlgebra: simplify, QMul, QAdd, QSym, CNum, _to_cnum, NO_IN
         result = commutator(ai, adi)
         @test result isa QAdd
         @test length(result) == 1
-        @test isempty(only(collect(result)).args_nc)
-        @test only(collect(result)).arg_c == 1
+        @test isempty(only(collect(result)).first)
+        @test only(collect(result)).second == 1
     end
 
     @testset "Indexed vs non-indexed are different sites" begin
@@ -191,7 +191,7 @@ import SecondQuantizedAlgebra: simplify, QMul, QAdd, QSym, CNum, _to_cnum, NO_IN
 
         # Can multiply: g_i * a_i
         expr = gi * ai
-        @test expr isa QMul
+        @test expr isa QAdd
     end
 
     # ========== Σ (symbolic sums) ==========
@@ -206,7 +206,7 @@ import SecondQuantizedAlgebra: simplify, QMul, QAdd, QSym, CNum, _to_cnum, NO_IN
         @test isempty(s.non_equal)
     end
 
-    @testset "Sigma with QMul" begin
+    @testset "Sigma with product" begin
         i = Index(hf, :i, 10, hf)
         ai = IndexedOperator(a, i)
         adi = ai'
@@ -215,7 +215,7 @@ import SecondQuantizedAlgebra: simplify, QMul, QAdd, QSym, CNum, _to_cnum, NO_IN
         @test s isa QAdd
         @test length(s.indices) == 1
         @test length(s) == 1
-        @test length(only(collect(s)).args_nc) == 2
+        @test length(operators(only(sorted_arguments(s)))) == 2
     end
 
     @testset "Sigma with non_equal" begin
@@ -337,7 +337,7 @@ import SecondQuantizedAlgebra: simplify, QMul, QAdd, QSym, CNum, _to_cnum, NO_IN
         @test result.index == i
     end
 
-    @testset "change_index — QMul" begin
+    @testset "change_index — QAdd (product)" begin
         i = Index(hf, :i, 10, hf)
         j = Index(hf, :j, 10, hf)
         ai = IndexedOperator(a, i)
@@ -345,13 +345,13 @@ import SecondQuantizedAlgebra: simplify, QMul, QAdd, QSym, CNum, _to_cnum, NO_IN
 
         m = adi * ai  # a†_i * a_i
         mj = change_index(m, i, j)
-        @test mj isa QMul
-        for op in mj.args_nc
+        @test mj isa QAdd
+        for op in operators(mj)
             @test op.index == j
         end
     end
 
-    @testset "change_index — QMul prefactor with IndexedVariable" begin
+    @testset "change_index — QAdd prefactor with IndexedVariable" begin
         i = Index(hf, :i, 10, hf)
         j = Index(hf, :j, 10, hf)
         gi = IndexedVariable(:g, i)
@@ -359,10 +359,10 @@ import SecondQuantizedAlgebra: simplify, QMul, QAdd, QSym, CNum, _to_cnum, NO_IN
 
         m = gi * ai  # g(i) * a_i
         mj = change_index(m, i, j)
-        @test mj.args_nc[1].index == j
+        @test operators(mj)[1].index == j
         # Prefactor should also be substituted: g(i) → g(j)
         gj = IndexedVariable(:g, j)
-        @test isequal(real(mj.arg_c), gj)
+        @test isequal(real(prefactor(mj)), gj)
     end
 
     @testset "change_index — QAdd" begin
@@ -374,8 +374,8 @@ import SecondQuantizedAlgebra: simplify, QMul, QAdd, QSym, CNum, _to_cnum, NO_IN
         s = ai + adi  # a_i + a†_i
         sj = change_index(s, i, j)
         @test sj isa QAdd
-        for term in sj
-            for op in term.args_nc
+        for (ops, _) in sj
+            for op in ops
                 @test op.index == j
             end
         end
@@ -425,7 +425,7 @@ import SecondQuantizedAlgebra: simplify, QMul, QAdd, QSym, CNum, _to_cnum, NO_IN
         ai = IndexedOperator(a, i)
         @test get_indices(ai) == [i]
 
-        # QMul with indexed operators
+        # QAdd with indexed operators
         aj = IndexedOperator(a, j)
         m = ai' * aj
         inds = get_indices(m)
@@ -433,7 +433,7 @@ import SecondQuantizedAlgebra: simplify, QMul, QAdd, QSym, CNum, _to_cnum, NO_IN
         @test i in inds
         @test j in inds
 
-        # QMul with repeated index → unique
+        # QAdd with repeated index → unique
         m2 = ai' * ai
         @test length(get_indices(m2)) == 1
 
@@ -450,23 +450,27 @@ import SecondQuantizedAlgebra: simplify, QMul, QAdd, QSym, CNum, _to_cnum, NO_IN
     end
 
     # ========== Eager diagonal splitting ==========
-    @testset "Σ construction — diagonal split on QMul" begin
+    @testset "Σ construction — diagonal split on product" begin
         i = Index(hf, :i, 10, hf)
         j = Index(hf, :j, 10, hf)
         ai = IndexedOperator(a, i)
         adj = IndexedOperator(a', j)
 
-        # Σ_i(a†_j * a_i) — splits into: Σ_{i≠j}(a†_j * a_i) + a†_j * a_j
+        # Σ_i(a†_j * a_i) — splits into: Σ_{i≠j}(a_i * a†_j) + a†_j * a_j + 1
+        # Eager ordering rewrites a†_j * a_i → a_i * a†_j (off-diagonal),
+        # and the diagonal (i→j) a_j * a†_j → a†_j * a_j + 1 (commutation).
         expr = Σ(adj * ai, i)
         @test expr isa QAdd
-        # Should have 2 terms: off-diagonal + diagonal
-        @test length(expr) == 2
+        # Should have 3 terms: off-diagonal product + diagonal normal-ordered + scalar 1
+        @test length(expr) == 3
         # Should have i≠j constraint
         @test any(p -> p == (i, j) || p == (j, i), expr.non_equal)
-        # Diagonal term: a_j * a†_j (change_index i→j in a†_j * a_i → preserves order)
+        # Diagonal term: a†_j * a_j (eager ordering composed a_j * a†_j → a†_j * a_j + 1)
         aj = IndexedOperator(a, j)
-        diag_key = QSym[aj, adj]
+        diag_key = QSym[adj, aj]
         @test haskey(expr.arguments, diag_key)
+        # Scalar term from commutator
+        @test haskey(expr.arguments, QSym[])
     end
 
     @testset "Σ construction — already non_equal → no split" begin
@@ -537,10 +541,25 @@ import SecondQuantizedAlgebra: simplify, QMul, QAdd, QSym, CNum, _to_cnum, NO_IN
         adj = IndexedOperator(a', j)
 
         # Σ_i(a_i) * a†_j — splits diagonal
+        # Eager ordering: a_i * a†_j (off-diag), a_j * a†_j → a†_j * a_j + 1 (diag)
         sum_expr = Σ(ai, i)
         result = sum_expr * adj
         @test result isa QAdd
-        @test length(result) == 2
+        @test length(result) == 3
+        @test any(p -> p == (i, j) || p == (j, i), result.non_equal)
+    end
+
+    @testset "Sum * product — diagonal split" begin
+        i = Index(hf, :i, 10, hf)
+        j = Index(hf, :j, 10, hf)
+        ai = IndexedOperator(a, i)
+        aj = IndexedOperator(a, j)
+        adj = IndexedOperator(a', j)
+
+        sum_expr = Σ(ai, i)
+        product = adj * aj
+        result = sum_expr * product
+        @test result isa QAdd
         @test any(p -> p == (i, j) || p == (j, i), result.non_equal)
     end
 
@@ -551,10 +570,11 @@ import SecondQuantizedAlgebra: simplify, QMul, QAdd, QSym, CNum, _to_cnum, NO_IN
         adj = IndexedOperator(a', j)
 
         # a†_j * Σ_i(a_i) — splits diagonal
+        # Eager ordering: a_i * a†_j (off-diag), a_j * a†_j → a†_j * a_j + 1 (diag)
         sum_expr = Σ(ai, i)
         result = adj * sum_expr
         @test result isa QAdd
-        @test length(result) == 2
+        @test length(result) == 3
         @test any(p -> p == (i, j) || p == (j, i), result.non_equal)
     end
 
@@ -606,8 +626,8 @@ import SecondQuantizedAlgebra: simplify, QMul, QAdd, QSym, CNum, _to_cnum, NO_IN
         double = Σ(inner, j2)
         @test double isa QAdd
 
-        # The diagonal term should contain σ_21_j * σ_12_j (from i→j in σ_21_i * σ_12_j)
-        diag_ops = QSym[σ2(2, 1, j2), σ2(1, 2, j2)]
+        # The diagonal term: σ(2,1,j) * σ(1,2,j) eagerly composes to σ(2,2,j)
+        diag_ops = QSym[σ2(2, 2, j2)]
         @test haskey(double.arguments, diag_ops)
     end
 
@@ -694,7 +714,7 @@ import SecondQuantizedAlgebra: simplify, QMul, QAdd, QSym, CNum, _to_cnum, NO_IN
         dsum = Σ(inner, j2)
         @test isequal(
             Σ(Σ(σ2(1, 2, i2) * σ2(2, 1, j2), i2, [j2]), j2) +
-            Σ(σ2(1, 2, j2) * σ2(2, 1, j2), j2),
+                Σ(σ2(1, 2, j2) * σ2(2, 1, j2), j2),
             dsum,
         )
     end
@@ -790,8 +810,8 @@ import SecondQuantizedAlgebra: simplify, QMul, QAdd, QSym, CNum, _to_cnum, NO_IN
 
         # Multiplication
         m = adi * ai
-        @test m isa QMul
-        @test length(m.args_nc) == 2
+        @test m isa QAdd
+        @test length(operators(m)) == 2
 
         # Addition
         s = ai + adi
@@ -800,13 +820,13 @@ import SecondQuantizedAlgebra: simplify, QMul, QAdd, QSym, CNum, _to_cnum, NO_IN
 
         # Scalar multiplication
         m2 = 2 * ai
-        @test m2 isa QMul
-        @test m2.arg_c == 2
+        @test m2 isa QAdd
+        @test prefactor(m2) == 2
 
         # Mixed indexed + non-indexed product
         m3 = a' * ai  # different sites
-        @test m3 isa QMul
-        @test length(m3.args_nc) == 2
+        @test m3 isa QAdd
+        @test length(operators(m3)) == 2
     end
 
     @testset "Simplify indexed expressions" begin
@@ -908,8 +928,8 @@ import SecondQuantizedAlgebra: simplify, QMul, QAdd, QSym, CNum, _to_cnum, NO_IN
         # Should yield [a_j, a†_j] = 1
         simplified = simplify(result)
         @test length(simplified) == 1
-        @test isempty(only(collect(simplified)).args_nc)
-        @test only(collect(simplified)).arg_c == 1
+        @test isempty(operators(only(sorted_arguments(simplified))))
+        @test prefactor(only(sorted_arguments(simplified))) == 1
     end
 
     @testset "Commutator — external operator with sum (diagonal collapse)" begin
@@ -925,33 +945,33 @@ import SecondQuantizedAlgebra: simplify, QMul, QAdd, QSym, CNum, _to_cnum, NO_IN
         # Should yield [a_j, a†_j] = 1
         simplified = simplify(result)
         @test length(simplified) == 1
-        @test isempty(only(collect(simplified)).args_nc)
-        @test only(collect(simplified)).arg_c == 1
+        @test isempty(operators(only(sorted_arguments(simplified))))
+        @test prefactor(only(sorted_arguments(simplified))) == 1
     end
 
-    @testset "Commutator — sum with QMul (diagonal collapse)" begin
+    @testset "Commutator — sum with product (diagonal collapse)" begin
         i = Index(hf, :i, 10, hf)
         j = Index(hf, :j, 10, hf)
         ai = IndexedOperator(a, i)
         adj = IndexedOperator(a', j)
 
-        # [Σ_i a_i, a†_j * a_j] — sum over i, QMul has j-indexed ops
+        # [Σ_i a_i, a†_j * a_j] — sum over i, product has j-indexed ops
         sum_expr = Σ(ai, i)
-        qmul_expr = adj * IndexedOperator(a, j)
-        result = commutator(sum_expr, qmul_expr)
+        prod_expr = adj * IndexedOperator(a, j)
+        result = commutator(sum_expr, prod_expr)
         @test result isa QAdd
     end
 
-    @testset "Commutator — QMul with sum (diagonal collapse)" begin
+    @testset "Commutator — product with sum (diagonal collapse)" begin
         i = Index(hf, :i, 10, hf)
         j = Index(hf, :j, 10, hf)
         ai = IndexedOperator(a, i)
         adj = IndexedOperator(a', j)
 
-        # [a†_j * a_j, Σ_i a_i] — QMul has j-indexed ops, sum over i
-        qmul_expr = adj * IndexedOperator(a, j)
+        # [a†_j * a_j, Σ_i a_i] — product has j-indexed ops, sum over i
+        prod_expr = adj * IndexedOperator(a, j)
         sum_expr = Σ(ai, i)
-        result = commutator(qmul_expr, sum_expr)
+        result = commutator(prod_expr, sum_expr)
         @test result isa QAdd
     end
 
@@ -977,8 +997,8 @@ import SecondQuantizedAlgebra: simplify, QMul, QAdd, QSym, CNum, _to_cnum, NO_IN
         S(x, y) = Transition(h, :S, x, y, 1)
         σ(x, y, k) = IndexedOperator(Transition(h, :σ, x, y, 2), k)
 
-        @test S(2, 1) * σ(1, 2, i) isa QMul
-        @test σ(1, 2, i) * S(2, 1) isa QMul
+        @test S(2, 1) * σ(1, 2, i) isa QAdd
+        @test σ(1, 2, i) * S(2, 1) isa QAdd
         @test isequal(S(2, 1) * σ(1, 2, i), σ(1, 2, i) * S(2, 1))
     end
 
@@ -987,43 +1007,43 @@ import SecondQuantizedAlgebra: simplify, QMul, QAdd, QSym, CNum, _to_cnum, NO_IN
         i = Index(h_prod, :i, 10, hn)
         gi = IndexedVariable(:g, i)
 
-        # g(i)*a puts indexed variable in prefactor, operator in args_nc
+        # g(i)*a puts indexed variable in prefactor, operator in operators()
         m = gi * a
-        @test m isa QMul
-        @test isequal(m.args_nc, [a])
+        @test m isa QAdd
+        @test isequal(operators(m), [a])
 
         # a*g(i) same
         m2 = a * gi
-        @test m2 isa QMul
-        @test isequal(m2.args_nc, [a])
+        @test m2 isa QAdd
+        @test isequal(operators(m2), [a])
 
         # g(i)*a†
         m3 = gi * a'
-        @test m3 isa QMul
-        @test isequal(m3.args_nc, [a'])
+        @test m3 isa QAdd
+        @test isequal(operators(m3), [a'])
 
         # a†*g(i)
         m4 = a' * gi
-        @test m4 isa QMul
-        @test isequal(m4.args_nc, [a'])
+        @test m4 isa QAdd
+        @test isequal(operators(m4), [a'])
 
         # σ*g(i)
         σi = IndexedOperator(sigma, i)
         m5 = σi * gi
-        @test m5 isa QMul
-        @test isequal(m5.args_nc, [σi])
+        @test m5 isa QAdd
+        @test isequal(operators(m5), [σi])
 
         # g(i)*σ
         m6 = gi * σi
-        @test m6 isa QMul
-        @test isequal(m6.args_nc, [σi])
+        @test m6 isa QAdd
+        @test isequal(operators(m6), [σi])
 
-        # g(i)*QMul preserves operators
+        # g(i)*QAdd preserves operators
         qmul = a' * a
         m7 = gi * qmul
-        @test length(m7.args_nc) == 2
+        @test length(operators(m7)) == 2
         m8 = qmul * gi
-        @test length(m8.args_nc) == 2
+        @test length(operators(m8)) == 2
     end
 
     @testset "IndexedVariable addition commutativity" begin
@@ -1099,7 +1119,7 @@ import SecondQuantizedAlgebra: simplify, QMul, QAdd, QSym, CNum, _to_cnum, NO_IN
         # change_index on identical=true (default) keeps the value
         Ωij_diag = DoubleIndexedVariable(:Ω, i, j)
         @test !isequal(change_index(Ωij_diag, i, j), Symbolics.Num(0))
-        # change_index through QMul with identical=false prefactor
+        # change_index through QAdd with identical=false prefactor
         ai = IndexedOperator(a, i)
         m = Ωij * ai
         mj = change_index(m, i, j)
@@ -1165,7 +1185,7 @@ import SecondQuantizedAlgebra: simplify, QMul, QAdd, QSym, CNum, _to_cnum, NO_IN
         @test length(qadd + s1) == 3
         @test isequal(s1 + qadd, qadd + s1)
 
-        # Sum + QMul
+        # Sum + QAdd (product)
         qmul = a' * a
         @test s1 + qmul isa QAdd
     end
@@ -1209,8 +1229,8 @@ import SecondQuantizedAlgebra: simplify, QMul, QAdd, QSym, CNum, _to_cnum, NO_IN
         expr = gi * ai
         adj_expr = adjoint(expr)
         # adjoint of g_i * a_i should be g_i * a_i† (g_i is real)
-        @test adj_expr isa QMul
-        @test adj_expr.args_nc[1] == ai'
+        @test adj_expr isa QAdd
+        @test operators(adj_expr)[1] == ai'
     end
 
     # ========== create_index_arrays ==========
@@ -1249,7 +1269,7 @@ import SecondQuantizedAlgebra: simplify, QMul, QAdd, QSym, CNum, _to_cnum, NO_IN
         pi_ = IndexedOperator(Pauli(PauliSpace(:p), :σ, 1), i)
         @inferred insert_index(pi_, i, 1)
 
-        # insert_index on QMul
+        # insert_index on QAdd (product)
         m = ai * σi
         @inferred insert_index(m, i, 1)
 

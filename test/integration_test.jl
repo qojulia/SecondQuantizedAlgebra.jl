@@ -3,7 +3,7 @@ using SymbolicUtils: SymbolicUtils
 using Symbolics: Symbolics, @variables
 using QuantumOpticsBase
 using Test
-import SecondQuantizedAlgebra: simplify, QMul, QAdd, QSym
+import SecondQuantizedAlgebra: simplify, QAdd, QSym, QTermDict, _to_cnum, Index, sorted_arguments
 
 @testset "integration" begin
     @testset "Basic operator creation and algebra" begin
@@ -15,8 +15,8 @@ import SecondQuantizedAlgebra: simplify, QMul, QAdd, QSym
         @test isequal(a, ad')
 
         # Lazy multiplication
-        @test a * ad isa QMul
-        @test ad * a isa QMul
+        @test a * ad isa QAdd
+        @test ad * a isa QAdd
     end
 
     @testset "Commutation via normal_order" begin
@@ -59,8 +59,8 @@ import SecondQuantizedAlgebra: simplify, QMul, QAdd, QSym
         expr = a + a' * a
         @test numeric_average(expr, ψ) ≈ α + abs2(α)
 
-        # to_numeric with scalar QMul (empty args_nc)
-        @test to_numeric(QMul(3, QSym[]), b) == 3 * one(b)
+        # to_numeric with scalar QAdd (empty operators)
+        @test to_numeric(QAdd(QTermDict(QSym[] => _to_cnum(3)), Index[], Tuple{Index, Index}[]), b) == 3 * one(b)
     end
 
     @testset "Multi-space" begin
@@ -96,11 +96,11 @@ import SecondQuantizedAlgebra: simplify, QMul, QAdd, QSym
         h = FockSpace(:c)
         @qnumbers a::Destroy(h)
 
-        @test (a / 2.0) isa QMul
-        @test (a / 2.0).arg_c ≈ 0.5
+        @test (a / 2.0) isa QAdd
+        @test prefactor(only(sorted_arguments(a / 2.0))) ≈ 0.5
 
-        @test (a / 2) isa QMul
-        @test (a / 2).arg_c == 1 // 2
+        @test (a / 2) isa QAdd
+        @test prefactor(only(sorted_arguments(a / 2))) == 1 // 2
 
         @test ((a + a') / 2.0) isa QAdd
     end
@@ -109,11 +109,11 @@ import SecondQuantizedAlgebra: simplify, QMul, QAdd, QSym
         h = FockSpace(:c)
         @qnumbers a::Destroy(h)
 
-        # a^0 = identity (scalar QMul)
+        # a^0 = identity (scalar QAdd)
         m0 = a^0
-        @test m0 isa QMul
-        @test isempty(m0.args_nc)
-        @test m0.arg_c == 1
+        @test m0 isa QAdd
+        @test isempty(operators(only(sorted_arguments(m0))))
+        @test prefactor(only(sorted_arguments(m0))) == 1
     end
 
     @testset "Adjoint with complex prefactor" begin
@@ -122,7 +122,7 @@ import SecondQuantizedAlgebra: simplify, QMul, QAdd, QSym
 
         m = (2.0 + 3.0im) * a' * a
         ma = m'
-        @test ma.arg_c ≈ conj(2.0 + 3.0im)
+        @test prefactor(only(sorted_arguments(ma))) ≈ conj(2.0 + 3.0im)
     end
 
     @testset "Higher-order normal ordering" begin
@@ -140,7 +140,7 @@ import SecondQuantizedAlgebra: simplify, QMul, QAdd, QSym
         h = FockSpace(:c)
         @qnumbers a::Destroy(h)
 
-        @test QMul(1, QSym[a]) == QMul(1, QSym[a])
+        @test QAdd(QTermDict(QSym[a] => _to_cnum(1)), Index[], Tuple{Index, Index}[]) == QAdd(QTermDict(QSym[a] => _to_cnum(1)), Index[], Tuple{Index, Index}[])
         @test (a + a') == (a + a')
     end
 
@@ -174,8 +174,8 @@ import SecondQuantizedAlgebra: simplify, QMul, QAdd, QSym
         result = normal_order(m)
         @test result isa QAdd
         @test length(result) == 1
-        @test isempty(only(collect(result)).args_nc)
-        @test only(collect(result)).arg_c == im
+        @test isempty(operators(only(sorted_arguments(result))))
+        @test prefactor(only(sorted_arguments(result))) == im
     end
 
     @testset "Mixed Fock + Pauli" begin
@@ -184,8 +184,8 @@ import SecondQuantizedAlgebra: simplify, QMul, QAdd, QSym
         σz = Pauli(h, :σ, 3, 2)
 
         m = a' * a * σz
-        @test m isa QMul
-        @test length(m.args_nc) == 3
+        @test m isa QAdd
+        @test length(operators(only(sorted_arguments(m)))) == 3
 
         # Normal order: commute a,a† on space 1, leave σz on space 2
         result = normal_order(a * a' * σz)

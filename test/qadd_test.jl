@@ -1,5 +1,5 @@
 using SecondQuantizedAlgebra
-import SecondQuantizedAlgebra: QMul, QAdd, QSym, QField
+import SecondQuantizedAlgebra: QAdd, QSym, QField, sorted_arguments, CNum
 using Test
 
 @testset "QAdd" begin
@@ -11,16 +11,16 @@ using Test
         s = a + ad
         @test s isa QAdd
         @test length(s) == 2
-        @test all(x -> x isa QMul, s)
+        @test all(x -> x isa Pair{Vector{QSym}, CNum}, collect(s))
     end
 
-    @testset "QMul + QMul" begin
+    @testset "QAdd + QAdd (single-term)" begin
         s = (2 * a) + (3 * ad)
         @test s isa QAdd
         @test length(s) == 2
     end
 
-    @testset "QMul + QSym" begin
+    @testset "QAdd + QSym" begin
         s1 = (2 * a) + ad
         @test s1 isa QAdd
         @test length(s1) == 2
@@ -29,7 +29,7 @@ using Test
         @test s2 isa QAdd
     end
 
-    @testset "QAdd + QMul" begin
+    @testset "QAdd + QAdd (merge)" begin
         s = (a + ad) + (3 * a)
         @test s isa QAdd
         @test length(s) == 2  # a and 3a auto-collect to 4a, plus a†
@@ -69,17 +69,17 @@ using Test
     @testset "QAdd * Number" begin
         s = (a + ad) * 3
         @test s isa QAdd
-        @test all(x -> x.arg_c == 3, s)
+        @test all(t -> prefactor(t) == 3, sorted_arguments(s))
     end
 
     @testset "QAdd * QSym (distributes)" begin
         s = (a + ad) * a
         @test s isa QAdd
         @test length(s) == 2
-        @test all(x -> length(x.args_nc) == 2, s)
+        @test all(t -> length(operators(t)) == 2, sorted_arguments(s))
     end
 
-    @testset "QAdd * QMul (distributes)" begin
+    @testset "QAdd * QAdd (distributes)" begin
         s = (a + ad) * (2 * a)
         @test s isa QAdd
         @test length(s) == 2
@@ -113,12 +113,12 @@ using Test
     @testset "Type stability" begin
         # QSym + QSym
         @inferred a + ad
-        # QMul + QMul
+        # QAdd + QAdd (single-term)
         @inferred (2 * a) + (3 * ad)
-        # QMul + QSym / QSym + QMul
+        # QAdd + QSym / QSym + QAdd
         @inferred (2 * a) + ad
         @inferred ad + (2 * a)
-        # QAdd + QMul / QMul + QAdd
+        # QAdd + QAdd (merge)
         @inferred (a + ad) + (3 * a)
         @inferred (3 * a) + (a + ad)
         # QAdd + QSym / QSym + QAdd
@@ -157,6 +157,30 @@ using Test
         @inferred hash(a + ad, UInt(0))
     end
 
+    @testset "sum (efficient mapreduce)" begin
+        h2 = FockSpace(:c2)
+        b = Destroy(h2, :b)
+        bd = b'
+
+        terms = [a + ad, 2 * a, 3 * ad, a * ad, ad * a]
+
+        # Correctness: sum matches manual chain of +
+        manual = terms[1] + terms[2] + terms[3] + terms[4] + terms[5]
+        @test sum(terms) == manual
+
+        # Inputs are not mutated
+        args_before = copy(terms[1].arguments)
+        sum(terms)
+        @test terms[1].arguments == args_before
+
+        # Single element
+        @test sum([a + ad]) == a + ad
+
+        # sum with a function: sum(f, collection)
+        ops = [a, ad]
+        @test sum(x -> x * a, ops) == a * a + ad * a
+    end
+
     @testset "Allocations" begin
         s = a + ad
         m_2a = 2 * a
@@ -167,7 +191,7 @@ using Test
 
         # QSym + QSym
         @test @allocations(a + ad) <= 200
-        # QMul + QMul
+        # QAdd + QAdd (single-term)
         @test @allocations(m_2a + m_3ad) <= 200
         # QAdd + QMul
         @test @allocations(s + m_2a) <= 200

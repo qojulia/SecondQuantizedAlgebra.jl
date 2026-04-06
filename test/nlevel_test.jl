@@ -1,5 +1,5 @@
 using SecondQuantizedAlgebra
-import SecondQuantizedAlgebra: simplify, QMul, QAdd, QSym, HilbertSpace
+import SecondQuantizedAlgebra: simplify, QAdd, QSym, HilbertSpace
 using Test
 
 @testset "nlevel" begin
@@ -58,8 +58,7 @@ using Test
         σ21 = Transition(h, :σ, 2, 1)
 
         m = σ12 * σ21
-        @test m isa QMul
-        @test length(m.args_nc) == 2
+        @test m isa QAdd
 
         s = σ12 + σ21
         @test s isa QAdd

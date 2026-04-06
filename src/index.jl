@@ -90,20 +90,19 @@ function change_index(op::Momentum, from::Index, to::Index)
     return Momentum(op.name, op.space_index, op.copy_index, idx)
 end
 
-function change_index(m::QMul, from::Index, to::Index)
-    new_c = change_index(m.arg_c, from, to)
-    new_ops = QSym[change_index(op, from, to) for op in m.args_nc]
-    return QMul(new_c, new_ops)
-end
-
 function change_index(s::QAdd, from::Index, to::Index)
-    new_terms = QMul[change_index(QMul(c, ops), from, to) for (ops, c) in s.arguments]
+    new_d = QTermDict()
+    for (ops, c) in s.arguments
+        new_c = change_index(c, from, to)
+        new_ops = QSym[change_index(op, from, to) for op in ops]
+        _addto!(new_d, new_ops, new_c)
+    end
     new_indices = [idx == from ? to : idx for idx in s.indices]
     new_ne = Tuple{Index, Index}[
         (a == from ? to : a, b == from ? to : b)
             for (a, b) in s.non_equal
     ]
-    return QAdd(new_terms, new_indices, new_ne)
+    return QAdd(new_d, new_indices, new_ne)
 end
 
 """
@@ -115,13 +114,6 @@ get_indices(::Number) = Index[]
 get_indices(::Num) = Index[]
 function get_indices(op::QSym)
     return has_index(op.index) ? Index[op.index] : Index[]
-end
-function get_indices(m::QMul)
-    inds = Index[]
-    for op in m.args_nc
-        has_index(op.index) && op.index ∉ inds && push!(inds, op.index)
-    end
-    return inds
 end
 function get_indices(s::QAdd)
     inds = copy(s.indices)
@@ -149,8 +141,8 @@ end
 """Check if a substituted BasicSymbolic node with NotIdentical metadata has equal args → 0."""
 function _check_not_identical(result)
     if SymbolicUtils.iscall(result) &&
-       SymbolicUtils.hasmetadata(result, NotIdentical) &&
-       length(SymbolicUtils.arguments(result)) == 2
+            SymbolicUtils.hasmetadata(result, NotIdentical) &&
+            length(SymbolicUtils.arguments(result)) == 2
         a1, a2 = SymbolicUtils.arguments(result)
         isequal(a1, a2) && return Num(0)
     end
@@ -206,14 +198,13 @@ function insert_index(op::Momentum, idx::Index, val::Int)
     return Momentum(op.name, op.space_index, val, NO_INDEX)
 end
 
-function insert_index(m::QMul, idx::Index, val::Int)
-    new_c = insert_index(m.arg_c, idx, val)
-    new_ops = QSym[insert_index(op, idx, val) for op in m.args_nc]
-    _iszero_cnum(new_c) && return QMul(_to_cnum(0), QSym[])
-    return QMul(new_c, new_ops)
-end
-
 function insert_index(s::QAdd, idx::Index, val::Int)
-    new_terms = QMul[insert_index(QMul(c, ops), idx, val) for (ops, c) in s.arguments]
-    return QAdd(new_terms)
+    new_d = QTermDict()
+    for (ops, c) in s.arguments
+        new_c = insert_index(c, idx, val)
+        _iszero_cnum(new_c) && continue
+        new_ops = QSym[insert_index(op, idx, val) for op in ops]
+        _addto!(new_d, new_ops, new_c)
+    end
+    return QAdd(new_d, Index[], Tuple{Index, Index}[])
 end

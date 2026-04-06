@@ -2,7 +2,7 @@
 
 ## What is this?
 
-A Julia package for symbolic manipulation of second-quantized operators used in quantum many-body theory and quantum optics. Refactored from QuantumCumulants.jl, it provides lazy algebraic expressions over bosonic, spin, and N-level operators with automatic commutation relations, normal ordering, and numeric conversion via QuantumOpticsBase.
+A Julia package for symbolic manipulation of second-quantized operators used in quantum many-body theory and quantum optics. Refactored from QuantumCumulants.jl, it provides eagerly-ordered algebraic expressions over bosonic, spin, and N-level operators with automatic commutation relations, configurable ordering conventions, and numeric conversion via QuantumOpticsBase.
 
 ## Package layout
 

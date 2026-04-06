@@ -3,7 +3,7 @@ using QuantumOpticsBase
 using Latexify
 using Symbolics: @variables, Num
 using Test
-import SecondQuantizedAlgebra: simplify, QMul, QAdd, QSym, HilbertSpace
+import SecondQuantizedAlgebra: simplify, QAdd, QSym, HilbertSpace
 
 @testset "phase_space" begin
     @testset "PhaseSpace" begin
@@ -69,8 +69,7 @@ import SecondQuantizedAlgebra: simplify, QMul, QAdd, QSym, HilbertSpace
         p = Momentum(h, :p)
 
         m = x * p
-        @test m isa QMul
-        @test length(m.args_nc) == 2
+        @test m isa QAdd
 
         s = x + p
         @test s isa QAdd

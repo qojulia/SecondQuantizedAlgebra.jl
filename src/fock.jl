@@ -68,7 +68,7 @@ Base.hash(a::Create, h::UInt) = hash(:Create, hash(a.name, hash(a.space_index, h
     ladder(op::QSym)
 
 Returns 0 for creation operators, 1 for annihilation operators.
-Used for canonical ordering within `QMul.args_nc`.
+Used for canonical ordering within operator product sequences.
 """
 ladder(::Create) = 0
 ladder(::Destroy) = 1
