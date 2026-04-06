@@ -672,6 +672,116 @@ import SecondQuantizedAlgebra: simplify, QMul, QAdd, QSym, CNum, _to_cnum, NO_IN
         @test iszero(simplify(commutator(op, doublesum)))
     end
 
+    @testset "Legacy: Nested sum equivalences" begin
+        ha2 = NLevelSpace(:atom, 2, 1)
+        hf2 = FockSpace(:cavity)
+        h2 = hf2 ⊗ ha2
+
+        i2 = Index(h2, :i, 4, ha2)
+        j2 = Index(h2, :j, 4, ha2)
+        σ2(α, β, k) = IndexedOperator(Transition(h2, :σ, α, β, 2), k)
+
+        # Σ(Σ(σ_21_i * σ_12_j, i, [j]), j, [i]) vs Σ(Σ(σ_21_i * σ_12_j, i, [j]), j)
+        # Adding redundant [i] to outer produces extra (j,i) constraint
+        # but same terms and indices
+        lhs = Σ(Σ(σ2(2, 1, i2) * σ2(1, 2, j2), i2, [j2]), j2, [i2])
+        rhs = Σ(Σ(σ2(2, 1, i2) * σ2(1, 2, j2), i2, [j2]), j2)
+        @test isequal(lhs.arguments, rhs.arguments)
+        @test isequal(Set(lhs.indices), Set(rhs.indices))
+
+        # Σ(Σ(σ_12_i * σ_21_j, i), j) splits into off-diagonal + diagonal
+        inner = Σ(σ2(1, 2, i2) * σ2(2, 1, j2), i2)
+        dsum = Σ(inner, j2)
+        @test isequal(
+            Σ(Σ(σ2(1, 2, i2) * σ2(2, 1, j2), i2, [j2]), j2) +
+            Σ(σ2(1, 2, j2) * σ2(2, 1, j2), j2),
+            dsum,
+        )
+    end
+
+    @testset "Legacy: Issue #221 — symbolic N variants" begin
+        ha2 = NLevelSpace(:atom, 2, 1)
+        hf2 = FockSpace(:cavity)
+        h2 = hf2 ⊗ ha2
+
+        @variables N1_s::Real c1_s::Real
+        i2 = Index(h2, :i, N1_s, ha2)
+        j2 = Index(h2, :j, N1_s, ha2)
+        σ2(α, β, k) = IndexedOperator(Transition(h2, :σ, α, β, 2), k)
+
+        # Σ(3*σ_22_i, i, j) where j independent → N * Σ(3*σ_22_i, i)
+        @test isequal(
+            simplify(Σ(3 * σ2(2, 2, i2), i2, j2)),
+            simplify(Σ(3 * σ2(2, 2, i2), i2) * N1_s),
+        )
+
+        # Σ(c1*σ_22_i, i, j) where j independent → N * Σ(c1*σ_22_i, i)
+        @test isequal(
+            simplify(Σ(c1_s * σ2(2, 2, i2), i2, j2)),
+            simplify(Σ(c1_s * σ2(2, 2, i2), i2) * N1_s),
+        )
+    end
+
+    @testset "Legacy: Issue #223 — commutators with symbolic g" begin
+        ha2 = NLevelSpace(:atom, 2, 1)
+        hf2 = FockSpace(:cavity)
+        h2 = hf2 ⊗ ha2
+
+        @variables N_g::Real g_s::Real
+        i2 = Index(h2, :i, N_g, ha2)
+        j2 = Index(h2, :j, N_g, ha2)
+        k2 = Index(h2, :k, N_g, ha2)
+        σ2(α, β, m) = IndexedOperator(Transition(h2, :σ, α, β, 2), m)
+
+        dict_N = Dict(Symbolics.unwrap(N_g) => 10)
+        sub_dict(x) = simplify(substitute(x, dict_N))
+
+        # H with symbolic prefactor g
+        H_g = Σ(g_s * σ2(2, 2, j2), i2, j2)
+        @test isequal(
+            sub_dict(simplify(commutator(H_g, σ2(2, 1, k2)))),
+            simplify(10 * g_s * σ2(2, 1, k2)),
+        )
+        @test isequal(
+            sub_dict(simplify(commutator(H_g, σ2(1, 2, k2)))),
+            simplify(-10 * g_s * σ2(1, 2, k2)),
+        )
+
+        # H with reversed index order (j first, then i)
+        H_ji_g = Σ(g_s * σ2(2, 2, j2), j2, i2)
+        @test isequal(
+            sub_dict(simplify(commutator(H_ji_g, σ2(2, 1, k2)))),
+            simplify(10 * g_s * σ2(2, 1, k2)),
+        )
+    end
+
+    @testset "Legacy: Multi-mode multi-atom" begin
+        ha2 = NLevelSpace(:atom, 2, 1)
+        hf2 = FockSpace(:cavity)
+        h2 = hf2 ⊗ ha2
+
+        i_a = Index(h2, :i, 4, ha2)
+        j_a = Index(h2, :j, 4, ha2)
+        k_f = Index(h2, :k, 2, hf2)
+        l_f = Index(h2, :l, 2, hf2)
+
+        g_ik = DoubleIndexedVariable(:g, i_a, k_f)
+        a2(k) = IndexedOperator(Destroy(h2, :a, 1), k)
+        σ2(α, β, k) = IndexedOperator(Transition(h2, :σ, α, β, 2), k)
+
+        Ssum1 = Σ(g_ik * a2(k_f) * σ2(2, 1, i_a), i_a)
+        Ssum2 = Σ(conj(g_ik) * a2(k_f)' * σ2(1, 2, i_a), i_a)
+
+        # adjoint distributes over sums
+        @test isequal(adjoint(Ssum1), Ssum2)
+
+        # Double sum nesting works across different spaces
+        H = Σ(Ssum1 + Ssum2, k_f)
+        @test H isa QAdd
+        @test k_f in H.indices
+        @test i_a in H.indices
+    end
+
     # ========== Arithmetic with indexed operators ==========
     @testset "Indexed operator arithmetic" begin
         i = Index(hf, :i, 10, hf)
