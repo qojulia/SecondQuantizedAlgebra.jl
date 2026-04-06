@@ -30,6 +30,7 @@ include("commutator.jl")
 include("normal_order.jl")
 include("average.jl")
 include("operators.jl")
+include("substitute.jl")
 include("numeric.jl")
 include("printing.jl")
 include("latexify_recipes.jl")
@@ -89,6 +90,7 @@ export FockSpace, ProductSpace,
     has_sum_metadata, get_sum_indices, get_sum_non_equal,
     fundamental_operators, find_operators, unique_ops,
     prefactor, operators,
+    substitute,
     normal_order, simplify, expand, commutator,
     to_numeric, numeric_average,
     transition_superscript

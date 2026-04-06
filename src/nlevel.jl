@@ -2,18 +2,45 @@
     NLevelSpace <: HilbertSpace
 
 Hilbert space for N-level systems (atoms, qubits, etc.).
+
+Levels can be integers (default `1:n`) or symbolic names:
+```julia
+NLevelSpace(:atom, 3)              # levels 1, 2, 3
+NLevelSpace(:atom, 3, 1)           # levels 1, 2, 3 with ground state 1
+NLevelSpace(:atom, (:g, :e, :a))   # symbolic levels, ground state = first
+```
 """
 struct NLevelSpace <: HilbertSpace
     name::Symbol
     n::Int
     ground_state::Int
-    function NLevelSpace(name::Symbol, n::Int, ground_state::Int)
+    levels::Vector{Symbol}
+    function NLevelSpace(name::Symbol, n::Int, ground_state::Int, levels::Vector{Symbol})
         1 <= ground_state <= n || throw(ArgumentError("Ground state $ground_state out of range 1:$n"))
-        return new(name, n, ground_state)
+        isempty(levels) || length(levels) == n || throw(ArgumentError("levels length $(length(levels)) != n=$n"))
+        return new(name, n, ground_state, levels)
     end
 end
-Base.:(==)(a::NLevelSpace, b::NLevelSpace) = a.name == b.name && a.n == b.n && a.ground_state == b.ground_state
-Base.hash(a::NLevelSpace, h::UInt) = hash(:NLevelSpace, hash(a.name, hash(a.n, hash(a.ground_state, h))))
+NLevelSpace(name::Symbol, n::Int, ground_state::Int) = NLevelSpace(name, n, ground_state, Symbol[])
+NLevelSpace(name::Symbol, n::Int) = NLevelSpace(name, n, 1, Symbol[])
+function NLevelSpace(name::Symbol, levels::Tuple{Vararg{Symbol}})
+    return NLevelSpace(name, length(levels), 1, collect(levels))
+end
+
+"""
+    _level_index(h::NLevelSpace, s::Symbol) -> Int
+
+Look up the integer index for a symbolic level name.
+"""
+function _level_index(h::NLevelSpace, s::Symbol)
+    isempty(h.levels) && throw(ArgumentError("NLevelSpace $(h.name) has no symbolic levels"))
+    idx = findfirst(==(s), h.levels)
+    idx === nothing && throw(ArgumentError("Level :$s not found in $(h.levels)"))
+    return idx
+end
+
+Base.:(==)(a::NLevelSpace, b::NLevelSpace) = a.name == b.name && a.n == b.n && a.ground_state == b.ground_state && a.levels == b.levels
+Base.hash(a::NLevelSpace, h::UInt) = hash(:NLevelSpace, hash(a.name, hash(a.n, hash(a.ground_state, hash(a.levels, h)))))
 
 """
     Transition <: QSym
@@ -37,6 +64,9 @@ function Transition(h::NLevelSpace, name::Symbol, i::Int, j::Int)
     1 <= j <= h.n || throw(ArgumentError("Level j=$j out of range 1:$(h.n)"))
     return Transition(name, i, j, 1)
 end
+function Transition(h::NLevelSpace, name::Symbol, i::Symbol, j::Symbol)
+    return Transition(name, _level_index(h, i), _level_index(h, j), 1)
+end
 function Transition(h::ProductSpace, name::Symbol, i::Int, j::Int, idx::Int)
     1 <= idx <= length(h.spaces) || throw(ArgumentError("Index $idx out of range"))
     space = _unwrap_space(h.spaces[idx])
@@ -44,6 +74,12 @@ function Transition(h::ProductSpace, name::Symbol, i::Int, j::Int, idx::Int)
     1 <= i <= space.n || throw(ArgumentError("Level i=$i out of range 1:$(space.n)"))
     1 <= j <= space.n || throw(ArgumentError("Level j=$j out of range 1:$(space.n)"))
     return Transition(name, i, j, idx)
+end
+function Transition(h::ProductSpace, name::Symbol, i::Symbol, j::Symbol, idx::Int)
+    1 <= idx <= length(h.spaces) || throw(ArgumentError("Index $idx out of range"))
+    space = _unwrap_space(h.spaces[idx])
+    space isa NLevelSpace || throw(ArgumentError("Space at index $idx is not an NLevelSpace"))
+    return Transition(name, _level_index(space, i), _level_index(space, j), idx)
 end
 
 # IndexedOperator convenience

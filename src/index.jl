@@ -13,6 +13,9 @@ function IndexedVariable(name::Symbol, i::Index)
     return Num(f(Symbolics.unwrap(i.sym)))
 end
 
+"""Metadata key: marks a `DoubleIndexedVariable` node where equal indices must give zero."""
+struct NotIdentical end
+
 """
     DoubleIndexedVariable(name::Symbol, i::Index, j::Index; identical::Bool=true) -> Num
 
@@ -31,7 +34,11 @@ function DoubleIndexedVariable(
         type = SymbolicUtils.FnType{Tuple{Int, Int}, Real, Nothing},
         shape = UnitRange{Int}[]
     )
-    return Num(f(Symbolics.unwrap(i.sym), Symbolics.unwrap(j.sym)))
+    node = f(Symbolics.unwrap(i.sym), Symbolics.unwrap(j.sym))
+    if !identical
+        node = SymbolicUtils.setmetadata(node, NotIdentical, true)
+    end
+    return Num(node)
 end
 
 """
@@ -43,12 +50,19 @@ via `Symbolics.substitute` using the `sym` fields of the indices.
 """
 change_index(x::Number, ::Index, ::Index) = x
 function change_index(x::Num, from::Index, to::Index)
-    return Num(
-        Symbolics.substitute(
-            Symbolics.unwrap(x),
-            Dict(Symbolics.unwrap(from.sym) => Symbolics.unwrap(to.sym))
-        )
+    raw = Symbolics.unwrap(x)
+    result = Symbolics.substitute(
+        raw,
+        Dict(Symbolics.unwrap(from.sym) => Symbolics.unwrap(to.sym))
     )
+    # DoubleIndexedVariable with identical=false → 0 when both args become equal
+    if SymbolicUtils.iscall(result) &&
+       SymbolicUtils.hasmetadata(result, NotIdentical) &&
+       length(SymbolicUtils.arguments(result)) == 2
+        a1, a2 = SymbolicUtils.arguments(result)
+        isequal(a1, a2) && return Num(0)
+    end
+    return Num(result)
 end
 function change_index(x::CNum, from::Index, to::Index)
     return Complex(change_index(real(x), from, to), change_index(imag(x), from, to))
@@ -124,4 +138,15 @@ function get_indices(s::QAdd)
         end
     end
     return inds
+end
+
+"""
+    create_index_arrays(indices::Vector{Index}, ranges::Vector{<:AbstractRange}) -> Vector
+
+Cartesian product of `ranges`, returned as a flat vector of tuples.
+Single-index case returns the range directly.
+"""
+function create_index_arrays(indices::Vector{Index}, ranges::Vector{<:AbstractRange})
+    length(indices) == 1 && return only(ranges)
+    return vec(collect(Iterators.product(ranges...)))
 end

@@ -2,7 +2,8 @@ using SecondQuantizedAlgebra
 using Test
 using SymbolicUtils: SymbolicUtils
 using Symbolics: Symbolics, @variables
-import SecondQuantizedAlgebra: simplify, QMul, QAdd, QSym, CNum, _to_cnum, NO_INDEX
+import SecondQuantizedAlgebra: simplify, QMul, QAdd, QSym, CNum, _to_cnum, NO_INDEX,
+    create_index_arrays
 
 @testset "Indexing" begin
 
@@ -787,8 +788,19 @@ import SecondQuantizedAlgebra: simplify, QMul, QAdd, QSym, CNum, _to_cnum, NO_IN
         i = Index(hf, :i, 10, hf)
         j = Index(hf, :j, 10, hf)
         Ωij = DoubleIndexedVariable(:Ω, i, j; identical = false)
-        # When both indices become the same, identical=false should give 0
+        # Construction with equal indices gives 0
         @test isequal(DoubleIndexedVariable(:Ω, i, i; identical = false), Symbolics.Num(0))
+        # change_index collapsing to equal indices gives 0
+        @test isequal(change_index(Ωij, i, j), Symbolics.Num(0))
+        @test isequal(change_index(Ωij, j, i), Symbolics.Num(0))
+        # change_index on identical=true (default) keeps the value
+        Ωij_diag = DoubleIndexedVariable(:Ω, i, j)
+        @test !isequal(change_index(Ωij_diag, i, j), Symbolics.Num(0))
+        # change_index through QMul with identical=false prefactor
+        ai = IndexedOperator(a, i)
+        m = Ωij * ai
+        mj = change_index(m, i, j)
+        @test iszero(mj)
     end
 
     # ========== Single sums ==========
@@ -896,6 +908,21 @@ import SecondQuantizedAlgebra: simplify, QMul, QAdd, QSym, CNum, _to_cnum, NO_IN
         # adjoint of g_i * a_i should be g_i * a_i† (g_i is real)
         @test adj_expr isa QMul
         @test adj_expr.args_nc[1] == ai'
+    end
+
+    # ========== create_index_arrays ==========
+    @testset "create_index_arrays" begin
+        i = Index(h_prod, :i, 10, hn)
+        j = Index(h_prod, :j, 5, hn)
+
+        # Single index → returns the range directly
+        arr1 = create_index_arrays([i], [1:10])
+        @test isequal(arr1, 1:10)
+
+        # Multi-index → flat Cartesian product
+        ranges = [1:10, 1:5]
+        arr2 = create_index_arrays([i, j], ranges)
+        @test isequal(arr2, vec(collect(Iterators.product(ranges...))))
     end
 
     # ========== Type stability ==========
