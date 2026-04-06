@@ -243,7 +243,8 @@ import SecondQuantizedAlgebra: simplify, QMul, QAdd, QSym, CNum, _to_cnum, NO_IN
         i = Index(hf, :i, 10, hf)
         s = Σ(1, i)
         @test s isa QAdd
-        @test length(s.indices) == 1
+        # Scalar 1 doesn't depend on i → simplified to 10 * 1
+        @test isempty(get_indices(s))
     end
 
     @testset "Sigma with QSym" begin
@@ -813,9 +814,13 @@ import SecondQuantizedAlgebra: simplify, QMul, QAdd, QSym, CNum, _to_cnum, NO_IN
         # Σ(0, i) stays as a QAdd (lazy)
         @test Σ(0, i) isa QAdd
 
-        # Sum of variable over unrelated index → N * variable (TODO: not simplified yet)
-        @test_broken isequal(Σ(gj, i), N * gj)
-        @test_broken isequal(Σ(Γij, Index(h_prod, :k, N, hn)), N * Γij)
+        # Sum of variable over unrelated index → N * variable
+        r_gj = Σ(gj, i)
+        @test isempty(get_indices(r_gj))
+        @test isequal(simplify(r_gj * a), simplify(N * gj * a))
+        r_Γij = Σ(Γij, Index(h_prod, :k, N, hn))
+        @test isempty(get_indices(r_Γij))
+        @test isequal(simplify(r_Γij * a), simplify(N * Γij * a))
 
         # ∑ and Σ equivalence
         @test isequal(∑(σi(1, 2), i), Σ(σi(1, 2), i))
@@ -854,12 +859,14 @@ import SecondQuantizedAlgebra: simplify, QMul, QAdd, QSym, CNum, _to_cnum, NO_IN
 
     # ========== Sum of a constant ==========
     @testset "Sum of constant over index" begin
-        @variables α::Real
+        @variables α_sum::Real
         N = 10
         i = Index(h_prod, :i, N, hn)
-        s = Σ(Symbolics.Num(α), i)
+        # Constant (no dependence on i) → simplified to N * α
+        s = Σ(Symbolics.Num(α_sum), i)
         @test s isa QAdd
-        @test i in s.indices
+        @test isempty(get_indices(s))
+        @test isequal(simplify(s * a), simplify(N * α_sum * a))
     end
 
     # ========== Average addition with indexed sums (PR 28) ==========

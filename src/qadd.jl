@@ -154,15 +154,39 @@ Base.:/(a::QAdd, b::Number) = a * inv(b)
 
 
 """
+    _depends_on_index(m::QMul, idx::Index) -> Bool
+
+Check whether a `QMul` term depends on the given `Index`.
+Checks both operators (via `.index`) and the c-number prefactor
+(via `Symbolics.get_variables` for the index symbol).
+"""
+function _depends_on_index(m::QMul, idx::Index)
+    for op in m.args_nc
+        op.index == idx && return true
+    end
+    isym = SymbolicUtils.unwrap(idx.sym)
+    c = m.arg_c
+    for part in (real(c), imag(c))
+        vars = Symbolics.get_variables(part)
+        any(v -> isequal(v, isym), vars) && return true
+    end
+    return false
+end
+
+"""
     Σ(expr, i::Index, non_equal::Vector{Index}=Index[])
 
 Create a symbolic sum over index `i`. Returns a `QAdd` with summation indices.
+If the expression does not depend on `i`, returns `range * expr` instead.
 
     Σ(expr, i::Index, j::Index, ...)
 
 Create a multi-index sum.
 """
 function Σ(expr::QMul, i::Index, non_equal::Vector{Index} = Index[])
+    if !_depends_on_index(expr, i)
+        return QAdd(QMul[QMul(i.range * expr.arg_c, expr.args_nc)])
+    end
     ne_pairs = Tuple{Index, Index}[(i, j) for j in non_equal]
     return QAdd(QMul[expr], [i], ne_pairs)
 end
