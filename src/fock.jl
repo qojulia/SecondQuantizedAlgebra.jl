@@ -1,7 +1,22 @@
 """
     Destroy <: QSym
 
-Bosonic annihilation operator.
+Bosonic annihilation operator ``a`` on a [`FockSpace`](@ref).
+
+Satisfies the canonical commutation relation ``[a, a^\\dagger] = 1``.
+The adjoint `a'` returns the corresponding [`Create`](@ref) operator.
+
+# Construction
+```julia
+h = FockSpace(:cavity)
+a = Destroy(h, :a)              # single-space
+h2 = FockSpace(:a) ⊗ FockSpace(:b)
+a = Destroy(h2, :a, 1)          # on first subspace of ProductSpace
+```
+Or via the [`@qnumbers`](@ref) macro:
+```julia
+@qnumbers a::Destroy(h)
+```
 """
 struct Destroy <: QSym
     name::Symbol
@@ -15,7 +30,11 @@ Destroy(name::Symbol, si::Int) = Destroy(name, si, 1, NO_INDEX)
 """
     Create <: QSym
 
-Bosonic creation operator.
+Bosonic creation operator ``a^\\dagger`` on a [`FockSpace`](@ref).
+
+The adjoint of [`Destroy`](@ref). Satisfies `[a, a'] = 1` under [`NormalOrder`](@ref).
+Constructed implicitly via `adjoint(::Destroy)`, or directly with the same signatures
+as [`Destroy`](@ref).
 """
 struct Create <: QSym
     name::Symbol
@@ -41,7 +60,29 @@ function Create(h::ProductSpace, name::Symbol, idx::Int)
     return Create(name, idx)
 end
 
-# IndexedOperator convenience
+"""
+    IndexedOperator(op::QSym, i::Index) -> QSym
+    IndexedOperator(op::QSym, k::Int) -> QSym
+
+Attach a symbolic or concrete index to an operator.
+
+- `IndexedOperator(op, i::Index)`: set the symbolic summation index to `i`,
+  preserving the operator's `copy_index`.
+- `IndexedOperator(op, k::Int)`: set `copy_index = k` and clear the symbolic
+  index (sets `index = NO_INDEX`).
+
+Returns a new operator of the same type with the updated index fields.
+
+# Examples
+```julia
+h = FockSpace(:cavity)
+@qnumbers a::Destroy(h)
+i = Index(h, :i, 5, h)
+a_i = IndexedOperator(a, i)   # symbolic: a_i
+a_2 = IndexedOperator(a, 2)   # concrete: copy 2
+```
+"""
+function IndexedOperator end
 IndexedOperator(op::Destroy, i::Index) = Destroy(op.name, op.space_index, op.copy_index, i)
 IndexedOperator(op::Create, i::Index) = Create(op.name, op.space_index, op.copy_index, i)
 

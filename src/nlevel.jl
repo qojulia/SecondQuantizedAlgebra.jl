@@ -1,13 +1,24 @@
 """
-    NLevelSpace <: HilbertSpace
+    NLevelSpace(name::Symbol, n::Int)
+    NLevelSpace(name::Symbol, n::Int, ground_state::Int)
+    NLevelSpace(name::Symbol, levels::Tuple{Vararg{Symbol}})
 
-Hilbert space for N-level systems (atoms, qubits, etc.).
+Hilbert space for an N-level system (atoms, qubits, qudits, etc.).
+
+Supports [`Transition`](@ref) operators ``|i\\rangle\\langle j|`` with the composition
+rule ``|i\\rangle\\langle j| \\cdot |k\\rangle\\langle l| = \\delta_{jk} |i\\rangle\\langle l|``.
+
+The `ground_state` (default `1`) is used by [`normal_order`](@ref) and [`simplify`](@ref)
+with a Hilbert space argument to eliminate ground-state projectors via the completeness
+relation ``|g\\rangle\\langle g| = 1 - \\sum_{k \\neq g} |k\\rangle\\langle k|``.
 
 Levels can be integers (default `1:n`) or symbolic names:
+
+# Examples
 ```julia
-NLevelSpace(:atom, 3)              # levels 1, 2, 3
-NLevelSpace(:atom, 3, 1)           # levels 1, 2, 3 with ground state 1
-NLevelSpace(:atom, (:g, :e, :a))   # symbolic levels, ground state = first
+NLevelSpace(:atom, 3)              # levels 1, 2, 3 with ground state 1
+NLevelSpace(:atom, 3, 2)           # ground state = level 2
+NLevelSpace(:atom, (:g, :e, :a))   # symbolic level names
 ```
 """
 struct NLevelSpace <: HilbertSpace
@@ -46,7 +57,26 @@ Base.hash(a::NLevelSpace, h::UInt) = hash(:NLevelSpace, hash(a.name, hash(a.n, h
 """
     Transition <: QSym
 
-Transition operator |i⟩⟨j| on an [`NLevelSpace`](@ref).
+Transition operator ``|i\\rangle\\langle j|`` on an [`NLevelSpace`](@ref).
+
+Satisfies the composition rule ``|i\\rangle\\langle j| \\cdot |k\\rangle\\langle l| = \\delta_{jk} |i\\rangle\\langle l|``.
+The adjoint is ``|i\\rangle\\langle j|^\\dagger = |j\\rangle\\langle i|``.
+
+# Construction
+```julia
+h = NLevelSpace(:atom, 3)
+σ12 = Transition(h, :σ, 1, 2)          # |1⟩⟨2| with integer levels
+
+h_sym = NLevelSpace(:atom, (:g, :e))
+σge = Transition(h_sym, :σ, :g, :e)    # |g⟩⟨e| with symbolic levels
+
+hp = FockSpace(:c) ⊗ NLevelSpace(:a, 2)
+σ = Transition(hp, :σ, 1, 2, 2)        # on 2nd subspace of ProductSpace
+```
+Or via the [`@qnumbers`](@ref) macro:
+```julia
+@qnumbers σ::Transition(h, :σ, 1, 2)
+```
 """
 struct Transition <: QSym
     name::Symbol

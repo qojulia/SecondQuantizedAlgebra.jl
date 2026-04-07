@@ -1,7 +1,16 @@
 """
-    PauliSpace <: HilbertSpace
+    PauliSpace(name::Symbol)
 
-Hilbert space for two-level Pauli operators.
+Hilbert space for a two-level system described by Pauli operators.
+
+Supports [`Pauli`](@ref) operators ``\\sigma_x, \\sigma_y, \\sigma_z`` with the algebra
+``\\sigma_j \\sigma_k = \\delta_{jk} I + i\\epsilon_{jkl} \\sigma_l``.
+
+# Examples
+```julia
+h = PauliSpace(:spin)
+@qnumbers σx::Pauli(h, :σ, 1) σy::Pauli(h, :σ, 2) σz::Pauli(h, :σ, 3)
+```
 """
 struct PauliSpace <: HilbertSpace
     name::Symbol
@@ -12,8 +21,21 @@ Base.hash(a::PauliSpace, h::UInt) = hash(:PauliSpace, hash(a.name, h))
 """
     Pauli <: QSym
 
-Pauli operator (σx, σy, σz) on a [`PauliSpace`](@ref).
-Axis: 1=x, 2=y, 3=z.
+Pauli operator ``\\sigma_x, \\sigma_y, \\sigma_z`` on a [`PauliSpace`](@ref).
+
+The `axis` field selects the component: `1` = x, `2` = y, `3` = z.
+Pauli operators are Hermitian (`σ' == σ`) and satisfy the product rule
+``\\sigma_j \\sigma_k = \\delta_{jk} I + i\\epsilon_{jkl} \\sigma_l``.
+
+# Construction
+```julia
+h = PauliSpace(:s)
+σx = Pauli(h, :σ, 1)           # σx on single space
+σy = Pauli(h, :σ, 2)           # σy
+
+hp = FockSpace(:c) ⊗ PauliSpace(:s)
+σz = Pauli(hp, :σ, 3, 2)       # σz on 2nd subspace of ProductSpace
+```
 """
 struct Pauli <: QSym
     name::Symbol

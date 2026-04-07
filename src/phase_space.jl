@@ -1,7 +1,17 @@
 """
-    PhaseSpace <: HilbertSpace
+    PhaseSpace(name::Symbol)
 
 Hilbert space for position and momentum (quadrature) operators.
+
+Supports [`Position`](@ref) and [`Momentum`](@ref) operators with the canonical
+commutation relation ``[p, x] = -i`` (under [`NormalOrder`](@ref), position is
+ordered left of momentum).
+
+# Examples
+```julia
+h = PhaseSpace(:osc)
+@qnumbers x::Position(h) p::Momentum(h)
+```
 """
 struct PhaseSpace <: HilbertSpace
     name::Symbol
@@ -12,7 +22,17 @@ Base.hash(a::PhaseSpace, h::UInt) = hash(:PhaseSpace, hash(a.name, h))
 """
     Position <: QSym
 
-Position (quadrature) operator on a [`PhaseSpace`](@ref).
+Position (quadrature) operator ``x`` on a [`PhaseSpace`](@ref).
+
+Hermitian (`x' == x`). Related to Fock operators by ``x = (a + a^\\dagger)/\\sqrt{2}``.
+
+# Construction
+```julia
+h = PhaseSpace(:osc)
+x = Position(h, :x)             # single space
+hp = PhaseSpace(:a) ⊗ PhaseSpace(:b)
+x1 = Position(hp, :x, 1)        # first subspace
+```
 """
 struct Position <: QSym
     name::Symbol
@@ -26,7 +46,17 @@ Position(name::Symbol, si::Int) = Position(name, si, 1, NO_INDEX)
 """
     Momentum <: QSym
 
-Momentum (quadrature) operator on a [`PhaseSpace`](@ref).
+Momentum (quadrature) operator ``p`` on a [`PhaseSpace`](@ref).
+
+Hermitian (`p' == p`). Related to Fock operators by ``p = i(a^\\dagger - a)/\\sqrt{2}``.
+
+# Construction
+```julia
+h = PhaseSpace(:osc)
+p = Momentum(h, :p)             # single space
+hp = PhaseSpace(:a) ⊗ PhaseSpace(:b)
+p2 = Momentum(hp, :p, 2)        # second subspace
+```
 """
 struct Momentum <: QSym
     name::Symbol

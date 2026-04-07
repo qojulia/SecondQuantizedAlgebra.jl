@@ -1,12 +1,24 @@
 """
     substitute(expr, d::Dict)
 
-Substitute symbolic parameters and operators in `expr` according to `d`.
+Substitute symbolic parameters and/or operators in `expr` according to dictionary `d`.
 
-Keys in `d` can be:
-- Symbolic variables (`Num` / `BasicSymbolic`) — substituted in c-number prefactors
-- Operators (`QSym`) — replaced in the operator sequence; if the replacement is
-  a number or symbolic variable, it folds into the prefactor.
+Supports two kinds of substitution rules, which can be mixed in a single `Dict`:
+- **Symbolic variables** (`Num` / `BasicSymbolic` keys) — substituted in c-number prefactors
+  via `Symbolics.substitute`.
+- **Operators** ([`QSym`](@ref) keys) — replaced in the operator sequence. If the replacement
+  value is a number or symbolic variable, it is folded into the prefactor. If it is a
+  single-term [`QAdd`](@ref), its operators and prefactor are spliced in.
+
+# Examples
+```julia
+h = FockSpace(:f)
+@qnumbers a::Destroy(h)
+@variables ω
+expr = ω * a' * a
+substitute(expr, Dict(ω => 2.0))        # 2.0 * a†a
+substitute(expr, Dict(a => 0.5 * a))    # 0.5ω * a†a
+```
 """
 substitute(x::Number, ::Dict) = x
 

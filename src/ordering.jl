@@ -5,14 +5,25 @@ const ORDERING = Ref{OrderingConvention}(NormalOrder())
 """
     set_ordering!(ord::OrderingConvention)
 
-Set the global operator ordering convention. Affects all subsequent `*` operations.
+Set the global operator ordering convention. All subsequent `*` operations on
+[`QSym`](@ref) operators will apply this convention eagerly.
+
+# Examples
+```julia
+set_ordering!(LazyOrder())       # disable eager ordering
+set_ordering!(NormalOrder())     # restore default
+```
+
+See also [`get_ordering`](@ref), [`NormalOrder`](@ref), [`LazyOrder`](@ref).
 """
 set_ordering!(ord::OrderingConvention) = (ORDERING[] = ord)
 
 """
     get_ordering() -> OrderingConvention
 
-Return the current global ordering convention.
+Return the current global ordering convention (default: [`NormalOrder`](@ref)).
+
+See also [`set_ordering!`](@ref).
 """
 get_ordering() = ORDERING[]
 

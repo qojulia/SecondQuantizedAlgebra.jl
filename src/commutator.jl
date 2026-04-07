@@ -1,10 +1,21 @@
 """
-    commutator(a, b)
+    commutator(a, b) -> QAdd
 
-Compute the commutator `[a, b] = a*b - b*a`.
-With eager ordering, the result is already in canonical form.
-Always returns `QAdd`. Short-circuits to zero when operands commute
-(different sites, identical operators, or scalar arguments).
+Compute the commutator ``[a, b] = ab - ba``.
+
+For indexed expressions, performs **index collapse**: when a summation index in one
+factor shares a subspace with the other factor's index, the summation index is
+replaced before computing the commutator.
+
+# Examples
+```julia
+h = FockSpace(:f)
+@qnumbers a::Destroy(h)
+commutator(a, a')    # [a, a†] = 1
+commutator(a', a)    # [a†, a] = -1
+```
+
+See also [`normal_order`](@ref).
 """
 function commutator end
 

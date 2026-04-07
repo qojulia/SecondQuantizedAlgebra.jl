@@ -1,13 +1,25 @@
 """
-    ClusterSpace{H,T} <: HilbertSpace
+    ClusterSpace(original_space::HilbertSpace, N, order::Int)
 
-Hilbert space representing N identical copies of another space, with
-correlations tracked up to a specified order.
+Hilbert space representing `N` identical copies of `original_space`, with
+correlations tracked up to the specified `order`.
 
-Fields:
-- `original_space::H` — the space being replicated
-- `N::T` — total number of copies (Int or symbolic, used by QC for scaling)
-- `order::Int` — number of distinct copies to track in the algebra
+Used for mean-field and cluster expansions: operators on a `ClusterSpace` can be
+expanded into `order` distinct copies via [`cluster_expand`](@ref).
+
+# Arguments
+- `original_space` — the single-site Hilbert space being replicated
+- `N` — total number of copies (`Int` or symbolic `Num`, used for scaling prefactors)
+- `order` — number of distinct copies to track (must be ≥ 1)
+
+# Examples
+```julia
+h_single = FockSpace(:site)
+h_cluster = ClusterSpace(h_single, 100, 2)  # 100 copies, track 2-body correlations
+h = h_cluster ⊗ FockSpace(:cavity)
+```
+
+See also [`cluster_expand`](@ref), [`has_cluster`](@ref).
 """
 struct ClusterSpace{H <: HilbertSpace, T} <: HilbertSpace
     original_space::H
@@ -28,7 +40,7 @@ _unwrap_space(h::ClusterSpace) = h.original_space
 """
     has_cluster(h::HilbertSpace) -> Bool
 
-Check if a Hilbert space contains any `ClusterSpace`.
+Return `true` if `h` is a [`ClusterSpace`](@ref) or a [`ProductSpace`](@ref) containing one.
 """
 has_cluster(::HilbertSpace) = false
 has_cluster(::ClusterSpace) = true
@@ -41,19 +53,25 @@ end
 
 """
     cluster_expand(op::QSym, order::Int) -> Vector{QSym}
+    cluster_expand(op::QSym, h::ProductSpace) -> Vector{QSym}
 
-Create `order` copies of `op` with `copy_index` set to `1, 2, ..., order`
-and name suffixed `_1`, `_2`, etc.
+Create `order` copies of operator `op`, each with a distinct `copy_index`
+(`1, 2, ..., order`) and name suffixed `_1`, `_2`, etc.
+
+When called with a [`ProductSpace`](@ref), the order is read from the
+[`ClusterSpace`](@ref) at `op.space_index`.
+
+# Examples
+```julia
+h = FockSpace(:site)
+a = Destroy(h, :a)
+copies = cluster_expand(a, 3)  # [a_1, a_2, a_3]
+```
 """
 function cluster_expand(op::QSym, order::Int)
     return [_with_copy(op, Symbol(op.name, :_, i), i) for i in 1:order]
 end
 
-"""
-    cluster_expand(op::QSym, h::ProductSpace) -> Vector{QSym}
-
-Create copies of `op` using the order from the `ClusterSpace` at `op.space_index`.
-"""
 function cluster_expand(op::QSym, h::ProductSpace)
     space = h.spaces[op.space_index]
     space isa ClusterSpace || throw(ArgumentError("Space at index $(op.space_index) is not a ClusterSpace"))

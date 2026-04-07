@@ -1,8 +1,18 @@
 """
     IndexedVariable(name::Symbol, i::Index) -> Num
 
-Create a symbolic indexed variable `name(i)`.
-Returns a `Num` from Symbolics.jl.
+Create a symbolic single-indexed variable ``\\mathrm{name}(i)`` as a `Num` from Symbolics.jl.
+
+Useful for site-dependent parameters in indexed Hamiltonians (e.g. detunings, couplings).
+
+# Examples
+```julia
+h = FockSpace(:site) ⊗ FockSpace(:cavity)
+i = Index(h, :i, 10, 1)
+ω = IndexedVariable(:ω, i)    # ω(i) — symbolic parameter depending on site i
+```
+
+See also [`DoubleIndexedVariable`](@ref).
 """
 function IndexedVariable(name::Symbol, i::Index)
     f = SymbolicUtils.Sym{SymbolicUtils.SymReal}(
@@ -19,8 +29,23 @@ struct NotIdentical end
 """
     DoubleIndexedVariable(name::Symbol, i::Index, j::Index; identical::Bool=true) -> Num
 
-Create a symbolic double-indexed variable `name(i, j)`.
-If `identical=false`, returns `Num(0)` when `i == j`.
+Create a symbolic double-indexed variable ``\\mathrm{name}(i, j)`` as a `Num` from Symbolics.jl.
+
+Useful for pairwise interaction parameters (e.g. coupling matrices, hopping amplitudes).
+
+# Keyword arguments
+- `identical::Bool = true` — if `false`, the variable evaluates to zero when `i == j`,
+  enforcing that the parameter is only defined for distinct sites.
+
+# Examples
+```julia
+h = FockSpace(:site) ⊗ FockSpace(:cavity)
+i = Index(h, :i, 10, 1)
+j = Index(h, :j, 10, 1)
+J = DoubleIndexedVariable(:J, i, j; identical=false)  # J(i,j), zero when i==j
+```
+
+See also [`IndexedVariable`](@ref).
 """
 function DoubleIndexedVariable(
         name::Symbol, i::Index, j::Index;
@@ -44,9 +69,14 @@ end
 """
     change_index(expr, from::Index, to::Index)
 
-Substitute index `from` with `to` throughout an expression tree.
-Operator indices are replaced directly. Prefactors are substituted
-via `Symbolics.substitute` using the `sym` fields of the indices.
+Replace every occurrence of index `from` with `to` throughout an expression tree.
+
+Operator indices are swapped directly. Symbolic prefactors (e.g. [`IndexedVariable`](@ref),
+[`DoubleIndexedVariable`](@ref)) are substituted via `Symbolics.substitute` using
+the `sym` fields of the indices. `DoubleIndexedVariable` nodes with `identical=false`
+automatically evaluate to zero if the substitution makes both arguments equal.
+
+See also [`insert_index`](@ref), [`get_indices`](@ref).
 """
 change_index(x::Number, ::Index, ::Index) = x
 function change_index(x::Num, from::Index, to::Index)
@@ -108,7 +138,10 @@ end
 """
     get_indices(expr) -> Vector{Index}
 
-Collect all non-NO_INDEX indices in an expression.
+Collect all symbolic summation indices appearing in `expr`.
+
+Returns a `Vector{Index}` of unique indices found in operator fields and
+summation metadata. Excludes the sentinel `NO_INDEX`.
 """
 get_indices(::Number) = Index[]
 get_indices(::Num) = Index[]
@@ -154,9 +187,15 @@ end
 """
     insert_index(expr, idx::Index, val::Int)
 
-Substitute a concrete integer `val` for symbolic `idx` in an expression.
-Operators get `copy_index = val` and `index = NO_INDEX`.
-Symbolic variables (IndexedVariable, DoubleIndexedVariable) are substituted via Symbolics.
+Substitute a concrete integer `val` for the symbolic summation index `idx` in `expr`.
+
+- Operators matching `idx` get `copy_index = val` and `index = NO_INDEX`.
+- Symbolic variables ([`IndexedVariable`](@ref), [`DoubleIndexedVariable`](@ref))
+  are substituted via `Symbolics.substitute`.
+- [`DoubleIndexedVariable`](@ref) nodes with `identical=false` evaluate to zero
+  if the substitution makes both arguments equal.
+
+See also [`change_index`](@ref), [`expand_sums`](@ref).
 """
 insert_index(x::Number, ::Index, ::Int) = x
 

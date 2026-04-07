@@ -1,15 +1,22 @@
 """
     QAdd <: QTerm
 
-The sole compound expression type. Represents a sum of ordered operator terms.
+The sole compound expression type — a sum of eagerly-ordered operator products.
 
-Internally stores a `Dict{Vector{QSym}, CNum}` mapping operator sequences to prefactors.
-Like terms are auto-collected on construction. Zero-prefactor terms are dropped.
+All arithmetic on [`QSym`](@ref) operators returns `QAdd`. Internally stores a
+`Dict{Vector{QSym}, CNum}` mapping operator sequences to their `Complex{Num}` prefactors.
+Like terms are automatically collected on construction and zero-prefactor terms are dropped.
 
-Fields:
-- `arguments::QTermDict` — operator sequence → prefactor
-- `indices::Vector{Index}` — summation indices (empty = regular sum)
-- `non_equal::Vector{Tuple{Index,Index}}` — pairwise inequality constraints
+# Fields
+- `arguments::QTermDict` — operator sequence → prefactor mapping
+- `indices::Vector{Index}` — summation indices (empty for a regular sum)
+- `non_equal::Vector{Tuple{Index,Index}}` — pairwise inequality constraints on indices
+
+# Iteration
+Iterating over a `QAdd` yields `Pair{Vector{QSym}, CNum}` entries from the internal dict.
+For deterministic ordering (printing, comparison), use [`sorted_arguments`](@ref).
+
+See also [`prefactor`](@ref), [`operators`](@ref), [`Σ`](@ref).
 """
 const QTermDict = Dict{Vector{QSym}, CNum}
 
@@ -106,8 +113,10 @@ Base.eltype(::Type{QAdd}) = Pair{Vector{QSym}, CNum}
 """
     sorted_arguments(q::QAdd) -> Vector{QAdd}
 
-Return each term as a single-entry QAdd, in deterministic sort order.
-Used by TermInterface and printing.
+Return each term of `q` as a single-entry [`QAdd`](@ref), in deterministic sort order.
+
+Sort key: `(term length, operator keys...)`. Used internally by `show` and
+TermInterface for reproducible output.
 """
 function sorted_arguments(q::QAdd)
     isempty(q.arguments) && return QAdd[]
@@ -137,7 +146,17 @@ Base.getindex(q::QAdd, key::Vector{QSym}) = get(q.arguments, key, _CNUM_ZERO)
 """
     prefactor(s::QAdd) -> CNum
 
-For a single-term QAdd, return the c-number prefactor.
+Return the `Complex{Num}` prefactor of a single-term [`QAdd`](@ref).
+
+Throws `ArgumentError` if `s` contains more than one term. For multi-term expressions,
+iterate over the `QAdd` directly.
+
+# Examples
+```julia
+h = FockSpace(:f)
+@qnumbers a::Destroy(h)
+prefactor(2 * a' * a)   # 2 + 0im
+```
 """
 function prefactor(s::QAdd)
     length(s.arguments) == 1 || throw(ArgumentError("prefactor requires a single-term expression, got $(length(s.arguments)) terms"))
@@ -147,7 +166,17 @@ end
 """
     operators(s::QAdd) -> Vector{QSym}
 
-For a single-term QAdd, return the operator sequence.
+Return the ordered operator sequence of a single-term [`QAdd`](@ref).
+
+Throws `ArgumentError` if `s` contains more than one term. For multi-term expressions,
+iterate over the `QAdd` directly.
+
+# Examples
+```julia
+h = FockSpace(:f)
+@qnumbers a::Destroy(h)
+operators(a' * a)   # [Create(:a, 1, 1, NO_INDEX), Destroy(:a, 1, 1, NO_INDEX)]
+```
 """
 function operators(s::QAdd)
     length(s.arguments) == 1 || throw(ArgumentError("operators requires a single-term expression, got $(length(s.arguments)) terms"))
@@ -445,10 +474,39 @@ end
 # ============================================================================
 
 """
-    Σ(expr, i::Index, non_equal::Vector{Index}=Index[])
+    Σ(expr, i::Index; non_equal::Vector{Index}=Index[])
+    Σ(expr, i::Index, j::Index, rest::Index...)
+    ∑(expr, i::Index, ...)
 
-Create a symbolic sum over index `i`. Returns a `QAdd` with summation indices.
-If the expression does not depend on `i`, returns `range * expr` instead.
+Create a symbolic sum ``\\sum_{i=1}^{N}`` of `expr` over index `i`.
+
+Returns a [`QAdd`](@ref) with summation metadata. If `expr` does not depend on `i`,
+the sum is evaluated eagerly as `range * expr`.
+
+Diagonal splitting is performed automatically: when `expr` contains a free index `j`
+on the same subspace as `i`, the sum is split into off-diagonal (`i ≠ j`) and diagonal
+(`i = j`) contributions.
+
+# Arguments
+- `expr` — the expression to sum (a [`QAdd`](@ref), [`QSym`](@ref), or `Number`)
+- `i::Index` — the summation index
+- `non_equal::Vector{Index}` — indices that `i` must not equal (pairwise constraints)
+
+Multiple indices can be passed to create nested sums: `Σ(expr, i, j)` is equivalent
+to `Σ(Σ(expr, i), j)`.
+
+Unicode input: `\\sum<tab>`. ASCII alias: `∑ = Σ`.
+
+# Examples
+```julia
+h = FockSpace(:site) ⊗ FockSpace(:cavity)
+i = Index(h, :i, N, 1)
+@qnumbers a::Destroy(h, 1)
+a_i = IndexedOperator(a, i)
+H = Σ(a_i' * a_i, i)           # Σ(i=1:N) a†_i a_i
+```
+
+See also [`expand_sums`](@ref), [`Index`](@ref), [`IndexedOperator`](@ref).
 """
 function Σ(expr::QAdd, i::Index, non_equal::Vector{Index} = Index[])
     if !_any_depends_on_index(expr, i)
@@ -480,8 +538,11 @@ const ∑ = Σ
 """
     expand_sums(expr)
 
-No-op passthrough. Diagonal splitting is now performed eagerly at construction time
-by `Σ` and `QAdd` multiplication. Kept for API compatibility.
+Identity function — returns `expr` unchanged.
+
+Diagonal splitting of symbolic sums is now performed eagerly at construction time
+by [`Σ`](@ref) and `QAdd` multiplication. This function is retained for backward
+compatibility.
 """
 expand_sums(s::QAdd) = s
 expand_sums(op::QSym) = op

@@ -2,10 +2,19 @@
 const transition_idx_script = Ref(:^)
 
 """
-    transition_superscript(x::Bool)
+    transition_superscript(x::Bool) -> Bool
 
-Toggle whether Transition level indices are printed as superscript (true)
-or subscript (false) in LaTeX. Default is superscript.
+Set whether [`Transition`](@ref) level indices are rendered as superscripts (`true`, default)
+or subscripts (`false`) in LaTeX output via Latexify.jl.
+
+- `true`: ``{\\sigma}^{{ij}}``
+- `false`: ``{\\sigma}_{{ij}}``
+
+# Examples
+```julia
+transition_superscript(false)   # use subscript notation
+transition_superscript(true)    # restore default superscript
+```
 """
 function transition_superscript(x::Bool)
     transition_idx_script[] = x ? :^ : :_

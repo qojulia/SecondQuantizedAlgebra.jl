@@ -1,8 +1,10 @@
 """
     AvgSym
 
-Marker type for the `symtype` of averaged operator expressions.
+Marker `symtype` for averaged operator expressions in the SymbolicUtils tree.
+
 Average nodes are `BasicSymbolic{SymReal}` `Term` nodes with `symtype(x) === AvgSym`.
+Not part of the public API — use [`average`](@ref) and [`is_average`](@ref) instead.
 """
 struct AvgSym <: Number end
 
@@ -43,7 +45,7 @@ end
 """
     is_average(x) -> Bool
 
-Check whether `x` is a symbolic average `Term` node.
+Return `true` if `x` is a symbolic average node (created by [`average`](@ref)).
 """
 is_average(::QField) = false
 is_average(::Number) = false
@@ -57,19 +59,32 @@ function _average(op::QField)
 end
 
 """
-    average(expr)
+    average(expr) -> Num
 
-Compute the symbolic average of a quantum operator expression.
-Returns a `BasicSymbolic{SymReal}` scalar with `symtype = AvgSym` that participates
-in Symbolics arithmetic.
+Compute the symbolic average ``\\langle \\mathrm{expr} \\rangle`` of a quantum operator expression.
 
-Linearity: distributes over `QAdd` and pulls c-number prefactors out.
+Returns a Symbolics `Num` wrapping a `BasicSymbolic` node that participates in
+standard symbolic arithmetic (`+`, `*`, `^`, etc.). Displayed as `⟨...⟩`.
+
+**Linearity**: distributes over [`QAdd`](@ref) sums and pulls c-number prefactors
+outside the average. Summation metadata (indices, non-equal constraints) is preserved
+as SymbolicUtils metadata on the result.
+
+# Examples
+```julia
+h = FockSpace(:f)
+@qnumbers a::Destroy(h)
+avg = average(a' * a)     # ⟨a†a⟩
+avg + 1                    # ⟨a†a⟩ + 1  (symbolic arithmetic)
+```
+
+See also [`undo_average`](@ref), [`is_average`](@ref), [`numeric_average`](@ref).
 """
 function average end
 
-average(op::QSym) = _average(op)
-average(x::Number) = x
-average(x::SymbolicUtils.BasicSymbolic) = x
+average(op::QSym) = Num(_average(op))
+average(x::Number) = Num(x)
+average(x::SymbolicUtils.BasicSymbolic) = Num(x)
 
 function average(op::QAdd)
     result = Num(0)
@@ -123,13 +138,20 @@ end
 """
     undo_average(expr) -> QAdd
 
-Recursively strip `⟨...⟩` from a symbolic expression, recovering operator expressions.
-Summation metadata (indices, non-equal constraints) is restored to the resulting `QAdd`.
+Recursively strip ``\\langle \\cdots \\rangle`` from a symbolic expression,
+recovering the underlying operator expressions.
 
-Always returns `QAdd` for type stability:
-- Scalars become single-term `QAdd`s with an empty operator sequence.
-- Single operators become single-term `QAdd`s with unit prefactor.
-- Sums of averages are reconstructed via `+` and `*` on `QAdd`s.
+Always returns [`QAdd`](@ref) for type stability:
+- Scalars become single-term `QAdd`s with an empty operator sequence
+- Single operators become single-term `QAdd`s with unit prefactor
+- Sums/products of averages are reconstructed via `+` and `*` on `QAdd`s
+
+Summation metadata (indices, non-equal constraints) is restored from the
+SymbolicUtils metadata onto the resulting `QAdd`.
+
+Also accepts `Symbolics.Equation`, returning a `Pair{QAdd, QAdd}`.
+
+See also [`average`](@ref), [`is_average`](@ref).
 """
 function undo_average(x::SymbolicUtils.BasicSymbolic)::QAdd
     if SymbolicUtils.iscall(x)
@@ -166,7 +188,10 @@ end
 """
     has_sum_metadata(x) -> Bool
 
-Check whether a symbolic expression carries summation index metadata.
+Return `true` if `x` is a `BasicSymbolic` node carrying summation index metadata
+(set by [`average`](@ref) when averaging indexed expressions).
+
+See also [`get_sum_indices`](@ref), [`get_sum_non_equal`](@ref).
 """
 has_sum_metadata(::Any) = false
 function has_sum_metadata(x::SymbolicUtils.BasicSymbolic)
@@ -176,7 +201,11 @@ end
 """
     get_sum_indices(x::BasicSymbolic) -> Vector{Index}
 
-Retrieve summation indices from a symbolic expression's metadata.
+Retrieve summation indices stored as metadata on a symbolic expression `x`.
+
+Only valid when [`has_sum_metadata(x)`](@ref has_sum_metadata) is `true`.
+
+See also [`get_sum_non_equal`](@ref), [`has_sum_metadata`](@ref).
 """
 function get_sum_indices(x::SymbolicUtils.BasicSymbolic)
     return SymbolicUtils.getmetadata(x, SumIndices)
@@ -185,7 +214,11 @@ end
 """
     get_sum_non_equal(x::BasicSymbolic) -> Vector{Tuple{Index,Index}}
 
-Retrieve non-equal index pairs from a symbolic expression's metadata.
+Retrieve pairwise index inequality constraints stored as metadata on `x`.
+
+Only valid when [`has_sum_metadata(x)`](@ref has_sum_metadata) is `true`.
+
+See also [`get_sum_indices`](@ref), [`has_sum_metadata`](@ref).
 """
 function get_sum_non_equal(x::SymbolicUtils.BasicSymbolic)
     return SymbolicUtils.getmetadata(x, SumNonEqual)
@@ -220,8 +253,18 @@ end
 """
     acts_on(expr) -> Vector{Int}
 
-Return sorted unique Hilbert space indices that an operator or averaged expression acts on.
-Not intended for hot-path use — allocates a fresh `Vector{Int}` on each call.
+Return the sorted unique `space_index` values that `expr` acts on.
+
+Works on [`QSym`](@ref), [`QAdd`](@ref), averaged `BasicSymbolic` expressions,
+and `Number`s (returns `Int[]`).
+
+# Examples
+```julia
+h = FockSpace(:a) ⊗ NLevelSpace(:b, 2)
+@qnumbers a::Destroy(h, 1) σ::Transition(h, :σ, 1, 2, 2)
+acts_on(a' * a)         # [1]
+acts_on(a' * σ)         # [1, 2]
+```
 """
 acts_on(op::QSym) = Int[op.space_index]
 

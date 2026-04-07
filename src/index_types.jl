@@ -1,13 +1,28 @@
 """
-    Index
+    Index(h::HilbertSpace, name::Symbol, range, space)
+    Index(h::HilbertSpace, name::Symbol, range, space_index::Int)
 
-Symbolic summation index for many-body systems.
+Symbolic summation index for many-body systems with identical subsystems.
 
-Fields:
-- `name::Symbol` — display name
-- `range::Num` — upper bound (Int or symbolic)
-- `space_index::Int` — which space in ProductSpace
-- `sym::Num` — Symbolics symbolic integer for variable substitution
+An `Index` labels a summation variable that runs from `1` to `range` over
+operators on a particular subspace. It is used with [`Σ`](@ref) to build
+symbolic sums and with [`IndexedOperator`](@ref) to attach indices to operators.
+
+# Fields
+- `name::Symbol` — display name (e.g. `:i`, `:j`)
+- `range::Num` — upper bound of the summation (integer or symbolic)
+- `space_index::Int` — which subspace in a [`ProductSpace`](@ref)
+- `sym::Num` — Symbolics symbolic variable for algebraic substitution
+
+# Examples
+```julia
+h = FockSpace(:site) ⊗ FockSpace(:cavity)
+i = Index(h, :i, 10, FockSpace(:site))   # index i = 1:10 on the site space
+j = Index(h, :j, 10, 1)                  # same, using integer space index
+```
+
+See also [`has_index`](@ref), [`IndexedOperator`](@ref), [`Σ`](@ref),
+[`change_index`](@ref), [`insert_index`](@ref).
 """
 struct Index
     name::Symbol
@@ -17,6 +32,12 @@ struct Index
 end
 
 const NO_INDEX = Index(:_, Num(0), 0, Num(0))
+
+"""
+    has_index(idx::Index) -> Bool
+
+Return `true` if `idx` is a real summation index (not the sentinel `NO_INDEX`).
+"""
 has_index(idx::Index) = idx.space_index != 0
 
 function Base.:(==)(a::Index, b::Index)

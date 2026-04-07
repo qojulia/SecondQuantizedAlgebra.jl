@@ -1,10 +1,27 @@
 """
     fundamental_operators(h::HilbertSpace; names=nothing) -> Vector{QSym}
 
-Return all fundamental operators for a Hilbert space.
-For example, a `FockSpace` has one fundamental operator (`Destroy`),
-while an `NLevelSpace` with `n` levels has `n(n+1)/2 - 1` transitions
-(excluding the ground state projector).
+Return the fundamental (basis) operators for a Hilbert space `h`.
+
+The operator set depends on the space type:
+- [`FockSpace`](@ref): one [`Destroy`](@ref) operator
+- [`NLevelSpace`](@ref) with `n` levels: `n(n+1)/2 - 1` [`Transition`](@ref) operators
+  (diagonal + upper-triangular, excluding the ground-state projector)
+- [`PauliSpace`](@ref): three [`Pauli`](@ref) operators (σx, σy, σz)
+- [`SpinSpace`](@ref): three [`Spin`](@ref) operators (Sx, Sy, Sz)
+- [`PhaseSpace`](@ref): [`Position`](@ref) and [`Momentum`](@ref)
+- [`ProductSpace`](@ref): concatenation of fundamental operators from each subspace
+
+# Keyword arguments
+- `names=nothing` — custom operator names per subspace (default: auto-generated).
+
+# Examples
+```julia
+h = FockSpace(:cavity) ⊗ NLevelSpace(:atom, 2)
+ops = fundamental_operators(h)   # [Destroy(:a, 1), Transition(:σ, 1, 2, 2)]
+```
+
+See also [`find_operators`](@ref), [`unique_ops`](@ref).
 """
 function fundamental_operators(h::FockSpace, si::Int = 1; names = nothing)
     name = names === nothing ? :a : names[si]
@@ -50,8 +67,11 @@ end
 """
     unique_ops(ops) -> Vector
 
-Return only unique operators from `ops`, considering that `op` and `op'`
-represent the same degree of freedom.
+Return unique operators from `ops`, treating `op` and `op'` (adjoint) as the
+same degree of freedom. Only the first occurrence of each operator/adjoint pair
+is kept.
+
+See also [`unique_ops!`](@ref), [`fundamental_operators`](@ref).
 """
 function unique_ops(ops::AbstractVector)
     ops_ = copy(ops)
@@ -86,9 +106,25 @@ end
 """
     find_operators(h::HilbertSpace, order::Int; names=nothing) -> Vector
 
-Find all operator products that fully define a system up to the given `order`.
-Returns unique operators and their products (up to `order` factors),
-excluding zero terms and duplicates under adjoint.
+Generate all unique operator products up to the given `order` for Hilbert space `h`.
+
+Starting from [`fundamental_operators(h)`](@ref fundamental_operators) and their adjoints,
+computes all products with up to `order` factors. Filters out zero terms (from algebraic
+identities) and adjoint-duplicates (via [`unique_ops!`](@ref)).
+
+Useful for constructing the operator basis needed for cumulant expansions or
+moment equations.
+
+# Keyword arguments
+- `names=nothing` — passed to [`fundamental_operators`](@ref).
+
+# Examples
+```julia
+h = NLevelSpace(:atom, 2)
+ops = find_operators(h, 2)   # σ₁₂, σ₂₁, σ₂₂, σ₂₂σ₁₂, ...
+```
+
+See also [`fundamental_operators`](@ref), [`unique_ops`](@ref).
 """
 function find_operators(h::HilbertSpace, order::Int; names = nothing)
     # Auto-generate names when ProductSpace has duplicate space types

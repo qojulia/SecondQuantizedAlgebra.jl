@@ -37,18 +37,24 @@ include("printing.jl")
 include("latexify_recipes.jl")
 
 """
-    @qnumbers
+    @qnumbers ops...
 
-Convenience macro for the construction of operators.
+Convenience macro for constructing named quantum operators.
 
-Examples
-========
+Each argument has the form `name::OperatorType(hilbert_space, args...)`. The macro
+creates the operator via `OperatorType(hilbert_space, :name, args...)` and binds it
+to `name` in the calling scope.
+
+# Examples
 ```julia
 h = FockSpace(:fock)
-@qnumbers a::Destroy(h)
+@qnumbers a::Destroy(h)               # creates Destroy(h, :a) bound to `a`
 
 h = FockSpace(:one) ⊗ FockSpace(:two)
-@qnumbers a::Destroy(h, 1) b::Destroy(h, 2)
+@qnumbers a::Destroy(h, 1) b::Destroy(h, 2)   # operators on subspaces 1 and 2
+
+h = NLevelSpace(:atom, 2)
+@qnumbers σ::Transition(h, :σ, 1, 2)  # creates Transition(h, :σ, 1, 2) bound to `σ`
 ```
 """
 macro qnumbers(qs...)

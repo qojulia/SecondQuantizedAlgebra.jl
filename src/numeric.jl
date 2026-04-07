@@ -1,7 +1,32 @@
 """
     to_numeric(op, basis; kwargs...)
+    to_numeric(op, state; kwargs...)
+    to_numeric(op, basis, d::Dict; kwargs...)
+    to_numeric(op, basis, ranges::Vector{Int})
 
-Convert a symbolic operator to its numerical matrix form on the given basis.
+Convert a symbolic operator expression to its numerical matrix representation
+using QuantumOpticsBase.
+
+# Arguments
+- `op` — a [`QSym`](@ref), [`QAdd`](@ref), or `Number`
+- `basis` — a QuantumOpticsBase `Basis` (e.g. `FockBasis`, `NLevelBasis`, `SpinBasis`,
+  `CompositeBasis`), or a quantum state (from which the basis is extracted)
+- `d::Dict` — optional operator substitution dictionary (keys: `QSym`, values: numeric operators)
+- `ranges::Vector{Int}` — for [`ClusterSpace`](@ref) systems, maps `(space_index, copy_index)`
+  to positions in a `CompositeBasis`
+
+Returns a QuantumOpticsBase operator (dense, sparse, or `LazyTensor` for composite bases).
+
+# Examples
+```julia
+using QuantumOpticsBase
+h = FockSpace(:f)
+@qnumbers a::Destroy(h)
+b = FockBasis(10)
+op_num = to_numeric(a' * a, b)    # number operator as 11×11 matrix
+```
+
+See also [`numeric_average`](@ref).
 """
 function to_numeric(op::Destroy, b::QuantumOpticsBase.FockBasis; kwargs...)
     return QuantumOpticsBase.destroy(b)
@@ -110,8 +135,27 @@ end
 
 """
     numeric_average(op, state; kwargs...)
+    numeric_average(op, state, d::Dict; kwargs...)
+    numeric_average(op, state, ranges::Vector{Int})
 
-Compute the expectation value of a symbolic operator with a quantum state.
+Compute the expectation value ``\\langle \\psi | \\hat{O} | \\psi \\rangle`` of a symbolic
+operator expression `op` with a QuantumOpticsBase quantum state.
+
+Converts `op` to numeric form via [`to_numeric`](@ref), then calls
+`QuantumOpticsBase.expect`. Also handles averaged `BasicSymbolic` expressions
+by first calling [`undo_average`](@ref).
+
+# Examples
+```julia
+using QuantumOpticsBase
+h = FockSpace(:f)
+@qnumbers a::Destroy(h)
+b = FockBasis(10)
+ψ = coherentstate(b, 2.0)
+numeric_average(a' * a, ψ)    # ≈ 4.0
+```
+
+See also [`to_numeric`](@ref), [`average`](@ref).
 """
 function numeric_average(op::QField, state; kwargs...)
     op_num = to_numeric(op, state; kwargs...)
@@ -143,11 +187,6 @@ end
 
 # --- to_numeric / numeric_average with Dict parameter substitution ---
 
-"""
-    to_numeric(op, basis, d::Dict; kwargs...)
-
-Convert a symbolic operator to numeric form, substituting operators found in `d`.
-"""
 function to_numeric(op::QSym, b::QuantumOpticsBase.Basis, d::Dict; kwargs...)
     haskey(d, op) && return d[op]
     return to_numeric(op, b; kwargs...)
@@ -171,11 +210,6 @@ function to_numeric(x::Number, b::QuantumOpticsBase.Basis, d::Dict; kwargs...)
     return _to_number(x) * _lazy_one(b)
 end
 
-"""
-    numeric_average(op, state, d::Dict; kwargs...)
-
-Compute expectation value, substituting operators from `d` before numeric conversion.
-"""
 function numeric_average(op::QField, state, d::Dict; kwargs...)
     op_num = to_numeric(op, state, d; kwargs...)
     return QuantumOpticsBase.expect(op_num, state)
@@ -204,23 +238,11 @@ end
 
 # --- to_numeric / numeric_average with ranges ---
 
-"""
-    _ranges_position(space_index, copy_index, ranges) -> Int
-
-Compute the position in a composite basis from `ranges`.
-Position = sum(ranges[1:space_index-1]) + copy_index.
-"""
 function _ranges_position(space_index::Int, copy_index::Int, ranges::Vector{Int})
     offset = sum(ranges[k] for k in 1:(space_index - 1); init = 0)
     return offset + copy_index
 end
 
-"""
-    to_numeric(op, basis, ranges::Vector{Int})
-
-Convert a symbolic operator to numeric form using `ranges` to map indexed operators
-to positions in a composite basis. Position = sum(ranges[1:space_index-1]) + copy_index.
-"""
 function to_numeric(op::QSym, b::QuantumOpticsBase.CompositeBasis, ranges::Vector{Int})
     pos = _ranges_position(op.space_index, op.copy_index, ranges)
     op_num = to_numeric(op, b.bases[pos])
@@ -243,11 +265,6 @@ function to_numeric(op::QField, state, ranges::Vector{Int})
     return to_numeric(op, QuantumOpticsBase.basis(state), ranges)
 end
 
-"""
-    numeric_average(op, state, ranges::Vector{Int})
-
-Compute expectation value of an indexed operator using `ranges` for basis mapping.
-"""
 function numeric_average(op::QField, state, ranges::Vector{Int})
     op_num = to_numeric(op, state, ranges)
     return QuantumOpticsBase.expect(op_num, state)

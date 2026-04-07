@@ -1,14 +1,22 @@
 """
-    simplify(expr)
-    simplify(expr, h::HilbertSpace)
+    simplify(expr::QField)
+    simplify(expr::QField, h::HilbertSpace)
 
-Simplify a quantum expression by:
-1. Applying algebraic identities (Transition composition, Pauli product rule)
-2. Simplifying symbolic prefactors (via Symbolics.simplify)
-3. Collecting like terms and dropping zeros
+Simplify a quantum operator expression by applying ordering-independent algebraic identities.
 
-Independent of ordering convention — never applies commutation swaps.
-Use `normal_order` to additionally apply normal-ordering commutation rules.
+Applied rules:
+- **Transition composition**: ``|i\\rangle\\langle j| \\cdot |k\\rangle\\langle l| = \\delta_{jk} |i\\rangle\\langle l|``
+- **Pauli product rule**: ``\\sigma_j \\sigma_k = \\delta_{jk} I + i\\epsilon_{jkl} \\sigma_l``
+- Symbolic prefactor simplification (via `Symbolics.simplify`)
+- Like-term collection and zero-term elimination
+
+Does **not** apply commutation-based reordering (Fock `[a, a†]`, Spin `[Sⱼ, Sₖ]`,
+PhaseSpace `[p, x]`). For that, use [`normal_order`](@ref).
+
+When a [`HilbertSpace`](@ref) `h` is provided, additionally rewrites ground-state
+projectors of [`NLevelSpace`](@ref) subspaces via the completeness relation.
+
+See also [`normal_order`](@ref), [`expand`](@ref).
 """
 
 # --- Algebraic reductions (ordering-independent) ---

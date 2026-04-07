@@ -1,7 +1,17 @@
 """
-    SpinSpace <: HilbertSpace
+    SpinSpace(name::Symbol, spin::Union{Integer, Rational{Int}})
 
-Hilbert space for collective spin operators (Spin-S).
+Hilbert space for collective spin-``S`` angular momentum operators.
+
+The `spin` must be a positive integer or half-integer (e.g. `1//2`, `1`, `3//2`).
+Supports [`Spin`](@ref) operators ``S_x, S_y, S_z`` with the commutation relation
+``[S_j, S_k] = i\\epsilon_{jkl} S_l``.
+
+# Examples
+```julia
+SpinSpace(:S, 1//2)   # spin-1/2
+SpinSpace(:J, 1)      # spin-1
+```
 """
 struct SpinSpace <: HilbertSpace
     name::Symbol
@@ -19,8 +29,21 @@ Base.hash(a::SpinSpace, h::UInt) = hash(:SpinSpace, hash(a.name, hash(a.spin, h)
 """
     Spin <: QSym
 
-Angular momentum operator (Sx, Sy, Sz) on a [`SpinSpace`](@ref).
-Axis: 1=x, 2=y, 3=z.
+Angular momentum operator ``S_x, S_y, S_z`` on a [`SpinSpace`](@ref).
+
+The `axis` field selects the component: `1` = x, `2` = y, `3` = z.
+Spin operators are Hermitian (`S' == S`) and satisfy ``[S_j, S_k] = i\\epsilon_{jkl} S_l``
+(applied eagerly under [`NormalOrder`](@ref)).
+
+# Construction
+```julia
+h = SpinSpace(:S, 1//2)
+Sx = Spin(h, :S, 1)             # Sx on single space
+Sy = Spin(h, :S, 2)             # Sy
+
+hp = FockSpace(:c) ⊗ SpinSpace(:S, 1)
+Sz = Spin(hp, :S, 3, 2)         # Sz on 2nd subspace
+```
 """
 struct Spin <: QSym
     name::Symbol
