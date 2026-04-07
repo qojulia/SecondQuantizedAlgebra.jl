@@ -172,7 +172,7 @@ end
 # --- Shared helper for NotIdentical check ---
 
 """Check if a substituted BasicSymbolic node with NotIdentical metadata has equal args → 0."""
-function _check_not_identical(result)
+function _check_not_identical(result::SymbolicUtils.BasicSymbolic)
     if SymbolicUtils.iscall(result) &&
             SymbolicUtils.hasmetadata(result, NotIdentical) &&
             length(SymbolicUtils.arguments(result)) == 2
@@ -181,6 +181,7 @@ function _check_not_identical(result)
     end
     return Num(result)
 end
+_check_not_identical(result::Number) = Num(result)
 
 # --- insert_index ---
 

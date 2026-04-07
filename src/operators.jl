@@ -23,12 +23,12 @@ ops = fundamental_operators(h)   # [Destroy(:a, 1), Transition(:σ, 1, 2, 2)]
 
 See also [`find_operators`](@ref), [`unique_ops`](@ref).
 """
-function fundamental_operators(h::FockSpace, si::Int = 1; names = nothing)
+function fundamental_operators(h::FockSpace, si::Int = 1; names::Union{Nothing, AbstractVector} = nothing)
     name = names === nothing ? :a : names[si]
     return QSym[Destroy(name, si)]
 end
 
-function fundamental_operators(h::NLevelSpace, si::Int = 1; names = nothing)
+function fundamental_operators(h::NLevelSpace, si::Int = 1; names::Union{Nothing, AbstractVector} = nothing)
     name = names === nothing ? :σ : names[si]
     ops = Transition[]
     for i in 1:(h.n)
@@ -40,22 +40,22 @@ function fundamental_operators(h::NLevelSpace, si::Int = 1; names = nothing)
     return ops
 end
 
-function fundamental_operators(h::PauliSpace, si::Int = 1; names = nothing)
+function fundamental_operators(h::PauliSpace, si::Int = 1; names::Union{Nothing, AbstractVector} = nothing)
     name = names === nothing ? :σ : names[si]
     return QSym[Pauli(name, 1, si), Pauli(name, 2, si), Pauli(name, 3, si)]
 end
 
-function fundamental_operators(h::SpinSpace, si::Int = 1; names = nothing)
+function fundamental_operators(h::SpinSpace, si::Int = 1; names::Union{Nothing, AbstractVector} = nothing)
     name = names === nothing ? :S : names[si]
     return QSym[Spin(name, 1, si), Spin(name, 2, si), Spin(name, 3, si)]
 end
 
-function fundamental_operators(h::PhaseSpace, si::Int = 1; names = nothing)
+function fundamental_operators(h::PhaseSpace, si::Int = 1; names::Union{Nothing, AbstractVector} = nothing)
     name_pair = names === nothing ? (:x, :p) : names[si]
     return QSym[Position(name_pair[1], si), Momentum(name_pair[2], si)]
 end
 
-function fundamental_operators(h::ProductSpace; names = nothing)
+function fundamental_operators(h::ProductSpace; names::Union{Nothing, AbstractVector} = nothing)
     ops = QSym[]
     for (i, space) in enumerate(h.spaces)
         space_ops = fundamental_operators(_unwrap_space(space), i; names = names)
@@ -126,7 +126,7 @@ ops = find_operators(h, 2)   # σ₁₂, σ₂₁, σ₂₂, σ₂₂σ₁₂, .
 
 See also [`fundamental_operators`](@ref), [`unique_ops`](@ref).
 """
-function find_operators(h::HilbertSpace, order::Int; names = nothing)
+function find_operators(h::HilbertSpace, order::Int; names::Union{Nothing, AbstractVector} = nothing)
     # Auto-generate names when ProductSpace has duplicate space types
     if names === nothing && h isa ProductSpace
         space_types = typeof.(_unwrap_space.(h.spaces))

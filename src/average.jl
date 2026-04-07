@@ -52,7 +52,7 @@ is_average(::Number) = false
 function is_average(x::SymbolicUtils.BasicSymbolic)
     return SymbolicUtils.iscall(x) && SymbolicUtils.symtype(x) === AvgSym
 end
-is_average(x) = false
+is_average(::Any) = false
 is_average(x::Num) = is_average(SymbolicUtils.unwrap(x))
 
 function _average(op::QField)
@@ -201,7 +201,8 @@ Return `true` if `x` is a `BasicSymbolic` node carrying summation index metadata
 
 See also [`get_sum_indices`](@ref), [`get_sum_non_equal`](@ref).
 """
-has_sum_metadata(::Any) = false
+has_sum_metadata(::Number) = false
+has_sum_metadata(::QField) = false
 function has_sum_metadata(x::SymbolicUtils.BasicSymbolic)
     return SymbolicUtils.hasmetadata(x, SumIndices)
 end

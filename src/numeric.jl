@@ -28,6 +28,8 @@ op_num = to_numeric(a' * a, b)    # number operator as 11×11 matrix
 
 See also [`numeric_average`](@ref).
 """
+const QuantumState = Union{QuantumOpticsBase.StateVector, QuantumOpticsBase.AbstractOperator}
+
 function to_numeric(op::Destroy, b::QuantumOpticsBase.FockBasis; kwargs...)
     return QuantumOpticsBase.destroy(b)
 end
@@ -118,10 +120,10 @@ function _to_number(x::SymbolicUtils.BasicSymbolic)
 end
 
 # State-based dispatch
-function to_numeric(op::QField, state; kwargs...)
+function to_numeric(op::QField, state::QuantumState; kwargs...)
     return to_numeric(op, QuantumOpticsBase.basis(state); kwargs...)
 end
-function to_numeric(x::Number, state; kwargs...)
+function to_numeric(x::Number, state::QuantumState; kwargs...)
     return to_numeric(x, QuantumOpticsBase.basis(state); kwargs...)
 end
 
@@ -157,19 +159,19 @@ numeric_average(a' * a, ψ)    # ≈ 4.0
 
 See also [`to_numeric`](@ref), [`average`](@ref).
 """
-function numeric_average(op::QField, state; kwargs...)
+function numeric_average(op::QField, state::QuantumState; kwargs...)
     op_num = to_numeric(op, state; kwargs...)
     return QuantumOpticsBase.expect(op_num, state)
 end
-function numeric_average(x::Number, state; kwargs...)
+function numeric_average(x::Number, state::QuantumState; kwargs...)
     return x
 end
-function numeric_average(x::Num, state; kwargs...)
+function numeric_average(x::Num, state::QuantumState; kwargs...)
     return numeric_average(SymbolicUtils.unwrap(x), state; kwargs...)
 end
 
 # Average expressions: unwrap and compute expectation value
-function numeric_average(avg::SymbolicUtils.BasicSymbolic, state; kwargs...)
+function numeric_average(avg::SymbolicUtils.BasicSymbolic, state::QuantumState; kwargs...)
     if SymbolicUtils.iscall(avg) && SymbolicUtils.operation(avg) isa AvgFunc
         op = undo_average(avg)
         return numeric_average(op, state; kwargs...)
@@ -194,7 +196,7 @@ function to_numeric(op::QSym, b::QuantumOpticsBase.Basis, d::Dict; kwargs...)
     haskey(d, op) && return d[op]
     return to_numeric(op, b; kwargs...)
 end
-function to_numeric(op::QField, state, d::Dict; kwargs...)
+function to_numeric(op::QField, state::QuantumState, d::Dict; kwargs...)
     return to_numeric(op, QuantumOpticsBase.basis(state), d; kwargs...)
 end
 
@@ -213,17 +215,17 @@ function to_numeric(x::Number, b::QuantumOpticsBase.Basis, d::Dict; kwargs...)
     return _to_number(x) * _lazy_one(b)
 end
 
-function numeric_average(op::QField, state, d::Dict; kwargs...)
+function numeric_average(op::QField, state::QuantumState, d::Dict; kwargs...)
     op_num = to_numeric(op, state, d; kwargs...)
     return QuantumOpticsBase.expect(op_num, state)
 end
-function numeric_average(x::Number, state, d::Dict; kwargs...)
+function numeric_average(x::Number, state::QuantumState, d::Dict; kwargs...)
     return x
 end
-function numeric_average(x::Num, state, d::Dict; kwargs...)
+function numeric_average(x::Num, state::QuantumState, d::Dict; kwargs...)
     return numeric_average(SymbolicUtils.unwrap(x), state, d; kwargs...)
 end
-function numeric_average(avg::SymbolicUtils.BasicSymbolic, state, d::Dict; kwargs...)
+function numeric_average(avg::SymbolicUtils.BasicSymbolic, state::QuantumState, d::Dict; kwargs...)
     if SymbolicUtils.iscall(avg) && SymbolicUtils.operation(avg) isa AvgFunc
         op = undo_average(avg)
         return numeric_average(op, state, d; kwargs...)
@@ -267,15 +269,15 @@ function to_numeric(s::QAdd, b::QuantumOpticsBase.CompositeBasis, ranges::Vector
     return sum(_term_to_numeric(c, ops, b, ranges) for (ops, c) in s.arguments)
 end
 
-function to_numeric(op::QField, state, ranges::Vector{Int})
+function to_numeric(op::QField, state::QuantumState, ranges::Vector{Int})
     return to_numeric(op, QuantumOpticsBase.basis(state), ranges)
 end
 
-function numeric_average(op::QField, state, ranges::Vector{Int})
+function numeric_average(op::QField, state::QuantumState, ranges::Vector{Int})
     op_num = to_numeric(op, state, ranges)
     return QuantumOpticsBase.expect(op_num, state)
 end
-function numeric_average(avg::SymbolicUtils.BasicSymbolic, state, ranges::Vector{Int})
+function numeric_average(avg::SymbolicUtils.BasicSymbolic, state::QuantumState, ranges::Vector{Int})
     if SymbolicUtils.iscall(avg) && SymbolicUtils.operation(avg) isa AvgFunc
         op = undo_average(avg)
         return numeric_average(op, state, ranges)
@@ -293,9 +295,9 @@ function numeric_average(avg::SymbolicUtils.BasicSymbolic, state, ranges::Vector
     end
     error("numeric_average not implemented for $(typeof(avg))")
 end
-function numeric_average(x::Number, state, ranges::Vector{Int})
+function numeric_average(x::Number, state::QuantumState, ranges::Vector{Int})
     return x
 end
-function numeric_average(x::Num, state, ranges::Vector{Int})
+function numeric_average(x::Num, state::QuantumState, ranges::Vector{Int})
     return numeric_average(SymbolicUtils.unwrap(x), state, ranges)
 end

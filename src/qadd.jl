@@ -105,7 +105,7 @@ end
 # --- Iteration: yields Pair{Vector{QSym}, CNum} from Dict directly ---
 
 Base.iterate(q::QAdd) = iterate(q.arguments)
-Base.iterate(q::QAdd, state) = iterate(q.arguments, state)
+Base.iterate(q::QAdd, state::Int) = iterate(q.arguments, state)
 Base.eltype(::Type{QAdd}) = Pair{Vector{QSym}, CNum}
 
 # --- Sorted term access for printing and TermInterface ---
@@ -528,7 +528,7 @@ function Σ(expr::Number, i::Index, non_equal::Vector{Index} = Index[])
     return Σ(_single_qadd(_to_cnum(expr), QSym[]), i, non_equal)
 end
 
-function Σ(expr, i::Index, j::Index, rest::Index...)
+function Σ(expr::Union{QField, Number}, i::Index, j::Index, rest::Index...)
     inner = Σ(expr, i)
     return Σ(inner, j, rest...)
 end

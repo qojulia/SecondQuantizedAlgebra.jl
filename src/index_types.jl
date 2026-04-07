@@ -49,12 +49,12 @@ function Base.hash(a::Index, h::UInt)
 end
 
 # Construction from HilbertSpace
-function Index(h::HilbertSpace, name::Symbol, range, space::HilbertSpace)
+function Index(h::HilbertSpace, name::Symbol, range::Union{Int, Num}, space::HilbertSpace)
     si = _find_space_index(h, space)
     sym_var = SymbolicUtils.Sym{SymbolicUtils.SymReal}(name; type = Int)
     return Index(name, Num(range), si, Num(sym_var))
 end
-function Index(h::HilbertSpace, name::Symbol, range, si::Int)
+function Index(h::HilbertSpace, name::Symbol, range::Union{Int, Num}, si::Int)
     sym_var = SymbolicUtils.Sym{SymbolicUtils.SymReal}(name; type = Int)
     return Index(name, Num(range), si, Num(sym_var))
 end

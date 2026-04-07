@@ -30,7 +30,8 @@ end
 # Internal: substitute within a single term (prefactor + operator sequence)
 function _substitute_term(
         c::CNum, ops::Vector{QSym},
-        sym_dict::Dict, op_dict::Dict{QSym, Any}
+        sym_dict::Dict{SymbolicUtils.BasicSymbolic, SymbolicUtils.BasicSymbolic},
+        op_dict::Dict{QSym, Any}
     )
     new_c = if isempty(sym_dict)
         c

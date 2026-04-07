@@ -122,17 +122,17 @@ function _show_prefactor(io::IO, c::CNum)
         write(io, "im)")
     end
 end
-_show_prefactor(io::IO, c) = print(io, c)
+_show_prefactor(io::IO, c::Number) = print(io, c)
 
 function _is_unit(c::CNum)
     return iszero(imag(c)) && isone(real(c))
 end
-_is_unit(c) = isone(c)
+_is_unit(c::Number) = isone(c)
 
 function _is_neg_unit(c::CNum)
     return iszero(imag(c)) && isequal(real(c), Num(-1))
 end
-_is_neg_unit(c) = isequal(c, -1)
+_is_neg_unit(c::Number) = isequal(c, -1)
 
 function _is_real_negative(c::CNum)
     if iszero(imag(c))
@@ -141,7 +141,7 @@ function _is_real_negative(c::CNum)
     end
     return false
 end
-_is_real_negative(::Any) = false
+_is_real_negative(::Number) = false
 
 # Check if a symbolic prefactor needs parentheses when followed by operators.
 function _needs_pf_parens(c::CNum)
@@ -180,7 +180,7 @@ function _show_term(io::IO, c::CNum, ops::Vector{QSym})
 end
 
 # Show a list of terms joined by + / -
-function _show_terms(io::IO, st::Vector)
+function _show_terms(io::IO, st::Vector{QAdd})
     isempty(st) && return write(io, "0")
     ops1, c1 = first(keys(st[1].arguments)), first(values(st[1].arguments))
     _show_term(io, c1, ops1)

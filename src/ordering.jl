@@ -138,7 +138,7 @@ end
 
 # NormalOrder swaps
 function _apply_ordering_swap!(
-        a, b, i, c::CNum, ops::Vector{QSym},
+        a::QSym, b::QSym, i::Int, c::CNum, ops::Vector{QSym},
         ::NormalOrder, worklist::Vector{_OTerm}
     )
     # Fock: a*a' -> a'*a + 1

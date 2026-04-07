@@ -75,12 +75,14 @@ function _latex_prefactor(c::CNum)
         return complex(r_val, i_val)
     end
 end
-_latex_prefactor(c) = c
+_latex_prefactor(c::Number) = c
 
 # Check if a symbolic prefactor needs \left( \right) brackets when followed by operators.
 # Fractions (/) and sums (+) are visually ambiguous without grouping.
-function _needs_pf_brackets(pf)
-    pf isa Number && return false
+function _needs_pf_brackets(pf::Number)
+    return false
+end
+function _needs_pf_brackets(pf::SymbolicUtils.BasicSymbolic)
     SymbolicUtils.iscall(pf) || return false
     op = SymbolicUtils.operation(pf)
     return op === (/) || op === (+)
