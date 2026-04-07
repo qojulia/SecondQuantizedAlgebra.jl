@@ -40,7 +40,7 @@ import SecondQuantizedAlgebra: simplify, QAdd, QSym, QField, CNum, _to_cnum, _si
         a = Destroy(h, :a)
         ad = a'
 
-        # Unit prefactor: average(a†a) = ⟨a†a⟩
+        # Unit prefactor: average(a'a) = ⟨a'a⟩
         ada = ad * a
         avg_ada = average(ada)
         @test is_average(avg_ada)
@@ -50,7 +50,7 @@ import SecondQuantizedAlgebra: simplify, QAdd, QSym, QField, CNum, _to_cnum, _si
         @test inner isa QAdd
         @test length(operators(only(sorted_arguments(inner)))) == 2
 
-        # Numeric prefactor: average(3 * a†a) = 3⟨a†a⟩
+        # Numeric prefactor: average(3 * a'a) = 3⟨a'a⟩
         three_ada = 3 * ad * a
         avg_3 = average(three_ada)
         @test !is_average(avg_3)  # prefactor pulled out
@@ -70,7 +70,7 @@ import SecondQuantizedAlgebra: simplify, QAdd, QSym, QField, CNum, _to_cnum, _si
         a = Destroy(h, :a)
         ad = a'
 
-        # average(a + a†) distributes
+        # average(a + a') distributes
         s = a + ad
         avg_s = average(s)
         @test avg_s isa SymbolicUtils.BasicSymbolic
@@ -88,7 +88,7 @@ import SecondQuantizedAlgebra: simplify, QAdd, QSym, QField, CNum, _to_cnum, _si
         j = Index(h, :j, N, ha)
         σ12 = IndexedOperator(Transition(h, :σ, 1, 2, 2), i)
 
-        # Σ_i(a† * σ_i^{12})
+        # Σ_i(a' * σ_i^{12})
         s = Σ(ad * σ12, i)
         @test !isempty(s.indices)
 
@@ -246,11 +246,11 @@ import SecondQuantizedAlgebra: simplify, QAdd, QSym, QField, CNum, _to_cnum, _si
         ad = a'
 
         @test repr(average(a)) == "⟨a⟩"
-        @test repr(average(ad)) == "⟨a†⟩"
-        @test repr(average(ad * a)) == "⟨a† * a⟩"
-        @test repr(average(3 * ad * a)) == "3⟨a† * a⟩"
+        @test repr(average(ad)) == "⟨a'⟩"
+        @test repr(average(ad * a)) == "⟨a' * a⟩"
+        @test repr(average(3 * ad * a)) == "3⟨a' * a⟩"
         avg_sum_repr = repr(average(a + ad))
-        @test avg_sum_repr == "⟨a⟩ + ⟨a†⟩" || avg_sum_repr == "⟨a†⟩ + ⟨a⟩"
+        @test avg_sum_repr == "⟨a⟩ + ⟨a'⟩" || avg_sum_repr == "⟨a'⟩ + ⟨a⟩"
 
         # Multi-space
         hf = FockSpace(:f)
@@ -258,7 +258,7 @@ import SecondQuantizedAlgebra: simplify, QAdd, QSym, QField, CNum, _to_cnum, _si
         hp = hf ⊗ hn
         b = Destroy(hp, :b, 1)
         σ = Transition(hp, :σ, 1, 2, 2)
-        @test repr(average(b' * σ)) == "⟨b† * σ₁₂⟩"
+        @test repr(average(b' * σ)) == "⟨b' * σ₁₂⟩"
     end
 
     @testset "LaTeX" begin

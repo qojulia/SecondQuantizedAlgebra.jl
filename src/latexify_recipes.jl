@@ -77,6 +77,15 @@ function _latex_prefactor(c::CNum)
 end
 _latex_prefactor(c) = c
 
+# Check if a symbolic prefactor needs \left( \right) brackets when followed by operators.
+# Fractions (/) and sums (+) are visually ambiguous without grouping.
+function _needs_pf_brackets(pf)
+    pf isa Number && return false
+    SymbolicUtils.iscall(pf) || return false
+    op = SymbolicUtils.operation(pf)
+    return op === (/) || op === (+)
+end
+
 # Helper: render a single term (prefactor * operators) as LaTeX
 function _latex_term(c::CNum, ops::Vector{QSym})
     pf = _latex_prefactor(c)
@@ -88,8 +97,13 @@ function _latex_term(c::CNum, ops::Vector{QSym})
         push!(parts, :(-))
     elseif pf isa Number && isone(pf)
         # skip prefactor
+    elseif _needs_pf_brackets(pf)
+        push!(parts, "\\left(")
+        push!(parts, pf)
+        push!(parts, "\\right) ")
     else
         push!(parts, pf)
+        push!(parts, " ")
     end
     for op in ops
         push!(parts, op)
@@ -110,8 +124,29 @@ end
             idx_parts[end] = replace(idx_parts[end], "$(x.indices[end].name)" => "$(x.indices[end].name){\\neq}$(ne_str)")
         end
         prefix = join(idx_parts, " ")
-        terms = [_latex_term(first(values(t.arguments)), first(keys(t.arguments))) for t in st]
-        return Expr(:latexifymerge, prefix, " ", Expr(:call, :+, terms...))
+        # Split terms into index-dependent and index-independent
+        dep_terms = []
+        indep_terms = []
+        for t in st
+            ops = first(keys(t.arguments))
+            c = first(values(t.arguments))
+            term_expr = _latex_term(c, ops)
+            if any(idx -> _depends_on_index_term(c, ops, idx), x.indices)
+                push!(dep_terms, term_expr)
+            else
+                push!(indep_terms, term_expr)
+            end
+        end
+        sum_expr = if length(dep_terms) == 1
+            Expr(:latexifymerge, prefix, dep_terms[1])
+        else
+            Expr(:latexifymerge, prefix, Expr(:call, :+, dep_terms...))
+        end
+        if isempty(indep_terms)
+            return sum_expr
+        else
+            return Expr(:call, :+, indep_terms..., sum_expr)
+        end
     end
     terms = [_latex_term(first(values(t.arguments)), first(keys(t.arguments))) for t in st]
     return Expr(:call, :+, terms...)

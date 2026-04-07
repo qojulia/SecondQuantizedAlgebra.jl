@@ -67,7 +67,7 @@ import SecondQuantizedAlgebra: simplify, QAdd, QSym, _single_qadd, _to_cnum
         ]
         output = [
             L"a^{\dagger}a",
-            L"3a^{\dagger}a",
+            L"3 a^{\dagger}a",
             L"-a",
             L"5",
         ]
@@ -86,12 +86,12 @@ import SecondQuantizedAlgebra: simplify, QAdd, QSym, _single_qadd, _to_cnum
 
     @testset "Symbolic prefactors" begin
         @variables g
-        @test latexify(g * a) == L"ga"
+        @test latexify(g * a) == L"g a"
     end
 
     @testset "Complex prefactors" begin
         result = simplify(Pauli(PauliSpace(:p), :σ, 1) * Pauli(PauliSpace(:p), :σ, 2))
-        @test latexify(result) == L"\mathit{i}{\sigma}_{{z}}"
+        @test latexify(result) == L"\mathit{i} {\sigma}_{{z}}"
     end
 
     @testset "Indexed operators" begin
@@ -122,7 +122,7 @@ import SecondQuantizedAlgebra: simplify, QAdd, QSym, _single_qadd, _to_cnum
         σ_i = IndexedOperator(Transition(h2, :σ, 1, 2, 2), i)
 
         @test latexify(IndexedVariable(:g, i) * b' * σ_i) ==
-            L"g\left( i \right)b^{\dagger}{\sigma}_{i}^{{12}}"
+            L"g\left( i \right) b^{\dagger}{\sigma}_{i}^{{12}}"
     end
 
     @testset "Sum" begin
@@ -134,7 +134,22 @@ import SecondQuantizedAlgebra: simplify, QAdd, QSym, _single_qadd, _to_cnum
 
         H = Σ(IndexedVariable(:g, i) * b' * σ_i, i)
         @test latexify(H) ==
-            L"\underset{i}{\overset{N}{\sum}}\left(  g\left( i \right)b^{\dagger}{\sigma}_{i}^{{12}} \right)"
+            L"\underset{i}{\overset{N}{\sum}}g\left( i \right) b^{\dagger}{\sigma}_{i}^{{12}}"
+    end
+
+    @testset "Sum separates index-independent terms" begin
+        @variables N Δ
+        h2 = FockSpace(:c) ⊗ NLevelSpace(:atom, 2, 1)
+        @qnumbers b::Destroy(h2, 1)
+        i = Index(h2, :i, N, NLevelSpace(:atom, 2, 1))
+        σ_i = IndexedOperator(Transition(h2, :σ, 1, 2, 2), i)
+        gi = IndexedVariable(:g, i)
+
+        H = Δ * b' * b + Σ(gi * (b * σ_i + b' * σ_i'), i)
+        latex_str = latexify(H)
+        # Δb†b should be outside the sum, indexed terms inside
+        @test latex_str ==
+            L"\Delta b^{\dagger}b + \underset{i}{\overset{N}{\sum}}\left( g\left( i \right) b{\sigma}_{i}^{{12}} + g\left( i \right) b^{\dagger}{\sigma}_{i}^{{21}} \right)"
     end
 
     @testset "Sum with non_equal constraint uses \\neq" begin
@@ -147,7 +162,55 @@ import SecondQuantizedAlgebra: simplify, QAdd, QSym, _single_qadd, _to_cnum
 
         s = Σ(Γij * σ_i, i, [j])
         @test latexify(s) ==
-            L"\underset{i{\neq}i{\neq}j}{\overset{N}{\sum}}\left(  \Gamma\left( i, j \right){\sigma}_{i}^{{12}} \right)"
+            L"\underset{i{\neq}i{\neq}j}{\overset{N}{\sum}}\Gamma\left( i, j \right) {\sigma}_{i}^{{12}}"
+    end
+
+    @testset "Fraction prefactor gets brackets" begin
+        @variables g Δ
+        h2 = FockSpace(:c) ⊗ NLevelSpace(:atom, (:g, :e))
+        @qnumbers b::Destroy(h2, 1)
+        σee = Transition(h2, :σ, 2, 2, 2)
+
+        # Fraction prefactor: (g²/Δ) a†a
+        @test latexify((g^2 / Δ) * b' * b) ==
+            L"\left(\frac{g^{2}}{\Delta}\right) b^{\dagger}b"
+
+        # Sum prefactor: (g²/Δ + Δ) σ₂₂
+        @test latexify((g^2 / Δ + Δ) * σee) ==
+            L"\left(\frac{g^{2}}{\Delta} + \Delta\right) {\sigma}^{{22}}"
+
+        # Power prefactor: no brackets needed
+        @test latexify(g^2 * b' * b) ==
+            L"g^{2} b^{\dagger}b"
+
+        # Simple symbolic: no brackets needed
+        @test latexify(g * b) == L"g b"
+    end
+
+    @testset "Sum all-indexed terms" begin
+        @variables N
+        h2 = FockSpace(:c) ⊗ NLevelSpace(:atom, 2, 1)
+        @qnumbers b::Destroy(h2, 1)
+        i = Index(h2, :i, N, NLevelSpace(:atom, 2, 1))
+        σ_i = IndexedOperator(Transition(h2, :σ, 1, 2, 2), i)
+        gi = IndexedVariable(:g, i)
+
+        # All terms depend on index — no separation needed
+        @test latexify(Σ(gi * b' * σ_i + gi * b * σ_i', i)) ==
+            L"\underset{i}{\overset{N}{\sum}}\left( g\left( i \right) b{\sigma}_{i}^{{21}} + g\left( i \right) b^{\dagger}{\sigma}_{i}^{{12}} \right)"
+    end
+
+    @testset "Sum single indexed + independent without parens" begin
+        @variables N Δ
+        h2 = FockSpace(:c) ⊗ NLevelSpace(:atom, 2, 1)
+        @qnumbers b::Destroy(h2, 1)
+        i = Index(h2, :i, N, NLevelSpace(:atom, 2, 1))
+        σ_i = IndexedOperator(Transition(h2, :σ, 1, 2, 2), i)
+        gi = IndexedVariable(:g, i)
+
+        # Single indexed term — no parentheses around the sum body
+        @test latexify(Δ * b' * b + Σ(gi * b' * σ_i, i)) ==
+            L"\Delta b^{\dagger}b + \underset{i}{\overset{N}{\sum}}g\left( i \right) b^{\dagger}{\sigma}_{i}^{{12}}"
     end
 
     @testset "MIME text/latex" begin

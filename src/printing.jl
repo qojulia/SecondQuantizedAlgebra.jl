@@ -54,7 +54,7 @@ function Base.show(io::IO, x::Create)
     print(io, x.name)
     _show_copy_suffix(io, x.copy_index)
     _show_index_suffix(io, x.index)
-    return write(io, "†")
+    return write(io, "'")
 end
 
 const _subscript_digits = ('₀', '₁', '₂', '₃', '₄', '₅', '₆', '₇', '₈', '₉')
@@ -143,6 +143,16 @@ function _is_real_negative(c::CNum)
 end
 _is_real_negative(::Any) = false
 
+# Check if a symbolic prefactor needs parentheses when followed by operators.
+function _needs_pf_parens(c::CNum)
+    iszero(imag(c)) || return false
+    r = Symbolics.value(SymbolicUtils.unwrap(real(c)))
+    r isa Number && return false
+    SymbolicUtils.iscall(r) || return false
+    op = SymbolicUtils.operation(r)
+    return op === (/) || op === (+)
+end
+
 # Show a single term: prefactor * op1 * op2 * ...
 function _show_term(io::IO, c::CNum, ops::Vector{QSym})
     if isempty(ops)
@@ -152,7 +162,13 @@ function _show_term(io::IO, c::CNum, ops::Vector{QSym})
     if _is_neg_unit(c)
         write(io, "-")
     elseif !_is_unit(c)
-        _show_prefactor(io, c)
+        if _needs_pf_parens(c)
+            write(io, "(")
+            _show_prefactor(io, c)
+            write(io, ")")
+        else
+            _show_prefactor(io, c)
+        end
         write(io, " * ")
     end
     show(io, ops[1])
@@ -163,30 +179,8 @@ function _show_term(io::IO, c::CNum, ops::Vector{QSym})
     return
 end
 
-# QAdd
-function Base.show(io::IO, x::QAdd)
-    if !isempty(x.indices)
-        for idx in x.indices
-            write(io, "Σ(")
-            print(io, idx.name)
-            write(io, "=1:")
-            print(io, idx.range)
-            write(io, ")")
-        end
-        if !isempty(x.non_equal)
-            write(io, "(")
-            for (k, (a, b)) in enumerate(x.non_equal)
-                k > 1 && write(io, ",")
-                print(io, a.name)
-                write(io, "≠")
-                print(io, b.name)
-            end
-            write(io, ")")
-        end
-        write(io, " ")
-    end
-
-    st = sorted_arguments(x)
+# Show a list of terms joined by + / -
+function _show_terms(io::IO, st::Vector)
     isempty(st) && return write(io, "0")
     ops1, c1 = first(keys(st[1].arguments)), first(values(st[1].arguments))
     _show_term(io, c1, ops1)
@@ -200,6 +194,65 @@ function Base.show(io::IO, x::QAdd)
             write(io, " + ")
             _show_term(io, c_i, ops_i)
         end
+    end
+    return
+end
+
+# QAdd
+function Base.show(io::IO, x::QAdd)
+    st = sorted_arguments(x)
+    isempty(st) && return write(io, "0")
+
+    if !isempty(x.indices)
+        # Split into index-dependent and index-independent terms
+        dep = eltype(st)[]
+        indep = eltype(st)[]
+        for t in st
+            ops = first(keys(t.arguments))
+            c = first(values(t.arguments))
+            if any(idx -> _depends_on_index_term(c, ops, idx), x.indices)
+                push!(dep, t)
+            else
+                push!(indep, t)
+            end
+        end
+        # Print index-independent terms first
+        if !isempty(indep)
+            _show_terms(io, indep)
+            if !isempty(dep)
+                write(io, " + ")
+            end
+        end
+        # Print summation with dependent terms
+        if !isempty(dep)
+            for idx in x.indices
+                write(io, "Σ(")
+                print(io, idx.name)
+                write(io, "=1:")
+                print(io, idx.range)
+                write(io, ")")
+            end
+            if !isempty(x.non_equal)
+                write(io, "(")
+                for (k, (a, b)) in enumerate(x.non_equal)
+                    k > 1 && write(io, ",")
+                    print(io, a.name)
+                    write(io, "≠")
+                    print(io, b.name)
+                end
+                write(io, ")")
+            end
+            write(io, " ")
+            if length(dep) > 1
+                write(io, "(")
+                _show_terms(io, dep)
+                write(io, ")")
+            else
+                _show_terms(io, dep)
+            end
+        end
+    else
+        _show_terms(io, st)
     end
     return
 end

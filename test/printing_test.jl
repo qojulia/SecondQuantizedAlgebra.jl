@@ -54,7 +54,7 @@ import SecondQuantizedAlgebra: simplify, QAdd, QSym, QTermDict, _to_cnum
         ]
         output = [
             "a",
-            "a†",
+            "a'",
             "σ₁₂",
             "σ₃₁",
             "σx",
@@ -81,8 +81,8 @@ import SecondQuantizedAlgebra: simplify, QAdd, QSym, QTermDict, _to_cnum
             0.5 * a,
         ]
         output = [
-            "a† * a",
-            "3 * a† * a",
+            "a' * a",
+            "3 * a' * a",
             "-a",
             "-3 * a",
             "5",
@@ -99,8 +99,8 @@ import SecondQuantizedAlgebra: simplify, QAdd, QSym, QTermDict, _to_cnum
             2 * a + 3 * ad,
         ]
         output = [
-            "a + a†",
-            "2 * a + 3 * a†",
+            "a + a'",
+            "2 * a + 3 * a'",
         ]
         for (i, o) in zip(input, output)
             @test repr(i) == o
@@ -108,7 +108,7 @@ import SecondQuantizedAlgebra: simplify, QAdd, QSym, QTermDict, _to_cnum
     end
 
     @testset "Simplify display" begin
-        @test repr(simplify(a * ad)) == "1 + a† * a"
+        @test repr(simplify(a * ad)) == "1 + a' * a"
     end
 
     @testset "Indexed operators" begin
@@ -124,7 +124,7 @@ import SecondQuantizedAlgebra: simplify, QAdd, QSym, QTermDict, _to_cnum
         output = [
             "σ_i₁₂",
             "a_i",
-            "a_i†",
+            "a_i'",
         ]
         for (inp, o) in zip(input, output)
             @test repr(inp) == o
@@ -138,7 +138,7 @@ import SecondQuantizedAlgebra: simplify, QAdd, QSym, QTermDict, _to_cnum
         i = Index(h2, :i, N, NLevelSpace(:atom, 2, 1))
         σ_i = IndexedOperator(Transition(h2, :σ, 1, 2, 2), i)
 
-        @test repr(IndexedVariable(:g, i) * b' * σ_i) == "g(i) * b† * σ_i₁₂"
+        @test repr(IndexedVariable(:g, i) * b' * σ_i) == "g(i) * b' * σ_i₁₂"
     end
 
     @testset "Sum display" begin
@@ -150,12 +150,44 @@ import SecondQuantizedAlgebra: simplify, QAdd, QSym, QTermDict, _to_cnum
         σ_i = IndexedOperator(Transition(h2, :σ, 1, 2, 2), i)
 
         H = Σ(IndexedVariable(:g, i) * b' * σ_i, i)
-        @test repr(H) == "Σ(i=1:N) g(i) * b† * σ_i₁₂"
+        @test repr(H) == "Σ(i=1:N) g(i) * b' * σ_i₁₂"
 
         # Sum with non-equal constraint
         σ_j = IndexedOperator(Transition(h2, :σ, 2, 1, 2), j)
         S = Σ(σ_i * σ_j, i, [j])
         @test repr(S) == "Σ(i=1:N)(i≠j) σ_i₁₂ * σ_j₂₁"
+    end
+
+    @testset "Fraction prefactor gets brackets" begin
+        @variables g Δ
+        h2 = FockSpace(:c) ⊗ NLevelSpace(:atom, (:g, :e))
+        @qnumbers c::Destroy(h2, 1)
+        σee = Transition(h2, :σ, 2, 2, 2)
+
+        @test repr((g^2 / Δ) * c' * c) == "((g^2) / Δ) * c' * c"
+        @test repr((g^2 / Δ + Δ) * σee) == "((g^2) / Δ + Δ) * σ₂₂"
+        @test repr(g^2 * c' * c) == "g^2 * c' * c"
+    end
+
+    @testset "Sum separates index-independent terms" begin
+        @variables N Δ
+        h2 = FockSpace(:c) ⊗ NLevelSpace(:atom, 2, 1)
+        @qnumbers b::Destroy(h2, 1)
+        i = Index(h2, :i, N, NLevelSpace(:atom, 2, 1))
+        σ_i = IndexedOperator(Transition(h2, :σ, 1, 2, 2), i)
+        gi = IndexedVariable(:g, i)
+
+        # Independent term outside sum, multiple indexed terms in parens
+        @test repr(Δ * b' * b + Σ(gi * (b * σ_i + b' * σ_i'), i)) ==
+            "Δ * b' * b + Σ(i=1:N) (g(i) * b * σ_i₁₂ + g(i) * b' * σ_i₂₁)"
+
+        # Single indexed term — no parentheses
+        @test repr(Δ * b' * b + Σ(gi * b' * σ_i, i)) ==
+            "Δ * b' * b + Σ(i=1:N) g(i) * b' * σ_i₁₂"
+
+        # All terms indexed — no separation needed
+        @test repr(Σ(gi * b' * σ_i + gi * b * σ_i', i)) ==
+            "Σ(i=1:N) (g(i) * b * σ_i₂₁ + g(i) * b' * σ_i₁₂)"
     end
 
     @testset "copy_index display" begin
