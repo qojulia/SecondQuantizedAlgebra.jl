@@ -5,7 +5,7 @@ Substitute symbolic parameters and/or operators in `expr` according to dictionar
 
 Supports two kinds of substitution rules, which can be mixed in a single `Dict`:
 - **Symbolic variables** (`Num` / `BasicSymbolic` keys) — substituted in c-number prefactors
-  via `Symbolics.substitute`.
+  via `SymbolicUtils.substitute`.
 - **Operators** ([`QSym`](@ref) keys) — replaced in the operator sequence. If the replacement
   value is a number or symbolic variable, it is folded into the prefactor. If it is a
   single-term [`QAdd`](@ref), its operators and prefactor are spliced in.
@@ -20,8 +20,6 @@ substitute(expr, Dict(ω => 2.0))        # 2.0 * a†a
 substitute(expr, Dict(a => 0.5 * a))    # 0.5ω * a†a
 ```
 """
-SymbolicUtils.substitute(x::Number, ::Dict) = x
-
 function SymbolicUtils.substitute(op::QSym, d::Dict)
     haskey(d, op) && return d[op]
     return op
@@ -36,9 +34,7 @@ function _substitute_term(
     new_c = if isempty(sym_dict)
         c
     else
-        r = Symbolics.substitute(SymbolicUtils.unwrap(real(c)), sym_dict)
-        i = Symbolics.substitute(SymbolicUtils.unwrap(imag(c)), sym_dict)
-        Complex(Num(r), Num(i))
+        SymbolicUtils.substitute(c, sym_dict)
     end
 
     new_ops = QSym[]
