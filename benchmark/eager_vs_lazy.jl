@@ -199,11 +199,13 @@ try
         yscale = log10,
     )
 
-    scatterlines!(ax, xs, eager_times;
+    scatterlines!(
+        ax, xs, eager_times;
         label = "Eager (NormalOrder)",
         color = :steelblue, marker = :circle, markersize = 10, linewidth = 2,
     )
-    scatterlines!(ax, xs, lazy_times;
+    scatterlines!(
+        ax, xs, lazy_times;
         label = "Lazy + normal_order()",
         color = :coral, marker = :utriangle, markersize = 10, linewidth = 2,
     )
