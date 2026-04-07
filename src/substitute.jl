@@ -20,9 +20,9 @@ substitute(expr, Dict(ω => 2.0))        # 2.0 * a†a
 substitute(expr, Dict(a => 0.5 * a))    # 0.5ω * a†a
 ```
 """
-substitute(x::Number, ::Dict) = x
+SymbolicUtils.substitute(x::Number, ::Dict) = x
 
-function substitute(op::QSym, d::Dict)
+function SymbolicUtils.substitute(op::QSym, d::Dict)
     haskey(d, op) && return d[op]
     return op
 end
@@ -77,7 +77,7 @@ function _split_sub_dict(d::Dict)
     return sym_dict, op_dict
 end
 
-function substitute(s::QAdd, d::Dict)
+function SymbolicUtils.substitute(s::QAdd, d::Dict)
     sym_dict, op_dict = _split_sub_dict(d)
     new_d = QTermDict()
     for (ops, c) in s.arguments

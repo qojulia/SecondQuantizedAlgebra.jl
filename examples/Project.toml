@@ -1,4 +1,6 @@
 [deps]
 CairoMakie = "13f3f980-e62b-5c42-98c6-ff1f3baf88f0"
+LinearAlgebra = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
 Literate = "98b081ad-f1c9-55d3-8b20-4c87d4299306"
+QuantumOpticsBase = "4f57444f-1401-5e15-980d-4471b28d5678"
 SecondQuantizedAlgebra = "f7aa4685-e143-4cb6-a7f3-073579757907"

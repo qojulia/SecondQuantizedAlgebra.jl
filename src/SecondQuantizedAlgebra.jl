@@ -1,6 +1,6 @@
 module SecondQuantizedAlgebra
 
-using SymbolicUtils: SymbolicUtils, simplify
+using SymbolicUtils: SymbolicUtils, simplify, substitute
 using Symbolics: Symbolics, Num, expand, @variables
 using TermInterface: TermInterface
 

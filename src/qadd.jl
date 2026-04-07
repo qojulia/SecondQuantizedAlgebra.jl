@@ -358,6 +358,9 @@ Base.:-(a::Number, b::QField) = a + (-b)
 Base.:/(a::QSym, b::Number) = a * inv(b)
 Base.:/(a::QAdd, b::Number) = a * inv(b)
 
+Base.://(a::QSym, b::Integer) = a * (1 // b)
+Base.://(a::QAdd, b::Integer) = a * (1 // b)
+
 function Base.:^(a::QSym, n::Integer)
     n >= 0 || throw(ArgumentError("Negative powers not supported"))
     n == 0 && return _single_qadd(_CNUM_ONE, QSym[])
