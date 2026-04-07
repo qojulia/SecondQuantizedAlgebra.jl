@@ -5,7 +5,7 @@ Compare two benchmark data files side by side.
 
 Usage:
     julia --project=benchmark benchmark/compare_two.jl <baseline.json> <target.json>
-    julia --project=benchmark benchmark/compare_two.jl          # interactive pick from data/
+    julia --project=benchmark benchmark/compare_two.jl # interactive pick from data/
 """
 
 using BenchmarkTools
