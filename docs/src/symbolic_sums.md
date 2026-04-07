@@ -1,163 +1,90 @@
 # Symbolic Sums and Indices
 
-Many physical systems contain multiple elements of the same kind, which basically do the same thing just with different rates. For these systems it is convenient to describe the Hamiltonian and the dissipative processes with indexed objects and sums. A well-known example is the Tavis-Cummings Hamiltonian, which describes the interaction of $N$ two-level atoms with a cavity mode according to the Hamiltonian
+Many physical systems contain multiple identical elements with different parameters. Symbolic summation lets you write compact Hamiltonians with indexed operators and derive equations once, then instantiate for specific values later.
+
+A canonical example is the Tavis-Cummings Hamiltonian describing ``N`` two-level atoms coupled to a cavity mode:
 
 ```math
-\begin{equation}
-H_\mathrm{TC} = \omega_c a^† a + \sum_i^N \omega_i \sigma_i^{22} + \sum_i^N g_i (a^\dagger \sigma_i^{12} + a \sigma_i^{21}).
-\end{equation}
+H_\mathrm{TC} = \omega_c a^\dagger a + \sum_i^N \omega_i \sigma_i^{22} + \sum_i^N g_i \left(a^\dagger \sigma_i^{12} + a\, \sigma_i^{21}\right).
 ```
 
-In principle we can write down and derive the equations for all $N$ atoms explicitly, but this can take a long time for large $N$. The more practical and elegant approach is to derive the equations for averages of indexed operators and insert all possible number combinations afterwards. The implementation of symbolic sums and indices allows for exactly this.
 
-## Implementation
+## Index
 
-### Index
+An [`Index`](@ref) represents a symbolic summation variable. It is constructed from a Hilbert space, a name, a range (symbolic or numeric), and the subspace it acts on:
 
-The main tool to use symbolic summations is the **Index** object. This object has four different fields, which all need to be specified upon construction. These fields consist of the full [`HilbertSpace`](@ref) **h**, a **name**, which is just a generic symbol, a **range**, which can either consist of again a symbol or a concrete number, and a specific Hilbert space **aon**, which defines the space on which operators, that inherit the **Index** entity, act on. This means that an **Index** for a [`NLevelSpace`](@ref) can only be used by [`Transition`](@ref) operators. In the example below, two indices are defined equivalently, as well as a third one being defined acting on the [`FockSpace`](@ref) of the defined [`ProductSpace`](@ref) **h**.
-
-
-```@example symbolic_sums
+```@example sums
 using SecondQuantizedAlgebra
 
-@cnumbers N
+@variables N
 
-ha = NLevelSpace(:atoms,2)
+ha = NLevelSpace(:atoms, 2)
 hc = FockSpace(:cavity)
 h = hc ⊗ ha
 
-i = Index(h,:i,N,ha)
-i2 = Index(h,:i,N,2) #equivalent definition
-
-n = Index(h,:n,5,hc)
+i = Index(h, :i, N, ha)       # index over the NLevelSpace
+j = Index(h, :j, N, 2)        # equivalent: specify subspace by position
+nothing # hide
 ```
 
 
-### IndexedOperators
+## Indexed operators
 
-Operators, such as [`Destroy`](@ref) or [`Transition`](@ref) can be associated with an [`Index`](@ref) of the corresponding Hilbert space by creating a so-called [`IndexedOperator`](@ref). This object consists of two fields, namely the operator itself and an **Index**. Below, there are two **IndexedOperator** entities created on the two different Hilbert spaces defined previously.
+Associate an operator with an [`Index`](@ref) using [`IndexedOperator`](@ref):
 
+```@example sums
+σ(x, y, z) = IndexedOperator(Transition(h, :σ, x, y, 2), z)
+σ(2, 1, i)
+```
 
-```@example symbolic_sums
-σ(x,y,z) = IndexedOperator(Transition(h,:σ,x,y),z)
-a(z) = IndexedOperator(Destroy(h,:a),z)
+Similarly, [`IndexedVariable`](@ref) creates symbolic parameters with an index:
+
+```@example sums
+gi = IndexedVariable(:g, i)
 ```
 
 
-In the above example, we defined both indexed operators **σ** and **a** as callable instances with the attribute-variable **z**. These can now be used to easily create operators, that act specifically with their associated index.
+## Summations
 
+Use [`Σ`](@ref) (or equivalently [`∑`](@ref)) to create a symbolic sum over an index:
 
-```@example symbolic_sums
-a(n)*σ(2,2,i)
-nothing #hide
+```@example sums
+Σ(σ(2, 2, i), i)
 ```
 
-```math
-{a}_{n} {\sigma}_{i}^{{22}}
-```
+A third argument specifies indices that are not equal to the summation index:
 
-Similar to operators, one can also create so-called [`IndexedVariable`](@ref) objects, which consist simply of a name and an index.
-
-
-```@example symbolic_sums
-gi = IndexedVariable(:g,i)
-nothing #hide
-```
-
-```math
-{g}_{i}
-```
-
-### Summations
-
-As for now, we only created single instances of indexed operators. These operators and variables can now be used to define symbolic summations, which can then again be used in defining a Hamiltonian and deriving equations of motion for specific operator averages. Such a summation needs two arguments to be constructed, the **term**, over which the summation shall sum over, and an [`Index`](@ref), over which the sum runs. As an example, we define below a simple sum over a single indexed operator.
-
-```@example symbolic_sums
-∑(σ(2,2,i),i)
-nothing #hide
-```
-
-```math
-\underset{i}{\overset{N}{\sum}} {σ}_{i}^{{22}}
-```
-
-As can be seen above, a sum with a single running-index can be created using the **∑** (\sum) command. Other equivalent functions are **Σ** (\Pauli) and the **SingleSum()** constructor. These constructors can also take a third optional argument specifying a set of indices, which are non equivalent to the summation index.
-
-
-```@example symbolic_sums
-j = Index(h,:j,N,2)
-∑(σ(2,2,i),i,[j])
-nothing #hide
-```
-
-```math
-\underset{i ≠j }{\overset{N}{\sum}} {σ}_{i}^{{22}}
-```
-
-Similar to this one can also create summations over up to two different running-indices:
-
-```@example symbolic_sums
-∑(a(n)*σ(2,1,i),i,n)
-nothing #hide
-```
-
-```math
-\underset{i}{\overset{N}{\sum}} \underset{n}{\overset{5}{\sum}} {a}_{n}  {σ}_{i}^{{21}}
+```@example sums
+Σ(σ(2, 2, i), i, [j])
 ```
 
 
-These two running-indices do not need to act on different Hilbert spaces. In particular, for indices acting on the same Hilbert space, a simplification occurs, as shown below.
+### Diagonal splitting
 
+When two indices acting on the same Hilbert space meet inside a product, the diagonal term (where both indices are equal) is automatically separated:
 
-```@example symbolic_sums
-k = Index(h,:k,N,ha)
-l = Index(h,:l,N,ha)
+```@example sums
+k = Index(h, :k, N, ha)
+l = Index(h, :l, N, ha)
 
-∑(σ(2,1,k)*σ(1,2,l),k,l)
-nothing #hide
+Σ(σ(2, 1, k) * σ(1, 2, l), k, l)
 ```
 
-```math
-\underset{k{\ne}l}{\overset{N}{\sum}} \underset{l{\ne}k}{\overset{N}{\sum}} {\sigma}_{l}^{{12}}  {\sigma}_{k}^{{21}} + \underset{k}{\overset{N}{\sum}} {\sigma}_{k}^{{22}}
+This also happens when a sum is multiplied by an indexed operator on the same space:
+
+```@example sums
+Σ(σ(2, 2, k), k) * σ(2, 1, l)
 ```
 
 
-If two indices, acting on the same Hilbert space, meet inside of a sum, the special case, where the numeric values of both indices are the same, i.e `l`=`k`, is calculated immediately. This can also be observed, when a symbolic sum is multiplied with an [`IndexedOperator`](@ref) that is acting on the same Hilbert space as the summation-index.
+## Example: Tavis-Cummings model
 
+Putting it all together for ``N`` two-level atoms in a cavity:
 
-```@example symbolic_sums
-∑(σ(2,2,k),k) * σ(2,1,l)
-nothing #hide
-```
+```@example sums
+@variables Δ κ
 
-```math
-\underset{k{\ne}l}{\overset{N}{\sum}} {\sigma}_{k}^{{22}}  {\sigma}_{l}^{{21}} + {\sigma}_{l}^{{21}}
-```
+@qnumbers a::Destroy(h, 1)
 
-## Short Example
-
-We will briefly go over the entire process of defining a Hamiltonian. For this example we will consider **N** 2-level atoms in a single mode cavity.
-
-```@example symbolic_sums
-using SecondQuantizedAlgebra
-
-ha = NLevelSpace(:atoms,2)
-hc = FockSpace(:cavity)
-h = hc ⊗ ha
-
-@cnumbers N Δ κ γ ν
-
-i = Index(h,:i,N,ha)
-j = Index(h,:j,N,ha)
-
-@qnumbers b::Destroy(h)
-σ(x,y,z) = IndexedOperator(Transition(h,:σ,x,y),z)
-gi = IndexedVariable(:g,i)
-
-H = Δ*b'*b + ∑(gi*(b*σ(2,1,i) + b'*σ(1,2,i)),i)
-nothing #hide
-```
-
-```math
-\underset{i}{\overset{N}{\sum}} {g}_{i}  b  {\sigma}_{i}^{{21}} + \underset{i}{\overset{N}{\sum}} {g}_{i}  b^\dagger  {\sigma}_{i}^{{12}} + \Delta b^\dagger b
+H = Δ * a' * a + Σ(gi * (a * σ(2, 1, i) + a' * σ(1, 2, i)), i)
 ```

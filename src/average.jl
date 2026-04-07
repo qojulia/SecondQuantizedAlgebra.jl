@@ -100,70 +100,64 @@ end
 
 # --- undo_average ---
 
-"""Restore summation metadata from a SymbolicUtils node onto the result QField expression."""
-function _restore_sum_metadata(result, x::SymbolicUtils.BasicSymbolic)
+"""Wrap any value as a QAdd — ensures uniform return type."""
+_to_qadd(x::QAdd) = x
+_to_qadd(x::QSym) = _single_qadd(_CNUM_ONE, QSym[x])
+_to_qadd(x::Number) = _single_qadd(_to_cnum(x), QSym[])
+_to_qadd(x::CNum) = _single_qadd(x, QSym[])
+_to_qadd(x::Num) = _single_qadd(_to_cnum(x), QSym[])
+function _to_qadd(x::SymbolicUtils.BasicSymbolic)
+    return _single_qadd(_to_cnum(x), QSym[])
+end
+
+"""Restore summation metadata from a SymbolicUtils node onto a QAdd."""
+function _restore_sum_metadata(result::QAdd, x::SymbolicUtils.BasicSymbolic)
     if SymbolicUtils.hasmetadata(x, SumIndices)
         indices = SymbolicUtils.getmetadata(x, SumIndices)
         non_equal = SymbolicUtils.getmetadata(x, SumNonEqual)
-        if result isa QAdd
-            return QAdd(result.arguments, indices, non_equal)
-        elseif result isa QSym
-            d = QTermDict(QSym[result] => _CNUM_ONE)
-            return QAdd(d, indices, non_equal)
-        end
+        return QAdd(result.arguments, indices, non_equal)
     end
     return result
 end
 
 """
-    undo_average(expr)
+    undo_average(expr) -> QAdd
 
-Recursively strip `avg(...)` from a symbolic expression, recovering operator expressions.
-Summation metadata is restored to the resulting `QAdd`.
+Recursively strip `⟨...⟩` from a symbolic expression, recovering operator expressions.
+Summation metadata (indices, non-equal constraints) is restored to the resulting `QAdd`.
 
-Note: this function is inherently non-inferrable because it walks SymbolicUtils expression
-trees via `operation(x)` (type `Any`) and `f(args...)` (dynamic dispatch with splatting).
-This is acceptable — `undo_average` is not a hot path.
+Always returns `QAdd` for type stability:
+- Scalars become single-term `QAdd`s with an empty operator sequence.
+- Single operators become single-term `QAdd`s with unit prefactor.
+- Sums of averages are reconstructed via `+` and `*` on `QAdd`s.
 """
-function undo_average(x::SymbolicUtils.BasicSymbolic)
+function undo_average(x::SymbolicUtils.BasicSymbolic)::QAdd
     if SymbolicUtils.iscall(x)
         f = SymbolicUtils.operation(x)
         if f isa AvgFunc
             arg = SymbolicUtils.arguments(x)[1]
             result = SymbolicUtils.isconst(arg) ? arg.val : arg
-            # Ensure we return QAdd or QSym, never an internal type
-            if result isa QAdd && length(result.arguments) == 1
-                # Already a proper QAdd
-            elseif result isa QSym
-                # Fine as-is
-            end
-            return _restore_sum_metadata(result, x)
+            return _restore_sum_metadata(_to_qadd(result), x)
         elseif f === (+) || f === (*)
             args = map(undo_average, SymbolicUtils.arguments(x))
             result = f(args...)
-            return _restore_sum_metadata(result, x)
+            return _restore_sum_metadata(_to_qadd(result), x)
         else
-            return _to_cnum(x)
+            return _to_qadd(x)
         end
     else
-        return _to_cnum(x)
+        return _to_qadd(x)
     end
 end
 
-undo_average(x::Number) = x
-function undo_average(x::Num)
-    inner = undo_average(SymbolicUtils.unwrap(x))
-    return inner isa SymbolicUtils.BasicSymbolic ? Num(inner) : inner
-end
-undo_average(x::QField) = x
-undo_average(x) = x
+undo_average(x::Number)::QAdd = _single_qadd(_to_cnum(x), QSym[])
+undo_average(x::Num)::QAdd = undo_average(SymbolicUtils.unwrap(x))
+undo_average(x::QSym)::QAdd = _single_qadd(_CNUM_ONE, QSym[x])
+undo_average(x::QAdd)::QAdd = x
 
 function undo_average(eq::Symbolics.Equation)
     lhs = undo_average(eq.lhs)
     rhs = undo_average(eq.rhs)
-    if lhs isa SymbolicUtils.BasicSymbolic && rhs isa SymbolicUtils.BasicSymbolic
-        return Symbolics.Equation(lhs, rhs)
-    end
     return lhs => rhs
 end
 

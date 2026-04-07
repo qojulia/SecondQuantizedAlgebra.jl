@@ -1,7 +1,7 @@
 module SecondQuantizedAlgebra
 
 using SymbolicUtils: SymbolicUtils, simplify
-using Symbolics: Symbolics, Num, expand
+using Symbolics: Symbolics, Num, expand, @variables
 using TermInterface: TermInterface
 
 const CNum = Complex{Num}
@@ -84,7 +84,7 @@ export FockSpace, ProductSpace,
     Σ, ∑, change_index, insert_index, expand_sums, get_indices,
     ⊗, tensor,
     Destroy, Create,
-    @qnumbers,
+    @qnumbers, @variables,
     NormalOrder, LazyOrder, set_ordering!, get_ordering,
     average, undo_average,
     acts_on, is_average,

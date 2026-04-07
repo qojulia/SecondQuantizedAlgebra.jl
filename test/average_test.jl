@@ -2,7 +2,7 @@ using SecondQuantizedAlgebra
 using Test
 using SymbolicUtils: SymbolicUtils, SymReal, symtype
 using Symbolics: Symbolics, @variables
-import SecondQuantizedAlgebra: simplify, QAdd, QSym, QField, CNum, _to_cnum,
+import SecondQuantizedAlgebra: simplify, QAdd, QSym, QField, CNum, _to_cnum, _single_qadd,
     QTermDict, AvgSym, AvgFunc, sym_average, SumIndices, SumNonEqual, sorted_arguments
 
 @testset "Average" begin
@@ -107,45 +107,55 @@ import SecondQuantizedAlgebra: simplify, QAdd, QSym, QField, CNum, _to_cnum,
         end
     end
 
-    @testset "undo_average — round-trip" begin
+    @testset "undo_average — always returns QAdd" begin
         h = FockSpace(:c)
         a = Destroy(h, :a)
         ad = a'
 
-        # QSym round-trip
-        @test undo_average(average(a)) === a
-        @test undo_average(average(ad)) === ad
+        # QSym round-trip → QAdd wrapping the operator
+        r = undo_average(average(a))
+        @test r isa QAdd
+        @test isequal(r, _single_qadd(_to_cnum(1), QSym[a]))
 
-        # Number passthrough
-        @test undo_average(3) === 3
-        @test undo_average(0.5) === 0.5
+        r2 = undo_average(average(ad))
+        @test r2 isa QAdd
+        @test isequal(r2, _single_qadd(_to_cnum(1), QSym[ad]))
 
-        # QField passthrough
-        @test undo_average(a) === a
+        # Number → QAdd with scalar prefactor and empty ops
+        @test undo_average(3) isa QAdd
+        @test isequal(undo_average(3), _single_qadd(_to_cnum(3), QSym[]))
 
-        # Catch-all passthrough
-        @test undo_average(:foo) === :foo
+        @test undo_average(0.5) isa QAdd
+        @test isequal(undo_average(0.5), _single_qadd(_to_cnum(0.5), QSym[]))
 
-        # Num round-trip: Num(avg(a)) → undo → recovers the QSym directly
-        # (Num only wraps BasicSymbolic, so when inner result is QField it's returned unwrapped)
+        # QField → QAdd
+        @test undo_average(a) isa QAdd
+        @test isequal(undo_average(a), _single_qadd(_to_cnum(1), QSym[a]))
+
+        # QAdd passthrough
+        qadd = ad * a
+        @test undo_average(qadd) === qadd
+
+        # Num round-trip
         avg_num = Symbolics.Num(average(a))
         result_num = undo_average(avg_num)
-        @test result_num === a
+        @test result_num isa QAdd
 
-        # Equation round-trip: simple avg terms un-average to QField,
-        # which can't be stored in Equation (requires BasicSymbolic), so returns Pair
+        # Equation round-trip: undo_average produces QAdd (not BasicSymbolic), returns Pair
         eq = Symbolics.Equation(average(a), average(ad))
         result_eq = undo_average(eq)
         @test result_eq isa Pair
-        @test result_eq.first === a
-        @test result_eq.second === ad
+        @test result_eq.first isa QAdd
+        @test result_eq.second isa QAdd
 
-        # Equation with sum-of-averages: undo_average produces QAdd (not BasicSymbolic)
+        # Equation with sum-of-averages
         avg_sum_lhs = average(a) + average(ad)
         avg_sum_rhs = average(a) + average(ad)
         eq2 = Symbolics.Equation(avg_sum_lhs, avg_sum_rhs)
         result_eq2 = undo_average(eq2)
-        @test result_eq2 isa Pair  # QAdd can't be stored in Equation
+        @test result_eq2 isa Pair
+        @test result_eq2.first isa QAdd
+        @test result_eq2.second isa QAdd
     end
 
     @testset "undo_average — sum of averages" begin

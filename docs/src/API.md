@@ -52,7 +52,8 @@ ClusterSpace
 tensor
 ```
 
-## [q-Numbers](@id API: Operators)
+
+## [Operators](@id API: Operators)
 
 ```@docs
 QSym
@@ -94,47 +95,52 @@ Position
 Momentum
 ```
 
-## [Symbolic Numbers](@id API: Symbolic numbers)
+
+## [Ordering](@id API: Ordering)
 
 ```@docs
-CNumber
+NormalOrder
 ```
 
 ```@docs
-Parameter
+LazyOrder
 ```
 
 ```@docs
-cnumbers
+set_ordering!
 ```
 
 ```@docs
-cnumber
+get_ordering
+```
+
+
+## [Algebra](@id API: Algebra)
+
+```@docs
+simplify
 ```
 
 ```@docs
-@cnumbers
+normal_order
 ```
 
 ```@docs
-RNumber
+normal_to_symmetric
 ```
 
 ```@docs
-RealParameter
+symmetric_to_normal
 ```
 
 ```@docs
-rnumbers
+commutator
 ```
 
 ```@docs
-rnumber
+expand
 ```
 
-```@docs
-@rnumbers
-```
 
 ## [Average](@id API: Average)
 
@@ -142,12 +148,16 @@ rnumber
 average
 ```
 
-
-## [Utility functions](@id API: Utils)
+```@docs
+undo_average
+```
 
 ```@docs
-commutator
+is_average
 ```
+
+
+## [Utility Functions](@id API: Utils)
 
 ```@docs
 acts_on
@@ -162,11 +172,19 @@ unique_ops
 ```
 
 ```@docs
-unique_ops!
+fundamental_operators
 ```
 
 ```@docs
-fundamental_operators
+prefactor
+```
+
+```@docs
+operators
+```
+
+```@docs
+substitute
 ```
 
 ```@docs
@@ -180,6 +198,7 @@ to_numeric
 ```@docs
 numeric_average
 ```
+
 
 ## [Symbolic Summations](@id API: Sums)
 
@@ -200,11 +219,11 @@ DoubleIndexedVariable
 ```
 
 ```@docs
-SingleSum
+Σ
 ```
 
 ```@docs
-DoubleSum
+∑
 ```
 
 ```@docs
@@ -216,23 +235,24 @@ insert_index
 ```
 
 ```@docs
-SpecialIndexedTerm
+expand_sums
 ```
 
 ```@docs
-reorder
+get_indices
 ```
 
 ```@docs
-IndexedAverageSum
+has_index
+```
+
+
+## [Cluster Expansion](@id API: Cluster)
+
+```@docs
+cluster_expand
 ```
 
 ```@docs
-IndexedAverageDoubleSum
+has_cluster
 ```
-
-```@docs
-NumberedOperator
-```
-
-
