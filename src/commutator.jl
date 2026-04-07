@@ -1,7 +1,7 @@
 """
     commutator(a, b) -> QAdd
 
-Compute the commutator ``[a, b] = ab - ba``.
+Compute the commutator ``[a, b] = a*b - b*a``.
 
 For indexed expressions, performs **index collapse**: when a summation index in one
 factor shares a subspace with the other factor's index, the summation index is
