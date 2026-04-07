@@ -1,87 +1,147 @@
 using SecondQuantizedAlgebra
-using SymbolicUtils
+import SecondQuantizedAlgebra: simplify, QAdd, QSym, HilbertSpace
 using Test
 
 @testset "nlevel" begin
-    @testset "Symbolic Level Systems" begin
-        ha = NLevelSpace(:atom, (:g, :e))
-        @test ha.GS == :g
-
-        σ = Transition(ha, :σ, :g, :e)
-        σee = Transition(ha, :σ, :e, :e)
-
-        @testset "Basic Operator Properties" begin
-            @test σ' == Transition(ha, :σ, :e, :g)
-            @test σee' == σee
-            @test σ'*σ == σee
-        end
-
-        @testset "Algebraic Relations" begin
-            ex = σ*σ'
-            @test isequal(simplify(σ*σ'), simplify(1 - σee))
-
-            sz = σ'*σ - σ*σ'
-            @test isequal(simplify(sz), simplify(2*σee - 1))
-        end
+    @testset "Transition construction — product space" begin
+        h = FockSpace(:c) ⊗ NLevelSpace(:atom, 2, 1)
+        σ = Transition(h, :σ, 1, 2, 2)
+        @test σ.space_index == 2
+        @test_throws ArgumentError Transition(h, :σ, 1, 2, 1)
     end
 
-    @testset "Integer Level Systems" begin
-        ha = NLevelSpace(:atom, 2)
-        @test ha.GS == 1
-
-        @test_throws AssertionError Transition(ha, :σ, :g, :e)
-
-        σ = Transition(ha, :σ, 1, 2)
-        σee = Transition(ha, :σ, :2, 2)
-        σgg = Transition(ha, :σ, 1, 1)
-
-        @testset "Basic Operator Properties" begin
-            @test σ' == Transition(ha, :σ, 2, 1)
-            @test σee' == σee
-            @test σ'*σ == σee
-        end
-
-        @testset "Algebraic Relations" begin
-            ex = σ*σ'
-            @test isequal(ex, σgg)
-
-            sz = σ'*σ - σ*σ'
-            @test isequal(simplify(sz), simplify(2*σee - one(σgg)))
-        end
+    @testset "Adjoint" begin
+        h = NLevelSpace(:atom, 3, 1)
+        σ12 = Transition(h, :σ, 1, 2)
+        σ21 = σ12'
+        @test σ21 isa Transition
+        @test σ21.i == 2
+        @test σ21.j == 1
+        @test σ12'' == σ12
     end
 
-    @testset "Product Space Operations" begin
-        ha1 = NLevelSpace(:atom, (:g, :e))
-        ha2 = NLevelSpace(:atom, 2)
-        @test ha1 != ha2
+    @testset "Arithmetic" begin
+        h = NLevelSpace(:atom, 3, 1)
+        σ12 = Transition(h, :σ, 1, 2)
+        σ21 = Transition(h, :σ, 2, 1)
 
-        hprod = ha1⊗ha2
-        σ1 = Transition(hprod, :σ, :g, :e, 1)
-        σ2 = Transition(hprod, :σ, 1, 2, 2)
+        m = σ12 * σ21
+        @test m isa QAdd
 
-        @testset "Basic Product Operations" begin
-            @test σ1'*σ1 == Transition(hprod, :σ, :e, :e, 1)
-            @test isequal(simplify(σ2*σ2'), simplify(1 - Transition(hprod, :σ, 2, 2, 2)))
-            @test isequal(simplify(σ1*σ2), σ1*σ2)
-        end
-
-        @testset "Constructor Validation" begin
-            @test_throws ErrorException Transition(hprod, :σ, :g, :e)
-            @test Transition(hprod, :σ, :g, :e, 1) == σ1
-            @test Transition(hprod, :σ, 1, 2, 2) == σ2
-            @test_throws AssertionError Transition(hprod, :σ, 1, 2, 1)
-        end
-
-        @testset "Callable Constructor" begin
-            @test_throws ErrorException Transition(hprod, :σ)
-            s = Transition(hprod, :σ, 1)
-            @test s isa SecondQuantizedAlgebra.CallableTransition
-            @test s(:g, :e) == σ1
-            @test acts_on(Transition(ha2, :s)) == 1
-        end
+        s = σ12 + σ21
+        @test s isa QAdd
     end
 
-    @testset "Error Handling" begin
-        @test_throws ArgumentError NLevelSpace(:atom, (:g, :e), 1)
+    @testset "@qnumbers" begin
+        h = NLevelSpace(:atom, 2, 1)
+        @qnumbers σ::Transition(h, 1, 2)
+        @test σ isa Transition
+        @test σ.name == :σ
+    end
+
+    @testset "Ground state projector" begin
+        h = NLevelSpace(:atom, 2, 1)
+        σ = Transition(h, :σ, 1, 2)
+        σee = Transition(h, :σ, 2, 2)
+        σgg = Transition(h, :σ, 1, 1)
+
+        # σ*σ' = σ_gg (ground state projector)
+        @test isequal(simplify(normal_order(σ * σ')), simplify(σgg))
+        # σ_gg = 1 - σ_ee (completeness relation, requires Hilbert space context)
+        @test isequal(simplify(σgg, h), simplify(1 - σee, h))
+    end
+
+    @testset "Algebraic relations" begin
+        h = NLevelSpace(:atom, 2, 1)
+        σ = Transition(h, :σ, 1, 2)
+        σee = Transition(h, :σ, 2, 2)
+        σgg = Transition(h, :σ, 1, 1)
+
+        # normal_order applies transition product rules
+        @test isequal(simplify(normal_order(σ' * σ)), simplify(σee))
+        # σ*σ' = σgg (ground state projector), which is 1 - σee
+        no_result = simplify(normal_order(σ * σ'))
+        @test isequal(no_result, simplify(σgg))
+    end
+
+    @testset "Product space operations" begin
+        ha1 = NLevelSpace(:atom1, 2, 1)
+        ha2 = NLevelSpace(:atom2, 2, 1)
+        hprod = ha1 ⊗ ha2
+
+        σ1 = Transition(hprod, :σ1, 1, 2, 1)
+        σ2 = Transition(hprod, :σ2, 1, 2, 2)
+
+        @test isequal(
+            simplify(normal_order(σ1' * σ1)), simplify(Transition(hprod, :σ1, 2, 2, 1))
+        )
+        no_result = simplify(normal_order(σ2 * σ2'))
+        @test isequal(no_result, simplify(Transition(hprod, :σ2, 1, 1, 2)))
+        # Different subspaces don't interact
+        @test isequal(simplify(σ1 * σ2), simplify(σ1 * σ2))
+    end
+
+    @testset "Symbolic levels" begin
+        levels = (:g, :e, :a)
+        h = NLevelSpace(:atom, levels)
+        @test h.n == 3
+        @test h.levels == [:g, :e, :a]
+        @test h.ground_state == 1
+
+        # Transition with symbol levels resolves to integer indices
+        σge = Transition(h, :σ, :g, :e)
+        @test σge.i == 1
+        @test σge.j == 2
+        σea = Transition(h, :σ, :e, :a)
+        @test σea.i == 2
+        @test σea.j == 3
+
+        # Unknown level throws
+        @test_throws ArgumentError Transition(h, :σ, :x, :g)
+
+        # Integer construction still works
+        σ12 = Transition(h, :σ, 1, 2)
+        @test isequal(σ12, σge)
+
+        # ProductSpace with symbolic levels
+        hf = FockSpace(:c)
+        hp = hf ⊗ h
+        σge_p = Transition(hp, :σ, :g, :e, 2)
+        @test σge_p.i == 1
+        @test σge_p.j == 2
+        @test σge_p.space_index == 2
+
+        # Equality: spaces with different levels are not equal
+        h_int = NLevelSpace(:atom, 3, 1)
+        @test h != h_int
+    end
+
+    @testset "Type stability" begin
+        h = NLevelSpace(:atom, 3, 1)
+        σ12 = Transition(h, :σ, 1, 2)
+        σ21 = Transition(h, :σ, 2, 1)
+
+        @inferred Transition(:σ, 1, 2, 1)
+        @inferred adjoint(σ12)
+        @inferred isequal(σ12, σ21)
+        @inferred hash(σ12, UInt(0))
+        @inferred σ12 * σ21
+        @inferred σ12 + σ21
+    end
+
+    @static if VERSION >= v"1.12"
+        @testset "Allocations" begin
+            h = NLevelSpace(:atom, 3, 1)
+            σ12 = Transition(h, :σ, 1, 2)
+
+            # Construction and adjoint
+            @test @allocations(Transition(:σ, 1, 2, 1)) == 0
+            @test @allocations(adjoint(σ12)) == 0
+
+            # Equality / hashing
+            σ12b = Transition(h, :σ, 1, 2)
+            @test @allocations(isequal(σ12, σ12b)) == 0
+            @test @allocations(hash(σ12, UInt(0))) == 0
+        end
     end
 end

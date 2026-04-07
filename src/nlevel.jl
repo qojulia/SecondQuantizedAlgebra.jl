@@ -1,231 +1,131 @@
 """
-    NLevelSpace <: HilbertSpace
-    NLevelSpace(name::Symbol,levels,GS=levels[1])
+    NLevelSpace(name::Symbol, n::Int)
+    NLevelSpace(name::Symbol, n::Int, ground_state::Int)
+    NLevelSpace(name::Symbol, levels::Tuple{Vararg{Symbol}})
 
-Define a [`HilbertSpace`](@ref) for an object consisting of `N` discrete energy
-levels. The given `levels` must be an integer specifying the number of levels,
-or an iterable collection of levels. The argument `GS` specifies which state
-should be treated as ground state and is rewritten using population conservation
-during simplification.
-See also: [`Transition`](@ref)
+Hilbert space for an N-level system (atoms, qubits, qudits, etc.).
 
-Examples:
-========
-```
-julia> ha = NLevelSpace(:a,3)
-ℋ(a)
+Supports [`Transition`](@ref) operators ``|i\\rangle\\langle j|`` with the composition
+rule ``|i\\rangle\\langle j| \\cdot |k\\rangle\\langle l| = \\delta_{jk} |i\\rangle\\langle l|``.
 
-julia> ha = NLevelSpace(:a,(:g,:e))
-ℋ(a)
+The `ground_state` (default `1`) is used by [`normal_order`](@ref) and [`simplify`](@ref)
+with a Hilbert space argument to eliminate ground-state projectors via the completeness
+relation ``|g\\rangle\\langle g| = 1 - \\sum_{k \\neq g} |k\\rangle\\langle k|``.
+
+Levels can be integers (default `1:n`) or symbolic names:
+
+# Examples
+```julia
+NLevelSpace(:atom, 3)              # levels 1, 2, 3 with ground state 1
+NLevelSpace(:atom, 3, 2)           # ground state = level 2
+NLevelSpace(:atom, (:g, :e, :a))   # symbolic level names
 ```
 """
-struct NLevelSpace{S,L,G} <: ConcreteHilbertSpace
-    name::S
-    levels::L
-    GS::G
-    function NLevelSpace{S,L,G}(name::S, levels::L, GS::G) where {S,L,G}
-        (GS ∈ levels) || throw(ArgumentError("Ground state $GS not in levels $levels"))
-        return new(name, levels, GS)
+struct NLevelSpace <: HilbertSpace
+    name::Symbol
+    n::Int
+    ground_state::Int
+    levels::Vector{Symbol}
+    function NLevelSpace(name::Symbol, n::Int, ground_state::Int, levels::Vector{Symbol})
+        1 <= ground_state <= n || throw(ArgumentError("Ground state $ground_state out of range 1:$n"))
+        isempty(levels) || length(levels) == n || throw(ArgumentError("levels length $(length(levels)) != n=$n"))
+        return new(name, n, ground_state, levels)
     end
 end
-NLevelSpace(name::S, levels::L, GS::G) where {S,L,G} = NLevelSpace{S,L,G}(name, levels, GS)
-NLevelSpace(name, N::Int, GS) = NLevelSpace(name, 1:N, GS)
-NLevelSpace(name, N::Int) = NLevelSpace(name, 1:N, 1)
-NLevelSpace(name, levels) = NLevelSpace(name, levels, levels[1])
-function Base.:(==)(h1::T, h2::T) where {T<:NLevelSpace}
-    (h1.name==h2.name && h1.levels==h2.levels && h1.GS==h2.GS)
+const _EMPTY_LEVELS = Symbol[]
+NLevelSpace(name::Symbol, n::Int, ground_state::Int) = NLevelSpace(name, n, ground_state, _EMPTY_LEVELS)
+NLevelSpace(name::Symbol, n::Int) = NLevelSpace(name, n, 1, _EMPTY_LEVELS)
+function NLevelSpace(name::Symbol, levels::Tuple{Vararg{Symbol}})
+    return NLevelSpace(name, length(levels), 1, collect(levels))
 end
-Base.hash(n::NLevelSpace, h::UInt) = hash(n.name, hash(n.levels, hash(n.GS, h)))
 
-levels(h::NLevelSpace) = h.levels
-levels(h::NLevelSpace, aon) = levels(h)
-levels(h::ProductSpace, aon) = levels(h.spaces[aon])
-ground_state(h::NLevelSpace) = h.GS
-ground_state(h::NLevelSpace, aon) = h.GS
-ground_state(h::ProductSpace, aon) = ground_state(h.spaces[aon])
+"""
+    _level_index(h::NLevelSpace, s::Symbol) -> Int
+
+Look up the integer index for a symbolic level name.
+"""
+function _level_index(h::NLevelSpace, s::Symbol)
+    isempty(h.levels) && throw(ArgumentError("NLevelSpace $(h.name) has no symbolic levels"))
+    idx = findfirst(==(s), h.levels)
+    idx === nothing && throw(ArgumentError("Level :$s not found in $(h.levels)"))
+    return idx
+end
+
+Base.:(==)(a::NLevelSpace, b::NLevelSpace) = a.name == b.name && a.n == b.n && a.ground_state == b.ground_state && a.levels == b.levels
+Base.hash(a::NLevelSpace, h::UInt) = hash(:NLevelSpace, hash(a.name, hash(a.n, hash(a.ground_state, hash(a.levels, h)))))
 
 """
     Transition <: QSym
-    Transition(h::NLevelSpace,name::Symbol,i,j)
 
-Fundamental operator defining a transition from level `j` to level `i` on a
-[`NLevelSpace`](@ref). The notation corresponds to Dirac notation, i.e. the
-above is equivalent to `|i⟩⟨j|`.
+Transition operator ``|i\\rangle\\langle j|`` on an [`NLevelSpace`](@ref).
 
-Examples
-=======
+Satisfies the composition rule ``|i\\rangle\\langle j| \\cdot |k\\rangle\\langle l| = \\delta_{jk} |i\\rangle\\langle l|``.
+The adjoint is ``|i\\rangle\\langle j|^\\dagger = |j\\rangle\\langle i|``.
+
+# Construction
+```julia
+h = NLevelSpace(:atom, 3)
+σ12 = Transition(h, :σ, 1, 2)          # |1⟩⟨2| with integer levels
+
+h_sym = NLevelSpace(:atom, (:g, :e))
+σge = Transition(h_sym, :σ, :g, :e)    # |g⟩⟨e| with symbolic levels
+
+hp = FockSpace(:c) ⊗ NLevelSpace(:a, 2)
+σ = Transition(hp, :σ, 1, 2, 2)        # on 2nd subspace of ProductSpace
 ```
-julia> ha = NLevelSpace(:a,(:g,:e))
-ℋ(a)
-
-julia> σ = Transition(ha,:σ,:g,:e)
-σge
-```
-"""
-struct Transition{H,S,I,A,M} <: QSym
-    hilbert::H
-    name::S
-    i::I
-    j::I
-    aon::A
-    metadata::M
-    function Transition{H,S,I,A,M}(
-        hilbert::H, name::S, i::I, j::I, aon::A, metadata::M
-    ) where {H,S,I,A,M}
-        @assert has_hilbert(NLevelSpace, hilbert, aon)
-        @assert i∈levels(hilbert, aon) && j∈levels(hilbert, aon)
-        new(hilbert, name, i, j, aon, metadata)
-    end
-end
-function Transition(
-    hilbert::H, name::S, i::I, j::I, aon::A; metadata::M=NO_METADATA
-) where {H,S,I,A,M}
-    gs = ground_state(hilbert, aon)
-    if isequal(i, j) && isequal(i, gs)
-        args = Any[1]
-        for k in levels(hilbert, aon)
-            isequal(k, gs) && continue
-            push!(
-                args, QMul(-1, [Transition{H,S,I,A,M}(hilbert, name, k, k, aon, metadata)])
-            )
-        end
-        return QAdd(args)
-    else
-        return Transition{H,S,I,A,M}(hilbert, name, i, j, aon, metadata)
-    end
-end
-function Transition(hilbert::NLevelSpace, name, i, j; metadata=NO_METADATA)
-    Transition(hilbert, name, i, j, 1; metadata)
-end
-function Transition(hilbert::ProductSpace, name, i, j; metadata=NO_METADATA)
-    inds = findall(
-        x->isa(x, NLevelSpace) || isa(x, ClusterSpace{<:NLevelSpace}), hilbert.spaces
-    )
-    if length(inds)==1
-        return Transition(hilbert, name, i, j, inds[1]; metadata)
-    else
-        isempty(inds) &&
-            error("Can only create Transition on NLevelSpace! Not included in $(hilbert)")
-        length(inds)>1 && error(
-            "More than one NLevelSpace in $(hilbert)! Specify on which Hilbert space Transition should be created with Transition(hilbert,name,i,j,acts_on)!",
-        )
-    end
-end
-function Transition(
-    hilbert::H, name::S, i::I, j::I, aon::A; metadata::M=NO_METADATA
-) where {H<:ProductSpace,S,I,A<:Int,M}
-    if hilbert.spaces[aon] isa ClusterSpace
-        hilbert.spaces[get_i(aon)].op_name[] = name # write original name of operator into hilbertspace
-        op = Transition(hilbert.spaces[aon].original_space, name, i, j, 1; metadata)
-        return _cluster(hilbert, op, aon) # TODO maybe need metadata?
-    else
-        gs = ground_state(hilbert, aon)
-        if isequal(i, j) && isequal(i, gs)
-            args = Any[1]
-            for k in levels(hilbert, aon)
-                isequal(k, gs) && continue
-                push!(
-                    args,
-                    QMul(-1, [Transition{H,S,I,A,M}(hilbert, name, k, k, aon, metadata)]),
-                )
-            end
-            return QAdd(args)
-        else
-            return Transition{H,S,I,A,M}(hilbert, name, i, j, aon, metadata)
-        end
-    end
-end
-function Transition(
-    h::ClusterSpace{<:NLevelSpace}, name, i, j, aon::Int=1; metadata=NO_METADATA
-)
-    hilbert.spaces[get_i(aon)].op_name[] = name
-    op = Transition(hilbert.original_space, name, i, j, aon; metadata)
-    return _cluster(h, op, aon) # TODO maybe need metadata?
-end
-
-levels(t::Transition, args...) = levels(t.hilbert, args...)
-ground_state(t::Transition, args...) = ground_state(t.hilbert, args...)
-
-function Base.adjoint(t::Transition)
-    Transition(t.hilbert, t.name, t.j, t.i, acts_on(t); t.metadata)
-end
-function Base.isequal(t1::Transition, t2::Transition)
-    isequal(t1.hilbert, t2.hilbert) &&
-        isequal(t1.name, t2.name) &&
-        isequal(t1.i, t2.i) &&
-        isequal(t1.j, t2.j) &&
-        isequal(t1.aon, t2.aon)
-end
-function Base.hash(t::Transition, h::UInt)
-    hash(t.hilbert, hash(t.name, hash(t.i, hash(t.j, hash(t.aon, h)))))
-end
-
-"""
-    CallableTransition
-
-A [`Transition`](@ref) where no levels have been specified. This type is callable
-to allow for easy construction of concrete [`Transition`](@ref) instances.
-
-Examples
-========
-```
-julia> h = NLevelSpace(:atom, (:g,:e))
-ℋ(atom)
-
-julia> σ = Transition(h,:σ)
-σ
-
-julia> σ(:g,:e)
-σge
+Or via the [`@qnumbers`](@ref) macro:
+```julia
+@qnumbers σ::Transition(h, :σ, 1, 2)
 ```
 """
-struct CallableTransition{H,S,A,M}
-    hilbert::H
-    name::S
-    aon::A
-    metadata::M
+struct Transition <: QSym
+    name::Symbol
+    i::Int
+    j::Int
+    space_index::Int
+    copy_index::Int
+    index::Index
+end
+Transition(name::Symbol, i::Int, j::Int, si::Int, ci::Int) = Transition(name, i, j, si, ci, NO_INDEX)
+Transition(name::Symbol, i::Int, j::Int, si::Int) = Transition(name, i, j, si, 1, NO_INDEX)
+
+# Construction from Hilbert spaces
+function Transition(h::NLevelSpace, name::Symbol, i::Int, j::Int)
+    1 <= i <= h.n || throw(ArgumentError("Level i=$i out of range 1:$(h.n)"))
+    1 <= j <= h.n || throw(ArgumentError("Level j=$j out of range 1:$(h.n)"))
+    return Transition(name, i, j, 1)
+end
+function Transition(h::NLevelSpace, name::Symbol, i::Symbol, j::Symbol)
+    return Transition(name, _level_index(h, i), _level_index(h, j), 1)
+end
+function Transition(h::ProductSpace, name::Symbol, i::Int, j::Int, idx::Int)
+    1 <= idx <= length(h.spaces) || throw(ArgumentError("Index $idx out of range"))
+    space = _unwrap_space(h.spaces[idx])
+    space isa NLevelSpace || throw(ArgumentError("Space at index $idx is not an NLevelSpace"))
+    1 <= i <= space.n || throw(ArgumentError("Level i=$i out of range 1:$(space.n)"))
+    1 <= j <= space.n || throw(ArgumentError("Level j=$j out of range 1:$(space.n)"))
+    return Transition(name, i, j, idx)
+end
+function Transition(h::ProductSpace, name::Symbol, i::Symbol, j::Symbol, idx::Int)
+    1 <= idx <= length(h.spaces) || throw(ArgumentError("Index $idx out of range"))
+    space = _unwrap_space(h.spaces[idx])
+    space isa NLevelSpace || throw(ArgumentError("Space at index $idx is not an NLevelSpace"))
+    return Transition(name, _level_index(space, i), _level_index(space, j), idx)
 end
 
-acts_on(c::CallableTransition) = c.aon
+# IndexedOperator convenience
+IndexedOperator(op::Transition, i::Index) = Transition(op.name, op.i, op.j, op.space_index, op.copy_index, i)
+IndexedOperator(op::Transition, k::Int) = Transition(op.name, op.i, op.j, op.space_index, k, NO_INDEX)
 
-function (c::CallableTransition)(i, j)
-    Transition(c.hilbert, c.name, i, j, c.aon; c.metadata)
-end
+# Adjoint: |i⟩⟨j|† = |j⟩⟨i|
+Base.adjoint(op::Transition) = Transition(op.name, op.j, op.i, op.space_index, op.copy_index, op.index)
 
-function Transition(hilbert, name, aon; metadata=NO_METADATA)
-    CallableTransition(hilbert, name, aon, metadata)
-end
-function Transition(hilbert::NLevelSpace, name; metadata=NO_METADATA)
-    CallableTransition(hilbert, name, 1, metadata)
-end
-function Transition(hilbert::ProductSpace, name; metadata=NO_METADATA)
-    inds = findall(x->isa(x, NLevelSpace), hilbert.spaces)
-    if length(inds)==1
-        return CallableTransition(hilbert, name, inds[1], metadata)
-    else
-        isempty(inds) &&
-            error("Can only create Transition on NLevelSpace! Not included in $(hilbert)")
-        length(inds)>1 && error(
-            "More than one NLevelSpace in $(hilbert)! Specify on which Hilbert space Transition should be created with Transition(hilbert,name,i,j,acts_on)!",
-        )
-    end
-end
+# Equality
+Base.isequal(a::Transition, b::Transition) = a.name == b.name && a.i == b.i && a.j == b.j && a.space_index == b.space_index && a.copy_index == b.copy_index && a.index == b.index
+Base.:(==)(a::Transition, b::Transition) = isequal(a, b)
 
-# Simplification
-function *(a::Transition, b::Transition)
-    check_hilbert(a, b)
-    aon_a = acts_on(a)
-    aon_b = acts_on(b)
-    if aon_a == aon_b
-        if isequal(a.j, b.i)
-            return Transition(a.hilbert, a.name, a.i, b.j, a.aon)
-        else
-            return 0
-        end
-    elseif aon_a < aon_b
-        return QMul(1, [a, b])
-    else
-        return QMul(1, [b, a])
-    end
-end
-ismergeable(::Transition, ::Transition) = true
+# Hashing
+Base.hash(a::Transition, h::UInt) = hash(:Transition, hash(a.name, hash(a.i, hash(a.j, hash(a.space_index, hash(a.copy_index, hash(a.index, h)))))))
+
+# Ladder (not applicable to Transition)
+ladder(::Transition) = 0

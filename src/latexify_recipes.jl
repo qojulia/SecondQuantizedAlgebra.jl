@@ -1,197 +1,158 @@
+# Transition superscript toggle
 const transition_idx_script = Ref(:^)
 
 """
-    transition_superscript(::Bool)
+    transition_superscript(x::Bool) -> Bool
 
-Specify whether the indices in a [`Transition`](@ref) operator should be
-printed as superscript. Default is `true`. If set to `false`, the indices
-corresponding to the levels are printed as subscript.
+Set whether [`Transition`](@ref) level indices are rendered as superscripts (`true`, default)
+or subscripts (`false`) in LaTeX output via Latexify.jl.
+
+- `true`: ``{\\sigma}^{{ij}}``
+- `false`: ``{\\sigma}_{{ij}}``
+
+# Examples
+```julia
+transition_superscript(false)   # use subscript notation
+transition_superscript(true)    # restore default superscript
+```
 """
 function transition_superscript(x::Bool)
-    if x
-        transition_idx_script[] = :^
-    else
-        transition_idx_script[] = :_
-    end
+    transition_idx_script[] = x ? :^ : :_
     return x
 end
 
-function _postwalk_func(x)
-    if x==:𝟙
-        return "\\mathbb{1}"
-    elseif x==:im
-        return :i
-    elseif MacroTools.@capture(x, dagger(arg_))
-        s = "$(arg)^\\dagger"
-        return s
-    elseif MacroTools.@capture(x, Transition(arg_, i_, j_))
-        s = "{$(arg)}$(transition_idx_script[]){{$(i)$(j)}}"
-        return s
-    elseif MacroTools.@capture(x, Pauli(arg_, i_))
-        s = "{$(arg)}$(transition_idx_script[]){{$(i)}}"
-        return s
-    elseif MacroTools.@capture(x, Spin(arg_, i_))
-        s = "{$(arg)}$(transition_idx_script[]){{$(i)}}"
-        return s
-    elseif MacroTools.@capture(x, IndexedVariable(name_, ind_))
-        s = "{$name}$(:_){$(ind)}"
-        return s
-    elseif MacroTools.@capture(x, DoubleIndexedVariable(name_, ind1_, ind2_))
-        s = "{$name}$(:_){$(ind1),$(ind2)}"
-        return s
-    elseif MacroTools.@capture(x, IndexedOperator(op_, in_, i_, j_))
-        s = "{$(op)}$(:_){$(in)}$(transition_idx_script[]){{$(i)$(j)}}"
-        return s
-    elseif MacroTools.@capture(x, IndexedDestroy(op_, in_))
-        s = "{$(op)}$(:_){$(in)}"
-        return s
-    elseif MacroTools.@capture(x, NumberedDestroy(op_, in_))
-        s = "{$(op)}$(:_){$(in)}"
-        return s
-    elseif MacroTools.@capture(x, NumberedOperator(op_, num_, i_, j_))
-        s = "{$(op)}$(:_){$(num)}$(transition_idx_script[]){{$(i)$(j)}}"
-        return s
-    elseif MacroTools.@capture(x, SingleSum(term_, sumInd_, range_, NEI_))
-        s = if NEI != ""
-            "\\underset{$(sumInd){\\neq}$(NEI)}{\\overset{$(range)}{\\sum}} $(_postwalk_func(term))"
-        else
-            "\\underset{$(sumInd)}{\\overset{$(range)}{\\sum}} $(_postwalk_func(term))"
-        end
-        s = replace(s, "\\\\" => "\\")
-        s = replace(s, "\"" => "")
-        s = replace(s, "*" => "")
-        return s
-    elseif MacroTools.@capture(x, DoubleSum(term_, sumInd_, range_, NEI_))
-        s = if NEI != ""
-            "\\underset{$(sumInd){\\neq}$(NEI)}{\\overset{$(range)}{\\sum}} $(_postwalk_func(term))"
-        else
-            "\\underset{$(sumInd)}{\\overset{$(range)}{\\sum}} $(_postwalk_func(term))"
-        end
-        s = replace(s, "\\\\" => "\\")
-        s = replace(s, "\"" => "")
-        s = replace(s, "*" => "")
-        return s
-    elseif MacroTools.@capture(x, IndexedAverageSum(term_, sumInd_, range_, NEI_))
-        term = MacroTools.postwalk(_postwalk_average, term)
-        s = if NEI != ""
-            "\\underset{$(sumInd){\\neq}$(NEI)}{\\overset{$(range)}{\\sum}} $(term)"
-        else
-            "\\underset{$(sumInd)}{\\overset{$(range)}{\\sum}} $(term)"
-        end
-        s = replace(s, "\\\\" => "\\")
-        s = replace(s, "\"" => "")
-        s = replace(s, "*" => "")
-        return s
-    elseif MacroTools.@capture(x, IndexedAverageDoubleSum(term_, sumInd_, range_, NEI_))
-        term = MacroTools.postwalk(_postwalk_average, term)
-        s = if NEI != ""
-            "\\underset{$(sumInd){\\neq}$(NEI)}{\\overset{$(range)}{\\sum}} $(term)"
-        else
-            "\\underset{$(sumInd)}{\\overset{$(range)}{\\sum}} $(term)"
-        end
-        s = replace(s, "\\\\" => "\\")
-        s = replace(s, "\"" => "")
-        s = replace(s, "*" => "")
-        return s
-    elseif MacroTools.@capture(x, CONJ(arg_))
-        arg = MacroTools.postwalk(_postwalk_average, arg)
-        s = "{$(arg){^{*}}}"
-        return s
+function _latex_index_suffix(idx::Index)
+    has_index(idx) || return ""
+    return "_{$(idx.name)}"
+end
+
+@latexrecipe function f(x::Destroy)
+    suffix = _latex_index_suffix(x.index)
+    return Expr(:latexifymerge, "$(x.name)$(suffix)")
+end
+
+@latexrecipe function f(x::Create)
+    suffix = _latex_index_suffix(x.index)
+    return Expr(:latexifymerge, "$(x.name)$(suffix)^{\\dagger}")
+end
+
+@latexrecipe function f(x::Transition)
+    suffix = _latex_index_suffix(x.index)
+    return Expr(:latexifymerge, "{$(x.name)}$(suffix)$(transition_idx_script[]){{$(x.i)$(x.j)}}")
+end
+
+@latexrecipe function f(x::Pauli)
+    ax = _xyz_sym[x.axis]
+    suffix = _latex_index_suffix(x.index)
+    return Expr(:latexifymerge, "{$(x.name)}$(suffix)_{{$ax}}")
+end
+
+@latexrecipe function f(x::Spin)
+    ax = _xyz_sym[x.axis]
+    suffix = _latex_index_suffix(x.index)
+    return Expr(:latexifymerge, "{$(x.name)}$(suffix)_{{$ax}}")
+end
+
+@latexrecipe function f(x::Position)
+    suffix = _latex_index_suffix(x.index)
+    return Expr(:latexifymerge, "\\hat{$(x.name)}$(suffix)")
+end
+
+@latexrecipe function f(x::Momentum)
+    suffix = _latex_index_suffix(x.index)
+    return Expr(:latexifymerge, "\\hat{$(x.name)}$(suffix)")
+end
+
+# Extract a plain Julia number from CNum for LaTeX rendering
+function _latex_prefactor(c::CNum)
+    r_val = Symbolics.value(SymbolicUtils.unwrap(real(c)))
+    i_val = Symbolics.value(SymbolicUtils.unwrap(imag(c)))
+    if iszero(i_val)
+        return r_val
+    elseif iszero(r_val)
+        return complex(zero(r_val), i_val)
     else
-        return x
+        return complex(r_val, i_val)
     end
 end
+_latex_prefactor(c::Number) = c
 
-function _postwalk_average(x)
-    if MacroTools.@capture(x, AVG(arg_))
-        arg = MacroTools.postwalk(_postwalk_func, arg)
-        # TODO: clean up; tricky because of nested string conversion of eg average(dagger(a))
-        s = string(arg)
-        s = replace(s, "\"" => "")
-        s = replace(s, "\\\\" => "\\")
-        s = replace(s, "*" => "")
-        s = "\\langle " * s * "\\rangle "
-        return s
+# Check if a symbolic prefactor needs \left( \right) brackets when followed by operators.
+# Fractions (/) and sums (+) are visually ambiguous without grouping.
+function _needs_pf_brackets(pf::Number)
+    return false
+end
+function _needs_pf_brackets(pf::SymbolicUtils.BasicSymbolic)
+    SymbolicUtils.iscall(pf) || return false
+    op = SymbolicUtils.operation(pf)
+    return op === (/) || op === (+)
+end
+
+# Helper: render a single term (prefactor * operators) as LaTeX
+function _latex_term(c::CNum, ops::Vector{QSym})
+    pf = _latex_prefactor(c)
+    if isempty(ops)
+        return pf
     end
-    return x
-end
-
-@latexrecipe function f(op::QNumber)
-    # Options
-    mult_symbol --> ""
-
-    ex = _to_expression(op)
-    ex = MacroTools.postwalk(_postwalk_func, ex)
-    ex = MacroTools.postwalk(_postwalk_average, ex)
-    ex = isa(ex, String) ? latexstring(ex) : ex
-    return ex
-end
-
-@latexrecipe function f(s::SymbolicUtils.Symbolic{<:CNumber})
-    # Options
-    mult_symbol --> ""
-
-    ex = _to_expression(s)
-    ex = MacroTools.postwalk(_postwalk_func, ex)
-    ex = MacroTools.postwalk(_postwalk_average, ex)
-    ex = isa(ex, String) ? latexstring(ex) : ex
-    return ex
-end
-
-_to_expression(x::Number) = x
-function _to_expression(x::Complex) # For brackets when using latexify
-    iszero(x) && return x
-    if iszero(real(x))
-        return :($(imag(x))*im)
-    elseif iszero(imag(x))
-        return real(x)
+    parts = []
+    if pf isa Number && pf == -1
+        push!(parts, :(-))
+    elseif pf isa Number && isone(pf)
+        # skip prefactor
+    elseif _needs_pf_brackets(pf)
+        push!(parts, "\\left(")
+        push!(parts, pf)
+        push!(parts, "\\right) ")
     else
-        return :($(real(x)) + $(imag(x))*im)
+        push!(parts, pf)
+        push!(parts, " ")
     end
-end
-function _to_expression(x::Complex{Symbolics.Num}) # forward complex Nums to Symbolics recipes
-    iszero(x) && return x
-    if iszero(real(x))
-        :($(Symbolics.recipe(imag(x))) * $im)
-    elseif iszero(imag(x))
-        return :($(Symbolics.recipe(real(x))))
-    else
-        return :($(Symbolics.recipe(real(x))) + $(Symbolics.recipe(imag(x))) * $im)
+    for op in ops
+        push!(parts, op)
     end
+    return Expr(:latexifymerge, parts...)
 end
-_to_expression(op::QSym) = op.name
-_to_expression(op::Create) = :(dagger($(op.name)))
-_to_expression(op::Transition) = :(Transition($(op.name), $(op.i), $(op.j)))
-xyz_sym=[:x, :y, :z]
-_to_expression(op::Pauli) = :(Pauli($(op.name), $(xyz_sym[op.axis])))
-_to_expression(op::Spin) = :(Spin($(op.name), $(xyz_sym[op.axis])))
-function _to_expression(t::QMul)
-    args = if SymbolicUtils._isone(t.arg_c)
-        t.args_nc
-    else
-        SymbolicUtils.arguments(t)
-    end
-    return :(*($(_to_expression.(args)...)))
-end
-_to_expression(t::QAdd) = :(+($(_to_expression.(t.arguments)...)))
 
-_to_expression(p::Parameter) = p.name
-
-_to_expression(p::RealParameter) = p.name
-
-function _to_expression(s::SymbolicUtils.Symbolic)
-    if SymbolicUtils.iscall(s)
-        f = SymbolicUtils.operation(s)
-        fsym = if isequal(f, sym_average) # "===" results in false for symbolics version 5
-            :AVG
-        elseif f === conj
-            :CONJ
-        else
-            Symbol(f)
+@latexrecipe function f(x::QAdd)
+    st = sorted_arguments(x)
+    if !isempty(x.indices)
+        idx_parts = []
+        for idx in x.indices
+            r = Symbolics.value(SymbolicUtils.unwrap(idx.range))
+            push!(idx_parts, "\\underset{$(idx.name)}{\\overset{$r}{\\sum}}")
         end
-        args = map(_to_expression, SymbolicUtils.arguments(s))
-        return :($(fsym)($(args...)))
-    else
-        return nameof(s)
+        if !isempty(x.non_equal)
+            ne_str = join(["$(a.name){\\neq}$(b.name)" for (a, b) in x.non_equal], ",")
+            idx_parts[end] = replace(idx_parts[end], "$(x.indices[end].name)" => "$(x.indices[end].name){\\neq}$(ne_str)")
+        end
+        prefix = join(idx_parts, " ")
+        # Split terms into index-dependent and index-independent
+        dep_terms = []
+        indep_terms = []
+        for t in st
+            ops = first(keys(t.arguments))
+            c = first(values(t.arguments))
+            term_expr = _latex_term(c, ops)
+            if any(idx -> _depends_on_index_term(c, ops, idx), x.indices)
+                push!(dep_terms, term_expr)
+            else
+                push!(indep_terms, term_expr)
+            end
+        end
+        sum_expr = if length(dep_terms) == 1
+            Expr(:latexifymerge, prefix, dep_terms[1])
+        else
+            Expr(:latexifymerge, prefix, Expr(:call, :+, dep_terms...))
+        end
+        if isempty(indep_terms)
+            return sum_expr
+        else
+            return Expr(:call, :+, indep_terms..., sum_expr)
+        end
     end
+    terms = [_latex_term(first(values(t.arguments)), first(keys(t.arguments))) for t in st]
+    return Expr(:call, :+, terms...)
 end
+
+const QLaTeX = Union{<:QField}
+Base.show(io::IO, ::MIME"text/latex", x::QLaTeX) = write(io, latexify(x))

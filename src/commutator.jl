@@ -1,154 +1,93 @@
-
-## Commutator methods
 """
-    commutator(a,b)
+    commutator(a, b) -> QAdd
 
-Computes the commutator `a*b - b*a`.
+Compute the commutator ``[a, b] = a*b - b*a``.
+
+For indexed expressions, performs **index collapse**: when a summation index in one
+factor shares a subspace with the other factor's index, the summation index is
+replaced before computing the commutator.
+
+# Examples
+```julia
+h = FockSpace(:f)
+@qnumbers a::Destroy(h)
+commutator(a, a')    # [a, a†] = 1
+commutator(a', a)    # [a†, a] = -1
+```
+
+See also [`normal_order`](@ref).
 """
-commutator(a, b) = _commutator(a, b)
-_commutator(a, b) = a*b - b*a
-commutator(a::QNumber, b::SNuN) = 0
-commutator(a::SNuN, b::QNumber) = 0
-commutator(::SNuN, ::SNuN) = 0
+function commutator end
+
+const _ZERO_QADD = QAdd(QTermDict(), Index[], Tuple{Index, Index}[])
+_zero_qadd() = _ZERO_QADD
+
+# Scalars commute with everything
+commutator(::Number, ::Number) = _zero_qadd()
+commutator(::Number, ::QField) = _zero_qadd()
+commutator(::QField, ::Number) = _zero_qadd()
+
+# QSym, QSym: short-circuit when on different sites or identical
 function commutator(a::QSym, b::QSym)
-    acts_on(a)==acts_on(b) || return 0
-    isequal(a, b) && return 0
-    return _commutator(a, b)
+    _same_site(a, b) || return _zero_qadd()
+    isequal(a, b) && return _zero_qadd()
+    return a * b - b * a
 end
-function commutator(a::QMul, b::QSym)
-    aon = acts_on(b)
-    idx = findfirst(x->isequal(acts_on(x), aon), a.args_nc)
-    idx===nothing && return 0
-    return _commutator(a, b)
-end
-function commutator(a::QSym, b::QMul)
-    aon = acts_on(a)
-    idx = findfirst(x->isequal(acts_on(x), aon), b.args_nc)
-    idx===nothing && return 0
-    return _commutator(a, b)
-end
-function commutator(a::QMul, b::QMul)
-    # isequal(a.h, b.h) && return 0
-    aon_a = map(acts_on, a.args_nc)
-    aon_b = map(acts_on, b.args_nc)
-    aon = intersect(aon_a, aon_b)
-    isempty(aon) && return 0
-    return _commutator(a, b)
-end
-function commutator(a::QAdd, b::QNumber)
-    args = []
-    for a_ in a.arguments
-        c = commutator(a_, b)
-        push_or_append_nz_args!(args, c)
+
+# QAdd, QSym
+function commutator(a::QAdd, b::QSym)
+    # Diagonal collapse: if a is a sum and b is indexed on same space
+    if !isempty(a.indices) && has_index(b.index)
+        for (k, idx) in enumerate(a.indices)
+            if idx.space_index == b.index.space_index
+                collapsed = change_index(a, idx, b.index)
+                new_indices = [a.indices[j] for j in eachindex(a.indices) if j != k]
+                new_ne = filter(p -> p[1] != idx && p[2] != idx, a.non_equal)
+                collapsed_qadd = QAdd(collapsed.arguments, new_indices, new_ne)
+                return commutator(collapsed_qadd, b)
+            end
+        end
     end
-    isempty(args) && return 0
-    return QAdd(args)
+    return a * b - b * a
 end
-function commutator(a::QNumber, b::QAdd)
-    args = []
-    for b_ in b.arguments
-        ## Commutator methods
-        """
-            commutator(a,b)
 
-        Computes the commutator `a*b - b*a`.
-        """
-        commutator(a, b) = _commutator(a, b)
-        _commutator(a, b) = a*b - b*a
-        commutator(a::QNumber, b::SNuN) = 0
-        commutator(a::SNuN, b::QNumber) = 0
-        commutator(::SNuN, ::SNuN) = 0
-        function commutator(a::QSym, b::QSym)
-            acts_on(a)==acts_on(b) || return 0
-            isequal(a, b) && return 0
-            return _commutator(a, b)
-        end
-        function commutator(a::QMul, b::QSym)
-            aon = acts_on(b)
-            idx = findfirst(x->isequal(acts_on(x), aon), a.args_nc)
-            idx===nothing && return 0
-            return _commutator(a, b)
-        end
-        function commutator(a::QSym, b::QMul)
-            aon = acts_on(a)
-            idx = findfirst(x->isequal(acts_on(x), aon), b.args_nc)
-            idx===nothing && return 0
-            return _commutator(a, b)
-        end
-        function commutator(a::QMul, b::QMul)
-            # isequal(a.h, b.h) && return 0
-            aon_a = map(acts_on, a.args_nc)
-            aon_b = map(acts_on, b.args_nc)
-            aon = intersect(aon_a, aon_b)
-            isempty(aon) && return 0
-            return _commutator(a, b)
-        end
-        function commutator(a::QAdd, b::QNumber)
-            args = []
-            for a_ in a.arguments
-                c = commutator(a_, b)
-                push_or_append_nz_args!(args, c)
+function commutator(a::QSym, b::QAdd)
+    if !isempty(b.indices) && has_index(a.index)
+        for (k, idx) in enumerate(b.indices)
+            if idx.space_index == a.index.space_index
+                collapsed = change_index(b, idx, a.index)
+                new_indices = [b.indices[j] for j in eachindex(b.indices) if j != k]
+                new_ne = filter(p -> p[1] != idx && p[2] != idx, b.non_equal)
+                collapsed_qadd = QAdd(collapsed.arguments, new_indices, new_ne)
+                return commutator(a, collapsed_qadd)
             end
-            isempty(args) && return 0
-            return QAdd(args)
         end
-        function commutator(a::QNumber, b::QAdd)
-            args = []
-            for b_ in b.arguments
-                c = commutator(a, b_)
-                push_or_append_nz_args!(args, c)
-            end
-            isempty(args) && return 0
-            return QAdd(args)
-        end
-        function commutator(a::QAdd, b::QAdd)
-            args = []
-            for a_ in a.arguments, b_ in b.arguments
-                c = commutator(a_, b_)
-                push_or_append_nz_args!(args, c)
-            end
-            isempty(args) && return 0
-            return QAdd(args)
-        end
-
-        function push_or_append_nz_args!(args, c)
-            if !SymbolicUtils._iszero(c)
-                push!(args, c)
-            end
-            return args
-        end
-        function push_or_append_nz_args!(args, c::QAdd)
-            @inbounds for i in 1:length(c.arguments)
-                push_or_append_nz_args!(args, c.arguments[i])
-            end
-            return args
-        end
-
-        c = commutator(a, b_)
-        push_or_append_nz_args!(args, c)
     end
-    isempty(args) && return 0
-    return QAdd(args)
+    return a * b - b * a
 end
+
 function commutator(a::QAdd, b::QAdd)
-    args = []
-    for a_ in a.arguments, b_ in b.arguments
-        c = commutator(a_, b_)
-        push_or_append_nz_args!(args, c)
+    isequal(a, b) && return _zero_qadd()
+    if !isempty(a.indices) && !isempty(b.indices)
+        for idx in a.indices
+            if idx in b.indices
+                d = QTermDict()
+                for (ops, c) in b.arguments
+                    single = QAdd(QTermDict(ops => c), Index[], Tuple{Index, Index}[])
+                    _merge_terms!(d, commutator(a, single))
+                end
+                indices = _merge_unique(a.indices, b.indices)
+                non_equal = _merge_unique(a.non_equal, b.non_equal)
+                return QAdd(d, indices, non_equal)
+            end
+        end
     end
-    isempty(args) && return 0
-    return QAdd(args)
+    return a * b - b * a
 end
 
-function push_or_append_nz_args!(args, c)
-    if !SymbolicUtils._iszero(c)
-        push!(args, c)
+function _merge_terms!(d::QTermDict, result::QAdd)
+    for (ops, c) in result.arguments
+        _addto!(d, ops, c)
     end
-    return args
-end
-function push_or_append_nz_args!(args, c::QAdd)
-    @inbounds for i in 1:length(c.arguments)
-        push_or_append_nz_args!(args, c.arguments[i])
-    end
-    return args
+    return d
 end

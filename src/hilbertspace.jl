@@ -1,111 +1,100 @@
 """
     HilbertSpace
 
-Abstract type for representing Hilbert spaces.
+Abstract supertype for Hilbert spaces.
+
+Concrete subtypes: [`FockSpace`](@ref), [`NLevelSpace`](@ref), [`PauliSpace`](@ref),
+[`SpinSpace`](@ref), [`PhaseSpace`](@ref), [`ProductSpace`](@ref), [`ClusterSpace`](@ref).
+
+Compose spaces with [`⊗`](@ref) (or [`tensor`](@ref)):
+```julia
+h = FockSpace(:cavity) ⊗ NLevelSpace(:atom, 2)
+```
 """
 abstract type HilbertSpace end
-Base.hash(h::T, i::UInt) where {T<:HilbertSpace} = hash(T, hash(h.name, i))
-
-abstract type ConcreteHilbertSpace <: HilbertSpace end
 
 """
-    ProductSpace <: HilbertSpace
+    FockSpace <: HilbertSpace
+    FockSpace(name::Symbol)
+    FockSpace(; name::Symbol)
 
-Stores a composite [`HilbertSpace`](@ref) consisting of multiple subspaces.
-Generally created by computing the tensor product [`⊗`](@ref) of subspaces.
+Hilbert space for a bosonic mode.
+
+Supports [`Destroy`](@ref) and [`Create`](@ref) operators with the canonical
+commutation relation ``[a, a^\\dagger] = 1``.
+
+# Examples
+```julia
+h = FockSpace(:cavity)
+@qnumbers a::Destroy(h)
+a' * a  # number operator in normal order
+```
 """
-struct ProductSpace{S} <: HilbertSpace
-    spaces::S
-    hash::UInt
-    function ProductSpace(spaces::S) where {S}
-        h = hash(ProductSpace, hash(spaces, zero(UInt)))
-        new{S}(spaces, h)
-    end
+struct FockSpace <: HilbertSpace
+    name::Symbol
 end
-Base.:(==)(h1::T, h2::T) where {T<:ProductSpace} = isequal(h1.hash, h2.hash)
-function Base.hash(p::ProductSpace, h::UInt)
-    iszero(h) && return p.hash
-    return hash(hash(p, zero(UInt)), h)
+Base.:(==)(a::FockSpace, b::FockSpace) = a.name == b.name
+Base.hash(a::FockSpace, h::UInt) = hash(:FockSpace, hash(a.name, h))
+
+"""
+    ProductSpace{T} <: HilbertSpace
+
+Composite Hilbert space formed by the tensor product of multiple subspaces.
+The type parameter `T` is a concrete `Tuple` type for type-stable storage.
+
+Constructed via [`⊗`](@ref) or [`tensor`](@ref), not directly:
+```julia
+h = FockSpace(:cavity) ⊗ NLevelSpace(:atom, 2)
+```
+
+Operators on a `ProductSpace` require a positional index specifying which subspace
+they act on:
+```julia
+@qnumbers a::Destroy(h, 1) σ::Transition(h, :σ, 1, 2, 2)
+```
+"""
+struct ProductSpace{T <: Tuple{Vararg{HilbertSpace}}} <: HilbertSpace
+    spaces::T
 end
+Base.:(==)(a::ProductSpace, b::ProductSpace) = a.spaces == b.spaces
+Base.hash(a::ProductSpace, h::UInt) = hash(:ProductSpace, hash(a.spaces, h))
 
 """
     ⊗(spaces::HilbertSpace...)
 
-Create a [`ProductSpace`](@ref) consisting of multiple subspaces.
-Unicode `\\otimes<tab>` alias of [`tensor`](@ref)
+Create a [`ProductSpace`](@ref) from multiple Hilbert spaces. Flattens nested
+`ProductSpace` arguments so that `(A ⊗ B) ⊗ C == A ⊗ B ⊗ C`.
 
-Examples
-=======
-```
-julia> hf = FockSpace(:f)
-ℋ(f)
+Unicode input: `\\otimes<tab>`. ASCII alias: [`tensor`](@ref).
 
-julia> ha = NLevelSpace(:a,2)
-ℋ(a)
-
-julia> h = hf⊗ha
-ℋ(f) ⊗ ℋ(a)
+# Examples
+```julia
+h = FockSpace(:cavity) ⊗ NLevelSpace(:atom, 2)
 ```
 """
-⊗(a::HilbertSpace, b::HilbertSpace) = ProductSpace([a, b])
-⊗(a::HilbertSpace, b::ProductSpace) = ProductSpace([a; b.spaces])
-⊗(a::ProductSpace, b::HilbertSpace) = ProductSpace([a.spaces; b])
-⊗(a::ProductSpace, b::ProductSpace) = ProductSpace([a.spaces; b.spaces])
-⊗(a::HilbertSpace, b::HilbertSpace, c::HilbertSpace...) = ⊗(a⊗b, c...)
+⊗(a::HilbertSpace, b::HilbertSpace) = ProductSpace((a, b))
+⊗(a::ProductSpace, b::HilbertSpace) = ProductSpace((a.spaces..., b))
+⊗(a::HilbertSpace, b::ProductSpace) = ProductSpace((a, b.spaces...))
+⊗(a::ProductSpace, b::ProductSpace) = ProductSpace((a.spaces..., b.spaces...))
+⊗(a::HilbertSpace, b::HilbertSpace, c::HilbertSpace...) = ⊗(a ⊗ b, c...)
 ⊗(a::HilbertSpace) = a
 
 """
     tensor(spaces::HilbertSpace...)
 
-Create a [`ProductSpace`](@ref) consisting of multiple subspaces.
-See also [`⊗`](@ref).
+Create a [`ProductSpace`](@ref) from multiple Hilbert spaces.
+ASCII alias for [`⊗`](@ref).
+
+# Examples
+```julia
+h = tensor(FockSpace(:a), FockSpace(:b))  # equivalent to FockSpace(:a) ⊗ FockSpace(:b)
+```
 """
 tensor(args::Vararg{HilbertSpace}) = ⊗(args...)
-
-"""
-    ClusterSpace <: HilbertSpace
-    ClusterSpace(original_space,N,order)
-
-A Hilbert space representing `N` identical copies of another Hilbert space, with
-correlations up to a specified `order`.
-"""
-struct ClusterSpace{H<:ConcreteHilbertSpace,NType,M<:Integer,S} <: HilbertSpace
-    original_space::H
-    N::NType
-    order::M
-    op_name::S
-end
-function Base.:(==)(h1::T, h2::T) where {T<:ClusterSpace}
-    (
-        h1.original_space==h2.original_space &&
-        isequal(h1.N, h2.N) &&
-        h1.order==h2.order &&
-        isequal(h1.name, h2.name)
-    )
-end
-Base.hash(c::ClusterSpace, h::UInt) = hash(c.original_space, hash(c.N, hash(c.order, h)))
-ClusterSpace(h, N, M) = ClusterSpace(h, N, M, Ref(:_NO_NAME))
-
-"""
-    ClusterAon(i,j)
-
-When an operator acts on the Hilbert space `i` which is a [`ClusterSpace`](@ref),
-the index `j` denotes which copy of the Hilbert space the operator acts on.
-"""
-struct ClusterAon{T<:Integer}
-    i::T
-    j::T
-end
 
 Base.isless(h1::HilbertSpace, h2::HilbertSpace) = isless(h1.name, h2.name)
 Base.isless(h1::ProductSpace, h2::ProductSpace) = isless(h1.spaces, h2.spaces)
 
-function Base.copy(h::T) where {T<:HilbertSpace}
-    fields = [getfield(h, n) for n in fieldnames(T)]
-    return T(fields...)
-end
-
-has_hilbert(::Type{T}, ::T, args...) where {T<:HilbertSpace} = true
-has_hilbert(T::Type{<:HilbertSpace}, h::ProductSpace, aon) = has_hilbert(T, h.spaces[aon])
-has_hilbert(::Type{<:HilbertSpace}, ::HilbertSpace, args...) = false
-has_hilbert(::Type{T}, ::ClusterSpace{<:T}, args...) where {T<:HilbertSpace} = true
+# Unwrap ClusterSpace to get the original space for validation.
+# Base method returns the space as-is; ClusterSpace overrides in cluster.jl.
+_unwrap_space(h::HilbertSpace) = h

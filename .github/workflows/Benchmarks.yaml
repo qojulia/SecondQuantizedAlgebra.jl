@@ -7,7 +7,7 @@ on:
       - '.github/workflows/Tests.yml'
       - 'src/**'
       - 'ext/**'
-      - 'benchmarks/**'
+      - 'benchmark/**'
       - 'test/runtests.jl'
       - 'test/core-test/**'
       - 'test/ext-test/cpu/**'
@@ -20,7 +20,7 @@ on:
       - 'src/**'
       - 'ext/**'
       - 'test/**'
-      - 'benchmarks/**'
+      - 'benchmark/**'
       - 'Project.toml'
     types:
       - opened
@@ -44,27 +44,27 @@ jobs:
           version: 'lts'
           arch: x64
       - uses: julia-actions/cache@v3
-      - name: Run benchmark
+      - name: Run benchmarks
         run: |
-          cd benchmarks
+          cd benchmark
           julia --project --threads=2 --color=yes -e '
             using Pkg;
             Pkg.develop(PackageSpec(path=joinpath(pwd(), "..")));
             Pkg.instantiate();
             include("runbenchmarks.jl")'
 
-      # this will update benchmarks/data.js in gh-pages branch
+      # this will update benchmark/data.js in gh-pages branch
       - name: Parse & Upload Benchmark Results
         uses: benchmark-action/github-action-benchmark@v1
         with:
           name: Benchmark Results
           tool: "julia"
-          output-file-path: benchmarks/benchmarks_output.json
+          output-file-path: benchmark/benchmarks_output.json
           github-token: ${{ secrets.GITHUB_TOKEN }}
           alert-threshold: "130%"
           fail-threshold: "170%"
           comment-on-alert: true
           fail-on-alert: true
-          benchmark-data-dir-path: benchmarks
+          benchmark-data-dir-path: benchmark
           max-items-in-chart: 100
           auto-push: ${{ github.event_name != 'pull_request' }}

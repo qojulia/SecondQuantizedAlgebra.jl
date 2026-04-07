@@ -1,84 +1,88 @@
-## ClusterSpace methods
-for f in [:levels, :ground_state]
-    @eval $(f)(c::ClusterSpace{<:NLevelSpace}, args...) = $(f)(c.original_space, args...)
+"""
+    ClusterSpace(original_space::HilbertSpace, N, order::Int)
+
+Hilbert space representing `N` identical copies of `original_space`, with
+correlations tracked up to the specified `order`.
+
+Used for mean-field and cluster expansions: operators on a `ClusterSpace` can be
+expanded into `order` distinct copies via [`cluster_expand`](@ref).
+
+# Arguments
+- `original_space` — the single-site Hilbert space being replicated
+- `N` — total number of copies (`Int` or symbolic `Num`, used for scaling prefactors)
+- `order` — number of distinct copies to track (must be ≥ 1)
+
+# Examples
+```julia
+h_single = FockSpace(:site)
+h_cluster = ClusterSpace(h_single, 100, 2)  # 100 copies, track 2-body correlations
+h = h_cluster ⊗ FockSpace(:cavity)
+```
+
+See also [`cluster_expand`](@ref), [`has_cluster`](@ref).
+"""
+struct ClusterSpace{H <: HilbertSpace, T} <: HilbertSpace
+    original_space::H
+    N::T
+    order::Int
+    function ClusterSpace(original_space::H, N::T, order::Int) where {H <: HilbertSpace, T}
+        order >= 1 || throw(ArgumentError("Order must be >= 1, got $order"))
+        return new{H, T}(original_space, N, order)
+    end
 end
 
-has_cluster(::HilbertSpace, args...) = false
-has_cluster(::ClusterSpace, args...) = true
+Base.:(==)(a::ClusterSpace, b::ClusterSpace) = a.original_space == b.original_space && a.N == b.N && a.order == b.order
+Base.hash(a::ClusterSpace, h::UInt) = hash(:ClusterSpace, hash(a.original_space, hash(a.N, hash(a.order, h))))
+
+# ClusterSpace specialization (base method in hilbertspace.jl)
+_unwrap_space(h::ClusterSpace) = h.original_space
+
+"""
+    has_cluster(h::HilbertSpace) -> Bool
+
+Return `true` if `h` is a [`ClusterSpace`](@ref) or a [`ProductSpace`](@ref) containing one.
+"""
+has_cluster(::HilbertSpace) = false
+has_cluster(::ClusterSpace) = true
 function has_cluster(h::ProductSpace)
     for space in h.spaces
-        has_cluster(space) && return true
+        space isa ClusterSpace && return true
     end
     return false
 end
-has_cluster(h::ProductSpace, aon) = has_cluster(h.spaces[get_i(aon)])
-has_cluster(op::QNumber, args...) = has_cluster(hilbert(op), args...)
-has_cluster(avg::Average, args...) = has_cluster(undo_average(avg), args...)
 
-# ClusterAon methods
-Base.hash(c::T, h::UInt) where {T<:ClusterAon} = hash(T, hash(c.i, hash(c.j, h)))
-Base.getindex(v::Vector{<:HilbertSpace}, c::ClusterAon) = v[c.i]
-get_i(x::Integer) = x
-get_j(x::Integer) = x
-get_i(x::ClusterAon) = x.i
-get_j(x::ClusterAon) = x.j
-Base.length(::ClusterAon) = 1
+"""
+    cluster_expand(op::QSym, order::Int) -> Vector{QSym}
+    cluster_expand(op::QSym, h::ProductSpace) -> Vector{QSym}
 
-extract_names(names::Vector, i::Int) = names[i]
-extract_names(names::Vector, c::ClusterAon) = names[c.i][c.j]
-function extract_names(names::Vector, v::Vector)
-    [extract_names(names, v_) for v_ in v]
-end
+Create `order` copies of operator `op`, each with a distinct `copy_index`
+(`1, 2, ..., order`) and name suffixed `_1`, `_2`, etc.
 
-Base.isequal(c1::T, c2::T) where {T<:ClusterAon} = (c1.i==c2.i && c1.j==c2.j)
-Base.isless(i::Int, c::ClusterAon) = isless(i, c.i)
-Base.isless(c::ClusterAon, i::Int) = isless(c.i, i)
-function Base.isless(c1::ClusterAon, c2::ClusterAon)
-    if isless(c1.i, c2.i)
-        return true
-    elseif isequal(c1.i, c2.i)
-        return isless(c1.j, c2.j)
-    else
-        return false
-    end
-end
-Base.iterate(c::ClusterAon, state=1) = isone(state) ? (c, state+1) : nothing
+When called with a [`ProductSpace`](@ref), the order is read from the
+[`ClusterSpace`](@ref) at `op.space_index`.
 
-function _cluster(h::ProductSpace, op::QSym, aon::Int)
-    order = h.spaces[aon].order
-    return _cluster(h, op, aon, order)
-end
-function _cluster(h::ClusterSpace, op::QSym, aon::Int)
-    return _cluster(h, op, aon, h.order)
-end
-function _cluster(h, op, aon, order)
-    ops = QSym[]
-    for i in 1:order
-        name = Symbol(op.name, :_, i)
-        aon_i = ClusterAon(aon[1], i)
-        op_ = _remake_op(op, h, name, aon_i)
-        push!(ops, op_)
-    end
-    return ops
+# Examples
+```julia
+h = FockSpace(:site)
+a = Destroy(h, :a)
+copies = cluster_expand(a, 3)  # [a_1, a_2, a_3]
+```
+"""
+function cluster_expand(op::QSym, order::Int)
+    return [_with_copy(op, Symbol(op.name, :_, i), i) for i in 1:order]
 end
 
-_remake_op(op::Transition, h, name, aon) = Transition(h, name, op.i, op.j, aon)
-_remake_op(op::Destroy, h, name, aon) = Destroy(h, name, aon)
-_remake_op(op::Create, h, name, aon) = Create(h, name, aon)
+function cluster_expand(op::QSym, h::ProductSpace)
+    space = h.spaces[op.space_index]
+    space isa ClusterSpace || throw(ArgumentError("Space at index $(op.space_index) is not a ClusterSpace"))
+    return cluster_expand(op, space.order)
+end
 
-function get_cluster_stuff(h::ClusterSpace, aon=1)
-    M = h.order
-    aons = [ClusterAon(aon, i) for i in 1:M]
-    return [aons], [h.N]
-end
-function get_cluster_stuff(h::ProductSpace)
-    idx = findall(x->isa(x, ClusterSpace), h.spaces)
-    aons = Vector{<:ClusterAon}[]
-    N = []
-    for i in idx
-        aon_, N_ = get_cluster_stuff(h.spaces[i], i)
-        append!(aons, aon_)
-        append!(N, N_)
-    end
-    return aons, N
-end
+# Per-type copy constructors
+_with_copy(op::Destroy, name::Symbol, ci::Int) = Destroy(name, op.space_index, ci)
+_with_copy(op::Create, name::Symbol, ci::Int) = Create(name, op.space_index, ci)
+_with_copy(op::Transition, name::Symbol, ci::Int) = Transition(name, op.i, op.j, op.space_index, ci)
+_with_copy(op::Pauli, name::Symbol, ci::Int) = Pauli(name, op.axis, op.space_index, ci)
+_with_copy(op::Spin, name::Symbol, ci::Int) = Spin(name, op.axis, op.space_index, ci)
+_with_copy(op::Position, name::Symbol, ci::Int) = Position(name, op.space_index, ci)
+_with_copy(op::Momentum, name::Symbol, ci::Int) = Momentum(name, op.space_index, ci)

@@ -1,232 +1,85 @@
 """
-    PauliSpace <: HilbertSpace
-[`HilbertSpace`](@ref) defining a Spin space for two-level atom Pauli operators.
-See also: [`Pauli`](@ref), [`Create`](@ref)
-"""
-struct PauliSpace{S} <: ConcreteHilbertSpace
-    name::S
-end
-Base.:(==)(h1::T, h2::T) where {T<:PauliSpace} = (h1.name==h2.name)
+    SpinSpace(name::Symbol, spin::Union{Integer, Rational{Int}})
 
-"""
-    Pauli <: QSym
-Pauli operator on a [`PauliSpace`](@ref) representing the Pauli operators σx, σy and σz for two-level spin systems.
-The field axis represents x, y and z as 1, 2 and 3, respectively. The used rewriting rule is σj⋅σk → δjk + i⋅ϵjkl⋅σl.
+Hilbert space for collective spin-``S`` angular momentum operators.
 
-Examples
-=======
-```
-julia> h = PauliSpace("Spin-1/2")
-ℋ(Spin-1/2)
+The `spin` must be a positive integer or half-integer (e.g. `1//2`, `1`, `3//2`).
+Supports [`Spin`](@ref) operators ``S_x, S_y, S_z`` with the commutation relation
+``[S_j, S_k] = i\\epsilon_{jkl} S_l``.
 
-julia> σx = Pauli(h,:σ,1)
-σx
+# Examples
+```julia
+SpinSpace(:S, 1//2)   # spin-1/2
+SpinSpace(:J, 1)      # spin-1
 ```
 """
-struct Pauli{H<:HilbertSpace,S,AX<:Int,A,M} <: QSym
-    hilbert::H
-    name::S
-    axis::AX
-    aon::A
-    metadata::M
-    function Pauli{H,S,AX,A,M}(
-        hilbert::H, name::S, axis::AX, aon::A, metadata::M
-    ) where {H,S,AX,A,M}
-        @assert has_hilbert(PauliSpace, hilbert, aon)
-        new(hilbert, name, axis, aon, metadata)
+struct SpinSpace <: HilbertSpace
+    name::Symbol
+    spin::Rational{Int}
+    function SpinSpace(name::Symbol, spin::Rational{Int})
+        spin > 0 || throw(ArgumentError("Spin must be positive, got $spin"))
+        denominator(spin) in (1, 2) || throw(ArgumentError("Spin must be integer or half-integer, got $spin"))
+        return new(name, spin)
     end
+    SpinSpace(name::Symbol, spin::Integer) = SpinSpace(name, spin // 1)
 end
-function Pauli(
-    hilbert::H, name::S, axis::AX, aon::A; metadata::M=NO_METADATA
-) where {H,S,AX,A,M}
-    Pauli{H,S,AX,A,M}(hilbert, name, axis, aon, metadata)
-end
-function Pauli(hilbert::PauliSpace, name, axis; metadata=NO_METADATA)
-    Pauli(hilbert, name, axis, 1; metadata)
-end
-function Pauli(hilbert::PauliSpace, name, axis::Symbol; metadata=NO_METADATA)
-    Pauli(hilbert, name, axis, 1; metadata)
-end
-function Pauli(hilbert::ProductSpace, name, axis; metadata=NO_METADATA)
-    inds = findall(
-        x->isa(x, PauliSpace) || isa(x, ClusterSpace{<:PauliSpace}), hilbert.spaces
-    )
-    if length(inds)==1
-        return Pauli(hilbert, name, axis, inds[1]; metadata)
-    else
-        isempty(inds) &&
-            error("Can only create Pauli on PauliSpace! Not included in $(hilbert)")
-        length(inds)>1 && error(
-            "More than one PauliSpace in $(hilbert)! Specify on which Hilbert space Pauli should be created with Pauli(hilbert,name,axis,acts_on)!",
-        )
-    end
-end
-function Pauli(hilbert::HilbertSpace, name, axis::Symbol, aon; kwargs...)
-    if axis in [:x, :X]
-        Pauli(hilbert, name, 1, aon; kwargs...)
-    elseif axis in [:y, :Y]
-        Pauli(hilbert, name, 2, aon; kwargs...)
-    elseif axis in [:z, :Z]
-        Pauli(hilbert, name, 3, aon; kwargs...)
-    end
-end
-function Pauli(hilbert::HilbertSpace, name, axis::Symbol; kwargs...)
-    if axis in [:x, :X]
-        Pauli(hilbert, name, 1; kwargs...)
-    elseif axis in [:y, :Y]
-        Pauli(hilbert, name, 2; kwargs...)
-    elseif axis in [:z, :Z]
-        Pauli(hilbert, name, 3; kwargs...)
-    end
-end
-# CallablePauli not possible, due to acts_on convenience (same number of arguments)
-
-Base.hash(s::Pauli, h::UInt) = hash(s.hilbert, hash(s.name, hash(s.axis, hash(s.aon, h))))
-Base.adjoint(s::Pauli) = s
-function Base.isequal(s1::Pauli, s2::Pauli)
-    isequal(s1.hilbert, s2.hilbert) &&
-        isequal(s1.name, s2.name) &&
-        isequal(s1.axis, s2.axis) &&
-        isequal(s1.aon, s2.aon)
-end
-Base.:(==)(s1::Pauli, s2::Pauli) = isequal(s1, s2)
-
-ismergeable(::Pauli, ::Pauli) = true
-function Base.:*(si::Pauli, sj::Pauli)
-    check_hilbert(si, sj)
-    aon_si = acts_on(si)
-    aon_sj = acts_on(sj)
-    if aon_si == aon_sj
-        i=si.axis
-        j=sj.axis
-        k = filter(x->x ∉ [i, j], [1, 2, 3])[1]
-        sk = Pauli(si.hilbert, si.name, k, aon_si)
-        return (i==j) + 1im*levicivita([i, j, k])*sk
-    elseif aon_si < aon_sj
-        return QMul(1, [si, sj])
-    else
-        return QMul(1, [sj, si])
-    end
-end
-
-### Spin-N/2 ###
-"""
-    SpinSpace <: HilbertSpace
-[`HilbertSpace`](@ref) defining a Spin space for N > 1 identical two-level atom operators.
-See also: [`Spin`](@ref), [`Create`](@ref)
-"""
-struct SpinSpace{S} <: ConcreteHilbertSpace
-    name::S
-end
-Base.:(==)(h1::T, h2::T) where {T<:SpinSpace} = (h1.name==h2.name)
+Base.:(==)(a::SpinSpace, b::SpinSpace) = a.name == b.name && a.spin == b.spin
+Base.hash(a::SpinSpace, h::UInt) = hash(:SpinSpace, hash(a.name, hash(a.spin, h)))
 
 """
     Spin <: QSym
-Spin operator on a [`SpinSpace`](@ref) representing the Spin-operators Sx, Sy and Sz for collective spin systems.
-The field axis represents x, y and z as 1, 2 and 3, respectively. The operators follow the rules for angular momentum operators:
-[Sj,Sk] = i⋅∑ϵjkl⋅Sl
 
-Examples
-=======
-```
-julia> h = SpinSpace("Spin-N/2")
-ℋ(Spin-N/2)
+Angular momentum operator ``S_x, S_y, S_z`` on a [`SpinSpace`](@ref).
 
-julia> Sx = Spin(h,:S,1)
-Sx
+The `axis` field selects the component: `1` = x, `2` = y, `3` = z.
+Spin operators are Hermitian (`S' == S`) and satisfy ``[S_j, S_k] = i\\epsilon_{jkl} S_l``
+(applied eagerly under [`NormalOrder`](@ref)).
+
+# Construction
+```julia
+h = SpinSpace(:S, 1//2)
+Sx = Spin(h, :S, 1)             # Sx on single space
+Sy = Spin(h, :S, 2)             # Sy
+
+hp = FockSpace(:c) ⊗ SpinSpace(:S, 1)
+Sz = Spin(hp, :S, 3, 2)         # Sz on 2nd subspace
 ```
 """
-struct Spin{H<:HilbertSpace,S,AX<:Int,A,M} <: QSym
-    hilbert::H
-    name::S
-    axis::AX
-    aon::A
-    metadata::M
-    function Spin{H,S,AX,A,M}(
-        hilbert::H, name::S, axis::AX, aon::A, metadata::M
-    ) where {H,S,AX,A,M}
-        @assert has_hilbert(SpinSpace, hilbert, aon)
-        new(hilbert, name, axis, aon, metadata)
+struct Spin <: QSym
+    name::Symbol
+    axis::Int
+    space_index::Int
+    copy_index::Int
+    index::Index
+    function Spin(name::Symbol, axis::Int, si::Int, ci::Int, idx::Index)
+        1 <= axis <= 3 || throw(ArgumentError("Spin axis must be 1, 2, or 3, got $axis"))
+        return new(name, axis, si, ci, idx)
     end
 end
-function Spin(
-    hilbert::H, name::S, axis::AX, aon::A; metadata::M=NO_METADATA
-) where {H,S,AX,A,M}
-    Spin{H,S,AX,A,M}(hilbert, name, axis, aon, metadata)
-end
-function Spin(hilbert::SpinSpace, name, axis; metadata=NO_METADATA)
-    Spin(hilbert, name, axis, 1; metadata)
-end
-function Spin(hilbert::SpinSpace, name, axis::Symbol; metadata=NO_METADATA)
-    Spin(hilbert, name, axis, 1; metadata)
-end
-function Spin(hilbert::ProductSpace, name, axis; metadata=NO_METADATA)
-    inds = findall(
-        x->isa(x, SpinSpace) || isa(x, ClusterSpace{<:SpinSpace}), hilbert.spaces
-    )
-    if length(inds)==1
-        return Spin(hilbert, name, axis, inds[1]; metadata)
-    else
-        isempty(inds) &&
-            error("Can only create Spin on SpinSpace! Not included in $(hilbert)")
-        length(inds)>1 && error(
-            "More than one SpinSpace in $(hilbert)! Specify on which Hilbert space Spin should be created with Spin(hilbert,name,axis,acts_on)!",
-        )
-    end
-end
-function Spin(hilbert::HilbertSpace, name, axis::Symbol, aon; kwargs...)
-    if axis in [:x, :X]
-        Spin(hilbert, name, 1, aon; kwargs...)
-    elseif axis in [:y, :Y]
-        Spin(hilbert, name, 2, aon; kwargs...)
-    elseif axis in [:z, :Z]
-        Spin(hilbert, name, 3, aon; kwargs...)
-    end
-end
-function Spin(hilbert::HilbertSpace, name, axis::Symbol; kwargs...)
-    if axis in [:x, :X]
-        Spin(hilbert, name, 1; kwargs...)
-    elseif axis in [:y, :Y]
-        Spin(hilbert, name, 2; kwargs...)
-    elseif axis in [:z, :Z]
-        Spin(hilbert, name, 3; kwargs...)
-    end
+Spin(name::Symbol, axis::Int, si::Int, ci::Int) = Spin(name, axis, si, ci, NO_INDEX)
+Spin(name::Symbol, axis::Int, si::Int) = Spin(name, axis, si, 1, NO_INDEX)
+
+# Construction from Hilbert spaces
+Spin(h::SpinSpace, name::Symbol, axis::Int) = Spin(name, axis, 1)
+function Spin(h::ProductSpace, name::Symbol, axis::Int, idx::Int)
+    1 <= idx <= length(h.spaces) || throw(ArgumentError("Index $idx out of range"))
+    _unwrap_space(h.spaces[idx]) isa SpinSpace || throw(ArgumentError("Space at index $idx is not a SpinSpace"))
+    return Spin(name, axis, idx)
 end
 
-Base.hash(s::Spin, h::UInt) = hash(s.hilbert, hash(s.name, hash(s.axis, hash(s.aon, h))))
-Base.adjoint(s::Spin) = s
-function Base.isequal(s1::Spin, s2::Spin)
-    isequal(s1.hilbert, s2.hilbert) &&
-        isequal(s1.name, s2.name) &&
-        isequal(s1.axis, s2.axis) &&
-        isequal(s1.aon, s2.aon)
-end
-Base.:(==)(s1::Spin, s2::Spin) = isequal(s1, s2)
+# IndexedOperator convenience
+IndexedOperator(op::Spin, i::Index) = Spin(op.name, op.axis, op.space_index, op.copy_index, i)
+IndexedOperator(op::Spin, k::Int) = Spin(op.name, op.axis, op.space_index, k, NO_INDEX)
 
-# ismergeable(::Spin,::Spin) = true
-ismergeable(si::Spin, sj::Spin) = (acts_on(si) == acts_on(sj) && si.axis > sj.axis)
+# Adjoint — Hermitian
+Base.adjoint(op::Spin) = op
 
-function Base.:*(si::Spin, sj::Spin)
-    check_hilbert(si, sj)
-    aon_si = acts_on(si)
-    aon_sj = acts_on(sj)
-    if aon_si == aon_sj
-        i=si.axis
-        j=sj.axis
+# Equality
+Base.isequal(a::Spin, b::Spin) = a.name == b.name && a.axis == b.axis && a.space_index == b.space_index && a.copy_index == b.copy_index && a.index == b.index
+Base.:(==)(a::Spin, b::Spin) = isequal(a, b)
 
-        if i==2 && j==1 #SySx
-            SiSj = sj*si - 1im*Spin(si.hilbert, si.name, 3, aon_si)
-        elseif i==3 && j==2 #SzSy
-            SiSj = sj*si - 1im*Spin(si.hilbert, si.name, 1, aon_si)
-        elseif i==3 && j==1 #SySx
-            SiSj = sj*si + 1im*Spin(si.hilbert, si.name, 2, aon_si)
-        else # SxSx, SySy, SzSz, SxSy, Sx,Sz, SySz
-            SiSj = QMul(1, [si, sj])
-        end
-        return SiSj
-    elseif aon_si < aon_sj
-        return QMul(1, [si, sj])
-    else
-        return QMul(1, [sj, si])
-    end
-end
+# Hashing
+Base.hash(a::Spin, h::UInt) = hash(:Spin, hash(a.name, hash(a.axis, hash(a.space_index, hash(a.copy_index, hash(a.index, h))))))
+
+# Ladder (not applicable)
+ladder(::Spin) = 0

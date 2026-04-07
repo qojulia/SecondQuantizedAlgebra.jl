@@ -1,38 +1,151 @@
 using SecondQuantizedAlgebra
+using Symbolics: @variables
 using Test
+import SecondQuantizedAlgebra: _unwrap_space, has_cluster, simplify, QAdd, QSym, sorted_arguments
 
-@testset "cluster" begin
-    # Setup cluster system
-    order = 4
-    N_c = 3  # number of clusters
-    N = [Parameter(Symbol(:N_, i)) for i in 1:N_c]
+@testset "ClusterSpace" begin
+    @testset "has_cluster" begin
+        ha = NLevelSpace(:atom, 2, 1)
+        hf = FockSpace(:c)
+        c = ClusterSpace(ha, 10, 2)
+        @test has_cluster(c) == true
+        @test has_cluster(ha) == false
+        @test has_cluster(hf) == false
 
-    hf = FockSpace(:cavity)
-    ha = [NLevelSpace(Symbol(:atoms, j), 3) for j in 1:N_c]
-    ha_c = [ClusterSpace(ha[j], N[j], order) for j in 1:N_c]
-    h = ⊗(hf, ha_c...)
-
-    # Define the fundamental operators
-    a = Destroy(h, :a, 1)
-    S(i, j, c) = Transition(h, Symbol(:σ, c), i, j, 1+c)  # c=cluster
-
-    @testset "Cluster Detection" begin
-        @test SecondQuantizedAlgebra.has_cluster(h)
-        @test !(SecondQuantizedAlgebra.has_cluster(hf))
+        h = hf ⊗ c
+        @test has_cluster(h) == true
+        h2 = hf ⊗ ha
+        @test has_cluster(h2) == false
     end
 
-    @testset "Cluster Operator Properties" begin
-        @test S(2, 2, 1) ≠ S(2, 2, 2) ≠ S(2, 2, 3)
-        @test length(S(2, 2, 1)) == length(S(2, 2, 2)) == length(S(2, 2, 3)) == order
+    @testset "ProductSpace with ClusterSpace" begin
+        ha = NLevelSpace(:atom, 2, 1)
+        hf = FockSpace(:c)
+        c = ClusterSpace(ha, 10, 2)
+        h = hf ⊗ c
+
+        # Operators on FockSpace position work normally
+        a = Destroy(h, :a, 1)
+        @test a isa Destroy
+        @test a.space_index == 1
+        @test a.copy_index == 1
+
+        # Operators on ClusterSpace position validate against original_space
+        σ = Transition(h, :σ, 1, 2, 2)
+        @test σ isa Transition
+        @test σ.space_index == 2
+        @test σ.copy_index == 1
     end
 
-    @testset "Cluster Operator Commutation" begin
-        @test isequal(S(2, 2, 2)[1]*S(2, 2, 1)[2], S(2, 2, 1)[2]*S(2, 2, 2)[1])
+    @testset "cluster_expand" begin
+        ha = NLevelSpace(:atom, 2, 1)
+        hf = FockSpace(:c)
+        c = ClusterSpace(ha, 10, 2)
+        h = hf ⊗ c
+
+        σ = Transition(h, :σ, 1, 2, 2)
+        copies = cluster_expand(σ, 2)
+        @test length(copies) == 2
+        @test copies[1].name == :σ_1
+        @test copies[1].copy_index == 1
+        @test copies[1].space_index == 2
+        @test copies[2].name == :σ_2
+        @test copies[2].copy_index == 2
+        @test copies[2].space_index == 2
+
+        # Expand via ProductSpace
+        copies2 = cluster_expand(σ, h)
+        @test length(copies2) == 2
+        @test copies2[1].name == :σ_1
+        @test copies2[2].name == :σ_2
+
+        # Fock operator expand
+        a = Destroy(h, :a, 1)
+        @test_throws ArgumentError cluster_expand(a, h)  # FockSpace, not ClusterSpace
+        fock_copies = cluster_expand(a, 3)
+        @test length(fock_copies) == 3
+        @test fock_copies[1].name == :a_1
+        @test fock_copies[2].copy_index == 2
     end
 
-    @testset "Acts On Properties" begin
-        @test acts_on(S(2, 2, 1)[1]) == SecondQuantizedAlgebra.ClusterAon(2, 1)
-        @test acts_on(S(2, 2, 2)[2]) == SecondQuantizedAlgebra.ClusterAon(3, 2)
-        @test acts_on(S(2, 2, 1)[1]) < acts_on(S(2, 2, 1)[2]) < acts_on(S(2, 2, 2)[1])
+    @testset "Adjoint preserves copy_index" begin
+        a = Destroy(:a, 1, 2)
+        @test a'.copy_index == 2
+        @test a'.name == :a
+
+        σ = Transition(:σ, 1, 2, 1, 3)
+        @test σ'.copy_index == 3
+        @test σ'.i == 2 && σ'.j == 1
+    end
+
+    @testset "Equality includes copy_index" begin
+        a1 = Destroy(:a, 1, 1)
+        a2 = Destroy(:a, 1, 2)
+        @test a1 != a2
+        @test !isequal(a1, a2)
+        @test hash(a1) != hash(a2)
+    end
+
+    @testset "Canonical ordering uses (space_index, copy_index)" begin
+        a1 = Destroy(:a, 1, 1)
+        a2 = Destroy(:a, 1, 2)
+        m = a2 * a1  # should sort by copy_index
+        ops = operators(only(sorted_arguments(m)))
+        @test ops[1].copy_index == 1
+        @test ops[2].copy_index == 2
+    end
+
+    @testset "Different copy_index operators commute" begin
+        a1 = Destroy(:a, 1, 1)
+        a2 = Destroy(:a, 1, 2)
+
+        # Different copy → short-circuit to zero
+        @test iszero(commutator(a1, a2'))
+
+        # Same copy → non-trivial
+        result = commutator(a1, a1')
+        @test result isa QAdd
+        @test !iszero(result)
+    end
+
+    @testset "Simplify respects copy_index" begin
+        a1 = Destroy(:a, 1, 1)
+        a2 = Destroy(:a, 1, 2)
+
+        # Same copy: a·a† → a†·a + 1
+        result = simplify(a1 * a1')
+        @test length(result) == 2
+
+        # Different copy: a₁·a₂† stays as-is (no commutation rule)
+        result = simplify(a1 * a2')
+        @test length(result) == 1
+        @test length(operators(only(sorted_arguments(result)))) == 2
+    end
+
+    @testset "Symbolic N" begin
+        @variables N_sym
+        ha = NLevelSpace(:atom, 2, 1)
+        c = ClusterSpace(ha, N_sym, 2)
+        @test c.N === N_sym
+        @test c.order == 2
+    end
+
+    @testset "Type stability" begin
+        ha = NLevelSpace(:atom, 2, 1)
+        hf = FockSpace(:c)
+        c = ClusterSpace(ha, 10, 2)
+        h = hf ⊗ c
+
+        a = Destroy(h, :a, 1)
+        σ = Transition(h, :σ, 1, 2, 2)
+
+        @inferred commutator(a, σ)
+        @inferred simplify(a * a')
+
+        a1 = Destroy(:a, 1, 1)
+        a2 = Destroy(:a, 1, 2)
+        @inferred commutator(a1, a2')
+        @inferred commutator(a1, a1')
+        @inferred simplify(a1 * a2')
     end
 end
