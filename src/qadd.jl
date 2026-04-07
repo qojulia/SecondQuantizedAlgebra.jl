@@ -313,26 +313,8 @@ function Base.:+(a::QAdd, b::Number)
 end
 Base.:+(a::Number, b::QAdd) = b + a
 
-# Efficient sum/reduce: accumulate into a single dict, avoiding N-1 intermediate copies.
-function Base.mapreduce(
-        f, ::typeof(Base.add_sum), iter::AbstractArray{QAdd};
-        dims = :, init = Base._InitialValue()
-    )
-    isempty(iter) && return _zero_qadd()
-    first_q = f(first(iter))
-    d = copy(first_q.arguments)
-    indices = copy(first_q.indices)
-    non_equal = copy(first_q.non_equal)
-    for i in 2:length(iter)
-        q = f(iter[i])
-        for (ops, c) in q.arguments
-            _addto!(d, ops, c)
-        end
-        indices = _merge_unique(indices, q.indices)
-        non_equal = _merge_unique(non_equal, q.non_equal)
-    end
-    return QAdd(d, indices, non_equal)
-end
+Base.zero(::Type{QAdd}) = _zero_qadd()
+Base.zero(::QAdd) = _zero_qadd()
 
 # ============================================================================
 #  Subtraction, negation, division, power

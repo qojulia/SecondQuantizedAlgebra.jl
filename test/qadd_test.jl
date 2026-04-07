@@ -157,16 +157,15 @@ using Test
         @inferred hash(a + ad, UInt(0))
     end
 
-    @testset "sum (efficient mapreduce)" begin
-        h2 = FockSpace(:c2)
-        b = Destroy(h2, :b)
-        bd = b'
-
+    @testset "sum and reduce" begin
         terms = [a + ad, 2 * a, 3 * ad, a * ad, ad * a]
-
-        # Correctness: sum matches manual chain of +
         manual = terms[1] + terms[2] + terms[3] + terms[4] + terms[5]
+
+        # sum matches manual chain of +
         @test sum(terms) == manual
+
+        # reduce(+, ...) matches
+        @test reduce(+, terms) == manual
 
         # Inputs are not mutated
         args_before = copy(terms[1].arguments)
@@ -176,9 +175,16 @@ using Test
         # Single element
         @test sum([a + ad]) == a + ad
 
-        # sum with a function: sum(f, collection)
+        # Empty
+        @test sum(QAdd[]) == zero(QAdd)
+
+        # sum with a function
         ops = [a, ad]
         @test sum(x -> x * a, ops) == a * a + ad * a
+
+        # zero
+        @test iszero(zero(QAdd))
+        @test zero(a + ad) == zero(QAdd)
     end
 
     @testset "Allocations" begin
