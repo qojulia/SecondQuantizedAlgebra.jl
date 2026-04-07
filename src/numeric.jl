@@ -1,3 +1,5 @@
+const QuantumState = Union{QuantumOpticsBase.StateVector, QuantumOpticsBase.AbstractOperator}
+
 """
     to_numeric(op, basis; kwargs...)
     to_numeric(op, state; kwargs...)
@@ -28,8 +30,6 @@ op_num = to_numeric(a' * a, b)    # number operator as 11×11 matrix
 
 See also [`numeric_average`](@ref).
 """
-const QuantumState = Union{QuantumOpticsBase.StateVector, QuantumOpticsBase.AbstractOperator}
-
 function to_numeric(op::Destroy, b::QuantumOpticsBase.FockBasis; kwargs...)
     return QuantumOpticsBase.destroy(b)
 end

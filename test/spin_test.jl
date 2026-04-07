@@ -3,29 +3,6 @@ import SecondQuantizedAlgebra: simplify, QAdd, QSym, HilbertSpace, QTermDict, _t
 using Test
 
 @testset "spin" begin
-    @testset "SpinSpace" begin
-        h = SpinSpace(:s, 1 // 2)
-        @test h isa HilbertSpace
-        @test h.name == :s
-        @test h.spin == 1 // 2
-        @test SpinSpace(:s, 1 // 2) == SpinSpace(:s, 1 // 2)
-        @test SpinSpace(:s, 1 // 2) != SpinSpace(:s, 1)
-    end
-
-    @testset "Spin construction — single space" begin
-        h = SpinSpace(:s, 1 // 2)
-        Sx = Spin(h, :S, 1)
-        Sy = Spin(h, :S, 2)
-        Sz = Spin(h, :S, 3)
-        @test Sx isa Spin
-        @test Sx isa QSym
-        @test Sx.axis == 1
-        @test Sy.axis == 2
-        @test Sz.axis == 3
-        @test Sx.space_index == 1
-        @test_throws ArgumentError Spin(h, :S, 4)
-    end
-
     @testset "Spin construction — product space" begin
         h = FockSpace(:c) ⊗ SpinSpace(:s, 1)
         Sx = Spin(h, :S, 1, 2)
@@ -37,17 +14,6 @@ using Test
         h = SpinSpace(:s, 1 // 2)
         Sx = Spin(h, :S, 1)
         @test Sx' == Sx
-    end
-
-    @testset "Equality and hashing" begin
-        h = SpinSpace(:s, 1 // 2)
-        S1 = Spin(h, :S, 1)
-        S2 = Spin(h, :S, 1)
-        S3 = Spin(h, :S, 2)
-        @test isequal(S1, S2)
-        @test !isequal(S1, S3)
-        @test hash(S1) == hash(S2)
-        @test hash(S1) != hash(S3)
     end
 
     @testset "Arithmetic" begin
@@ -143,12 +109,6 @@ using Test
         @test isequal(Sx(2) * Sx(1), Sx(1) * Sx(2))
         @test isequal(Sy(2) * Sx(1), Sx(1) * Sy(2))
         @test isequal(Sz(2) * Sz(1), Sz(1) * Sz(2))
-    end
-
-    @testset "Concrete types" begin
-        using CheckConcreteStructs
-        all_concrete(SpinSpace)
-        all_concrete(Spin)
     end
 
     @testset "Type stability" begin

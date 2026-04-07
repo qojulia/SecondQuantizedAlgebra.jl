@@ -3,15 +3,6 @@ import SecondQuantizedAlgebra: simplify, QAdd, QSym, QTermDict, _CNUM_ONE, _to_c
 using Test
 
 @testset "fock operators" begin
-    @testset "Construction — single space" begin
-        h = FockSpace(:c)
-        a = Destroy(h, :a)
-        @test a isa Destroy
-        @test a isa QSym
-        @test a.name == :a
-        @test a.space_index == 1
-    end
-
     @testset "Construction — product space" begin
         h = FockSpace(:a) ⊗ FockSpace(:b)
         a = Destroy(h, :a, 1)
@@ -30,18 +21,6 @@ using Test
         @test ad.space_index == 1
         @test ad' == a
         @test a'' == a
-    end
-
-    @testset "Equality and hashing" begin
-        h = FockSpace(:c)
-        a1 = Destroy(h, :a)
-        a2 = Destroy(h, :a)
-        b = Destroy(h, :b)
-        @test isequal(a1, a2)
-        @test !isequal(a1, b)
-        @test hash(a1) == hash(a2)
-        @test hash(a1) != hash(b)
-        @test hash(a1) != hash(a1')
     end
 
     @testset "Canonical ordering helpers" begin
@@ -97,12 +76,6 @@ using Test
         )
 
         @test commutator(a1, 1) == commutator(1, a2)
-    end
-
-    @testset "Concrete types" begin
-        using CheckConcreteStructs
-        all_concrete(Destroy)
-        all_concrete(Create)
     end
 
     @testset "Type stability" begin

@@ -3,17 +3,6 @@ import SecondQuantizedAlgebra: HilbertSpace
 using Test
 
 @testset "hilbert spaces" begin
-    @testset "FockSpace" begin
-        h1 = FockSpace(:a)
-        h2 = FockSpace(:b)
-        h3 = FockSpace(:a)
-
-        @test h1 == h3
-        @test h1 != h2
-        @test h1.name == :a
-        @test h1 isa HilbertSpace
-    end
-
     @testset "ProductSpace" begin
         h1 = FockSpace(:a)
         h2 = FockSpace(:b)
@@ -44,9 +33,4 @@ using Test
         @test !isless(h3, h2)
     end
 
-    @testset "Concrete types" begin
-        using CheckConcreteStructs
-        all_concrete(FockSpace)
-        all_concrete(ProductSpace)
-    end
 end

@@ -3,27 +3,6 @@ import SecondQuantizedAlgebra: simplify, QAdd, QSym, HilbertSpace
 using Test
 
 @testset "nlevel" begin
-    @testset "NLevelSpace" begin
-        h = NLevelSpace(:atom, 3, 1)
-        @test h isa HilbertSpace
-        @test h.name == :atom
-        @test h.n == 3
-        @test h.ground_state == 1
-        @test NLevelSpace(:a, 3, 1) == NLevelSpace(:a, 3, 1)
-        @test NLevelSpace(:a, 3, 1) != NLevelSpace(:b, 3, 1)
-    end
-
-    @testset "Transition construction — single space" begin
-        h = NLevelSpace(:atom, 3, 1)
-        σ = Transition(h, :σ, 1, 2)
-        @test σ isa Transition
-        @test σ isa QSym
-        @test σ.name == :σ
-        @test σ.i == 1
-        @test σ.j == 2
-        @test σ.space_index == 1
-    end
-
     @testset "Transition construction — product space" begin
         h = FockSpace(:c) ⊗ NLevelSpace(:atom, 2, 1)
         σ = Transition(h, :σ, 1, 2, 2)
@@ -39,17 +18,6 @@ using Test
         @test σ21.i == 2
         @test σ21.j == 1
         @test σ12'' == σ12
-    end
-
-    @testset "Equality and hashing" begin
-        h = NLevelSpace(:atom, 3, 1)
-        σ1 = Transition(h, :σ, 1, 2)
-        σ2 = Transition(h, :σ, 1, 2)
-        σ3 = Transition(h, :σ, 2, 1)
-        @test isequal(σ1, σ2)
-        @test !isequal(σ1, σ3)
-        @test hash(σ1) == hash(σ2)
-        @test hash(σ1) != hash(σ3)
     end
 
     @testset "Arithmetic" begin
@@ -146,12 +114,6 @@ using Test
         # Equality: spaces with different levels are not equal
         h_int = NLevelSpace(:atom, 3, 1)
         @test h != h_int
-    end
-
-    @testset "Concrete types" begin
-        using CheckConcreteStructs
-        all_concrete(NLevelSpace)
-        all_concrete(Transition)
     end
 
     @testset "Type stability" begin

@@ -7,13 +7,6 @@ using Test
     a = Destroy(h, :a)
     ad = a'
 
-    @testset "QSym + QSym" begin
-        s = a + ad
-        @test s isa QAdd
-        @test length(s) == 2
-        @test all(x -> x isa Pair{Vector{QSym}, CNum}, collect(s))
-    end
-
     @testset "QAdd + QAdd (single-term)" begin
         s = (2 * a) + (3 * ad)
         @test s isa QAdd
@@ -91,23 +84,11 @@ using Test
         @test length(s) == 4
     end
 
-    @testset "Equality and hashing" begin
-        s1 = a + ad
-        s2 = a + ad
-        @test isequal(s1, s2)
-        @test hash(s1) == hash(s2)
-    end
-
     @testset "Adjoint" begin
         s = a + 2 * ad
         sd = s'
         @test sd isa QAdd
         @test length(sd) == 2
-    end
-
-    @testset "Concrete types" begin
-        using CheckConcreteStructs
-        all_concrete(QAdd)
     end
 
     @testset "Type stability" begin

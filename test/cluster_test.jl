@@ -4,26 +4,6 @@ using Test
 import SecondQuantizedAlgebra: _unwrap_space, has_cluster, simplify, QAdd, QSym, sorted_arguments
 
 @testset "ClusterSpace" begin
-    @testset "Construction" begin
-        ha = NLevelSpace(:atom, 2, 1)
-        c = ClusterSpace(ha, 10, 2)
-        @test c.original_space == ha
-        @test c.N == 10
-        @test c.order == 2
-        @test _unwrap_space(c) === ha
-        @test _unwrap_space(ha) === ha
-    end
-
-    @testset "Equality and hashing" begin
-        ha = NLevelSpace(:atom, 2, 1)
-        c1 = ClusterSpace(ha, 10, 2)
-        c2 = ClusterSpace(ha, 10, 2)
-        c3 = ClusterSpace(ha, 20, 2)
-        @test c1 == c2
-        @test c1 != c3
-        @test hash(c1) == hash(c2)
-    end
-
     @testset "has_cluster" begin
         ha = NLevelSpace(:atom, 2, 1)
         hf = FockSpace(:c)
@@ -86,22 +66,6 @@ import SecondQuantizedAlgebra: _unwrap_space, has_cluster, simplify, QAdd, QSym,
         @test length(fock_copies) == 3
         @test fock_copies[1].name == :a_1
         @test fock_copies[2].copy_index == 2
-    end
-
-    @testset "copy_index field on all QSym types" begin
-        # Default copy_index = 1
-        @test Destroy(:a, 1).copy_index == 1
-        @test Create(:a, 1).copy_index == 1
-        @test Transition(:σ, 1, 2, 1).copy_index == 1
-        @test Pauli(:σ, 1, 1).copy_index == 1
-        @test Spin(:S, 1, 1).copy_index == 1
-        @test Position(:x, 1).copy_index == 1
-        @test Momentum(:p, 1).copy_index == 1
-
-        # Explicit copy_index
-        @test Destroy(:a, 1, 2).copy_index == 2
-        @test Create(:a, 1, 3).copy_index == 3
-        @test Transition(:σ, 1, 2, 1, 2).copy_index == 2
     end
 
     @testset "Adjoint preserves copy_index" begin

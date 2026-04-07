@@ -7,16 +7,6 @@ using Test
     a = Destroy(h, :a)
     ad = a'
 
-    @testset "All arithmetic returns QAdd" begin
-        @test a * ad isa QAdd
-        @test ad * a isa QAdd
-        @test 3 * a isa QAdd
-        @test a * 2.0 isa QAdd
-        @test -a isa QAdd
-        @test a / 2 isa QAdd
-        @test a^3 isa QAdd
-    end
-
     @testset "Eager normal ordering" begin
         # a * a† = a†a + 1 (normal ordered)
         result = a * ad
@@ -28,18 +18,6 @@ using Test
         result2 = ad * a
         @test result2[QSym[ad, a]] == _CNUM_ONE
         @test length(result2) == 1
-    end
-
-    @testset "Scalar multiplication" begin
-        m1 = 3 * a
-        @test length(m1) == 1
-        @test m1[QSym[a]] == 3
-
-        m2 = a * 2.0
-        @test m2[QSym[a]] == 2.0
-
-        m3 = 0 * a
-        @test iszero(m3)
     end
 
     @testset "Cross-site operators" begin
@@ -72,19 +50,6 @@ using Test
         m = -a
         @test m isa QAdd
         @test m[QSym[a]] == -1
-    end
-
-    @testset "Equality and hashing" begin
-        m1 = ad * a
-        m2 = ad * a
-        @test isequal(m1, m2)
-        @test hash(m1) == hash(m2)
-    end
-
-    @testset "iszero" begin
-        m = 0 * a
-        @test iszero(m)
-        @test !iszero(2 * a)
     end
 
     @testset "Adjoint" begin

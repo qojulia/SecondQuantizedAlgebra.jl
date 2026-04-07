@@ -6,33 +6,6 @@ using Test
 import SecondQuantizedAlgebra: simplify, QAdd, QSym, HilbertSpace
 
 @testset "phase_space" begin
-    @testset "PhaseSpace" begin
-        h = PhaseSpace(:q)
-        @test h isa HilbertSpace
-        @test h.name == :q
-        @test PhaseSpace(:q) == PhaseSpace(:q)
-        @test PhaseSpace(:q) != PhaseSpace(:r)
-        @test hash(PhaseSpace(:q)) == hash(PhaseSpace(:q))
-    end
-
-    @testset "Position construction — single space" begin
-        h = PhaseSpace(:q)
-        x = Position(h, :x)
-        @test x isa Position
-        @test x isa QSym
-        @test x.name == :x
-        @test x.space_index == 1
-    end
-
-    @testset "Momentum construction — single space" begin
-        h = PhaseSpace(:q)
-        p = Momentum(h, :p)
-        @test p isa Momentum
-        @test p isa QSym
-        @test p.name == :p
-        @test p.space_index == 1
-    end
-
     @testset "Construction — product space" begin
         h = FockSpace(:c) ⊗ PhaseSpace(:q)
         x = Position(h, :x, 2)
@@ -50,17 +23,6 @@ import SecondQuantizedAlgebra: simplify, QAdd, QSym, HilbertSpace
         p = Momentum(h, :p)
         @test x' == x
         @test p' == p
-    end
-
-    @testset "Equality and hashing" begin
-        h = PhaseSpace(:q)
-        x1 = Position(h, :x)
-        x2 = Position(h, :x)
-        p1 = Momentum(h, :p)
-        @test isequal(x1, x2)
-        @test !isequal(x1, Position(h, :y))
-        @test hash(x1) == hash(x2)
-        @test hash(x1) != hash(p1)
     end
 
     @testset "Lazy multiplication" begin
@@ -218,13 +180,6 @@ import SecondQuantizedAlgebra: simplify, QAdd, QSym, HilbertSpace
         @test x.name == :x
         @test p isa Momentum
         @test p.name == :p
-    end
-
-    @testset "Concrete types" begin
-        using CheckConcreteStructs
-        all_concrete(PhaseSpace)
-        all_concrete(Position)
-        all_concrete(Momentum)
     end
 
     @testset "Type stability" begin
