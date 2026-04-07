@@ -1,5 +1,6 @@
 using SecondQuantizedAlgebra
 using QuantumOpticsBase
+using SymbolicUtils
 using Test
 
 @testset "spin" begin
