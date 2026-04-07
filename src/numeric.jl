@@ -164,6 +164,9 @@ end
 function numeric_average(x::Number, state; kwargs...)
     return x
 end
+function numeric_average(x::Num, state; kwargs...)
+    return numeric_average(SymbolicUtils.unwrap(x), state; kwargs...)
+end
 
 # Average expressions: unwrap and compute expectation value
 function numeric_average(avg::SymbolicUtils.BasicSymbolic, state; kwargs...)
@@ -216,6 +219,9 @@ function numeric_average(op::QField, state, d::Dict; kwargs...)
 end
 function numeric_average(x::Number, state, d::Dict; kwargs...)
     return x
+end
+function numeric_average(x::Num, state, d::Dict; kwargs...)
+    return numeric_average(SymbolicUtils.unwrap(x), state, d; kwargs...)
 end
 function numeric_average(avg::SymbolicUtils.BasicSymbolic, state, d::Dict; kwargs...)
     if SymbolicUtils.iscall(avg) && SymbolicUtils.operation(avg) isa AvgFunc
@@ -289,4 +295,7 @@ function numeric_average(avg::SymbolicUtils.BasicSymbolic, state, ranges::Vector
 end
 function numeric_average(x::Number, state, ranges::Vector{Int})
     return x
+end
+function numeric_average(x::Num, state, ranges::Vector{Int})
+    return numeric_average(SymbolicUtils.unwrap(x), state, ranges)
 end

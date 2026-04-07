@@ -202,6 +202,7 @@ function _inconj(v::SymbolicUtils.BasicSymbolic)
     end
 end
 _inconj(x::Number) = conj(x)
+_inconj(x::Num) = _inconj(SymbolicUtils.unwrap(x))
 _inconj(x::QField) = adjoint(x)
 
 """

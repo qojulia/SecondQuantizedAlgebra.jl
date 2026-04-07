@@ -3,18 +3,13 @@ CI = get(ENV, "CI", nothing) == "true" || get(ENV, "GITHUB_TOKEN", nothing) !== 
 using SecondQuantizedAlgebra
 using Documenter
 
-using Plots
-default(; fmt=:png)
-# Gotta set this environment variable when using the GR run-time on CI machines.
-# This happens as examples will use Plots.jl to make plots and movies.
-# See: https://github.com/jheinen/GR.jl/issues/278
-ENV["GKSwstype"] = "100"
+using CairoMakie
 
 include("pages.jl")
 
 # The README.md file is used index (home) page of the documentation.
 if CI
-    # include("make_md_examples.jl")
+    include("make_md_examples.jl")
     cp(
         normpath(@__FILE__, "../../README.md"),
         normpath(@__FILE__, "../src/index.md");

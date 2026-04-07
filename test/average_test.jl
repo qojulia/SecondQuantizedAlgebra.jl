@@ -57,7 +57,8 @@ import SecondQuantizedAlgebra: simplify, QAdd, QSym, QField, CNum, _to_cnum, _si
 
         # Pure scalar QAdd (empty operator key)
         scalar_add = QAdd(QTermDict(QSym[] => _to_cnum(5)), Index[], Tuple{Index, Index}[])
-        @test average(scalar_add) == _to_cnum(5)
+        avg_scalar = average(scalar_add)
+        @test SymbolicUtils.isconst(avg_scalar) && avg_scalar.val == _to_cnum(5)
 
         # Scalar passthrough
         @test average(3) === 3

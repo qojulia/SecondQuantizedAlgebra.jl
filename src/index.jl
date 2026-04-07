@@ -144,7 +144,7 @@ Returns a `Vector{Index}` of unique indices found in operator fields and
 summation metadata. Excludes the sentinel `NO_INDEX`.
 """
 get_indices(::Number) = Index[]
-get_indices(::Num) = Index[]
+get_indices(x::Num) = get_indices(SymbolicUtils.unwrap(x))
 function get_indices(op::QSym)
     return has_index(op.index) ? Index[op.index] : Index[]
 end

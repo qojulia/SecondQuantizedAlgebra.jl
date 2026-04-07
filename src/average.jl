@@ -53,18 +53,23 @@ function is_average(x::SymbolicUtils.BasicSymbolic)
     return SymbolicUtils.iscall(x) && SymbolicUtils.symtype(x) === AvgSym
 end
 is_average(x) = false
+is_average(x::Num) = is_average(SymbolicUtils.unwrap(x))
 
 function _average(op::QField)
     return SymbolicUtils.Term{SymbolicUtils.SymReal}(sym_average, Any[op]; type = AvgSym)
 end
 
 """
-    average(expr) -> Num
+    average(expr) -> BasicSymbolic | Number
 
 Compute the symbolic average ``\\langle \\mathrm{expr} \\rangle`` of a quantum operator expression.
 
-Returns a Symbolics `Num` wrapping a `BasicSymbolic` node that participates in
-standard symbolic arithmetic (`+`, `*`, `^`, etc.). Displayed as `⟨...⟩`.
+Returns a `SymbolicUtils.BasicSymbolic` node (not a `Symbolics.Num` wrapper).
+This ensures a consistent return type regardless of whether the input has symbolic
+prefactors — see [Dev docs: Why average returns BasicSymbolic](@ref).
+
+Average nodes participate in standard symbolic arithmetic (`+`, `*`, `^`, etc.)
+and are displayed as `⟨...⟩`. Scalars pass through unchanged.
 
 **Linearity**: distributes over [`QAdd`](@ref) sums and pulls c-number prefactors
 outside the average. Summation metadata (indices, non-equal constraints) is preserved
@@ -82,11 +87,13 @@ See also [`undo_average`](@ref), [`is_average`](@ref), [`numeric_average`](@ref)
 """
 function average end
 
-average(op::QSym) = Num(_average(op))
-average(x::Number) = Num(x)
-average(x::SymbolicUtils.BasicSymbolic) = Num(x)
+average(op::QSym) = _average(op)
+average(x::Number) = x
+average(x::SymbolicUtils.BasicSymbolic) = x
+average(x::Num) = average(SymbolicUtils.unwrap(x))
 
 function average(op::QAdd)
+    # Use Num arithmetic internally for convenience, unwrap at the end.
     result = Num(0)
     for (ops, c) in op.arguments
         if isempty(ops)
@@ -106,11 +113,12 @@ function average(op::QAdd)
             end
         end
     end
+    out = SymbolicUtils.unwrap(result)
     if !isempty(op.indices)
-        result = SymbolicUtils.setmetadata(result, SumIndices, op.indices)
-        result = SymbolicUtils.setmetadata(result, SumNonEqual, op.non_equal)
+        out = SymbolicUtils.setmetadata(out, SumIndices, op.indices)
+        out = SymbolicUtils.setmetadata(out, SumNonEqual, op.non_equal)
     end
-    return result
+    return out
 end
 
 # --- undo_average ---
@@ -197,6 +205,7 @@ has_sum_metadata(::Any) = false
 function has_sum_metadata(x::SymbolicUtils.BasicSymbolic)
     return SymbolicUtils.hasmetadata(x, SumIndices)
 end
+has_sum_metadata(x::Num) = has_sum_metadata(SymbolicUtils.unwrap(x))
 
 """
     get_sum_indices(x::BasicSymbolic) -> Vector{Index}
@@ -210,6 +219,7 @@ See also [`get_sum_non_equal`](@ref), [`has_sum_metadata`](@ref).
 function get_sum_indices(x::SymbolicUtils.BasicSymbolic)
     return SymbolicUtils.getmetadata(x, SumIndices)
 end
+get_sum_indices(x::Num) = get_sum_indices(SymbolicUtils.unwrap(x))
 
 """
     get_sum_non_equal(x::BasicSymbolic) -> Vector{Tuple{Index,Index}}
@@ -223,6 +233,7 @@ See also [`get_sum_indices`](@ref), [`has_sum_metadata`](@ref).
 function get_sum_non_equal(x::SymbolicUtils.BasicSymbolic)
     return SymbolicUtils.getmetadata(x, SumNonEqual)
 end
+get_sum_non_equal(x::Num) = get_sum_non_equal(SymbolicUtils.unwrap(x))
 
 # --- get_indices for BasicSymbolic ---
 
@@ -301,3 +312,4 @@ function acts_on(s::SymbolicUtils.BasicSymbolic)
 end
 
 acts_on(::Number) = Int[]
+acts_on(x::Num) = acts_on(SymbolicUtils.unwrap(x))

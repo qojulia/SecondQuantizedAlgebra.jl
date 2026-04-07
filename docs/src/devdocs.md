@@ -214,7 +214,7 @@ end
 
 ## Averaging
 
-`average(expr)` converts operator expressions into symbolic scalars (Symbolics.jl `Term` nodes):
+`average(expr)` converts operator expressions into symbolic scalars (SymbolicUtils `Term` nodes):
 
 ```julia
 struct AvgFunc end                        # singleton callable, the "operation"
@@ -227,9 +227,30 @@ _average(op) = SymbolicUtils.Term{SymbolicUtils.SymReal}(sym_average, [op]; type
 
 **`AvgSym <: Number`** is the `symtype` marker. It ensures averaged expressions participate in Symbolics arithmetic (`+`, `*`, `simplify`) while remaining distinguishable from plain numbers.
 
-**Summation metadata on averages.** When averaging a `QAdd` with summation indices, the `SumIndices` and `SumNonEqual` metadata are attached to the resulting Symbolics node via `SymbolicUtils.setmetadata`. The `undo_average` function restores this metadata when recovering operator expressions. This is how symbolic sums survive the `average → manipulate → undo_average` round-trip.
+### Why `average` returns `BasicSymbolic`, not `Num`
 
-**`undo_average` always returns `QAdd`.** Scalars become single-term `QAdd`s with an empty operator sequence, and lone `QSym`s become single-term `QAdd`s with unit prefactor. This uniform return type makes `undo_average` type-stable despite walking SymbolicUtils expression trees (where `operation(x)` returns `Any`).
+The Symbolics.jl ecosystem has two layers for symbolic expressions:
+- `SymbolicUtils.BasicSymbolic{T}` — the raw symbolic tree
+- `Symbolics.Num` — a `<: Real` wrapper that lets symbolic expressions participate in Julia's number promotion system
+
+The standard Symbolics convention is for public APIs to wrap results in `Num` (e.g. `@variables x` produces `Num`, `Symbolics.derivative` returns `Num`). We deliberately break this convention for `average` because **`Num` wrapping is not type-stable across the `average(::QAdd)` code path**.
+
+The problem: `average(::QAdd)` pulls c-number prefactors out of the average. When a prefactor involves a symbolic variable (e.g. `average(g * a)` where `g` is `@variables g::Complex`), the internal arithmetic `Num(0) + real(g) * BasicSymbolic_avg` goes through SymbolicUtils' promotion rules, which produce `BasicSymbolic`, not `Num`. Wrapping the other methods (`average(::QSym)`) in `Num` while `average(::QAdd)` returns `BasicSymbolic` creates an inconsistent return type — the same function returns different wrapper types depending on the input.
+
+Rather than fighting the type system with explicit re-wrapping (which would be fragile and require `Num`-unwrapping dispatch methods on every downstream function), we return `BasicSymbolic` consistently:
+
+- `average(::QSym)` → `BasicSymbolic{SymReal}` (the `Term` node directly)
+- `average(::QAdd)` → `BasicSymbolic{SymReal}` (via `SymbolicUtils.unwrap` on the `Num` arithmetic result)
+- `average(::Number)` → `Number` (scalars pass through unchanged)
+- `average(::BasicSymbolic)` → `BasicSymbolic` (passthrough)
+
+This means downstream functions (`is_average`, `acts_on`, `get_indices`, `numeric_average`, `undo_average`) can dispatch directly on `BasicSymbolic` without unwrapping. For robustness, `Num`-accepting dispatches are provided as defensive fallbacks — they unwrap via `SymbolicUtils.unwrap` and forward to the `BasicSymbolic` method. These catch cases where a user (or Symbolics arithmetic) wraps an average in `Num`.
+
+`BasicSymbolic` values still support arithmetic (`+`, `*`, `^`) via SymbolicUtils, and SymbolicUtils keeps the result as `BasicSymbolic` even for expressions like `x - x = 0` (wrapped as `Const{SymReal}(0)`).
+
+**Summation metadata on averages.** When averaging a `QAdd` with summation indices, the `SumIndices` and `SumNonEqual` metadata are attached to the resulting node via `SymbolicUtils.setmetadata`. The `undo_average` function restores this metadata when recovering operator expressions. This is how symbolic sums survive the `average → manipulate → undo_average` round-trip.
+
+**`undo_average` always returns `QAdd`.** It accepts both `BasicSymbolic` and `Num` inputs (unwrapping `Num` first). Scalars become single-term `QAdd`s with an empty operator sequence, and lone `QSym`s become single-term `QAdd`s with unit prefactor. This uniform return type makes `undo_average` type-stable despite walking SymbolicUtils expression trees (where `operation(x)` returns `Any`).
 
 
 ## Numeric conversion
