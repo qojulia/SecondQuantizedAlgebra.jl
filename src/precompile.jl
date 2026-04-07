@@ -20,4 +20,4 @@ precompile(_merge_unique, (Vector{Tuple{Index, Index}}, Vector{Tuple{Index, Inde
     end
 end
 # precompile load from 6s to 11s, but TTFX for mul, commutator below 1s.
-# do not add simplify as this adds an additiona 7s of precompilation time due to SU.jl TTFX.
+# do not add simplify as this adds an additional 7s of precompilation time due to SU.jl TTFX.

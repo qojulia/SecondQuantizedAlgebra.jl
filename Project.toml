@@ -14,7 +14,7 @@ TermInterface = "8ea1fca8-c5ef-4a55-8b96-4e9afe9c9a3c"
 [compat]
 Combinatorics = "1.0.2"
 Latexify = "0.13, 0.14, 0.15, 0.16"
-PrecompileTools = "1.3.3"
+PrecompileTools = "1"
 QuantumOpticsBase = "0.4, 0.5"
 SymbolicUtils = "4"
 Symbolics = "7"
