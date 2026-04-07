@@ -6,7 +6,7 @@ setup:
 	${JULIA} -e 'import Pkg; Pkg.add(["JuliaFormatter", "Changelog", "LiveServer"])'
 
 format: ## Format all Julia files with Runic
-	runic --inplace src/ test/ benchmark/
+	runic --inplace src/ test/ benchmark/ examples/ docs/
 
 servedocs:
 	${JULIA} --project=docs -e 'using LiveServer; LiveServer.servedocs()'

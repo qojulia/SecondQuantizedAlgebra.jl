@@ -1,36 +1,41 @@
-## TermInterface / SymbolicUtils integration
+# ## TermInterface / SymbolicUtils integration
+# TODO: Is this interface still needed? These overrides cause method invalidations
+# (iscall alone causes 195) by superseding TermInterface/SymbolicUtils fallbacks.
+# If nothing in the package or
+# downstream actually relies on SymbolicUtils rewriting or TermInterface traversal
+# of QAdd/QSym, this entire block can be removed to simplify the dependency surface.
 
-TermInterface.head(::QField) = :call
+# TermInterface.head(::QField) = :call
 
-# QSym — leaves (not callable)
-SymbolicUtils.iscall(::QSym) = false
-TermInterface.metadata(::QSym) = nothing
+# # QSym — leaves (not callable)
+# SymbolicUtils.iscall(::QSym) = false
+# TermInterface.metadata(::QSym) = nothing
 
-# QAdd — sums (the only compound expression type)
-SymbolicUtils.iscall(::QAdd) = true
-SymbolicUtils.iscall(::Type{QAdd}) = true
-SymbolicUtils.operation(::QAdd) = (+)
-SymbolicUtils.arguments(a::QAdd) = sorted_arguments(a)
-TermInterface.metadata(::QAdd) = nothing
+# # QAdd — sums (the only compound expression type)
+# SymbolicUtils.iscall(::QAdd) = true
+# SymbolicUtils.iscall(::Type{QAdd}) = true
+# SymbolicUtils.operation(::QAdd) = (+)
+# SymbolicUtils.arguments(a::QAdd) = sorted_arguments(a)
+# TermInterface.metadata(::QAdd) = nothing
 
-function TermInterface.maketerm(::Type{QAdd}, ::typeof(+), args, metadata)
-    result = args[1]
-    for i in 2:length(args)
-        result = result + args[i]
-    end
-    return result
-end
+# function TermInterface.maketerm(::Type{QAdd}, ::typeof(+), args, metadata)
+#     result = args[1]
+#     for i in 2:length(args)
+#         result = result + args[i]
+#     end
+#     return result
+# end
 
-# Type promotion
-SymbolicUtils.symtype(x::T) where {T <: QField} = T
+# # Type promotion
+# SymbolicUtils.symtype(x::T) where {T <: QField} = T
 
-for f in SymbolicUtils.basic_diadic
-    @eval SymbolicUtils.promote_symtype(::$(typeof(f)), Ts::Type{<:QField}...) = promote_type(Ts...)
-    @eval SymbolicUtils.promote_symtype(::$(typeof(f)), T::Type{<:QField}, Ts...) = T
-    @eval SymbolicUtils.promote_symtype(::$(typeof(f)), T::Type{<:QField}, S::Type{<:Number}) = T
-    @eval SymbolicUtils.promote_symtype(::$(typeof(f)), T::Type{<:Number}, S::Type{<:QField}) = S
-    @eval SymbolicUtils.promote_symtype(::$(typeof(f)), T::Type{<:QField}, S::Type{<:QField}) = promote_type(T, S)
-end
+# for f in SymbolicUtils.basic_diadic
+#     @eval SymbolicUtils.promote_symtype(::$(typeof(f)), Ts::Type{<:QField}...) = promote_type(Ts...)
+#     @eval SymbolicUtils.promote_symtype(::$(typeof(f)), T::Type{<:QField}, Ts...) = T
+#     @eval SymbolicUtils.promote_symtype(::$(typeof(f)), T::Type{<:QField}, S::Type{<:Number}) = T
+#     @eval SymbolicUtils.promote_symtype(::$(typeof(f)), T::Type{<:Number}, S::Type{<:QField}) = S
+#     @eval SymbolicUtils.promote_symtype(::$(typeof(f)), T::Type{<:QField}, S::Type{<:QField}) = promote_type(T, S)
+# end
 
 Base.one(::T) where {T <: QField} = one(T)
 Base.one(::Type{<:QField}) = 1

@@ -108,7 +108,7 @@ B = commutator(S1, commutator(S1, V))
 # Note how ``S_2`` contains terms with **three** ladder operators --- these
 # generate photon-number-dependent corrections.
 
-S2 = ((4//3) * g^3 / Δ^3) * (a' * σge - a * σeg + a' * a' * a * σge - a' * a * a * σeg)
+S2 = ((4 // 3) * g^3 / Δ^3) * (a' * σge - a * σeg + a' * a' * a * σge - a' * a * a * σeg)
 
 # The fourth-order diagonal correction involves two pieces:
 
@@ -160,12 +160,13 @@ E_sw2 = [-(g_val^2 / Δ_val) * n for n in ns]
 E_sw4 = [-(g_val^2 / Δ_val) * n + (g_val^4 / Δ_val^3) * n^2 for n in ns]
 
 fig = Figure()
-ax = Axis(fig[1, 1];
-    xlabel="photon number n",
-    ylabel="energy error (rotating frame)",
-    title="Schrieffer-Wolff accuracy: g/Δ = $(g_val/Δ_val)",
+ax = Axis(
+    fig[1, 1];
+    xlabel = "photon number n",
+    ylabel = "energy error (rotating frame)",
+    title = "Schrieffer-Wolff accuracy: g/Δ = $(g_val / Δ_val)",
 )
-scatterlines!(ax, collect(ns), E_exact .- E_sw2; label="SW₂ error", marker=:circle)
-scatterlines!(ax, collect(ns), E_exact .- E_sw4; label="SW₄ error", marker=:diamond)
+scatterlines!(ax, collect(ns), E_exact .- E_sw2; label = "SW₂ error", marker = :circle)
+scatterlines!(ax, collect(ns), E_exact .- E_sw4; label = "SW₄ error", marker = :diamond)
 axislegend(ax)
 fig

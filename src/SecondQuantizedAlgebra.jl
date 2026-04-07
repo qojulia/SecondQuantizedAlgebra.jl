@@ -11,6 +11,7 @@ import QuantumOpticsBase: ⊗, tensor
 
 using Combinatorics: with_replacement_combinations
 using Latexify: Latexify, latexify, @latexrecipe
+using PrecompileTools: @setup_workload, @compile_workload
 
 include("types.jl")
 include("hilbertspace.jl")
@@ -101,5 +102,7 @@ export FockSpace, ProductSpace,
     normal_order, normal_to_symmetric, symmetric_to_normal, simplify, expand, commutator,
     to_numeric, numeric_average,
     transition_superscript
+
+include("precompile.jl")
 
 end

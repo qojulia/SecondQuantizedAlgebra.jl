@@ -350,7 +350,7 @@ Base.zero(::QAdd) = _zero_qadd()
 # ============================================================================
 
 Base.:-(a::QSym) = _single_qadd(_CNUM_NEG1, QSym[a])
-Base.:-(a::QAdd) = QAdd(QTermDict(ops => -c for (ops, c) in a.arguments), a.indices, a.non_equal)
+Base.:-(a::QAdd) = QAdd(QTermDict(ops => _neg_cnum(c) for (ops, c) in a.arguments), a.indices, a.non_equal)
 Base.:-(a::QField, b::QField) = a + (-b)
 Base.:-(a::QField, b::Number) = a + (-b)
 Base.:-(a::Number, b::QField) = a + (-b)

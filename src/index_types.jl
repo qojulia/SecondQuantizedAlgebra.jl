@@ -41,7 +41,8 @@ Return `true` if `idx` is a real summation index (not the sentinel `NO_INDEX`).
 has_index(idx::Index) = idx.space_index != 0
 
 function Base.:(==)(a::Index, b::Index)
-    return a.name == b.name && isequal(a.range, b.range) && a.space_index == b.space_index
+    a === b && return true
+    return a.name == b.name && a.space_index == b.space_index && isequal(a.range, b.range)
 end
 function Base.hash(a::Index, h::UInt)
     return hash(:Index, hash(a.name, hash(a.space_index, h)))

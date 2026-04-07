@@ -75,6 +75,15 @@ end
     end
 end
 
+@inline function _neg_cnum(a::CNum)
+    arv = _const_val(a.re)
+    aiv = _const_val(a.im)
+    if arv !== nothing && aiv !== nothing
+        return _to_cnum(iszero(aiv) ? -arv : Complex(-arv, -aiv))
+    end
+    return _mul_cnum(_CNUM_NEG1, a)
+end
+
 @inline function _add_cnum(a::CNum, b::CNum)
     arv = _const_val(a.re)
     aiv = _const_val(a.im)
