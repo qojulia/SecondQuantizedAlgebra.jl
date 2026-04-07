@@ -76,26 +76,28 @@ using Test
         @inferred Base.isone(a)
     end
 
-    @testset "Allocations" begin
-        m = ad * a  # QAdd
-        s = a + ad
+    @static if VERSION >= v"1.12"
+        @testset "Allocations" begin
+            m = ad * a  # QAdd
+            s = a + ad
 
-        # iscall: zero alloc for leaf checks
-        @test @allocations(SymbolicUtils.iscall(a)) == 0
-        @test @allocations(SymbolicUtils.iscall(m)) == 0
-        @test @allocations(SymbolicUtils.iscall(s)) == 0
+            # iscall: zero alloc for leaf checks
+            @test @allocations(SymbolicUtils.iscall(a)) == 0
+            @test @allocations(SymbolicUtils.iscall(m)) == 0
+            @test @allocations(SymbolicUtils.iscall(s)) == 0
 
-        # operation: zero alloc
-        @test @allocations(SymbolicUtils.operation(m)) == 0
-        @test @allocations(SymbolicUtils.operation(s)) == 0
+            # operation: zero alloc
+            @test @allocations(SymbolicUtils.operation(m)) == 0
+            @test @allocations(SymbolicUtils.operation(s)) == 0
 
-        # metadata: zero alloc
-        @test @allocations(TermInterface.metadata(a)) == 0
-        @test @allocations(TermInterface.metadata(m)) == 0
+            # metadata: zero alloc
+            @test @allocations(TermInterface.metadata(a)) == 0
+            @test @allocations(TermInterface.metadata(m)) == 0
 
-        # maketerm roundtrip
-        args_s = SymbolicUtils.arguments(s)
-        TermInterface.maketerm(typeof(s), +, args_s, nothing)  # warmup
-        @test @allocations(TermInterface.maketerm(typeof(s), +, args_s, nothing)) <= 300
+            # maketerm roundtrip
+            args_s = SymbolicUtils.arguments(s)
+            TermInterface.maketerm(typeof(s), +, args_s, nothing)  # warmup
+            @test @allocations(TermInterface.maketerm(typeof(s), +, args_s, nothing)) <= 300
+        end
     end
 end

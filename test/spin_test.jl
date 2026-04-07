@@ -164,14 +164,16 @@ using Test
         @inferred Sx + Sy
     end
 
-    @testset "Allocations" begin
-        h = SpinSpace(:s, 1 // 2)
-        Sx = Spin(h, :S, 1)
-        Sx2 = Spin(h, :S, 1)
+    @static if VERSION >= v"1.12"
+        @testset "Allocations" begin
+            h = SpinSpace(:s, 1 // 2)
+            Sx = Spin(h, :S, 1)
+            Sx2 = Spin(h, :S, 1)
 
-        @test @allocations(Spin(:S, 1, 1)) == 0
-        @test @allocations(adjoint(Sx)) == 0
-        @test @allocations(isequal(Sx, Sx2)) == 0
-        @test @allocations(hash(Sx, UInt(0))) == 0
+            @test @allocations(Spin(:S, 1, 1)) == 0
+            @test @allocations(adjoint(Sx)) == 0
+            @test @allocations(isequal(Sx, Sx2)) == 0
+            @test @allocations(hash(Sx, UInt(0))) == 0
+        end
     end
 end

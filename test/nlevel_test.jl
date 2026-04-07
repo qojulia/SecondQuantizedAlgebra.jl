@@ -167,17 +167,19 @@ using Test
         @inferred σ12 + σ21
     end
 
-    @testset "Allocations" begin
-        h = NLevelSpace(:atom, 3, 1)
-        σ12 = Transition(h, :σ, 1, 2)
+    @static if VERSION >= v"1.12"
+        @testset "Allocations" begin
+            h = NLevelSpace(:atom, 3, 1)
+            σ12 = Transition(h, :σ, 1, 2)
 
-        # Construction and adjoint
-        @test @allocations(Transition(:σ, 1, 2, 1)) == 0
-        @test @allocations(adjoint(σ12)) == 0
+            # Construction and adjoint
+            @test @allocations(Transition(:σ, 1, 2, 1)) == 0
+            @test @allocations(adjoint(σ12)) == 0
 
-        # Equality / hashing
-        σ12b = Transition(h, :σ, 1, 2)
-        @test @allocations(isequal(σ12, σ12b)) == 0
-        @test @allocations(hash(σ12, UInt(0))) == 0
+            # Equality / hashing
+            σ12b = Transition(h, :σ, 1, 2)
+            @test @allocations(isequal(σ12, σ12b)) == 0
+            @test @allocations(hash(σ12, UInt(0))) == 0
+        end
     end
 end

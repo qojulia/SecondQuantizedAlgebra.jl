@@ -77,7 +77,7 @@ end
 # Convert CNum/Num to plain Julia number for numeric evaluation.
 _to_number(x::Number) = x
 function _to_number(x::Num)
-    v = Symbolics.unwrap(x)
+    v = SymbolicUtils.unwrap(x)
     n = Symbolics.value(v)
     return n isa Number ? n : x
 end

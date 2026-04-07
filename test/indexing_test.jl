@@ -660,7 +660,7 @@ import SecondQuantizedAlgebra: simplify, QAdd, QSym, CNum, _to_cnum, NO_INDEX,
         σ2(α, β, m) = IndexedOperator(Transition(h2, :σ, α, β, 2), m)
 
         H = Σ(2 * σ2(2, 2, j2), i2, j2)
-        dict_N = Dict(Symbolics.unwrap(N_c) => 10)
+        dict_N = Dict(SymbolicUtils.unwrap(N_c) => 10)
         sub_dict(x) = simplify(substitute(x, dict_N))
 
         @test isequal(sub_dict(simplify(commutator(H, σ2(2, 1, k2)))), simplify(20 * σ2(2, 1, k2)))
@@ -753,7 +753,7 @@ import SecondQuantizedAlgebra: simplify, QAdd, QSym, CNum, _to_cnum, NO_INDEX,
         k2 = Index(h2, :k, N_g, ha2)
         σ2(α, β, m) = IndexedOperator(Transition(h2, :σ, α, β, 2), m)
 
-        dict_N = Dict(Symbolics.unwrap(N_g) => 10)
+        dict_N = Dict(SymbolicUtils.unwrap(N_g) => 10)
         sub_dict(x) = simplify(substitute(x, dict_N))
 
         # H with symbolic prefactor g

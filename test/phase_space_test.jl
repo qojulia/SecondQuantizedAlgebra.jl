@@ -244,20 +244,22 @@ import SecondQuantizedAlgebra: simplify, QAdd, QSym, HilbertSpace
         @inferred x + p
     end
 
-    @testset "Allocations" begin
-        h = PhaseSpace(:q)
-        x = Position(h, :x)
-        p = Momentum(h, :p)
-        x2 = Position(h, :x)
-        p2 = Momentum(h, :p)
+    @static if VERSION >= v"1.12"
+        @testset "Allocations" begin
+            h = PhaseSpace(:q)
+            x = Position(h, :x)
+            p = Momentum(h, :p)
+            x2 = Position(h, :x)
+            p2 = Momentum(h, :p)
 
-        @test @allocations(Position(:x, 1)) == 0
-        @test @allocations(Momentum(:p, 1)) == 0
-        @test @allocations(adjoint(x)) == 0
-        @test @allocations(adjoint(p)) == 0
-        @test @allocations(isequal(x, x2)) == 0
-        @test @allocations(isequal(p, p2)) == 0
-        @test @allocations(hash(x, UInt(0))) == 0
-        @test @allocations(hash(p, UInt(0))) == 0
+            @test @allocations(Position(:x, 1)) == 0
+            @test @allocations(Momentum(:p, 1)) == 0
+            @test @allocations(adjoint(x)) == 0
+            @test @allocations(adjoint(p)) == 0
+            @test @allocations(isequal(x, x2)) == 0
+            @test @allocations(isequal(p, p2)) == 0
+            @test @allocations(hash(x, UInt(0))) == 0
+            @test @allocations(hash(p, UInt(0))) == 0
+        end
     end
 end

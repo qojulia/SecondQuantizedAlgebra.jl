@@ -56,8 +56,8 @@ end
 
 # Extract a plain Julia number from CNum for LaTeX rendering
 function _latex_prefactor(c::CNum)
-    r_val = Symbolics.value(Symbolics.unwrap(real(c)))
-    i_val = Symbolics.value(Symbolics.unwrap(imag(c)))
+    r_val = Symbolics.value(SymbolicUtils.unwrap(real(c)))
+    i_val = Symbolics.value(SymbolicUtils.unwrap(imag(c)))
     if iszero(i_val)
         return r_val
     elseif iszero(r_val)
@@ -93,7 +93,7 @@ end
     if !isempty(x.indices)
         idx_parts = []
         for idx in x.indices
-            r = Symbolics.value(Symbolics.unwrap(idx.range))
+            r = Symbolics.value(SymbolicUtils.unwrap(idx.range))
             push!(idx_parts, "\\underset{$(idx.name)}{\\overset{$r}{\\sum}}")
         end
         if !isempty(x.non_equal)

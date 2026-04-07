@@ -120,21 +120,23 @@ using Test
         @inferred ladder(a')
     end
 
-    @testset "Allocations" begin
-        h = FockSpace(:c)
-        a = Destroy(h, :a)
+    @static if VERSION >= v"1.12"
+        @testset "Allocations" begin
+            h = FockSpace(:c)
+            a = Destroy(h, :a)
 
-        # Construction
-        @test @allocations(Destroy(:a, 1)) == 0
-        @test @allocations(Create(:a, 1)) == 0
+            # Construction
+            @test @allocations(Destroy(:a, 1)) == 0
+            @test @allocations(Create(:a, 1)) == 0
 
-        # Adjoint
-        @test @allocations(adjoint(a)) == 0
-        @test @allocations(adjoint(a')) == 0
+            # Adjoint
+            @test @allocations(adjoint(a)) == 0
+            @test @allocations(adjoint(a')) == 0
 
-        # Equality / hashing
-        a2 = Destroy(h, :a)
-        @test @allocations(isequal(a, a2)) == 0
-        @test @allocations(hash(a, UInt(0))) == 0
+            # Equality / hashing
+            a2 = Destroy(h, :a)
+            @test @allocations(isequal(a, a2)) == 0
+            @test @allocations(hash(a, UInt(0))) == 0
+        end
     end
 end

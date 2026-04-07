@@ -152,7 +152,7 @@ end
 
 undo_average(x::Number) = x
 function undo_average(x::Num)
-    inner = undo_average(Symbolics.unwrap(x))
+    inner = undo_average(SymbolicUtils.unwrap(x))
     return inner isa SymbolicUtils.BasicSymbolic ? Num(inner) : inner
 end
 undo_average(x::QField) = x

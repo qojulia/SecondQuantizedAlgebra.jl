@@ -104,7 +104,7 @@ end
 
 function _simplify_prefactor(x::CNum)
     _iszero_cnum(x) && return x
-    r, i = Symbolics.unwrap(x.re), Symbolics.unwrap(x.im)
+    r, i = SymbolicUtils.unwrap(x.re), SymbolicUtils.unwrap(x.im)
     # Fast path: skip Symbolics.simplify for purely numeric prefactors
     (
         SymbolicUtils.iscall(r) || SymbolicUtils.issym(r) ||

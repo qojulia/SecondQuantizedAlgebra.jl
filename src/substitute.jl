@@ -23,8 +23,8 @@ function _substitute_term(
     new_c = if isempty(sym_dict)
         c
     else
-        r = Symbolics.substitute(Symbolics.unwrap(real(c)), sym_dict)
-        i = Symbolics.substitute(Symbolics.unwrap(imag(c)), sym_dict)
+        r = Symbolics.substitute(SymbolicUtils.unwrap(real(c)), sym_dict)
+        i = Symbolics.substitute(SymbolicUtils.unwrap(imag(c)), sym_dict)
         Complex(Num(r), Num(i))
     end
 
@@ -58,7 +58,7 @@ function _split_sub_dict(d::Dict)
         if k isa QSym
             op_dict[k] = v
         else
-            sym_dict[Symbolics.unwrap(k)] = Symbolics.unwrap(v isa Num ? v : Num(v))
+            sym_dict[SymbolicUtils.unwrap(k)] = SymbolicUtils.unwrap(v isa Num ? v : Num(v))
         end
     end
     return sym_dict, op_dict

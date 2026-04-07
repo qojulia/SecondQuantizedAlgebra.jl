@@ -32,7 +32,7 @@ function _to_cnum(x::SymbolicUtils.BasicSymbolic)
 end
 
 @inline function _iszero_num(x::Num)
-    v = Symbolics.unwrap(x)
+    v = SymbolicUtils.unwrap(x)
     v isa Number && return iszero(v)
     return isequal(x, _NUM_ZERO)
 end
@@ -42,7 +42,7 @@ end
 end
 
 @inline function _const_val(x::Num)
-    v = Symbolics.unwrap(x)
+    v = SymbolicUtils.unwrap(x)
     SymbolicUtils.isconst(v) && return v.val
     return nothing
 end

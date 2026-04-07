@@ -88,14 +88,16 @@ using Test
         @inferred σx + σy
     end
 
-    @testset "Allocations" begin
-        h = PauliSpace(:p)
-        σx = Pauli(h, :σ, 1)
-        σx2 = Pauli(h, :σ, 1)
+    @static if VERSION >= v"1.12"
+        @testset "Allocations" begin
+            h = PauliSpace(:p)
+            σx = Pauli(h, :σ, 1)
+            σx2 = Pauli(h, :σ, 1)
 
-        @test @allocations(Pauli(:σ, 1, 1)) == 0
-        @test @allocations(adjoint(σx)) == 0
-        @test @allocations(isequal(σx, σx2)) == 0
-        @test @allocations(hash(σx, UInt(0))) == 0
+            @test @allocations(Pauli(:σ, 1, 1)) == 0
+            @test @allocations(adjoint(σx)) == 0
+            @test @allocations(isequal(σx, σx2)) == 0
+            @test @allocations(hash(σx, UInt(0))) == 0
+        end
     end
 end

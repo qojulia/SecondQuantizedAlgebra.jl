@@ -10,7 +10,7 @@ function IndexedVariable(name::Symbol, i::Index)
         type = SymbolicUtils.FnType{Tuple{Int}, Real, Nothing},
         shape = UnitRange{Int}[]
     )
-    return Num(f(Symbolics.unwrap(i.sym)))
+    return Num(f(SymbolicUtils.unwrap(i.sym)))
 end
 
 """Metadata key: marks a `DoubleIndexedVariable` node where equal indices must give zero."""
@@ -34,7 +34,7 @@ function DoubleIndexedVariable(
         type = SymbolicUtils.FnType{Tuple{Int, Int}, Real, Nothing},
         shape = UnitRange{Int}[]
     )
-    node = f(Symbolics.unwrap(i.sym), Symbolics.unwrap(j.sym))
+    node = f(SymbolicUtils.unwrap(i.sym), SymbolicUtils.unwrap(j.sym))
     if !identical
         node = SymbolicUtils.setmetadata(node, NotIdentical, true)
     end
@@ -50,10 +50,10 @@ via `Symbolics.substitute` using the `sym` fields of the indices.
 """
 change_index(x::Number, ::Index, ::Index) = x
 function change_index(x::Num, from::Index, to::Index)
-    raw = Symbolics.unwrap(x)
+    raw = SymbolicUtils.unwrap(x)
     result = Symbolics.substitute(
         raw,
-        Dict(Symbolics.unwrap(from.sym) => Symbolics.unwrap(to.sym))
+        Dict(SymbolicUtils.unwrap(from.sym) => SymbolicUtils.unwrap(to.sym))
     )
     return _check_not_identical(result)
 end
@@ -161,8 +161,8 @@ Symbolic variables (IndexedVariable, DoubleIndexedVariable) are substituted via 
 insert_index(x::Number, ::Index, ::Int) = x
 
 function insert_index(x::Num, idx::Index, val::Int)
-    raw = Symbolics.unwrap(x)
-    result = Symbolics.substitute(raw, Dict(Symbolics.unwrap(idx.sym) => val))
+    raw = SymbolicUtils.unwrap(x)
+    result = Symbolics.substitute(raw, Dict(SymbolicUtils.unwrap(idx.sym) => val))
     return _check_not_identical(result)
 end
 function insert_index(x::CNum, idx::Index, val::Int)
