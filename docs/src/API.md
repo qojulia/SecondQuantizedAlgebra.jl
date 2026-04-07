@@ -1,5 +1,6 @@
 ```@meta
 CollapsedDocStrings = true
+CurrentModule = SecondQuantizedAlgebra
 ```
 
 # API
@@ -61,6 +62,10 @@ QSym
 
 ```@docs
 QTerm
+```
+
+```@docs
+QAdd
 ```
 
 ```@docs
@@ -172,6 +177,10 @@ unique_ops
 ```
 
 ```@docs
+unique_ops!
+```
+
+```@docs
 fundamental_operators
 ```
 
@@ -181,6 +190,10 @@ prefactor
 
 ```@docs
 operators
+```
+
+```@docs
+sorted_arguments
 ```
 
 ```@docs
@@ -244,6 +257,18 @@ get_indices
 
 ```@docs
 has_index
+```
+
+```@docs
+has_sum_metadata
+```
+
+```@docs
+get_sum_indices
+```
+
+```@docs
+get_sum_non_equal
 ```
 
 

@@ -1,23 +1,3 @@
-"""
-    QAdd <: QTerm
-
-The sole compound expression type — a sum of eagerly-ordered operator products.
-
-All arithmetic on [`QSym`](@ref) operators returns `QAdd`. Internally stores a
-`Dict{Vector{QSym}, CNum}` mapping operator sequences to their `Complex{Num}` prefactors.
-Like terms are automatically collected on construction and zero-prefactor terms are dropped.
-
-# Fields
-- `arguments::QTermDict` — operator sequence → prefactor mapping
-- `indices::Vector{Index}` — summation indices (empty for a regular sum)
-- `non_equal::Vector{Tuple{Index,Index}}` — pairwise inequality constraints on indices
-
-# Iteration
-Iterating over a `QAdd` yields `Pair{Vector{QSym}, CNum}` entries from the internal dict.
-For deterministic ordering (printing, comparison), use [`sorted_arguments`](@ref).
-
-See also [`prefactor`](@ref), [`operators`](@ref), [`Σ`](@ref).
-"""
 const QTermDict = Dict{Vector{QSym}, CNum}
 
 function _addto!(d::QTermDict, key::Vector{QSym}, val::CNum)
@@ -52,6 +32,26 @@ function _merge_unique(a::Vector{T}, b::Vector{T}) where {T}
     return result
 end
 
+"""
+    QAdd <: QTerm
+
+The sole compound expression type — a sum of eagerly-ordered operator products.
+
+All arithmetic on [`QSym`](@ref) operators returns `QAdd`. Internally stores a
+`Dict{Vector{QSym}, CNum}` mapping operator sequences to their `Complex{Num}` prefactors.
+Like terms are automatically collected on construction and zero-prefactor terms are dropped.
+
+# Fields
+- `arguments::QTermDict` — operator sequence → prefactor mapping
+- `indices::Vector{Index}` — summation indices (empty for a regular sum)
+- `non_equal::Vector{Tuple{Index,Index}}` — pairwise inequality constraints on indices
+
+# Iteration
+Iterating over a `QAdd` yields `Pair{Vector{QSym}, CNum}` entries from the internal dict.
+For deterministic ordering (printing, comparison), use [`sorted_arguments`](@ref).
+
+See also [`prefactor`](@ref), [`operators`](@ref), [`Σ`](@ref).
+"""
 struct QAdd <: QTerm
     arguments::QTermDict
     indices::Vector{Index}

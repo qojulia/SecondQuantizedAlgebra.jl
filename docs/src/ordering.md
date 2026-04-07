@@ -1,3 +1,7 @@
+```@meta
+CurrentModule = SecondQuantizedAlgebra
+```
+
 # Ordering Conventions
 
 SecondQuantizedAlgebra.jl supports two operator ordering conventions that control when commutation relations are applied: **eager** (at multiplication time) and **lazy** (deferred to an explicit call). This page explains the trade-offs and shows why eager ordering is the default.

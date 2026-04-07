@@ -1,3 +1,7 @@
+```@meta
+CurrentModule = SecondQuantizedAlgebra
+```
+
 # Symbolic Sums and Indices
 
 Many physical systems contain multiple identical elements with different parameters. Symbolic summation lets you write compact Hamiltonians with indexed operators and derive equations once, then instantiate for specific values later.

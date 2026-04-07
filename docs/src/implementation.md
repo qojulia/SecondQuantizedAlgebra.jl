@@ -1,3 +1,7 @@
+```@meta
+CurrentModule = SecondQuantizedAlgebra
+```
+
 # Implementation
 
 This page walks through the main concepts in **SecondQuantizedAlgebra.jl**: defining Hilbert spaces, creating operators, building algebraic expressions, and converting to numerics.

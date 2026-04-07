@@ -1,24 +1,3 @@
-"""
-    simplify(expr::QField)
-    simplify(expr::QField, h::HilbertSpace)
-
-Simplify a quantum operator expression by applying ordering-independent algebraic identities.
-
-Applied rules:
-- **Transition composition**: ``|i\\rangle\\langle j| \\cdot |k\\rangle\\langle l| = \\delta_{jk} |i\\rangle\\langle l|``
-- **Pauli product rule**: ``\\sigma_j \\sigma_k = \\delta_{jk} I + i\\epsilon_{jkl} \\sigma_l``
-- Symbolic prefactor simplification (via `Symbolics.simplify`)
-- Like-term collection and zero-term elimination
-
-Does **not** apply commutation-based reordering (Fock `[a, a†]`, Spin `[Sⱼ, Sₖ]`,
-PhaseSpace `[p, x]`). For that, use [`normal_order`](@ref).
-
-When a [`HilbertSpace`](@ref) `h` is provided, additionally rewrites ground-state
-projectors of [`NLevelSpace`](@ref) subspaces via the completeness relation.
-
-See also [`normal_order`](@ref), [`expand`](@ref).
-"""
-
 # --- Algebraic reductions (ordering-independent) ---
 
 """
@@ -97,10 +76,40 @@ function _qsimplify(s::QAdd, h::HilbertSpace)
 end
 
 # Public API
+
+"""
+    simplify(expr::QField)
+    simplify(expr::QField, h::HilbertSpace)
+
+Simplify a quantum operator expression by applying ordering-independent algebraic identities.
+
+Applied rules:
+- **Transition composition**: ``|i\\rangle\\langle j| \\cdot |k\\rangle\\langle l| = \\delta_{jk} |i\\rangle\\langle l|``
+- **Pauli product rule**: ``\\sigma_j \\sigma_k = \\delta_{jk} I + i\\epsilon_{jkl} \\sigma_l``
+- Symbolic prefactor simplification (via `Symbolics.simplify`)
+- Like-term collection and zero-term elimination
+
+Does **not** apply commutation-based reordering (Fock `[a, a†]`, Spin `[Sⱼ, Sₖ]`,
+PhaseSpace `[p, x]`). For that, use [`normal_order`](@ref).
+
+When a [`HilbertSpace`](@ref) `h` is provided, additionally rewrites ground-state
+projectors of [`NLevelSpace`](@ref) subspaces via the completeness relation.
+
+See also [`normal_order`](@ref), [`expand`](@ref).
+"""
 SymbolicUtils.simplify(expr::QField; kwargs...) = _qsimplify(expr)
 SymbolicUtils.simplify(expr::QField, h::HilbertSpace; kwargs...) = _qsimplify(expr, h)
 
-# Symbolics.expand — expand symbolic prefactors (e.g. (a+b)^2 -> a^2+2ab+b^2)
+"""
+    expand(expr::QField)
+
+Expand symbolic prefactors in quantum operator expressions.
+
+Applies `Symbolics.expand` to each prefactor in a [`QAdd`](@ref) sum,
+e.g. expanding `(a+b)^2` into `a^2 + 2ab + b^2`. Zero terms are dropped after expansion.
+
+See also [`simplify`](@ref).
+"""
 function Symbolics.expand(s::QAdd; kwargs...)
     d = QTermDict(ops => _expand_prefactor(c; kwargs...) for (ops, c) in s.arguments)
     _drop_zeros!(d)

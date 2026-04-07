@@ -66,7 +66,7 @@ Compute the symbolic average ``\\langle \\mathrm{expr} \\rangle`` of a quantum o
 
 Returns a `SymbolicUtils.BasicSymbolic` node (not a `Symbolics.Num` wrapper).
 This ensures a consistent return type regardless of whether the input has symbolic
-prefactors — see [Dev docs: Why average returns BasicSymbolic](@ref).
+prefactors.
 
 Average nodes participate in standard symbolic arithmetic (`+`, `*`, `^`, etc.)
 and are displayed as `⟨...⟩`. Scalars pass through unchanged.
