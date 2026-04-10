@@ -192,6 +192,11 @@ function _to_numeric(op::Transition, b::QuantumOpticsBase.NLevelBasis; kwargs...
     i, j = _convert_levels(op; kwargs...)
     return QuantumOpticsBase.transition(b, i, j)
 end
+function _to_numeric(op::CollectiveTransition, b::QuantumOpticsBase.ManyBodyBasis; kwargs...)
+    i, j = _convert_levels(op; kwargs...)
+    onebody_op = QuantumOpticsBase.transition(b.onebodybasis, i, j)
+    return QuantumOpticsBase.manybodyoperator(b, onebody_op)
+end
 function _to_numeric(op::Position, b::QuantumOpticsBase.PositionBasis; kwargs...)
     QuantumOpticsBase.position(b)
 end
@@ -233,6 +238,14 @@ check_basis_match(::PhaseSpace, ::QuantumOpticsBase.PositionBasis; kwargs...) = 
 check_basis_match(::PhaseSpace, ::QuantumOpticsBase.MomentumBasis; kwargs...) = nothing
 function check_basis_match(h::NLevelSpace, b::QuantumOpticsBase.NLevelBasis; kwargs...)
     if length(h.levels) != length(b)
+        throw(ArgumentError("Hilbert space $h and basis $b have incompatible levels!"))
+    end
+end
+function check_basis_match(h::NLevelSpace, b::QuantumOpticsBase.ManyBodyBasis; kwargs...)
+    if !(b.onebodybasis isa QuantumOpticsBase.NLevelBasis)
+        throw(ArgumentError("Hilbert space $h and basis $b are incompatible!"))
+    end
+    if length(h.levels) != length(b.onebodybasis)
         throw(ArgumentError("Hilbert space $h and basis $b have incompatible levels!"))
     end
 end
