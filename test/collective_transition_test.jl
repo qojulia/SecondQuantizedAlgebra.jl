@@ -12,28 +12,16 @@ using Test
     end
 
     @testset "ordered products stay unchanged" begin
-        @test isequal(
-            S(2, 1) * S(1, 3),
-            SecondQuantizedAlgebra.QMul(1, [S(2, 1), S(1, 3)]),
-        )
-        @test isequal(
-            S(2, 3) * S(2, 1),
-            SecondQuantizedAlgebra.QMul(1, [S(2, 3), S(2, 1)]),
-        )
-        @test isequal(
-            S(2, 2) * S(2, 2),
-            SecondQuantizedAlgebra.QMul(1, [S(2, 2), S(2, 2)]),
-        )
+        @test isequal(S(2, 1) * S(1, 3), SecondQuantizedAlgebra.QMul(1, [S(2, 1), S(1, 3)]))
+        @test isequal(S(2, 3) * S(2, 1), SecondQuantizedAlgebra.QMul(1, [S(2, 3), S(2, 1)]))
+        @test isequal(S(2, 2) * S(2, 2), SecondQuantizedAlgebra.QMul(1, [S(2, 2), S(2, 2)]))
     end
 
     @testset "rewrite rule" begin
-        @test isequal(S(1, 2) * S(2, 3), S(1,3) + S(2, 3) * S(1, 2))
+        @test isequal(S(1, 2) * S(2, 3), S(1, 3) + S(2, 3) * S(1, 2))
         @test isequal(S(1, 2) * S(1, 3), S(1, 3) * S(1, 2))
         @test isequal(S(1, 2) * S(3, 1), -S(3, 2) + S(3, 1) * S(1, 2))
-        @test isequal(
-            S(1, 2) * S(1, 1),
-            simplify(- S(1, 2) + S(1, 1) * S(1, 2))
-        )
+        @test isequal(S(1, 2) * S(1, 1), simplify(- S(1, 2) + S(1, 1) * S(1, 2)))
     end
 
     @testset "product spaces still commute by acts_on ordering" begin
@@ -52,21 +40,12 @@ using Test
         Sp(i, j) = CollectiveTransition(hp, :S, i, j, 2)
 
         @testset "commuting transitions" begin
-            @test isequal(
-                Sp(1, 2) * Sp(2, 3) * a,
-                a*Sp(1,3) + Sp(2, 3) * Sp(1, 2) * a,
-            )
+            @test isequal(Sp(1, 2) * Sp(2, 3) * a, a*Sp(1, 3) + Sp(2, 3) * Sp(1, 2) * a)
         end
 
         @testset "noncommuting transitions" begin
-            @test isequal(
-                Sp(1, 2) * Sp(1, 3) * a,
-                Sp(1, 3) * Sp(1, 2) * a,
-            )
-            @test isequal(
-               simplify( Sp(1, 2) * Sp(1, 3) * a - (a * Sp(1, 3) * Sp(1, 2))), 0
-            )
+            @test isequal(Sp(1, 2) * Sp(1, 3) * a, Sp(1, 3) * Sp(1, 2) * a)
+            @test isequal(simplify(Sp(1, 2) * Sp(1, 3) * a - (a * Sp(1, 3) * Sp(1, 2))), 0)
         end
     end
 end
-

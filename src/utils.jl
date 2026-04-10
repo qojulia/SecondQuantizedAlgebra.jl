@@ -192,7 +192,9 @@ function _to_numeric(op::Transition, b::QuantumOpticsBase.NLevelBasis; kwargs...
     i, j = _convert_levels(op; kwargs...)
     return QuantumOpticsBase.transition(b, i, j)
 end
-function _to_numeric(op::CollectiveTransition, b::QuantumOpticsBase.ManyBodyBasis; kwargs...)
+function _to_numeric(
+    op::CollectiveTransition, b::QuantumOpticsBase.ManyBodyBasis; kwargs...
+)
     i, j = _convert_levels(op; kwargs...)
     onebody_op = QuantumOpticsBase.transition(b.onebodybasis, i, j)
     return QuantumOpticsBase.manybodyoperator(b, onebody_op)

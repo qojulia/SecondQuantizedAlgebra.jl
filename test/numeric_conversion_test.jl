@@ -49,28 +49,53 @@ Random.seed!(0)
         @testset "Collective Transition Operators" begin
             hnlevel = NLevelSpace(:nlevel_collective, 4)
             S(i, j) = CollectiveTransition(hnlevel, :S, i, j)
-        
+
             b_onebody = NLevelBasis(4)
             b_manybody = ManyBodyBasis(b_onebody, bosonstates(b_onebody, 3))
-        
-        
-            S11 = to_numeric(S(1,1), b_manybody)
-        
+
+            S11 = to_numeric(S(1, 1), b_manybody)
+
             for i in 1:4, j in 1:4
                 op = S(i, j)
                 op_num = to_numeric(op, b_manybody)
-                op_ref = manybodyoperator(b_manybody, QuantumOpticsBase.transition(b_onebody, i, j))
+                op_ref = manybodyoperator(
+                    b_manybody, QuantumOpticsBase.transition(b_onebody, i, j)
+                )
                 @test sparse(op_num) == sparse(op_ref)
             end
-        
+
             non_commuting_sym = S(1, 2) * S(2, 3)
-            @test sum(abs.((sparse(to_numeric(non_commuting_sym, b_manybody)) - sparse(to_numeric(S(1, 2), b_manybody) * to_numeric(S(2, 3), b_manybody))).data)) < 1e-12
-        
+            @test sum(
+                abs.(
+                    (
+                        sparse(to_numeric(non_commuting_sym, b_manybody)) - sparse(
+                            to_numeric(S(1, 2), b_manybody) *
+                            to_numeric(S(2, 3), b_manybody),
+                        )
+                    ).data,
+                ),
+            ) < 1e-12
+
             commuting_sym = S(1, 2) * S(1, 3)
-        
-            sum(abs.(sparse(to_numeric(commuting_sym, b_manybody)) - sparse(to_numeric(S(1, 2), b_manybody) * to_numeric(S(1, 3), b_manybody))))
-        
-            @test sum( abs.((sparse(to_numeric(commuting_sym, b_manybody)) - sparse(to_numeric(S(1, 2), b_manybody) * to_numeric(S(1, 3), b_manybody))).data) ) < 1e-12
+
+            sum(
+                abs.(
+                    sparse(to_numeric(commuting_sym, b_manybody)) - sparse(
+                        to_numeric(S(1, 2), b_manybody) * to_numeric(S(1, 3), b_manybody)
+                    ),
+                ),
+            )
+
+            @test sum(
+                abs.(
+                    (
+                        sparse(to_numeric(commuting_sym, b_manybody)) - sparse(
+                            to_numeric(S(1, 2), b_manybody) *
+                            to_numeric(S(1, 3), b_manybody),
+                        )
+                    ).data,
+                ),
+            ) < 1e-12
         end
         @testset "Pauli Operators" begin
             hp = PauliSpace(:p)

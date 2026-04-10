@@ -281,7 +281,9 @@ function CollectiveTransition(
 ) where {H<:ProductSpace,S,I,A<:Int,M}
     if hilbert.spaces[aon] isa ClusterSpace
         hilbert.spaces[get_i(aon)].op_name[] = name
-        op = CollectiveTransition(hilbert.spaces[aon].original_space, name, i, j, 1; metadata)
+        op = CollectiveTransition(
+            hilbert.spaces[aon].original_space, name, i, j, 1; metadata
+        )
         return _cluster(hilbert, op, aon)
     else
         return CollectiveTransition{H,S,I,A,M}(hilbert, name, i, j, aon, metadata)
@@ -315,12 +317,14 @@ function Base.hash(t::CollectiveTransition, h::UInt)
     )
 end
 
-_isordered_collective_transition(a::CollectiveTransition, b::CollectiveTransition) =
+function _isordered_collective_transition(a::CollectiveTransition, b::CollectiveTransition)
     (a.i > b.i) || (isequal(a.i, b.i) && a.j >= b.j)
+end
 _δ(a, b) = isequal(a, b) ? 1 : 0
 
-ismergeable(a::CollectiveTransition, b::CollectiveTransition) =
+function ismergeable(a::CollectiveTransition, b::CollectiveTransition)
     acts_on(a) == acts_on(b) && !_isordered_collective_transition(a, b)
+end
 
 function Base.:*(a::CollectiveTransition, b::CollectiveTransition)
     check_hilbert(a, b)
