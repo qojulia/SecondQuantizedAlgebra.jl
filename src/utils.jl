@@ -473,6 +473,9 @@ function numeric_average(op::Number, state, d::Dict; kwargs...)
     return QuantumOpticsBase.expect(op_num, state)
 end
 
+expect(avg::Average, state; kwargs...) = numeric_average(avg, state; kwargs...)
+expect(op::QNumber, state; kwargs...) = numeric_average(op, state; kwargs...)
+
 function _conj(v::T) where {T<:SymbolicUtils.Symbolic}
     if SymbolicUtils.iscall(v)
         f = SymbolicUtils.operation(v)
