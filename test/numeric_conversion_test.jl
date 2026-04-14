@@ -80,9 +80,12 @@ Random.seed!(0)
 
             @test sum(
                 abs.(
-                    (sparse(to_numeric(commuting_sym, b_manybody)) - sparse(
-                        to_numeric(S(1, 2), b_manybody) * to_numeric(S(1, 3), b_manybody)
-                    )).data,
+                    (
+                        sparse(to_numeric(commuting_sym, b_manybody)) - sparse(
+                            to_numeric(S(1, 2), b_manybody) *
+                            to_numeric(S(1, 3), b_manybody),
+                        )
+                    ).data,
                 ),
             ) < 1e-12
 

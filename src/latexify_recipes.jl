@@ -165,7 +165,9 @@ end
 _to_expression(op::QSym) = op.name
 _to_expression(op::Create) = :(dagger($(op.name)))
 _to_expression(op::Transition) = :(Transition($(op.name), $(op.i), $(op.j)))
-_to_expression(op::CollectiveTransition) = :(CollectiveTransition($(op.name), $(op.i), $(op.j)))
+function _to_expression(op::CollectiveTransition)
+    :(CollectiveTransition($(op.name), $(op.i), $(op.j)))
+end
 xyz_sym=[:x, :y, :z]
 _to_expression(op::Pauli) = :(Pauli($(op.name), $(xyz_sym[op.axis])))
 _to_expression(op::Spin) = :(Spin($(op.name), $(xyz_sym[op.axis])))

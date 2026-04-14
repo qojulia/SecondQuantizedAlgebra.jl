@@ -86,7 +86,16 @@ function fundamental_operators(h::ProductSpace; kwargs...)
     return ops
 end
 
-for T in [:Destroy, :Create, :Transition, :CollectiveTransition, :Pauli, :Spin, :Position, :Momentum]
+for T in [
+    :Destroy,
+    :Create,
+    :Transition,
+    :CollectiveTransition,
+    :Pauli,
+    :Spin,
+    :Position,
+    :Momentum,
+]
     @eval function embed(h::ProductSpace, op::($T), i)
         fields = [getfield(op, s) for s in fieldnames($T) if s ≠ :metadata]
         fields[1] = h
