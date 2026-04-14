@@ -78,13 +78,13 @@ Random.seed!(0)
 
             commuting_sym = S(1, 2) * S(1, 3)
 
-            sum(
+            @test sum(
                 abs.(
-                    sparse(to_numeric(commuting_sym, b_manybody)) - sparse(
+                    (sparse(to_numeric(commuting_sym, b_manybody)) - sparse(
                         to_numeric(S(1, 2), b_manybody) * to_numeric(S(1, 3), b_manybody)
-                    ),
+                    )).data,
                 ),
-            )
+            ) < 1e-12
 
             @test sum(
                 abs.(

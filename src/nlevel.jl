@@ -234,9 +234,10 @@ ismergeable(::Transition, ::Transition) = true
     CollectiveTransition <: QSym
     CollectiveTransition(h::NLevelSpace, name::Symbol, i, j)
 
-Collective transition operator on an [`NLevelSpace`](@ref) defined by 
+Collective transition operator on an [`NLevelSpace`](@ref) resembles
 
-``\\sum_{k} \\sigma_k^{ij}.`
+``\\sum_{k} \\sigma_k^{ij}``, but does not use indices. The ground state
+is not rewritten for CollectiveTransitions. 
 """
 struct CollectiveTransition{H,S,I,A,M} <: QSym
     hilbert::H
