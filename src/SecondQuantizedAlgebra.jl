@@ -8,7 +8,7 @@ using Combinatorics: combinations, levicivita
 
 using SciMLBase: SciMLBase
 using QuantumOpticsBase: QuantumOpticsBase
-import QuantumOpticsBase: ⊗, tensor
+import QuantumOpticsBase: ⊗, tensor, expect
 
 using LaTeXStrings: LaTeXStrings, @L_str, latexstring
 using Latexify: Latexify, latexify, @latexrecipe
@@ -46,6 +46,7 @@ export HilbertSpace,
     ProductSpace,
     ⊗,
     tensor,
+    expect,
     QSym,
     QTerm,
     @qnumbers,

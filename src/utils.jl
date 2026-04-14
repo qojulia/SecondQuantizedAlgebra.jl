@@ -351,6 +351,10 @@ function numeric_average(op::QNumber, state; kwargs...)
     op_num = to_numeric(op, state; kwargs...)
     return QuantumOpticsBase.expect(op_num, state)
 end
+function numeric_average(op::QNumber, state::Vector; kwargs...)
+    op_num = QuantumOpticsBase.sparse(to_numeric(op, state[1]; kwargs...))
+    return QuantumOpticsBase.expect(op_num, state)
+end
 function numeric_average(avg::Average, state; kwargs...)
     op = undo_average(avg)
     return numeric_average(op, state; kwargs...)
@@ -440,6 +444,10 @@ function numeric_average(op::QNumber, state, d::Dict; kwargs...)
     op_num = to_numeric(op, state, d; kwargs...)
     return QuantumOpticsBase.expect(op_num, state)
 end
+function numeric_average(op::QNumber, state::Vector, d::Dict; kwargs...)
+    op_num = to_numeric(op, state[1], d; kwargs...)
+    return QuantumOpticsBase.expect(op_num, state)
+end
 function numeric_average(avg::Average, state, d::Dict; kwargs...)
     op = undo_average(avg)
     return numeric_average(op, state, d; kwargs...)
@@ -464,6 +472,9 @@ function numeric_average(op::Number, state, d::Dict; kwargs...)
     op_num = to_numeric(op, state, d; kwargs...)
     return QuantumOpticsBase.expect(op_num, state)
 end
+
+expect(avg::Average, state; kwargs...) = numeric_average(avg, state; kwargs...)
+expect(op::QNumber, state; kwargs...) = numeric_average(op, state; kwargs...)
 
 function _conj(v::T) where {T<:SymbolicUtils.Symbolic}
     if SymbolicUtils.iscall(v)

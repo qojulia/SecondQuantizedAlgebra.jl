@@ -109,3 +109,6 @@ has_hilbert(::Type{T}, ::T, args...) where {T<:HilbertSpace} = true
 has_hilbert(T::Type{<:HilbertSpace}, h::ProductSpace, aon) = has_hilbert(T, h.spaces[aon])
 has_hilbert(::Type{<:HilbertSpace}, ::HilbertSpace, args...) = false
 has_hilbert(::Type{T}, ::ClusterSpace{<:T}, args...) where {T<:HilbertSpace} = true
+
+Base.length(h::ConcreteHilbertSpace) = 1
+Base.length(h::ProductSpace) = length(h.spaces)
