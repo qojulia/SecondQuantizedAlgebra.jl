@@ -151,6 +151,7 @@ Random.seed!(0)
             @test numeric_average(x, ψ0) ≈ x0
             @test numeric_average(p, ψ0) ≈ p0
             @test abs(numeric_average((x-x0)^2, ψ0) - variance(x_qo, ψ0)) < 1e-6
+            @test numeric_average(x, [ψ0]) == numeric_average(average(x), ψ0) ≈ x0
         end
     end
 
@@ -393,6 +394,8 @@ Random.seed!(0)
         @test numeric_average(3 * average(ad)^2, ψ0, dd) == 3 * expect(s(2, 2, 1), ψ0)^2
         @test numeric_average(average(ad * a) + average(a), ψ0, dd) ==
             expect(s(2, 2, 1) * s(2, 1, 2), ψ0) + expect(s(2, 1, 2), ψ0)
+        @test numeric_average(average(ad * a), [ψ0, ψ0], dd) ==
+            expect(s(2, 2, 1) * s(2, 1, 2), [ψ0, ψ0]) == numeric_average(ad * a, [ψ0, ψ0], dd)
     end
 
     @testset "Edge Cases and Bug Fixes" begin

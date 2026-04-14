@@ -6,6 +6,7 @@ using Test
     @testset "Symbolic Level Systems" begin
         ha = NLevelSpace(:atom, (:g, :e))
         @test ha.GS == :g
+        @test length(ha) == 1
 
         σ = Transition(ha, :σ, :g, :e)
         σee = Transition(ha, :σ, :e, :e)
@@ -56,6 +57,7 @@ using Test
         @test ha1 != ha2
 
         hprod = ha1⊗ha2
+        @test length(hprod) == 2
         σ1 = Transition(hprod, :σ, :g, :e, 1)
         σ2 = Transition(hprod, :σ, 1, 2, 2)
 

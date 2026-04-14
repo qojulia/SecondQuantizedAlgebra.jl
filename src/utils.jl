@@ -359,10 +359,6 @@ function numeric_average(avg::Average, state; kwargs...)
     op = undo_average(avg)
     return numeric_average(op, state; kwargs...)
 end
-function numeric_average(avg::Average, state::Vector; kwargs...)
-    op = undo_average(avg)
-    return numeric_average(op, state; kwargs...)
-end
 function numeric_average(avg_term::SymbolicUtils.BasicSymbolic{CNumber}, state; kwargs...)
     if SymbolicUtils.iscall(avg_term)
         op = operation(avg_term)
@@ -447,6 +443,10 @@ See also: [`to_numeric`](@ref)
 function numeric_average(op::QNumber, state, d::Dict; kwargs...)
     op_num = to_numeric(op, state, d; kwargs...)
     return QuantumOpticsBase.expect(op_num, state)
+end
+function numeric_average(op::QNumber, state::Vector, d::Dict; kwargs...)
+    op_num = QuantumOpticsBase.sparse(to_numeric(op, state[1]; kwargs...))
+    return QuantumOpticsBase.expect(op_num, state, d)
 end
 function numeric_average(avg::Average, state, d::Dict; kwargs...)
     op = undo_average(avg)
