@@ -51,9 +51,10 @@ using Test
 
         @test commutator(H, x2) == 0
         @test commutator(H, p2) == 0
-        @test isequal(simplify(1im*commutator(H, x1)), simplify(p1*miv))
-        @test isequal(simplify(1im*commutator(H, p1)), simplify(-x1*m*ω^2 - 4*c*x1^3))
-
+        @test isequal(simplify(simplify(1im*commutator(H, x1)) - simplify(p1*miv)), 0)
+        @test isequal(
+            simplify(simplify(1im*commutator(H, p1)) - simplify(-x1*m*ω^2 - 4*c*x1^3)), 0
+        )
         # Test that Hamiltonian construction works
         @test H isa SecondQuantizedAlgebra.QAdd
     end

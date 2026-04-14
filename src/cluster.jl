@@ -63,6 +63,9 @@ function _cluster(h, op, aon, order)
 end
 
 _remake_op(op::Transition, h, name, aon) = Transition(h, name, op.i, op.j, aon)
+function _remake_op(op::CollectiveTransition, h, name, aon)
+    CollectiveTransition(h, name, op.i, op.j, aon)
+end
 _remake_op(op::Destroy, h, name, aon) = Destroy(h, name, aon)
 _remake_op(op::Create, h, name, aon) = Create(h, name, aon)
 

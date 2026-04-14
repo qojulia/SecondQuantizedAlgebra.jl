@@ -229,3 +229,128 @@ function *(a::Transition, b::Transition)
     end
 end
 ismergeable(::Transition, ::Transition) = true
+
+"""
+    CollectiveTransition <: QSym
+    CollectiveTransition(h::NLevelSpace, name::Symbol, i, j)
+
+Collective transition operator on an [`NLevelSpace`](@ref) resembles
+
+``\\sum_{k} \\sigma_k^{ij}``, but does not use indices. The ground state
+is not rewritten for CollectiveTransitions. 
+"""
+struct CollectiveTransition{H,S,I,A,M} <: QSym
+    hilbert::H
+    name::S
+    i::I
+    j::I
+    aon::A
+    metadata::M
+    function CollectiveTransition{H,S,I,A,M}(
+        hilbert::H, name::S, i::I, j::I, aon::A, metadata::M
+    ) where {H,S,I,A,M}
+        @assert has_hilbert(NLevelSpace, hilbert, aon)
+        @assert i ∈ levels(hilbert, aon) && j ∈ levels(hilbert, aon)
+        new(hilbert, name, i, j, aon, metadata)
+    end
+end
+function CollectiveTransition(
+    hilbert::H, name::S, i::I, j::I, aon::A; metadata::M=NO_METADATA
+) where {H,S,I,A,M}
+    CollectiveTransition{H,S,I,A,M}(hilbert, name, i, j, aon, metadata)
+end
+function CollectiveTransition(hilbert::NLevelSpace, name, i, j; metadata=NO_METADATA)
+    CollectiveTransition(hilbert, name, i, j, 1; metadata)
+end
+function CollectiveTransition(hilbert::ProductSpace, name, i, j; metadata=NO_METADATA)
+    inds = findall(
+        x->isa(x, NLevelSpace) || isa(x, ClusterSpace{<:NLevelSpace}), hilbert.spaces
+    )
+    if length(inds) == 1
+        return CollectiveTransition(hilbert, name, i, j, inds[1]; metadata)
+    else
+        isempty(inds) && error(
+            "Can only create CollectiveTransition on NLevelSpace! Not included in $(hilbert)",
+        )
+        length(inds) > 1 && error(
+            "More than one NLevelSpace in $(hilbert)! Specify on which Hilbert space CollectiveTransition should be created with CollectiveTransition(hilbert,name,i,j,acts_on)!",
+        )
+    end
+end
+function CollectiveTransition(
+    hilbert::H, name::S, i::I, j::I, aon::A; metadata::M=NO_METADATA
+) where {H<:ProductSpace,S,I,A<:Int,M}
+    if hilbert.spaces[aon] isa ClusterSpace
+        hilbert.spaces[get_i(aon)].op_name[] = name
+        op = CollectiveTransition(
+            hilbert.spaces[aon].original_space, name, i, j, 1; metadata
+        )
+        return _cluster(hilbert, op, aon)
+    else
+        return CollectiveTransition{H,S,I,A,M}(hilbert, name, i, j, aon, metadata)
+    end
+end
+function CollectiveTransition(
+    h::ClusterSpace{<:NLevelSpace}, name, i, j, aon::Int=1; metadata=NO_METADATA
+)
+    h.op_name[] = name
+    op = CollectiveTransition(h.original_space, name, i, j, 1; metadata)
+    return _cluster(h, op, aon)
+end
+
+levels(t::CollectiveTransition, args...) = levels(t.hilbert, args...)
+ground_state(t::CollectiveTransition, args...) = ground_state(t.hilbert, args...)
+
+function Base.adjoint(t::CollectiveTransition)
+    CollectiveTransition(t.hilbert, t.name, t.j, t.i, acts_on(t); t.metadata)
+end
+function Base.isequal(t1::CollectiveTransition, t2::CollectiveTransition)
+    isequal(t1.hilbert, t2.hilbert) &&
+        isequal(t1.name, t2.name) &&
+        isequal(t1.i, t2.i) &&
+        isequal(t1.j, t2.j) &&
+        isequal(t1.aon, t2.aon)
+end
+function Base.hash(t::CollectiveTransition, h::UInt)
+    hash(
+        CollectiveTransition,
+        hash(t.hilbert, hash(t.name, hash(t.i, hash(t.j, hash(t.aon, h))))),
+    )
+end
+
+function _isordered_collective_transition(a::CollectiveTransition, b::CollectiveTransition)
+    (a.i > b.i) || (isequal(a.i, b.i) && a.j >= b.j)
+end
+_δ(a, b) = isequal(a, b) ? 1 : 0
+
+function ismergeable(a::CollectiveTransition, b::CollectiveTransition)
+    acts_on(a) == acts_on(b) && !_isordered_collective_transition(a, b)
+end
+
+function Base.:*(a::CollectiveTransition, b::CollectiveTransition)
+    check_hilbert(a, b)
+    aon_a = acts_on(a)
+    aon_b = acts_on(b)
+    if aon_a == aon_b
+        if _isordered_collective_transition(a, b)
+            return QMul(1, [a, b])
+        end
+
+        args = Any[]
+        δjk = _δ(a.j, b.i)
+        δli = _δ(b.j, a.i)
+
+        if !iszero(δjk)
+            push!(args, δjk * CollectiveTransition(a.hilbert, a.name, a.i, b.j, aon_a))
+        end
+        if !iszero(δli)
+            push!(args, -δli * CollectiveTransition(a.hilbert, a.name, b.i, a.j, aon_a))
+        end
+        push!(args, b * a)
+        return length(args) == 1 ? args[1] : QAdd(args)
+    elseif aon_a < aon_b
+        return QMul(1, [a, b])
+    else
+        return QMul(1, [b, a])
+    end
+end
