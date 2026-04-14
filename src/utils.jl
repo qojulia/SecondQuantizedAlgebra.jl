@@ -351,7 +351,15 @@ function numeric_average(op::QNumber, state; kwargs...)
     op_num = to_numeric(op, state; kwargs...)
     return QuantumOpticsBase.expect(op_num, state)
 end
+function numeric_average(op::QNumber, state::Vector; kwargs...)
+    op_num = QuantumOpticsBase.sparse(to_numeric(op, state[1]; kwargs...))
+    return QuantumOpticsBase.expect(op_num, state)
+end
 function numeric_average(avg::Average, state; kwargs...)
+    op = undo_average(avg)
+    return numeric_average(op, state; kwargs...)
+end
+function numeric_average(avg::Average, state::Vector; kwargs...)
     op = undo_average(avg)
     return numeric_average(op, state; kwargs...)
 end
