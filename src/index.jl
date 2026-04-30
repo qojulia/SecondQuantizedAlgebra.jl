@@ -76,7 +76,7 @@ Operator indices are swapped directly. Symbolic prefactors (e.g. [`IndexedVariab
 the `sym` fields of the indices. `DoubleIndexedVariable` nodes with `identical=false`
 automatically evaluate to zero if the substitution makes both arguments equal.
 
-See also [`insert_index`](@ref), [`get_indices`](@ref).
+See also [`get_indices`](@ref).
 """
 change_index(x::Number, ::Index, ::Index) = x
 function change_index(x::Num, from::Index, to::Index)
@@ -93,31 +93,31 @@ end
 
 function change_index(op::Destroy, from::Index, to::Index)
     idx = op.index == from ? to : op.index
-    return Destroy(op.name, op.space_index, op.copy_index, idx)
+    return Destroy(op.name, op.space_index, idx)
 end
 function change_index(op::Create, from::Index, to::Index)
     idx = op.index == from ? to : op.index
-    return Create(op.name, op.space_index, op.copy_index, idx)
+    return Create(op.name, op.space_index, idx)
 end
 function change_index(op::Transition, from::Index, to::Index)
     idx = op.index == from ? to : op.index
-    return Transition(op.name, op.i, op.j, op.space_index, op.copy_index, idx)
+    return Transition(op.name, op.i, op.j, op.space_index, idx)
 end
 function change_index(op::Pauli, from::Index, to::Index)
     idx = op.index == from ? to : op.index
-    return Pauli(op.name, op.axis, op.space_index, op.copy_index, idx)
+    return Pauli(op.name, op.axis, op.space_index, idx)
 end
 function change_index(op::Spin, from::Index, to::Index)
     idx = op.index == from ? to : op.index
-    return Spin(op.name, op.axis, op.space_index, op.copy_index, idx)
+    return Spin(op.name, op.axis, op.space_index, idx)
 end
 function change_index(op::Position, from::Index, to::Index)
     idx = op.index == from ? to : op.index
-    return Position(op.name, op.space_index, op.copy_index, idx)
+    return Position(op.name, op.space_index, idx)
 end
 function change_index(op::Momentum, from::Index, to::Index)
     idx = op.index == from ? to : op.index
-    return Momentum(op.name, op.space_index, op.copy_index, idx)
+    return Momentum(op.name, op.space_index, idx)
 end
 
 function change_index(s::QAdd, from::Index, to::Index)
@@ -182,69 +182,3 @@ function _check_not_identical(result::SymbolicUtils.BasicSymbolic)
     return Num(result)
 end
 _check_not_identical(result::Number) = Num(result)
-
-# --- insert_index ---
-
-"""
-    insert_index(expr, idx::Index, val::Int)
-
-Substitute a concrete integer `val` for the symbolic summation index `idx` in `expr`.
-
-- Operators matching `idx` get `copy_index = val` and `index = NO_INDEX`.
-- Symbolic variables ([`IndexedVariable`](@ref), [`DoubleIndexedVariable`](@ref))
-  are substituted via `Symbolics.substitute`.
-- [`DoubleIndexedVariable`](@ref) nodes with `identical=false` evaluate to zero
-  if the substitution makes both arguments equal.
-
-See also [`change_index`](@ref), [`expand_sums`](@ref).
-"""
-insert_index(x::Number, ::Index, ::Int) = x
-
-function insert_index(x::Num, idx::Index, val::Int)
-    raw = SymbolicUtils.unwrap(x)
-    result = Symbolics.substitute(raw, Dict(SymbolicUtils.unwrap(idx.sym) => val))
-    return _check_not_identical(result)
-end
-function insert_index(x::CNum, idx::Index, val::Int)
-    return Complex(insert_index(real(x), idx, val), insert_index(imag(x), idx, val))
-end
-
-function insert_index(op::Destroy, idx::Index, val::Int)
-    op.index == idx || return op
-    return Destroy(op.name, op.space_index, val, NO_INDEX)
-end
-function insert_index(op::Create, idx::Index, val::Int)
-    op.index == idx || return op
-    return Create(op.name, op.space_index, val, NO_INDEX)
-end
-function insert_index(op::Transition, idx::Index, val::Int)
-    op.index == idx || return op
-    return Transition(op.name, op.i, op.j, op.space_index, val, NO_INDEX)
-end
-function insert_index(op::Pauli, idx::Index, val::Int)
-    op.index == idx || return op
-    return Pauli(op.name, op.axis, op.space_index, val, NO_INDEX)
-end
-function insert_index(op::Spin, idx::Index, val::Int)
-    op.index == idx || return op
-    return Spin(op.name, op.axis, op.space_index, val, NO_INDEX)
-end
-function insert_index(op::Position, idx::Index, val::Int)
-    op.index == idx || return op
-    return Position(op.name, op.space_index, val, NO_INDEX)
-end
-function insert_index(op::Momentum, idx::Index, val::Int)
-    op.index == idx || return op
-    return Momentum(op.name, op.space_index, val, NO_INDEX)
-end
-
-function insert_index(s::QAdd, idx::Index, val::Int)
-    new_d = QTermDict()
-    for (ops, c) in s.arguments
-        new_c = insert_index(c, idx, val)
-        _iszero_cnum(new_c) && continue
-        new_ops = QSym[insert_index(op, idx, val) for op in ops]
-        _addto!(new_d, new_ops, new_c)
-    end
-    return QAdd(new_d, Index[], Tuple{Index, Index}[])
-end

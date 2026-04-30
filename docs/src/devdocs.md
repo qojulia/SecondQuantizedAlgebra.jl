@@ -27,16 +27,13 @@ Every `QSym` subtype shares a common field layout:
 struct Destroy <: QSym
     name::Symbol        # display name
     space_index::Int    # which subspace in a ProductSpace (always 1 for simple spaces)
-    copy_index::Int     # distinguishes copies in cluster expansion (a₁, a₂, ...)
     index::Index        # symbolic summation index (NO_INDEX when absent)
 end
 ```
 
 **Why `space_index` instead of storing the Hilbert space.** Operators don't hold a reference to their Hilbert space. The space is only used at construction time for validation (checking bounds, matching types). At runtime, only the integer `space_index` matters — it determines which operators commute (different `space_index` → commute trivially) and where to embed in a composite basis during numeric conversion. This keeps operators lightweight and avoids type instability from heterogeneous space references.
 
-**Why `copy_index`.** Cluster expansion (`cluster_expand`) creates multiple copies of the same operator with `copy_index = 1, 2, ...`. Two operators with the same `space_index` but different `copy_index` represent distinct physical copies and don't interact via commutation rules. The `_same_site` check requires all three of `space_index`, `copy_index`, and `index` to match.
-
-**Why `index::Index` on every operator.** Symbolic summation indices (for expressions like ``\sum_i a_i^\dagger a_i``) live directly on the operator rather than in a wrapper type. This avoids a separate `IndexedOperator` struct in the type hierarchy and keeps dispatch simple. The sentinel `NO_INDEX` (with `space_index = 0`) indicates no index is present, checked via `has_index(idx) = idx.space_index != 0`.
+**Why `index::Index` on every operator.** Symbolic summation indices (for expressions like ``\sum_i a_i^\dagger a_i``) live directly on the operator rather than in a wrapper type. This avoids a separate `IndexedOperator` struct in the type hierarchy and keeps dispatch simple. The sentinel `NO_INDEX` (with `space_index = 0`) indicates no index is present, checked via `has_index(idx) = idx.space_index != 0`. The `_same_site` check requires both `space_index` and `index` to match — operators with the same `space_index` but different `index` represent distinct sites in an indexed sum and don't interact via commutation rules.
 
 **Transition-specific fields.** `Transition` adds `i::Int` and `j::Int` for the bra/ket levels. `Pauli` and `Spin` add `axis::Int` (1=x, 2=y, 3=z).
 
@@ -55,14 +52,7 @@ end
 
 This gives full type stability — `ProductSpace{Tuple{FockSpace, NLevelSpace}}` is a concrete type. The `⊗` operator flattens nested `ProductSpace`s during construction.
 
-**`ClusterSpace` and `_unwrap_space`.** A `ClusterSpace{H,T}` wraps another space with metadata (`N` copies, correlation `order`). The `_unwrap_space` pattern lets validation code see through the wrapper:
-
-```julia
-_unwrap_space(h::HilbertSpace) = h       # identity for non-cluster
-_unwrap_space(h::ClusterSpace) = h.original_space
-```
-
-All operator constructors call `_unwrap_space(h.spaces[idx])` before type-checking, so `FockSpace` wrapped in `ClusterSpace` still validates correctly.
+**No `ClusterSpace`.** Earlier versions of SecondQuantizedAlgebra.jl had a `ClusterSpace{H,T}` wrapper, inherited from QuantumCumulants.jl, that encoded "this subspace has ``N`` identical copies, track correlations up to order ``k``." It was paired with a `copy_index::Int` field on every `QSym` so that `cluster_expand(op, N)` could materialize ``N`` distinct copies (`a_1, a_2, …, a_N`). QuantumCumulants.jl has since deprecated the cluster workflow (compare its [old cluster-based](https://qojulia.github.io/QuantumCumulants.jl/stable/examples/superradiant-laser/) and [new indexed](https://qojulia.github.io/QuantumCumulants.jl/stable/examples/superradiant_laser_indexed/) superradiant-laser tutorials), and we removed the corresponding scaffolding here because the symbolic [`Index`](@ref) machinery already covers the same use case at lower cost: an indexed operator `IndexedOperator(op, i)` with `i::Index` of range ``N`` represents the same family of copies, the algebra reasons over it via [`Σ`](@ref) and diagonal splitting, and ``N`` stays symbolic through equation derivation. The cumulant truncation order is properly a property of the moment expansion, so it now lives in the downstream solver call (`meanfield(…; order=k)` in QuantumCumulants.jl) rather than being baked into the Hilbert space. The integer-instantiation helpers (`insert_index`, `IndexedOperator(op, ::Int)`, `to_numeric(op, b, ranges)`) were removed alongside `copy_index` since they only made sense when concrete copies needed distinct numeric basis slots.
 
 
 ## The `CNum` prefactor type
@@ -123,7 +113,7 @@ Zero terms are never stored. This keeps the dictionary clean without needing exp
 ## Operator sorting
 
 ```julia
-_sort_key(op::QSym) = (op.space_index, op.copy_index, op.index.name)
+_sort_key(op::QSym) = (op.space_index, op.index.name)
 
 _site_sort!(v::Vector{QSym}) = sort!(v; by = _sort_key, alg = Base.MergeSort)
 ```
@@ -160,7 +150,7 @@ The core of the algebra lives in `ordering.jl`. When two operators are multiplie
 
 Each swap creates two terms (the swapped pair + the commutator term), so the worklist can grow. But like-term collection in `_addto!` keeps things manageable.
 
-**`_same_site` guard.** All rules only fire when `a.space_index == b.space_index && a.copy_index == b.copy_index && a.index == b.index`. Operators on different sites trivially commute.
+**`_same_site` guard.** All rules only fire when `a.space_index == b.space_index && a.index == b.index`. Operators on different sites trivially commute.
 
 **`LazyOrder` bypass.** When the ordering is `LazyOrder`, `_apply_ordering` returns the input unchanged — no worklist, no scanning, and no algebraic reductions. All rules (both reductions and ordering swaps) are deferred until an explicit `simplify()` or `normal_order()` call:
 
@@ -182,13 +172,16 @@ end
 
 ## Diagonal splitting
 
-When a symbolic sum ``\sum_i f(i)`` is multiplied by an operator with a free index `j` on the same space, the case `i = j` must be handled separately (the "diagonal" contribution). This is done by `_apply_diagonal_split` (which calls the pure computation helper `_diagonal_split`) in `qadd.jl`:
+When a symbolic sum ``\sum_i f(i)`` is multiplied by an operator with a free index `j` on the same space, the case `i = j` must be handled separately (the "diagonal" contribution). This is done by `_accumulate_with_diag!` in `qadd.jl`, which is invoked from each `*(QAdd, ·)` overload:
 
-1. For each term containing a free index `j` with `j.space_index == i.space_index`:
-2. Create the diagonal term by substituting `i → j` (via `change_index`)
-3. Record the constraint `(i, j)` in `non_equal` to exclude the diagonal from the off-diagonal sum
+1. For each `(ops_a, ops_b)` term pair, vcat the operands (preserving physical multiplication order).
+2. Site-sort + apply ordering on the unsorted vcat to produce the off-diagonal contribution.
+3. For each summation index `i` the term depends on, find every distinct free index `j` (same space, not already constrained `i ≠ j`) and substitute `i → j` on the **unsorted** vcat — *before* `_site_sort!` would canonicalize same-space ops by index name. This preserves the physical operator order so that same-site composition rules (e.g. ``\sigma_{αβ}\sigma_{βγ} = \sigma_{αγ}``) fire on the correct sequence.
+4. Site-sort and apply ordering on the substituted ops to get the diagonal contribution. Record the constraint `(i, j)` in `non_equal`.
 
-`_apply_diagonal_split` is called eagerly during `QAdd * QSym`, `QAdd * QAdd`, and `Σ()` construction. The old package had an explicit `expand_sums` step; now it's automatic. The function `expand_sums` still exists but is a no-op passthrough for API compatibility.
+Substitution must happen pre-sort: post-sort, the original physical order of same-space ops is lost (sorted alphabetically by index name), and substitution can collapse pairs in the wrong order — e.g. `σⱼ¹²·σᵢ²¹` (with `i ≠ j`) sorts to `σᵢ²¹·σⱼ¹²` and collapses at `i = j` to `σⱼ²²`, but the physically correct collapse is `σⱼ¹¹`.
+
+The function `expand_sums` still exists but is a no-op passthrough for API compatibility.
 
 
 ## Index system
@@ -205,9 +198,7 @@ end
 
 **Why `sym` field?** When `change_index(expr, i, j)` operates on a symbolic prefactor like `g(i)`, it needs to substitute the Symbolics variable for `i` with the one for `j`. The `sym` field holds this variable. Without it, we'd need a separate mapping from index names to symbolic variables.
 
-**`change_index` vs. `insert_index`:**
-- `change_index(expr, from, to)`: symbolic substitution, index → index. Used for diagonal splitting.
-- `insert_index(expr, idx, val)`: concrete substitution, index → integer. Sets `copy_index = val` and clears the symbolic index to `NO_INDEX`. Used when expanding sums over concrete ranges.
+**`change_index(expr, from, to)`** performs symbolic substitution, replacing the index `from` with `to` throughout an expression tree (operator indices and the `sym` field of symbolic prefactors). Used for diagonal splitting and renaming sum indices.
 
 **`NotIdentical` metadata.** `DoubleIndexedVariable(:g, i, j; identical=false)` creates `g(i,j)` with metadata `NotIdentical = true`. Two mechanisms enforce `g(i,i) = 0`: (1) at construction time, if `i == j` the function immediately returns `Num(0)`; (2) after a later substitution makes both arguments equal (e.g. `change_index` with `i → j`), `_check_not_identical` detects the equality and returns zero. Together these enforce `g(i,i) = 0` for off-diagonal coupling constants.
 
@@ -263,7 +254,6 @@ This means downstream functions (`is_average`, `acts_on`, `get_indices`, `numeri
   op_num = to_numeric(op, b.bases[idx])
   LazyTensor(b, [idx], (op_num,))
   ```
-- **With ranges:** For cluster-expanded systems, `_ranges_position(space_index, copy_index, ranges)` computes the position in a flat composite basis: `position = sum(ranges[1:space_index-1]) + copy_index`.
 
 **`_to_number`** extracts plain Julia numbers from `Num`/`CNum` wrappers for numeric evaluation. Falls back to the symbolic value if it can't be unwrapped (for symbolic prefactors that haven't been substituted yet).
 

@@ -109,7 +109,7 @@ end
     end
 end
 
-_sort_key(op::QSym) = (op.space_index, op.copy_index, op.index.name)
+_sort_key(op::QSym) = (op.space_index, op.index.name)
 
 # Group operators by site. Must be stable: same-site operators preserve
 # their left-to-right multiplication order (they don't commute).

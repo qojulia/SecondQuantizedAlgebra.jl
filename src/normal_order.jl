@@ -113,7 +113,7 @@ function _convert_ordering(s::QAdd, α::Rational)
 end
 
 function _convert_term!(d::QTermDict, c::CNum, ops::Vector{QSym}, α::Rational)
-    # Find Fock operator groups by site key (space_index, copy_index, index, name)
+    # Find Fock operator groups by site key (space_index, index, name)
     sites = _fock_site_groups(ops)
 
     if isempty(sites)
@@ -143,11 +143,11 @@ end
 # Identify Fock (Create/Destroy) sites and count m (creates) and n (destroys) per site.
 # Returns Vector of (site_key, m, n) tuples.
 function _fock_site_groups(ops::Vector{QSym})
-    sites = Tuple{Tuple{Int, Int, Symbol, Symbol}, Int, Int}[]  # (key, m, n)
-    counted = Dict{Tuple{Int, Int, Symbol, Symbol}, Tuple{Int, Int}}()
+    sites = Tuple{Tuple{Int, Symbol, Symbol}, Int, Int}[]  # (key, m, n)
+    counted = Dict{Tuple{Int, Symbol, Symbol}, Tuple{Int, Int}}()
     for op in ops
         if op isa Create || op isa Destroy
-            key = (op.space_index, op.copy_index, op.index.name, op.name)
+            key = (op.space_index, op.index.name, op.name)
             m_old, n_old = get(counted, key, (0, 0))
             if op isa Create
                 counted[key] = (m_old + 1, n_old)
@@ -169,7 +169,7 @@ end
 # plus the k=0 term (original, unchanged).
 function _apply_site_conversion!(
         result::Vector{_OTerm}, c::CNum, ops::Vector{QSym},
-        site_key::Tuple{Int, Int, Symbol, Symbol}, m::Int, n::Int,
+        site_key::Tuple{Int, Symbol, Symbol}, m::Int, n::Int,
         α::Rational
     )
     # k=0: original term, unchanged
@@ -187,7 +187,7 @@ end
 
 # Remove k Create and k Destroy operators matching the given site key.
 function _remove_fock_ops(
-        ops::Vector{QSym}, site_key::Tuple{Int, Int, Symbol, Symbol}, k::Int
+        ops::Vector{QSym}, site_key::Tuple{Int, Symbol, Symbol}, k::Int
     )
     new_ops = copy(ops)
     creates_removed = 0
@@ -198,7 +198,7 @@ function _remove_fock_ops(
     while i <= length(new_ops) && creates_removed < k
         op = new_ops[i]
         if op isa Create &&
-                (op.space_index, op.copy_index, op.index.name, op.name) == site_key
+                (op.space_index, op.index.name, op.name) == site_key
             deleteat!(new_ops, i)
             creates_removed += 1
         else
@@ -211,7 +211,7 @@ function _remove_fock_ops(
     while i <= length(new_ops) && destroys_removed < k
         op = new_ops[i]
         if op isa Destroy &&
-                (op.space_index, op.copy_index, op.index.name, op.name) == site_key
+                (op.space_index, op.index.name, op.name) == site_key
             deleteat!(new_ops, i)
             destroys_removed += 1
         else
@@ -247,7 +247,6 @@ _apply_ground_state(expr::QAdd, ::FockSpace) = expr
 _apply_ground_state(expr::QAdd, ::PauliSpace) = expr
 _apply_ground_state(expr::QAdd, ::SpinSpace) = expr
 _apply_ground_state(expr::QAdd, ::PhaseSpace) = expr
-_apply_ground_state(expr::QAdd, ::ClusterSpace) = expr
 
 function _expand_ground_state(c::CNum, ops::Vector{QSym}, h::NLevelSpace)
     g = h.ground_state
@@ -261,7 +260,7 @@ function _expand_ground_state(c::CNum, ops::Vector{QSym}, h::NLevelSpace)
             # Subtraction terms
             for k in 1:n
                 k == g && continue
-                new_op = Transition(op.name, k, k, op.space_index, op.copy_index, op.index)
+                new_op = Transition(op.name, k, k, op.space_index, op.index)
                 sub_ops = QSym[j == idx ? new_op : ops[j] for j in eachindex(ops)]
                 push!(expanded, (-c, sub_ops))
             end

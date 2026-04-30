@@ -30,21 +30,20 @@ pkg> add SecondQuantizedAlgebra
 
 ```julia
 using SecondQuantizedAlgebra
-using SymbolicUtils
 
-ha = NLevelSpace(:atoms,2)
 hc = FockSpace(:cavity)
+ha = NLevelSpace(:atoms, 2)
 h = hc ⊗ ha
 
-@qnumbers b::Destroy(h)
-σ(i,j) = Transition(h,:σ,i,j)
+@qnumbers b::Destroy(h, 1)
+σ(i, j) = Transition(h, :σ, i, j, 2)
 
-@cnumbers g Δ
+@variables g Δ
 
-H = Δ*b'*b + g*(b*σ(2,1) + b'*σ(1,2))
+H = Δ * b' * b + g * (b * σ(2, 1) + b' * σ(1, 2))
 
-@show b*b'
-@show σ(2,1)*σ(1,1)
+@show b * b'
+@show σ(2, 1) * σ(1, 1)
 
 simplify(commutator(H, b))
 ```

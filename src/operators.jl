@@ -58,7 +58,7 @@ end
 function fundamental_operators(h::ProductSpace; names::Union{Nothing, AbstractVector} = nothing)
     ops = QSym[]
     for (i, space) in enumerate(h.spaces)
-        space_ops = fundamental_operators(_unwrap_space(space), i; names = names)
+        space_ops = fundamental_operators(space, i; names = names)
         append!(ops, space_ops)
     end
     return ops
@@ -129,7 +129,7 @@ See also [`fundamental_operators`](@ref), [`unique_ops`](@ref).
 function find_operators(h::HilbertSpace, order::Int; names::Union{Nothing, AbstractVector} = nothing)
     # Auto-generate names when ProductSpace has duplicate space types
     if names === nothing && h isa ProductSpace
-        space_types = typeof.(_unwrap_space.(h.spaces))
+        space_types = typeof.(h.spaces)
         if length(unique(space_types)) != length(space_types)
             alph = 'a':'z'
             names = Symbol.(alph[1:length(h.spaces)])

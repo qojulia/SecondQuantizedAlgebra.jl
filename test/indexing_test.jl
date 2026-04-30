@@ -1260,22 +1260,5 @@ import SecondQuantizedAlgebra: simplify, QAdd, QSym, CNum, _to_cnum, NO_INDEX,
         @inferred change_index(ai, i, Index(hf, :j, 10, hf))
         @inferred get_indices(ai)
         @inferred commutator(ai, adi)
-        @inferred insert_index(ai, i, 1)
-        @inferred insert_index(ai', i, 1)
-        @inferred IndexedOperator(a, 3)
-
-        # insert_index on Transition, Pauli, Spin, Position, Momentum
-        σi = IndexedOperator(Transition(h_prod, :σ, 1, 2, 2), i)
-        @inferred insert_index(σi, i, 1)
-        pi_ = IndexedOperator(Pauli(PauliSpace(:p), :σ, 1), i)
-        @inferred insert_index(pi_, i, 1)
-
-        # insert_index on QAdd (product)
-        m = ai * σi
-        @inferred insert_index(m, i, 1)
-
-        # _ranges_position
-        import SecondQuantizedAlgebra: _ranges_position
-        @inferred _ranges_position(2, 1, [1, 2])
     end
 end

@@ -21,7 +21,6 @@ include("nlevel.jl")
 include("pauli.jl")
 include("spin.jl")
 include("phase_space.jl")
-include("cluster.jl")
 include("cnum.jl")
 include("ordering.jl")
 include("qadd.jl")
@@ -85,10 +84,9 @@ export FockSpace, ProductSpace,
     PauliSpace, Pauli,
     SpinSpace, Spin,
     PhaseSpace, Position, Momentum,
-    ClusterSpace, cluster_expand, has_cluster,
     Index, has_index, IndexedOperator,
     IndexedVariable, DoubleIndexedVariable,
-    Σ, ∑, change_index, insert_index, expand_sums, get_indices,
+    Σ, ∑, change_index, expand_sums, get_indices,
     ⊗, tensor,
     Destroy, Create,
     @qnumbers, @variables,

@@ -17,10 +17,9 @@ abstract type QField end
 
 Abstract type for fundamental (leaf) operators in the expression tree.
 
-Every `QSym` carries four fields identifying its site:
+Every `QSym` carries three fields identifying its site:
 - `name::Symbol` — display name
 - `space_index::Int` — position in [`ProductSpace`](@ref) (1 for single spaces)
-- `copy_index::Int` — copy label within a [`ClusterSpace`](@ref) (default 1)
 - `index::Index` — symbolic summation index ([`Index`](@ref)), or `NO_INDEX`
 
 Concrete subtypes: [`Destroy`](@ref), [`Create`](@ref), [`Transition`](@ref),

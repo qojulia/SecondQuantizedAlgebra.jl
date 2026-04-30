@@ -22,7 +22,7 @@ j = Index(h, :j, 10, 1)                  # same, using integer space index
 ```
 
 See also [`has_index`](@ref), [`IndexedOperator`](@ref), [`Σ`](@ref),
-[`change_index`](@ref), [`insert_index`](@ref).
+[`change_index`](@ref).
 """
 struct Index
     name::Symbol
@@ -63,8 +63,7 @@ end
 _find_space_index(::HilbertSpace, ::HilbertSpace) = 1
 function _find_space_index(h::ProductSpace, space::HilbertSpace)
     for (i, s) in enumerate(h.spaces)
-        actual = _unwrap_space(s)
-        actual == space && return i
+        s == space && return i
     end
     throw(ArgumentError("Space $space not found in $h"))
 end

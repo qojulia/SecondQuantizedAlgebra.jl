@@ -17,25 +17,8 @@ Base.show(io::IO, h::NLevelSpace) = (write(io, "ℋ("); print(io, h.name); write
 Base.show(io::IO, h::PauliSpace) = (write(io, "ℋ("); print(io, h.name); write(io, ")"))
 Base.show(io::IO, h::SpinSpace) = (write(io, "ℋ("); print(io, h.name); write(io, ")"))
 Base.show(io::IO, h::PhaseSpace) = (write(io, "ℋ("); print(io, h.name); write(io, ")"))
-function Base.show(io::IO, h::ClusterSpace)
-    write(io, "Cluster(")
-    show(io, h.original_space)
-    write(io, ", N=")
-    print(io, h.N)
-    write(io, ", order=")
-    print(io, h.order)
-    return write(io, ")")
-end
 
-# Index suffix helpers
-function _show_copy_suffix(io::IO, ci::Int)
-    if ci > 1
-        write(io, "_")
-        print(io, ci)
-    end
-    return
-end
-
+# Index suffix helper
 function _show_index_suffix(io::IO, idx::Index)
     if has_index(idx)
         write(io, "_")
@@ -47,12 +30,10 @@ end
 # Operators — Fock
 function Base.show(io::IO, x::Destroy)
     print(io, x.name)
-    _show_copy_suffix(io, x.copy_index)
     return _show_index_suffix(io, x.index)
 end
 function Base.show(io::IO, x::Create)
     print(io, x.name)
-    _show_copy_suffix(io, x.copy_index)
     _show_index_suffix(io, x.index)
     return write(io, "'")
 end
@@ -69,7 +50,6 @@ function _write_subscript(io::IO, n::Int)
 end
 function Base.show(io::IO, x::Transition)
     print(io, x.name)
-    _show_copy_suffix(io, x.copy_index)
     _show_index_suffix(io, x.index)
     _write_subscript(io, x.i)
     return _write_subscript(io, x.j)
@@ -78,25 +58,21 @@ end
 const _xyz_sym = (:x, :y, :z)
 function Base.show(io::IO, x::Pauli)
     print(io, x.name)
-    _show_copy_suffix(io, x.copy_index)
     _show_index_suffix(io, x.index)
     return print(io, _xyz_sym[x.axis])
 end
 function Base.show(io::IO, x::Spin)
     print(io, x.name)
-    _show_copy_suffix(io, x.copy_index)
     _show_index_suffix(io, x.index)
     return print(io, _xyz_sym[x.axis])
 end
 
 function Base.show(io::IO, x::Position)
     print(io, x.name)
-    _show_copy_suffix(io, x.copy_index)
     return _show_index_suffix(io, x.index)
 end
 function Base.show(io::IO, x::Momentum)
     print(io, x.name)
-    _show_copy_suffix(io, x.copy_index)
     return _show_index_suffix(io, x.index)
 end
 

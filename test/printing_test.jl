@@ -16,7 +16,6 @@ import SecondQuantizedAlgebra: simplify, QAdd, QSym, QTermDict, _to_cnum
             PauliSpace(:p),
             SpinSpace(:s, 1 // 2),
             PhaseSpace(:q),
-            ClusterSpace(NLevelSpace(:atom, 3, 1), 10, 2),
         ]
         output = [
             "ℋ(cavity)",
@@ -25,7 +24,6 @@ import SecondQuantizedAlgebra: simplify, QAdd, QSym, QTermDict, _to_cnum
             "ℋ(p)",
             "ℋ(s)",
             "ℋ(q)",
-            "Cluster(ℋ(atom), N=10, order=2)",
         ]
         for (i, o) in zip(input, output)
             @test repr(i) == o
@@ -188,11 +186,6 @@ import SecondQuantizedAlgebra: simplify, QAdd, QSym, QTermDict, _to_cnum
         # All terms indexed — no separation needed
         @test repr(Σ(gi * b' * σ_i + gi * b * σ_i', i)) ==
             "Σ(i=1:N) (g(i) * b * σ_i₂₁ + g(i) * b' * σ_i₁₂)"
-    end
-
-    @testset "copy_index display" begin
-        @test repr(Destroy(:a, 1, 1)) == "a"
-        @test repr(Destroy(:a, 1, 2)) == "a_2"
     end
 
     @testset "Edge cases — no crash" begin

@@ -30,13 +30,11 @@ get_ordering() = ORDERING[]
 """
     _same_site(a::QSym, b::QSym) -> Bool
 
-Two operators are on the same site iff they share space_index, copy_index, AND index.
+Two operators are on the same site iff they share space_index AND index.
 Only operators on the same site can interact (apply commutation/composition rules).
 """
 function _same_site(a::QSym, b::QSym)
-    return a.space_index == b.space_index &&
-        a.copy_index == b.copy_index &&
-        a.index == b.index
+    return a.space_index == b.space_index && a.index == b.index
 end
 
 # Levi-Civita lookup: _levi_civita[j][k] = ε_{jk(6-j-k)} for j,k ∈ {1,2,3}
@@ -59,7 +57,7 @@ function _try_algebraic_reduction!(
     # Transition: |i⟩⟨j| · |k⟩⟨l|
     if a isa Transition && b isa Transition && _same_site(a, b) && a.name == b.name
         if a.j == b.i
-            ops[i] = Transition(a.name, a.i, b.j, a.space_index, a.copy_index, a.index)
+            ops[i] = Transition(a.name, a.i, b.j, a.space_index, a.index)
             deleteat!(ops, i + 1)
             push!(worklist, (c, ops))
         else
@@ -75,7 +73,7 @@ function _try_algebraic_reduction!(
             push!(worklist, (c, ops))
         else
             eps = _levi_civita[a.axis][b.axis]
-            ops[i] = Pauli(a.name, 6 - a.axis - b.axis, a.space_index, a.copy_index, a.index)
+            ops[i] = Pauli(a.name, 6 - a.axis - b.axis, a.space_index, a.index)
             deleteat!(ops, i + 1)
             push!(worklist, (_mul_cnum(c, _to_cnum(im * eps)), ops))
         end
@@ -157,7 +155,7 @@ function _apply_ordering_swap!(
         swapped = copy(ops)
         swapped[i], swapped[i + 1] = swapped[i + 1], swapped[i]
         push!(worklist, (c, swapped))
-        ops[i] = Spin(a.name, 6 - a.axis - b.axis, a.space_index, a.copy_index, a.index)
+        ops[i] = Spin(a.name, 6 - a.axis - b.axis, a.space_index, a.index)
         deleteat!(ops, i + 1)
         push!(worklist, (_mul_cnum(c, _to_cnum(im * eps)), ops))
         return true

@@ -42,10 +42,6 @@ PhaseSpace
 ```
 
 ```@docs
-ClusterSpace
-```
-
-```@docs
 ⊗
 ```
 
@@ -244,10 +240,6 @@ change_index
 ```
 
 ```@docs
-insert_index
-```
-
-```@docs
 expand_sums
 ```
 
@@ -269,15 +261,4 @@ get_sum_indices
 
 ```@docs
 get_sum_non_equal
-```
-
-
-## [Cluster Expansion](@id API: Cluster)
-
-```@docs
-cluster_expand
-```
-
-```@docs
-has_cluster
 ```

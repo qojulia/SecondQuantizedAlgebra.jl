@@ -83,11 +83,9 @@ struct Transition <: QSym
     i::Int
     j::Int
     space_index::Int
-    copy_index::Int
     index::Index
 end
-Transition(name::Symbol, i::Int, j::Int, si::Int, ci::Int) = Transition(name, i, j, si, ci, NO_INDEX)
-Transition(name::Symbol, i::Int, j::Int, si::Int) = Transition(name, i, j, si, 1, NO_INDEX)
+Transition(name::Symbol, i::Int, j::Int, si::Int) = Transition(name, i, j, si, NO_INDEX)
 
 # Construction from Hilbert spaces
 function Transition(h::NLevelSpace, name::Symbol, i::Int, j::Int)
@@ -100,7 +98,7 @@ function Transition(h::NLevelSpace, name::Symbol, i::Symbol, j::Symbol)
 end
 function Transition(h::ProductSpace, name::Symbol, i::Int, j::Int, idx::Int)
     1 <= idx <= length(h.spaces) || throw(ArgumentError("Index $idx out of range"))
-    space = _unwrap_space(h.spaces[idx])
+    space = h.spaces[idx]
     space isa NLevelSpace || throw(ArgumentError("Space at index $idx is not an NLevelSpace"))
     1 <= i <= space.n || throw(ArgumentError("Level i=$i out of range 1:$(space.n)"))
     1 <= j <= space.n || throw(ArgumentError("Level j=$j out of range 1:$(space.n)"))
@@ -108,24 +106,23 @@ function Transition(h::ProductSpace, name::Symbol, i::Int, j::Int, idx::Int)
 end
 function Transition(h::ProductSpace, name::Symbol, i::Symbol, j::Symbol, idx::Int)
     1 <= idx <= length(h.spaces) || throw(ArgumentError("Index $idx out of range"))
-    space = _unwrap_space(h.spaces[idx])
+    space = h.spaces[idx]
     space isa NLevelSpace || throw(ArgumentError("Space at index $idx is not an NLevelSpace"))
     return Transition(name, _level_index(space, i), _level_index(space, j), idx)
 end
 
 # IndexedOperator convenience
-IndexedOperator(op::Transition, i::Index) = Transition(op.name, op.i, op.j, op.space_index, op.copy_index, i)
-IndexedOperator(op::Transition, k::Int) = Transition(op.name, op.i, op.j, op.space_index, k, NO_INDEX)
+IndexedOperator(op::Transition, i::Index) = Transition(op.name, op.i, op.j, op.space_index, i)
 
 # Adjoint: |i⟩⟨j|† = |j⟩⟨i|
-Base.adjoint(op::Transition) = Transition(op.name, op.j, op.i, op.space_index, op.copy_index, op.index)
+Base.adjoint(op::Transition) = Transition(op.name, op.j, op.i, op.space_index, op.index)
 
 # Equality
-Base.isequal(a::Transition, b::Transition) = a.name == b.name && a.i == b.i && a.j == b.j && a.space_index == b.space_index && a.copy_index == b.copy_index && a.index == b.index
+Base.isequal(a::Transition, b::Transition) = a.name == b.name && a.i == b.i && a.j == b.j && a.space_index == b.space_index && a.index == b.index
 Base.:(==)(a::Transition, b::Transition) = isequal(a, b)
 
 # Hashing
-Base.hash(a::Transition, h::UInt) = hash(:Transition, hash(a.name, hash(a.i, hash(a.j, hash(a.space_index, hash(a.copy_index, hash(a.index, h)))))))
+Base.hash(a::Transition, h::UInt) = hash(:Transition, hash(a.name, hash(a.i, hash(a.j, hash(a.space_index, hash(a.index, h))))))
 
 # Ladder (not applicable to Transition)
 ladder(::Transition) = 0

@@ -10,7 +10,7 @@ A Julia package for symbolic manipulation of second-quantized operators used in 
 src/SecondQuantizedAlgebra.jl   # Main module, exports, imports
 src/types.jl                    # Abstract type hierarchy: QField, QSym, QTerm, OrderingConvention
 src/cnum.jl                     # CNum = Complex{Num} arithmetic, fast paths, constants
-src/hilbertspace.jl             # HilbertSpace, FockSpace, ProductSpace, ClusterSpace, ⊗
+src/hilbertspace.jl             # HilbertSpace, FockSpace, ProductSpace, ⊗
 src/fock.jl                     # Destroy, Create (bosonic ladder operators)
 src/nlevel.jl                   # NLevelSpace, Transition (|i⟩⟨j| operators)
 src/pauli.jl                    # PauliSpace, Pauli (σx, σy, σz)
@@ -23,7 +23,6 @@ src/normal_order.jl             # normal_order(), normal↔symmetric (Weyl) conv
 src/commutator.jl               # commutator(a, b) = a*b - b*a with index collapse
 src/index_types.jl              # Index type, NO_INDEX constant
 src/index.jl                    # IndexedVariable, DoubleIndexedVariable, Σ, expand_sums
-src/cluster.jl                  # ClusterSpace, cluster_expand
 src/operators.jl                # fundamental_operators, find_operators, unique_ops
 src/average.jl                  # AvgFunc/AvgSym, average(), undo_average()
 src/substitute.jl               # substitute(expr, Dict) for operators and symbols
@@ -37,7 +36,7 @@ src/numeric.jl                  # to_numeric(), numeric_average() via QuantumOpt
 
 ```
 QField (abstract)
-├── QSym (abstract) — leaf operators (each carries space_index, copy_index, index)
+├── QSym (abstract) — leaf operators (each carries space_index, index)
 │   ├── Destroy / Create          (FockSpace)
 │   ├── Transition                (NLevelSpace)
 │   ├── Pauli                     (PauliSpace)
@@ -52,8 +51,7 @@ HilbertSpace (abstract)
 ├── PauliSpace
 ├── SpinSpace
 ├── PhaseSpace
-├── ProductSpace{T<:Tuple}
-└── ClusterSpace{H,T}
+└── ProductSpace{T<:Tuple}
 
 OrderingConvention (abstract)
 ├── NormalOrder                   (creation left, annihilation right)
@@ -65,7 +63,7 @@ OrderingConvention (abstract)
 - **Eager ordering**: multiplication immediately applies the global `ORDERING[]` convention and returns a fully-ordered `QAdd`. There is no lazy product type.
 - **Dict-based term storage**: `QAdd` stores `Dict{Vector{QSym}, CNum}` — operator sequences map to prefactors. Like terms are collected on construction.
 - **CNum prefactors**: prefactors are `Complex{Num}` (from Symbolics.jl), not parameterized. Dedicated fast paths in `cnum.jl` short-circuit for numeric (non-symbolic) cases.
-- **Site-indexed operators**: each `QSym` carries `space_index`, `copy_index`, and `index::Index`. Operators interact only if `_same_site(a, b)`.
+- **Site-indexed operators**: each `QSym` carries `space_index` and `index::Index`. Operators interact only if `_same_site(a, b)`.
 - **Separation of ordering vs reduction**: `_apply_ordering` handles commutation swaps (used by `normal_order`), `_apply_reductions` handles algebraic identities only (used by `simplify`).
 - **Concrete struct fields**: all struct fields are concretely typed (enforced by CheckConcreteStructs in tests).
 - **Index tracking**: `QAdd` carries `indices::Vector{Index}` and `non_equal::Vector{Tuple{Index,Index}}` for summation metadata.
@@ -101,7 +99,7 @@ Each test file is self-contained (`test/*_test.jl`), run via `test/runtests.jl` 
 - `explicit_imports_test.jl` — ExplicitImports.jl: no implicit imports
 - `concrete_test.jl` — CheckConcreteStructs: all struct fields concretely typed
 
-**Unit tests:** `fock_test.jl`, `nlevel_test.jl`, `pauli_test.jl`, `spin_test.jl`, `phase_space_test.jl`, `hilbertspace_test.jl`, `qmul_test.jl`, `qadd_test.jl`, `simplify_test.jl`, `commutator_test.jl`, `normal_order_test.jl`, `interface_test.jl`, `macros_test.jl`, `printing_test.jl`, `latexify_test.jl`, `numeric_test.jl`, `types_test.jl`, `operators_test.jl`, `substitute_test.jl`, `average_test.jl`, `cluster_test.jl`, `indexing_test.jl`, `insert_index_test.jl`
+**Unit tests:** `fock_test.jl`, `nlevel_test.jl`, `pauli_test.jl`, `spin_test.jl`, `phase_space_test.jl`, `hilbertspace_test.jl`, `qmul_test.jl`, `qadd_test.jl`, `simplify_test.jl`, `commutator_test.jl`, `normal_order_test.jl`, `interface_test.jl`, `macros_test.jl`, `printing_test.jl`, `latexify_test.jl`, `numeric_test.jl`, `types_test.jl`, `operators_test.jl`, `substitute_test.jl`, `average_test.jl`, `indexing_test.jl`
 
 **Integration:** `integration_test.jl` — end-to-end scenarios (Jaynes-Cummings, multi-mode cavities)
 

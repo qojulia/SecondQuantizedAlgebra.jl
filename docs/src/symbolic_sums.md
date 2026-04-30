@@ -12,6 +12,9 @@ A canonical example is the Tavis-Cummings Hamiltonian describing ``N`` two-level
 H_\mathrm{TC} = \omega_c a^\dagger a + \sum_i^N \omega_i \sigma_i^{22} + \sum_i^N g_i \left(a^\dagger \sigma_i^{12} + a\, \sigma_i^{21}\right).
 ```
 
+!!! note "Replaces ClusterSpace"
+    Earlier versions of SecondQuantizedAlgebra.jl shipped a `ClusterSpace` type — inherited from QuantumCumulants.jl, from which this package was refactored — that wrapped a single-site Hilbert space with a fixed number of identical copies and a correlation-truncation order. QuantumCumulants.jl has since deprecated that workflow in favor of indexed operators (compare its old [cluster-based superradiant laser tutorial](https://qojulia.github.io/QuantumCumulants.jl/stable/examples/superradiant-laser/) with the [indexed superradiant laser tutorial](https://qojulia.github.io/QuantumCumulants.jl/stable/examples/superradiant_laser_indexed/)), and we have followed suit: `ClusterSpace`, `cluster_expand`, the integer-instantiation helper `insert_index`, and the cluster-aware `to_numeric(op, b, ranges)` overload have all been removed. The recommended way to handle many identical subsystems is to keep a plain Hilbert space and use a symbolic [`Index`](@ref) of range ``N`` together with [`Σ`](@ref). The number of copies stays symbolic through equation derivation, and the cumulant truncation order is supplied to the downstream solver (`meanfield(...; order=k)`) rather than being baked into the Hilbert space.
+
 
 ## Index
 
