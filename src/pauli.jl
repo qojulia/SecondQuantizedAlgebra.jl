@@ -57,6 +57,10 @@ function Pauli(h::ProductSpace, name::Symbol, axis::Int, idx::Int)
     return Pauli(name, axis, idx)
 end
 
+# Auto-detect subspace when the ProductSpace contains exactly one PauliSpace.
+Pauli(h::ProductSpace, name::Symbol, axis::Int) =
+    Pauli(h, name, axis, _unique_subspace_index(h, PauliSpace))
+
 # IndexedOperator convenience
 IndexedOperator(op::Pauli, i::Index) = Pauli(op.name, op.axis, op.space_index, i)
 

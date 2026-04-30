@@ -262,4 +262,38 @@ import SecondQuantizedAlgebra: QAdd, QSym, QField, _conj, _inconj, _adjoint,
         @test isequal(_adjoint(G), conj(G))
     end
 
+    @testset "ProductSpace constructors auto-detect unique subspace" begin
+        # Single subspace of each type ⇒ idx is inferred
+        h = FockSpace(:c) ⊗ NLevelSpace(:atom, 2) ⊗ PauliSpace(:p) ⊗
+            SpinSpace(:s) ⊗ PhaseSpace(:q)
+
+        @test Destroy(h, :a) == Destroy(h, :a, 1)
+        @test Create(h, :a) == Create(h, :a, 1)
+        @test Transition(h, :σ, 1, 2) == Transition(h, :σ, 1, 2, 2)
+        @test Pauli(h, :p, 1) == Pauli(h, :p, 1, 3)
+        @test Spin(h, :S, 2) == Spin(h, :S, 2, 4)
+        @test Position(h, :x) == Position(h, :x, 5)
+        @test Momentum(h, :p) == Momentum(h, :p, 5)
+
+        # Symbolic-level Transition convenience
+        h_sym = FockSpace(:c) ⊗ NLevelSpace(:atom, (:g, :e))
+        @test Transition(h_sym, :σ, :g, :e) == Transition(h_sym, :σ, :g, :e, 2)
+
+        # @qnumbers on the convenience form (macro inserts the name as 2nd arg)
+        h_jc = FockSpace(:c) ⊗ NLevelSpace(:atom, 2)
+        @qnumbers a::Destroy(h_jc) σ::Transition(h_jc, 1, 2)
+        @test a == Destroy(h_jc, :a, 1)
+        @test σ == Transition(h_jc, :σ, 1, 2, 2)
+
+        # Multiple subspaces of same type ⇒ must specify
+        h_two_fock = FockSpace(:a) ⊗ FockSpace(:b)
+        @test_throws ArgumentError Destroy(h_two_fock, :a)
+        @test_throws ArgumentError Create(h_two_fock, :a)
+
+        # No subspace of requested type ⇒ must specify (or use the right type)
+        h_no_fock = NLevelSpace(:a, 2) ⊗ NLevelSpace(:b, 2)
+        @test_throws ArgumentError Destroy(h_no_fock, :a)
+        @test_throws ArgumentError Pauli(h_no_fock, :p, 1)
+    end
+
 end

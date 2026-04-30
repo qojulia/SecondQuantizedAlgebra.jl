@@ -56,6 +56,10 @@ function Create(h::ProductSpace, name::Symbol, idx::Int)
     return Create(name, idx)
 end
 
+# Auto-detect subspace when the ProductSpace contains exactly one FockSpace.
+Destroy(h::ProductSpace, name::Symbol) = Destroy(h, name, _unique_subspace_index(h, FockSpace))
+Create(h::ProductSpace, name::Symbol) = Create(h, name, _unique_subspace_index(h, FockSpace))
+
 """
     IndexedOperator(op::QSym, i::Index) -> QSym
 

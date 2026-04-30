@@ -50,7 +50,7 @@ h = FockSpace(:cavity) ⊗ NLevelSpace(:atom, 2)
 Operators on a `ProductSpace` require a positional index specifying which subspace
 they act on:
 ```julia
-@qnumbers a::Destroy(h, 1) σ::Transition(h, :σ, 1, 2, 2)
+@qnumbers a::Destroy(h, 1) σ::Transition(h, 1, 2, 2)
 ```
 """
 struct ProductSpace{T <: Tuple{Vararg{HilbertSpace}}} <: HilbertSpace
@@ -94,3 +94,20 @@ tensor(args::Vararg{HilbertSpace}) = ⊗(args...)
 
 Base.isless(h1::HilbertSpace, h2::HilbertSpace) = isless(h1.name, h2.name)
 Base.isless(h1::ProductSpace, h2::ProductSpace) = isless(h1.spaces, h2.spaces)
+
+"""
+    _unique_subspace_index(h::ProductSpace, ::Type{T}) -> Int
+
+Return the index of the unique subspace of type `T` inside `h`. Throws
+`ArgumentError` if there are zero or more than one such subspaces — the caller
+must then specify the subspace index explicitly.
+"""
+function _unique_subspace_index(h::ProductSpace, ::Type{T}) where {T <: HilbertSpace}
+    matches = findall(s -> s isa T, collect(h.spaces))
+    if isempty(matches)
+        throw(ArgumentError("No $T found in ProductSpace; specify the subspace index explicitly"))
+    elseif length(matches) > 1
+        throw(ArgumentError("$(length(matches)) $T subspaces found in ProductSpace; specify which one with the subspace index argument"))
+    end
+    return only(matches)
+end

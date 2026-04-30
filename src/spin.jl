@@ -58,6 +58,10 @@ function Spin(h::ProductSpace, name::Symbol, axis::Int, idx::Int)
     return Spin(name, axis, idx)
 end
 
+# Auto-detect subspace when the ProductSpace contains exactly one SpinSpace.
+Spin(h::ProductSpace, name::Symbol, axis::Int) =
+    Spin(h, name, axis, _unique_subspace_index(h, SpinSpace))
+
 # IndexedOperator convenience
 IndexedOperator(op::Spin, i::Index) = Spin(op.name, op.axis, op.space_index, i)
 

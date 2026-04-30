@@ -273,7 +273,7 @@ and `Number`s (returns `Int[]`).
 # Examples
 ```julia
 h = FockSpace(:a) ⊗ NLevelSpace(:b, 2)
-@qnumbers a::Destroy(h, 1) σ::Transition(h, :σ, 1, 2, 2)
+@qnumbers a::Destroy(h, 1) σ::Transition(h, 1, 2, 2)
 acts_on(a' * a)         # [1]
 acts_on(a' * σ)         # [1, 2]
 ```

@@ -54,7 +54,7 @@ h = FockSpace(:one) ⊗ FockSpace(:two)
 @qnumbers a::Destroy(h, 1) b::Destroy(h, 2)   # operators on subspaces 1 and 2
 
 h = NLevelSpace(:atom, 2)
-@qnumbers σ::Transition(h, :σ, 1, 2)  # creates Transition(h, :σ, 1, 2) bound to `σ`
+@qnumbers σ::Transition(h, 1, 2)  # creates Transition(h, :σ, 1, 2) bound to `σ`
 ```
 """
 macro qnumbers(qs...)

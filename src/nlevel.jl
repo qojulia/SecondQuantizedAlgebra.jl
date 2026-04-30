@@ -75,7 +75,7 @@ hp = FockSpace(:c) ⊗ NLevelSpace(:a, 2)
 ```
 Or via the [`@qnumbers`](@ref) macro:
 ```julia
-@qnumbers σ::Transition(h, :σ, 1, 2)
+@qnumbers σ::Transition(h, 1, 2)
 ```
 """
 struct Transition <: QSym
@@ -110,6 +110,12 @@ function Transition(h::ProductSpace, name::Symbol, i::Symbol, j::Symbol, idx::In
     space isa NLevelSpace || throw(ArgumentError("Space at index $idx is not an NLevelSpace"))
     return Transition(name, _level_index(space, i), _level_index(space, j), idx)
 end
+
+# Auto-detect subspace when the ProductSpace contains exactly one NLevelSpace.
+Transition(h::ProductSpace, name::Symbol, i::Int, j::Int) =
+    Transition(h, name, i, j, _unique_subspace_index(h, NLevelSpace))
+Transition(h::ProductSpace, name::Symbol, i::Symbol, j::Symbol) =
+    Transition(h, name, i, j, _unique_subspace_index(h, NLevelSpace))
 
 # IndexedOperator convenience
 IndexedOperator(op::Transition, i::Index) = Transition(op.name, op.i, op.j, op.space_index, i)

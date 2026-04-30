@@ -78,6 +78,10 @@ function Momentum(h::ProductSpace, name::Symbol, idx::Int)
     return Momentum(name, idx)
 end
 
+# Auto-detect subspace when the ProductSpace contains exactly one PhaseSpace.
+Position(h::ProductSpace, name::Symbol) = Position(h, name, _unique_subspace_index(h, PhaseSpace))
+Momentum(h::ProductSpace, name::Symbol) = Momentum(h, name, _unique_subspace_index(h, PhaseSpace))
+
 # IndexedOperator convenience
 IndexedOperator(op::Position, i::Index) = Position(op.name, op.space_index, i)
 IndexedOperator(op::Momentum, i::Index) = Momentum(op.name, op.space_index, i)
