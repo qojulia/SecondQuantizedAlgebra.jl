@@ -570,11 +570,12 @@ import SecondQuantizedAlgebra: simplify, QAdd, QSym, CNum, _to_cnum, NO_INDEX,
         adj = IndexedOperator(a', j)
 
         # a†_j * Σ_i(a_i) — splits diagonal
-        # Eager ordering: a_i * a†_j (off-diag), a_j * a†_j → a†_j * a_j + 1 (diag)
+        # Off-diag i ≠ j: a_i * a†_j (commute, then normal-order canonical).
+        # Diag i = j: a†_j * a_j (already normal-ordered, no commutator remainder).
         sum_expr = Σ(ai, i)
         result = adj * sum_expr
         @test result isa QAdd
-        @test length(result) == 3
+        @test length(result) == 2
         @test any(p -> p == (i, j) || p == (j, i), result.non_equal)
     end
 

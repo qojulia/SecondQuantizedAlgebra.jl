@@ -216,41 +216,93 @@ function Base.:*(a::QAdd, b::Number)
 end
 Base.:*(a::Number, b::QAdd) = b * a
 
+"""
+    _accumulate_with_diag!(d, c, unsorted_ops, sum_idxes, existing_ne, new_constraints)
+
+Site-sort and apply ordering to `(c, unsorted_ops)` and accumulate into `d` (off-diagonal
+contribution). Then for each `sum_idx` in `sum_idxes` that the term depends on, find
+distinct external indices on the same space (not already constrained) and generate the
+diagonal contribution by substituting `sum_idx` → `ext_idx` BEFORE site-sorting, so
+same-site composition rules fire on the correct physical operator order. Constraints
+`(sum_idx, ext_idx)` are appended (deduplicated) to `new_constraints`.
+"""
+function _accumulate_with_diag!(
+        d::QTermDict, c::CNum, unsorted_ops::Vector{QSym},
+        sum_idxes::Vector{Index},
+        existing_ne::Vector{Tuple{Index, Index}},
+        new_constraints::Vector{Tuple{Index, Index}}
+    )
+    sorted = copy(unsorted_ops)
+    _site_sort!(sorted)
+    for (oc, oops) in _apply_ordering(c, sorted, ORDERING[])
+        _addto!(d, oops, oc)
+    end
+    isempty(sum_idxes) && return nothing
+    seen = Index[]
+    for sum_idx in sum_idxes
+        _depends_on_index_term(c, unsorted_ops, sum_idx) || continue
+        empty!(seen)
+        for op in unsorted_ops
+            ext_idx = op.index
+            has_index(ext_idx) || continue
+            ext_idx ∈ seen && continue
+            push!(seen, ext_idx)
+            ext_idx == sum_idx && continue
+            ext_idx.space_index == sum_idx.space_index || continue
+            ((sum_idx, ext_idx) in existing_ne) && continue
+            ((ext_idx, sum_idx) in existing_ne) && continue
+            sub_ops = QSym[change_index(o, sum_idx, ext_idx) for o in unsorted_ops]
+            sub_c = change_index(c, sum_idx, ext_idx)
+            _site_sort!(sub_ops)
+            for (oc, oops) in _apply_ordering(sub_c, sub_ops, ORDERING[])
+                _addto!(d, oops, oc)
+            end
+            pair = (sum_idx, ext_idx)
+            if pair ∉ new_constraints && (ext_idx, sum_idx) ∉ new_constraints
+                push!(new_constraints, pair)
+            end
+        end
+    end
+    return nothing
+end
+
+function _merge_constraints(
+        existing::Vector{Tuple{Index, Index}}, new_pairs::Vector{Tuple{Index, Index}}
+    )
+    isempty(new_pairs) && return existing
+    merged = copy(existing)
+    for pair in new_pairs
+        if pair ∉ merged && (pair[2], pair[1]) ∉ merged
+            push!(merged, pair)
+        end
+    end
+    return merged
+end
+
 function Base.:*(a::QAdd, b::QSym)
     d = QTermDict()
+    new_constraints = Tuple{Index, Index}[]
     for (ops, c) in a.arguments
         n = length(ops)
-        new_ops = Vector{QSym}(undef, n + 1)
-        copyto!(new_ops, 1, ops, 1, n)
-        new_ops[n + 1] = b
-        _site_sort!(new_ops)
-        for (oc, oops) in _apply_ordering(c, new_ops, ORDERING[])
-            _addto!(d, oops, oc)
-        end
+        unsorted = Vector{QSym}(undef, n + 1)
+        copyto!(unsorted, 1, ops, 1, n)
+        unsorted[n + 1] = b
+        _accumulate_with_diag!(d, c, unsorted, a.indices, a.non_equal, new_constraints)
     end
-    product = QAdd(d, copy(a.indices), copy(a.non_equal))
-    if has_index(b.index) && !isempty(a.indices)
-        return _apply_diagonal_split(product, b.index)
-    end
-    return product
+    return QAdd(d, copy(a.indices), _merge_constraints(a.non_equal, new_constraints))
 end
+
 function Base.:*(a::QSym, b::QAdd)
     d = QTermDict()
+    new_constraints = Tuple{Index, Index}[]
     for (ops, c) in b.arguments
         n = length(ops)
-        new_ops = Vector{QSym}(undef, n + 1)
-        new_ops[1] = a
-        copyto!(new_ops, 2, ops, 1, n)
-        _site_sort!(new_ops)
-        for (oc, oops) in _apply_ordering(c, new_ops, ORDERING[])
-            _addto!(d, oops, oc)
-        end
+        unsorted = Vector{QSym}(undef, n + 1)
+        unsorted[1] = a
+        copyto!(unsorted, 2, ops, 1, n)
+        _accumulate_with_diag!(d, c, unsorted, b.indices, b.non_equal, new_constraints)
     end
-    product = QAdd(d, copy(b.indices), copy(b.non_equal))
-    if has_index(a.index) && !isempty(b.indices)
-        return _apply_diagonal_split(product, a.index)
-    end
-    return product
+    return QAdd(d, copy(b.indices), _merge_constraints(b.non_equal, new_constraints))
 end
 
 function Base.:*(a::QAdd, b::QAdd)
@@ -267,37 +319,19 @@ function Base.:*(a::QAdd, b::QAdd)
         end
     end
     d = QTermDict()
+    new_constraints = Tuple{Index, Index}[]
+    sum_idxes = isempty(b.indices) ? a.indices :
+        (isempty(a.indices) ? b.indices : vcat(a.indices, b.indices))
+    combined_ne = isempty(b.non_equal) ? a.non_equal :
+        (isempty(a.non_equal) ? b.non_equal : vcat(a.non_equal, b.non_equal))
     for (ops_a, c_a) in a.arguments, (ops_b, c_b) in b.arguments
-        new_ops = vcat(ops_a, ops_b)
-        _site_sort!(new_ops)
-        for (oc, oops) in _apply_ordering(_mul_cnum(c_a, c_b), new_ops, ORDERING[])
-            _addto!(d, oops, oc)
-        end
+        unsorted = vcat(ops_a, ops_b)
+        c_prod = _mul_cnum(c_a, c_b)
+        _accumulate_with_diag!(d, c_prod, unsorted, sum_idxes, combined_ne, new_constraints)
     end
     indices = _merge_unique(a.indices, b.indices)
     non_equal = _merge_unique(a.non_equal, b.non_equal)
-    product = QAdd(d, indices, non_equal)
-    if !isempty(a.indices) || !isempty(b.indices)
-        if !isempty(a.indices)
-            for ext_idx in _get_indices_from_terms(b)
-                has_index(ext_idx) && (product = _apply_diagonal_split(product, ext_idx))
-            end
-        end
-        if !isempty(b.indices)
-            for ext_idx in _get_indices_from_terms(a)
-                has_index(ext_idx) && (product = _apply_diagonal_split(product, ext_idx))
-            end
-        end
-        if !isempty(a.indices) && !isempty(b.indices)
-            for idx_a in a.indices, idx_b in b.indices
-                if idx_a.space_index == idx_b.space_index
-                    product = _apply_diagonal_split(product, idx_a)
-                    product = _apply_diagonal_split(product, idx_b)
-                end
-            end
-        end
-    end
-    return product
+    return QAdd(d, indices, _merge_constraints(non_equal, new_constraints))
 end
 
 # ============================================================================
@@ -415,61 +449,33 @@ function _diagonal_split(
         non_equal::Vector{Tuple{Index, Index}}
     )
     diag_terms = _OTerm[]
-    new_ne = copy(non_equal)
+    new_constraints = Index[]
     seen = Index[]
     for (ops, c) in qadd.arguments
+        # Skip terms that don't depend on sum_idx — substitution would be a no-op
+        # and would duplicate the term in the result.
+        _depends_on_index_term(c, ops, sum_idx) || continue
         empty!(seen)
         for op in ops
             idx = op.index
             has_index(idx) || continue
             idx ∈ seen && continue
             push!(seen, idx)
-            if idx != sum_idx &&
-                    idx.space_index == sum_idx.space_index &&
-                    !((sum_idx, idx) in new_ne) &&
-                    !((idx, sum_idx) in new_ne)
-                new_ops = QSym[change_index(op, sum_idx, idx) for op in ops]
-                new_c = change_index(c, sum_idx, idx)
-                push!(diag_terms, (new_c, new_ops))
-                push!(new_ne, (sum_idx, idx))
-            end
+            idx == sum_idx && continue
+            idx.space_index == sum_idx.space_index || continue
+            ((sum_idx, idx) in non_equal) && continue
+            ((idx, sum_idx) in non_equal) && continue
+            new_ops = QSym[change_index(o, sum_idx, idx) for o in ops]
+            new_c = change_index(c, sum_idx, idx)
+            push!(diag_terms, (new_c, new_ops))
+            idx ∈ new_constraints || push!(new_constraints, idx)
         end
+    end
+    new_ne = copy(non_equal)
+    for idx in new_constraints
+        push!(new_ne, (sum_idx, idx))
     end
     return diag_terms, new_ne
-end
-
-function _get_indices_from_terms(s::QAdd)
-    inds = Index[]
-    for (ops, _) in s.arguments
-        for op in ops
-            idx = op.index
-            has_index(idx) && idx ∉ inds && push!(inds, idx)
-        end
-    end
-    return inds
-end
-
-"""
-    _apply_diagonal_split(s::QAdd, ext_idx::Index) -> QAdd
-
-Apply diagonal splitting for each summation index in `s` that shares a space with `ext_idx`.
-Called after multiplication introduces `ext_idx` into the terms.
-"""
-function _apply_diagonal_split(s::QAdd, ext_idx::Index)
-    result = s
-    for sum_idx in s.indices
-        if sum_idx != ext_idx &&
-                sum_idx.space_index == ext_idx.space_index &&
-                !((sum_idx, ext_idx) in result.non_equal) &&
-                !((ext_idx, sum_idx) in result.non_equal)
-            diag_terms, new_ne = _diagonal_split(result, sum_idx, result.non_equal)
-            result = QAdd(result.arguments, result.indices, new_ne)
-            if !isempty(diag_terms)
-                result = result + _qadd_from_oterms(diag_terms, Index[], Tuple{Index, Index}[])
-            end
-        end
-    end
-    return result
 end
 
 # ============================================================================

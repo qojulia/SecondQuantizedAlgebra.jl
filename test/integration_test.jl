@@ -191,4 +191,73 @@ import SecondQuantizedAlgebra: simplify, QAdd, QSym, QTermDict, _to_cnum, Index,
         result = normal_order(a * a' * σz)
         @test result isa QAdd
     end
+
+    @testset "Superradiant laser commutators (PR #99 review)" begin
+        # Regression test: diagonal split during *(QAdd, QAdd) must substitute
+        # sum_idx → ext_idx BEFORE site-sort so same-site composition rules
+        # (transition: σ_αβ · σ_βγ = σ_αγ) fire on the correct physical order.
+        # See https://qojulia.github.io/QuantumCumulants.jl/stable/examples/superradiant_laser_indexed/
+        # Eqs. (6) and (7).
+        hc = FockSpace(:cavity)
+        ha = NLevelSpace(:atom, 2)
+        h = hc ⊗ ha
+
+        @qnumbers a::Destroy(h, 1)
+        σ(α, β, idx) = IndexedOperator(Transition(h, :σ, α, β, 2), idx)
+
+        @variables N Δ
+        g(idx) = IndexedVariable(:g, idx)
+
+        i = Index(h, :i, N, ha)
+        j = Index(h, :j, N, ha)
+        k = Index(h, :k, N, ha)
+
+        H = -Δ * a' * a + Σ(g(i) * (a' * σ(1, 2, i) + a * σ(2, 1, i)), i)
+
+        # Eq. (6): i [H, a'σⱼ¹²] = -iΔ a'σⱼ¹² + Σᵢ≠ⱼ i g(i) σᵢ²¹σⱼ¹²
+        #                          + i g(j) (a'a (σⱼ²² - σⱼ¹¹) + σⱼ²²)
+        op3 = a' * σ(1, 2, j)
+        result3 = 1im * commutator(H, op3)
+        # Verify each expected dict entry is present with correct prefactor.
+        d3 = result3.arguments
+        # -iΔ * a' * σⱼ¹²
+        @test any(d3) do (ops, c)
+            ops == [a', σ(1, 2, j)] && isequal(c, _to_cnum(-1im * Δ))
+        end
+        # i * g(j) * σⱼ²²
+        @test any(d3) do (ops, c)
+            ops == [σ(2, 2, j)] && isequal(c, _to_cnum(1im * g(j)))
+        end
+        # i * g(j) * a'a * σⱼ²²
+        @test any(d3) do (ops, c)
+            ops == [a', a, σ(2, 2, j)] && isequal(c, _to_cnum(1im * g(j)))
+        end
+        # -i * g(j) * a'a * σⱼ¹¹
+        @test any(d3) do (ops, c)
+            ops == [a', a, σ(1, 1, j)] && isequal(c, _to_cnum(-1im * g(j)))
+        end
+        # Σᵢ≠ⱼ i * g(i) * σᵢ²¹σⱼ¹²
+        @test any(d3) do (ops, c)
+            ops == [σ(2, 1, i), σ(1, 2, j)] && isequal(c, _to_cnum(1im * g(i)))
+        end
+        @test any(p -> p == (i, j) || p == (j, i), result3.non_equal)
+
+        # Eq. (7): i [H, σⱼ¹²σₖ²¹] = i g(j) a (σⱼ²² - σⱼ¹¹) σₖ²¹
+        #                            + i g(k) a' σⱼ¹² (σₖ¹¹ - σₖ²²)
+        op4 = σ(1, 2, j) * σ(2, 1, k)
+        result4 = 1im * commutator(H, op4)
+        d4 = result4.arguments
+        @test any(d4) do (ops, c)
+            ops == [a, σ(2, 2, j), σ(2, 1, k)] && isequal(c, _to_cnum(1im * g(j)))
+        end
+        @test any(d4) do (ops, c)
+            ops == [a, σ(1, 1, j), σ(2, 1, k)] && isequal(c, _to_cnum(-1im * g(j)))
+        end
+        @test any(d4) do (ops, c)
+            ops == [a', σ(1, 2, j), σ(1, 1, k)] && isequal(c, _to_cnum(1im * g(k)))
+        end
+        @test any(d4) do (ops, c)
+            ops == [a', σ(1, 2, j), σ(2, 2, k)] && isequal(c, _to_cnum(-1im * g(k)))
+        end
+    end
 end
