@@ -15,7 +15,7 @@ Every system starts with a Hilbert space. The package provides five concrete spa
 | [`FockSpace`](@ref) | Bosonic (quantum harmonic oscillator) |
 | [`NLevelSpace`](@ref) | Finite discrete levels (atoms, qubits) |
 | [`PauliSpace`](@ref) | Two-level Pauli systems |
-| [`SpinSpace`](@ref) | Collective spin-S (integer or half-integer) |
+| [`SpinSpace`](@ref) | Collective spin angular momentum |
 | [`PhaseSpace`](@ref) | Quadrature (position/momentum) |
 
 ```@example hilbert-space

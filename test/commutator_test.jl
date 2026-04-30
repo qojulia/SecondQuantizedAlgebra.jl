@@ -102,7 +102,7 @@ import SecondQuantizedAlgebra: simplify, QAdd, QSym, sorted_arguments
     end
 
     @testset "Spin: [Sx, Sy] = iSz" begin
-        hs = SpinSpace(:s, 1 // 2)
+        hs = SpinSpace(:s)
         Sx = Spin(hs, :S, 1)
         Sy = Spin(hs, :S, 2)
         Sz = Spin(hs, :S, 3)

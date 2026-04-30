@@ -139,7 +139,7 @@ import SecondQuantizedAlgebra: simplify, QAdd, QSym, QField, sorted_arguments, Q
         @test isequal(simplify(simplify(pauli_expr)), simplify(pauli_expr))
 
         # Spin — Casimir S²
-        hs = SpinSpace(:s, 1 // 2)
+        hs = SpinSpace(:s)
         Sx = Spin(hs, :S, 1)
         Sy = Spin(hs, :S, 2)
         Sz = Spin(hs, :S, 3)
@@ -213,7 +213,7 @@ import SecondQuantizedAlgebra: simplify, QAdd, QSym, QField, sorted_arguments, Q
         @inferred simplify(σx * σx)
         @inferred simplify(σx + σy)
 
-        hs = SpinSpace(:s, 1 // 2)
+        hs = SpinSpace(:s)
         Sx = Spin(hs, :S, 1)
         Sy = Spin(hs, :S, 2)
         Sz = Spin(hs, :S, 3)
@@ -286,7 +286,7 @@ import SecondQuantizedAlgebra: simplify, QAdd, QSym, QField, sorted_arguments, Q
     end
 
     @testset "Allocations — Spin" begin
-        hs = SpinSpace(:s, 1 // 2)
+        hs = SpinSpace(:s)
         Sx = Spin(hs, :S, 1)
         Sy = Spin(hs, :S, 2)
         Sz = Spin(hs, :S, 3)
@@ -408,7 +408,7 @@ import SecondQuantizedAlgebra: simplify, QAdd, QSym, QField, sorted_arguments, Q
             @test isempty(operators(only(sorted_arguments(result))))
 
             # --- Spin ---
-            hs = SpinSpace(:s, 1 // 2)
+            hs = SpinSpace(:s)
             Sx = Spin(hs, :S, 1)
             Sy = Spin(hs, :S, 2)
             Sz = Spin(hs, :S, 3)
@@ -498,7 +498,7 @@ import SecondQuantizedAlgebra: simplify, QAdd, QSym, QField, sorted_arguments, Q
                 result = normal_order(σ12 * σ23)
                 @test length(result) == 1
 
-                hs = SpinSpace(:s, 1 // 2)
+                hs = SpinSpace(:s)
                 Sx = Spin(hs, :S, 1)
                 Sy = Spin(hs, :S, 2)
                 @test length(normal_order(Sy * Sx)) >= 2
@@ -525,7 +525,7 @@ import SecondQuantizedAlgebra: simplify, QAdd, QSym, QField, sorted_arguments, Q
 
                 @test isequal(normal_order(normal_order(a * ad)), normal_order(a * ad))
 
-                hs = SpinSpace(:s, 1 // 2)
+                hs = SpinSpace(:s)
                 Sx = Spin(hs, :S, 1)
                 Sy = Spin(hs, :S, 2)
                 @test isequal(normal_order(normal_order(Sy * Sx)), normal_order(Sy * Sx))
@@ -662,7 +662,7 @@ import SecondQuantizedAlgebra: simplify, QAdd, QSym, QField, sorted_arguments, Q
         no = normal_order(σx * σy)
         @test isequal(normal_to_symmetric(no), no)
 
-        hs = SpinSpace(:s, 1 // 2)
+        hs = SpinSpace(:s)
         Sx = Spin(hs, :S, 1)
         Sy = Spin(hs, :S, 2)
         no = normal_order(Sy * Sx)
@@ -715,7 +715,7 @@ import SecondQuantizedAlgebra: simplify, QAdd, QSym, QField, sorted_arguments, Q
             prev = get_ordering()
             set_ordering!(mode)
             try
-                h = FockSpace(:c) ⊗ PauliSpace(:p) ⊗ SpinSpace(:s, 1 // 2)
+                h = FockSpace(:c) ⊗ PauliSpace(:p) ⊗ SpinSpace(:s)
                 a_op = Destroy(h, :a, 1)
                 σx = Pauli(h, :σ, 1, 2)
                 Sz = Spin(h, :S, 3, 3)

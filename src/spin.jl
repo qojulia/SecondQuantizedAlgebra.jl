@@ -1,30 +1,23 @@
 """
-    SpinSpace(name::Symbol, spin::Union{Integer, Rational{Int}})
+    SpinSpace(name::Symbol)
 
-Hilbert space for collective spin-``S`` angular momentum operators.
+Hilbert space for collective spin angular momentum operators.
 
-The `spin` must be a positive integer or half-integer (e.g. `1//2`, `1`, `3//2`).
 Supports [`Spin`](@ref) operators ``S_x, S_y, S_z`` with the commutation relation
-``[S_j, S_k] = i\\epsilon_{jkl} S_l``.
+``[S_j, S_k] = i\\epsilon_{jkl} S_l``. The algebraic rules are independent of the
+spin size ``S`` — that only enters via the `QuantumOpticsBase.SpinBasis` chosen
+for numeric evaluation.
 
 # Examples
 ```julia
-SpinSpace(:S, 1//2)   # spin-1/2
-SpinSpace(:J, 1)      # spin-1
+SpinSpace(:S)
 ```
 """
 struct SpinSpace <: HilbertSpace
     name::Symbol
-    spin::Rational{Int}
-    function SpinSpace(name::Symbol, spin::Rational{Int})
-        spin > 0 || throw(ArgumentError("Spin must be positive, got $spin"))
-        denominator(spin) in (1, 2) || throw(ArgumentError("Spin must be integer or half-integer, got $spin"))
-        return new(name, spin)
-    end
-    SpinSpace(name::Symbol, spin::Integer) = SpinSpace(name, spin // 1)
 end
-Base.:(==)(a::SpinSpace, b::SpinSpace) = a.name == b.name && a.spin == b.spin
-Base.hash(a::SpinSpace, h::UInt) = hash(:SpinSpace, hash(a.name, hash(a.spin, h)))
+Base.:(==)(a::SpinSpace, b::SpinSpace) = a.name == b.name
+Base.hash(a::SpinSpace, h::UInt) = hash(:SpinSpace, hash(a.name, h))
 
 """
     Spin <: QSym
@@ -37,11 +30,11 @@ Spin operators are Hermitian (`S' == S`) and satisfy ``[S_j, S_k] = i\\epsilon_{
 
 # Construction
 ```julia
-h = SpinSpace(:S, 1//2)
+h = SpinSpace(:S)
 Sx = Spin(h, :S, 1)             # Sx on single space
 Sy = Spin(h, :S, 2)             # Sy
 
-hp = FockSpace(:c) ⊗ SpinSpace(:S, 1)
+hp = FockSpace(:c) ⊗ SpinSpace(:S)
 Sz = Spin(hp, :S, 3, 2)         # Sz on 2nd subspace
 ```
 """

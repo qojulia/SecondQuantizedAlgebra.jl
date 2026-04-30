@@ -4,20 +4,20 @@ using Test
 
 @testset "spin" begin
     @testset "Spin construction — product space" begin
-        h = FockSpace(:c) ⊗ SpinSpace(:s, 1)
+        h = FockSpace(:c) ⊗ SpinSpace(:s)
         Sx = Spin(h, :S, 1, 2)
         @test Sx.space_index == 2
         @test_throws ArgumentError Spin(h, :S, 1, 1)
     end
 
     @testset "Adjoint — Hermitian" begin
-        h = SpinSpace(:s, 1 // 2)
+        h = SpinSpace(:s)
         Sx = Spin(h, :S, 1)
         @test Sx' == Sx
     end
 
     @testset "Arithmetic" begin
-        h = SpinSpace(:s, 1 // 2)
+        h = SpinSpace(:s)
         Sx = Spin(h, :S, 1)
         Sy = Spin(h, :S, 2)
 
@@ -29,7 +29,7 @@ using Test
     end
 
     @testset "@qnumbers" begin
-        h = SpinSpace(:s, 1 // 2)
+        h = SpinSpace(:s)
         @qnumbers Sx::Spin(h, 1)
         @test Sx isa Spin
         @test Sx.name == :Sx
@@ -75,7 +75,7 @@ using Test
     end
 
     @testset "Collective spin commutation — [Sx, Sy] = iSz" begin
-        hcs = SpinSpace(:Spin1, 1 // 2)
+        hcs = SpinSpace(:Spin1)
         S(axis) = Spin(hcs, :S, axis)
 
         @test isequal(simplify(commutator(S(1), S(2))), simplify(1im * S(3)))
@@ -84,7 +84,7 @@ using Test
     end
 
     @testset "Spin operator properties" begin
-        hcs = SpinSpace(:Spin1, 1 // 2)
+        hcs = SpinSpace(:Spin1)
         S(axis) = Spin(hcs, :S, axis)
 
         @test isequal(S(1) * S(2), 1 * S(1) * S(2))
@@ -96,8 +96,8 @@ using Test
     end
 
     @testset "Multi-spin operations" begin
-        hcs1 = SpinSpace(:Spin1, 1 // 2)
-        hcs2 = SpinSpace(:Spin2, 1 // 2)
+        hcs1 = SpinSpace(:Spin1)
+        hcs2 = SpinSpace(:Spin2)
         h = hcs1 ⊗ hcs2
 
         S(i, axis) = Spin(h, Symbol(:S_, i), axis, i)
@@ -112,7 +112,7 @@ using Test
     end
 
     @testset "Type stability" begin
-        h = SpinSpace(:s, 1 // 2)
+        h = SpinSpace(:s)
         Sx = Spin(h, :S, 1)
         Sy = Spin(h, :S, 2)
 
@@ -126,7 +126,7 @@ using Test
 
     @static if VERSION >= v"1.12"
         @testset "Allocations" begin
-            h = SpinSpace(:s, 1 // 2)
+            h = SpinSpace(:s)
             Sx = Spin(h, :S, 1)
             Sx2 = Spin(h, :S, 1)
 

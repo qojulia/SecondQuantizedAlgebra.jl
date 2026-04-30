@@ -21,7 +21,7 @@ function benchmark_indexing!(SUITE)
 
     # Dicke model with spins
     hd_f = FockSpace(:c)
-    hd_s = SpinSpace(:s, 1 // 2)
+    hd_s = SpinSpace(:s)
     hd = hd_f ⊗ hd_s
     b = Destroy(hd, :b, 1)
     id = Index(hd, :i, N, hd_s)

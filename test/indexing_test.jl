@@ -11,7 +11,7 @@ import SecondQuantizedAlgebra: simplify, QAdd, QSym, CNum, _to_cnum, NO_INDEX,
     hf = FockSpace(:f)
     hn = NLevelSpace(:n, 2, 1)
     hp = PauliSpace(:p)
-    hs = SpinSpace(:s, 1 // 2)
+    hs = SpinSpace(:s)
     hq = PhaseSpace(:q)
     h_prod = hf ⊗ hn
 

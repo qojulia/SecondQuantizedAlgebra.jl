@@ -13,7 +13,7 @@ import SecondQuantizedAlgebra: simplify, QAdd, QSym, _single_qadd, _to_cnum
     @testset "Operators" begin
         hn = NLevelSpace(:atom, 3, 1)
         hp = PauliSpace(:p)
-        hs = SpinSpace(:s, 1 // 2)
+        hs = SpinSpace(:s)
         hps = PhaseSpace(:q)
 
         input = [

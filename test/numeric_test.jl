@@ -77,7 +77,7 @@ using Test
     end
 
     @testset "Spin numeric" begin
-        h = SpinSpace(:s, 5 // 2)
+        h = SpinSpace(:s)
         Sx = Spin(h, :S, 1)
         Sy = Spin(h, :S, 2)
         Sz = Spin(h, :S, 3)

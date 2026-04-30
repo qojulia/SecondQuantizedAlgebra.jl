@@ -14,7 +14,7 @@ import SecondQuantizedAlgebra: simplify, QAdd, QSym, QTermDict, _to_cnum
             FockSpace(:a) ⊗ FockSpace(:b),
             NLevelSpace(:atom, 3, 1),
             PauliSpace(:p),
-            SpinSpace(:s, 1 // 2),
+            SpinSpace(:s),
             PhaseSpace(:q),
         ]
         output = [
@@ -33,7 +33,7 @@ import SecondQuantizedAlgebra: simplify, QAdd, QSym, QTermDict, _to_cnum
     @testset "Operators" begin
         hn = NLevelSpace(:atom, 3, 1)
         hp = PauliSpace(:p)
-        hs = SpinSpace(:s, 1 // 2)
+        hs = SpinSpace(:s)
         hps = PhaseSpace(:q)
 
         input = [

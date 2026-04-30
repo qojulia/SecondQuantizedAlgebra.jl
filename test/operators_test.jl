@@ -38,7 +38,7 @@ import SecondQuantizedAlgebra: QAdd, QSym, QField, _conj, _inconj, _adjoint,
     end
 
     @testset "fundamental_operators — SpinSpace" begin
-        h = SpinSpace(:s, 1 // 2)
+        h = SpinSpace(:s)
         ops = fundamental_operators(h)
         @test length(ops) == 3
         @test all(op -> op isa Spin, ops)
@@ -117,7 +117,7 @@ import SecondQuantizedAlgebra: QAdd, QSym, QField, _conj, _inconj, _adjoint,
         h2 = NLevelSpace(:s2, 2, 1)
         h3 = FockSpace(:s3)
         h4 = PauliSpace(:s4)
-        h5 = SpinSpace(:s5, 1 // 2)
+        h5 = SpinSpace(:s5)
         h6 = PhaseSpace(:s6)
         h = h1 ⊗ h2 ⊗ h3 ⊗ h4 ⊗ h5 ⊗ h6
 
@@ -150,7 +150,7 @@ import SecondQuantizedAlgebra: QAdd, QSym, QField, _conj, _inconj, _adjoint,
         h2 = NLevelSpace(:s2, 2, 1)
         h3 = FockSpace(:s3)
         h4 = PauliSpace(:s4)
-        h5 = SpinSpace(:s5, 1 // 2)
+        h5 = SpinSpace(:s5)
         h6 = PhaseSpace(:s6)
         h = h1 ⊗ h2 ⊗ h3 ⊗ h4 ⊗ h5 ⊗ h6
 

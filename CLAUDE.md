@@ -14,7 +14,7 @@ src/hilbertspace.jl             # HilbertSpace, FockSpace, ProductSpace, ⊗
 src/fock.jl                     # Destroy, Create (bosonic ladder operators)
 src/nlevel.jl                   # NLevelSpace, Transition (|i⟩⟨j| operators)
 src/pauli.jl                    # PauliSpace, Pauli (σx, σy, σz)
-src/spin.jl                     # SpinSpace, Spin (Sx, Sy, Sz with rational spin)
+src/spin.jl                     # SpinSpace, Spin (Sx, Sy, Sz)
 src/phase_space.jl              # PhaseSpace, Position, Momentum
 src/qadd.jl                     # QAdd — dict-based sum, all arithmetic, site sorting
 src/ordering.jl                 # Worklist ordering: commutation rules, algebraic reductions

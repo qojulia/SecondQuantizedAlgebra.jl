@@ -171,7 +171,7 @@ end
 end
 
 @testset "normal_order — Spin" begin
-    h = SpinSpace(:s, 1 // 2)
+    h = SpinSpace(:s)
     Sx = Spin(h, :S, 1)
     Sy = Spin(h, :S, 2)
     Sz = Spin(h, :S, 3)
@@ -215,7 +215,7 @@ end
     σy = Pauli(hp, :σ, 2)
     @inferred normal_order(σx * σy)
 
-    hs = SpinSpace(:s, 1 // 2)
+    hs = SpinSpace(:s)
     Sy = Spin(hs, :S, 2)
     Sx = Spin(hs, :S, 1)
     @inferred normal_order(Sy * Sx)
