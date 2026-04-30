@@ -36,17 +36,21 @@ function benchmark_indexing!(SUITE)
         $H_dicke, $(Sz(jd))
     ) seconds = 3
 
-    # ---- Expand sums ----
-    single_sum = Σ(gi * σ(2, 1, i) * σ(1, 2, j), i)
-    SUITE["Indexing"]["Expand sums"]["single Σ_i(σ_i*σ_j)"] = @benchmarkable expand_sums(
-        $single_sum
+    # ---- Sum construction (eager diagonal split happens here) ----
+    σ_ij = gi * σ(2, 1, i) * σ(1, 2, j)
+    SUITE["Indexing"]["Sum construction"]["single Σ_i(σ_i*σ_j)"] = @benchmarkable Σ(
+        $σ_ij, $i
     ) seconds = 3
 
     Jij = DoubleIndexedVariable(:J, id, jd; identical = false)
-    double_sum = Σ(Σ(Jij * Sx(id) * Sx(jd), id), jd)
-    SUITE["Indexing"]["Expand sums"]["double Σ_ij(J_ij*S_i*S_j)"] = @benchmarkable expand_sums(
-        $double_sum
+    SS = Jij * Sx(id) * Sx(jd)
+    SUITE["Indexing"]["Sum construction"]["double Σ_ij(J_ij*S_i*S_j)"] = @benchmarkable Σ(
+        Σ($SS, $id), $jd
     ) seconds = 3
+
+    # Keep the constructed sums around for the simplify benchmarks below.
+    single_sum = Σ(σ_ij, i)
+    double_sum = Σ(Σ(SS, id), jd)
 
     # ---- Simplify indexed expressions ----
     SUITE["Indexing"]["Simplify"]["indexed JC H"] = @benchmarkable simplify(

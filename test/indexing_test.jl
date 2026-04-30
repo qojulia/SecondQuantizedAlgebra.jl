@@ -521,19 +521,6 @@ import SecondQuantizedAlgebra: simplify, QAdd, QSym, CNum, _to_cnum, NO_INDEX,
         @test length(result) > 1
     end
 
-    @testset "expand_sums — no-op passthrough" begin
-        @test expand_sums(a) === a
-        m = a' * a
-        @test expand_sums(m) === m
-        s = a + a'
-        @test expand_sums(s) === s
-
-        i = Index(hf, :i, 10, hf)
-        ai = IndexedOperator(a, i)
-        sum_expr = Σ(ai, i)
-        @test expand_sums(sum_expr) === sum_expr
-    end
-
     @testset "Sum * QSym — diagonal split" begin
         i = Index(hf, :i, 10, hf)
         j = Index(hf, :j, 10, hf)

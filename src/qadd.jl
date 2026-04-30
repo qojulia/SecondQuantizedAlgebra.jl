@@ -515,7 +515,7 @@ a_i = IndexedOperator(a, i)
 H = Σ(a_i' * a_i, i)           # Σ(i=1:N) a†_i a_i
 ```
 
-See also [`expand_sums`](@ref), [`Index`](@ref), [`IndexedOperator`](@ref).
+See also [`Index`](@ref), [`IndexedOperator`](@ref).
 """
 function Σ(expr::QAdd, i::Index, non_equal::Vector{Index} = Index[])
     if !_any_depends_on_index(expr, i)
@@ -543,15 +543,3 @@ function Σ(expr::Union{QField, Number}, i::Index, j::Index, rest::Index...)
 end
 
 const ∑ = Σ
-
-"""
-    expand_sums(expr)
-
-Identity function — returns `expr` unchanged.
-
-Diagonal splitting of symbolic sums is now performed eagerly at construction time
-by [`Σ`](@ref) and `QAdd` multiplication. This function is retained for backward
-compatibility.
-"""
-expand_sums(s::QAdd) = s
-expand_sums(op::QSym) = op

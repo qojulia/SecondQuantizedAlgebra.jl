@@ -244,10 +244,6 @@ change_index
 ```
 
 ```@docs
-expand_sums
-```
-
-```@docs
 get_indices
 ```
 

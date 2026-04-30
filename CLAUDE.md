@@ -22,7 +22,7 @@ src/simplify.jl                 # simplify() — reductions only (no commutation
 src/normal_order.jl             # normal_order(), normal↔symmetric (Weyl) conversion
 src/commutator.jl               # commutator(a, b) = a*b - b*a with index collapse
 src/index_types.jl              # Index type, NO_INDEX constant
-src/index.jl                    # IndexedVariable, DoubleIndexedVariable, Σ, expand_sums
+src/index.jl                    # IndexedVariable, DoubleIndexedVariable, Σ
 src/operators.jl                # fundamental_operators, find_operators, unique_ops
 src/average.jl                  # AvgFunc/AvgSym, average(), undo_average()
 src/substitute.jl               # substitute(expr, Dict) for operators and symbols

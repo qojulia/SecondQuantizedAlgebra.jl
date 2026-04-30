@@ -181,8 +181,6 @@ When a symbolic sum ``\sum_i f(i)`` is multiplied by an operator with a free ind
 
 Substitution must happen pre-sort: post-sort, the original physical order of same-space ops is lost (sorted alphabetically by index name), and substitution can collapse pairs in the wrong order — e.g. `σⱼ¹²·σᵢ²¹` (with `i ≠ j`) sorts to `σᵢ²¹·σⱼ¹²` and collapses at `i = j` to `σⱼ²²`, but the physically correct collapse is `σⱼ¹¹`.
 
-The function `expand_sums` still exists but is a no-op passthrough for API compatibility.
-
 
 ## Index system
 

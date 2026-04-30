@@ -98,6 +98,19 @@ import SecondQuantizedAlgebra: simplify, QAdd, QSym, QField, sorted_arguments, Q
         result = Symbolics.expand(expr)
         @test result isa QAdd
         @test length(result) == 4
+
+        # Prefactor-level distribution: NOT automatic from the dict.
+        # Operator distribution happens via dict-key collection, but a
+        # symbolic Num prefactor like (g+h)^2 stays unexpanded until
+        # `expand` walks it through `Symbolics.expand`.
+        @variables g h
+        unexpanded = ((g + h)^2) * a
+        @test length(unexpanded) == 1
+        @test !isequal(unexpanded, (g^2 + 2 * g * h + h^2) * a)
+
+        expanded = Symbolics.expand(unexpanded)
+        @test length(expanded) == 1
+        @test isequal(expanded, (g^2 + 2 * g * h + h^2) * a)
     end
 
     @testset "Idempotency: simplify(simplify(x)) == simplify(x)" begin
