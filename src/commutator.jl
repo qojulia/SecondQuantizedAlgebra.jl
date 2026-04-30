@@ -91,3 +91,22 @@ function _merge_terms!(d::QTermDict, result::QAdd)
     end
     return d
 end
+
+"""
+    anticommutator(a, b)
+
+Compute the anticommutator ``\\{a, b\\} = a*b + b*a``.
+
+Returns a [`QAdd`](@ref) when either argument is a [`QField`](@ref); for two
+plain numbers returns `2*a*b`.
+
+# Examples
+```julia
+h = FockSpace(:f)
+@qnumbers a::Destroy(h)
+anticommutator(a, a')   # {a, a†} = 1 + 2 a†a
+```
+
+See also [`commutator`](@ref).
+"""
+anticommutator(a, b) = a * b + b * a

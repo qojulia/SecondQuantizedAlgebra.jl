@@ -139,6 +139,10 @@ commutator
 ```
 
 ```@docs
+anticommutator
+```
+
+```@docs
 expand
 ```
 

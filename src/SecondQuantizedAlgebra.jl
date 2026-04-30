@@ -97,7 +97,7 @@ export FockSpace, ProductSpace,
     fundamental_operators, find_operators, unique_ops,
     prefactor, operators,
     substitute,
-    normal_order, normal_to_symmetric, symmetric_to_normal, simplify, expand, commutator,
+    normal_order, normal_to_symmetric, symmetric_to_normal, simplify, expand, commutator, anticommutator,
     to_numeric, numeric_average,
     transition_superscript
 

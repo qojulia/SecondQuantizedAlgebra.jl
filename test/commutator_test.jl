@@ -1,6 +1,6 @@
 using SecondQuantizedAlgebra
 using Test
-import SecondQuantizedAlgebra: simplify, QAdd, QSym, sorted_arguments
+import SecondQuantizedAlgebra: simplify, QAdd, QSym, QTermDict, _to_cnum, Index, sorted_arguments
 
 @testset "commutator" begin
     h = FockSpace(:c)
@@ -164,5 +164,39 @@ import SecondQuantizedAlgebra: simplify, QAdd, QSym, sorted_arguments
 
         # Bilinearity over QAdd
         @test @allocations(commutator(a + ad, a)) < 40000
+    end
+
+    @testset "anticommutator" begin
+        # Fock: {a, a†} = a a† + a† a = (a†a + 1) + a†a = 1 + 2 a†a
+        h = FockSpace(:c)
+        @qnumbers a::Destroy(h)
+        ad = a'
+        r = anticommutator(a, ad)
+        @test r isa QAdd
+        @test isequal(r, 1 + 2 * ad * a)
+
+        # {a, a} = 2 a²
+        @test isequal(anticommutator(a, a), 2 * a * a)
+
+        # Pauli: {σⱼ, σₖ} = 2 δⱼₖ
+        hp = PauliSpace(:p)
+        σx = Pauli(hp, :σ, 1)
+        σy = Pauli(hp, :σ, 2)
+        σz = Pauli(hp, :σ, 3)
+        @test iszero(anticommutator(σx, σy))
+        @test iszero(anticommutator(σx, σz))
+        @test iszero(anticommutator(σy, σz))
+        # σx² = I, so {σx, σx} = 2
+        @test isequal(simplify(anticommutator(σx, σx)), QAdd(QTermDict(QSym[] => _to_cnum(2)), Index[], Tuple{Index, Index}[]))
+
+        # Different sites: {A, B} = 2 A B
+        h2 = FockSpace(:c1) ⊗ FockSpace(:c2)
+        @qnumbers a1::Destroy(h2, 1) a2::Destroy(h2, 2)
+        @test isequal(anticommutator(a1, a2), 2 * a1 * a2)
+
+        # Scalars
+        @test anticommutator(2, 3) == 12
+        @test isequal(anticommutator(2, a), 4 * a)
+        @test isequal(anticommutator(a, 3), 6 * a)
     end
 end
