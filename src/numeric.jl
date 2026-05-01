@@ -164,6 +164,10 @@ function numeric_average(op::QField, states::AbstractVector; kwargs...)
     op_num = QuantumOpticsBase.sparse(to_numeric(op, first(states); kwargs...))
     return QuantumOpticsBase.expect(op_num, states)
 end
+function numeric_average(avg::SymbolicUtils.BasicSymbolic, states::AbstractVector; kwargs...)
+    isempty(states) && throw(ArgumentError("numeric_average: states vector is empty"))
+    return [numeric_average(avg, ψ; kwargs...) for ψ in states]
+end
 function numeric_average(x::Number, state::QuantumState; kwargs...)
     return x
 end
@@ -225,6 +229,10 @@ function numeric_average(op::QField, states::AbstractVector, d::Dict; kwargs...)
     op_num = to_numeric(op, first(states), d; kwargs...)
     return QuantumOpticsBase.expect(op_num, states)
 end
+function numeric_average(avg::SymbolicUtils.BasicSymbolic, states::AbstractVector, d::Dict; kwargs...)
+    isempty(states) && throw(ArgumentError("numeric_average: states vector is empty"))
+    return [numeric_average(avg, ψ, d; kwargs...) for ψ in states]
+end
 function numeric_average(x::Number, state::QuantumState, d::Dict; kwargs...)
     return x
 end
@@ -260,6 +268,11 @@ works for both numeric and symbolic operands.
 """
 expect(op::QField, state; kwargs...) = numeric_average(op, state; kwargs...)
 expect(op::QField, state, d::Dict; kwargs...) = numeric_average(op, state, d; kwargs...)
+# TODO: the four methods below are type piracy — `expect` is from QuantumOpticsBase
+# and `Num`/`BasicSymbolic` are from Symbolics/SymbolicUtils. Aqua suppresses this via
+# `treat_as_own = [expect]` in test/aqua_test.jl. Resolve by either dropping these
+# overloads (callers can use `numeric_average` directly) or wrapping symbolic operands
+# in a SQA-owned type.
 expect(avg::SymbolicUtils.BasicSymbolic, state; kwargs...) = numeric_average(avg, state; kwargs...)
 expect(avg::SymbolicUtils.BasicSymbolic, state, d::Dict; kwargs...) = numeric_average(avg, state, d; kwargs...)
 expect(x::Num, state; kwargs...) = numeric_average(x, state; kwargs...)
