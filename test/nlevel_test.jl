@@ -45,9 +45,10 @@ using Test
         σee = Transition(h, :σ, 2, 2)
         σgg = Transition(h, :σ, 1, 1)
 
-        # σ*σ' = σ_gg (ground state projector)
-        @test isequal(simplify(normal_order(σ * σ')), simplify(σgg))
-        # σ_gg = 1 - σ_ee (completeness relation, requires Hilbert space context)
+        # σ*σ' produces a ground-state projector under composition; under
+        # NormalOrder this is eagerly expanded via completeness: σgg = 1 - σee.
+        @test isequal(simplify(normal_order(σ * σ')), simplify(1 - σee))
+        # The h-aware overload applies completeness explicitly (LazyOrder opt-in).
         @test isequal(simplify(σgg, h), simplify(1 - σee, h))
     end
 
@@ -55,13 +56,12 @@ using Test
         h = NLevelSpace(:atom, 2, 1)
         σ = Transition(h, :σ, 1, 2)
         σee = Transition(h, :σ, 2, 2)
-        σgg = Transition(h, :σ, 1, 1)
 
         # normal_order applies transition product rules
         @test isequal(simplify(normal_order(σ' * σ)), simplify(σee))
-        # σ*σ' = σgg (ground state projector), which is 1 - σee
+        # σ*σ' produces σgg via composition; eager NormalOrder expands σgg = 1 - σee.
         no_result = simplify(normal_order(σ * σ'))
-        @test isequal(no_result, simplify(σgg))
+        @test isequal(no_result, simplify(1 - σee))
     end
 
     @testset "Product space operations" begin
@@ -75,8 +75,9 @@ using Test
         @test isequal(
             simplify(normal_order(σ1' * σ1)), simplify(Transition(hprod, :σ1, 2, 2, 1))
         )
+        # σ2 * σ2' produces σ2_11; eager NormalOrder expands to 1 - σ2_22.
         no_result = simplify(normal_order(σ2 * σ2'))
-        @test isequal(no_result, simplify(Transition(hprod, :σ2, 1, 1, 2)))
+        @test isequal(no_result, simplify(1 - Transition(hprod, :σ2, 2, 2, 2)))
         # Different subspaces don't interact
         @test isequal(simplify(σ1 * σ2), simplify(σ1 * σ2))
     end
@@ -121,7 +122,7 @@ using Test
         σ12 = Transition(h, :σ, 1, 2)
         σ21 = Transition(h, :σ, 2, 1)
 
-        @inferred Transition(:σ, 1, 2, 1)
+        @inferred Transition(h, :σ, 1, 2)
         @inferred adjoint(σ12)
         @inferred isequal(σ12, σ21)
         @inferred hash(σ12, UInt(0))
@@ -135,7 +136,7 @@ using Test
             σ12 = Transition(h, :σ, 1, 2)
 
             # Construction and adjoint
-            @test @allocations(Transition(:σ, 1, 2, 1)) == 0
+            @test @allocations(Transition(h, :σ, 1, 2)) == 0
             @test @allocations(adjoint(σ12)) == 0
 
             # Equality / hashing

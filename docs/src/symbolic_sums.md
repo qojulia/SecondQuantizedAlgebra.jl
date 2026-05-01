@@ -83,6 +83,8 @@ This also happens when a sum is multiplied by an indexed operator on the same sp
 Σ(σ(2, 2, k), k) * σ(2, 1, l)
 ```
 
+The diagonal term may produce a ground-state projector — for instance, the diagonal of ``\sigma^{12}_k \cdot \sigma^{21}_l`` at ``k=l`` is ``\sigma^{11}_l``. Under [`NormalOrder`](@ref) this is eagerly expanded via completeness ``\sigma^{11} = 1 - \sum_{j \neq 1}\sigma^{jj}`` so that ground-state projectors never appear in canonical form. See [Ordering Conventions](@ref) for the full list of eager transformations.
+
 
 ## Example: Tavis-Cummings model
 

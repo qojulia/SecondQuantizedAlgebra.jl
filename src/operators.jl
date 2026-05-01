@@ -18,7 +18,7 @@ The operator set depends on the space type:
 # Examples
 ```julia
 h = FockSpace(:cavity) ⊗ NLevelSpace(:atom, 2)
-ops = fundamental_operators(h)   # [Destroy(:a, 1), Transition(:σ, 1, 2, 2)]
+ops = fundamental_operators(h)   # [Destroy(:a, 1), Transition(:σ, 1, 2, 2, NO_INDEX, 1, 2)]
 ```
 
 See also [`find_operators`](@ref), [`unique_ops`](@ref).
@@ -34,7 +34,7 @@ function fundamental_operators(h::NLevelSpace, si::Int = 1; names::Union{Nothing
     for i in 1:(h.n)
         for j in i:(h.n)
             (i == j) && i == h.ground_state && continue
-            push!(ops, Transition(name, i, j, si))
+            push!(ops, Transition(name, i, j, si, NO_INDEX, h.ground_state, h.n))
         end
     end
     return ops

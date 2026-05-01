@@ -44,7 +44,9 @@ function _reduce_product!(
 
     for i in 1:(n - 1)
         a, b = ops[i], ops[i + 1]
-        _try_algebraic_reduction!(a, b, i, c, ops, worklist, done) && return
+        # `simplify(expr)` is the LazyOrder reductions-only pass: keep
+        # σᵍᵍ atomic. Use `simplify(expr, h)` to opt into completeness.
+        _try_algebraic_reduction!(a, b, i, c, ops, worklist, done, false) && return
     end
 
     return push!(done, (c, ops))
@@ -86,14 +88,20 @@ Simplify a quantum operator expression by applying ordering-independent algebrai
 Applied rules:
 - **Transition composition**: ``|i\\rangle\\langle j| \\cdot |k\\rangle\\langle l| = \\delta_{jk} |i\\rangle\\langle l|``
 - **Pauli product rule**: ``\\sigma_j \\sigma_k = \\delta_{jk} I + i\\epsilon_{jkl} \\sigma_l``
-- Symbolic prefactor simplification (via `Symbolics.simplify`)
 - Like-term collection and zero-term elimination
 
 Does **not** apply commutation-based reordering (Fock `[a, a†]`, Spin `[Sⱼ, Sₖ]`,
 PhaseSpace `[p, x]`). For that, use [`normal_order`](@ref).
 
-When a [`HilbertSpace`](@ref) `h` is provided, additionally rewrites ground-state
-projectors of [`NLevelSpace`](@ref) subspaces via the completeness relation.
+The `h`-argument overload is the [`LazyOrder`](@ref) opt-in for ground-state
+completeness: it additionally rewrites ground-state projectors
+``|g\\rangle\\langle g| = 1 - \\sum_{k \\neq g}|k\\rangle\\langle k|`` of every
+[`NLevelSpace`](@ref) subspace. Without `h`, ``|g\\rangle\\langle g|`` is kept
+atomic — useful for inspecting the un-expanded form.
+
+Under [`NormalOrder`](@ref) (the default ordering convention) the eager arithmetic
+already produces canonical form including completeness, so `simplify` is typically
+idempotent and the `h`-overload is a no-op cleanup pass.
 
 See also [`normal_order`](@ref), [`expand`](@ref).
 """
@@ -118,18 +126,6 @@ end
 function Symbolics.expand(op::QSym; kwargs...)
     return QAdd(QTermDict(QSym[op] => _CNUM_ONE), Index[], Tuple{Index, Index}[])
 end
-
-function _simplify_prefactor(x::CNum)
-    _iszero_cnum(x) && return x
-    r, i = SymbolicUtils.unwrap(x.re), SymbolicUtils.unwrap(x.im)
-    # Fast path: skip Symbolics.simplify for purely numeric prefactors
-    (
-        SymbolicUtils.iscall(r) || SymbolicUtils.issym(r) ||
-            SymbolicUtils.iscall(i) || SymbolicUtils.issym(i)
-    ) || return x
-    return Symbolics.simplify(x)
-end
-_simplify_prefactor(x::Number) = x
 
 _expand_prefactor(x::CNum; kwargs...) = _iszero_cnum(x) ? x : Symbolics.expand(x; kwargs...)
 _expand_prefactor(x::Number; kwargs...) = x

@@ -198,6 +198,11 @@ import SecondQuantizedAlgebra: simplify, QAdd, QSym, QTermDict, _to_cnum, Index,
         # (transition: σ_αβ · σ_βγ = σ_αγ) fire on the correct physical order.
         # See https://qojulia.github.io/QuantumCumulants.jl/stable/examples/superradiant_laser_indexed/
         # Eqs. (6) and (7).
+        #
+        # Under NormalOrder (the default), the canonical basis omits the ground-state
+        # projector: σⱼ¹¹ never appears in dict keys because it is eagerly expanded
+        # via completeness σⱼ¹¹ = 1 - σⱼ²². Assertions below check the post-expansion
+        # form. To inspect the un-expanded shape (σⱼ²² - σⱼ¹¹), use LazyOrder.
         hc = FockSpace(:cavity)
         ha = NLevelSpace(:atom, 2)
         h = hc ⊗ ha
@@ -216,6 +221,8 @@ import SecondQuantizedAlgebra: simplify, QAdd, QSym, QTermDict, _to_cnum, Index,
 
         # Eq. (6): i [H, a'σⱼ¹²] = -iΔ a'σⱼ¹² + Σᵢ≠ⱼ i g(i) σᵢ²¹σⱼ¹²
         #                          + i g(j) (a'a (σⱼ²² - σⱼ¹¹) + σⱼ²²)
+        # Post-completeness: σⱼ²² - σⱼ¹¹ = 2σⱼ²² - 1, so:
+        #   = -iΔ a'σⱼ¹² + Σᵢ≠ⱼ i g(i) σᵢ²¹σⱼ¹² + i g(j)(2 a'a σⱼ²² - a'a + σⱼ²²)
         op3 = a' * σ(1, 2, j)
         result3 = 1im * commutator(H, op3)
         # Verify each expected dict entry is present with correct prefactor.
@@ -228,36 +235,50 @@ import SecondQuantizedAlgebra: simplify, QAdd, QSym, QTermDict, _to_cnum, Index,
         @test any(d3) do (ops, c)
             ops == [σ(2, 2, j)] && isequal(c, _to_cnum(1im * g(j)))
         end
-        # i * g(j) * a'a * σⱼ²²
+        # 2i * g(j) * a'a * σⱼ²²  (was im * g(j) before completeness folded in σⱼ¹¹)
         @test any(d3) do (ops, c)
-            ops == [a', a, σ(2, 2, j)] && isequal(c, _to_cnum(1im * g(j)))
+            ops == [a', a, σ(2, 2, j)] && isequal(c, _to_cnum(2im * g(j)))
         end
-        # -i * g(j) * a'a * σⱼ¹¹
+        # -i * g(j) * a'a  (identity contribution from σⱼ¹¹ = 1 - σⱼ²²)
         @test any(d3) do (ops, c)
-            ops == [a', a, σ(1, 1, j)] && isequal(c, _to_cnum(-1im * g(j)))
+            ops == [a', a] && isequal(c, _to_cnum(-1im * g(j)))
         end
         # Σᵢ≠ⱼ i * g(i) * σᵢ²¹σⱼ¹²
         @test any(d3) do (ops, c)
             ops == [σ(2, 1, i), σ(1, 2, j)] && isequal(c, _to_cnum(1im * g(i)))
         end
         @test any(p -> p == (i, j) || p == (j, i), result3.non_equal)
+        # σⱼ¹¹ should NOT appear under NormalOrder canonical form
+        @test !any(d3) do (ops, c)
+            any(op -> op isa Transition && op.i == 1 && op.j == 1, ops)
+        end
 
         # Eq. (7): i [H, σⱼ¹²σₖ²¹] = i g(j) a (σⱼ²² - σⱼ¹¹) σₖ²¹
         #                            + i g(k) a' σⱼ¹² (σₖ¹¹ - σₖ²²)
+        # Post-completeness: σⱼ²² - σⱼ¹¹ = 2σⱼ²² - 1, σₖ¹¹ - σₖ²² = 1 - 2σₖ²², so:
+        #   = i g(j) a (2σⱼ²² σₖ²¹ - σₖ²¹) + i g(k) a' (σⱼ¹² - 2 σⱼ¹² σₖ²²)
         op4 = σ(1, 2, j) * σ(2, 1, k)
         result4 = 1im * commutator(H, op4)
         d4 = result4.arguments
+        # 2i * g(j) * a * σⱼ²² * σₖ²¹
         @test any(d4) do (ops, c)
-            ops == [a, σ(2, 2, j), σ(2, 1, k)] && isequal(c, _to_cnum(1im * g(j)))
+            ops == [a, σ(2, 2, j), σ(2, 1, k)] && isequal(c, _to_cnum(2im * g(j)))
         end
+        # -i * g(j) * a * σₖ²¹  (identity from σⱼ¹¹ expansion)
         @test any(d4) do (ops, c)
-            ops == [a, σ(1, 1, j), σ(2, 1, k)] && isequal(c, _to_cnum(-1im * g(j)))
+            ops == [a, σ(2, 1, k)] && isequal(c, _to_cnum(-1im * g(j)))
         end
+        # i * g(k) * a' * σⱼ¹²  (identity from σₖ¹¹ expansion)
         @test any(d4) do (ops, c)
-            ops == [a', σ(1, 2, j), σ(1, 1, k)] && isequal(c, _to_cnum(1im * g(k)))
+            ops == [a', σ(1, 2, j)] && isequal(c, _to_cnum(1im * g(k)))
         end
+        # -2i * g(k) * a' * σⱼ¹² * σₖ²²
         @test any(d4) do (ops, c)
-            ops == [a', σ(1, 2, j), σ(2, 2, k)] && isequal(c, _to_cnum(-1im * g(k)))
+            ops == [a', σ(1, 2, j), σ(2, 2, k)] && isequal(c, _to_cnum(-2im * g(k)))
+        end
+        # σ_·_11 should NOT appear under NormalOrder canonical form
+        @test !any(d4) do (ops, c)
+            any(op -> op isa Transition && op.i == 1 && op.j == 1, ops)
         end
     end
 end

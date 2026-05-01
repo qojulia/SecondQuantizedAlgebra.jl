@@ -8,9 +8,13 @@ Hilbert space for an N-level system (atoms, qubits, qudits, etc.).
 Supports [`Transition`](@ref) operators ``|i\\rangle\\langle j|`` with the composition
 rule ``|i\\rangle\\langle j| \\cdot |k\\rangle\\langle l| = \\delta_{jk} |i\\rangle\\langle l|``.
 
-The `ground_state` (default `1`) is used by [`normal_order`](@ref) and [`simplify`](@ref)
-with a Hilbert space argument to eliminate ground-state projectors via the completeness
-relation ``|g\\rangle\\langle g| = 1 - \\sum_{k \\neq g} |k\\rangle\\langle k|``.
+The `ground_state` (default `1`) defines the canonical basis as
+``\\{|i\\rangle\\langle j| : (i,j) \\neq (g,g)\\} \\cup \\{1\\}``: ground-state projectors
+are eliminated via completeness ``|g\\rangle\\langle g| = 1 - \\sum_{k \\neq g} |k\\rangle\\langle k|``.
+Under [`NormalOrder`](@ref) this rewrite fires eagerly during multiplication; under
+[`LazyOrder`](@ref) the user opts in via [`simplify`](@ref)`(expr, h)` or
+[`normal_order`](@ref)`(expr, h)`. Each [`Transition`](@ref) carries `ground_state`
+and `n_levels` directly so the algebra stays Hilbert-space-decoupled.
 
 Levels can be integers (default `1:n`) or symbolic names:
 
@@ -62,6 +66,12 @@ Transition operator ``|i\\rangle\\langle j|`` on an [`NLevelSpace`](@ref).
 Satisfies the composition rule ``|i\\rangle\\langle j| \\cdot |k\\rangle\\langle l| = \\delta_{jk} |i\\rangle\\langle l|``.
 The adjoint is ``|i\\rangle\\langle j|^\\dagger = |j\\rangle\\langle i|``.
 
+Each `Transition` carries the ground-state level (`ground_state`) and number of levels
+(`n_levels`) of its host [`NLevelSpace`](@ref). This lets the [`NormalOrder`](@ref) eager
+arithmetic apply the completeness relation ``|g\\rangle\\langle g| = 1 - \\sum_{k \\neq g}|k\\rangle\\langle k|``
+without consulting the Hilbert space — keeping the algebra Hilbert-space-decoupled
+while preserving canonical form.
+
 # Construction
 ```julia
 h = NLevelSpace(:atom, 3)
@@ -84,17 +94,18 @@ struct Transition <: QSym
     j::Int
     space_index::Int
     index::Index
+    ground_state::Int
+    n_levels::Int
 end
-Transition(name::Symbol, i::Int, j::Int, si::Int) = Transition(name, i, j, si, NO_INDEX)
 
 # Construction from Hilbert spaces
 function Transition(h::NLevelSpace, name::Symbol, i::Int, j::Int)
     1 <= i <= h.n || throw(ArgumentError("Level i=$i out of range 1:$(h.n)"))
     1 <= j <= h.n || throw(ArgumentError("Level j=$j out of range 1:$(h.n)"))
-    return Transition(name, i, j, 1)
+    return Transition(name, i, j, 1, NO_INDEX, h.ground_state, h.n)
 end
 function Transition(h::NLevelSpace, name::Symbol, i::Symbol, j::Symbol)
-    return Transition(name, _level_index(h, i), _level_index(h, j), 1)
+    return Transition(name, _level_index(h, i), _level_index(h, j), 1, NO_INDEX, h.ground_state, h.n)
 end
 function Transition(h::ProductSpace, name::Symbol, i::Int, j::Int, idx::Int)
     1 <= idx <= length(h.spaces) || throw(ArgumentError("Index $idx out of range"))
@@ -102,13 +113,13 @@ function Transition(h::ProductSpace, name::Symbol, i::Int, j::Int, idx::Int)
     space isa NLevelSpace || throw(ArgumentError("Space at index $idx is not an NLevelSpace"))
     1 <= i <= space.n || throw(ArgumentError("Level i=$i out of range 1:$(space.n)"))
     1 <= j <= space.n || throw(ArgumentError("Level j=$j out of range 1:$(space.n)"))
-    return Transition(name, i, j, idx)
+    return Transition(name, i, j, idx, NO_INDEX, space.ground_state, space.n)
 end
 function Transition(h::ProductSpace, name::Symbol, i::Symbol, j::Symbol, idx::Int)
     1 <= idx <= length(h.spaces) || throw(ArgumentError("Index $idx out of range"))
     space = h.spaces[idx]
     space isa NLevelSpace || throw(ArgumentError("Space at index $idx is not an NLevelSpace"))
-    return Transition(name, _level_index(space, i), _level_index(space, j), idx)
+    return Transition(name, _level_index(space, i), _level_index(space, j), idx, NO_INDEX, space.ground_state, space.n)
 end
 
 # Auto-detect subspace when the ProductSpace contains exactly one NLevelSpace.
@@ -118,17 +129,17 @@ Transition(h::ProductSpace, name::Symbol, i::Symbol, j::Symbol) =
     Transition(h, name, i, j, _unique_subspace_index(h, NLevelSpace))
 
 # IndexedOperator convenience
-IndexedOperator(op::Transition, i::Index) = Transition(op.name, op.i, op.j, op.space_index, i)
+IndexedOperator(op::Transition, i::Index) = Transition(op.name, op.i, op.j, op.space_index, i, op.ground_state, op.n_levels)
 
 # Adjoint: |i⟩⟨j|† = |j⟩⟨i|
-Base.adjoint(op::Transition) = Transition(op.name, op.j, op.i, op.space_index, op.index)
+Base.adjoint(op::Transition) = Transition(op.name, op.j, op.i, op.space_index, op.index, op.ground_state, op.n_levels)
 
 # Equality
-Base.isequal(a::Transition, b::Transition) = a.name == b.name && a.i == b.i && a.j == b.j && a.space_index == b.space_index && a.index == b.index
+Base.isequal(a::Transition, b::Transition) = a.name == b.name && a.i == b.i && a.j == b.j && a.space_index == b.space_index && a.index == b.index && a.ground_state == b.ground_state && a.n_levels == b.n_levels
 Base.:(==)(a::Transition, b::Transition) = isequal(a, b)
 
 # Hashing
-Base.hash(a::Transition, h::UInt) = hash(:Transition, hash(a.name, hash(a.i, hash(a.j, hash(a.space_index, hash(a.index, h))))))
+Base.hash(a::Transition, h::UInt) = hash(:Transition, hash(a.name, hash(a.i, hash(a.j, hash(a.space_index, hash(a.index, hash(a.ground_state, hash(a.n_levels, h))))))))
 
 # Ladder (not applicable to Transition)
 ladder(::Transition) = 0

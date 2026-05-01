@@ -44,22 +44,34 @@ const _levi_civita = ((0, 1, -1), (-1, 0, 1), (1, -1, 0))
 const _OTerm = Tuple{CNum, Vector{QSym}}
 
 """
-    _try_algebraic_reduction!(a, b, i, c, ops, worklist, done) -> Bool
+    _try_algebraic_reduction!(a, b, i, c, ops, worklist, done, expand_gs) -> Bool
 
 Apply ordering-independent algebraic identities for a single adjacent pair.
 Returns `true` if a rule fired (and pushed results to worklist/done).
 Shared by both the ordering worklist and the simplification worklist.
+
+When `expand_gs == true`, a Transition composition that would produce a ground-state
+projector ``|g\\rangle\\langle g|`` is rewritten via the completeness relation
+``|g\\rangle\\langle g| = 1 - \\sum_{k \\neq g} |k\\rangle\\langle k|`` directly,
+keeping the [`NormalOrder`](@ref) result in canonical form. Pass `false` from
+[`simplify`](@ref) (no Hilbert-space argument) so the user-constructed shape is
+preserved; [`simplify`](@ref)`(expr, h)` invokes the explicit cleanup pass.
 """
 function _try_algebraic_reduction!(
         a::QSym, b::QSym, i::Int, c::CNum, ops::Vector{QSym},
-        worklist::Vector{_OTerm}, done::Vector{_OTerm}
+        worklist::Vector{_OTerm}, done::Vector{_OTerm},
+        expand_gs::Bool
     )
     # Transition: |i⟩⟨j| · |k⟩⟨l|
     if a isa Transition && b isa Transition && _same_site(a, b) && a.name == b.name
         if a.j == b.i
-            ops[i] = Transition(a.name, a.i, b.j, a.space_index, a.index)
-            deleteat!(ops, i + 1)
-            push!(worklist, (c, ops))
+            if expand_gs && a.i == a.ground_state && b.j == a.ground_state
+                _push_ground_state_expansion!(c, ops, i, a, worklist)
+            else
+                ops[i] = Transition(a.name, a.i, b.j, a.space_index, a.index, a.ground_state, a.n_levels)
+                deleteat!(ops, i + 1)
+                push!(worklist, (c, ops))
+            end
         else
             push!(done, (_to_cnum(0), QSym[]))
         end
@@ -81,6 +93,46 @@ function _try_algebraic_reduction!(
     end
 
     return false
+end
+
+"""
+    _push_ground_state_expansion!(c, ops, i, a, worklist)
+
+Expand a ground-state projector that would be produced at position `i` (from
+`ops[i] · ops[i+1]`) using completeness ``|g\\rangle\\langle g| = 1 - \\sum_{k \\neq g}|k\\rangle\\langle k|``.
+Removes the pair `(ops[i], ops[i+1])` from `ops` and pushes one identity term plus
+``n_{\\text{levels}} - 1`` expansion terms onto `worklist`. Uses `a.ground_state`,
+`a.n_levels`, `a.name`, `a.space_index`, `a.index` to construct the replacement
+projectors.
+"""
+function _push_ground_state_expansion!(
+        c::CNum, ops::Vector{QSym}, i::Int, a::Transition, worklist::Vector{_OTerm}
+    )
+    n = length(ops)
+    # Identity contribution: drop ops[i] and ops[i+1]
+    id_ops = Vector{QSym}(undef, n - 2)
+    @inbounds for k in 1:(i - 1)
+        id_ops[k] = ops[k]
+    end
+    @inbounds for k in (i + 2):n
+        id_ops[k - 2] = ops[k]
+    end
+    push!(worklist, (c, id_ops))
+    # -σᵏᵏ for each k ≠ ground_state, replacing the pair at position i
+    neg_c = _neg_cnum(c)
+    for k in 1:a.n_levels
+        k == a.ground_state && continue
+        new_ops = Vector{QSym}(undef, n - 1)
+        @inbounds for kk in 1:(i - 1)
+            new_ops[kk] = ops[kk]
+        end
+        new_ops[i] = Transition(a.name, k, k, a.space_index, a.index, a.ground_state, a.n_levels)
+        @inbounds for kk in (i + 2):n
+            new_ops[kk - 1] = ops[kk]
+        end
+        push!(worklist, (neg_c, new_ops))
+    end
+    return nothing
 end
 
 """
@@ -124,8 +176,11 @@ function _order_product!(
     for i in 1:(n - 1)
         a, b = ops[i], ops[i + 1]
 
-        # Ordering-independent reductions (Transition, Pauli)
-        _try_algebraic_reduction!(a, b, i, c, ops, worklist, done) && return
+        # Ordering-independent reductions (Transition, Pauli).
+        # NormalOrder is canonical: eagerly expand σᵍᵍ via completeness when
+        # produced by Transition composition. LazyOrder skips this entire
+        # function via the identity overload of `_apply_ordering` below.
+        _try_algebraic_reduction!(a, b, i, c, ops, worklist, done, true) && return
 
         # Ordering-dependent swaps
         _apply_ordering_swap!(a, b, i, c, ops, ord, worklist) && return

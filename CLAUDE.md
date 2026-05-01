@@ -60,11 +60,14 @@ OrderingConvention (abstract)
 
 ## Key design decisions
 
-- **Eager ordering**: multiplication immediately applies the global `ORDERING[]` convention and returns a fully-ordered `QAdd`. There is no lazy product type.
+- **Eager ordering produces canonical form**: under `NormalOrder` (default), `*` immediately applies all three transformations — commutation swaps, algebraic reductions, and `NLevelSpace` completeness — so the result is always in the canonical basis. There is no lazy product type.
+- **Canonical basis for `NLevelSpace`**: the basis is `{σⁱʲ : (i,j) ≠ (g,g)} ∪ {1}` — ground-state projectors `σᵍᵍ` are *not* part of canonical form. Same-site composition that would produce `σᵍᵍ` (e.g. `σ¹² · σ²¹`) is eagerly rewritten via completeness `σᵍᵍ = 1 - Σ_{k≠g} σᵏᵏ`. This makes dict-key equality match physical equality.
+- **`Transition` carries its own GS info**: `ground_state::Int` and `n_levels::Int` are fields on `Transition`, not arguments to the algebra. The arithmetic does completeness without ever consulting the Hilbert space, keeping operators Hilbert-space-decoupled.
+- **`LazyOrder` is the explicit-control opt-out**: under `LazyOrder`, none of the three transformations fire eagerly. Users invoke them piecewise: `simplify(expr)` for reductions only (keeps `σᵍᵍ` atomic), `normal_order(expr)` adds commutation swaps, the `(expr, h)` overloads add completeness. The `h` argument is the LazyOrder opt-in for completeness — it is a no-op under `NormalOrder`.
 - **Dict-based term storage**: `QAdd` stores `Dict{Vector{QSym}, CNum}` — operator sequences map to prefactors. Like terms are collected on construction.
 - **CNum prefactors**: prefactors are `Complex{Num}` (from Symbolics.jl), not parameterized. Dedicated fast paths in `cnum.jl` short-circuit for numeric (non-symbolic) cases.
 - **Site-indexed operators**: each `QSym` carries `space_index` and `index::Index`. Operators interact only if `_same_site(a, b)`.
-- **Separation of ordering vs reduction**: `_apply_ordering` handles commutation swaps (used by `normal_order`), `_apply_reductions` handles algebraic identities only (used by `simplify`).
+- **Three-layer separation**: `_apply_ordering` handles commutation swaps (used by `normal_order`), `_apply_reductions` handles algebraic identities only (used by `simplify`), and completeness is gated inside `_try_algebraic_reduction!` via the `expand_gs::Bool` parameter (NormalOrder passes `true`, simplify passes `false`) plus `_apply_ground_state` in `normal_order.jl` for the LazyOrder opt-in path.
 - **Concrete struct fields**: all struct fields are concretely typed (enforced by CheckConcreteStructs in tests).
 - **Index tracking**: `QAdd` carries `indices::Vector{Index}` and `non_equal::Vector{Tuple{Index,Index}}` for summation metadata.
 

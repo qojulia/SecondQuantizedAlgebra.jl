@@ -101,7 +101,7 @@ function change_index(op::Create, from::Index, to::Index)
 end
 function change_index(op::Transition, from::Index, to::Index)
     idx = op.index == from ? to : op.index
-    return Transition(op.name, op.i, op.j, op.space_index, idx)
+    return Transition(op.name, op.i, op.j, op.space_index, idx, op.ground_state, op.n_levels)
 end
 function change_index(op::Pauli, from::Index, to::Index)
     idx = op.index == from ? to : op.index

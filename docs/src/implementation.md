@@ -33,7 +33,7 @@ ha_gs = NLevelSpace(:atom, 4, 2)            # 4 levels; ground state = 2
 nothing # hide
 ```
 
-The ground state projector is eliminated during simplification using the completeness relation ``\sum_j |j\rangle\langle j| = 1``.
+The ground-state projector ``|g\rangle\langle g|`` is eliminated via completeness ``\sum_j |j\rangle\langle j| = 1``. Under [`NormalOrder`](@ref) this happens eagerly inside `*` so canonical results never contain ``|g\rangle\langle g|``; under [`LazyOrder`](@ref) the user opts in by passing the Hilbert space — `simplify(expr, h)` or `normal_order(expr, h)`. See [Ordering Conventions](@ref) for the full rule set.
 
 Composite systems are built with [`⊗`](@ref) (`\otimes<tab>`) or [`tensor`](@ref):
 

@@ -13,13 +13,17 @@ all commutation relations:
 Also applies all algebraic identities (Transition composition, Pauli products),
 simplifies prefactors, and collects like terms.
 
-When a [`HilbertSpace`](@ref) `h` is provided, additionally rewrites ground-state
-projectors of [`NLevelSpace`](@ref) subspaces via the completeness relation.
+The `h`-argument overload is the [`LazyOrder`](@ref) opt-in for ground-state
+completeness: it additionally rewrites ground-state projectors
+``|g\\rangle\\langle g| = 1 - \\sum_{k \\neq g}|k\\rangle\\langle k|`` of every
+[`NLevelSpace`](@ref) subspace. Without `h`, ``|g\\rangle\\langle g|`` is kept
+atomic — useful for inspecting the un-expanded form.
 
 !!! note
     Under the default [`NormalOrder`](@ref) convention, operator products are already
-    normal-ordered eagerly during `*`. This function is primarily useful after
-    [`set_ordering!(LazyOrder())`](@ref set_ordering!) or for explicit re-ordering.
+    in canonical form (including ground-state completeness) eagerly during `*`. This
+    function is primarily useful after [`set_ordering!(LazyOrder())`](@ref set_ordering!)
+    or for explicit re-ordering. The `h`-overload is then a no-op cleanup pass.
 
 See also [`simplify`](@ref), [`normal_to_symmetric`](@ref), [`symmetric_to_normal`](@ref).
 """
@@ -223,52 +227,40 @@ function _remove_fock_ops(
 end
 
 # Ground state rewriting: |g⟩⟨g| = 1 - Σ_{k≠g} |k⟩⟨k|
+#
+# Operators carry `ground_state` and `n_levels` directly, so a single dict walk
+# suffices regardless of the Hilbert-space type. The `h` argument exists only
+# as the LazyOrder opt-in marker on `simplify(expr, h)` / `normal_order(expr, h)`;
+# its contents are not consulted here.
 
-function _apply_ground_state(expr::QAdd, h::NLevelSpace)
+function _apply_ground_state(expr::QAdd, ::HilbertSpace)
     d = QTermDict()
     for (ops, c) in expr.arguments
-        expanded = _expand_ground_state(c, ops, h)
-        for (eops, ec) in expanded.arguments
+        for (eops, ec) in _expand_ground_state(c, ops).arguments
             _addto!(d, eops, ec)
         end
     end
     return QAdd(d, expr.indices, expr.non_equal)
 end
 
-function _apply_ground_state(expr::QAdd, h::ProductSpace)
-    result = expr
-    for space in h.spaces
-        result = _apply_ground_state(result, space)
-    end
-    return result
-end
-
-_apply_ground_state(expr::QAdd, ::FockSpace) = expr
-_apply_ground_state(expr::QAdd, ::PauliSpace) = expr
-_apply_ground_state(expr::QAdd, ::SpinSpace) = expr
-_apply_ground_state(expr::QAdd, ::PhaseSpace) = expr
-
-function _expand_ground_state(c::CNum, ops::Vector{QSym}, h::NLevelSpace)
-    g = h.ground_state
-    n = h.n
+function _expand_ground_state(c::CNum, ops::Vector{QSym})
     for (idx, op) in enumerate(ops)
-        if op isa Transition && op.i == g && op.j == g
+        if op isa Transition && op.i == op.ground_state && op.j == op.ground_state
             expanded = _OTerm[]
             # Identity term (remove the transition)
             id_ops = QSym[ops[j] for j in eachindex(ops) if j != idx]
             push!(expanded, (c, id_ops))
-            # Subtraction terms
-            for k in 1:n
-                k == g && continue
-                new_op = Transition(op.name, k, k, op.space_index, op.index)
+            # Subtraction terms (use op-carried ground_state and n_levels)
+            for k in 1:op.n_levels
+                k == op.ground_state && continue
+                new_op = Transition(op.name, k, k, op.space_index, op.index, op.ground_state, op.n_levels)
                 sub_ops = QSym[j == idx ? new_op : ops[j] for j in eachindex(ops)]
                 push!(expanded, (-c, sub_ops))
             end
             # Recurse: expanded terms may still contain ground state projections
             d = QTermDict()
             for (tc, tops) in expanded
-                sub = _expand_ground_state(tc, tops, h)
-                for (sops, sc) in sub.arguments
+                for (sops, sc) in _expand_ground_state(tc, tops).arguments
                     _addto!(d, sops, sc)
                 end
             end
