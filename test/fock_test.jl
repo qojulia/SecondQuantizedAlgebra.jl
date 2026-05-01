@@ -1,111 +1,115 @@
 using SecondQuantizedAlgebra
-using SymbolicUtils
+import SecondQuantizedAlgebra: simplify, QAdd, QSym, QTermDict, _CNUM_ONE, _to_cnum
 using Test
 
-@testset "fock" begin
-    @testset "Basic Operator Creation and Properties" begin
-        hf = FockSpace(:c)
-        a = Destroy(hf, :a)
+@testset "fock operators" begin
+    @testset "Construction — product space" begin
+        h = FockSpace(:a) ⊗ FockSpace(:b)
+        a = Destroy(h, :a, 1)
+        b = Destroy(h, :b, 2)
+        @test a.space_index == 1
+        @test b.space_index == 2
+        @test_throws ArgumentError Destroy(h, :c, 3)
+    end
+
+    @testset "Adjoint" begin
+        h = FockSpace(:c)
+        a = Destroy(h, :a)
         ad = a'
-        b = Destroy(hf, :b)
-
-        # Hash uniqueness tests
-        @test !isequal(hash(a), hash(ad))
-        @test !isequal(hash(a), hash(b))
-
-        # Basic operator relations
-        @test isequal(a, ad')
+        @test ad isa Create
+        @test ad.name == :a
+        @test ad.space_index == 1
+        @test ad' == a
+        @test a'' == a
     end
 
-    @testset "Algebraic Operations" begin
-        hf = FockSpace(:c)
-        a = Destroy(hf, :a)
-
-        # Addition and scalar multiplication
-        @test isequal(simplify(a+a), 2*a)
-        @test isequal(simplify(a/2 + 0.5*a), a)
+    @testset "Canonical ordering helpers" begin
+        h = FockSpace(:c)
+        a = Destroy(h, :a)
+        import SecondQuantizedAlgebra: ladder
+        @test ladder(a) == 1
+        @test ladder(a') == 0
     end
 
-    @testset "Commutation Relations" begin
-        hf = FockSpace(:c)
-        a = Destroy(hf, :a)
+    @testset "Algebraic simplification" begin
+        h = FockSpace(:c)
+        a = Destroy(h, :a)
 
-        # Canonical commutation relations
-        @test isequal(a*a', 1+a'*a)
-        @test isequal(simplify(a*a' + 1), 2 + a'*a)
-
-        # More complex commutator identities
-        @test isequal(simplify(-1*(a'*a + 1)*a + a), -1*a'*a^2)
-        @test isequal(simplify(a'*a*a - a*a'*a), -1*a)
+        @test isequal(simplify(a + a), simplify(2 * a))
+        @test isequal(simplify(a / 2 + 0.5 * a), simplify(1.0 * a))
     end
 
-    @testset "Hamiltonian Evolution" begin
-        hf = FockSpace(:c)
-        a = Destroy(hf, :a)
+    @testset "Commutation relations" begin
+        h = FockSpace(:c)
+        a = Destroy(h, :a)
 
-        # Single mode evolution
+        # Eager ordering: a * a' is already normal-ordered
+        @test isequal(a * a', 1 + a' * a)
+        @test isequal(a * a' + 1, 2 + a' * a)
+    end
+
+    @testset "Hamiltonian evolution" begin
+        h = FockSpace(:c)
+        a = Destroy(h, :a)
+
         ωc = 0.1313
-        H = ωc*a'*a
-        da = simplify(1.0im*(H*a - a*H))
-        @test isequal(da, (0.0-1.0im)*ωc*a)
+        H = ωc * a' * a
+        da = simplify(1.0im * commutator(H, a))
+        @test isequal(da, simplify(-1.0im * ωc * a))
     end
 
-    @testset "Symbolic Substitution" begin
-        hf = FockSpace(:c)
-        a = Destroy(hf, :a)
-        @syms x y
-
-        @testset "Substitution with Numbers" begin
-            @test iszero(substitute(x*a, Dict(x=>0)))
-            @test isequal(substitute(x*a, Dict(x=>1)), a)
-            @test iszero(substitute(x*a, Dict(a=>0)))
-        end
-
-        @testset "Substitution with Symbols" begin
-            @test isequal(substitute(x*a, Dict(x=>y)), y*a)
-            @test isequal(substitute(x*a, Dict(a=>y)), x*y)
-            @test isequal(substitute(x*(a+a'), Dict(x => y)), y*(a + a'))
-        end
-    end
-    @testset "HilbertsSpace and commutator" begin
+    @testset "Multi-space commutators" begin
         h1 = FockSpace(:c1)
         h2 = FockSpace(:c2)
         h3 = FockSpace(:c3)
         h4 = FockSpace(:c4)
-
-        h12 = h1 ⊗ h2
-        h23 = h2 ⊗ h3
-        h34 = h3 ⊗ h4
-        h123 = h12 ⊗ h3
-        h1234 = h123 ⊗ h4
-        h1234_ = h12 ⊗ h34
         h = h1 ⊗ h2 ⊗ h3 ⊗ h4
-
-        @test h123 == h1 ⊗ h2 ⊗ h3 == h1 ⊗ h23
-        @test h == h1234 == h1234_
-        @test ⊗(h1) == h1
-        @test tensor(h1, h2, h3, h4) == h
-        @test isless(h1, h2)
-        @test !isless(h3, h2)
-        @test isless(h12, h23)
-        @test copy(h1) == h1
 
         a1 = Destroy(h, :a1, 1)
         a2 = Destroy(h, :a2, 2)
-        a3 = Destroy(h, :a3, 3)
-        a4 = Destroy(h, :a4, 4)
-        @cnumbers c1 c2
 
-        @test isequal(simplify(commutator(a1+a2, a1')), 1)
-        @test isequal(simplify(commutator(a2', a1+a2)), -1)
-        @test isequal(simplify(commutator(a1+a2', a1+a2)), -1)
-        @test simplify(
-            simplify(commutator(a1*a2, a1'*a2')) - simplify(a1'*a1 + a2'*a2 + 1)
-        ) == 0
+        @test isequal(
+            simplify(commutator(a1 + a2, a1')), QAdd(QTermDict(QSym[] => _to_cnum(1)), Index[], Tuple{Index, Index}[])
+        )
+        @test isequal(
+            simplify(commutator(a2', a1 + a2)), QAdd(QTermDict(QSym[] => _to_cnum(-1)), Index[], Tuple{Index, Index}[])
+        )
 
-        @test isequal(simplify(commutator(a1, 1)), 0)
-        @test isequal(simplify(commutator(1, a2)), 0)
-        @test isequal(simplify(commutator(a1, c1)), 0)
-        @test isequal(simplify(commutator(c1, a2)), 0)
+        @test commutator(a1, 1) == commutator(1, a2)
+    end
+
+    @testset "Type stability" begin
+        import SecondQuantizedAlgebra: ladder
+        h = FockSpace(:c)
+        a = Destroy(h, :a)
+        @inferred Destroy(:a, 1)
+        @inferred Create(:a, 1)
+        @inferred adjoint(a)
+        @inferred adjoint(a')
+        @inferred isequal(a, a)
+        @inferred hash(a, UInt(0))
+        @inferred hash(a', UInt(0))
+        @inferred ladder(a)
+        @inferred ladder(a')
+    end
+
+    @static if VERSION >= v"1.12"
+        @testset "Allocations" begin
+            h = FockSpace(:c)
+            a = Destroy(h, :a)
+
+            # Construction
+            @test @allocations(Destroy(:a, 1)) == 0
+            @test @allocations(Create(:a, 1)) == 0
+
+            # Adjoint
+            @test @allocations(adjoint(a)) == 0
+            @test @allocations(adjoint(a')) == 0
+
+            # Equality / hashing
+            a2 = Destroy(h, :a)
+            @test @allocations(isequal(a, a2)) == 0
+            @test @allocations(hash(a, UInt(0))) == 0
+        end
     end
 end

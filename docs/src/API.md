@@ -1,5 +1,6 @@
 ```@meta
 CollapsedDocStrings = true
+CurrentModule = SecondQuantizedAlgebra
 ```
 
 # API
@@ -41,10 +42,6 @@ PhaseSpace
 ```
 
 ```@docs
-ClusterSpace
-```
-
-```@docs
 ⊗
 ```
 
@@ -52,7 +49,12 @@ ClusterSpace
 tensor
 ```
 
-## [q-Numbers](@id API: Operators)
+
+## [Operators](@id API: Operators)
+
+```@docs
+QField
+```
 
 ```@docs
 QSym
@@ -60,6 +62,10 @@ QSym
 
 ```@docs
 QTerm
+```
+
+```@docs
+QAdd
 ```
 
 ```@docs
@@ -94,47 +100,60 @@ Position
 Momentum
 ```
 
-## [Symbolic Numbers](@id API: Symbolic numbers)
+
+## [Ordering](@id API: Ordering)
 
 ```@docs
-CNumber
+OrderingConvention
 ```
 
 ```@docs
-Parameter
+NormalOrder
 ```
 
 ```@docs
-cnumbers
+LazyOrder
 ```
 
 ```@docs
-cnumber
+set_ordering!
 ```
 
 ```@docs
-@cnumbers
+get_ordering
+```
+
+
+## [Algebra](@id API: Algebra)
+
+```@docs
+simplify
 ```
 
 ```@docs
-RNumber
+normal_order
 ```
 
 ```@docs
-RealParameter
+normal_to_symmetric
 ```
 
 ```@docs
-rnumbers
+symmetric_to_normal
 ```
 
 ```@docs
-rnumber
+commutator
 ```
 
 ```@docs
-@rnumbers
+anticommutator
 ```
+
+```@docs
+expand
+```
+
 
 ## [Average](@id API: Average)
 
@@ -142,12 +161,16 @@ rnumber
 average
 ```
 
-
-## [Utility functions](@id API: Utils)
+```@docs
+undo_average
+```
 
 ```@docs
-commutator
+is_average
 ```
+
+
+## [Utility Functions](@id API: Utils)
 
 ```@docs
 acts_on
@@ -170,6 +193,22 @@ fundamental_operators
 ```
 
 ```@docs
+prefactor
+```
+
+```@docs
+operators
+```
+
+```@docs
+sorted_arguments
+```
+
+```@docs
+substitute
+```
+
+```@docs
 transition_superscript
 ```
 
@@ -180,6 +219,7 @@ to_numeric
 ```@docs
 numeric_average
 ```
+
 
 ## [Symbolic Summations](@id API: Sums)
 
@@ -200,11 +240,11 @@ DoubleIndexedVariable
 ```
 
 ```@docs
-SingleSum
+Σ
 ```
 
 ```@docs
-DoubleSum
+∑
 ```
 
 ```@docs
@@ -212,27 +252,21 @@ change_index
 ```
 
 ```@docs
-insert_index
+get_indices
 ```
 
 ```@docs
-SpecialIndexedTerm
+has_index
 ```
 
 ```@docs
-reorder
+has_sum_metadata
 ```
 
 ```@docs
-IndexedAverageSum
+get_sum_indices
 ```
 
 ```@docs
-IndexedAverageDoubleSum
+get_sum_non_equal
 ```
-
-```@docs
-NumberedOperator
-```
-
-
