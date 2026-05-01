@@ -245,6 +245,41 @@ using Test
         @test numeric_average(3, ψ) ≈ 3
     end
 
+    @testset "numeric_average — vector of states" begin
+        h = FockSpace(:fock)
+        @qnumbers a::Destroy(h)
+        b = FockBasis(7)
+        αs = (0.1 + 0.2im, -0.3 + 0.4im, 0.5 + 0.0im)
+        ψs = [coherentstate(b, α) for α in αs]
+
+        # Vector input → vector output, same as broadcasting the scalar form
+        @test numeric_average(a, ψs) ≈ [α for α in αs]
+        @test numeric_average(a' * a, ψs) ≈ [abs2(α) for α in αs]
+        @test numeric_average(average(a), ψs) ≈ [α for α in αs]
+
+        # expect alias matches
+        @test expect(a, ψs) ≈ numeric_average(a, ψs)
+        @test expect(a' * a, ψs[1]) ≈ numeric_average(a' * a, ψs[1])
+        @test expect(average(a), ψs[1]) ≈ numeric_average(average(a), ψs[1])
+
+        # Empty vector errors
+        empty_ψs = typeof(ψs[1])[]
+        @test_throws ArgumentError numeric_average(a, empty_ψs)
+    end
+
+    @testset "numeric_average — vector of states with Dict" begin
+        h = FockSpace(:fock)
+        @qnumbers a::Destroy(h)
+        b = FockBasis(7)
+        αs = (0.1 + 0.2im, -0.3 + 0.4im)
+        ψs = [coherentstate(b, α) for α in αs]
+        d = Dict{Any, Any}()        # empty dict — passthrough to base case
+
+        @test numeric_average(a, ψs, d) ≈ numeric_average(a, ψs)
+        @test numeric_average(average(a' * a), ψs, d) ≈ [abs2(α) for α in αs]
+        @test expect(a, ψs, d) ≈ numeric_average(a, ψs, d)
+    end
+
     @testset "numeric_average — Dict comprehensive" begin
         nQDs = 2
         h_qc1 = FockSpace(:ada)

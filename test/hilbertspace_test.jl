@@ -33,4 +33,17 @@ using Test
         @test !isless(h3, h2)
     end
 
+    @testset "length" begin
+        # Single Hilbert spaces report 1
+        @test length(FockSpace(:a)) == 1
+        @test length(NLevelSpace(:atom, 3)) == 1
+        @test length(PauliSpace(:p)) == 1
+        @test length(SpinSpace(:s)) == 1
+        @test length(PhaseSpace(:q)) == 1
+
+        # ProductSpace reports number of factor spaces
+        @test length(FockSpace(:a) ⊗ FockSpace(:b)) == 2
+        @test length(FockSpace(:a) ⊗ NLevelSpace(:atom, 2) ⊗ PauliSpace(:p)) == 3
+    end
+
 end

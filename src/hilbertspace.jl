@@ -96,6 +96,16 @@ Base.isless(h1::HilbertSpace, h2::HilbertSpace) = isless(h1.name, h2.name)
 Base.isless(h1::ProductSpace, h2::ProductSpace) = isless(h1.spaces, h2.spaces)
 
 """
+    length(h::HilbertSpace) -> Int
+
+Number of subspaces in `h`. Single Hilbert spaces ([`FockSpace`](@ref),
+[`NLevelSpace`](@ref), etc.) report `1`; a [`ProductSpace`](@ref) reports the
+number of factor spaces it contains.
+"""
+Base.length(::HilbertSpace) = 1
+Base.length(h::ProductSpace) = length(h.spaces)
+
+"""
     _unique_subspace_index(h::ProductSpace, ::Type{T}) -> Int
 
 Return the index of the unique subspace of type `T` inside `h`. Throws

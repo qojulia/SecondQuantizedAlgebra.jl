@@ -7,7 +7,7 @@ using TermInterface: TermInterface
 const CNum = Complex{Num}
 
 using QuantumOpticsBase: QuantumOpticsBase
-import QuantumOpticsBase: ⊗, tensor
+import QuantumOpticsBase: ⊗, tensor, expect
 
 using Combinatorics: with_replacement_combinations
 using Latexify: Latexify, latexify, @latexrecipe
@@ -98,7 +98,7 @@ export FockSpace, ProductSpace,
     prefactor, operators,
     substitute,
     normal_order, normal_to_symmetric, symmetric_to_normal, simplify, expand, commutator, anticommutator,
-    to_numeric, numeric_average,
+    to_numeric, numeric_average, expect,
     transition_superscript
 
 include("precompile.jl")

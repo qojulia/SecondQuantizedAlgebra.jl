@@ -159,6 +159,11 @@ function numeric_average(op::QField, state::QuantumState; kwargs...)
     op_num = to_numeric(op, state; kwargs...)
     return QuantumOpticsBase.expect(op_num, state)
 end
+function numeric_average(op::QField, states::AbstractVector; kwargs...)
+    isempty(states) && throw(ArgumentError("numeric_average: states vector is empty"))
+    op_num = QuantumOpticsBase.sparse(to_numeric(op, first(states); kwargs...))
+    return QuantumOpticsBase.expect(op_num, states)
+end
 function numeric_average(x::Number, state::QuantumState; kwargs...)
     return x
 end
@@ -215,6 +220,11 @@ function numeric_average(op::QField, state::QuantumState, d::Dict; kwargs...)
     op_num = to_numeric(op, state, d; kwargs...)
     return QuantumOpticsBase.expect(op_num, state)
 end
+function numeric_average(op::QField, states::AbstractVector, d::Dict; kwargs...)
+    isempty(states) && throw(ArgumentError("numeric_average: states vector is empty"))
+    op_num = to_numeric(op, first(states), d; kwargs...)
+    return QuantumOpticsBase.expect(op_num, states)
+end
 function numeric_average(x::Number, state::QuantumState, d::Dict; kwargs...)
     return x
 end
@@ -239,3 +249,18 @@ function numeric_average(avg::SymbolicUtils.BasicSymbolic, state::QuantumState, 
     end
     error("numeric_average not implemented for $(typeof(avg))")
 end
+
+"""
+    expect(op, state; kwargs...)
+    expect(op, state, d::Dict; kwargs...)
+
+Compute the expectation value ``\\langle \\hat{O} \\rangle``. Alias for
+[`numeric_average`](@ref); imported from `QuantumOpticsBase` so the same name
+works for both numeric and symbolic operands.
+"""
+expect(op::QField, state; kwargs...) = numeric_average(op, state; kwargs...)
+expect(op::QField, state, d::Dict; kwargs...) = numeric_average(op, state, d; kwargs...)
+expect(avg::SymbolicUtils.BasicSymbolic, state; kwargs...) = numeric_average(avg, state; kwargs...)
+expect(avg::SymbolicUtils.BasicSymbolic, state, d::Dict; kwargs...) = numeric_average(avg, state, d; kwargs...)
+expect(x::Num, state; kwargs...) = numeric_average(x, state; kwargs...)
+expect(x::Num, state, d::Dict; kwargs...) = numeric_average(x, state, d; kwargs...)
