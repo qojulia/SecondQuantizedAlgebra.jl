@@ -104,6 +104,10 @@ Momentum
 ## [Ordering](@id API: Ordering)
 
 ```@docs
+OrderingConvention
+```
+
+```@docs
 NormalOrder
 ```
 
