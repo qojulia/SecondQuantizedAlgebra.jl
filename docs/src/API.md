@@ -81,6 +81,10 @@ Transition
 ```
 
 ```@docs
+CollectiveTransition
+```
+
+```@docs
 Pauli
 ```
 

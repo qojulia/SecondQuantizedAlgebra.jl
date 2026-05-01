@@ -2,5 +2,6 @@
 CairoMakie = "13f3f980-e62b-5c42-98c6-ff1f3baf88f0"
 LinearAlgebra = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
 Literate = "98b081ad-f1c9-55d3-8b20-4c87d4299306"
+OrdinaryDiffEqTsit5 = "b1df2697-797e-41e3-8120-5422d3b24e4a"
 QuantumOpticsBase = "4f57444f-1401-5e15-980d-4471b28d5678"
 SecondQuantizedAlgebra = "f7aa4685-e143-4cb6-a7f3-073579757907"

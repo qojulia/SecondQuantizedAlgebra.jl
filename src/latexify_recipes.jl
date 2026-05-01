@@ -41,6 +41,10 @@ end
     return Expr(:latexifymerge, "{$(x.name)}$(suffix)$(transition_idx_script[]){{$(x.i)$(x.j)}}")
 end
 
+@latexrecipe function f(x::CollectiveTransition)
+    return Expr(:latexifymerge, "{$(x.name)}$(transition_idx_script[]){{$(x.i)$(x.j)}}")
+end
+
 @latexrecipe function f(x::Pauli)
     ax = _xyz_sym[x.axis]
     suffix = _latex_index_suffix(x.index)

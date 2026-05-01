@@ -143,3 +143,120 @@ Base.hash(a::Transition, h::UInt) = hash(:Transition, hash(a.name, hash(a.i, has
 
 # Ladder (not applicable to Transition)
 ladder(::Transition) = 0
+
+"""
+    CollectiveTransition <: QSym
+
+Collective transition operator ``S^{ij} = \\sum_{k=1}^{N} \\sigma_k^{ij}`` on an
+[`NLevelSpace`](@ref). Lives in the *symmetric (bosonic) subspace* of `N`
+indistinguishable atoms — the natural representation for Dicke-style physics
+where atoms are not individually addressable and the dynamics preserves
+permutation symmetry.
+
+# When to use this vs indexed `Σ`
+
+Two regimes — pick the one that matches your physics, do **not** mix:
+
+| | Distinguishable atoms | Indistinguishable atoms |
+|---|---|---|
+| Representation | [`Σ`](@ref) of [`IndexedOperator`](@ref) on a [`ProductSpace`](@ref) | `CollectiveTransition` on a single [`NLevelSpace`](@ref) |
+| Physical setting | Atom-resolved coupling, disorder, individual addressing | Dicke physics, single-mode driving, no disorder |
+| Hilbert space | Full ``n^N`` (one atom per subspace) | Symmetric subspace, dimension ``\\binom{N+n-1}{n-1}`` |
+| Numeric scaling | Exponential in `N` | Polynomial in `N` — tractable for thousands |
+
+For the same physics where both are valid (e.g. Tavis–Cummings with identical
+atoms), the indexed form is preferred; `CollectiveTransition` is for problems
+where the symmetric-subspace assumption is essential, typically because the full
+Hilbert space is intractable.
+
+# Algebra
+
+The operators satisfy the ``\\mathfrak{su}(N)`` Lie algebra
+``[S^{ij}, S^{kl}] = \\delta_{jk} S^{il} - \\delta_{li} S^{kj}``. Under
+[`NormalOrder`](@ref) this commutator fires eagerly during multiplication: the
+operator with the larger `(i, j)` (lex-descending) ends up on the left, with
+the appropriate remainder terms appended.
+
+The single-atom completeness ``\\sigma^{gg} = 1 - \\sum_{k \\neq g}\\sigma^{kk}``
+does **not** apply here — for collective operators ``\\sum_j S^{jj} = N \\cdot I``
+(note the ``N``), and that rewrite is intentionally left for numeric-conversion
+time rather than the symbolic algebra.
+
+# Construction
+
+```julia
+h = NLevelSpace(:atom, 3)
+S(i, j) = CollectiveTransition(h, :S, i, j)
+S(2, 1) * S(1, 3)         # ordered — stays as written
+S(1, 2) * S(2, 3)         # unordered — eagerly normal-ordered: S(1, 3) + S(2, 3) * S(1, 2)
+```
+
+In a [`ProductSpace`](@ref) supply the subspace index:
+```julia
+hp = FockSpace(:c) ⊗ NLevelSpace(:a, 3)
+S = CollectiveTransition(hp, :S, 1, 2, 2)
+```
+
+# Numeric conversion
+
+Numeric simulation requires a `QuantumOpticsBase.ManyBodyBasis` built over the
+single-atom basis with `bosonstates`:
+```julia
+b1 = NLevelBasis(3)
+b  = ManyBodyBasis(b1, bosonstates(b1, N))    # symmetric subspace for N atoms
+to_numeric(S(1, 2), b)                        # many-body operator
+```
+"""
+struct CollectiveTransition <: QSym
+    name::Symbol
+    i::Int
+    j::Int
+    space_index::Int
+    index::Index   # always NO_INDEX; carried for site-sort compatibility
+end
+
+# Construction from Hilbert spaces
+function CollectiveTransition(h::NLevelSpace, name::Symbol, i::Int, j::Int)
+    1 <= i <= h.n || throw(ArgumentError("Level i=$i out of range 1:$(h.n)"))
+    1 <= j <= h.n || throw(ArgumentError("Level j=$j out of range 1:$(h.n)"))
+    return CollectiveTransition(name, i, j, 1, NO_INDEX)
+end
+function CollectiveTransition(h::NLevelSpace, name::Symbol, i::Symbol, j::Symbol)
+    return CollectiveTransition(name, _level_index(h, i), _level_index(h, j), 1, NO_INDEX)
+end
+function CollectiveTransition(h::ProductSpace, name::Symbol, i::Int, j::Int, idx::Int)
+    1 <= idx <= length(h.spaces) || throw(ArgumentError("Index $idx out of range"))
+    space = h.spaces[idx]
+    space isa NLevelSpace || throw(ArgumentError("Space at index $idx is not an NLevelSpace"))
+    1 <= i <= space.n || throw(ArgumentError("Level i=$i out of range 1:$(space.n)"))
+    1 <= j <= space.n || throw(ArgumentError("Level j=$j out of range 1:$(space.n)"))
+    return CollectiveTransition(name, i, j, idx, NO_INDEX)
+end
+function CollectiveTransition(h::ProductSpace, name::Symbol, i::Symbol, j::Symbol, idx::Int)
+    1 <= idx <= length(h.spaces) || throw(ArgumentError("Index $idx out of range"))
+    space = h.spaces[idx]
+    space isa NLevelSpace || throw(ArgumentError("Space at index $idx is not an NLevelSpace"))
+    return CollectiveTransition(name, _level_index(space, i), _level_index(space, j), idx, NO_INDEX)
+end
+
+# Auto-detect subspace when the ProductSpace contains exactly one NLevelSpace.
+CollectiveTransition(h::ProductSpace, name::Symbol, i::Int, j::Int) =
+    CollectiveTransition(h, name, i, j, _unique_subspace_index(h, NLevelSpace))
+CollectiveTransition(h::ProductSpace, name::Symbol, i::Symbol, j::Symbol) =
+    CollectiveTransition(h, name, i, j, _unique_subspace_index(h, NLevelSpace))
+
+# IndexedOperator does not apply — CollectiveTransition is already a sum over atoms.
+function IndexedOperator(::CollectiveTransition, ::Index)
+    throw(ArgumentError("CollectiveTransition is already a sum over atoms; indexing it is not meaningful. Use Transition for individually-addressed atoms."))
+end
+
+# Adjoint: (S^{ij})† = S^{ji}
+Base.adjoint(op::CollectiveTransition) = CollectiveTransition(op.name, op.j, op.i, op.space_index, op.index)
+
+# Equality and hashing
+Base.isequal(a::CollectiveTransition, b::CollectiveTransition) = a.name == b.name && a.i == b.i && a.j == b.j && a.space_index == b.space_index && a.index == b.index
+Base.:(==)(a::CollectiveTransition, b::CollectiveTransition) = isequal(a, b)
+Base.hash(a::CollectiveTransition, h::UInt) = hash(:CollectiveTransition, hash(a.name, hash(a.i, hash(a.j, hash(a.space_index, hash(a.index, h))))))
+
+# Ladder (not applicable)
+ladder(::CollectiveTransition) = 0

@@ -226,8 +226,44 @@ function _apply_ordering_swap!(
         return true
     end
 
+    # CollectiveTransition: [S^{ij}, S^{kl}] = δ_{jk} S^{il} − δ_{li} S^{kj}.
+    # Canonical: descending lex on (i, j) — keep larger (i, j) on the left.
+    if a isa CollectiveTransition && b isa CollectiveTransition &&
+            _same_site(a, b) && a.name == b.name && !_isordered_ct(a, b)
+        # Push the swapped pair (b·a) — now ordered, no further swap fires
+        swapped = copy(ops)
+        swapped[i], swapped[i + 1] = swapped[i + 1], swapped[i]
+        push!(worklist, (c, swapped))
+
+        # +δ_{a.j, b.i} S^{a.i, b.j}
+        if a.j == b.i
+            new_ops = copy(ops)
+            new_ops[i] = CollectiveTransition(a.name, a.i, b.j, a.space_index, a.index)
+            deleteat!(new_ops, i + 1)
+            push!(worklist, (c, new_ops))
+        end
+        # −δ_{b.j, a.i} S^{b.i, a.j}
+        if b.j == a.i
+            new_ops = copy(ops)
+            new_ops[i] = CollectiveTransition(a.name, b.i, a.j, a.space_index, a.index)
+            deleteat!(new_ops, i + 1)
+            push!(worklist, (_neg_cnum(c), new_ops))
+        end
+        return true
+    end
+
     return false
 end
+
+"""
+    _isordered_ct(a::CollectiveTransition, b::CollectiveTransition) -> Bool
+
+Canonical-order check for [`CollectiveTransition`](@ref) pairs: returns `true`
+iff `(a.i, a.j) ≥ (b.i, b.j)` in descending lex order. Pairs that fail this
+test fire the eager su(N) swap rule in [`_apply_ordering_swap!`](@ref).
+"""
+_isordered_ct(a::CollectiveTransition, b::CollectiveTransition) =
+    a.i > b.i || (a.i == b.i && a.j >= b.j)
 
 # LazyOrder: skip all ordering (identity transform)
 function _apply_ordering(arg_c::CNum, ops::Vector{QSym}, ::LazyOrder)

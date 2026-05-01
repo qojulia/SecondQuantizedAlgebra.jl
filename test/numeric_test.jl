@@ -260,7 +260,9 @@ using Test
         # expect alias matches
         @test expect(a, ψs) ≈ numeric_average(a, ψs)
         @test expect(a' * a, ψs[1]) ≈ numeric_average(a' * a, ψs[1])
-        @test expect(average(a), ψs[1]) ≈ numeric_average(average(a), ψs[1])
+        # `expect` is QField-only (type-piracy concerns); use `numeric_average`
+        # for averaged BasicSymbolic expressions.
+        @test numeric_average(average(a), ψs[1]) ≈ αs[1]
 
         # Empty vector errors
         empty_ψs = typeof(ψs[1])[]

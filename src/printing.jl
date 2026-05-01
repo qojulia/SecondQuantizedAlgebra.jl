@@ -55,6 +55,12 @@ function Base.show(io::IO, x::Transition)
     return _write_subscript(io, x.j)
 end
 
+function Base.show(io::IO, x::CollectiveTransition)
+    print(io, x.name)
+    _write_subscript(io, x.i)
+    return _write_subscript(io, x.j)
+end
+
 const _xyz_sym = (:x, :y, :z)
 function Base.show(io::IO, x::Pauli)
     print(io, x.name)
