@@ -80,7 +80,7 @@ end
 
 
 export FockSpace, ProductSpace,
-    NLevelSpace, Transition,
+    NLevelSpace, Transition, CollectiveTransition,
     PauliSpace, Pauli,
     SpinSpace, Spin,
     PhaseSpace, Position, Momentum,

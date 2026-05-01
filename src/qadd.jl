@@ -133,6 +133,7 @@ _type_order(::Pauli) = 3
 _type_order(::Spin) = 4
 _type_order(::Position) = 5
 _type_order(::Momentum) = 6
+_type_order(::CollectiveTransition) = 7
 
 """
     Base.getindex(q::QAdd, key::Vector{QSym}) -> CNum

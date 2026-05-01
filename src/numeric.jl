@@ -39,6 +39,19 @@ function to_numeric(op::Transition, b::QuantumOpticsBase.NLevelBasis; kwargs...)
     return QuantumOpticsBase.transition(b, op.i, op.j)
 end
 
+# CollectiveTransition: S^{ij} = Σ_k σ_k^{ij} acts on the symmetric (bosonic)
+# many-body subspace built from a single-atom NLevelBasis. The number of atoms
+# N is determined by the basis; the algebra is N-agnostic.
+function to_numeric(op::CollectiveTransition, b::QuantumOpticsBase.ManyBodyBasis; kwargs...)
+    onebody = b.onebodybasis
+    onebody isa QuantumOpticsBase.NLevelBasis || throw(
+        ArgumentError(
+            "CollectiveTransition requires a ManyBodyBasis with NLevelBasis as the one-body basis; got $(typeof(onebody))"
+        )
+    )
+    return QuantumOpticsBase.manybodyoperator(b, QuantumOpticsBase.transition(onebody, op.i, op.j))
+end
+
 # Pauli — requires spin-1/2 basis
 function to_numeric(op::Pauli, b::QuantumOpticsBase.SpinBasis; kwargs...)
     b.spinnumber == 1 // 2 || throw(ArgumentError("Pauli operators require SpinBasis(1//2), got SpinBasis($(b.spinnumber))"))
@@ -143,6 +156,13 @@ Converts `op` to numeric form via [`to_numeric`](@ref), then calls
 `QuantumOpticsBase.expect`. Also handles averaged `BasicSymbolic` expressions
 by first calling [`undo_average`](@ref).
 
+When `state` is an `AbstractVector` of states the operator is converted once
+(sparsified for the operator-typed methods) and the expectation value is
+returned as a `Vector` of the same length. Plain numbers (`Number`) and
+constants pass through unchanged — *they are returned as a scalar even for
+vector input*, so that `f.(numeric_average.(args, Ref(states))...)` broadcasts
+constants over operator-evaluated vectors as expected.
+
 # Examples
 ```julia
 using QuantumOpticsBase
@@ -151,9 +171,12 @@ h = FockSpace(:f)
 b = FockBasis(10)
 ψ = coherentstate(b, 2.0)
 numeric_average(a' * a, ψ)    # ≈ 4.0
+
+ψs = [coherentstate(b, α) for α in (1.0, 2.0, 3.0)]
+numeric_average(a' * a, ψs)   # 3-element Vector ≈ [1.0, 4.0, 9.0]
 ```
 
-See also [`to_numeric`](@ref), [`average`](@ref).
+See also [`to_numeric`](@ref), [`average`](@ref), [`expect`](@ref).
 """
 function numeric_average(op::QField, state::QuantumState; kwargs...)
     op_num = to_numeric(op, state; kwargs...)
@@ -189,6 +212,22 @@ function numeric_average(avg::SymbolicUtils.BasicSymbolic, state::QuantumState; 
         return f(numeric_average.(args, Ref(state); kwargs...)...)
     end
     error("numeric_average not implemented for $(typeof(avg))")
+end
+
+# Vector-of-states variants for averaged expressions: route AvgFunc through the
+# fast QField path, broadcast otherwise.
+function numeric_average(avg::SymbolicUtils.BasicSymbolic, states::AbstractVector; kwargs...)
+    if SymbolicUtils.iscall(avg) && SymbolicUtils.operation(avg) isa AvgFunc
+        op = undo_average(avg)
+        return numeric_average(op, states; kwargs...)
+    end
+    return [numeric_average(avg, s; kwargs...) for s in states]
+end
+function numeric_average(x::Num, states::AbstractVector; kwargs...)
+    return numeric_average(SymbolicUtils.unwrap(x), states; kwargs...)
+end
+function numeric_average(x::Number, ::AbstractVector; kwargs...)
+    return x
 end
 
 # --- to_numeric / numeric_average with Dict parameter substitution ---
@@ -250,17 +289,33 @@ function numeric_average(avg::SymbolicUtils.BasicSymbolic, state::QuantumState, 
     error("numeric_average not implemented for $(typeof(avg))")
 end
 
-"""
-    expect(op, state; kwargs...)
-    expect(op, state, d::Dict; kwargs...)
+# Vector-of-states variants with Dict substitution.
+function numeric_average(avg::SymbolicUtils.BasicSymbolic, states::AbstractVector, d::Dict; kwargs...)
+    if SymbolicUtils.iscall(avg) && SymbolicUtils.operation(avg) isa AvgFunc
+        op = undo_average(avg)
+        return numeric_average(op, states, d; kwargs...)
+    end
+    return [numeric_average(avg, s, d; kwargs...) for s in states]
+end
+function numeric_average(x::Num, states::AbstractVector, d::Dict; kwargs...)
+    return numeric_average(SymbolicUtils.unwrap(x), states, d; kwargs...)
+end
+function numeric_average(x::Number, ::AbstractVector, ::Dict; kwargs...)
+    return x
+end
 
-Compute the expectation value ``\\langle \\hat{O} \\rangle``. Alias for
-[`numeric_average`](@ref); imported from `QuantumOpticsBase` so the same name
-works for both numeric and symbolic operands.
+"""
+    expect(op::QField, state; kwargs...)
+    expect(op::QField, state, d::Dict; kwargs...)
+
+Compute the expectation value ``\\langle \\hat{O} \\rangle`` of a symbolic
+operator expression. Alias for [`numeric_average`](@ref); imported from
+`QuantumOpticsBase` so the same name works for both numeric and symbolic
+operands.
+
+For averaged `BasicSymbolic` expressions (returned by [`average`](@ref)) call
+[`numeric_average`](@ref) directly — defining `expect` overloads on
+`SymbolicUtils.BasicSymbolic` would be type-piracy.
 """
 expect(op::QField, state; kwargs...) = numeric_average(op, state; kwargs...)
 expect(op::QField, state, d::Dict; kwargs...) = numeric_average(op, state, d; kwargs...)
-expect(avg::SymbolicUtils.BasicSymbolic, state; kwargs...) = numeric_average(avg, state; kwargs...)
-expect(avg::SymbolicUtils.BasicSymbolic, state, d::Dict; kwargs...) = numeric_average(avg, state, d; kwargs...)
-expect(x::Num, state; kwargs...) = numeric_average(x, state; kwargs...)
-expect(x::Num, state, d::Dict; kwargs...) = numeric_average(x, state, d; kwargs...)
