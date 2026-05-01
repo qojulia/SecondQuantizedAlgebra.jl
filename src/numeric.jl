@@ -156,6 +156,13 @@ Converts `op` to numeric form via [`to_numeric`](@ref), then calls
 `QuantumOpticsBase.expect`. Also handles averaged `BasicSymbolic` expressions
 by first calling [`undo_average`](@ref).
 
+When `state` is an `AbstractVector` of states the operator is converted once
+(sparsified for the operator-typed methods) and the expectation value is
+returned as a `Vector` of the same length. Plain numbers (`Number`) and
+constants pass through unchanged — *they are returned as a scalar even for
+vector input*, so that `f.(numeric_average.(args, Ref(states))...)` broadcasts
+constants over operator-evaluated vectors as expected.
+
 # Examples
 ```julia
 using QuantumOpticsBase
@@ -164,9 +171,12 @@ h = FockSpace(:f)
 b = FockBasis(10)
 ψ = coherentstate(b, 2.0)
 numeric_average(a' * a, ψ)    # ≈ 4.0
+
+ψs = [coherentstate(b, α) for α in (1.0, 2.0, 3.0)]
+numeric_average(a' * a, ψs)   # 3-element Vector ≈ [1.0, 4.0, 9.0]
 ```
 
-See also [`to_numeric`](@ref), [`average`](@ref).
+See also [`to_numeric`](@ref), [`average`](@ref), [`expect`](@ref).
 """
 function numeric_average(op::QField, state::QuantumState; kwargs...)
     op_num = to_numeric(op, state; kwargs...)

@@ -102,6 +102,13 @@ import SecondQuantizedAlgebra: simplify, QAdd, QSym, CollectiveTransition, NO_IN
         # Result: -S(3,2) + S(3,1) * S(1,2)
         @test isequal(S(1, 2) * S(3, 1), -S(3, 2) + S(3, 1) * S(1, 2))
 
+        # Both delta terms fire simultaneously: S(1,2) * S(2,1).
+        # a.j == b.i = 2 → +S(a.i, b.j) = +S(1,1).
+        # b.j == a.i = 1 → -S(b.i, a.j) = -S(2,2).
+        # Result: S(1,1) - S(2,2) + S(2,1) * S(1,2). This is exactly the su(2)
+        # commutator [S(1,2), S(2,1)] = S(1,1) - S(2,2) plus the swapped pair.
+        @test isequal(S(1, 2) * S(2, 1), S(1, 1) - S(2, 2) + S(2, 1) * S(1, 2))
+
         # S(1,2) * S(1,1): _isordered((1,2),(1,1))? a.i==b.i, a.j=2 >= b.j=1 → ordered.
         # No swap fires; the product stays as [S(1,2), S(1,1)].
         r = S(1, 2) * S(1, 1)
@@ -114,12 +121,26 @@ import SecondQuantizedAlgebra: simplify, QAdd, QSym, CollectiveTransition, NO_IN
         @test isequal(S(1, 1) * S(1, 2), S(1, 2) + S(1, 2) * S(1, 1))
     end
 
-    @testset "Self-product and zero compositions" begin
-        # S(1,2) * S(1,2): _isordered((1,2),(1,2))? equal → ordered. Stays.
+    @testset "Self-product is non-zero (kept as 2-op product)" begin
+        # S(1,2) * S(1,2): _isordered((1,2),(1,2))? equal → ordered. Stays as a
+        # 2-op product. Note: collectively S^{12}·S^{12} = Σ_{k≠l} σ_k^{12} σ_l^{12}
+        # is generally non-zero (only the k=l diagonal vanishes via σ²=0), so
+        # leaving it un-collapsed is correct.
         r = S(1, 2) * S(1, 2)
         @test length(r) == 1
         ops, _ = only(collect(r))
         @test ops == [S(1, 2), S(1, 2)]
+    end
+
+    @testset "Adjoint involution" begin
+        # `adjoint` reverses operator order and daggers each but does *not* re-run
+        # the eager swap rule, so multi-op adjoints may not be in `_isordered_ct`
+        # canonical form (apply `normal_order`/`simplify` if you need to compare).
+        # The involution property holds independently:
+        @test S(1, 2)'' == S(1, 2)
+        @test S(2, 1)'' == S(2, 1)
+        @test isequal((S(1, 2) * S(2, 3))'', S(1, 2) * S(2, 3))
+        @test isequal((S(1, 2) * S(2, 1))'', S(1, 2) * S(2, 1))
     end
 
     @testset "Different subspaces do not interact" begin

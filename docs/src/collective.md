@@ -2,19 +2,30 @@
 CurrentModule = SecondQuantizedAlgebra
 ```
 
-# Collective Atoms — Two Regimes
+# Collective Atoms — Two Computational Approaches
 
-A system of `N` atoms can be modeled in two qualitatively different ways depending on whether the atoms are *individually addressable*. SecondQuantizedAlgebra.jl supports both — pick the one that matches your physics, and don't mix them within the same atomic Hilbert space.
+A system of `N` identical atoms in collective dynamics — Dicke models, superradiance, Tavis–Cummings — can be tackled in two complementary ways. Both describe the same physics; they differ in the *computational strategy* and the kind of result you get out at the end.
 
-## Distinguishable atoms — indexed `Σ`
+| | Indexed `Σ` (cumulant approach) | [`CollectiveTransition`](@ref) (exact symmetric subspace) |
+|---|---|---|
+| Numerical strategy | Cumulant / mean-field truncation | Exact diagonalization on `ManyBodyBasis` |
+| Hilbert space at numeric layer | Single representative atom + symbolic site index | Full symmetric subspace, dim ``\binom{N+n-1}{n-1}`` |
+| Site-dependent parameters (e.g. ``g_i``) | Yes, via [`IndexedVariable`](@ref) | No (atoms identical by construction) |
+| `N` scaling | Large `N` (truncation order chosen at solve time) | Modest `N` (``\le`` thousands for two-level atoms) |
+| Output | Mean-field / cumulant equations of motion | State vector or density matrix on the symmetric subspace |
+| Algebra at the symbolic level | Per-atom transition rules + diagonal split + completeness | Closed ``\mathfrak{su}(N)`` Lie algebra |
 
-Use this when atoms have site-resolved properties: position-dependent couplings ``g_i``, individual addressing, disorder, etc. Each atom lives in its own copy of an [`NLevelSpace`](@ref). Symbolic sums over a site index keep the bookkeeping compact at the algebra level.
+Pick the one that matches your computational strategy, and don't mix them on the same `NLevelSpace`.
+
+## Cumulant approach — indexed `Σ`
+
+Use this when you want **mean-field-style equations of motion** and `N` is large enough that exact simulation is infeasible. Atoms can carry site-dependent symbolic parameters via [`IndexedVariable`](@ref). The cumulant truncation order is supplied to the downstream solver — the algebra layer keeps `N` symbolic.
 
 ```julia
 using SecondQuantizedAlgebra
 @variables N
 
-ha = NLevelSpace(:atom, 2)
+ha = NLevelSpace(:atom, 2)          # single representative atom
 hc = FockSpace(:cavity)
 h  = hc ⊗ ha
 
@@ -26,19 +37,17 @@ gi = IndexedVariable(:g, i)
 H_TC = Σ(gi * (a' * σ(1, 2) + a * σ(2, 1)), i)
 ```
 
-The full Hilbert space is ``\dim(\mathcal{H}_{\text{atom}})^{N}`` — exponential in `N`. Numeric simulation is tractable only for small `N` (typically `N ≲ 10` for `n=2` levels). The diagonal-split machinery, completeness, and per-atom σᵍᵍ rewriting are documented in [Symbolic Sums and Indices](@ref) and [Ordering Conventions](@ref).
+Heisenberg equations follow from `commutator(H, op)`; the diagonal-split and completeness machinery handles the per-atom algebra correctly. See [Symbolic Sums and Indices](@ref) for the full set of rules.
 
-## Indistinguishable atoms — `CollectiveTransition`
+## Exact symmetric subspace — `CollectiveTransition`
 
-Use this when the dynamics preserves permutation symmetry: Dicke physics, single-mode driving with no atom-resolved coupling, superradiance with identical atoms, etc. The state stays in the *symmetric (bosonic) subspace*, whose dimension is polynomial in `N`:
+Use this when you want **exact dynamics in the symmetric subspace** and `N` is small enough that the polynomial-size basis is tractable. Atoms are identical by construction (no site labels); the operator algebra is the closed ``\mathfrak{su}(N)`` Lie algebra; numeric simulation goes through `QuantumOpticsBase.ManyBodyBasis`.
 
 ```math
 \dim \mathcal{H}_\text{sym} = \binom{N + n - 1}{n - 1}
 ```
 
-For `N = 100` atoms with `n = 3` levels: full Hilbert space ``\sim 10^{47}``, symmetric subspace ``5151``. The latter is the only thing you can actually simulate.
-
-[`CollectiveTransition`](@ref) ``S^{ij} = \sum_k \sigma_k^{ij}`` is the operator on this subspace:
+For `N = 100` atoms with `n = 3` levels: full product space ``\sim 10^{47}`` (intractable), symmetric subspace ``5151`` (very tractable).
 
 ```julia
 h = NLevelSpace(:atom, 3)
@@ -47,11 +56,11 @@ S(i, j) = CollectiveTransition(h, :S, i, j)
 S(1, 2) * S(2, 3)         # eagerly normal-ordered: S(1, 3) + S(2, 3) * S(1, 2)
 ```
 
-These satisfy the ``\mathfrak{su}(N)`` Lie algebra ``[S^{ij}, S^{kl}] = \delta_{jk} S^{il} - \delta_{li} S^{kj}``, and the swap rule fires eagerly under [`NormalOrder`](@ref) so derivations stay in the closed collective form.
+The collective operators satisfy ``[S^{ij}, S^{kl}] = \delta_{jk} S^{il} - \delta_{li} S^{kj}``, and the swap rule fires eagerly under [`NormalOrder`](@ref) so derivations stay in the closed collective form rather than expanding into per-atom sums.
 
 ### Numeric conversion
 
-Numeric simulation requires a `QuantumOpticsBase.ManyBodyBasis` over the single-atom basis with `bosonstates`:
+Build a `ManyBodyBasis` over the single-atom basis with `bosonstates`:
 
 ```julia
 using QuantumOpticsBase
@@ -64,18 +73,7 @@ to_numeric(S(1, 2), b)   # many-body operator on the symmetric subspace
 
 The number of atoms `N` enters only here, not at the algebra layer.
 
-## Comparison
+### What the algebra does *not* do
 
-| | Distinguishable atoms | Indistinguishable atoms |
-|---|---|---|
-| Representation | [`Σ`](@ref) of [`IndexedOperator`](@ref) on a [`ProductSpace`](@ref) | [`CollectiveTransition`](@ref) on a single [`NLevelSpace`](@ref) |
-| Atoms | individually addressable | symmetric subspace, no atom labels |
-| Hilbert-space dim | ``n^N`` | ``\binom{N+n-1}{n-1}`` |
-| Numeric scaling | exponential in `N` | polynomial in `N` |
-| Algebra | per-atom Transition rules + diagonal split | ``\mathfrak{su}(N)`` Lie algebra (closed) |
-| Ground-state completeness | applies (``\sigma^{gg} = 1 - \sum_{k \neq g}\sigma^{kk}``) | does not apply (``\sum_j S^{jj} = N \cdot I``, deferred to numeric layer) |
-| Typical use case | Tavis–Cummings with disorder, lattice models, individual addressing | Dicke model, superradiant laser with identical atoms |
-
-## Don't mix
-
-[`Transition`](@ref) and [`CollectiveTransition`](@ref) on the *same* [`NLevelSpace`](@ref) are physically incompatible representations — pick one regime per atomic subspace. The package will not throw if you write `Transition(h, :σ, 1, 2) * CollectiveTransition(h, :S, 2, 1)`, but the result is meaningless: `Transition` lives in the full Hilbert space and `CollectiveTransition` in the symmetric subspace, and there is no canonical embedding between them at the algebra level.
+- **Single-atom completeness is not applied** to collective operators. Per-atom completeness ``\sigma^{gg} = 1 - \sum_{k \neq g}\sigma^{kk}`` does not hold for ``S^{gg}``: collectively, ``\sum_j S^{jj} = N \cdot I``. Since `N` lives at the numeric layer, the rewrite is deferred to it. This is why `simplify(expr, h)` does *not* expand ``S^{gg}`` even though it expands ``\sigma^{gg}``.
+- **No mixing with [`Transition`](@ref) on the same `NLevelSpace`.** `Transition` is a per-atom operator (the "single representative atom" of the cumulant approach); `CollectiveTransition` is a sum-over-atoms operator on the symmetric subspace. These live in different conceptual spaces, and the package will not throw if you write `Transition(h, :σ, 1, 2) * CollectiveTransition(h, :S, 2, 1)`, but the result is meaningless.

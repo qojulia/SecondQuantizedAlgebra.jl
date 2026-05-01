@@ -147,27 +147,25 @@ ladder(::Transition) = 0
 """
     CollectiveTransition <: QSym
 
-Collective transition operator ``S^{ij} = \\sum_{k=1}^{N} \\sigma_k^{ij}`` on an
-[`NLevelSpace`](@ref). Lives in the *symmetric (bosonic) subspace* of `N`
-indistinguishable atoms — the natural representation for Dicke-style physics
-where atoms are not individually addressable and the dynamics preserves
-permutation symmetry.
+Collective transition operator ``S^{ij} = \\sum_{k=1}^{N} \\sigma_k^{ij}`` for `N`
+identical atoms on an [`NLevelSpace`](@ref). The operator acts on the
+*symmetric (bosonic) subspace* of the `N`-atom Hilbert space, which is what
+`QuantumOpticsBase.ManyBodyBasis` with `bosonstates` represents numerically.
 
 # When to use this vs indexed `Σ`
 
-Two regimes — pick the one that matches your physics, do **not** mix:
+Both [`CollectiveTransition`](@ref) and indexed [`Σ`](@ref) describe `N`
+identical atoms in collective dynamics. They differ in *computational strategy*
+— pick the one that matches the kind of result you want, do **not** mix them on
+the same `NLevelSpace`:
 
-| | Distinguishable atoms | Indistinguishable atoms |
+| | Indexed `Σ` (cumulant approach) | `CollectiveTransition` (exact symmetric subspace) |
 |---|---|---|
-| Representation | [`Σ`](@ref) of [`IndexedOperator`](@ref) on a [`ProductSpace`](@ref) | `CollectiveTransition` on a single [`NLevelSpace`](@ref) |
-| Physical setting | Atom-resolved coupling, disorder, individual addressing | Dicke physics, single-mode driving, no disorder |
-| Hilbert space | Full ``n^N`` (one atom per subspace) | Symmetric subspace, dimension ``\\binom{N+n-1}{n-1}`` |
-| Numeric scaling | Exponential in `N` | Polynomial in `N` — tractable for thousands |
-
-For the same physics where both are valid (e.g. Tavis–Cummings with identical
-atoms), the indexed form is preferred; `CollectiveTransition` is for problems
-where the symmetric-subspace assumption is essential, typically because the full
-Hilbert space is intractable.
+| Numerical strategy | Cumulant / mean-field truncation | Exact diagonalization on `ManyBodyBasis` |
+| Hilbert space at numeric layer | Single representative atom + symbolic site index | Full symmetric subspace, dim ``\\binom{N+n-1}{n-1}`` |
+| Site-dependent parameters (e.g. ``g_i``) | Yes, via [`IndexedVariable`](@ref) | No (atoms identical by construction) |
+| `N` scaling | Large `N` (truncation order at solve time) | Modest `N` — tractable in the polynomial subspace |
+| Output | Mean-field / cumulant equations of motion | State vector / density matrix |
 
 # Algebra
 
@@ -177,10 +175,11 @@ The operators satisfy the ``\\mathfrak{su}(N)`` Lie algebra
 operator with the larger `(i, j)` (lex-descending) ends up on the left, with
 the appropriate remainder terms appended.
 
-The single-atom completeness ``\\sigma^{gg} = 1 - \\sum_{k \\neq g}\\sigma^{kk}``
-does **not** apply here — for collective operators ``\\sum_j S^{jj} = N \\cdot I``
-(note the ``N``), and that rewrite is intentionally left for numeric-conversion
-time rather than the symbolic algebra.
+Single-atom completeness ``\\sigma^{gg} = 1 - \\sum_{k \\neq g}\\sigma^{kk}`` does
+**not** apply to collective operators — collectively
+``\\sum_j S^{jj} = N \\cdot I`` (note the ``N``, not ``1``). Since the algebra
+layer is `N`-agnostic, that rewrite is left for the numeric-conversion layer
+where `N` is determined by the basis.
 
 # Construction
 
