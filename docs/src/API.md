@@ -53,6 +53,10 @@ tensor
 ## [Operators](@id API: Operators)
 
 ```@docs
+QField
+```
+
+```@docs
 QSym
 ```
 
