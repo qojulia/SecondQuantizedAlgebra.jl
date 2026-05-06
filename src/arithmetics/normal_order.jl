@@ -251,6 +251,28 @@ function _apply_ground_state(expr::QAdd, ::HilbertSpace)
     return QAdd(d, copy(expr.indices))
 end
 
+
+function _expand_gs_oterms(terms::Vector{OrderedTerm})
+    out = OrderedTerm[]
+    for t in terms
+        has_gs = false
+        for o in t.ops
+            if o isa Transition && o.i == o.ground_state && o.j == o.ground_state
+                has_gs = true
+                break
+            end
+        end
+        if !has_gs
+            push!(out, t)
+            continue
+        end
+        for (e_term, ec) in _expand_ground_state(t.prefactor, t.ops).arguments
+            push!(out, OrderedTerm(ec, e_term.ops))
+        end
+    end
+    return out
+end
+
 """
     _expand_ground_state(c, ops) -> QAdd
 

@@ -3,7 +3,8 @@ using Test
 using SymbolicUtils: SymbolicUtils, SymReal, symtype
 using Symbolics: Symbolics, @variables
 import SecondQuantizedAlgebra: simplify, QAdd, QSym, QField, CNum, _to_cnum, _single_qadd,
-    AvgSym, AvgFunc, sym_average, SumIndices, SumNonEqual, sorted_arguments
+    AvgSym, AvgFunc, sym_average, SumIndices, SumNonEqual, sorted_arguments,
+    has_sum_metadata, get_sum_indices, get_sum_non_equal
 
 @testset "Average" begin
 

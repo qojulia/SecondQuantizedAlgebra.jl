@@ -180,6 +180,27 @@ end
     end
 
     # ============================================================================
+    # Eager * canonicalizes any product containing σᵍᵍ under NormalOrder
+    # ============================================================================
+    @testset "Different-site σᵍᵍ_i · σᵍᵍ_j expands eagerly under NormalOrder" begin
+        h = NLevelSpace(:atom, 3, 2)
+        i = SecondQuantizedAlgebra.Index(h, :i, 10, 1)
+        j = SecondQuantizedAlgebra.Index(h, :j, 10, 1)
+        σi = SecondQuantizedAlgebra.IndexedOperator(Transition(h, :σ, 2, 2), i)
+        σj = SecondQuantizedAlgebra.IndexedOperator(Transition(h, :σ, 2, 2), j)
+        eager = σi * σj
+        @test _no_gs_projectors(eager)
+        @test isequal(eager, normal_order(σi * σj, h))
+    end
+
+    @testset "σᵍᵍ * σⁱʲ expands eagerly under NormalOrder" begin
+        h = NLevelSpace(:atom, 3, 1)
+        σgg = Transition(h, :σ, 1, 1)
+        σ12 = Transition(h, :σ, 1, 2)
+        @test isequal(σgg * σ12, normal_order(σgg * σ12, h))
+    end
+
+    # ============================================================================
     # User-constructed σᵍᵍ stays atomic until simplify(_, h) / normal_order(_, h)
     # ============================================================================
     @testset "User-constructed σᵍᵍ stays atomic (no composition fired)" begin

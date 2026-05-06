@@ -294,7 +294,7 @@ the eager arithmetic is the identity — `simplify` and `normal_order` apply
 rules explicitly via [`_apply_reductions`](@ref) and `_apply_ground_state`.
 """
 _apply_ordering(arg_c::CNum, ops::Vector{QSym}, ord::OrderingConvention) =
-    _drive_worklist(arg_c, ops, ord, true)
+    _expand_gs_oterms(_drive_worklist(arg_c, ops, ord, true))
 
 _apply_ordering(arg_c::CNum, ops::Vector{QSym}, ::LazyOrder) =
     OrderedTerm[OrderedTerm(arg_c, ops)]

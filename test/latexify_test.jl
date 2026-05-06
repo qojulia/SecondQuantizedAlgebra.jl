@@ -3,7 +3,7 @@ using Latexify
 using LaTeXStrings
 using Symbolics: @variables
 using Test
-import SecondQuantizedAlgebra: simplify, QAdd, QSym, _single_qadd, _to_cnum
+import SecondQuantizedAlgebra: simplify, QAdd, QSym, _single_qadd, _to_cnum, transition_superscript
 
 @testset "latexify" begin
     h = FockSpace(:c)

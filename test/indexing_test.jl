@@ -3,7 +3,7 @@ using Test
 using SymbolicUtils: SymbolicUtils
 using Symbolics: Symbolics, @variables
 import SecondQuantizedAlgebra: simplify, QAdd, QSym, CNum, _to_cnum, NO_INDEX,
-    create_index_arrays, operators, prefactor, sorted_arguments
+    create_index_arrays, operators, prefactor, sorted_arguments, constraint_pairs
 
 @testset "Indexing" begin
 
