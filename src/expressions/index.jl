@@ -81,10 +81,10 @@ See also [`get_indices`](@ref).
 change_index(x::Number, ::Index, ::Index) = x
 function change_index(x::Num, from::Index, to::Index)
     raw = SymbolicUtils.unwrap(x)
-    result = Symbolics.substitute(
-        raw,
-        Dict(SymbolicUtils.unwrap(from.sym) => SymbolicUtils.unwrap(to.sym))
-    )
+    isym = SymbolicUtils.unwrap(from.sym)
+    vars = Symbolics.get_variables(raw)
+    any(v -> isequal(v, isym), vars) || return x
+    result = Symbolics.substitute(raw, Dict(isym => SymbolicUtils.unwrap(to.sym)))
     return _check_not_identical(result)
 end
 function change_index(x::CNum, from::Index, to::Index)

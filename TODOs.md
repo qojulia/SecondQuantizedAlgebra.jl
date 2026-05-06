@@ -22,7 +22,7 @@ PR with no ripple effect; suggested merge order is roughly the order listed.
       two entry points (`numeric_average(op, state, d=Dict())` and the `states`
       vector overload) plus dispatch internals.
 
-- [ ] **`change_index` short-circuit on no-op substitutions**
+- [x] **`change_index` short-circuit on no-op substitutions**
       ([index.jl:82](src/index.jl#L82)). For prefactors that don't reference the
       `from` index — most of them — `Symbolics.substitute` still builds a dict
       and walks the tree. A cheap `Symbolics.get_variables(x)` membership check
