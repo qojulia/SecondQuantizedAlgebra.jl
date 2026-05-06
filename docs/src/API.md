@@ -10,7 +10,6 @@ Pages = ["API.md"]
 Depth = 2:3
 ```
 
-
 ## [Hilbert Spaces](@id API: Hilbert Spaces)
 
 ```@docs
@@ -62,6 +61,10 @@ QSym
 
 ```@docs
 QTerm
+```
+
+```@docs
+QTermDict
 ```
 
 ```@docs
@@ -121,6 +124,10 @@ set_ordering!
 
 ```@docs
 get_ordering
+```
+
+```@docs
+with_ordering
 ```
 
 
@@ -198,6 +205,10 @@ prefactor
 
 ```@docs
 operators
+```
+
+```@docs
+constraint_pairs
 ```
 
 ```@docs

@@ -17,7 +17,7 @@ QField (abstract)
 
 `QTerm` is the per-entry storage key (operator product + non-equal constraints) used as the dict key inside `QAdd`. There is no abstract `QTerm` supertype — `QAdd` is a `QField` directly.
 
-**Why `QAdd` is the only compound type.** Earlier versions of the package had both `QMul` (products) and `QAdd` (sums). This created a two-level expression tree where dispatch needed to handle `QSym`, `QMul`, and `QAdd` at every level, and the return type of `*` was unpredictable (`QSym`, `QMul`, or `QAdd` depending on simplification). The redesign collapses this into a single `QAdd` whose internal dictionary is keyed by the full term identity `(ops, non_equal)` and stores only the prefactor as the value. Every multiplication immediately produces a `QAdd`, giving a uniform return type. This type stability is critical for performance — the Julia compiler can infer return types through chains of arithmetic, avoiding dynamic dispatch and heap-allocated boxes at every intermediate step. The exact-key representation also keeps like-term collection honest: only terms with the same operator string *and* the same scoped constraints are merged.
+**Why `QAdd` is the only compound type.** Earlier versions of the package had both `QMul` (products) and `QAdd` (sums). This created a two-level expression tree where dispatch needed to handle `QSym`, `QMul`, and `QAdd` at every level, and the return type of `*` was unpredictable (`QSym`, `QMul`, or `QAdd` depending on simplification). The redesign collapses this into a single `QAdd` whose internal dictionary is keyed by the full term identity `(ops, ne)` and stores only the prefactor as the value. Every multiplication immediately produces a `QAdd`, giving a uniform return type. This type stability is critical for performance — the Julia compiler can infer return types through chains of arithmetic, avoiding dynamic dispatch and heap-allocated boxes at every intermediate step. The exact-key representation also keeps like-term collection honest: only terms with the same operator string *and* the same scoped constraints are merged.
 
 
 ## Operator struct layout
@@ -81,9 +81,11 @@ When both operands are plain numbers (not symbolic), `_const_val` extracts them 
 ## QAdd internals
 
 ```julia
+const NonEqualPair = Tuple{Index, Index}
+
 struct QTerm
     ops::Vector{QSym}
-    ne::Vector{Tuple{Index, Index}}
+    ne::Vector{NonEqualPair}
 end
 
 const QTermDict = Dict{QTerm, CNum}
@@ -93,6 +95,8 @@ struct QAdd <: QField
     indices::Vector{Index}
 end
 ```
+
+**What a dict entry represents.** A single entry `QTerm(ops, ne) => c` in `arguments` represents the term `c · ops[1] · ops[2] · …` valid for any index assignment satisfying the pairwise constraints in `ne` (each `(α, β) ∈ ne` means `α ≠ β`). The `indices` field on `QAdd` carries the outer summation scope: a `QAdd` with `indices = [i, j]` represents ``\sum_i \sum_j \sum_\text{terms} c \cdot \text{ops}`` where each individual term may further constrain `(i, j)` per its own `ne`. This per-term scoping is what lets a single `QAdd` represent expressions like ``\sum_i a_i a_i + \sum_{i \neq j} a_i a_j`` as two dict entries with different `ne` rather than two separate `QAdd` summations.
 
 **Dictionary keys are full constrained terms.** Each `QTerm` is an ordered operator product plus the pairwise inequality constraints that scope that product. The ordering is canonical (determined by `_site_sort!` and the ordering convention), so structurally equal products always have the same `ops`. Like-term collection happens only when both `ops` and `ne` match exactly. This is the key invariant that makes constrained sums correct: `a_i` and `a_i` under `i ≠ j` are distinct stored terms, not one merged term with unioned metadata.
 
@@ -163,10 +167,11 @@ Each swap creates two terms (the swapped pair + the commutator term), so the wor
 **`LazyOrder` bypass.** When the ordering is `LazyOrder`, `_apply_ordering` returns the input unchanged — no worklist, no scanning, and no algebraic reductions. All rules (both reductions and ordering swaps) are deferred until an explicit `simplify()` or `normal_order()` call:
 
 ```julia
-function _apply_ordering(arg_c::CNum, ops::Vector{QSym}, ::LazyOrder)
-    return _OTerm[(arg_c, ops)]
-end
+_apply_ordering(arg_c::CNum, ops::Vector{QSym}, ::LazyOrder) =
+    OrderedTerm[OrderedTerm(arg_c, ops)]
 ```
+
+**Performance note.** When assembling large symbolic expressions where canonicalization only matters at the end (e.g. building a Hamiltonian via many additions and multiplications before computing a commutator or normal-ordering), wrap the construction in `with_ordering(LazyOrder()) do … end`. Operators accumulate without firing reductions or swaps on every product, and a single `normal_order(expr)` (or `simplify(expr, h)`) at the end produces canonical form in one pass. This avoids re-running the ordering worklist on every pairwise multiplication — for products with many same-site interactions, the savings compound.
 
 
 ## Simplification vs. normal ordering
@@ -180,14 +185,16 @@ end
 
 ## Diagonal splitting
 
-When a symbolic sum ``\sum_i f(i)`` is multiplied by an operator with a free index `j` on the same space, the case `i = j` must be handled separately (the "diagonal" contribution). This is done by `_accumulate_with_diag!` in `qadd.jl`, which is invoked from each `*(QAdd, ·)` overload:
+When two `QAdd`s multiply (or a `QAdd` multiplies a `QSym`), the term-by-term product needs to handle the boundary case where two distinct-index operators land on the same site. `_accumulate_with_diag!` in `qadd_arithmetic.jl` does this in one pass; it is invoked from every `*(QAdd, ·)` overload after the per-term `vcat` of operand operators.
 
-1. For each `(ops_a, ops_b)` term pair, vcat the operands (preserving physical multiplication order).
-2. Site-sort + apply ordering on the unsorted vcat to produce the off-diagonal contribution.
-3. For each summation index `i` the term depends on, find every distinct free index `j` (same space, not already constrained `i ≠ j`) and substitute `i → j` on the **unsorted** vcat — *before* `_site_sort!` would canonicalize same-space ops by index name. This preserves the physical operator order so that same-site composition rules (e.g. ``\sigma_{αβ}\sigma_{βγ} = \sigma_{αγ}``) fire on the correct sequence.
-4. Stable site-sort and apply ordering on the substituted ops to get the diagonal contribution. Record the constraint `(i, j)` on the affected off-diagonal term keys.
+**The unified rule.** For each multiplied term, look at every pair of *distinct* free indices `(α, β)` on the same Hilbert subspace that isn't already constrained `α ≠ β`. The substitution `α → β` on the **unsorted** physical-order operator vcat gives the correct boundary value at `α = β`. The same substitution applied to the **post-sort, post-ordering** form may give a different result, because `_site_sort!` canonicalizes same-space ops alphabetically by index name and can put a same-site composition pair in the wrong order. When the two disagree, the boundary case is *not* implied by the off-diagonal term and must be emitted explicitly: add the unsorted-substituted contribution as a separate diagonal term, and re-key the original (off-diagonal) entry under the augmented constraint `ne ∪ {(α, β)}`.
 
-Substitution must happen pre-sort: post-sort, the original physical order of same-space ops is lost (sorted alphabetically by index name), and substitution can collapse pairs in the wrong order — e.g. `σⱼ¹²·σᵢ²¹` (with `i ≠ j`) sorts to `σᵢ²¹·σⱼ¹²` and collapses at `i = j` to `σⱼ²²`, but the physically correct collapse is `σⱼ¹¹`.
+**Two regimes for the disagreement check:**
+
+- **Pairs `(i, j)` where `i` is a summation index of the outer `QAdd`.** Always emit. The sum over `i` runs across `i = j`; once the off-diagonal entry is constrained `i ≠ j`, the boundary value must surface as its own term regardless of pre-/post-sort agreement.
+- **Free-index pairs `(α, β)`** (neither is a sum index). Only emit when `_oterms_equivalent(pre_sort, post_sort) == false`. If both substitutions land on the same multiset of ordered terms, the off-diagonal entry already carries the boundary contribution and no constraint is needed.
+
+**Why pre-sort, not post-sort.** Once `_site_sort!` runs, same-space operators are sorted alphabetically by index name; substituting then would feed `_apply_ordering` a pair in the wrong physical order. Concretely, ``\sigma_j^{12} \cdot \sigma_i^{21}`` (with `i ≠ j`) sorts to ``\sigma_i^{21} \cdot \sigma_j^{12}`` and collapses at `i = j` to ``\sigma_j^{22}``, but the physically correct collapse from the original ordering is ``\sigma_j^{11}``. Substituting on the unsorted product preserves the physical order so same-site rules like ``\sigma^{αβ}\sigma^{βγ} = \sigma^{αγ}`` fire on the correct sequence.
 
 
 ## Index system

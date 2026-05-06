@@ -95,19 +95,35 @@ export FockSpace, ProductSpace,
     Index, has_index, IndexedOperator,
     IndexedVariable, DoubleIndexedVariable,
     Σ, ∑, change_index, get_indices,
-    ⊗, tensor,
-    Destroy, Create,
+    ⊗, tensor, Destroy, Create,
     @qnumbers, @variables,
     NormalOrder, LazyOrder, set_ordering!, get_ordering, with_ordering,
     average, undo_average,
     acts_on, is_average,
-    has_sum_metadata, get_sum_indices, get_sum_non_equal,
     fundamental_operators, find_operators, unique_ops,
-    prefactor, operators, constraint_pairs,
+    prefactor, operators,
     substitute,
-    normal_order, normal_to_symmetric, symmetric_to_normal, simplify, expand, commutator, anticommutator,
-    to_numeric, numeric_average, expect,
-    transition_superscript
+    normal_order, normal_to_symmetric, symmetric_to_normal,
+    simplify, expand, commutator, anticommutator,
+    to_numeric, numeric_average
+
+
+# Public API that is intentionally NOT exported — accessed as
+# `SecondQuantizedAlgebra.symbol`. The `public` keyword is Julia ≥ 1.11; on
+# 1.10 the contract is documented in `docs/src/API.md`.
+macro public(ex)
+    return if VERSION >= v"1.11.0-DEV.469"
+        args = ex isa Symbol ? (ex,) : Base.isexpr(ex, :tuple) ? ex.args : error("something informative")
+        esc(Expr(:public, args...))
+    else
+        nothing
+    end
+end
+
+@public HilbertSpace, QField, QSym, OrderingConvention,
+    QAdd, QTerm, QTermDict, has_sum_metadata, get_sum_indices, get_sum_non_equal,
+    transition_superscript, constraint_pairs,
+
 
 include("precompile.jl")
 
