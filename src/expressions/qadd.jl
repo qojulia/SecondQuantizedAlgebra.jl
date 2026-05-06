@@ -48,7 +48,7 @@ function _qadd_from_oterms(
     )
     d = QTermDict()
     for (c, ops) in terms
-        for (oc, oops) in _apply_ordering(c, ops, ORDERING[])
+        for (oc, oops) in _apply_ordering(c, ops, get_ordering())
             _addto!(d, oops, oc, ne)
         end
     end
@@ -58,7 +58,7 @@ end
 function _ordered_qadd(c::CNum, ops::Vector{QSym}, ne::Vector{NonEqualPair} = _EMPTY_NE)
     _iszero_cnum(c) && return QAdd(QTermDict(), Index[])
     d = QTermDict()
-    for (oc, oops) in _apply_ordering(c, ops, ORDERING[])
+    for (oc, oops) in _apply_ordering(c, ops, get_ordering())
         _addto!(d, oops, oc, ne)
     end
     return QAdd(d, Index[])

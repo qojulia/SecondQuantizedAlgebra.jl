@@ -48,7 +48,7 @@ function _substitute_unsorted(
     sub_ops = QSym[change_index(o, α, β) for o in ops]
     sub_c = change_index(c, α, β)
     _site_sort!(sub_ops)
-    return _apply_ordering(sub_c, sub_ops, ORDERING[])
+    return _apply_ordering(sub_c, sub_ops, get_ordering())
 end
 
 function _substitute_oterms(terms::Vector{_OTerm}, α::Index, β::Index)
@@ -57,7 +57,7 @@ function _substitute_oterms(terms::Vector{_OTerm}, α::Index, β::Index)
         sub_oops = QSym[change_index(o, α, β) for o in oops]
         sub_oc = change_index(oc, α, β)
         _site_sort!(sub_oops)
-        append!(out, _apply_ordering(sub_oc, sub_oops, ORDERING[]))
+        append!(out, _apply_ordering(sub_oc, sub_oops, get_ordering()))
     end
     return out
 end
@@ -144,7 +144,7 @@ function _accumulate_with_diag!(
     )
     sorted = copy(unsorted_ops)
     _site_sort!(sorted)
-    sorted_terms = _apply_ordering(c, sorted, ORDERING[])
+    sorted_terms = _apply_ordering(c, sorted, get_ordering())
 
     distinct = _distinct_op_indices(unsorted_ops)
     if length(distinct) < 2

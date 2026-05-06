@@ -19,13 +19,6 @@ PR with no ripple effect; suggested merge order is roughly the order listed.
       at every callsite (`(c, ops_w) = pop!(worklist)` → `t = pop!(worklist);
       t.prefactor`). Zero perf cost — Julia inlines named-struct accessors.
 
-- [ ] **Replace `ORDERING = Ref{OrderingConvention}(NormalOrder())` with
-      `Base.ScopedValues.ScopedValue`** ([ordering.jl:3](src/arithmetics/ordering.jl#L3)).
-      Removes mutable global state; lets `with_ordering(LazyOrder()) do … end`
-      override per-task without leaking between tests. ~5 LOC change, large
-      maintainability/concurrency win. Keep `set_ordering!` as a deprecated
-      back-compat shim.
-
 - [ ] **Drop the abstract `QTerm` and rename `QTermKey` → `QTerm`**
       ([types.jl:37](src/types.jl#L37), [qterm.jl](src/expressions/qterm.jl)).
       Nothing in src/ or test/ dispatches on `::QTerm`; it's a vestigial

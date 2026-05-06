@@ -238,7 +238,7 @@ function _diagonal_split!(off_diag::QTermDict, diag::QTermDict, sum_idx::Index)
 
             new_ops = QSym[change_index(o, sum_idx, idx) for o in current_term.ops]
             new_c = change_index(current_c, sum_idx, idx)
-            for (oc, oops) in _apply_ordering(new_c, new_ops, ORDERING[])
+            for (oc, oops) in _apply_ordering(new_c, new_ops, get_ordering())
                 _addto!(diag, oops, oc, current_term.ne)
             end
 

@@ -1,31 +1,48 @@
 # --- Global ordering convention ---
 
-const ORDERING = Ref{OrderingConvention}(NormalOrder())
-
-"""
-    set_ordering!(ord::OrderingConvention)
-
-Set the global operator ordering convention. All subsequent `*` operations on
-[`QSym`](@ref) operators will apply this convention eagerly.
-
-# Examples
-```julia
-set_ordering!(LazyOrder())       # disable eager ordering
-set_ordering!(NormalOrder())     # restore default
-```
-
-See also [`get_ordering`](@ref), [`NormalOrder`](@ref), [`LazyOrder`](@ref).
-"""
-set_ordering!(ord::OrderingConvention) = (ORDERING[] = ord)
+const _ORDERING_DEFAULT = Ref{OrderingConvention}(NormalOrder())
+const ORDERING = ScopedValue{OrderingConvention}()
 
 """
     get_ordering() -> OrderingConvention
 
-Return the current global ordering convention (default: [`NormalOrder`](@ref)).
-
-See also [`set_ordering!`](@ref).
+Return the active operator ordering convention. Inside a [`with_ordering`](@ref)
+block the scoped value wins; otherwise returns the global default (initially
+[`NormalOrder`](@ref), mutable via [`set_ordering!`](@ref)).
 """
-get_ordering() = ORDERING[]
+function get_ordering()
+    v = ScopedValues.get(ORDERING)
+    return v === nothing ? _ORDERING_DEFAULT[] : something(v)
+end
+
+"""
+    set_ordering!(ord::OrderingConvention)
+
+Set the global default ordering convention. Affects subsequent `*` operations
+unless overridden by an enclosing [`with_ordering`](@ref) scope.
+
+Prefer [`with_ordering`](@ref) for transient changes — it is task-local and
+cannot leak between tests.
+
+See also [`get_ordering`](@ref), [`with_ordering`](@ref), [`NormalOrder`](@ref),
+[`LazyOrder`](@ref).
+"""
+set_ordering!(ord::OrderingConvention) = (_ORDERING_DEFAULT[] = ord)
+
+"""
+    with_ordering(f, ord::OrderingConvention)
+
+Run `f()` with `ord` as the active ordering convention. Restores on return,
+even on exception. Task-local — concurrent tasks see their own value.
+
+# Examples
+```julia
+with_ordering(LazyOrder()) do
+    a * a'   # not reordered inside this block
+end
+```
+"""
+with_ordering(f, ord::OrderingConvention) = with(f, ORDERING => ord)
 
 """
     _same_site(a::QSym, b::QSym) -> Bool
