@@ -16,7 +16,7 @@ PR with no ripple effect; suggested merge order is roughly the order listed.
 
 ### Worth doing if you're touching that area
 
-- [ ] **Unify the `numeric_average` signatures** ([numeric.jl](src/numeric.jl)).
+- [x] **Unify the `numeric_average` signatures** ([numeric.jl](src/numeric.jl)).
       Eight methods cover `(QField | BasicSymbolic | Number | Num) × (state |
       states) × (with d | without d)` — many are thin pass-throughs. Collapse to
       two entry points (`numeric_average(op, state, d=Dict())` and the `states`

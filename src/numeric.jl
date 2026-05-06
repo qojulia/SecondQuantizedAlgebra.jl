@@ -132,70 +132,7 @@ function _lazy_one(b::QuantumOpticsBase.CompositeBasis)
     )
 end
 
-"""
-    numeric_average(op, state; kwargs...)
-    numeric_average(op, state, d::Dict; kwargs...)
-
-Compute the expectation value ``\\langle \\psi | \\hat{O} | \\psi \\rangle`` of a symbolic
-operator expression `op` with a QuantumOpticsBase quantum state.
-
-Converts `op` to numeric form via [`to_numeric`](@ref), then calls
-`QuantumOpticsBase.expect`. Also handles averaged `BasicSymbolic` expressions
-by first calling [`undo_average`](@ref).
-
-# Examples
-```julia
-using QuantumOpticsBase
-h = FockSpace(:f)
-@qnumbers a::Destroy(h)
-b = FockBasis(10)
-ψ = coherentstate(b, 2.0)
-numeric_average(a' * a, ψ)    # ≈ 4.0
-```
-
-See also [`to_numeric`](@ref), [`average`](@ref).
-"""
-function numeric_average(op::QField, state::QuantumState; kwargs...)
-    op_num = to_numeric(op, state; kwargs...)
-    return QuantumOpticsBase.expect(op_num, state)
-end
-function numeric_average(op::QField, states::AbstractVector; kwargs...)
-    isempty(states) && throw(ArgumentError("numeric_average: states vector is empty"))
-    op_num = QuantumOpticsBase.sparse(to_numeric(op, first(states); kwargs...))
-    return QuantumOpticsBase.expect(op_num, states)
-end
-function numeric_average(avg::SymbolicUtils.BasicSymbolic, states::AbstractVector; kwargs...)
-    isempty(states) && throw(ArgumentError("numeric_average: states vector is empty"))
-    return [numeric_average(avg, ψ; kwargs...) for ψ in states]
-end
-function numeric_average(x::Number, state::QuantumState; kwargs...)
-    return x
-end
-function numeric_average(x::Num, state::QuantumState; kwargs...)
-    return numeric_average(SymbolicUtils.unwrap(x), state; kwargs...)
-end
-
-# Average expressions: unwrap and compute expectation value
-function numeric_average(avg::SymbolicUtils.BasicSymbolic, state::QuantumState; kwargs...)
-    if SymbolicUtils.iscall(avg) && SymbolicUtils.operation(avg) isa AvgFunc
-        op = undo_average(avg)
-        return numeric_average(op, state; kwargs...)
-    end
-    if SymbolicUtils.isconst(avg)
-        return numeric_average(avg.val, state; kwargs...)
-    end
-    if SymbolicUtils.iscall(avg)
-        f = SymbolicUtils.operation(avg)
-        args = SymbolicUtils.arguments(avg)
-        if f === (^)
-            return numeric_average(args[1], state; kwargs...)^_to_number(args[2])
-        end
-        return f(numeric_average.(args, Ref(state); kwargs...)...)
-    end
-    error("numeric_average not implemented for $(typeof(avg))")
-end
-
-# --- to_numeric / numeric_average with Dict parameter substitution ---
+# --- to_numeric with Dict parameter substitution ---
 
 function to_numeric(op::QSym, b::QuantumOpticsBase.Basis, d::Dict; kwargs...)
     haskey(d, op) && return d[op]
@@ -220,42 +157,73 @@ function to_numeric(x::Number, b::QuantumOpticsBase.Basis, d::Dict; kwargs...)
     return _to_number(x) * _lazy_one(b)
 end
 
-function numeric_average(op::QField, state::QuantumState, d::Dict; kwargs...)
+"""
+    numeric_average(op, state, d::Dict=Dict(); kwargs...)
+    numeric_average(op, states::AbstractVector, d::Dict=Dict(); kwargs...)
+
+Compute the expectation value ``\\langle \\psi | \\hat{O} | \\psi \\rangle`` of a symbolic
+operator expression `op` with a QuantumOpticsBase quantum state, or a vector of such
+expectations for a vector of states.
+
+Converts `op` to numeric form via [`to_numeric`](@ref), then calls
+`QuantumOpticsBase.expect`. Also handles averaged `BasicSymbolic` expressions
+by first calling [`undo_average`](@ref). The optional `d` substitutes numeric
+operators for symbolic ones (keys: `QSym`, values: numeric operators).
+
+# Examples
+```julia
+using QuantumOpticsBase
+h = FockSpace(:f)
+@qnumbers a::Destroy(h)
+b = FockBasis(10)
+ψ = coherentstate(b, 2.0)
+numeric_average(a' * a, ψ)    # ≈ 4.0
+```
+
+See also [`to_numeric`](@ref), [`average`](@ref).
+"""
+function numeric_average(op, state::QuantumState, d::Dict = Dict(); kwargs...)
+    return _numeric_average(op, state, d; kwargs...)
+end
+function numeric_average(op, states::AbstractVector, d::Dict = Dict(); kwargs...)
+    isempty(states) && throw(ArgumentError("numeric_average: states vector is empty"))
+    return _numeric_average_vec(op, states, d; kwargs...)
+end
+
+# Single-state dispatch
+function _numeric_average(op::QField, state::QuantumState, d::Dict; kwargs...)
     op_num = to_numeric(op, state, d; kwargs...)
     return QuantumOpticsBase.expect(op_num, state)
 end
-function numeric_average(op::QField, states::AbstractVector, d::Dict; kwargs...)
-    isempty(states) && throw(ArgumentError("numeric_average: states vector is empty"))
-    op_num = to_numeric(op, first(states), d; kwargs...)
-    return QuantumOpticsBase.expect(op_num, states)
+_numeric_average(x::Number, ::QuantumState, ::Dict; kwargs...) = x
+function _numeric_average(x::Num, state::QuantumState, d::Dict; kwargs...)
+    return _numeric_average(SymbolicUtils.unwrap(x), state, d; kwargs...)
 end
-function numeric_average(avg::SymbolicUtils.BasicSymbolic, states::AbstractVector, d::Dict; kwargs...)
-    isempty(states) && throw(ArgumentError("numeric_average: states vector is empty"))
-    return [numeric_average(avg, ψ, d; kwargs...) for ψ in states]
-end
-function numeric_average(x::Number, state::QuantumState, d::Dict; kwargs...)
-    return x
-end
-function numeric_average(x::Num, state::QuantumState, d::Dict; kwargs...)
-    return numeric_average(SymbolicUtils.unwrap(x), state, d; kwargs...)
-end
-function numeric_average(avg::SymbolicUtils.BasicSymbolic, state::QuantumState, d::Dict; kwargs...)
+function _numeric_average(avg::SymbolicUtils.BasicSymbolic, state::QuantumState, d::Dict; kwargs...)
     if SymbolicUtils.iscall(avg) && SymbolicUtils.operation(avg) isa AvgFunc
-        op = undo_average(avg)
-        return numeric_average(op, state, d; kwargs...)
+        return _numeric_average(undo_average(avg), state, d; kwargs...)
     end
     if SymbolicUtils.isconst(avg)
-        return numeric_average(avg.val, state, d; kwargs...)
+        return _numeric_average(avg.val, state, d; kwargs...)
     end
     if SymbolicUtils.iscall(avg)
         f = SymbolicUtils.operation(avg)
         args = SymbolicUtils.arguments(avg)
         if f === (^)
-            return numeric_average(args[1], state, d; kwargs...)^_to_number(args[2])
+            return _numeric_average(args[1], state, d; kwargs...)^_to_number(args[2])
         end
-        return f(numeric_average.(args, Ref(state), Ref(d); kwargs...)...)
+        return f((_numeric_average(a, state, d; kwargs...) for a in args)...)
     end
     error("numeric_average not implemented for $(typeof(avg))")
+end
+
+# Vector-of-states dispatch
+function _numeric_average_vec(op::QField, states::AbstractVector, d::Dict; kwargs...)
+    op_num = QuantumOpticsBase.sparse(to_numeric(op, first(states), d; kwargs...))
+    return QuantumOpticsBase.expect(op_num, states)
+end
+function _numeric_average_vec(op, states::AbstractVector, d::Dict; kwargs...)
+    return [_numeric_average(op, ψ, d; kwargs...) for ψ in states]
 end
 
 """
