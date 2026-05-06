@@ -14,17 +14,6 @@ PR with no ripple effect; suggested merge order is roughly the order listed.
       operands behind an SQA-owned type. Recommendation: **delete**. Removes four
       methods and the Aqua suppression.
 
-- [ ] **Drop the abstract `QTerm` and rename `QTermKey` → `QTerm`**
-      ([types.jl:37](src/types.jl#L37), [qterm.jl](src/expressions/qterm.jl)).
-      Nothing in src/ or test/ dispatches on `::QTerm`; it's a vestigial
-      single-subtype abstract whose only concrete child is `QAdd`. Drop it,
-      change `QAdd <: QTerm` → `QAdd <: QField`, then rename the storage-key
-      struct `QTermKey` → `QTerm`. Iteration becomes `for (term::QTerm, c) in
-      q.arguments` — `QTerm` reads as "an entry of the sum," `QAdd` as "a sum
-      of `QTerm`s." No dispatch consequences (the abstract carries no
-      methods); rename touches qterm.jl, qadd.jl, qadd_arithmetic.jl,
-      index.jl + docs.
-
 ### Worth doing if you're touching that area
 
 - [ ] **Unify the `numeric_average` signatures** ([numeric.jl](src/numeric.jl)).

@@ -1,5 +1,5 @@
 """
-    QAdd <: QTerm
+    QAdd <: QField
 
 The sole compound expression type — a sum of eagerly-ordered operator products.
 
@@ -9,17 +9,17 @@ values are `Complex{Num}` prefactors. Like-term collection applies only to
 terms with identical operator strings *and* identical scoped constraints.
 
 # Fields
-- `arguments::QTermDict` — `Dict{QTermKey, CNum}` of exact term identity → prefactor
+- `arguments::QTermDict` — `Dict{QTerm, CNum}` of exact term identity → prefactor
 - `indices::Vector{Index}` — summation indices (empty for a regular sum)
 
 # Iteration
-Iterating over a `QAdd` yields `Pair{QTermKey, CNum}` entries; access
+Iterating over a `QAdd` yields `Pair{QTerm, CNum}` entries; access
 `term.ops` and `term.ne` on the key directly.
 
-See also [`prefactor`](@ref), [`operators`](@ref), [`Σ`](@ref),
+See also [`QTerm`](@ref), [`prefactor`](@ref), [`operators`](@ref), [`Σ`](@ref),
 [`constraint_pairs`](@ref).
 """
-struct QAdd <: QTerm
+struct QAdd <: QField
     arguments::QTermDict
     indices::Vector{Index}
 end
@@ -87,11 +87,11 @@ function Base.adjoint(q::QAdd)
     return QAdd(d, copy(q.indices))
 end
 
-# --- Iteration: yield `term::QTermKey => coeff::CNum` directly ---
+# --- Iteration: yield `term::QTerm => coeff::CNum` directly ---
 
 Base.iterate(q::QAdd) = iterate(q.arguments)
 Base.iterate(q::QAdd, state) = iterate(q.arguments, state)
-Base.eltype(::Type{QAdd}) = Pair{QTermKey, CNum}
+Base.eltype(::Type{QAdd}) = Pair{QTerm, CNum}
 
 # --- Sorted term access for printing and comparison ---
 
@@ -191,7 +191,7 @@ Return the ordered operator sequence of a single-term [`QAdd`](@ref).
 
 Throws `ArgumentError` if `s` contains more than one term. For multi-term
 expressions, iterate over the `QAdd` directly and read `term.ops` from each
-[`QTermKey`](@ref).
+[`QTerm`](@ref).
 
 # Examples
 ```julia

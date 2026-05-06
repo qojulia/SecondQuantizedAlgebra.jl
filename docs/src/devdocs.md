@@ -12,9 +12,10 @@ QField (abstract)
 │   ├── Pauli                     (PauliSpace)
 │   ├── Spin                      (SpinSpace)
 │   └── Position / Momentum       (PhaseSpace)
-└── QTerm (abstract) — compound expressions
-    └── QAdd                      (the only concrete subtype)
+└── QAdd                          (sum of QTerm products — the only compound type)
 ```
+
+`QTerm` is the per-entry storage key (operator product + non-equal constraints) used as the dict key inside `QAdd`. There is no abstract `QTerm` supertype — `QAdd` is a `QField` directly.
 
 **Why `QAdd` is the only compound type.** Earlier versions of the package had both `QMul` (products) and `QAdd` (sums). This created a two-level expression tree where dispatch needed to handle `QSym`, `QMul`, and `QAdd` at every level, and the return type of `*` was unpredictable (`QSym`, `QMul`, or `QAdd` depending on simplification). The redesign collapses this into a single `QAdd` whose internal dictionary is keyed by the full term identity `(ops, non_equal)` and stores only the prefactor as the value. Every multiplication immediately produces a `QAdd`, giving a uniform return type. This type stability is critical for performance — the Julia compiler can infer return types through chains of arithmetic, avoiding dynamic dispatch and heap-allocated boxes at every intermediate step. The exact-key representation also keeps like-term collection honest: only terms with the same operator string *and* the same scoped constraints are merged.
 
@@ -80,28 +81,28 @@ When both operands are plain numbers (not symbolic), `_const_val` extracts them 
 ## QAdd internals
 
 ```julia
-struct QTermKey
+struct QTerm
     ops::Vector{QSym}
     ne::Vector{Tuple{Index, Index}}
 end
 
-const QTermDict = Dict{QTermKey, CNum}
+const QTermDict = Dict{QTerm, CNum}
 
-struct QAdd <: QTerm
+struct QAdd <: QField
     arguments::QTermDict
     indices::Vector{Index}
 end
 ```
 
-**Dictionary keys are full constrained terms.** Each `QTermKey` is an ordered operator product plus the pairwise inequality constraints that scope that product. The ordering is canonical (determined by `_site_sort!` and the ordering convention), so structurally equal products always have the same `ops`. Like-term collection happens only when both `ops` and `ne` match exactly. This is the key invariant that makes constrained sums correct: `a_i` and `a_i` under `i ≠ j` are distinct stored terms, not one merged term with unioned metadata.
+**Dictionary keys are full constrained terms.** Each `QTerm` is an ordered operator product plus the pairwise inequality constraints that scope that product. The ordering is canonical (determined by `_site_sort!` and the ordering convention), so structurally equal products always have the same `ops`. Like-term collection happens only when both `ops` and `ne` match exactly. This is the key invariant that makes constrained sums correct: `a_i` and `a_i` under `i ≠ j` are distinct stored terms, not one merged term with unioned metadata.
 
-**The schema is visible at the type level.** `QTermDict` is a plain `Dict{QTermKey, CNum}` alias — there is no wrapper struct. Iterating a `QAdd` yields `Pair{QTermKey, CNum}`, and callers reach `term.ops` / `term.ne` on the key directly. This keeps the storage shape (`(ops, ne) => coeff`, not `ops => (coeff, ne)`) honest at every callsite.
+**The schema is visible at the type level.** `QTermDict` is a plain `Dict{QTerm, CNum}` alias — there is no wrapper struct. Iterating a `QAdd` yields `Pair{QTerm, CNum}`, and callers reach `term.ops` / `term.ne` on the key directly. This keeps the storage shape (`(ops, ne) => coeff`, not `ops => (coeff, ne)`) honest at every callsite.
 
 **`_addto!` helper.** The core insertion function that handles like-term collection and zero elimination:
 
 ```julia
 function _addto!(d::QTermDict, ops::Vector{QSym}, val::CNum, ne = _EMPTY_NE)
-    key = QTermKey(copy(ops), canonical_ne(ne))
+    key = QTerm(copy(ops), canonical_ne(ne))
     existing = get(d, key, nothing)
     if existing === nothing
         _iszero_cnum(val) || (d[key] = val)
@@ -114,7 +115,7 @@ end
 
 Zero terms are never stored. This keeps the dictionary clean without needing explicit cleanup passes.
 
-**Summation metadata.** `indices` remains the sum-level metadata on `QAdd`: a `QAdd` with `indices = [i]` represents ``\sum_i (\text{terms})``. Pairwise inequality constraints like `(i, j)` meaning ``i \neq j`` live on the individual `QTermKey`s, not on `QAdd` globally. This is why display and round-trip logic can represent mixed-scope sums truthfully.
+**Summation metadata.** `indices` remains the sum-level metadata on `QAdd`: a `QAdd` with `indices = [i]` represents ``\sum_i (\text{terms})``. Pairwise inequality constraints like `(i, j)` meaning ``i \neq j`` live on the individual `QTerm`s, not on `QAdd` globally. This is why display and round-trip logic can represent mixed-scope sums truthfully.
 
 
 ## Operator sorting

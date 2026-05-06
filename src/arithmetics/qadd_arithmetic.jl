@@ -101,7 +101,7 @@ function _distinct_op_indices(ops::Vector{QSym})
 end
 
 """
-    _emit_diagonal!(d, diag_terms, off_diag_terms, α, β) -> Vector{QTermKey}
+    _emit_diagonal!(d, diag_terms, off_diag_terms, α, β) -> Vector{QTerm}
 
 Add the diagonal contribution `diag_terms` (from `α = β`) into `d` using the
 shared `ne` of the off-diagonal entries, then re-key those off-diagonal entries
@@ -111,14 +111,14 @@ maintained by [`_accumulate_with_diag!`](@ref).
 """
 function _emit_diagonal!(
         d::QTermDict, diag_terms::Vector{OrderedTerm},
-        off_diag_terms::Vector{QTermKey}, α::Index, β::Index
+        off_diag_terms::Vector{QTerm}, α::Index, β::Index
     )
     isempty(off_diag_terms) && return off_diag_terms
     current_ne = first(off_diag_terms).ne
     _apply_diag_terms!(d, diag_terms, current_ne)
 
     new_ne = _merge_ne_pair(current_ne, α, β)
-    moved = QTermKey[]
+    moved = QTerm[]
     for old_term in off_diag_terms
         c = get(d, old_term, nothing)
         c === nothing && continue
@@ -154,7 +154,7 @@ function _accumulate_with_diag!(
         return nothing
     end
 
-    off_diag_terms = QTermKey[]
+    off_diag_terms = QTerm[]
     for t in sorted_terms
         term = _term_key(t.ops, inherited_ne)
         _addto_key!(d, term, t.prefactor)

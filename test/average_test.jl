@@ -356,8 +356,8 @@ import SecondQuantizedAlgebra: simplify, QAdd, QSym, QField, CNum, _to_cnum, _si
         σi = IndexedOperator(Transition(h, :σ, 1, 2, 2), i)
         σj = IndexedOperator(Transition(h, :σ, 2, 1, 2), j)
 
-        # get_indices on QAdd of indexed operators
-        @test isequal(get_indices(σi + σj), [i, j])
+        # get_indices on QAdd of indexed operators (dict iteration order undefined)
+        @test Set(get_indices(σi + σj)) == Set([i, j])
 
         inds = get_indices(average(σi) + 3 + average(σj))
         @test i in inds

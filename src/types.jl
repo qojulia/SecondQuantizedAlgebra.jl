@@ -5,7 +5,7 @@ Abstract supertype for all second-quantized operator expressions.
 
 Subtypes:
 - [`QSym`](@ref): leaf operators (e.g. [`Destroy`](@ref), [`Create`](@ref), [`Transition`](@ref))
-- [`QTerm`](@ref): compound expressions (e.g. [`QAdd`](@ref))
+- [`QAdd`](@ref): compound expressions (a sum of [`QTerm`](@ref) products)
 
 Supports arithmetic (`+`, `-`, `*`, `^`, `/`), `adjoint`, and comparison via `==`/`isequal`.
 All arithmetic eagerly applies the global [`OrderingConvention`](@ref) and returns [`QAdd`](@ref).
@@ -26,15 +26,6 @@ Concrete subtypes: [`Destroy`](@ref), [`Create`](@ref), [`Transition`](@ref),
 [`Pauli`](@ref), [`Spin`](@ref), [`Position`](@ref), [`Momentum`](@ref).
 """
 abstract type QSym <: QField end
-
-"""
-    QTerm <: QField
-
-Abstract type for compound noncommutative expressions built from [`QSym`](@ref) operators.
-
-The only concrete subtype is [`QAdd`](@ref), a dict-based sum of ordered operator products.
-"""
-abstract type QTerm <: QField end
 
 """
     OrderingConvention
