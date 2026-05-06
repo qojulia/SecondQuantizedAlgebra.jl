@@ -45,9 +45,9 @@ function _substitute_term(
             if v isa QSym
                 push!(new_ops, v)
             elseif v isa QAdd && length(v.arguments) == 1
-                (vops, vc) = only(v.arguments)
+                (vterm, vc) = only(v.arguments)
                 extra_c *= vc
-                append!(new_ops, vops)
+                append!(new_ops, vterm.ops)
             else
                 extra_c *= _to_cnum(v)
             end
@@ -76,10 +76,10 @@ end
 function SymbolicUtils.substitute(s::QAdd, d::Dict)
     sym_dict, op_dict = _split_sub_dict(d)
     new_d = QTermDict()
-    for (ops, c) in s.arguments
-        new_c, new_ops = _substitute_term(c, ops, sym_dict, op_dict)
+    for (term, c) in s.arguments
+        new_c, new_ops = _substitute_term(c, term.ops, sym_dict, op_dict)
         _iszero_cnum(new_c) && continue
-        _addto!(new_d, new_ops, new_c)
+        _addto!(new_d, new_ops, new_c, term.ne)
     end
-    return QAdd(new_d, s.indices, s.non_equal)
+    return QAdd(new_d, copy(s.indices))
 end

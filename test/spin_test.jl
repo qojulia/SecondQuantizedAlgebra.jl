@@ -1,5 +1,5 @@
 using SecondQuantizedAlgebra
-import SecondQuantizedAlgebra: simplify, QAdd, QSym, HilbertSpace, QTermDict, _to_cnum, Index
+import SecondQuantizedAlgebra: simplify, QAdd, QSym, HilbertSpace, _single_qadd, _to_cnum, Index
 using Test
 
 @testset "spin" begin
@@ -46,10 +46,10 @@ using Test
         @test isequal(simplify(normal_order(s(1) * s(2))), simplify(1im * s(3)))
         @test !isequal(simplify(normal_order(s(1) * s(2))), simplify(1im * s(2)))
         @test isequal(simplify(normal_order(s(1) * s(3))), simplify(-1im * s(2)))
-        @test isequal(simplify(normal_order(s(3) * s(3))), QAdd(QTermDict(QSym[] => _to_cnum(1)), Index[], Tuple{Index, Index}[]))
+        @test isequal(simplify(normal_order(s(3) * s(3))), _single_qadd(_to_cnum(1), QSym[]))
         @test isequal(simplify(normal_order(s(3) * s(1))), simplify(1im * s(2)))
         @test isequal(
-            simplify(normal_order(s(1) * s(2) * s(3))), QAdd(QTermDict(QSym[] => _to_cnum(1im)), Index[], Tuple{Index, Index}[])
+            simplify(normal_order(s(1) * s(2) * s(3))), _single_qadd(_to_cnum(1im), QSym[])
         )
 
         # adjoint (Hermitian)

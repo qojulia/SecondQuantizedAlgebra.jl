@@ -113,44 +113,64 @@ function _latex_term(c::CNum, ops::Vector{QSym})
     return Expr(:latexifymerge, parts...)
 end
 
+function _latex_sum_prefix(indices::Vector{Index}, ne_pairs::Vector{NonEqualPair})
+    idx_parts = String[]
+    for idx in indices
+        r = Symbolics.value(SymbolicUtils.unwrap(idx.range))
+        push!(idx_parts, "\\underset{$(idx.name)}{\\overset{$r}{\\sum}}")
+    end
+    if !isempty(ne_pairs)
+        ne_str = join(["$(a.name){\\neq}$(b.name)" for (a, b) in ne_pairs], ",")
+        idx_parts[end] = replace(idx_parts[end], "$(indices[end].name)" => "$(indices[end].name){\\neq}$(ne_str)")
+    end
+    return join(idx_parts, " ")
+end
+
+function _latex_sum_group(indices::Vector{Index}, ne_pairs::Vector{NonEqualPair}, terms::Vector{QAdd})
+    prefix = _latex_sum_prefix(indices, ne_pairs)
+    term_exprs = map(terms) do t
+        ops, c, _ = _term_signature(t)
+        _latex_term(c, ops)
+    end
+    if length(term_exprs) == 1
+        return Expr(:latexifymerge, prefix, term_exprs[1])
+    end
+    return Expr(:latexifymerge, prefix, Expr(:call, :+, term_exprs...))
+end
+
 @latexrecipe function f(x::QAdd)
     st = sorted_arguments(x)
     if !isempty(x.indices)
-        idx_parts = []
-        for idx in x.indices
-            r = Symbolics.value(SymbolicUtils.unwrap(idx.range))
-            push!(idx_parts, "\\underset{$(idx.name)}{\\overset{$r}{\\sum}}")
-        end
-        if !isempty(x.non_equal)
-            ne_str = join(["$(a.name){\\neq}$(b.name)" for (a, b) in x.non_equal], ",")
-            idx_parts[end] = replace(idx_parts[end], "$(x.indices[end].name)" => "$(x.indices[end].name){\\neq}$(ne_str)")
-        end
-        prefix = join(idx_parts, " ")
         # Split terms into index-dependent and index-independent
-        dep_terms = []
+        dep_qadds = QAdd[]
         indep_terms = []
         for t in st
-            ops = first(keys(t.arguments))
-            c = first(values(t.arguments))
+            ops, c, _ = _term_signature(t)
             term_expr = _latex_term(c, ops)
             if any(idx -> _depends_on_index_term(c, ops, idx), x.indices)
-                push!(dep_terms, term_expr)
+                push!(dep_qadds, t)
             else
                 push!(indep_terms, term_expr)
             end
         end
-        sum_expr = if length(dep_terms) == 1
-            Expr(:latexifymerge, prefix, dep_terms[1])
+        group_exprs = if isempty(dep_qadds)
+            Any[]
         else
-            Expr(:latexifymerge, prefix, Expr(:call, :+, dep_terms...))
+            Any[_latex_sum_group(x.indices, ne_pairs, terms) for (ne_pairs, terms) in _group_dep_terms(dep_qadds)]
         end
-        if isempty(indep_terms)
-            return sum_expr
-        else
-            return Expr(:call, :+, indep_terms..., sum_expr)
+        terms_out = Any[indep_terms...]
+        append!(terms_out, group_exprs)
+        if isempty(terms_out)
+            return 0
+        elseif length(terms_out) == 1
+            return only(terms_out)
         end
+        return Expr(:call, :+, terms_out...)
     end
-    terms = [_latex_term(first(values(t.arguments)), first(keys(t.arguments))) for t in st]
+    terms = map(st) do t
+        ops, c, _ = _term_signature(t)
+        _latex_term(c, ops)
+    end
     return Expr(:call, :+, terms...)
 end
 

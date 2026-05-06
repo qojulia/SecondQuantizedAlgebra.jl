@@ -107,7 +107,7 @@ import SecondQuantizedAlgebra: QAdd, QSym, QField, _conj, _inconj, _adjoint,
         # Two FockSpaces → duplicate types → auto-named a, b
         h = FockSpace(:f1) ⊗ FockSpace(:f2)
         ops = find_operators(h, 1)
-        names = [op isa QAdd ? first(keys(op.arguments))[1].name : op.name for op in ops]
+        names = [op isa QAdd ? first(keys(op.arguments)).ops[1].name : op.name for op in ops]
         @test :a in names
         @test :b in names
     end

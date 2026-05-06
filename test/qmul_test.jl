@@ -27,7 +27,7 @@ using Test
         m = a1 * a2
         @test m isa QAdd
         @test length(m) == 1
-        ops = first(keys(m.arguments))
+        ops = first(keys(m.arguments)).ops
         @test ops[1].space_index <= ops[2].space_index
     end
 
@@ -40,7 +40,7 @@ using Test
     @testset "Power" begin
         m = a^3
         @test m isa QAdd
-        @test length(first(keys(m.arguments))) == 3
+        @test length(first(keys(m.arguments)).ops) == 3
 
         @test length(a^0) == 1  # scalar 1
         @test (a^0)[QSym[]] == _CNUM_ONE

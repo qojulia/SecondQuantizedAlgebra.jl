@@ -1,6 +1,6 @@
 using SecondQuantizedAlgebra
 using Test
-import SecondQuantizedAlgebra: simplify, QAdd, QSym, QTermDict, _to_cnum, Index, sorted_arguments
+import SecondQuantizedAlgebra: simplify, QAdd, QSym, _single_qadd, _to_cnum, Index, sorted_arguments
 
 @testset "commutator" begin
     h = FockSpace(:c)
@@ -187,7 +187,7 @@ import SecondQuantizedAlgebra: simplify, QAdd, QSym, QTermDict, _to_cnum, Index,
         @test iszero(anticommutator(σx, σz))
         @test iszero(anticommutator(σy, σz))
         # σx² = I, so {σx, σx} = 2
-        @test isequal(simplify(anticommutator(σx, σx)), QAdd(QTermDict(QSym[] => _to_cnum(2)), Index[], Tuple{Index, Index}[]))
+        @test isequal(simplify(anticommutator(σx, σx)), _single_qadd(_to_cnum(2), QSym[]))
 
         # Different sites: {A, B} = 2 A B
         h2 = FockSpace(:c1) ⊗ FockSpace(:c2)

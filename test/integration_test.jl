@@ -3,7 +3,7 @@ using SymbolicUtils: SymbolicUtils
 using Symbolics: Symbolics, @variables
 using QuantumOpticsBase
 using Test
-import SecondQuantizedAlgebra: simplify, QAdd, QSym, QTermDict, _to_cnum, Index, sorted_arguments
+import SecondQuantizedAlgebra: simplify, QAdd, QSym, _single_qadd, _to_cnum, Index, sorted_arguments
 
 @testset "integration" begin
     @testset "Basic operator creation and algebra" begin
@@ -60,7 +60,7 @@ import SecondQuantizedAlgebra: simplify, QAdd, QSym, QTermDict, _to_cnum, Index,
         @test numeric_average(expr, ψ) ≈ α + abs2(α)
 
         # to_numeric with scalar QAdd (empty operators)
-        @test to_numeric(QAdd(QTermDict(QSym[] => _to_cnum(3)), Index[], Tuple{Index, Index}[]), b) == 3 * one(b)
+        @test to_numeric(_single_qadd(_to_cnum(3), QSym[]), b) == 3 * one(b)
     end
 
     @testset "Multi-space" begin
@@ -140,7 +140,7 @@ import SecondQuantizedAlgebra: simplify, QAdd, QSym, QTermDict, _to_cnum, Index,
         h = FockSpace(:c)
         @qnumbers a::Destroy(h)
 
-        @test QAdd(QTermDict(QSym[a] => _to_cnum(1)), Index[], Tuple{Index, Index}[]) == QAdd(QTermDict(QSym[a] => _to_cnum(1)), Index[], Tuple{Index, Index}[])
+        @test _single_qadd(_to_cnum(1), QSym[a]) == _single_qadd(_to_cnum(1), QSym[a])
         @test (a + a') == (a + a')
     end
 
@@ -192,17 +192,15 @@ import SecondQuantizedAlgebra: simplify, QAdd, QSym, QTermDict, _to_cnum, Index,
         @test result isa QAdd
     end
 
-    @testset "Superradiant laser commutators (PR #99 review)" begin
-        # Regression test: diagonal split during *(QAdd, QAdd) must substitute
-        # sum_idx → ext_idx BEFORE site-sort so same-site composition rules
-        # (transition: σ_αβ · σ_βγ = σ_αγ) fire on the correct physical order.
-        # See https://qojulia.github.io/QuantumCumulants.jl/stable/examples/superradiant_laser_indexed/
-        # Eqs. (6) and (7).
+    @testset "Superradiant laser commutators" begin
+        # Diagonal split during *(QAdd, QAdd) substitutes sum_idx → ext_idx
+        # BEFORE site-sort so same-site composition (σ_αβ · σ_βγ = σ_αγ) fires
+        # on the correct physical order. Reference equations (6)–(7):
+        # https://qojulia.github.io/QuantumCumulants.jl/stable/examples/superradiant_laser_indexed/
         #
-        # Under NormalOrder (the default), the canonical basis omits the ground-state
-        # projector: σⱼ¹¹ never appears in dict keys because it is eagerly expanded
-        # via completeness σⱼ¹¹ = 1 - σⱼ²². Assertions below check the post-expansion
-        # form. To inspect the un-expanded shape (σⱼ²² - σⱼ¹¹), use LazyOrder.
+        # Under NormalOrder, σⱼ¹¹ never appears in dict keys — it is eagerly
+        # expanded via completeness σⱼ¹¹ = 1 - σⱼ²². Assertions check the
+        # post-expansion form; LazyOrder shows the un-expanded shape.
         hc = FockSpace(:cavity)
         ha = NLevelSpace(:atom, 2)
         h = hc ⊗ ha
@@ -225,32 +223,30 @@ import SecondQuantizedAlgebra: simplify, QAdd, QSym, QTermDict, _to_cnum, Index,
         #   = -iΔ a'σⱼ¹² + Σᵢ≠ⱼ i g(i) σᵢ²¹σⱼ¹² + i g(j)(2 a'a σⱼ²² - a'a + σⱼ²²)
         op3 = a' * σ(1, 2, j)
         result3 = 1im * commutator(H, op3)
-        # Verify each expected dict entry is present with correct prefactor.
-        d3 = result3.arguments
         # -iΔ * a' * σⱼ¹²
-        @test any(d3) do (ops, c)
-            ops == [a', σ(1, 2, j)] && isequal(c, _to_cnum(-1im * Δ))
+        @test any(result3) do (term, c)
+            term.ops == [a', σ(1, 2, j)] && isequal(c, _to_cnum(-1im * Δ))
         end
         # i * g(j) * σⱼ²²
-        @test any(d3) do (ops, c)
-            ops == [σ(2, 2, j)] && isequal(c, _to_cnum(1im * g(j)))
+        @test any(result3) do (term, c)
+            term.ops == [σ(2, 2, j)] && isequal(c, _to_cnum(1im * g(j)))
         end
         # 2i * g(j) * a'a * σⱼ²²  (was im * g(j) before completeness folded in σⱼ¹¹)
-        @test any(d3) do (ops, c)
-            ops == [a', a, σ(2, 2, j)] && isequal(c, _to_cnum(2im * g(j)))
+        @test any(result3) do (term, c)
+            term.ops == [a', a, σ(2, 2, j)] && isequal(c, _to_cnum(2im * g(j)))
         end
         # -i * g(j) * a'a  (identity contribution from σⱼ¹¹ = 1 - σⱼ²²)
-        @test any(d3) do (ops, c)
-            ops == [a', a] && isequal(c, _to_cnum(-1im * g(j)))
+        @test any(result3) do (term, c)
+            term.ops == [a', a] && isequal(c, _to_cnum(-1im * g(j)))
         end
         # Σᵢ≠ⱼ i * g(i) * σᵢ²¹σⱼ¹²
-        @test any(d3) do (ops, c)
-            ops == [σ(2, 1, i), σ(1, 2, j)] && isequal(c, _to_cnum(1im * g(i)))
+        @test any(result3) do (term, c)
+            term.ops == [σ(2, 1, i), σ(1, 2, j)] && isequal(c, _to_cnum(1im * g(i)))
         end
-        @test any(p -> p == (i, j) || p == (j, i), result3.non_equal)
+        @test any(p -> p == (i, j) || p == (j, i), constraint_pairs(result3))
         # σⱼ¹¹ should NOT appear under NormalOrder canonical form
-        @test !any(d3) do (ops, c)
-            any(op -> op isa Transition && op.i == 1 && op.j == 1, ops)
+        @test !any(result3) do (term, c)
+            any(op -> op isa Transition && op.i == 1 && op.j == 1, term.ops)
         end
 
         # Eq. (7): i [H, σⱼ¹²σₖ²¹] = i g(j) a (σⱼ²² - σⱼ¹¹) σₖ²¹
@@ -259,26 +255,86 @@ import SecondQuantizedAlgebra: simplify, QAdd, QSym, QTermDict, _to_cnum, Index,
         #   = i g(j) a (2σⱼ²² σₖ²¹ - σₖ²¹) + i g(k) a' (σⱼ¹² - 2 σⱼ¹² σₖ²²)
         op4 = σ(1, 2, j) * σ(2, 1, k)
         result4 = 1im * commutator(H, op4)
-        d4 = result4.arguments
         # 2i * g(j) * a * σⱼ²² * σₖ²¹
-        @test any(d4) do (ops, c)
-            ops == [a, σ(2, 2, j), σ(2, 1, k)] && isequal(c, _to_cnum(2im * g(j)))
+        @test any(result4) do (term, c)
+            term.ops == [a, σ(2, 2, j), σ(2, 1, k)] && isequal(c, _to_cnum(2im * g(j)))
         end
         # -i * g(j) * a * σₖ²¹  (identity from σⱼ¹¹ expansion)
-        @test any(d4) do (ops, c)
-            ops == [a, σ(2, 1, k)] && isequal(c, _to_cnum(-1im * g(j)))
+        @test any(result4) do (term, c)
+            term.ops == [a, σ(2, 1, k)] && isequal(c, _to_cnum(-1im * g(j)))
         end
         # i * g(k) * a' * σⱼ¹²  (identity from σₖ¹¹ expansion)
-        @test any(d4) do (ops, c)
-            ops == [a', σ(1, 2, j)] && isequal(c, _to_cnum(1im * g(k)))
+        @test any(result4) do (term, c)
+            term.ops == [a', σ(1, 2, j)] && isequal(c, _to_cnum(1im * g(k)))
         end
         # -2i * g(k) * a' * σⱼ¹² * σₖ²²
-        @test any(d4) do (ops, c)
-            ops == [a', σ(1, 2, j), σ(2, 2, k)] && isequal(c, _to_cnum(-2im * g(k)))
+        @test any(result4) do (term, c)
+            term.ops == [a', σ(1, 2, j), σ(2, 2, k)] && isequal(c, _to_cnum(-2im * g(k)))
         end
         # σ_·_11 should NOT appear under NormalOrder canonical form
-        @test !any(d4) do (ops, c)
-            any(op -> op isa Transition && op.i == 1 && op.j == 1, ops)
+        @test !any(result4) do (term, c)
+            any(op -> op isa Transition && op.i == 1 && op.j == 1, term.ops)
+        end
+    end
+
+    @testset "Decay-channel triple product" begin
+        # 2 * Σᵢ σ²¹_i · σ²²_j · σ¹²_i must be Σᵢ≠ⱼ 2 σ²²_i σ²²_j.
+        # When an index pair's substitution into the unsorted form disagrees
+        # with substituting into the sorted form, `_accumulate_with_diag!`
+        # records the constraint (i ≠ j) and emits the correct diagonal.
+        hc = FockSpace(:cavity)
+        ha = NLevelSpace(:atom, 2)
+        h = hc ⊗ ha
+        σ(α, β, idx) = IndexedOperator(Transition(h, :σ, α, β, 2), idx)
+
+        @variables N
+        i = Index(h, :i, N, ha)
+        j = Index(h, :j, N, ha)
+
+        op = σ(2, 2, j)
+        result = 2 * Σ(σ(2, 1, i) * op * σ(1, 2, i), i)
+
+        # Exactly one term, exactly the off-diagonal under i ≠ j
+        @test length(result) == 1
+        @test haskey(result, [σ(2, 2, i), σ(2, 2, j)])
+        @test isequal(result[[σ(2, 2, i), σ(2, 2, j)]], _to_cnum(2))
+        @test any(p -> p == (i, j) || p == (j, i), constraint_pairs(result))
+        # No spurious σ_j₂₂-only term ("at i=j") — the physical i=j contribution
+        # from σ²¹_j · σ²²_j · σ¹²_j is zero (σ²¹·σ²² = 0).
+        @test !haskey(result, [σ(2, 2, j)])
+    end
+
+    @testset "Commutator with double-sum Hamiltonian" begin
+        # commutator with H = … + Σⱼ Σᵢ Ω(i,j) σ²¹_i σ¹²_j must retain the
+        # Ω(k,j) double-sum contributions (i = k, j ≠ k partial collapse).
+        # https://qojulia.github.io/QuantumCumulants.jl/stable/examples/cavity_antiresonance_indexed/
+        hc = FockSpace(:cavity)
+        ha = NLevelSpace(Symbol(:atom), 2)
+        h = hc ⊗ ha
+
+        @variables N Δc η Δa κ
+        Ω(idx1, idx2) = DoubleIndexedVariable(:Ω, idx1, idx2; identical = false)
+
+        i = Index(h, :i, N, ha)
+        j = Index(h, :j, N, ha)
+        k = Index(h, :k, N, ha)
+
+        @qnumbers a::Destroy(h, 1)
+        σ(x, y, idx) = IndexedOperator(Transition(h, :σ, x, y, 2), idx)
+
+        Ha = Δa * Σ(σ(2, 2, i), i) + Σ(Ω(i, j) * σ(2, 1, i) * σ(1, 2, j), j, i)
+        H = Δc * a' * a + η * (a' + a) + Ha
+
+        # [H, σ¹²_k]: must include σ¹²_j-bearing terms (Ω(k, j) contributions)
+        result = 1im * commutator(H, σ(1, 2, k))
+        @test any(result) do (term, c)
+            any(op -> op isa Transition && op.i == 1 && op.j == 2 && op.index == j, term.ops)
+        end
+
+        # [H, σ²²_k]: must also include j-indexed σ-bearing contributions
+        result3 = 1im * commutator(H, σ(2, 2, k))
+        @test any(result3) do (term, c)
+            any(op -> op isa Transition && op.index == j, term.ops)
         end
     end
 end

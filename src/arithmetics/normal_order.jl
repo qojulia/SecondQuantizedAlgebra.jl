@@ -28,18 +28,18 @@ atomic — useful for inspecting the un-expanded form.
 See also [`simplify`](@ref), [`normal_to_symmetric`](@ref), [`symmetric_to_normal`](@ref).
 """
 function normal_order(op::QSym)
-    return QAdd(QTermDict(QSym[op] => _CNUM_ONE), Index[], Tuple{Index, Index}[])
+    return _single_qadd(_CNUM_ONE, QSym[op])
 end
 
 function normal_order(s::QAdd)
     d = QTermDict()
-    for (ops, c) in s.arguments
+    for (term, c) in s.arguments
         _iszero_cnum(c) && continue
-        for (oc, oops) in _apply_ordering(c, ops, NormalOrder())
-            _addto!(d, oops, oc)
+        for (oc, oops) in _apply_ordering(c, term.ops, NormalOrder())
+            _addto!(d, oops, oc, term.ne)
         end
     end
-    return QAdd(d, s.indices, s.non_equal)
+    return QAdd(d, copy(s.indices))
 end
 
 function normal_order(op::QSym, h::HilbertSpace)
@@ -75,7 +75,7 @@ function normal_to_symmetric(s::QAdd)
     return _convert_ordering(s, -1 // 2)
 end
 function normal_to_symmetric(op::QSym)
-    return normal_to_symmetric(QAdd(QTermDict(QSym[op] => _CNUM_ONE), Index[], Tuple{Index, Index}[]))
+    return normal_to_symmetric(_single_qadd(_CNUM_ONE, QSym[op]))
 end
 
 """
@@ -94,7 +94,7 @@ function symmetric_to_normal(s::QAdd)
     return _convert_ordering(s, 1 // 2)
 end
 function symmetric_to_normal(op::QSym)
-    return symmetric_to_normal(QAdd(QTermDict(QSym[op] => _CNUM_ONE), Index[], Tuple{Index, Index}[]))
+    return symmetric_to_normal(_single_qadd(_CNUM_ONE, QSym[op]))
 end
 
 """
@@ -109,27 +109,33 @@ per site, and applies: `Σ_k C(m,k) C(n,k) k! α^k · (reduced ops)`.
 """
 function _convert_ordering(s::QAdd, α::Rational)
     d = QTermDict()
-    for (ops, c) in s.arguments
+    for (term, c) in s.arguments
         _iszero_cnum(c) && continue
-        _convert_term!(d, c, ops, α)
+        _convert_term!(d, c, term.ops, term.ne, α)
     end
-    return QAdd(d, s.indices, s.non_equal)
+    return QAdd(d, copy(s.indices))
 end
 
-function _convert_term!(d::QTermDict, c::CNum, ops::Vector{QSym}, α::Rational)
-    # Find Fock operator groups by site key (space_index, index, name)
+"""
+    _convert_term!(d, c, ops, ne, α) -> nothing
+
+Apply the per-term Weyl conversion (parameter `α`: `-1//2` for normal→symmetric,
+`+1//2` for symmetric→normal) and write each output to `d` with the source
+term's `ne` attached. Non-Fock operators are left unchanged; Fock sites are
+processed independently and combined as a tensor product of corrections.
+"""
+function _convert_term!(
+        d::QTermDict, c::CNum, ops::Vector{QSym},
+        ne::Vector{NonEqualPair}, α::Rational
+    )
     sites = _fock_site_groups(ops)
 
     if isempty(sites)
-        # No Fock operators — term unchanged
-        _addto!(d, ops, c)
+        _addto!(d, ops, c, ne)
         return
     end
 
-    # For each site, compute the conversion terms and combine via tensor product
-    # Start with the single term [(c, ops)] and process each site
     current = _OTerm[(c, ops)]
-
     for (site_key, m, n) in sites
         next = _OTerm[]
         for (tc, tops) in current
@@ -139,7 +145,7 @@ function _convert_term!(d::QTermDict, c::CNum, ops::Vector{QSym}, α::Rational)
     end
 
     for (tc, tops) in current
-        _addto!(d, tops, tc)
+        _addto!(d, tops, tc, ne)
     end
     return
 end
@@ -226,23 +232,32 @@ function _remove_fock_ops(
     return new_ops
 end
 
-# Ground state rewriting: |g⟩⟨g| = 1 - Σ_{k≠g} |k⟩⟨k|
-#
-# Operators carry `ground_state` and `n_levels` directly, so a single dict walk
-# suffices regardless of the Hilbert-space type. The `h` argument exists only
-# as the LazyOrder opt-in marker on `simplify(expr, h)` / `normal_order(expr, h)`;
-# its contents are not consulted here.
+"""
+    _apply_ground_state(expr, h) -> QAdd
 
+LazyOrder opt-in for the completeness rewrite ``|g\\rangle\\langle g| = 1 - \\sum_{k\\neq g}|k\\rangle\\langle k|``
+on every [`Transition`](@ref) ground-state projector in `expr`. Each `Transition`
+carries its own `ground_state` and `n_levels`, so the algebra never inspects
+`h` — the argument exists purely as the opt-in marker on
+`simplify(expr, h)` / `normal_order(expr, h)`.
+"""
 function _apply_ground_state(expr::QAdd, ::HilbertSpace)
     d = QTermDict()
-    for (ops, c) in expr.arguments
-        for (eops, ec) in _expand_ground_state(c, ops).arguments
-            _addto!(d, eops, ec)
+    for (term, c) in expr.arguments
+        for (e_term, ec) in _expand_ground_state(c, term.ops).arguments
+            _addto!(d, e_term.ops, ec, term.ne)
         end
     end
-    return QAdd(d, expr.indices, expr.non_equal)
+    return QAdd(d, copy(expr.indices))
 end
 
+"""
+    _expand_ground_state(c, ops) -> QAdd
+
+Recursive completeness expansion: rewrite the leftmost ground-state projector
+in `ops` as `1 - Σ_{k≠g} |k⟩⟨k|`, then walk each resulting term to expand any
+remaining projectors. Returns the fully-expanded sum as a single-`ne` `QAdd`.
+"""
 function _expand_ground_state(c::CNum, ops::Vector{QSym})
     for (idx, op) in enumerate(ops)
         if op isa Transition && op.i == op.ground_state && op.j == op.ground_state
@@ -260,13 +275,12 @@ function _expand_ground_state(c::CNum, ops::Vector{QSym})
             # Recurse: expanded terms may still contain ground state projections
             d = QTermDict()
             for (tc, tops) in expanded
-                for (sops, sc) in _expand_ground_state(tc, tops).arguments
-                    _addto!(d, sops, sc)
+                for (s_term, sc) in _expand_ground_state(tc, tops).arguments
+                    _addto!(d, s_term.ops, sc, s_term.ne)
                 end
             end
-            return QAdd(d, Index[], Tuple{Index, Index}[])
+            return QAdd(d, Index[])
         end
     end
-    d = QTermDict(ops => c)
-    return QAdd(d, Index[], Tuple{Index, Index}[])
+    return _single_qadd(c, ops)
 end

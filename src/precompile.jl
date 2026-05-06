@@ -3,11 +3,11 @@ using PrecompileTools: @setup_workload, @compile_workload
 # Targeted precompile directives for internal methods.
 precompile(_ordered_qadd, (CNum, Vector{QSym}))
 precompile(_site_sort!, (Vector{QSym},))
-precompile(_addto!, (QTermDict, Vector{QSym}, CNum))
+precompile(_addto!, (QTermDict, Vector{QSym}, CNum, Vector{NonEqualPair}))
 precompile(_iszero_cnum, (CNum,))
 precompile(_neg_cnum, (CNum,))
 precompile(_merge_unique, (Vector{Index}, Vector{Index}))
-precompile(_merge_unique, (Vector{Tuple{Index, Index}}, Vector{Tuple{Index, Index}}))
+precompile(_merge_ne, (Vector{NonEqualPair}, Vector{NonEqualPair}))
 
 # Minimal workload: a single commutator covers Sort, Dict, Symbolics Num paths,
 # ordering, QAdd subtraction, and _merge_unique.

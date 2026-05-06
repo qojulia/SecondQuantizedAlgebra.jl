@@ -21,8 +21,8 @@ end
 
 # Helper: every dict key in `expr` is free of ground-state projectors
 function _no_gs_projectors(expr::QAdd)
-    for (ops, _) in expr.arguments
-        any(_is_gs_projector, ops) && return false
+    for term in keys(expr.arguments)
+        any(_is_gs_projector, term.ops) && return false
     end
     return true
 end
@@ -134,7 +134,7 @@ end
         # σ¹²·σ²¹ composes to σ¹¹ (NOT ground state when g=2) → stays atomic
         result2 = σ12 * σ21
         @test length(result2) == 1
-        ops, c = only(collect(result2))
+        (term, c) = only(collect(result2)); ops = term.ops
         @test length(ops) == 1
         @test ops[1] == σ11   # σ¹¹ is not the ground state, so it's kept
     end
@@ -154,8 +154,8 @@ end
         @test length(result) == 2
         @test _no_gs_projectors(result)
         # The σ²² entry should preserve index `i`
-        for (ops, _) in result.arguments
-            for op in ops
+        for term in keys(result.arguments)
+            for op in term.ops
                 if op isa Transition
                     @test op.index == i
                     @test op.ground_state == 1
@@ -215,8 +215,8 @@ end
             # In LazyOrder, * just stores [σ12, σ21] without composition
             raw = σ12 * σ21
             @test length(raw) == 1
-            ops, _ = only(collect(raw))
-            @test length(ops) == 2
+            (term, _) = only(collect(raw))
+            @test length(term.ops) == 2
 
             # simplify(expr): fires reductions; σᵍᵍ produced and KEPT atomic
             no_h = simplify(raw)
@@ -321,8 +321,8 @@ end
 
         # σ³² · σ²³ → σ³³ (NOT ground state, g=2) → kept atomic
         r3 = σ(3, 2) * σ(2, 3)
-        ops, _ = only(collect(r3))
-        @test ops == [Transition(h, :σ, 3, 3)]
+        (term, _) = only(collect(r3))
+        @test term.ops == [Transition(h, :σ, 3, 3)]
     end
 
     @testset "Invariant: ProductSpace with multiple NLevelSpaces" begin
@@ -344,9 +344,9 @@ end
 
         # σB¹²·σB²¹ → σB¹¹ (NOT ground state for B) → stays atomic
         rB2 = σB(1, 2) * σB(2, 1)
-        ops, _ = only(collect(rB2))
-        @test length(ops) == 1
-        @test ops[1].i == 1 && ops[1].j == 1
-        @test ops[1].ground_state == 2
+        term, _ = only(collect(rB2))
+        @test length(term.ops) == 1
+        @test term.ops[1].i == 1 && term.ops[1].j == 1
+        @test term.ops[1].ground_state == 2
     end
 end

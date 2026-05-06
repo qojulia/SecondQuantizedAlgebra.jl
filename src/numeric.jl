@@ -90,7 +90,7 @@ end
 
 # QAdd
 function to_numeric(s::QAdd, b::QuantumOpticsBase.Basis; kwargs...)
-    return sum(_term_to_numeric(c, ops, b; kwargs...) for (ops, c) in s.arguments)
+    return sum(_term_to_numeric(c, term.ops, b; kwargs...) for (term, c) in s.arguments)
 end
 
 # Number
@@ -214,7 +214,7 @@ function _term_to_numeric(c::CNum, ops::Vector{QSym}, b::QuantumOpticsBase.Basis
 end
 
 function to_numeric(s::QAdd, b::QuantumOpticsBase.Basis, d::Dict; kwargs...)
-    return sum(_term_to_numeric(c, ops, b, d; kwargs...) for (ops, c) in s.arguments)
+    return sum(_term_to_numeric(c, term.ops, b, d; kwargs...) for (term, c) in s.arguments)
 end
 function to_numeric(x::Number, b::QuantumOpticsBase.Basis, d::Dict; kwargs...)
     return _to_number(x) * _lazy_one(b)

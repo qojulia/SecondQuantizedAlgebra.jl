@@ -155,14 +155,18 @@ function _show_term(io::IO, c::CNum, ops::Vector{QSym})
     return
 end
 
+function _term_signature(t::QAdd)
+    term, c = first(t.arguments)
+    return term.ops, c, term.ne
+end
+
 # Show a list of terms joined by + / -
 function _show_terms(io::IO, st::Vector{QAdd})
     isempty(st) && return write(io, "0")
-    ops1, c1 = first(keys(st[1].arguments)), first(values(st[1].arguments))
+    ops1, c1, _ = _term_signature(st[1])
     _show_term(io, c1, ops1)
     for i in 2:length(st)
-        ops_i = first(keys(st[i].arguments))
-        c_i = first(values(st[i].arguments))
+        ops_i, c_i, _ = _term_signature(st[i])
         if _is_real_negative(c_i)
             write(io, " - ")
             _show_term(io, -c_i, ops_i)
@@ -174,18 +178,64 @@ function _show_terms(io::IO, st::Vector{QAdd})
     return
 end
 
+function _group_dep_terms(dep_qadds)
+    groups = Tuple{Vector{NonEqualPair}, Vector{QAdd}}[]
+    for q in dep_qadds
+        _, _, ne = _term_signature(q)
+        slot = findfirst(g -> isequal(g[1], ne), groups)
+        if slot === nothing
+            push!(groups, (_copy_ne(ne), QAdd[q]))
+        else
+            push!(groups[slot][2], q)
+        end
+    end
+    return groups
+end
+
+function _show_sum_prefix(io::IO, indices::Vector{Index}, ne_pairs::Vector{NonEqualPair})
+    for idx in indices
+        write(io, "Σ(")
+        print(io, idx.name)
+        write(io, "=1:")
+        print(io, idx.range)
+        write(io, ")")
+    end
+    if !isempty(ne_pairs)
+        write(io, "(")
+        for (k, (a, b)) in enumerate(ne_pairs)
+            k > 1 && write(io, ",")
+            print(io, a.name)
+            write(io, "≠")
+            print(io, b.name)
+        end
+        write(io, ")")
+    end
+    return nothing
+end
+
+function _show_sum_group(io::IO, terms::Vector{QAdd}, indices::Vector{Index}, ne_pairs::Vector{NonEqualPair})
+    _show_sum_prefix(io, indices, ne_pairs)
+    write(io, " ")
+    if length(terms) > 1
+        write(io, "(")
+        _show_terms(io, terms)
+        write(io, ")")
+    else
+        _show_terms(io, terms)
+    end
+    return nothing
+end
+
 # QAdd
 function Base.show(io::IO, x::QAdd)
     st = sorted_arguments(x)
     isempty(st) && return write(io, "0")
 
     if !isempty(x.indices)
-        # Split into index-dependent and index-independent terms
         dep = eltype(st)[]
         indep = eltype(st)[]
         for t in st
-            ops = first(keys(t.arguments))
-            c = first(values(t.arguments))
+            ops, c, _ = _term_signature(t)
             if any(idx -> _depends_on_index_term(c, ops, idx), x.indices)
                 push!(dep, t)
             else
@@ -199,32 +249,11 @@ function Base.show(io::IO, x::QAdd)
                 write(io, " + ")
             end
         end
-        # Print summation with dependent terms
         if !isempty(dep)
-            for idx in x.indices
-                write(io, "Σ(")
-                print(io, idx.name)
-                write(io, "=1:")
-                print(io, idx.range)
-                write(io, ")")
-            end
-            if !isempty(x.non_equal)
-                write(io, "(")
-                for (k, (a, b)) in enumerate(x.non_equal)
-                    k > 1 && write(io, ",")
-                    print(io, a.name)
-                    write(io, "≠")
-                    print(io, b.name)
-                end
-                write(io, ")")
-            end
-            write(io, " ")
-            if length(dep) > 1
-                write(io, "(")
-                _show_terms(io, dep)
-                write(io, ")")
-            else
-                _show_terms(io, dep)
+            groups = _group_dep_terms(dep)
+            for (k, (ne_pairs, terms)) in enumerate(groups)
+                k > 1 && write(io, " + ")
+                _show_sum_group(io, terms, x.indices, ne_pairs)
             end
         end
     else

@@ -16,7 +16,7 @@ QField (abstract)
     └── QAdd                      (the only concrete subtype)
 ```
 
-**Why `QAdd` is the only compound type.** Earlier versions of the package had both `QMul` (products) and `QAdd` (sums). This created a two-level expression tree where dispatch needed to handle `QSym`, `QMul`, and `QAdd` at every level, and the return type of `*` was unpredictable (`QSym`, `QMul`, or `QAdd` depending on simplification). The redesign collapses this into a single `QAdd` that maps operator sequences (`Vector{QSym}`) to prefactors (`CNum`). Every multiplication immediately produces a `QAdd`, giving a uniform return type. This type stability is critical for performance — the Julia compiler can infer return types through chains of arithmetic, avoiding dynamic dispatch and heap-allocated boxes at every intermediate step. The dictionary representation also makes like-term collection automatic — adding two expressions with a common operator sequence just sums their prefactors at the same dictionary key, with no explicit simplification pass needed.
+**Why `QAdd` is the only compound type.** Earlier versions of the package had both `QMul` (products) and `QAdd` (sums). This created a two-level expression tree where dispatch needed to handle `QSym`, `QMul`, and `QAdd` at every level, and the return type of `*` was unpredictable (`QSym`, `QMul`, or `QAdd` depending on simplification). The redesign collapses this into a single `QAdd` whose internal dictionary is keyed by the full term identity `(ops, non_equal)` and stores only the prefactor as the value. Every multiplication immediately produces a `QAdd`, giving a uniform return type. This type stability is critical for performance — the Julia compiler can infer return types through chains of arithmetic, avoiding dynamic dispatch and heap-allocated boxes at every intermediate step. The exact-key representation also keeps like-term collection honest: only terms with the same operator string *and* the same scoped constraints are merged.
 
 
 ## Operator struct layout
@@ -80,21 +80,28 @@ When both operands are plain numbers (not symbolic), `_const_val` extracts them 
 ## QAdd internals
 
 ```julia
-const QTermDict = Dict{Vector{QSym}, CNum}
+struct QTermKey
+    ops::Vector{QSym}
+    ne::Vector{Tuple{Index, Index}}
+end
+
+const QTermDict = Dict{QTermKey, CNum}
 
 struct QAdd <: QTerm
     arguments::QTermDict
     indices::Vector{Index}
-    non_equal::Vector{Tuple{Index, Index}}
 end
 ```
 
-**Dictionary keys are `Vector{QSym}`.** Each key is an ordered sequence of operators representing a single product term. The ordering is canonical (determined by `_site_sort!` and the ordering convention), so structurally equal products always have the same key. This makes like-term collection automatic: adding `c₁ · a†a` and `c₂ · a†a` just adds `c₁ + c₂` to the same dictionary entry.
+**Dictionary keys are full constrained terms.** Each `QTermKey` is an ordered operator product plus the pairwise inequality constraints that scope that product. The ordering is canonical (determined by `_site_sort!` and the ordering convention), so structurally equal products always have the same `ops`. Like-term collection happens only when both `ops` and `ne` match exactly. This is the key invariant that makes constrained sums correct: `a_i` and `a_i` under `i ≠ j` are distinct stored terms, not one merged term with unioned metadata.
+
+**The schema is visible at the type level.** `QTermDict` is a plain `Dict{QTermKey, CNum}` alias — there is no wrapper struct. Iterating a `QAdd` yields `Pair{QTermKey, CNum}`, and callers reach `term.ops` / `term.ne` on the key directly. This keeps the storage shape (`(ops, ne) => coeff`, not `ops => (coeff, ne)`) honest at every callsite.
 
 **`_addto!` helper.** The core insertion function that handles like-term collection and zero elimination:
 
 ```julia
-function _addto!(d::QTermDict, key::Vector{QSym}, val::CNum)
+function _addto!(d::QTermDict, ops::Vector{QSym}, val::CNum, ne = _EMPTY_NE)
+    key = QTermKey(copy(ops), canonical_ne(ne))
     existing = get(d, key, nothing)
     if existing === nothing
         _iszero_cnum(val) || (d[key] = val)
@@ -107,7 +114,7 @@ end
 
 Zero terms are never stored. This keeps the dictionary clean without needing explicit cleanup passes.
 
-**Summation metadata.** `indices` and `non_equal` track symbolic sums. A `QAdd` with `indices = [i]` represents ``\sum_i (\text{terms})``. The `non_equal` field stores pairwise inequality constraints like `(i, j)` meaning ``i \neq j``. This metadata replaces the old `SingleSum`, `DoubleSum`, etc. types — there are no dedicated sum types anymore, just annotated `QAdd`s.
+**Summation metadata.** `indices` remains the sum-level metadata on `QAdd`: a `QAdd` with `indices = [i]` represents ``\sum_i (\text{terms})``. Pairwise inequality constraints like `(i, j)` meaning ``i \neq j`` live on the individual `QTermKey`s, not on `QAdd` globally. This is why display and round-trip logic can represent mixed-scope sums truthfully.
 
 
 ## Operator sorting
@@ -177,7 +184,7 @@ When a symbolic sum ``\sum_i f(i)`` is multiplied by an operator with a free ind
 1. For each `(ops_a, ops_b)` term pair, vcat the operands (preserving physical multiplication order).
 2. Site-sort + apply ordering on the unsorted vcat to produce the off-diagonal contribution.
 3. For each summation index `i` the term depends on, find every distinct free index `j` (same space, not already constrained `i ≠ j`) and substitute `i → j` on the **unsorted** vcat — *before* `_site_sort!` would canonicalize same-space ops by index name. This preserves the physical operator order so that same-site composition rules (e.g. ``\sigma_{αβ}\sigma_{βγ} = \sigma_{αγ}``) fire on the correct sequence.
-4. Site-sort and apply ordering on the substituted ops to get the diagonal contribution. Record the constraint `(i, j)` in `non_equal`.
+4. Stable site-sort and apply ordering on the substituted ops to get the diagonal contribution. Record the constraint `(i, j)` on the affected off-diagonal term keys.
 
 Substitution must happen pre-sort: post-sort, the original physical order of same-space ops is lost (sorted alphabetically by index name), and substitution can collapse pairs in the wrong order — e.g. `σⱼ¹²·σᵢ²¹` (with `i ≠ j`) sorts to `σᵢ²¹·σⱼ¹²` and collapses at `i = j` to `σⱼ²²`, but the physically correct collapse is `σⱼ¹¹`.
 
@@ -237,7 +244,7 @@ This means downstream functions (`is_average`, `acts_on`, `get_indices`, `numeri
 
 `BasicSymbolic` values still support arithmetic (`+`, `*`, `^`) via SymbolicUtils, and SymbolicUtils keeps the result as `BasicSymbolic` even for expressions like `x - x = 0` (wrapped as `Const{SymReal}(0)`).
 
-**Summation metadata on averages.** When averaging a `QAdd` with summation indices, the `SumIndices` and `SumNonEqual` metadata are attached to the resulting node via `SymbolicUtils.setmetadata`. The `undo_average` function restores this metadata when recovering operator expressions. This is how symbolic sums survive the `average → manipulate → undo_average` round-trip.
+**Summation metadata on averages.** When averaging an indexed `QAdd`, each averaged term carries its own `SumIndices` and `SumNonEqual` metadata via `SymbolicUtils.setmetadata`. This matches the internal term model: scoped constraints belong to individual terms, not to the whole sum. `undo_average` restores that exact metadata term-by-term, so symbolic sums survive the `average → manipulate → undo_average` round-trip even when the same operator string appears under different constraint scopes.
 
 **`undo_average` always returns `QAdd`.** It accepts both `BasicSymbolic` and `Num` inputs (unwrapping `Num` first). Scalars become single-term `QAdd`s with an empty operator sequence, and lone `QSym`s become single-term `QAdd`s with unit prefactor. This uniform return type makes `undo_average` type-stable despite walking SymbolicUtils expression trees (where `operation(x)` returns `Any`).
 

@@ -14,27 +14,34 @@ using Latexify: Latexify, latexify, @latexrecipe
 using PrecompileTools: @setup_workload, @compile_workload
 
 include("types.jl")
-include("hilbertspace.jl")
-include("index_types.jl")
-include("fock.jl")
-include("nlevel.jl")
-include("pauli.jl")
-include("spin.jl")
-include("phase_space.jl")
-include("cnum.jl")
-include("ordering.jl")
-include("qadd.jl")
-include("index.jl")
-include("interface.jl")
-include("simplify.jl")
-include("commutator.jl")
-include("normal_order.jl")
+include("operators/hilbertspace.jl")
+include("expressions/index_types.jl")
+
+include("operators/fock.jl")
+include("operators/nlevel.jl")
+include("operators/pauli.jl")
+include("operators/spin.jl")
+include("operators/phase_space.jl")
+include("operators/operators.jl")
+
+include("expressions/cnum.jl")
+include("arithmetics/ordering.jl")
+
+include("expressions/qterm.jl")
+include("expressions/qadd.jl")
+include("arithmetics/qadd_arithmetic.jl")
+include("expressions/index.jl")
+
+include("arithmetics/simplify.jl")
+include("arithmetics/substitute.jl")
+include("arithmetics/commutator.jl")
+include("arithmetics/normal_order.jl")
+
 include("average.jl")
-include("operators.jl")
-include("substitute.jl")
 include("numeric.jl")
-include("printing.jl")
-include("latexify_recipes.jl")
+
+include("printing/printing.jl")
+include("printing/latexify_recipes.jl")
 
 """
     @qnumbers ops...
@@ -95,7 +102,7 @@ export FockSpace, ProductSpace,
     acts_on, is_average,
     has_sum_metadata, get_sum_indices, get_sum_non_equal,
     fundamental_operators, find_operators, unique_ops,
-    prefactor, operators,
+    prefactor, operators, constraint_pairs,
     substitute,
     normal_order, normal_to_symmetric, symmetric_to_normal, simplify, expand, commutator, anticommutator,
     to_numeric, numeric_average, expect,

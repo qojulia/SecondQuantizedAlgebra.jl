@@ -143,7 +143,7 @@ import SecondQuantizedAlgebra: simplify, QAdd, QSym, CNum, _to_cnum, NO_INDEX,
         result = commutator(ai, adi)
         @test result isa QAdd
         @test length(result) == 1
-        @test isempty(only(collect(result)).first)
+        @test isempty(only(collect(result)).first.ops)
         @test only(collect(result)).second == 1
     end
 
@@ -203,7 +203,7 @@ import SecondQuantizedAlgebra: simplify, QAdd, QSym, CNum, _to_cnum, NO_INDEX,
         @test s isa QAdd
         @test length(s.indices) == 1
         @test s.indices[1] == i
-        @test isempty(s.non_equal)
+        @test isempty(constraint_pairs(s))
     end
 
     @testset "Sigma with product" begin
@@ -224,8 +224,9 @@ import SecondQuantizedAlgebra: simplify, QAdd, QSym, CNum, _to_cnum, NO_INDEX,
         ai = IndexedOperator(a, i)
 
         s = Σ(ai, i, [j])
-        @test length(s.non_equal) == 1
-        @test s.non_equal[1] == (i, j)
+        pairs = constraint_pairs(s)
+        @test length(pairs) == 1
+        @test pairs[1] == (i, j) || pairs[1] == (j, i)
     end
 
     @testset "Sigma multi-index" begin
@@ -374,8 +375,8 @@ import SecondQuantizedAlgebra: simplify, QAdd, QSym, CNum, _to_cnum, NO_INDEX,
         s = ai + adi  # a_i + a†_i
         sj = change_index(s, i, j)
         @test sj isa QAdd
-        for (ops, _) in sj
-            for op in ops
+        for term in keys(sj.arguments)
+            for op in term.ops
                 @test op.index == j
             end
         end
@@ -391,7 +392,7 @@ import SecondQuantizedAlgebra: simplify, QAdd, QSym, CNum, _to_cnum, NO_INDEX,
         sk = change_index(s, j, k)
         @test sk isa QAdd
         # non_equal should be updated: (i, j) → (i, k)
-        @test any(p -> p == (i, k), sk.non_equal)
+        @test any(p -> p == (i, k), constraint_pairs(sk))
     end
 
     @testset "change_index — Number passthrough" begin
@@ -464,13 +465,13 @@ import SecondQuantizedAlgebra: simplify, QAdd, QSym, CNum, _to_cnum, NO_INDEX,
         # Should have 3 terms: off-diagonal product + diagonal normal-ordered + scalar 1
         @test length(expr) == 3
         # Should have i≠j constraint
-        @test any(p -> p == (i, j) || p == (j, i), expr.non_equal)
+        @test any(p -> p == (i, j) || p == (j, i), constraint_pairs(expr))
         # Diagonal term: a†_j * a_j (eager ordering composed a_j * a†_j → a†_j * a_j + 1)
         aj = IndexedOperator(a, j)
         diag_key = QSym[adj, aj]
-        @test haskey(expr.arguments, diag_key)
+        @test haskey(expr, diag_key)
         # Scalar term from commutator
-        @test haskey(expr.arguments, QSym[])
+        @test haskey(expr, QSym[])
     end
 
     @testset "Σ construction — already non_equal → no split" begin
@@ -533,7 +534,7 @@ import SecondQuantizedAlgebra: simplify, QAdd, QSym, CNum, _to_cnum, NO_INDEX,
         result = sum_expr * adj
         @test result isa QAdd
         @test length(result) == 3
-        @test any(p -> p == (i, j) || p == (j, i), result.non_equal)
+        @test any(p -> p == (i, j) || p == (j, i), constraint_pairs(result))
     end
 
     @testset "Sum * product — diagonal split" begin
@@ -547,7 +548,7 @@ import SecondQuantizedAlgebra: simplify, QAdd, QSym, CNum, _to_cnum, NO_INDEX,
         product = adj * aj
         result = sum_expr * product
         @test result isa QAdd
-        @test any(p -> p == (i, j) || p == (j, i), result.non_equal)
+        @test any(p -> p == (i, j) || p == (j, i), constraint_pairs(result))
     end
 
     @testset "QSym * Sum — diagonal split" begin
@@ -563,7 +564,7 @@ import SecondQuantizedAlgebra: simplify, QAdd, QSym, CNum, _to_cnum, NO_INDEX,
         result = adj * sum_expr
         @test result isa QAdd
         @test length(result) == 2
-        @test any(p -> p == (i, j) || p == (j, i), result.non_equal)
+        @test any(p -> p == (i, j) || p == (j, i), constraint_pairs(result))
     end
 
     @testset "Sum * QSym — different space, no split" begin
@@ -597,10 +598,10 @@ import SecondQuantizedAlgebra: simplify, QAdd, QSym, CNum, _to_cnum, NO_INDEX,
         result = s1 * s2
         @test result isa QAdd
         @test length(result) > 1
-        @test any(p -> p == (i, j) || p == (j, i), result.non_equal)
+        @test any(p -> p == (i, j) || p == (j, i), constraint_pairs(result))
     end
 
-    @testset "Legacy: NLevel diagonal splitting (DoubleSum equivalence)" begin
+    @testset "NLevel diagonal splitting (DoubleSum equivalence)" begin
         ha2 = NLevelSpace(:atom, 2, 1)
         hf2 = FockSpace(:cavity)
         h2 = hf2 ⊗ ha2
@@ -616,10 +617,10 @@ import SecondQuantizedAlgebra: simplify, QAdd, QSym, CNum, _to_cnum, NO_INDEX,
 
         # The diagonal term: σ(2,1,j) * σ(1,2,j) eagerly composes to σ(2,2,j)
         diag_ops = QSym[σ2(2, 2, j2)]
-        @test haskey(double.arguments, diag_ops)
+        @test haskey(double, diag_ops)
     end
 
-    @testset "Legacy: Issue #221 — symbolic N double sum" begin
+    @testset "NLevel symbolic N double sum" begin
         ha2 = NLevelSpace(:atom, 2, 1)
         hf2 = FockSpace(:cavity)
         h2 = hf2 ⊗ ha2
@@ -636,7 +637,7 @@ import SecondQuantizedAlgebra: simplify, QAdd, QSym, CNum, _to_cnum, NO_INDEX,
         )
     end
 
-    @testset "Legacy: Issue #223 — commutators with sums" begin
+    @testset "Commutators with sums" begin
         ha2 = NLevelSpace(:atom, 2, 1)
         hf2 = FockSpace(:cavity)
         h2 = hf2 ⊗ ha2
@@ -655,7 +656,7 @@ import SecondQuantizedAlgebra: simplify, QAdd, QSym, CNum, _to_cnum, NO_INDEX,
         @test isequal(sub_dict(simplify(commutator(H, σ2(1, 2, k2)))), simplify(-20 * σ2(1, 2, k2)))
     end
 
-    @testset "Legacy: Issue #256 — cross-subspace sum * operator" begin
+    @testset "Cross-subspace sum × operator" begin
         @variables N_a::Real M_b::Real
         hA = NLevelSpace(:atomA, (:g, :r))
         hB = NLevelSpace(:atomB, (:g, :r))
@@ -680,7 +681,7 @@ import SecondQuantizedAlgebra: simplify, QAdd, QSym, CNum, _to_cnum, NO_INDEX,
         @test iszero(simplify(commutator(op, doublesum)))
     end
 
-    @testset "Legacy: Nested sum equivalences" begin
+    @testset "Nested sum equivalences" begin
         ha2 = NLevelSpace(:atom, 2, 1)
         hf2 = FockSpace(:cavity)
         h2 = hf2 ⊗ ha2
@@ -707,7 +708,7 @@ import SecondQuantizedAlgebra: simplify, QAdd, QSym, CNum, _to_cnum, NO_INDEX,
         )
     end
 
-    @testset "Legacy: Issue #221 — symbolic N variants" begin
+    @testset "Symbolic N variants" begin
         ha2 = NLevelSpace(:atom, 2, 1)
         hf2 = FockSpace(:cavity)
         h2 = hf2 ⊗ ha2
@@ -730,7 +731,7 @@ import SecondQuantizedAlgebra: simplify, QAdd, QSym, CNum, _to_cnum, NO_INDEX,
         )
     end
 
-    @testset "Legacy: Issue #223 — commutators with symbolic g" begin
+    @testset "Commutators with symbolic g" begin
         ha2 = NLevelSpace(:atom, 2, 1)
         hf2 = FockSpace(:cavity)
         h2 = hf2 ⊗ ha2
@@ -763,7 +764,7 @@ import SecondQuantizedAlgebra: simplify, QAdd, QSym, CNum, _to_cnum, NO_INDEX,
         )
     end
 
-    @testset "Legacy: Multi-mode multi-atom" begin
+    @testset "Multi-mode multi-atom" begin
         ha2 = NLevelSpace(:atom, 2, 1)
         hf2 = FockSpace(:cavity)
         h2 = hf2 ⊗ ha2
@@ -854,6 +855,24 @@ import SecondQuantizedAlgebra: simplify, QAdd, QSym, CNum, _to_cnum, NO_INDEX,
         @test i in s3.indices
     end
 
+    @testset "Same ops with different scoped constraints stay distinct" begin
+        @variables N_scope
+        i = Index(hf, :i, N_scope, hf)
+        j = Index(hf, :j, N_scope, hf)
+        k = Index(hf, :k, N_scope, hf)
+        ai = IndexedOperator(a, i)
+
+        expr = Σ(ai, i) + Σ(ai, i, [j])
+        @test length(expr) == 2
+
+        simplified = simplify(expr)
+        @test length(simplified) == 2
+
+        renamed = change_index(expr, j, k)
+        @test length(renamed) == 2
+        @test any(p -> p == (i, k) || p == (k, i), constraint_pairs(renamed))
+    end
+
     @testset "QAdd * QSym preserves indices" begin
         i = Index(hf, :i, 10, hf)
         ai = IndexedOperator(a, i)
@@ -878,7 +897,7 @@ import SecondQuantizedAlgebra: simplify, QAdd, QSym, CNum, _to_cnum, NO_INDEX,
         @test j in result.indices
         # Same space → eager diagonal split produces off-diagonal + diagonal
         @test length(result) > 1
-        @test any(p -> p == (i, j) || p == (j, i), result.non_equal)
+        @test any(p -> p == (i, j) || p == (j, i), constraint_pairs(result))
     end
 
     @testset "Subtraction preserves indices" begin

@@ -74,3 +74,9 @@ or [`normal_order`](@ref) to apply full normal-ordering commutation rules.
 See also [`NormalOrder`](@ref), [`set_ordering!`](@ref).
 """
 struct LazyOrder <: OrderingConvention end
+
+Base.one(::T) where {T <: QField} = one(T)
+Base.one(::Type{<:QField}) = 1
+Base.isone(::QField) = false
+Base.zero(::T) where {T <: QField} = zero(T)
+Base.zero(::Type{<:QField}) = 0

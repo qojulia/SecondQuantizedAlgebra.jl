@@ -2,7 +2,7 @@ using SecondQuantizedAlgebra
 using SymbolicUtils: SymbolicUtils
 using Symbolics: Symbolics, @variables
 using Test
-import SecondQuantizedAlgebra: simplify, QAdd, QSym, QField, sorted_arguments, QTermDict, _to_cnum
+import SecondQuantizedAlgebra: simplify, QAdd, QSym, QField, sorted_arguments, _single_qadd, _to_cnum
 
 @testset "simplify" begin
     h = FockSpace(:c)
@@ -10,7 +10,7 @@ import SecondQuantizedAlgebra: simplify, QAdd, QSym, QField, sorted_arguments, Q
     ad = a'
 
     @testset "Collect like terms" begin
-        s = QAdd(QTermDict(QSym[ad, a] => _to_cnum(5)), Index[], Tuple{Index, Index}[])
+        s = _single_qadd(_to_cnum(5), QSym[ad, a])
         result = simplify(s)
         @test result isa QAdd
         @test length(result) == 1
@@ -18,7 +18,7 @@ import SecondQuantizedAlgebra: simplify, QAdd, QSym, QField, sorted_arguments, Q
     end
 
     @testset "Remove zero terms" begin
-        s = QAdd(QTermDict(QSym[ad, a] => _to_cnum(3)), Index[], Tuple{Index, Index}[])
+        s = _single_qadd(_to_cnum(3), QSym[ad, a])
         result = simplify(s)
         @test length(result) == 1
         @test prefactor(only(sorted_arguments(result))) == 3
@@ -33,7 +33,7 @@ import SecondQuantizedAlgebra: simplify, QAdd, QSym, QField, sorted_arguments, Q
 
     @testset "Symbolic prefactors" begin
         @variables g h_sym
-        s = QAdd(QTermDict(QSym[ad, a] => _to_cnum(g + h_sym)), Index[], Tuple{Index, Index}[])
+        s = _single_qadd(_to_cnum(g + h_sym), QSym[ad, a])
         result = simplify(s)
         @test length(result) == 1
     end
@@ -88,7 +88,7 @@ import SecondQuantizedAlgebra: simplify, QAdd, QSym, QField, sorted_arguments, Q
 
     @testset "SymbolicUtils.simplify on QField" begin
         @variables g
-        s = QAdd(QTermDict(QSym[ad, a] => _to_cnum(2g)), Index[], Tuple{Index, Index}[])
+        s = _single_qadd(_to_cnum(2g), QSym[ad, a])
         result = SymbolicUtils.simplify(s)
         @test result isa QAdd
     end
@@ -568,7 +568,7 @@ import SecondQuantizedAlgebra: simplify, QAdd, QSym, QField, sorted_arguments, Q
 
     @testset "symmetric_to_normal: basic Fock" begin
         # a†a + 1/2 → a†a + 1
-        weyl = QAdd(QTermDict(QSym[ad, a] => _to_cnum(1), QSym[] => _to_cnum(1 // 2)), Index[], Tuple{Index, Index}[])
+        weyl = _single_qadd(_to_cnum(1), QSym[ad, a]) + _single_qadd(_to_cnum(1 // 2), QSym[])
         no = symmetric_to_normal(weyl)
         @test length(no) == 2
         @test no[QSym[]] == _to_cnum(1)

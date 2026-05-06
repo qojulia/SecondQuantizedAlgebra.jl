@@ -55,18 +55,43 @@ end
 # --- Simplification (ordering-independent) ---
 
 function _qsimplify(op::QSym)
-    return QAdd(QTermDict(QSym[op] => _CNUM_ONE), Index[], Tuple{Index, Index}[])
+    return _single_qadd(_CNUM_ONE, QSym[op])
 end
 
 function _qsimplify(s::QAdd)
     d = QTermDict()
-    for (ops, c) in s.arguments
+    for (term, c) in s.arguments
         _iszero_cnum(c) && continue
-        for (oc, oops) in _apply_reductions(c, ops)
-            _addto!(d, oops, oc)
+        for (oc, oops) in _apply_reductions(c, term.ops)
+            _addto!(d, oops, oc, term.ne)
         end
     end
-    return QAdd(d, s.indices, s.non_equal)
+    # Drop summation indices that no surviving term depends on.
+    indices = _drop_unused_indices(d, s.indices)
+    return QAdd(d, indices)
+end
+
+"""
+    _drop_unused_indices(d, indices) -> Vector{Index}
+
+Filter `indices` to those some term in `d` actually depends on. Algebraic
+reductions can collapse all index-bearing terms (e.g. `σ¹² · σ³¹ = 0`),
+leaving the surrounding `Σ` over a now-vacuous index — this drops it so
+the resulting `QAdd` doesn't claim a phantom summation.
+"""
+function _drop_unused_indices(d::QTermDict, indices::Vector{Index})
+    isempty(indices) && return indices
+    used = Index[]
+    for idx in indices
+        for (term, c) in d
+            if _depends_on_index_term(c, term.ops, idx)
+                push!(used, idx)
+                break
+            end
+        end
+    end
+    length(used) == length(indices) && return indices
+    return used
 end
 
 # With Hilbert space (ground state rewriting)
@@ -119,12 +144,16 @@ e.g. expanding `(a+b)^2` into `a^2 + 2ab + b^2`. Zero terms are dropped after ex
 See also [`simplify`](@ref).
 """
 function Symbolics.expand(s::QAdd; kwargs...)
-    d = QTermDict(ops => _expand_prefactor(c; kwargs...) for (ops, c) in s.arguments)
-    _drop_zeros!(d)
-    return QAdd(d, s.indices, s.non_equal)
+    d = QTermDict()
+    for (term, c) in s.arguments
+        new_c = _expand_prefactor(c; kwargs...)
+        _iszero_cnum(new_c) && continue
+        _addto!(d, term.ops, new_c, term.ne)
+    end
+    return QAdd(d, copy(s.indices))
 end
 function Symbolics.expand(op::QSym; kwargs...)
-    return QAdd(QTermDict(QSym[op] => _CNUM_ONE), Index[], Tuple{Index, Index}[])
+    return _single_qadd(_CNUM_ONE, QSym[op])
 end
 
 _expand_prefactor(x::CNum; kwargs...) = _iszero_cnum(x) ? x : Symbolics.expand(x; kwargs...)

@@ -47,6 +47,7 @@ end
 function Base.hash(a::Index, h::UInt)
     return hash(:Index, hash(a.name, hash(a.space_index, h)))
 end
+Base.isless(a::Index, b::Index) = (a.space_index, a.name) < (b.space_index, b.name)
 
 # Construction from HilbertSpace
 function Index(h::HilbertSpace, name::Symbol, range::Union{Int, Num}, space::HilbertSpace)

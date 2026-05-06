@@ -92,17 +92,36 @@ average(x::Number) = x
 average(x::SymbolicUtils.BasicSymbolic) = x
 average(x::Num) = average(SymbolicUtils.unwrap(x))
 
+function _average_operand(
+        ops::Vector{QSym}, ne::Vector{NonEqualPair}, indices::Vector{Index}
+    )
+    if length(ops) == 1 && isempty(ne) && isempty(indices)
+        return only(ops)
+    end
+    return _single_qadd(_CNUM_ONE, ops, ne)
+end
+
+function _average_with_metadata(
+        inner::QField, shared_indices::Union{Nothing, Vector{Index}},
+        ne::Vector{NonEqualPair}
+    )
+    avg = _average(inner)
+    if shared_indices !== nothing
+        avg = SymbolicUtils.setmetadata(avg, SumIndices, shared_indices)
+        avg = SymbolicUtils.setmetadata(avg, SumNonEqual, _copy_ne(ne))
+    end
+    return avg
+end
+
 function average(op::QAdd)
-    # Use Num arithmetic internally for convenience, unwrap at the end.
     result = Num(0)
-    for (ops, c) in op.arguments
-        if isempty(ops)
+    shared_indices = isempty(op.indices) ? nothing : copy(op.indices)
+    for (term, c) in op.arguments
+        if isempty(term.ops)
             result += c
         else
-            # Wrap the operator product for _average.
-            # For single ops, pass the QSym directly; for multi-op, pass a QAdd.
-            inner = length(ops) == 1 ? only(ops) : _single_qadd(_CNUM_ONE, ops)
-            avg = _average(inner)
+            inner = _average_operand(term.ops, term.ne, op.indices)
+            avg = _average_with_metadata(inner, shared_indices, term.ne)
             r, i = real(c), imag(c)
             if iszero(i)
                 result += r * avg
@@ -113,12 +132,7 @@ function average(op::QAdd)
             end
         end
     end
-    out = SymbolicUtils.unwrap(result)
-    if !isempty(op.indices)
-        out = SymbolicUtils.setmetadata(out, SumIndices, op.indices)
-        out = SymbolicUtils.setmetadata(out, SumNonEqual, op.non_equal)
-    end
-    return out
+    return SymbolicUtils.unwrap(result)
 end
 
 # --- undo_average ---
@@ -137,8 +151,13 @@ end
 function _restore_sum_metadata(result::QAdd, x::SymbolicUtils.BasicSymbolic)
     if SymbolicUtils.hasmetadata(x, SumIndices)
         indices = SymbolicUtils.getmetadata(x, SumIndices)
-        non_equal = SymbolicUtils.getmetadata(x, SumNonEqual)
-        return QAdd(result.arguments, indices, non_equal)
+        stored_ne = SymbolicUtils.hasmetadata(x, SumNonEqual) ?
+            SymbolicUtils.getmetadata(x, SumNonEqual) : _EMPTY_NE
+        new_args = QTermDict()
+        for (term, c) in result.arguments
+            _addto!(new_args, term.ops, c, _merge_ne(term.ne, stored_ne))
+        end
+        return QAdd(new_args, indices)
     end
     return result
 end
@@ -225,7 +244,8 @@ get_sum_indices(x::Num) = get_sum_indices(SymbolicUtils.unwrap(x))
 """
     get_sum_non_equal(x::BasicSymbolic) -> Vector{Tuple{Index,Index}}
 
-Retrieve pairwise index inequality constraints stored as metadata on `x`.
+Retrieve the pairwise index inequality constraints stored on an averaged term.
+An empty vector means no constraints.
 
 Only valid when [`has_sum_metadata(x)`](@ref has_sum_metadata) is `true`.
 
@@ -282,8 +302,8 @@ acts_on(op::QSym) = Int[op.space_index]
 
 function acts_on(op::QAdd)
     aon = Int[]
-    for (ops, _) in op.arguments
-        for x in ops
+    for term in keys(op.arguments)
+        for x in term.ops
             push!(aon, x.space_index)
         end
     end

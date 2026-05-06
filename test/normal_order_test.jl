@@ -60,7 +60,7 @@ end
         result = σ12 * σ23  # eager composition
         @test result isa QAdd
         @test length(result) == 1
-        ops = first(keys(result.arguments))
+        ops = first(keys(result.arguments)).ops
         @test ops[1] isa Transition
         @test ops[1].i == 1 && ops[1].j == 3
     end
@@ -118,7 +118,7 @@ end
         result = σx * σx  # eager: identity
         @test result isa QAdd
         @test length(result) == 1
-        ops, c = only(collect(result))
+        (term, c) = only(collect(result)); ops = term.ops
         @test isempty(ops)
         @test c == 1
     end
@@ -127,7 +127,7 @@ end
         result = σx * σy  # eager: iσz
         @test result isa QAdd
         @test length(result) == 1
-        ops, c = only(collect(result))
+        (term, c) = only(collect(result)); ops = term.ops
         @test c == im
         @test length(ops) == 1
         @test ops[1] isa Pauli
@@ -137,29 +137,29 @@ end
     @testset "σy·σx = -iσz" begin
         result = σy * σx
         @test length(result) == 1
-        ops, c = only(collect(result))
+        (term, c) = only(collect(result)); ops = term.ops
         @test c == -im
         @test ops[1].axis == 3
     end
 
     @testset "Full Pauli cycle" begin
         # σy·σz = iσx
-        ops, c = only(collect(σy * σz))
+        (term, c) = only(collect(σy * σz)); ops = term.ops
         @test c == im
         @test ops[1].axis == 1
 
         # σz·σx = iσy
-        ops, c = only(collect(σz * σx))
+        (term, c) = only(collect(σz * σx)); ops = term.ops
         @test c == im
         @test ops[1].axis == 2
 
         # σz·σy = -iσx
-        ops, c = only(collect(σz * σy))
+        (term, c) = only(collect(σz * σy)); ops = term.ops
         @test c == -im
         @test ops[1].axis == 1
 
         # σx·σz = -iσy
-        ops, c = only(collect(σx * σz))
+        (term, c) = only(collect(σx * σz)); ops = term.ops
         @test c == -im
         @test ops[1].axis == 2
     end

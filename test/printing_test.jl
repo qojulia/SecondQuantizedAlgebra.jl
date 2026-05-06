@@ -1,7 +1,7 @@
 using SecondQuantizedAlgebra
 using Symbolics: @variables
 using Test
-import SecondQuantizedAlgebra: simplify, QAdd, QSym, QTermDict, _to_cnum
+import SecondQuantizedAlgebra: simplify, QAdd, QSym, _single_qadd, _zero_qadd, _to_cnum
 
 @testset "printing" begin
     h = FockSpace(:cavity)
@@ -75,7 +75,7 @@ import SecondQuantizedAlgebra: simplify, QAdd, QSym, QTermDict, _to_cnum
             3 * ad * a,
             -1 * a,
             -3 * a,
-            QAdd(QTermDict(QSym[] => _to_cnum(5)), Index[], Tuple{Index, Index}[]),
+            _single_qadd(_to_cnum(5), QSym[]),
             0.5 * a,
         ]
         output = [
@@ -188,8 +188,20 @@ import SecondQuantizedAlgebra: simplify, QAdd, QSym, QTermDict, _to_cnum
             "Σ(i=1:N) (g(i) * b * σ_i₂₁ + g(i) * b' * σ_i₁₂)"
     end
 
+    @testset "Scoped constraints stay in separate sum groups" begin
+        @variables N
+        h2 = FockSpace(:c) ⊗ NLevelSpace(:atom, 2, 1)
+        @qnumbers b::Destroy(h2, 1)
+        i = Index(h2, :i, N, NLevelSpace(:atom, 2, 1))
+        j = Index(h2, :j, N, NLevelSpace(:atom, 2, 1))
+        bi = IndexedOperator(b, i)
+
+        expr = Σ(bi, i) + Σ(bi, i, [j])
+        @test repr(expr) == "Σ(i=1:N) b_i + Σ(i=1:N)(i≠j) b_i"
+    end
+
     @testset "Edge cases — no crash" begin
-        @test repr(QAdd(QTermDict(), Index[], Tuple{Index, Index}[])) == "0"
+        @test repr(_zero_qadd()) == "0"
     end
 
     @testset "Type inference" begin

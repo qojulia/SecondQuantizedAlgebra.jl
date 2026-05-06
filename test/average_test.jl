@@ -3,7 +3,7 @@ using Test
 using SymbolicUtils: SymbolicUtils, SymReal, symtype
 using Symbolics: Symbolics, @variables
 import SecondQuantizedAlgebra: simplify, QAdd, QSym, QField, CNum, _to_cnum, _single_qadd,
-    QTermDict, AvgSym, AvgFunc, sym_average, SumIndices, SumNonEqual, sorted_arguments
+    AvgSym, AvgFunc, sym_average, SumIndices, SumNonEqual, sorted_arguments
 
 @testset "Average" begin
 
@@ -56,7 +56,7 @@ import SecondQuantizedAlgebra: simplify, QAdd, QSym, QField, CNum, _to_cnum, _si
         @test !is_average(avg_3)  # prefactor pulled out
 
         # Pure scalar QAdd (empty operator key)
-        scalar_add = QAdd(QTermDict(QSym[] => _to_cnum(5)), Index[], Tuple{Index, Index}[])
+        scalar_add = _single_qadd(_to_cnum(5), QSym[])
         avg_scalar = average(scalar_add)
         @test SymbolicUtils.isconst(avg_scalar) && avg_scalar.val == _to_cnum(5)
 
@@ -188,6 +188,22 @@ import SecondQuantizedAlgebra: simplify, QAdd, QSym, QField, CNum, _to_cnum, _si
         @test result.indices == [i]
     end
 
+    @testset "undo_average preserves distinct scoped terms" begin
+        ha = NLevelSpace(:atom, 2, 1)
+        hf = FockSpace(:f)
+        h = hf ⊗ ha
+        @variables N_scope
+        i = Index(h, :i, N_scope, ha)
+        j = Index(h, :j, N_scope, ha)
+        bi = IndexedOperator(Destroy(h, :b, 1), i)
+
+        expr = Σ(bi, i) + Σ(bi, i, [j])
+        roundtrip = undo_average(average(expr))
+
+        @test isequal(roundtrip, expr)
+        @test length(roundtrip) == 2
+    end
+
     @testset "Metadata helpers" begin
         ha = NLevelSpace(:atom, 2, 1)
         hf = FockSpace(:f)
@@ -203,7 +219,7 @@ import SecondQuantizedAlgebra: simplify, QAdd, QSym, QField, CNum, _to_cnum, _si
 
         @test has_sum_metadata(avg_s)
         @test get_sum_indices(avg_s) == [i]
-        @test get_sum_non_equal(avg_s) == Tuple{Index, Index}[]
+        @test isempty(get_sum_non_equal(avg_s))
 
         # Non-indexed expression
         avg_a = average(a)

@@ -122,17 +122,18 @@ end
 
 function change_index(s::QAdd, from::Index, to::Index)
     new_d = QTermDict()
-    for (ops, c) in s.arguments
+    for (term, c) in s.arguments
         new_c = change_index(c, from, to)
-        new_ops = QSym[change_index(op, from, to) for op in ops]
-        _addto!(new_d, new_ops, new_c)
+        new_ops = QSym[change_index(op, from, to) for op in term.ops]
+        new_ne = if isempty(term.ne)
+            _EMPTY_NE
+        else
+            NonEqualPair[(a == from ? to : a, b == from ? to : b) for (a, b) in term.ne]
+        end
+        _addto!(new_d, new_ops, new_c, new_ne)
     end
     new_indices = [idx == from ? to : idx for idx in s.indices]
-    new_ne = Tuple{Index, Index}[
-        (a == from ? to : a, b == from ? to : b)
-            for (a, b) in s.non_equal
-    ]
-    return QAdd(new_d, new_indices, new_ne)
+    return QAdd(new_d, new_indices)
 end
 
 """
@@ -150,8 +151,8 @@ function get_indices(op::QSym)
 end
 function get_indices(s::QAdd)
     inds = copy(s.indices)
-    for (ops, _) in s.arguments
-        for op in ops
+    for term in keys(s.arguments)
+        for op in term.ops
             has_index(op.index) && op.index ∉ inds && push!(inds, op.index)
         end
     end
@@ -182,3 +183,132 @@ function _check_not_identical(result::SymbolicUtils.BasicSymbolic)
     return Num(result)
 end
 _check_not_identical(result::Number) = Num(result)
+
+# ============================================================================
+#  Index dependence queries
+# ============================================================================
+
+function _depends_on_index_term(c::CNum, ops::Vector{QSym}, idx::Index)
+    for op in ops
+        op.index == idx && return true
+    end
+    isym = SymbolicUtils.unwrap(idx.sym)
+    for part in (real(c), imag(c))
+        vars = Symbolics.get_variables(part)
+        any(v -> isequal(v, isym), vars) && return true
+    end
+    return false
+end
+
+function _any_depends_on_index(s::QAdd, idx::Index)
+    for (term, c) in s.arguments
+        _depends_on_index_term(c, term.ops, idx) && return true
+    end
+    return false
+end
+
+# ============================================================================
+#  Σ — symbolic sums
+# ============================================================================
+
+"""
+    _diagonal_split!(off_diag, diag, sum_idx) -> nothing
+
+For every term in `off_diag` that depends on `sum_idx`, locate each free index
+`j` on the same Hilbert subspace (and not already constrained `sum_idx ≠ j`),
+emit the diagonal substitution `sum_idx → j` into `diag`, and re-key the
+off-diagonal entry under the augmented constraint `ne ∪ {(sum_idx, j)}`.
+Mutates both dicts in place; the caller composes them via `+`.
+"""
+function _diagonal_split!(off_diag::QTermDict, diag::QTermDict, sum_idx::Index)
+    seen = Index[]
+    for (term, c) in collect(off_diag)
+        _depends_on_index_term(c, term.ops, sum_idx) || continue
+        empty!(seen)
+        current_term = term
+        current_c = c
+        for op in term.ops
+            idx = op.index
+            has_index(idx) || continue
+            idx ∈ seen && continue
+            push!(seen, idx)
+            idx == sum_idx && continue
+            idx.space_index == sum_idx.space_index || continue
+            _ne_contains(current_term.ne, sum_idx, idx) && continue
+
+            new_ops = QSym[change_index(o, sum_idx, idx) for o in current_term.ops]
+            new_c = change_index(current_c, sum_idx, idx)
+            for (oc, oops) in _apply_ordering(new_c, new_ops, ORDERING[])
+                _addto!(diag, oops, oc, current_term.ne)
+            end
+
+            delete!(off_diag, current_term)
+            current_term = _term_key(current_term.ops, _merge_ne_pair(current_term.ne, sum_idx, idx))
+            _addto_key!(off_diag, current_term, current_c)
+        end
+    end
+    return nothing
+end
+
+"""
+    Σ(expr, i::Index, non_equal::Vector{Index} = Index[])
+    Σ(expr, i::Index, j::Index, rest::Index...)
+    ∑(expr, i::Index, ...)
+
+Build the symbolic sum ``\\sum_{i=1}^{N}`` of `expr` over index `i`.
+
+Returns a [`QAdd`](@ref) carrying `i` in its `indices` field. If `expr` does not
+depend on `i`, the sum is evaluated eagerly as `i.range * expr`.
+
+The optional `non_equal` records pairwise inequality constraints `i ≠ j` per
+term. Diagonal splitting is performed automatically: if `expr` carries another
+free index `j` on the same Hilbert subspace as `i`, the contribution at `i = j`
+is emitted as a separate diagonal term and the off-diagonal term gains the
+constraint `(i, j)`.
+
+Multiple positional indices create nested sums: `Σ(expr, i, j)` is equivalent
+to `Σ(Σ(expr, i), j)`. The Unicode alias `∑` is also exported.
+
+# Arguments
+- `expr` — the operand ([`QAdd`](@ref), [`QSym`](@ref), or `Number`)
+- `i::Index` — the summation index
+- `non_equal` — indices that `i` must not equal (per-term scoped constraints)
+
+See also [`Index`](@ref), [`IndexedOperator`](@ref), [`constraint_pairs`](@ref).
+"""
+function Σ(expr::QAdd, i::Index, non_equal::Vector{Index} = Index[])
+    if !_any_depends_on_index(expr, i)
+        return expr * i.range
+    end
+
+    off_diag = _copy_args(expr.arguments)
+    for j in non_equal
+        for (term, c) in collect(off_diag)
+            _depends_on_index_term(c, term.ops, i) || continue
+            delete!(off_diag, term)
+            _addto!(off_diag, term.ops, c, _merge_ne_pair(term.ne, i, j))
+        end
+    end
+
+    diag = QTermDict()
+    _diagonal_split!(off_diag, diag, i)
+
+    result = QAdd(off_diag, vcat(expr.indices, [i]))
+    isempty(diag) && return result
+    return result + QAdd(diag, Index[])
+end
+
+function Σ(expr::QSym, i::Index, non_equal::Vector{Index} = Index[])
+    return Σ(_single_qadd(_CNUM_ONE, QSym[expr]), i, non_equal)
+end
+
+function Σ(expr::Number, i::Index, non_equal::Vector{Index} = Index[])
+    return Σ(_single_qadd(_to_cnum(expr), QSym[]), i, non_equal)
+end
+
+function Σ(expr::Union{QField, Number}, i::Index, j::Index, rest::Index...)
+    inner = Σ(expr, i)
+    return Σ(inner, j, rest...)
+end
+
+const ∑ = Σ
