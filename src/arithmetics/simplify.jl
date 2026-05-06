@@ -1,7 +1,7 @@
 # --- Algebraic reductions (ordering-independent) ---
 
 """
-    _apply_reductions(arg_c, ops) -> Vector{_OTerm}
+    _apply_reductions(arg_c, ops) -> Vector{OrderedTerm}
 
 Apply ordering-independent algebraic identities to a product of operators
 using a worklist algorithm. Only applies:
@@ -11,15 +11,15 @@ using a worklist algorithm. Only applies:
 Never applies commutation-based reordering (Fock, Spin, PhaseSpace).
 """
 function _apply_reductions(arg_c::CNum, ops::Vector{QSym})
-    isempty(ops) && return _OTerm[(arg_c, ops)]
-    length(ops) == 1 && return _OTerm[(arg_c, ops)]
+    isempty(ops) && return OrderedTerm[OrderedTerm(arg_c, ops)]
+    length(ops) == 1 && return OrderedTerm[OrderedTerm(arg_c, ops)]
 
-    worklist = _OTerm[(arg_c, copy(ops))]
-    done = _OTerm[]
+    worklist = OrderedTerm[OrderedTerm(arg_c, copy(ops))]
+    done = OrderedTerm[]
 
     while !isempty(worklist)
-        c, ops_w = pop!(worklist)
-        _reduce_product!(c, ops_w, worklist, done)
+        t = pop!(worklist)
+        _reduce_product!(t.prefactor, t.ops, worklist, done)
     end
 
     return done
@@ -33,12 +33,12 @@ Pushes resulting terms to `worklist`, or to `done` if fully reduced.
 """
 function _reduce_product!(
         c::CNum, ops::Vector{QSym},
-        worklist::Vector{_OTerm}, done::Vector{_OTerm}
+        worklist::Vector{OrderedTerm}, done::Vector{OrderedTerm}
     )
     n = length(ops)
 
     if n <= 1
-        push!(done, (c, ops))
+        push!(done, OrderedTerm(c, ops))
         return
     end
 
@@ -49,7 +49,7 @@ function _reduce_product!(
         _try_algebraic_reduction!(a, b, i, c, ops, worklist, done, false) && return
     end
 
-    return push!(done, (c, ops))
+    return push!(done, OrderedTerm(c, ops))
 end
 
 # --- Simplification (ordering-independent) ---
@@ -62,8 +62,8 @@ function _qsimplify(s::QAdd)
     d = QTermDict()
     for (term, c) in s.arguments
         _iszero_cnum(c) && continue
-        for (oc, oops) in _apply_reductions(c, term.ops)
-            _addto!(d, oops, oc, term.ne)
+        for t in _apply_reductions(c, term.ops)
+            _addto!(d, t.ops, t.prefactor, term.ne)
         end
     end
     # Drop summation indices that no surviving term depends on.

@@ -24,16 +24,16 @@ end
 Base.:*(a::Number, b::QAdd) = b * a
 
 function _apply_diag_terms!(
-        d::QTermDict, terms::Vector{_OTerm}, ne::Vector{NonEqualPair}
+        d::QTermDict, terms::Vector{OrderedTerm}, ne::Vector{NonEqualPair}
     )
-    for (oc, oops) in terms
-        _addto!(d, oops, oc, ne)
+    for t in terms
+        _addto!(d, t.ops, t.prefactor, ne)
     end
     return d
 end
 
 """
-    _substitute_unsorted(c, ops, α, β) -> Vector{_OTerm}
+    _substitute_unsorted(c, ops, α, β) -> Vector{OrderedTerm}
 
 Substitute `α → β` on the *unsorted* operator sequence `ops` (the original
 physical order before [`_site_sort!`](@ref)) and then site-sort + apply
@@ -51,11 +51,11 @@ function _substitute_unsorted(
     return _apply_ordering(sub_c, sub_ops, get_ordering())
 end
 
-function _substitute_oterms(terms::Vector{_OTerm}, α::Index, β::Index)
-    out = _OTerm[]
-    for (oc, oops) in terms
-        sub_oops = QSym[change_index(o, α, β) for o in oops]
-        sub_oc = change_index(oc, α, β)
+function _substitute_oterms(terms::Vector{OrderedTerm}, α::Index, β::Index)
+    out = OrderedTerm[]
+    for t in terms
+        sub_oops = QSym[change_index(o, α, β) for o in t.ops]
+        sub_oc = change_index(t.prefactor, α, β)
         _site_sort!(sub_oops)
         append!(out, _apply_ordering(sub_oc, sub_oops, get_ordering()))
     end
@@ -65,21 +65,21 @@ end
 """
     _oterms_equivalent(a, b) -> Bool
 
-Multiset equality for `Vector{_OTerm}` (order-insensitive). Used by
+Multiset equality for `Vector{OrderedTerm}` (order-insensitive). Used by
 [`_accumulate_with_diag!`](@ref) to detect when the pre-sort substitution
 ([`_substitute_unsorted`](@ref)) agrees with the implicit post-sort one
 ([`_substitute_oterms`](@ref)) — when they agree, the diagonal contribution is
 already implied and no extra constraint is recorded.
 """
-function _oterms_equivalent(a::Vector{_OTerm}, b::Vector{_OTerm})
+function _oterms_equivalent(a::Vector{OrderedTerm}, b::Vector{OrderedTerm})
     length(a) == length(b) || return false
     matched = falses(length(b))
-    for (ca, opsa) in a
+    for ta in a
         found = false
-        for (k, (cb, opsb)) in enumerate(b)
+        for (k, tb) in enumerate(b)
             matched[k] && continue
-            opsa == opsb || continue
-            isequal(ca, cb) || continue
+            ta.ops == tb.ops || continue
+            isequal(ta.prefactor, tb.prefactor) || continue
             matched[k] = true
             found = true
             break
@@ -110,7 +110,7 @@ entries in `off_diag_terms` are assumed to share the same `ne` — an invariant
 maintained by [`_accumulate_with_diag!`](@ref).
 """
 function _emit_diagonal!(
-        d::QTermDict, diag_terms::Vector{_OTerm},
+        d::QTermDict, diag_terms::Vector{OrderedTerm},
         off_diag_terms::Vector{QTermKey}, α::Index, β::Index
     )
     isempty(off_diag_terms) && return off_diag_terms
@@ -148,16 +148,16 @@ function _accumulate_with_diag!(
 
     distinct = _distinct_op_indices(unsorted_ops)
     if length(distinct) < 2
-        for (oc, oops) in sorted_terms
-            _addto!(d, oops, oc, inherited_ne)
+        for t in sorted_terms
+            _addto!(d, t.ops, t.prefactor, inherited_ne)
         end
         return nothing
     end
 
     off_diag_terms = QTermKey[]
-    for (oc, oops) in sorted_terms
-        term = _term_key(oops, inherited_ne)
-        _addto_key!(d, term, oc)
+    for t in sorted_terms
+        term = _term_key(t.ops, inherited_ne)
+        _addto_key!(d, term, t.prefactor)
         _push_key_unique!(off_diag_terms, term)
     end
 

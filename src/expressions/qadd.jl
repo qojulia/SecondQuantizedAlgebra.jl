@@ -43,13 +43,13 @@ function _single_qadd(c::CNum, ops::Vector{QSym}, ne::Vector{NonEqualPair} = _EM
 end
 
 function _qadd_from_oterms(
-        terms::Vector{_OTerm}, indices::Vector{Index},
+        terms::Vector{OrderedTerm}, indices::Vector{Index},
         ne::Vector{NonEqualPair} = _EMPTY_NE
     )
     d = QTermDict()
-    for (c, ops) in terms
-        for (oc, oops) in _apply_ordering(c, ops, get_ordering())
-            _addto!(d, oops, oc, ne)
+    for t in terms
+        for ot in _apply_ordering(t.prefactor, t.ops, get_ordering())
+            _addto!(d, ot.ops, ot.prefactor, ne)
         end
     end
     return QAdd(d, indices)
@@ -58,8 +58,8 @@ end
 function _ordered_qadd(c::CNum, ops::Vector{QSym}, ne::Vector{NonEqualPair} = _EMPTY_NE)
     _iszero_cnum(c) && return QAdd(QTermDict(), Index[])
     d = QTermDict()
-    for (oc, oops) in _apply_ordering(c, ops, get_ordering())
-        _addto!(d, oops, oc, ne)
+    for t in _apply_ordering(c, ops, get_ordering())
+        _addto!(d, t.ops, t.prefactor, ne)
     end
     return QAdd(d, Index[])
 end

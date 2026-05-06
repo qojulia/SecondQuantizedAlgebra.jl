@@ -14,11 +14,6 @@ PR with no ripple effect; suggested merge order is roughly the order listed.
       operands behind an SQA-owned type. Recommendation: **delete**. Removes four
       methods and the Aqua suppression.
 
-- [ ] **Replace `_OTerm = Tuple{CNum, Vector{QSym}}` with a named `OrderedTerm`
-      struct** ([ordering.jl:44](src/ordering.jl#L44)). Pure cosmetic readability win
-      at every callsite (`(c, ops_w) = pop!(worklist)` → `t = pop!(worklist);
-      t.prefactor`). Zero perf cost — Julia inlines named-struct accessors.
-
 - [ ] **Drop the abstract `QTerm` and rename `QTermKey` → `QTerm`**
       ([types.jl:37](src/types.jl#L37), [qterm.jl](src/expressions/qterm.jl)).
       Nothing in src/ or test/ dispatches on `::QTerm`; it's a vestigial

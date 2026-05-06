@@ -35,8 +35,8 @@ function normal_order(s::QAdd)
     d = QTermDict()
     for (term, c) in s.arguments
         _iszero_cnum(c) && continue
-        for (oc, oops) in _apply_ordering(c, term.ops, NormalOrder())
-            _addto!(d, oops, oc, term.ne)
+        for t in _apply_ordering(c, term.ops, NormalOrder())
+            _addto!(d, t.ops, t.prefactor, term.ne)
         end
     end
     return QAdd(d, copy(s.indices))
@@ -135,17 +135,17 @@ function _convert_term!(
         return
     end
 
-    current = _OTerm[(c, ops)]
+    current = OrderedTerm[OrderedTerm(c, ops)]
     for (site_key, m, n) in sites
-        next = _OTerm[]
-        for (tc, tops) in current
-            _apply_site_conversion!(next, tc, tops, site_key, m, n, α)
+        next = OrderedTerm[]
+        for t in current
+            _apply_site_conversion!(next, t.prefactor, t.ops, site_key, m, n, α)
         end
         current = next
     end
 
-    for (tc, tops) in current
-        _addto!(d, tops, tc, ne)
+    for t in current
+        _addto!(d, t.ops, t.prefactor, ne)
     end
     return
 end
@@ -178,19 +178,19 @@ end
 # Σ_{k=1}^{min(m,n)} C(m,k) C(n,k) k! α^k · (remove k creates and k destroys from ops)
 # plus the k=0 term (original, unchanged).
 function _apply_site_conversion!(
-        result::Vector{_OTerm}, c::CNum, ops::Vector{QSym},
+        result::Vector{OrderedTerm}, c::CNum, ops::Vector{QSym},
         site_key::Tuple{Int, Symbol, Symbol}, m::Int, n::Int,
         α::Rational
     )
     # k=0: original term, unchanged
-    push!(result, (c, copy(ops)))
+    push!(result, OrderedTerm(c, copy(ops)))
 
     # k=1..min(m,n): remove k creates and k destroys, multiply by coefficient
     kmax = min(m, n)
     for k in 1:kmax
         coeff = _to_cnum(binomial(m, k) * binomial(n, k) * factorial(k) * α^k)
         new_ops = _remove_fock_ops(ops, site_key, k)
-        push!(result, (_mul_cnum(c, coeff), new_ops))
+        push!(result, OrderedTerm(_mul_cnum(c, coeff), new_ops))
     end
     return
 end
@@ -261,21 +261,21 @@ remaining projectors. Returns the fully-expanded sum as a single-`ne` `QAdd`.
 function _expand_ground_state(c::CNum, ops::Vector{QSym})
     for (idx, op) in enumerate(ops)
         if op isa Transition && op.i == op.ground_state && op.j == op.ground_state
-            expanded = _OTerm[]
+            expanded = OrderedTerm[]
             # Identity term (remove the transition)
             id_ops = QSym[ops[j] for j in eachindex(ops) if j != idx]
-            push!(expanded, (c, id_ops))
+            push!(expanded, OrderedTerm(c, id_ops))
             # Subtraction terms (use op-carried ground_state and n_levels)
             for k in 1:op.n_levels
                 k == op.ground_state && continue
                 new_op = Transition(op.name, k, k, op.space_index, op.index, op.ground_state, op.n_levels)
                 sub_ops = QSym[j == idx ? new_op : ops[j] for j in eachindex(ops)]
-                push!(expanded, (-c, sub_ops))
+                push!(expanded, OrderedTerm(-c, sub_ops))
             end
             # Recurse: expanded terms may still contain ground state projections
             d = QTermDict()
-            for (tc, tops) in expanded
-                for (s_term, sc) in _expand_ground_state(tc, tops).arguments
+            for t in expanded
+                for (s_term, sc) in _expand_ground_state(t.prefactor, t.ops).arguments
                     _addto!(d, s_term.ops, sc, s_term.ne)
                 end
             end
