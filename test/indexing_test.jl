@@ -457,21 +457,19 @@ import SecondQuantizedAlgebra: simplify, QAdd, QSym, CNum, _to_cnum, NO_INDEX,
         ai = IndexedOperator(a, i)
         adj = IndexedOperator(a', j)
 
-        # Σ_i(a†_j * a_i) — splits into: Σ_{i≠j}(a_i * a†_j) + a†_j * a_j + 1
-        # Eager ordering rewrites a†_j * a_i → a_i * a†_j (off-diagonal),
-        # and the diagonal (i→j) a_j * a†_j → a†_j * a_j + 1 (commutation).
+        # Σ_i(a†_j * a_i) — splits into the physically ordered diagonal
+        # a†_j * a_j plus the constrained off-diagonal Σ_{i≠j}(a_i * a†_j).
+        # We preserve the written same-space order for the diagonal collapse
+        # instead of substituting into the already-canonicalized off-diagonal.
         expr = Σ(adj * ai, i)
         @test expr isa QAdd
-        # Should have 3 terms: off-diagonal product + diagonal normal-ordered + scalar 1
-        @test length(expr) == 3
+        @test length(expr) == 2
         # Should have i≠j constraint
         @test any(p -> p == (i, j) || p == (j, i), constraint_pairs(expr))
-        # Diagonal term: a†_j * a_j (eager ordering composed a_j * a†_j → a†_j * a_j + 1)
+        # Diagonal term: a†_j * a_j from the physical i = j boundary.
         aj = IndexedOperator(a, j)
         diag_key = QSym[adj, aj]
         @test haskey(expr, diag_key)
-        # Scalar term from commutator
-        @test haskey(expr, QSym[])
     end
 
     @testset "Σ construction — already non_equal → no split" begin

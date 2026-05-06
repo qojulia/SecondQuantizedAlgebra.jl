@@ -3,9 +3,11 @@
 # ============================================================================
 
 function Base.:*(a::QSym, b::QSym)
-    ops = QSym[a, b]
+    phys_ops = QSym[a, b]
+    _phys_sort!(phys_ops)
+    ops = copy(phys_ops)
     _site_sort!(ops)
-    return _ordered_qadd(_CNUM_ONE, ops)
+    return _ordered_qadd(_CNUM_ONE, ops, _EMPTY_NE, phys_ops)
 end
 
 Base.:*(a::QSym, b::Number) = _single_qadd(_to_cnum(b), QSym[a])
@@ -24,10 +26,12 @@ end
 Base.:*(a::Number, b::QAdd) = b * a
 
 function _apply_diag_terms!(
-        d::QTermDict, terms::Vector{OrderedTerm}, ne::Vector{NonEqualPair}
+        d::QTermDict, terms::Vector{OrderedTerm}, ne::Vector{NonEqualPair},
+        phys_ops::Vector{QSym}
     )
     for t in terms
-        _addto!(d, t.ops, t.prefactor, ne)
+        tracked_phys = _needs_phys_tracking(t.ops) ? phys_ops : t.ops
+        _addto!(d, t.ops, t.prefactor, ne, tracked_phys)
     end
     return d
 end
@@ -111,11 +115,12 @@ maintained by [`_accumulate_with_diag!`](@ref).
 """
 function _emit_diagonal!(
         d::QTermDict, diag_terms::Vector{OrderedTerm},
-        off_diag_terms::Vector{QTerm}, α::Index, β::Index
+        off_diag_terms::Vector{QTerm}, diag_phys_ops::Vector{QSym},
+        α::Index, β::Index
     )
     isempty(off_diag_terms) && return off_diag_terms
     current_ne = first(off_diag_terms).ne
-    _apply_diag_terms!(d, diag_terms, current_ne)
+    _apply_diag_terms!(d, diag_terms, _drop_ne_with(current_ne, α), diag_phys_ops)
 
     new_ne = _merge_ne_pair(current_ne, α, β)
     moved = QTerm[]
@@ -123,7 +128,7 @@ function _emit_diagonal!(
         c = get(d, old_term, nothing)
         c === nothing && continue
         delete!(d, old_term)
-        new_term = _term_key(old_term.ops, new_ne)
+        new_term = _term_key(old_term.ops, new_ne, old_term.phys_ops)
         _addto_key!(d, new_term, c)
         _push_key_unique!(moved, new_term)
     end
@@ -142,6 +147,8 @@ function _accumulate_with_diag!(
         sum_idxes::Vector{Index},
         inherited_ne::Vector{NonEqualPair}
     )
+    phys_ops = copy(unsorted_ops)
+    _phys_sort!(phys_ops)
     sorted = copy(unsorted_ops)
     _site_sort!(sorted)
     sorted_terms = _apply_ordering(c, sorted, get_ordering())
@@ -149,14 +156,16 @@ function _accumulate_with_diag!(
     distinct = _distinct_op_indices(unsorted_ops)
     if length(distinct) < 2
         for t in sorted_terms
-            _addto!(d, t.ops, t.prefactor, inherited_ne)
+            tracked_phys = _needs_phys_tracking(t.ops) ? phys_ops : t.ops
+            _addto!(d, t.ops, t.prefactor, inherited_ne, tracked_phys)
         end
         return nothing
     end
 
     off_diag_terms = QTerm[]
     for t in sorted_terms
-        term = _term_key(t.ops, inherited_ne)
+        tracked_phys = _needs_phys_tracking(t.ops) ? phys_ops : t.ops
+        term = _term_key(t.ops, inherited_ne, tracked_phys)
         _addto_key!(d, term, t.prefactor)
         _push_key_unique!(off_diag_terms, term)
     end
@@ -167,24 +176,13 @@ function _accumulate_with_diag!(
             ext_idx == sum_idx && continue
             ext_idx.space_index == sum_idx.space_index || continue
             _ne_contains(first(off_diag_terms).ne, sum_idx, ext_idx) && continue
+            diag_phys_ops = QSym[change_index(o, sum_idx, ext_idx) for o in phys_ops]
+            _phys_sort!(diag_phys_ops)
             off_diag_terms = _emit_diagonal!(
                 d, _substitute_unsorted(c, unsorted_ops, sum_idx, ext_idx),
-                off_diag_terms, sum_idx, ext_idx,
+                off_diag_terms, diag_phys_ops, sum_idx, ext_idx,
             )
         end
-    end
-
-    for k1 in 1:length(distinct), k2 in (k1 + 1):length(distinct)
-        α = distinct[k1]
-        β = distinct[k2]
-        α in sum_idxes && continue
-        β in sum_idxes && continue
-        α.space_index == β.space_index || continue
-        _ne_contains(first(off_diag_terms).ne, α, β) && continue
-        correct = _substitute_unsorted(c, unsorted_ops, α, β)
-        implicit = _substitute_oterms(sorted_terms, α, β)
-        _oterms_equivalent(correct, implicit) && continue
-        off_diag_terms = _emit_diagonal!(d, correct, off_diag_terms, α, β)
     end
 
     return nothing
@@ -193,9 +191,9 @@ end
 function Base.:*(a::QAdd, b::QSym)
     d = QTermDict()
     for (term, c) in a.arguments
-        n = length(term.ops)
+        n = length(term.phys_ops)
         unsorted = Vector{QSym}(undef, n + 1)
-        copyto!(unsorted, 1, term.ops, 1, n)
+        copyto!(unsorted, 1, term.phys_ops, 1, n)
         unsorted[n + 1] = b
         _accumulate_with_diag!(d, c, unsorted, a.indices, term.ne)
     end
@@ -205,10 +203,10 @@ end
 function Base.:*(a::QSym, b::QAdd)
     d = QTermDict()
     for (term, c) in b.arguments
-        n = length(term.ops)
+        n = length(term.phys_ops)
         unsorted = Vector{QSym}(undef, n + 1)
         unsorted[1] = a
-        copyto!(unsorted, 2, term.ops, 1, n)
+        copyto!(unsorted, 2, term.phys_ops, 1, n)
         _accumulate_with_diag!(d, c, unsorted, b.indices, term.ne)
     end
     return QAdd(d, copy(b.indices))
@@ -231,7 +229,7 @@ function Base.:*(a::QAdd, b::QAdd)
         (isempty(a.indices) ? b.indices : vcat(a.indices, b.indices))
 
     for (term_a, c_a) in a.arguments, (term_b, c_b) in b.arguments
-        unsorted = vcat(term_a.ops, term_b.ops)
+        unsorted = vcat(term_a.phys_ops, term_b.phys_ops)
         c_prod = _mul_cnum(c_a, c_b)
         inherited = isempty(term_a.ne) ? term_b.ne :
             (isempty(term_b.ne) ? term_a.ne : _merge_ne(term_a.ne, term_b.ne))

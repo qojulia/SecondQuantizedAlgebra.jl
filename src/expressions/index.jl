@@ -125,12 +125,13 @@ function change_index(s::QAdd, from::Index, to::Index)
     for (term, c) in s.arguments
         new_c = change_index(c, from, to)
         new_ops = QSym[change_index(op, from, to) for op in term.ops]
+        new_phys_ops = QSym[change_index(op, from, to) for op in term.phys_ops]
         new_ne = if isempty(term.ne)
             _EMPTY_NE
         else
             NonEqualPair[(a == from ? to : a, b == from ? to : b) for (a, b) in term.ne]
         end
-        _addto!(new_d, new_ops, new_c, new_ne)
+        _addto!(new_d, new_ops, new_c, new_ne, new_phys_ops)
     end
     new_indices = [idx == from ? to : idx for idx in s.indices]
     return QAdd(new_d, new_indices)
@@ -236,14 +237,26 @@ function _diagonal_split!(off_diag::QTermDict, diag::QTermDict, sum_idx::Index)
             idx.space_index == sum_idx.space_index || continue
             _ne_contains(current_term.ne, sum_idx, idx) && continue
 
-            new_ops = QSym[change_index(o, sum_idx, idx) for o in current_term.ops]
             new_c = change_index(current_c, sum_idx, idx)
+            new_phys_ops = QSym[change_index(o, sum_idx, idx) for o in current_term.phys_ops]
+            _phys_sort!(new_phys_ops)
+            new_ops = copy(new_phys_ops)
+            _site_sort!(new_ops)
             for t in _apply_ordering(new_c, new_ops, get_ordering())
-                _addto!(diag, t.ops, t.prefactor, current_term.ne)
+                tracked_phys = _needs_phys_tracking(t.ops) ? new_phys_ops : t.ops
+                _addto!(
+                    diag, t.ops, t.prefactor,
+                    _drop_ne_with(current_term.ne, sum_idx),
+                    tracked_phys,
+                )
             end
 
             delete!(off_diag, current_term)
-            current_term = _term_key(current_term.ops, _merge_ne_pair(current_term.ne, sum_idx, idx))
+            current_term = _term_key(
+                current_term.ops,
+                _merge_ne_pair(current_term.ne, sum_idx, idx),
+                current_term.phys_ops,
+            )
             _addto_key!(off_diag, current_term, current_c)
         end
     end

@@ -12,6 +12,13 @@ shared [`_process_product!`](@ref) under `LazyOrder` (skips swaps) with
 _apply_reductions(arg_c::CNum, ops::Vector{QSym}) =
     _drive_worklist(arg_c, ops, LazyOrder(), false)
 
+function _simplify_prefactor(x::CNum)
+    re = Num(SymbolicUtils.simplify(SymbolicUtils.unwrap(Symbolics.expand(real(x)))))
+    im = Num(SymbolicUtils.simplify(SymbolicUtils.unwrap(Symbolics.expand(imag(x)))))
+    return Complex(re, im)
+end
+_simplify_prefactor(x::Number) = x
+
 # --- Simplification (ordering-independent) ---
 
 function _qsimplify(op::QSym)
@@ -23,7 +30,9 @@ function _qsimplify(s::QAdd)
     for (term, c) in s.arguments
         _iszero_cnum(c) && continue
         for t in _apply_reductions(c, term.ops)
-            _addto!(d, t.ops, t.prefactor, term.ne)
+            new_c = _simplify_prefactor(t.prefactor)
+            _iszero_cnum(new_c) && continue
+            _addto!(d, t.ops, new_c, term.ne, t.ops)
         end
     end
     # Drop summation indices that no surviving term depends on.

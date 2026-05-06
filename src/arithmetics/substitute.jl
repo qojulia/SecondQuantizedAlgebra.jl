@@ -78,8 +78,9 @@ function SymbolicUtils.substitute(s::QAdd, d::Dict)
     new_d = QTermDict()
     for (term, c) in s.arguments
         new_c, new_ops = _substitute_term(c, term.ops, sym_dict, op_dict)
+        _, new_phys_ops = _substitute_term(c, term.phys_ops, Dict{SymbolicUtils.BasicSymbolic, SymbolicUtils.BasicSymbolic}(), op_dict)
         _iszero_cnum(new_c) && continue
-        _addto!(new_d, new_ops, new_c, term.ne)
+        _addto!(new_d, new_ops, new_c, term.ne, new_phys_ops)
     end
     return QAdd(new_d, copy(s.indices))
 end

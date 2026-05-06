@@ -32,9 +32,12 @@ function _to_cnum(x::SymbolicUtils.BasicSymbolic)
 end
 
 @inline function _iszero_num(x::Num)
-    v = SymbolicUtils.unwrap(x)
+    ex = Symbolics.expand(x)
+    v = SymbolicUtils.unwrap(ex)
     v isa Number && return iszero(v)
-    return isequal(x, _NUM_ZERO)
+    sv = SymbolicUtils.simplify(v)
+    sv isa Number && return iszero(sv)
+    return isequal(Num(sv), _NUM_ZERO)
 end
 
 @inline function _iszero_cnum(c::CNum)
@@ -114,3 +117,22 @@ _sort_key(op::QSym) = (op.space_index, op.index.name)
 # Group operators by site. Must be stable: same-site operators preserve
 # their left-to-right multiplication order (they don't commute).
 _site_sort!(v::Vector{QSym}) = sort!(v; by = _sort_key, alg = Base.MergeSort)
+
+# Group operators only by Hilbert subspace, preserving their physical order
+# within that subspace. This is the sequence we substitute into when a later
+# diagonal collapse identifies distinct free indices.
+_phys_sort!(v::Vector{QSym}) = sort!(v; by = op -> op.space_index, alg = Base.MergeSort)
+
+function _needs_phys_tracking(ops::Vector{QSym})
+    for i in 1:length(ops)
+        idx_i = ops[i].index
+        has_index(idx_i) || continue
+        for j in (i + 1):length(ops)
+            idx_j = ops[j].index
+            has_index(idx_j) || continue
+            idx_i == idx_j && continue
+            idx_i.space_index == idx_j.space_index && return true
+        end
+    end
+    return false
+end

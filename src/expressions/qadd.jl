@@ -49,17 +49,22 @@ function _qadd_from_oterms(
     d = QTermDict()
     for t in terms
         for ot in _apply_ordering(t.prefactor, t.ops, get_ordering())
-            _addto!(d, ot.ops, ot.prefactor, ne)
+            _addto!(d, ot.ops, ot.prefactor, ne, ot.ops)
         end
     end
     return QAdd(d, indices)
 end
 
-function _ordered_qadd(c::CNum, ops::Vector{QSym}, ne::Vector{NonEqualPair} = _EMPTY_NE)
+function _ordered_qadd(
+        c::CNum, ops::Vector{QSym},
+        ne::Vector{NonEqualPair} = _EMPTY_NE,
+        phys_ops::Vector{QSym} = ops
+    )
     _iszero_cnum(c) && return QAdd(QTermDict(), Index[])
     d = QTermDict()
     for t in _apply_ordering(c, ops, get_ordering())
-        _addto!(d, t.ops, t.prefactor, ne)
+        tracked_phys = _needs_phys_tracking(t.ops) ? phys_ops : t.ops
+        _addto!(d, t.ops, t.prefactor, ne, tracked_phys)
     end
     return QAdd(d, Index[])
 end
@@ -82,7 +87,9 @@ function Base.adjoint(q::QAdd)
     for (term, c) in q.arguments
         adj_ops = QSym[adjoint(op) for op in reverse(term.ops)]
         _site_sort!(adj_ops)
-        _addto!(d, adj_ops, conj(c), term.ne)
+        adj_phys_ops = QSym[adjoint(op) for op in reverse(term.phys_ops)]
+        _phys_sort!(adj_phys_ops)
+        _addto!(d, adj_ops, conj(c), term.ne, adj_phys_ops)
     end
     return QAdd(d, copy(q.indices))
 end

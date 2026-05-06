@@ -20,12 +20,37 @@ pairwise index inequality constraints that scope that product.
 struct QTerm
     ops::Vector{QSym}
     ne::Vector{NonEqualPair}
+    phys_ops::Vector{QSym}
 end
 
-Base.isequal(a::QTerm, b::QTerm) = isequal(a.ops, b.ops) && isequal(a.ne, b.ne)
+QTerm(ops::Vector{QSym}, ne::Vector{NonEqualPair}) = QTerm(ops, ne, copy(ops))
+
+function _uses_phys_key(term::QTerm)
+    for i in 1:length(term.phys_ops)
+        idx_i = term.phys_ops[i].index
+        has_index(idx_i) || continue
+        for j in (i + 1):length(term.phys_ops)
+            idx_j = term.phys_ops[j].index
+            has_index(idx_j) || continue
+            idx_i == idx_j && continue
+            idx_i.space_index == idx_j.space_index || continue
+            _ne_contains(term.ne, idx_i, idx_j) && continue
+            return true
+        end
+    end
+    return false
+end
+
+function Base.isequal(a::QTerm, b::QTerm)
+    isequal(a.ops, b.ops) || return false
+    isequal(a.ne, b.ne) || return false
+    _uses_phys_key(a) || return true
+    return isequal(a.phys_ops, b.phys_ops)
+end
 Base.:(==)(a::QTerm, b::QTerm) = isequal(a, b)
 function Base.hash(term::QTerm, h::UInt)
-    return hash(:QTerm, hash(term.ops, hash(term.ne, h)))
+    h2 = hash(:QTerm, hash(term.ops, hash(term.ne, h)))
+    return _uses_phys_key(term) ? hash(term.phys_ops, h2) : h2
 end
 
 """
@@ -83,8 +108,31 @@ function _merge_ne_pair(ne::Vector{NonEqualPair}, α::Index, β::Index)
     return _merge_ne(ne, NonEqualPair[(α, β)])
 end
 
+function _substitute_ne(ne::Vector{NonEqualPair}, from::Index, to::Index)
+    isempty(ne) && return _EMPTY_NE
+    out = NonEqualPair[]
+    for (α, β) in ne
+        new_α = α == from ? to : α
+        new_β = β == from ? to : β
+        new_α == new_β && continue
+        _push_ne_unique!(out, (new_α, new_β))
+    end
+    return isempty(out) ? _EMPTY_NE : out
+end
+
+function _drop_ne_with(ne::Vector{NonEqualPair}, idx::Index)
+    isempty(ne) && return _EMPTY_NE
+    out = NonEqualPair[]
+    for (α, β) in ne
+        α == idx && continue
+        β == idx && continue
+        _push_ne_unique!(out, (α, β))
+    end
+    return isempty(out) ? _EMPTY_NE : out
+end
+
 function _copy_key(term::QTerm)
-    return QTerm(copy(term.ops), _copy_ne(term.ne))
+    return QTerm(copy(term.ops), _copy_ne(term.ne), copy(term.phys_ops))
 end
 
 """
@@ -94,8 +142,12 @@ Storage-key constructor: copies `ops` (callers can mutate freely afterwards) and
 canonicalizes `ne`. Every [`QTermDict`](@ref) insertion goes through this so that
 structural equality of `(ops, ne)` always implies equal hash keys.
 """
-function _term_key(ops::Vector{QSym}, ne::Vector{NonEqualPair} = _EMPTY_NE)
-    return QTerm(copy(ops), _canonical_ne(ne))
+function _term_key(
+        ops::Vector{QSym},
+        ne::Vector{NonEqualPair} = _EMPTY_NE,
+        phys_ops::Vector{QSym} = ops
+    )
+    return QTerm(copy(ops), _canonical_ne(ne), copy(phys_ops))
 end
 
 function _push_key_unique!(out::Vector{QTerm}, term::QTerm)
@@ -112,9 +164,10 @@ match exactly.
 """
 function _addto!(
         d::QTermDict, ops::Vector{QSym}, c::CNum,
-        ne::Vector{NonEqualPair} = _EMPTY_NE
+        ne::Vector{NonEqualPair} = _EMPTY_NE,
+        phys_ops::Vector{QSym} = ops
     )
-    return _addto_key!(d, _term_key(ops, ne), c)
+    return _addto_key!(d, _term_key(ops, ne, phys_ops), c)
 end
 
 """
