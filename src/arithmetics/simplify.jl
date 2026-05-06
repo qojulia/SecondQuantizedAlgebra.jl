@@ -3,54 +3,14 @@
 """
     _apply_reductions(arg_c, ops) -> Vector{OrderedTerm}
 
-Apply ordering-independent algebraic identities to a product of operators
-using a worklist algorithm. Only applies:
-- Transition composition: |i⟩⟨j| · |k⟩⟨l| → |i⟩⟨l| if j==k, else 0
-- Pauli product rule: σⱼ·σₖ = δⱼₖI + iϵⱼₖₗσₗ
-
-Never applies commutation-based reordering (Fock, Spin, PhaseSpace).
+Apply ordering-independent algebraic identities to a product. Only fires
+Transition composition (`|i⟩⟨j| · |k⟩⟨l| → δⱼₖ |i⟩⟨l|`) and the Pauli product
+rule (`σⱼ·σₖ = δⱼₖI + iϵⱼₖₗσₗ`); never reorders via commutation. Drives the
+shared [`_process_product!`](@ref) under `LazyOrder` (skips swaps) with
+`expand_gs = false` (keeps `σᵍᵍ` atomic — `simplify(expr, h)` opts back in).
 """
-function _apply_reductions(arg_c::CNum, ops::Vector{QSym})
-    isempty(ops) && return OrderedTerm[OrderedTerm(arg_c, ops)]
-    length(ops) == 1 && return OrderedTerm[OrderedTerm(arg_c, ops)]
-
-    worklist = OrderedTerm[OrderedTerm(arg_c, copy(ops))]
-    done = OrderedTerm[]
-
-    while !isempty(worklist)
-        t = pop!(worklist)
-        _reduce_product!(t.prefactor, t.ops, worklist, done)
-    end
-
-    return done
-end
-
-"""
-    _reduce_product!(c, ops, worklist, done)
-
-Process one term. Scans adjacent operator pairs for algebraic identities only.
-Pushes resulting terms to `worklist`, or to `done` if fully reduced.
-"""
-function _reduce_product!(
-        c::CNum, ops::Vector{QSym},
-        worklist::Vector{OrderedTerm}, done::Vector{OrderedTerm}
-    )
-    n = length(ops)
-
-    if n <= 1
-        push!(done, OrderedTerm(c, ops))
-        return
-    end
-
-    for i in 1:(n - 1)
-        a, b = ops[i], ops[i + 1]
-        # `simplify(expr)` is the LazyOrder reductions-only pass: keep
-        # σᵍᵍ atomic. Use `simplify(expr, h)` to opt into completeness.
-        _try_algebraic_reduction!(a, b, i, c, ops, worklist, done, false) && return
-    end
-
-    return push!(done, OrderedTerm(c, ops))
-end
+_apply_reductions(arg_c::CNum, ops::Vector{QSym}) =
+    _drive_worklist(arg_c, ops, LazyOrder(), false)
 
 # --- Simplification (ordering-independent) ---
 

@@ -64,56 +64,60 @@ struct OrderedTerm
     ops::Vector{QSym}
 end
 
-"""
-    _try_algebraic_reduction!(a, b, i, c, ops, worklist, done, expand_gs) -> Bool
+# Per-rule step return:
+#   nothing  — no rule applied; caller scans the next pair
+#   c::CNum  — single-output rule applied in place; caller resumes scan with c
+#   HALT     — forking or terminal rule applied; outputs already pushed; caller stops
+struct Halt end
+const HALT = Halt()
+const StepResult = Union{Nothing, Halt, CNum}
 
-Apply ordering-independent algebraic identities for a single adjacent pair.
-Returns `true` if a rule fired (and pushed results to worklist/done).
-Shared by both the ordering worklist and the simplification worklist.
+"""
+    _try_reduction!(a, b, i, c, ops, worklist, done, expand_gs) -> StepResult
+
+Apply an ordering-independent algebraic identity to the pair `(a, b)` at
+position `i`. Shared between the eager-ordering driver and the simplify pass.
 
 When `expand_gs == true`, a Transition composition that would produce a ground-state
 projector ``|g\\rangle\\langle g|`` is rewritten via the completeness relation
 ``|g\\rangle\\langle g| = 1 - \\sum_{k \\neq g} |k\\rangle\\langle k|`` directly,
-keeping the [`NormalOrder`](@ref) result in canonical form. Pass `false` from
-[`simplify`](@ref) (no Hilbert-space argument) so the user-constructed shape is
-preserved; [`simplify`](@ref)`(expr, h)` invokes the explicit cleanup pass.
+keeping the [`NormalOrder`](@ref) result in canonical form. [`simplify`](@ref)
+without a Hilbert space passes `false` to preserve the user-constructed shape;
+[`simplify`](@ref)`(expr, h)` invokes the explicit cleanup pass.
 """
-function _try_algebraic_reduction!(
+@inline function _try_reduction!(
         a::QSym, b::QSym, i::Int, c::CNum, ops::Vector{QSym},
         worklist::Vector{OrderedTerm}, done::Vector{OrderedTerm},
         expand_gs::Bool
-    )
+    )::StepResult
     # Transition: |i⟩⟨j| · |k⟩⟨l|
     if a isa Transition && b isa Transition && _same_site(a, b) && a.name == b.name
-        if a.j == b.i
-            if expand_gs && a.i == a.ground_state && b.j == a.ground_state
-                _push_ground_state_expansion!(c, ops, i, a, worklist)
-            else
-                ops[i] = Transition(a.name, a.i, b.j, a.space_index, a.index, a.ground_state, a.n_levels)
-                deleteat!(ops, i + 1)
-                push!(worklist, OrderedTerm(c, ops))
-            end
-        else
+        if a.j != b.i
             push!(done, OrderedTerm(_to_cnum(0), QSym[]))
+            return HALT
         end
-        return true
+        if expand_gs && a.i == a.ground_state && b.j == a.ground_state
+            _push_ground_state_expansion!(c, ops, i, a, worklist)
+            return HALT
+        end
+        ops[i] = Transition(a.name, a.i, b.j, a.space_index, a.index, a.ground_state, a.n_levels)
+        deleteat!(ops, i + 1)
+        return c
     end
 
     # Pauli: σⱼ·σₖ = δⱼₖI + iϵⱼₖₗσₗ
     if a isa Pauli && b isa Pauli && _same_site(a, b) && a.name == b.name
         if a.axis == b.axis
             deleteat!(ops, i:(i + 1))
-            push!(worklist, OrderedTerm(c, ops))
-        else
-            eps = _levi_civita[a.axis][b.axis]
-            ops[i] = Pauli(a.name, 6 - a.axis - b.axis, a.space_index, a.index)
-            deleteat!(ops, i + 1)
-            push!(worklist, OrderedTerm(_mul_cnum(c, _to_cnum(im * eps)), ops))
+            return c
         end
-        return true
+        eps = _levi_civita[a.axis][b.axis]
+        ops[i] = Pauli(a.name, 6 - a.axis - b.axis, a.space_index, a.index)
+        deleteat!(ops, i + 1)
+        return _mul_cnum(c, _to_cnum(im * eps))
     end
 
-    return false
+    return nothing
 end
 
 """
@@ -156,101 +160,141 @@ function _push_ground_state_expansion!(
     return nothing
 end
 
-"""
-    _apply_ordering(arg_c, ops, ordering) -> Vector{OrderedTerm}
+# Push the commuted (swapped) branch onto `worklist` so the caller can continue
+# in-place on the contracted branch with a single `deleteat!` / mutation.
+@inline function _push_swapped!(
+        ops::Vector{QSym}, i::Int, c::CNum, worklist::Vector{OrderedTerm}
+    )
+    swapped = copy(ops)
+    swapped[i], swapped[i + 1] = swapped[i + 1], swapped[i]
+    push!(worklist, OrderedTerm(c, swapped))
+    return nothing
+end
 
-Apply ordering rules to a product of operators using a worklist algorithm.
-Returns a vector of fully-ordered (prefactor, ops) tuples.
 """
-function _apply_ordering(arg_c::CNum, ops::Vector{QSym}, ord::OrderingConvention)
-    isempty(ops) && return OrderedTerm[OrderedTerm(arg_c, ops)]
-    length(ops) == 1 && return OrderedTerm[OrderedTerm(arg_c, ops)]
+    _try_swap!(a, b, i, c, ops, ord, worklist) -> StepResult
+
+Apply an ordering-dependent commutation rule to the pair `(a, b)` at position
+`i`. Forking rules push the swapped branch onto `worklist` and return the new
+prefactor for in-place continuation on the contracted branch; `_try_swap!`
+never returns `HALT`. The `LazyOrder` method is a no-op so the simplify pass
+can share the same driver.
+"""
+@inline function _try_swap!(
+        a::QSym, b::QSym, i::Int, c::CNum, ops::Vector{QSym},
+        ::NormalOrder, worklist::Vector{OrderedTerm}
+    )::StepResult
+    # Fock: a·a† = a†·a + 1
+    if a isa Destroy && b isa Create && _same_site(a, b) && a.name == b.name
+        _push_swapped!(ops, i, c, worklist)
+        deleteat!(ops, i:(i + 1))
+        return c
+    end
+
+    # Spin: [Sj, Sk] = i·ε_jkl·Sl (swap out-of-order axes)
+    if a isa Spin && b isa Spin && _same_site(a, b) && a.name == b.name && a.axis > b.axis
+        _push_swapped!(ops, i, c, worklist)
+        eps = _levi_civita[a.axis][b.axis]
+        ops[i] = Spin(a.name, 6 - a.axis - b.axis, a.space_index, a.index)
+        deleteat!(ops, i + 1)
+        return _mul_cnum(c, _to_cnum(im * eps))
+    end
+
+    # PhaseSpace: P·X = X·P − i
+    if a isa Momentum && b isa Position && _same_site(a, b)
+        _push_swapped!(ops, i, c, worklist)
+        deleteat!(ops, i:(i + 1))
+        return _mul_cnum(_CNUM_NEG_IM, c)
+    end
+
+    return nothing
+end
+
+# LazyOrder skips swaps so the simplify pass can share `_process_product!`.
+@inline _try_swap!(
+    ::QSym, ::QSym, ::Int, ::CNum, ::Vector{QSym},
+    ::LazyOrder, ::Vector{OrderedTerm}
+)::StepResult = nothing
+
+"""
+    _process_product!(c, ops, ord, worklist, done, expand_gs)
+
+Drive one term `(c, ops)` to completion. Single-output rules mutate `ops` in
+place and the loop resumes with the new prefactor; forking rules push their
+alternate branch onto `worklist` and the loop continues on the contracted
+branch; terminal rules push directly to `done`. When no rule matches the term
+is pushed to `done` as-is. Shared by [`_apply_ordering`](@ref) and
+[`_apply_reductions`](@ref).
+"""
+function _process_product!(
+        c::CNum, ops::Vector{QSym}, ord::OrderingConvention,
+        worklist::Vector{OrderedTerm}, done::Vector{OrderedTerm},
+        expand_gs::Bool
+    )
+    while true
+        length(ops) <= 1 && (push!(done, OrderedTerm(c, ops)); return)
+
+        res = _try_step!(c, ops, ord, worklist, done, expand_gs)
+        if res isa CNum
+            c = res
+        elseif res isa Halt
+            return
+        else
+            push!(done, OrderedTerm(c, ops))
+            return
+        end
+    end
+    return
+end
+
+# Try the leftmost rule matching an adjacent pair in `ops`.
+@inline function _try_step!(
+        c::CNum, ops::Vector{QSym}, ord::OrderingConvention,
+        worklist::Vector{OrderedTerm}, done::Vector{OrderedTerm},
+        expand_gs::Bool
+    )::StepResult
+    n = length(ops)
+    for i in 1:(n - 1)
+        a, b = ops[i], ops[i + 1]
+        res = _try_reduction!(a, b, i, c, ops, worklist, done, expand_gs)
+        res === nothing || return res
+        res = _try_swap!(a, b, i, c, ops, ord, worklist)
+        res === nothing || return res
+    end
+    return nothing
+end
+
+"""
+    _drive_worklist(arg_c, ops, ord, expand_gs) -> Vector{OrderedTerm}
+
+Run the shared worklist algorithm: seed with `(arg_c, copy(ops))` and drain via
+[`_process_product!`](@ref) under `ord`. Used by both [`_apply_ordering`](@ref)
+(eager, `expand_gs = true`) and [`_apply_reductions`](@ref) (simplify pass,
+`expand_gs = false` under `LazyOrder`).
+"""
+function _drive_worklist(
+        arg_c::CNum, ops::Vector{QSym}, ord::OrderingConvention, expand_gs::Bool
+    )
+    length(ops) <= 1 && return OrderedTerm[OrderedTerm(arg_c, ops)]
 
     worklist = OrderedTerm[OrderedTerm(arg_c, copy(ops))]
     done = OrderedTerm[]
-
     while !isempty(worklist)
         t = pop!(worklist)
-        _order_product!(t.prefactor, t.ops, ord, worklist, done)
+        _process_product!(t.prefactor, t.ops, ord, worklist, done, expand_gs)
     end
-
     return done
 end
 
 """
-    _order_product!(c, ops, ord, worklist, done)
+    _apply_ordering(arg_c, ops, ord) -> Vector{OrderedTerm}
 
-Process one term. Scans adjacent operator pairs for the first applicable
-rule, pushes resulting terms to `worklist`, or pushes to `done` if fully ordered.
+Apply the eager ordering rules of `ord` to a product. Under [`LazyOrder`](@ref)
+the eager arithmetic is the identity — `simplify` and `normal_order` apply
+rules explicitly via [`_apply_reductions`](@ref) and `_apply_ground_state`.
 """
-function _order_product!(
-        c::CNum, ops::Vector{QSym}, ord::OrderingConvention,
-        worklist::Vector{OrderedTerm}, done::Vector{OrderedTerm}
-    )
-    n = length(ops)
+_apply_ordering(arg_c::CNum, ops::Vector{QSym}, ord::OrderingConvention) =
+    _drive_worklist(arg_c, ops, ord, true)
 
-    if n <= 1
-        push!(done, OrderedTerm(c, ops))
-        return
-    end
-
-    for i in 1:(n - 1)
-        a, b = ops[i], ops[i + 1]
-
-        # Ordering-independent reductions (Transition, Pauli).
-        # NormalOrder is canonical: eagerly expand σᵍᵍ via completeness when
-        # produced by Transition composition. LazyOrder skips this entire
-        # function via the identity overload of `_apply_ordering` below.
-        _try_algebraic_reduction!(a, b, i, c, ops, worklist, done, true) && return
-
-        # Ordering-dependent swaps
-        _apply_ordering_swap!(a, b, i, c, ops, ord, worklist) && return
-    end
-
-    return push!(done, OrderedTerm(c, ops))
-end
-
-# NormalOrder swaps
-function _apply_ordering_swap!(
-        a::QSym, b::QSym, i::Int, c::CNum, ops::Vector{QSym},
-        ::NormalOrder, worklist::Vector{OrderedTerm}
-    )
-    # Fock: a*a' -> a'*a + 1
-    if a isa Destroy && b isa Create && _same_site(a, b) && a.name == b.name
-        swapped = copy(ops)
-        swapped[i], swapped[i + 1] = swapped[i + 1], swapped[i]
-        push!(worklist, OrderedTerm(c, swapped))
-        deleteat!(ops, i:(i + 1))
-        push!(worklist, OrderedTerm(c, ops))
-        return true
-    end
-
-    # Spin: [Sj, Sk] = i eps_jkl Sl (swap out-of-order axes)
-    if a isa Spin && b isa Spin && _same_site(a, b) && a.name == b.name && a.axis > b.axis
-        eps = _levi_civita[a.axis][b.axis]
-        swapped = copy(ops)
-        swapped[i], swapped[i + 1] = swapped[i + 1], swapped[i]
-        push!(worklist, OrderedTerm(c, swapped))
-        ops[i] = Spin(a.name, 6 - a.axis - b.axis, a.space_index, a.index)
-        deleteat!(ops, i + 1)
-        push!(worklist, OrderedTerm(_mul_cnum(c, _to_cnum(im * eps)), ops))
-        return true
-    end
-
-    # PhaseSpace: P*X -> X*P - i
-    if a isa Momentum && b isa Position && _same_site(a, b)
-        swapped = copy(ops)
-        swapped[i], swapped[i + 1] = swapped[i + 1], swapped[i]
-        push!(worklist, OrderedTerm(c, swapped))
-        deleteat!(ops, i:(i + 1))
-        push!(worklist, OrderedTerm(_mul_cnum(_CNUM_NEG_IM, c), ops))
-        return true
-    end
-
-    return false
-end
-
-# LazyOrder: skip all ordering (identity transform)
-function _apply_ordering(arg_c::CNum, ops::Vector{QSym}, ::LazyOrder)
-    return OrderedTerm[OrderedTerm(arg_c, ops)]
-end
+_apply_ordering(arg_c::CNum, ops::Vector{QSym}, ::LazyOrder) =
+    OrderedTerm[OrderedTerm(arg_c, ops)]

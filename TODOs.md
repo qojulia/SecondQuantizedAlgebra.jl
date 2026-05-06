@@ -28,7 +28,7 @@ PR with no ripple effect; suggested merge order is roughly the order listed.
       and walks the tree. A cheap `Symbolics.get_variables(x)` membership check
       upfront skips the common case. Measurable on commutator-heavy workloads.
 
-- [ ] **Tail-recursive worklist in `_apply_ordering`**
+- [x] **Tail-recursive worklist in `_apply_ordering`**
       ([ordering.jl:144](src/ordering.jl#L144)). Today every rule firing pushes
       back via `copy(ops)` — fine for small products, but multi-level
       Schrieffer–Wolff–style products allocate hundreds of intermediate terms.
