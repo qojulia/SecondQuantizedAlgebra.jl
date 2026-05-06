@@ -20,11 +20,22 @@ PR with no ripple effect; suggested merge order is roughly the order listed.
       t.prefactor`). Zero perf cost — Julia inlines named-struct accessors.
 
 - [ ] **Replace `ORDERING = Ref{OrderingConvention}(NormalOrder())` with
-      `Base.ScopedValues.ScopedValue`** ([ordering.jl:3](src/ordering.jl#L3)).
+      `Base.ScopedValues.ScopedValue`** ([ordering.jl:3](src/arithmetics/ordering.jl#L3)).
       Removes mutable global state; lets `with_ordering(LazyOrder()) do … end`
       override per-task without leaking between tests. ~5 LOC change, large
       maintainability/concurrency win. Keep `set_ordering!` as a deprecated
       back-compat shim.
+
+- [ ] **Drop the abstract `QTerm` and rename `QTermKey` → `QTerm`**
+      ([types.jl:37](src/types.jl#L37), [qterm.jl](src/expressions/qterm.jl)).
+      Nothing in src/ or test/ dispatches on `::QTerm`; it's a vestigial
+      single-subtype abstract whose only concrete child is `QAdd`. Drop it,
+      change `QAdd <: QTerm` → `QAdd <: QField`, then rename the storage-key
+      struct `QTermKey` → `QTerm`. Iteration becomes `for (term::QTerm, c) in
+      q.arguments` — `QTerm` reads as "an entry of the sum," `QAdd` as "a sum
+      of `QTerm`s." No dispatch consequences (the abstract carries no
+      methods); rename touches qterm.jl, qadd.jl, qadd_arithmetic.jl,
+      index.jl + docs.
 
 ### Worth doing if you're touching that area
 
