@@ -11,10 +11,8 @@ rule ``|i\\rangle\\langle j| \\cdot |k\\rangle\\langle l| = \\delta_{jk} |i\\ran
 The `ground_state` (default `1`) defines the canonical basis as
 ``\\{|i\\rangle\\langle j| : (i,j) \\neq (g,g)\\} \\cup \\{1\\}``: ground-state projectors
 are eliminated via completeness ``|g\\rangle\\langle g| = 1 - \\sum_{k \\neq g} |k\\rangle\\langle k|``.
-Under [`NormalOrder`](@ref) this rewrite fires eagerly during multiplication; under
-[`LazyOrder`](@ref) the user opts in via [`simplify`](@ref)`(expr, h)` or
-[`normal_order`](@ref)`(expr, h)`. Each [`Transition`](@ref) carries `ground_state`
-and `n_levels` directly so the algebra stays Hilbert-space-decoupled.
+This rewrite fires eagerly during multiplication. Each [`Transition`](@ref) carries
+`ground_state` and `n_levels` directly so the algebra stays Hilbert-space-decoupled.
 
 Levels can be integers (default `1:n`) or symbolic names:
 
@@ -67,8 +65,8 @@ Satisfies the composition rule ``|i\\rangle\\langle j| \\cdot |k\\rangle\\langle
 The adjoint is ``|i\\rangle\\langle j|^\\dagger = |j\\rangle\\langle i|``.
 
 Each `Transition` carries the ground-state level (`ground_state`) and number of levels
-(`n_levels`) of its host [`NLevelSpace`](@ref). This lets the [`NormalOrder`](@ref) eager
-arithmetic apply the completeness relation ``|g\\rangle\\langle g| = 1 - \\sum_{k \\neq g}|k\\rangle\\langle k|``
+(`n_levels`) of its host [`NLevelSpace`](@ref). This lets the eager arithmetic apply
+the completeness relation ``|g\\rangle\\langle g| = 1 - \\sum_{k \\neq g}|k\\rangle\\langle k|``
 without consulting the Hilbert space — keeping the algebra Hilbert-space-decoupled
 while preserving canonical form.
 

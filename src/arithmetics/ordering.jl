@@ -1,49 +1,3 @@
-# --- Global ordering convention ---
-
-const _ORDERING_DEFAULT = Ref{OrderingConvention}(NormalOrder())
-const ORDERING = ScopedValue{OrderingConvention}()
-
-"""
-    get_ordering() -> OrderingConvention
-
-Return the active operator ordering convention. Inside a [`with_ordering`](@ref)
-block the scoped value wins; otherwise returns the global default (initially
-[`NormalOrder`](@ref), mutable via [`set_ordering!`](@ref)).
-"""
-function get_ordering()
-    v = ScopedValues.get(ORDERING)
-    return v === nothing ? _ORDERING_DEFAULT[] : something(v)
-end
-
-"""
-    set_ordering!(ord::OrderingConvention)
-
-Set the global default ordering convention. Affects subsequent `*` operations
-unless overridden by an enclosing [`with_ordering`](@ref) scope.
-
-Prefer [`with_ordering`](@ref) for transient changes — it is task-local and
-cannot leak between tests.
-
-See also [`get_ordering`](@ref), [`with_ordering`](@ref), [`NormalOrder`](@ref),
-[`LazyOrder`](@ref).
-"""
-set_ordering!(ord::OrderingConvention) = (_ORDERING_DEFAULT[] = ord)
-
-"""
-    with_ordering(f, ord::OrderingConvention)
-
-Run `f()` with `ord` as the active ordering convention. Restores on return,
-even on exception. Task-local — concurrent tasks see their own value.
-
-# Examples
-```julia
-with_ordering(LazyOrder()) do
-    a * a'   # not reordered inside this block
-end
-```
-"""
-with_ordering(f, ord::OrderingConvention) = with(f, ORDERING => ord)
-
 """
     _same_site(a::QSym, b::QSym) -> Bool
 
@@ -73,22 +27,17 @@ const HALT = Halt()
 const StepResult = Union{Nothing, Halt, CNum}
 
 """
-    _try_reduction!(a, b, i, c, ops, worklist, done, expand_gs) -> StepResult
+    _try_reduction!(a, b, i, c, ops, worklist, done) -> StepResult
 
-Apply an ordering-independent algebraic identity to the pair `(a, b)` at
-position `i`. Shared between the eager-ordering driver and the simplify pass.
-
-When `expand_gs == true`, a Transition composition that would produce a ground-state
-projector ``|g\\rangle\\langle g|`` is rewritten via the completeness relation
+Apply an algebraic identity to the pair `(a, b)` at position `i`. A Transition
+composition that would produce a ground-state projector ``|g\\rangle\\langle g|``
+is rewritten via the completeness relation
 ``|g\\rangle\\langle g| = 1 - \\sum_{k \\neq g} |k\\rangle\\langle k|`` directly,
-keeping the [`NormalOrder`](@ref) result in canonical form. [`simplify`](@ref)
-without a Hilbert space passes `false` to preserve the user-constructed shape;
-[`simplify`](@ref)`(expr, h)` invokes the explicit cleanup pass.
+keeping the result in canonical form.
 """
 @inline function _try_reduction!(
         a::QSym, b::QSym, i::Int, c::CNum, ops::Vector{QSym},
-        worklist::Vector{OrderedTerm}, done::Vector{OrderedTerm},
-        expand_gs::Bool
+        worklist::Vector{OrderedTerm}, done::Vector{OrderedTerm}
     )::StepResult
     # Transition: |i⟩⟨j| · |k⟩⟨l|
     if a isa Transition && b isa Transition && _same_site(a, b) && a.name == b.name
@@ -96,7 +45,7 @@ without a Hilbert space passes `false` to preserve the user-constructed shape;
             push!(done, OrderedTerm(_to_cnum(0), QSym[]))
             return HALT
         end
-        if expand_gs && a.i == a.ground_state && b.j == a.ground_state
+        if a.i == a.ground_state && b.j == a.ground_state
             _push_ground_state_expansion!(c, ops, i, a, worklist)
             return HALT
         end
@@ -172,17 +121,16 @@ end
 end
 
 """
-    _try_swap!(a, b, i, c, ops, ord, worklist) -> StepResult
+    _try_swap!(a, b, i, c, ops, worklist) -> StepResult
 
-Apply an ordering-dependent commutation rule to the pair `(a, b)` at position
-`i`. Forking rules push the swapped branch onto `worklist` and return the new
-prefactor for in-place continuation on the contracted branch; `_try_swap!`
-never returns `HALT`. The `LazyOrder` method is a no-op so the simplify pass
-can share the same driver.
+Apply a commutation rule to the pair `(a, b)` at position `i`. Forking rules
+push the swapped branch onto `worklist` and return the new prefactor for
+in-place continuation on the contracted branch; `_try_swap!` never returns
+`HALT`.
 """
 @inline function _try_swap!(
         a::QSym, b::QSym, i::Int, c::CNum, ops::Vector{QSym},
-        ::NormalOrder, worklist::Vector{OrderedTerm}
+        worklist::Vector{OrderedTerm}
     )::StepResult
     # Fock: a·a† = a†·a + 1
     if a isa Destroy && b isa Create && _same_site(a, b) && a.name == b.name
@@ -210,31 +158,23 @@ can share the same driver.
     return nothing
 end
 
-# LazyOrder skips swaps so the simplify pass can share `_process_product!`.
-@inline _try_swap!(
-    ::QSym, ::QSym, ::Int, ::CNum, ::Vector{QSym},
-    ::LazyOrder, ::Vector{OrderedTerm}
-)::StepResult = nothing
-
 """
-    _process_product!(c, ops, ord, worklist, done, expand_gs)
+    _process_product!(c, ops, worklist, done)
 
 Drive one term `(c, ops)` to completion. Single-output rules mutate `ops` in
 place and the loop resumes with the new prefactor; forking rules push their
 alternate branch onto `worklist` and the loop continues on the contracted
 branch; terminal rules push directly to `done`. When no rule matches the term
-is pushed to `done` as-is. Shared by [`_apply_ordering`](@ref) and
-[`_apply_reductions`](@ref).
+is pushed to `done` as-is.
 """
 function _process_product!(
-        c::CNum, ops::Vector{QSym}, ord::OrderingConvention,
-        worklist::Vector{OrderedTerm}, done::Vector{OrderedTerm},
-        expand_gs::Bool
+        c::CNum, ops::Vector{QSym},
+        worklist::Vector{OrderedTerm}, done::Vector{OrderedTerm}
     )
     while true
         length(ops) <= 1 && (push!(done, OrderedTerm(c, ops)); return)
 
-        res = _try_step!(c, ops, ord, worklist, done, expand_gs)
+        res = _try_step!(c, ops, worklist, done)
         if res isa CNum
             c = res
         elseif res isa Halt
@@ -249,52 +189,41 @@ end
 
 # Try the leftmost rule matching an adjacent pair in `ops`.
 @inline function _try_step!(
-        c::CNum, ops::Vector{QSym}, ord::OrderingConvention,
-        worklist::Vector{OrderedTerm}, done::Vector{OrderedTerm},
-        expand_gs::Bool
+        c::CNum, ops::Vector{QSym},
+        worklist::Vector{OrderedTerm}, done::Vector{OrderedTerm}
     )::StepResult
     n = length(ops)
     for i in 1:(n - 1)
         a, b = ops[i], ops[i + 1]
-        res = _try_reduction!(a, b, i, c, ops, worklist, done, expand_gs)
+        res = _try_reduction!(a, b, i, c, ops, worklist, done)
         res === nothing || return res
-        res = _try_swap!(a, b, i, c, ops, ord, worklist)
+        res = _try_swap!(a, b, i, c, ops, worklist)
         res === nothing || return res
     end
     return nothing
 end
 
 """
-    _drive_worklist(arg_c, ops, ord, expand_gs) -> Vector{OrderedTerm}
+    _apply_ordering(arg_c, ops) -> Vector{OrderedTerm}
 
-Run the shared worklist algorithm: seed with `(arg_c, copy(ops))` and drain via
-[`_process_product!`](@ref) under `ord`. Used by both [`_apply_ordering`](@ref)
-(eager, `expand_gs = true`) and [`_apply_reductions`](@ref) (simplify pass,
-`expand_gs = false` under `LazyOrder`).
+Apply the eager normal-ordering rules to a product: algebraic reductions,
+commutation swaps, and ground-state completeness. Used both inside `*` to
+maintain canonical form and by [`normal_order`](@ref) as an idempotent
+finalizer.
+
+The implementation seeds a worklist with `(arg_c, copy(ops))`, drains it via
+[`_process_product!`](@ref), then runs a final completeness pass over any
+surviving standalone `σᵍᵍ` operands that the in-worklist GS expansion didn't
+see as adjacent.
 """
-function _drive_worklist(
-        arg_c::CNum, ops::Vector{QSym}, ord::OrderingConvention, expand_gs::Bool
-    )
-    length(ops) <= 1 && return OrderedTerm[OrderedTerm(arg_c, ops)]
+function _apply_ordering(arg_c::CNum, ops::Vector{QSym})
+    length(ops) <= 1 && return _expand_gs_oterms(OrderedTerm[OrderedTerm(arg_c, ops)])
 
     worklist = OrderedTerm[OrderedTerm(arg_c, copy(ops))]
     done = OrderedTerm[]
     while !isempty(worklist)
         t = pop!(worklist)
-        _process_product!(t.prefactor, t.ops, ord, worklist, done, expand_gs)
+        _process_product!(t.prefactor, t.ops, worklist, done)
     end
-    return done
+    return _expand_gs_oterms(done)
 end
-
-"""
-    _apply_ordering(arg_c, ops, ord) -> Vector{OrderedTerm}
-
-Apply the eager ordering rules of `ord` to a product. Under [`LazyOrder`](@ref)
-the eager arithmetic is the identity — `simplify` and `normal_order` apply
-rules explicitly via [`_apply_reductions`](@ref) and `_apply_ground_state`.
-"""
-_apply_ordering(arg_c::CNum, ops::Vector{QSym}, ord::OrderingConvention) =
-    _expand_gs_oterms(_drive_worklist(arg_c, ops, ord, true))
-
-_apply_ordering(arg_c::CNum, ops::Vector{QSym}, ::LazyOrder) =
-    OrderedTerm[OrderedTerm(arg_c, ops)]

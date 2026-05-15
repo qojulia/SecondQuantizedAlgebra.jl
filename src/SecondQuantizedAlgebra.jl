@@ -3,7 +3,6 @@ module SecondQuantizedAlgebra
 using SymbolicUtils: SymbolicUtils, simplify, substitute
 using Symbolics: Symbolics, Num, expand, @variables
 using TermInterface: TermInterface
-using ScopedValues: ScopedValues, ScopedValue, with
 
 const CNum = Complex{Num}
 
@@ -97,7 +96,6 @@ export FockSpace, ProductSpace,
     Σ, ∑, change_index, get_indices,
     ⊗, tensor, Destroy, Create,
     @qnumbers, @variables,
-    NormalOrder, LazyOrder, set_ordering!, get_ordering, with_ordering,
     average, undo_average,
     acts_on, is_average,
     fundamental_operators, find_operators, unique_ops,
@@ -120,7 +118,7 @@ macro public(ex)
     end
 end
 
-@public HilbertSpace, QField, QSym, OrderingConvention,
+@public HilbertSpace, QField, QSym,
     QAdd, QTerm, QTermDict, has_sum_metadata, get_sum_indices, get_sum_non_equal,
     transition_superscript, constraint_pairs
 

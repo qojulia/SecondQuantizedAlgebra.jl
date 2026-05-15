@@ -33,7 +33,7 @@ ha_gs = NLevelSpace(:atom, 4, 2)            # 4 levels; ground state = 2
 nothing # hide
 ```
 
-The ground-state projector ``|g\rangle\langle g|`` is eliminated via completeness ``\sum_j |j\rangle\langle j| = 1``. Under [`NormalOrder`](@ref) this happens eagerly inside `*` so canonical results never contain ``|g\rangle\langle g|``; under [`LazyOrder`](@ref) the user opts in by passing the Hilbert space — `simplify(expr, h)` or `normal_order(expr, h)`. See [Ordering Conventions](@ref) for the full rule set.
+The ground-state projector ``|g\rangle\langle g|`` is eliminated via completeness ``\sum_j |j\rangle\langle j| = 1``. This happens eagerly inside `*` so canonical results never contain ``|g\rangle\langle g|``. User-constructed ground-state projectors (e.g. `Transition(h, :σ, 1, 1)` typed directly, never multiplied) stay atomic until you call `simplify(expr, h)` or `normal_order(expr, h)`, which applies completeness explicitly.
 
 Composite systems are built with [`⊗`](@ref) (`\otimes<tab>`) or [`tensor`](@ref):
 
@@ -125,36 +125,22 @@ conj(η)
 
 ## Algebraic expressions and commutation relations
 
-All operator expressions are stored as [`QAdd`](@ref), a dictionary mapping operator sequences to prefactors. The global ordering convention controls whether commutation rules are applied at construction time (i.e. when operators are multiplied with `*`). Use [`set_ordering!`](@ref) and [`get_ordering`](@ref) to switch between them.
-
-**[`NormalOrder`](@ref)** (default): Commutation rules are applied eagerly at construction. Every `*` call immediately normal-orders the result.
+All operator expressions are stored as [`QAdd`](@ref), a dictionary mapping operator sequences to prefactors. Commutation rules are applied **eagerly** at construction time: every `*` immediately normal-orders the result, applies algebraic identities (Transition composition, Pauli products), and expands ground-state completeness. The dict key always reflects the canonical form.
 
 ```@example ordering
 using SecondQuantizedAlgebra # hide
 h = FockSpace(:cavity) # hide
 @qnumbers a::Destroy(h) # hide
-set_ordering!(NormalOrder())
 a * a'   # immediately gives a†a + 1
 ```
 
-**[`LazyOrder`](@ref)**: Operators are concatenated as-is at construction — no reordering happens during `*`.
+[`normal_order`](@ref) can be called explicitly as an idempotent finalizer (useful in tests and for hand-constructed expressions that bypass `*`):
 
 ```@example ordering
-set_ordering!(LazyOrder())
-expr = a * a'               # keeps a·a† as-is
+normal_order(a * a')   # a†a + 1
 ```
 
-```@example ordering
-set_ordering!(NormalOrder()) # hide
-```
-
-Regardless of the global ordering, [`normal_order`](@ref) can always be called explicitly to normal-order any expression:
-
-```@example ordering
-normal_order(expr)           # applies commutation rules: a†a + 1
-```
-
-Note that [`simplify`](@ref) applies ordering-independent algebraic identities (Transition composition, Pauli products) but never commutation-based reordering.
+[`simplify`](@ref) is a reductions-only pass: it applies ordering-independent algebraic identities (Transition composition, Pauli products) and collects like terms, but never performs commutation-based reordering. Since eager `*` already produces canonical form, `simplify` is typically idempotent.
 
 ## Averaging
 

@@ -51,45 +51,7 @@ function _substitute_unsorted(
     sub_ops = QSym[change_index(o, α, β) for o in ops]
     sub_c = change_index(c, α, β)
     _site_sort!(sub_ops)
-    return _apply_ordering(sub_c, sub_ops, get_ordering())
-end
-
-function _substitute_oterms(terms::Vector{OrderedTerm}, α::Index, β::Index)
-    out = OrderedTerm[]
-    for t in terms
-        sub_oops = QSym[change_index(o, α, β) for o in t.ops]
-        sub_oc = change_index(t.prefactor, α, β)
-        _site_sort!(sub_oops)
-        append!(out, _apply_ordering(sub_oc, sub_oops, get_ordering()))
-    end
-    return out
-end
-
-"""
-    _oterms_equivalent(a, b) -> Bool
-
-Multiset equality for `Vector{OrderedTerm}` (order-insensitive). Used by
-[`_accumulate_with_diag!`](@ref) to detect when the pre-sort substitution
-([`_substitute_unsorted`](@ref)) agrees with the implicit post-sort one
-([`_substitute_oterms`](@ref)) — when they agree, the diagonal contribution is
-already implied and no extra constraint is recorded.
-"""
-function _oterms_equivalent(a::Vector{OrderedTerm}, b::Vector{OrderedTerm})
-    length(a) == length(b) || return false
-    matched = falses(length(b))
-    for ta in a
-        found = false
-        for (k, tb) in enumerate(b)
-            matched[k] && continue
-            ta.ops == tb.ops || continue
-            isequal(ta.prefactor, tb.prefactor) || continue
-            matched[k] = true
-            found = true
-            break
-        end
-        found || return false
-    end
-    return all(matched)
+    return _apply_ordering(sub_c, sub_ops)
 end
 
 function _distinct_op_indices(ops::Vector{QSym})
@@ -150,7 +112,7 @@ function _accumulate_with_diag!(
     _phys_sort!(phys_ops)
     sorted = copy(unsorted_ops)
     _site_sort!(sorted)
-    sorted_terms = _apply_ordering(c, sorted, get_ordering())
+    sorted_terms = _apply_ordering(c, sorted)
 
     distinct = _distinct_op_indices(unsorted_ops)
     if length(distinct) < 2

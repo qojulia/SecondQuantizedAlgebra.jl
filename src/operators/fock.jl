@@ -30,7 +30,7 @@ Destroy(name::Symbol, si::Int) = Destroy(name, si, NO_INDEX)
 
 Bosonic creation operator ``a^\\dagger`` on a [`FockSpace`](@ref).
 
-The adjoint of [`Destroy`](@ref). Satisfies `[a, a'] = 1` under [`NormalOrder`](@ref).
+The adjoint of [`Destroy`](@ref). Satisfies `[a, a'] = 1` (applied eagerly by `*`).
 Constructed implicitly via `adjoint(::Destroy)`, or directly with the same signatures
 as [`Destroy`](@ref).
 """

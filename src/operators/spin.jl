@@ -26,7 +26,7 @@ Angular momentum operator ``S_x, S_y, S_z`` on a [`SpinSpace`](@ref).
 
 The `axis` field selects the component: `1` = x, `2` = y, `3` = z.
 Spin operators are Hermitian (`S' == S`) and satisfy ``[S_j, S_k] = i\\epsilon_{jkl} S_l``
-(applied eagerly under [`NormalOrder`](@ref)).
+(applied eagerly during `*`).
 
 # Construction
 ```julia

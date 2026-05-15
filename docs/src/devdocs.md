@@ -98,7 +98,7 @@ end
 
 **What a dict entry represents.** A single entry `QTerm(ops, ne) => c` in `arguments` represents the term `c · ops[1] · ops[2] · …` valid for any index assignment satisfying the pairwise constraints in `ne` (each `(α, β) ∈ ne` means `α ≠ β`). The `indices` field on `QAdd` carries the outer summation scope: a `QAdd` with `indices = [i, j]` represents ``\sum_i \sum_j \sum_\text{terms} c \cdot \text{ops}`` where each individual term may further constrain `(i, j)` per its own `ne`. This per-term scoping is what lets a single `QAdd` represent expressions like ``\sum_i a_i a_i + \sum_{i \neq j} a_i a_j`` as two dict entries with different `ne` rather than two separate `QAdd` summations.
 
-**Dictionary keys are full constrained terms.** Each `QTerm` is an ordered operator product plus the pairwise inequality constraints that scope that product. The ordering is canonical (determined by `_site_sort!` and the ordering convention), so structurally equal products always have the same `ops`. Like-term collection happens only when both `ops` and `ne` match exactly. This is the key invariant that makes constrained sums correct: `a_i` and `a_i` under `i ≠ j` are distinct stored terms, not one merged term with unioned metadata.
+**Dictionary keys are full constrained terms.** Each `QTerm` is an ordered operator product plus the pairwise inequality constraints that scope that product. The ordering is canonical (determined by `_site_sort!` and `_apply_ordering`), so structurally equal products always have the same `ops`. Like-term collection happens only when both `ops` and `ne` match exactly. This is the key invariant that makes constrained sums correct: `a_i` and `a_i` under `i ≠ j` are distinct stored terms, not one merged term with unioned metadata.
 
 **The schema is visible at the type level.** `QTermDict` is a plain `Dict{QTerm, CNum}` alias — there is no wrapper struct. Iterating a `QAdd` yields `Pair{QTerm, CNum}`, and callers reach `term.ops` / `term.ne` on the key directly. This keeps the storage shape (`(ops, ne) => coeff`, not `ops => (coeff, ne)`) honest at every callsite.
 
@@ -132,7 +132,7 @@ _site_sort!(v::Vector{QSym}) = sort!(v; by = _sort_key, alg = Base.MergeSort)
 
 **Why `MergeSort`?** Julia's default sort (`QuickSort`) is not stable — elements with equal keys can be reordered. Here, operators on the same site have identical `_sort_key` values, but their relative order encodes non-commutative multiplication (e.g. `a†·a ≠ a·a†`). A stable sort preserves this left-to-right order for equal keys while still grouping operators by site. `MergeSort` is the standard stable sort algorithm in Julia's `Base`.
 
-**Why sort at all during multiplication?** Even with `LazyOrder`, operators from different sites are grouped together. This is correct because operators on different sites always commute, and grouping them makes the ordering worklist algorithm more efficient (it only needs to scan adjacent same-site pairs).
+**Why sort at all during multiplication?** Operators from different sites are grouped together. This is correct because operators on different sites always commute, and grouping them makes the ordering worklist algorithm more efficient (it only needs to scan adjacent same-site pairs).
 
 
 ## Ordering: the worklist algorithm
@@ -149,45 +149,38 @@ The core of the algebra lives in `ordering.jl`. When two operators are multiplie
 5. Repeat until worklist is empty
 ```
 
-**Three categories of rules:**
+**Three categories of rules** all fire eagerly during `*`:
 
-1. **Algebraic reductions** (ordering-independent, applied by `NormalOrder` at construction and by `simplify()`):
+1. **Algebraic reductions** (Transition composition, Pauli product rule):
    - Transition composition: `|i⟩⟨j| · |k⟩⟨l| → δⱼₖ |i⟩⟨l|`
    - Pauli product: `σⱼ · σₖ = δⱼₖ I + iεⱼₖₗ σₗ`
 
-2. **Ordering swaps** (only applied by `NormalOrder`, or explicitly by `normal_order()`):
+2. **Ordering swaps** (also reachable explicitly via `normal_order()`):
    - Fock: `a · a† → a† · a + 1` (two terms: swapped + identity)
    - Spin: `[Sⱼ, Sₖ] = iεⱼₖₗ Sₗ` when axis out of order
    - PhaseSpace: `p · x → x · p - i`
 
-3. **Completeness expansion** (only under `NormalOrder`, applied post-worklist by `_expand_gs_oterms`, or explicitly by `simplify(expr, h)` / `normal_order(expr, h)` under `LazyOrder`):
+3. **Completeness expansion** (applied post-worklist by `_expand_gs_oterms`, or explicitly via `simplify(expr, h)` / `normal_order(expr, h)` on hand-constructed `σᵍᵍ` that bypassed `*`):
    - NLevel: `σᵍᵍ → 1 - Σ_{k≠g} σᵏᵏ` for the ground-state projector of any `NLevelSpace`. See "Simplification vs. normal ordering" below for the design rationale.
 
 Each swap creates two terms (the swapped pair + the commutator term), so the worklist can grow. But like-term collection in `_addto!` keeps things manageable.
 
 **`_same_site` guard.** All rules only fire when `a.space_index == b.space_index && a.index == b.index`. Operators on different sites trivially commute.
 
-**`LazyOrder` bypass.** When the ordering is `LazyOrder`, `_apply_ordering` returns the input unchanged — no worklist, no scanning, and no algebraic reductions. All rules (both reductions and ordering swaps) are deferred until an explicit `simplify()` or `normal_order()` call:
-
-```julia
-_apply_ordering(arg_c::CNum, ops::Vector{QSym}, ::LazyOrder) =
-    OrderedTerm[OrderedTerm(arg_c, ops)]
-```
-
-**Performance note.** When assembling large symbolic expressions where canonicalization only matters at the end (e.g. building a Hamiltonian via many additions and multiplications before computing a commutator or normal-ordering), wrap the construction in `with_ordering(LazyOrder()) do … end`. Operators accumulate without firing reductions or swaps on every product, and a single `normal_order(expr)` (or `simplify(expr, h)`) at the end produces canonical form in one pass. This avoids re-running the ordering worklist on every pairwise multiplication — for products with many same-site interactions, the savings compound.
+**Performance.** Eager `*` collects like terms at each multiplication step, keeping intermediate expressions compact. For compound builds like `H^3` this pays off compared to a hypothetical deferred alternative that would carry every intermediate redundancy through to a single large final pass. The reductions-only `simplify()` and the on-demand `normal_order()` exist for two narrow cases: applying just the reductions (e.g. when canonicalizing user-constructed expressions), and as an idempotent finalizer (useful in tests and for hand-constructed expressions that bypass `*`).
 
 
 ## Simplification vs. normal ordering
 
 The package exposes three normalization passes, each picking up a different subset of the rule categories above.
 
-`simplify(expr)` (in `simplify.jl`) applies only the ordering-independent algebraic reductions (Transition composition, Pauli products), simplifies symbolic prefactors via `Symbolics.simplify`, and collects like terms. It never performs commutation swaps and never expands ground-state projectors. `normal_order(expr)` (in `normal_order.jl`) applies the full rule set — algebraic reductions plus commutation swaps plus completeness expansion — by calling `_apply_ordering(c, ops, NormalOrder())` regardless of the global ordering setting. `expand(expr)` expands symbolic prefactors only (`(a+b)² → a² + 2ab + b²`), leaving operator structure untouched.
+`simplify(expr)` (in `simplify.jl`) applies only the algebraic reductions (Transition composition, Pauli products), simplifies symbolic prefactors via `Symbolics.simplify`, and collects like terms. It never performs commutation swaps and never expands ground-state projectors. `normal_order(expr)` (in `normal_order.jl`) applies the full rule set — algebraic reductions plus commutation swaps plus completeness expansion — by calling `_apply_ordering(c, ops)`. Since eager `*` already produces canonical form, `normal_order` is typically idempotent and useful mainly as a finalizer for hand-constructed expressions or in tests. `expand(expr)` expands symbolic prefactors only (`(a+b)² → a² + 2ab + b²`), leaving operator structure untouched.
 
-**The `h`-overload and completeness.** `simplify(expr, h)` and `normal_order(expr, h)` are the explicit opt-in for ground-state completeness expansion under `LazyOrder` — they rewrite every `σᵍᵍ` (for any `NLevelSpace` subspace) as `1 - Σ_{k ≠ g} σᵏᵏ`. Under `NormalOrder` the `h` argument is a no-op cleanup pass, since `*` already eagerly canonicalizes every product. Each `Transition` carries its own `ground_state` and `n_levels` fields, so the algebra never consults `h` directly; the argument exists purely as the opt-in marker.
+**The `h`-overload and completeness.** `simplify(expr, h)` and `normal_order(expr, h)` explicitly rewrite every `σᵍᵍ` (for any `NLevelSpace` subspace) as `1 - Σ_{k ≠ g} σᵏᵏ`. Since eager `*` already does this for composition-produced ground-state projectors, the `h`-overload is a no-op cleanup pass on expressions built via `*`. It remains useful for user-constructed `σᵍᵍ` that bypassed `*`. Each `Transition` carries its own `ground_state` and `n_levels` fields, so the algebra never consults `h` directly; the argument exists purely as the opt-in marker.
 
 **Why `σᵍᵍ` is not in canonical form.** The canonical basis for `NLevelSpace` is `{σⁱʲ : (i,j) ≠ (g,g)} ∪ {1}` — the ground-state projector is deliberately excluded. The reason is the `QAdd = Dict{QTerm, CNum}` design invariant: physically equal expressions must have equal dict keys. If `σᵍᵍ` could live in canonical form, then `σᵍᵍ + σ²² + σ³³` (3-level, g=1) and `1` would be physically equal but compare unequal as dicts, breaking `isequal`, hash-based dedup, and `_addto!` merging. The eager rewrite preserves the invariant: every product passes through `_expand_gs_oterms` post-worklist (or through `_try_algebraic_reduction!` with `expand_gs = true` during same-site composition), so dict-key equality always implies physical equality. As a side effect, composition results like `σ¹² · σ²¹ → 1 - σ²² - σ³³` come out in the form a physicist would write directly, and downstream code (e.g. QuantumCumulants.jl meanfield) never has to dedupe an algebraically redundant `⟨σᵍᵍ⟩` moment against `1 - Σ ⟨σᵏᵏ⟩`.
 
-User-constructed `σᵍᵍ` is the one exception. `Transition(h, :σ, g, g)` returns a plain `Transition` without expanding — canonicalization only fires when the operator enters a `*`. This keeps direct construction and inspection cheap, and is why the LazyOrder opt-in path is needed at all: under `LazyOrder` even composition-produced `σᵍᵍ` survives until the user invokes the `h`-overload.
+User-constructed `σᵍᵍ` is the one exception. `Transition(h, :σ, g, g)` returns a plain `Transition` without expanding — canonicalization only fires when the operator enters a `*`. This keeps direct construction and inspection cheap, and is why `simplify(expr, h)` / `normal_order(expr, h)` exist: to apply completeness to such hand-constructed projectors when needed.
 
 **Cost.** Each `σᵍᵍ` reduction emits `n_levels` terms, so `k` reductions in one product cost `n_levels^k`. For typical workloads (2-level atoms, or 3-level with 1–2 atoms per product) this is small. The exponential only matters for high level counts combined with many `σᵍᵍ` factors in one product; if a future workload hits that, the design points either to deferring expansion to a single post-pass (which only helps when `σᵍᵍ`-bearing terms collide before expansion) or to promoting `σᵍᵍ` to first-class canonical with an explicit `apply_completeness` pass (cleaner separation, but breaks the dict-key invariant and forces a meanfield-side audit). Neither change is warranted until the cost actually bites.
 

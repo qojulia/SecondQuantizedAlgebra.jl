@@ -13,17 +13,14 @@ all commutation relations:
 Also applies all algebraic identities (Transition composition, Pauli products),
 simplifies prefactors, and collects like terms.
 
-The `h`-argument overload is the [`LazyOrder`](@ref) opt-in for ground-state
-completeness: it additionally rewrites ground-state projectors
+The `h`-argument overload additionally rewrites ground-state projectors
 ``|g\\rangle\\langle g| = 1 - \\sum_{k \\neq g}|k\\rangle\\langle k|`` of every
-[`NLevelSpace`](@ref) subspace. Without `h`, ``|g\\rangle\\langle g|`` is kept
-atomic — useful for inspecting the un-expanded form.
+[`NLevelSpace`](@ref) subspace.
 
 !!! note
-    Under the default [`NormalOrder`](@ref) convention, operator products are already
-    in canonical form (including ground-state completeness) eagerly during `*`. This
-    function is primarily useful after [`set_ordering!(LazyOrder())`](@ref set_ordering!)
-    or for explicit re-ordering. The `h`-overload is then a no-op cleanup pass.
+    Eager `*` already produces canonical form (including ground-state completeness),
+    so `normal_order` is typically an idempotent finalizer. The `h`-overload is a
+    no-op cleanup pass on expressions produced by `*`.
 
 See also [`simplify`](@ref), [`normal_to_symmetric`](@ref), [`symmetric_to_normal`](@ref).
 """
@@ -35,7 +32,7 @@ function normal_order(s::QAdd)
     d = QTermDict()
     for (term, c) in s.arguments
         _iszero_cnum(c) && continue
-        for t in _apply_ordering(c, term.ops, NormalOrder())
+        for t in _apply_ordering(c, term.ops)
             _addto!(d, t.ops, t.prefactor, term.ne, term.phys_ops)
         end
     end
@@ -235,11 +232,11 @@ end
 """
     _apply_ground_state(expr, h) -> QAdd
 
-LazyOrder opt-in for the completeness rewrite ``|g\\rangle\\langle g| = 1 - \\sum_{k\\neq g}|k\\rangle\\langle k|``
+Completeness rewrite ``|g\\rangle\\langle g| = 1 - \\sum_{k\\neq g}|k\\rangle\\langle k|``
 on every [`Transition`](@ref) ground-state projector in `expr`. Each `Transition`
 carries its own `ground_state` and `n_levels`, so the algebra never inspects
-`h` — the argument exists purely as the opt-in marker on
-`simplify(expr, h)` / `normal_order(expr, h)`.
+`h` — the argument is the marker for the `(expr, h)` overload of `simplify`
+and `normal_order`.
 """
 function _apply_ground_state(expr::QAdd, ::HilbertSpace)
     d = QTermDict()

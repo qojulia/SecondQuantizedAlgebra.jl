@@ -8,7 +8,7 @@ Subtypes:
 - [`QAdd`](@ref): compound expressions (a sum of [`QTerm`](@ref) products)
 
 Supports arithmetic (`+`, `-`, `*`, `^`, `/`), `adjoint`, and comparison via `==`/`isequal`.
-All arithmetic eagerly applies the global [`OrderingConvention`](@ref) and returns [`QAdd`](@ref).
+All arithmetic eagerly applies normal ordering and returns [`QAdd`](@ref).
 """
 abstract type QField end
 
@@ -26,45 +26,6 @@ Concrete subtypes: [`Destroy`](@ref), [`Create`](@ref), [`Transition`](@ref),
 [`Pauli`](@ref), [`Spin`](@ref), [`Position`](@ref), [`Momentum`](@ref).
 """
 abstract type QSym <: QField end
-
-"""
-    OrderingConvention
-
-Abstract type for operator ordering conventions.
-
-The global convention (set via [`set_ordering!`](@ref)) determines which commutation
-relations are applied eagerly during `*`. Concrete subtypes:
-- [`NormalOrder`](@ref) — creation operators left of annihilation operators (default)
-- [`LazyOrder`](@ref) — no reordering; defer to [`simplify`](@ref) or [`normal_order`](@ref)
-"""
-abstract type OrderingConvention end
-
-"""
-    NormalOrder <: OrderingConvention
-
-Normal ordering convention: creation operators are placed to the left of annihilation operators.
-
-Applied commutation relations:
-- **Fock**: ``[a, a^\\dagger] = 1``
-- **Spin**: ``[S_j, S_k] = i\\epsilon_{jkl} S_l``
-- **Phase space**: ``[p, x] = -i``
-
-This is the default ordering convention. See also [`LazyOrder`](@ref), [`set_ordering!`](@ref).
-"""
-struct NormalOrder <: OrderingConvention end
-
-"""
-    LazyOrder <: OrderingConvention
-
-Lazy ordering convention: no commutation rules are applied during multiplication (`*`).
-Operator products are stored in the order they are written.
-
-Use [`simplify`](@ref) to apply algebraic identities (Transition composition, Pauli products)
-or [`normal_order`](@ref) to apply full normal-ordering commutation rules.
-
-See also [`NormalOrder`](@ref), [`set_ordering!`](@ref).
-"""
-struct LazyOrder <: OrderingConvention end
 
 Base.one(::T) where {T <: QField} = one(T)
 Base.one(::Type{<:QField}) = 1

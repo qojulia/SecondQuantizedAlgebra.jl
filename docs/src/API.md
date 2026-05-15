@@ -104,33 +104,6 @@ Momentum
 ```
 
 
-## [Ordering](@id API: Ordering)
-
-```@docs
-OrderingConvention
-```
-
-```@docs
-NormalOrder
-```
-
-```@docs
-LazyOrder
-```
-
-```@docs
-set_ordering!
-```
-
-```@docs
-get_ordering
-```
-
-```@docs
-with_ordering
-```
-
-
 ## [Algebra](@id API: Algebra)
 
 ```@docs

@@ -1,18 +1,6 @@
-# --- Algebraic reductions (ordering-independent) ---
-
-"""
-    _apply_reductions(arg_c, ops) -> Vector{OrderedTerm}
-
-Apply ordering-independent algebraic identities to a product. Only fires
-Transition composition (`|i⟩⟨j| · |k⟩⟨l| → δⱼₖ |i⟩⟨l|`) and the Pauli product
-rule (`σⱼ·σₖ = δⱼₖI + iϵⱼₖₗσₗ`); never reorders via commutation. Drives the
-shared [`_process_product!`](@ref) under `LazyOrder` (skips swaps) with
-`expand_gs = false` (keeps `σᵍᵍ` atomic — `simplify(expr, h)` opts back in).
-"""
-_apply_reductions(arg_c::CNum, ops::Vector{QSym}) =
-    _drive_worklist(arg_c, ops, LazyOrder(), false)
-
 function _simplify_prefactor(x::CNum)
+    # Numeric-only prefactors are already canonical — skip the expand/simplify pass.
+    _const_val(x.re) !== nothing && _const_val(x.im) !== nothing && return x
     re = Num(SymbolicUtils.simplify(SymbolicUtils.unwrap(Symbolics.expand(real(x)))))
     im = Num(SymbolicUtils.simplify(SymbolicUtils.unwrap(Symbolics.expand(imag(x)))))
     return Complex(re, im)
@@ -29,7 +17,7 @@ function _qsimplify(s::QAdd)
     d = QTermDict()
     for (term, c) in s.arguments
         _iszero_cnum(c) && continue
-        for t in _apply_reductions(c, term.ops)
+        for t in _apply_ordering(c, term.ops)
             new_c = _simplify_prefactor(t.prefactor)
             _iszero_cnum(new_c) && continue
             _addto!(d, t.ops, new_c, term.ne, t.ops)
@@ -87,15 +75,14 @@ Applied rules:
 Does **not** apply commutation-based reordering (Fock `[a, a†]`, Spin `[Sⱼ, Sₖ]`,
 PhaseSpace `[p, x]`). For that, use [`normal_order`](@ref).
 
-The `h`-argument overload is the [`LazyOrder`](@ref) opt-in for ground-state
-completeness: it additionally rewrites ground-state projectors
+The `h`-argument overload additionally rewrites ground-state projectors
 ``|g\\rangle\\langle g| = 1 - \\sum_{k \\neq g}|k\\rangle\\langle k|`` of every
-[`NLevelSpace`](@ref) subspace. Without `h`, ``|g\\rangle\\langle g|`` is kept
-atomic — useful for inspecting the un-expanded form.
+[`NLevelSpace`](@ref) subspace. Since eager `*` already applies completeness,
+this overload is typically a no-op cleanup pass; it remains useful after
+hand-constructed expressions that bypass `*`.
 
-Under [`NormalOrder`](@ref) (the default ordering convention) the eager arithmetic
-already produces canonical form including completeness, so `simplify` is typically
-idempotent and the `h`-overload is a no-op cleanup pass.
+The eager `*` already produces canonical form including completeness, so
+`simplify` is typically idempotent.
 
 See also [`normal_order`](@ref), [`expand`](@ref).
 """

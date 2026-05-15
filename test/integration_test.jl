@@ -198,9 +198,9 @@ import SecondQuantizedAlgebra: simplify, QAdd, QSym, _single_qadd, _to_cnum, Ind
         # on the correct physical order. Reference equations (6)–(7):
         # https://qojulia.github.io/QuantumCumulants.jl/stable/examples/superradiant_laser_indexed/
         #
-        # Under NormalOrder, σⱼ¹¹ never appears in dict keys — it is eagerly
-        # expanded via completeness σⱼ¹¹ = 1 - σⱼ²². Assertions check the
-        # post-expansion form; LazyOrder shows the un-expanded shape.
+        # σⱼ¹¹ never appears in dict keys — it is eagerly expanded via
+        # completeness σⱼ¹¹ = 1 - σⱼ²² during `*`. Assertions check the
+        # post-expansion form.
         hc = FockSpace(:cavity)
         ha = NLevelSpace(:atom, 2)
         h = hc ⊗ ha
@@ -244,7 +244,7 @@ import SecondQuantizedAlgebra: simplify, QAdd, QSym, _single_qadd, _to_cnum, Ind
             term.ops == [σ(2, 1, i), σ(1, 2, j)] && isequal(c, _to_cnum(1im * g(i)))
         end
         @test any(p -> p == (i, j) || p == (j, i), constraint_pairs(result3))
-        # σⱼ¹¹ should NOT appear under NormalOrder canonical form
+        # σⱼ¹¹ should NOT appear under canonical form
         @test !any(result3) do (term, c)
             any(op -> op isa Transition && op.i == 1 && op.j == 1, term.ops)
         end
@@ -271,7 +271,7 @@ import SecondQuantizedAlgebra: simplify, QAdd, QSym, _single_qadd, _to_cnum, Ind
         @test any(result4) do (term, c)
             term.ops == [a', σ(1, 2, j), σ(2, 2, k)] && isequal(c, _to_cnum(-2im * g(k)))
         end
-        # σ_·_11 should NOT appear under NormalOrder canonical form
+        # σ_·_11 should NOT appear under canonical form
         @test !any(result4) do (term, c)
             any(op -> op isa Transition && op.i == 1 && op.j == 1, term.ops)
         end

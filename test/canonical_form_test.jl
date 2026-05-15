@@ -1,17 +1,15 @@
 using SecondQuantizedAlgebra
 using Test
 using Symbolics: @variables
-import SecondQuantizedAlgebra: simplify, QAdd, QSym, CNum, Transition, NO_INDEX,
-    set_ordering!, get_ordering, NormalOrder, LazyOrder
+import SecondQuantizedAlgebra: simplify, QAdd, QSym, CNum, Transition, NO_INDEX
 
 # ============================================================================
-# Canonical form invariants under NormalOrder
+# Canonical form invariants
 # ============================================================================
-# Under NormalOrder (the default), the canonical basis for an NLevelSpace is
-# {σⁱʲ : (i,j) ≠ (g,g)} ∪ {1}. Same-site composition that would produce σᵍᵍ
-# is eagerly rewritten via completeness σᵍᵍ = 1 - Σ_{k≠g} σᵏᵏ. These tests
-# pin that invariant across constructions and check the LazyOrder opt-in
-# behaves as documented.
+# The canonical basis for an NLevelSpace is {σⁱʲ : (i,j) ≠ (g,g)} ∪ {1}.
+# Same-site composition that would produce σᵍᵍ is eagerly rewritten via
+# completeness σᵍᵍ = 1 - Σ_{k≠g} σᵏᵏ. These tests pin that invariant across
+# constructions.
 
 # Helper: is this op a ground-state projector of an NLevelSpace?
 function _is_gs_projector(op)
@@ -27,7 +25,7 @@ function _no_gs_projectors(expr::QAdd)
     return true
 end
 
-@testset "Canonical form (NormalOrder default)" begin
+@testset "Canonical form" begin
 
     # ============================================================================
     # Field-level invariants on Transition
@@ -180,9 +178,9 @@ end
     end
 
     # ============================================================================
-    # Eager * canonicalizes any product containing σᵍᵍ under NormalOrder
+    # Eager * canonicalizes any product containing σᵍᵍ
     # ============================================================================
-    @testset "Different-site σᵍᵍ_i · σᵍᵍ_j expands eagerly under NormalOrder" begin
+    @testset "Different-site σᵍᵍ_i · σᵍᵍ_j expands eagerly" begin
         h = NLevelSpace(:atom, 3, 2)
         i = SecondQuantizedAlgebra.Index(h, :i, 10, 1)
         j = SecondQuantizedAlgebra.Index(h, :j, 10, 1)
@@ -193,7 +191,7 @@ end
         @test isequal(eager, normal_order(σi * σj, h))
     end
 
-    @testset "σᵍᵍ * σⁱʲ expands eagerly under NormalOrder" begin
+    @testset "σᵍᵍ * σⁱʲ expands eagerly" begin
         h = NLevelSpace(:atom, 3, 1)
         σgg = Transition(h, :σ, 1, 1)
         σ12 = Transition(h, :σ, 1, 2)
@@ -222,64 +220,9 @@ end
     end
 
     # ============================================================================
-    # LazyOrder opt-in: simplify(expr) keeps σᵍᵍ; simplify(expr, h) expands
-    # ============================================================================
-    @testset "LazyOrder: simplify(expr) keeps σᵍᵍ atomic" begin
-        prev = get_ordering()
-        set_ordering!(LazyOrder())
-        try
-            h = NLevelSpace(:atom, 2, 1)
-            σ12 = Transition(h, :σ, 1, 2)
-            σ21 = Transition(h, :σ, 2, 1)
-            σ11 = Transition(h, :σ, 1, 1)
-
-            # In LazyOrder, * just stores [σ12, σ21] without composition
-            raw = σ12 * σ21
-            @test length(raw) == 1
-            (term, _) = only(collect(raw))
-            @test length(term.ops) == 2
-
-            # simplify(expr): fires reductions; σᵍᵍ produced and KEPT atomic
-            no_h = simplify(raw)
-            @test isequal(no_h, simplify(σ11))
-            # σᵍᵍ DOES appear here — that's the point of LazyOrder simplify-without-h
-            @test !_no_gs_projectors(no_h)
-
-            # simplify(expr, h): fires reductions + completeness
-            σ22 = Transition(h, :σ, 2, 2)
-            with_h = simplify(raw, h)
-            @test isequal(with_h, simplify(1 - σ22, h))
-            @test _no_gs_projectors(with_h)
-        finally
-            set_ordering!(prev)
-        end
-    end
-
-    @testset "LazyOrder: normal_order(expr) forces NormalOrder canonical form" begin
-        prev = get_ordering()
-        set_ordering!(LazyOrder())
-        try
-            h = NLevelSpace(:atom, 2, 1)
-            σ12 = Transition(h, :σ, 1, 2)
-            σ21 = Transition(h, :σ, 2, 1)
-            σ22 = Transition(h, :σ, 2, 2)
-
-            raw = σ12 * σ21    # un-reduced under LazyOrder
-
-            # normal_order forces NormalOrder pass: reductions + commutation +
-            # completeness all fire because _apply_ordering(NormalOrder()) is invoked
-            result = normal_order(raw)
-            @test isequal(result, simplify(1 - σ22))
-            @test _no_gs_projectors(result)
-        finally
-            set_ordering!(prev)
-        end
-    end
-
-    # ============================================================================
     # σᵍᵍ-never-appears invariant for representative expressions
     # ============================================================================
-    @testset "Invariant: σᵍᵍ never appears in commutators (NormalOrder)" begin
+    @testset "Invariant: σᵍᵍ never appears in commutators" begin
         ha = NLevelSpace(:atom, 2, 1)
         hf = FockSpace(:cavity)
         h = hf ⊗ ha
@@ -296,7 +239,7 @@ end
         end
     end
 
-    @testset "Invariant: σᵍᵍ never appears for indexed sums (NormalOrder)" begin
+    @testset "Invariant: σᵍᵍ never appears for indexed sums" begin
         ha = NLevelSpace(:atom, 2, 1)
         hf = FockSpace(:cavity)
         h = hf ⊗ ha

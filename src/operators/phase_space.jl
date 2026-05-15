@@ -4,7 +4,7 @@
 Hilbert space for position and momentum (quadrature) operators.
 
 Supports [`Position`](@ref) and [`Momentum`](@ref) operators with the canonical
-commutation relation ``[p, x] = -i`` (under [`NormalOrder`](@ref), position is
+commutation relation ``[p, x] = -i`` (eagerly applied by `*`: position is
 ordered left of momentum).
 
 # Examples
