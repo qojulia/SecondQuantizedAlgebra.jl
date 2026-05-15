@@ -30,8 +30,7 @@ function _apply_diag_terms!(
         phys_ops::Vector{QSym}
     )
     for t in terms
-        tracked_phys = _needs_phys_tracking(t.ops) ? phys_ops : t.ops
-        _addto!(d, t.ops, t.prefactor, ne, tracked_phys)
+        _addto!(d, t.ops, t.prefactor, ne, phys_ops)
     end
     return d
 end
@@ -156,16 +155,14 @@ function _accumulate_with_diag!(
     distinct = _distinct_op_indices(unsorted_ops)
     if length(distinct) < 2
         for t in sorted_terms
-            tracked_phys = _needs_phys_tracking(t.ops) ? phys_ops : t.ops
-            _addto!(d, t.ops, t.prefactor, inherited_ne, tracked_phys)
+            _addto!(d, t.ops, t.prefactor, inherited_ne, phys_ops)
         end
         return nothing
     end
 
     off_diag_terms = QTerm[]
     for t in sorted_terms
-        tracked_phys = _needs_phys_tracking(t.ops) ? phys_ops : t.ops
-        term = _term_key(t.ops, inherited_ne, tracked_phys)
+        term = _term_key(t.ops, inherited_ne, phys_ops)
         _addto_key!(d, term, t.prefactor)
         _push_key_unique!(off_diag_terms, term)
     end

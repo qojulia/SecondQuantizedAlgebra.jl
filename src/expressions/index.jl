@@ -243,11 +243,10 @@ function _diagonal_split!(off_diag::QTermDict, diag::QTermDict, sum_idx::Index)
             new_ops = copy(new_phys_ops)
             _site_sort!(new_ops)
             for t in _apply_ordering(new_c, new_ops, get_ordering())
-                tracked_phys = _needs_phys_tracking(t.ops) ? new_phys_ops : t.ops
                 _addto!(
                     diag, t.ops, t.prefactor,
                     _drop_ne_with(current_term.ne, sum_idx),
-                    tracked_phys,
+                    new_phys_ops,
                 )
             end
 

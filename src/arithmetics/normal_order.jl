@@ -36,8 +36,7 @@ function normal_order(s::QAdd)
     for (term, c) in s.arguments
         _iszero_cnum(c) && continue
         for t in _apply_ordering(c, term.ops, NormalOrder())
-            tracked_phys = _needs_phys_tracking(t.ops) ? term.phys_ops : t.ops
-            _addto!(d, t.ops, t.prefactor, term.ne, tracked_phys)
+            _addto!(d, t.ops, t.prefactor, term.ne, term.phys_ops)
         end
     end
     return QAdd(d, copy(s.indices))
@@ -246,7 +245,7 @@ function _apply_ground_state(expr::QAdd, ::HilbertSpace)
     d = QTermDict()
     for (term, c) in expr.arguments
         for (e_term, ec) in _expand_ground_state(c, term.ops).arguments
-            _addto!(d, e_term.ops, ec, term.ne)
+            _addto!(d, e_term.ops, ec, term.ne, term.phys_ops)
         end
     end
     return QAdd(d, copy(expr.indices))

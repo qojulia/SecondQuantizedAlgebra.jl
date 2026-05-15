@@ -47,9 +47,9 @@ function _qadd_from_oterms(
         ne::Vector{NonEqualPair} = _EMPTY_NE
     )
     d = QTermDict()
-    for t in terms
-        for ot in _apply_ordering(t.prefactor, t.ops, get_ordering())
-            _addto!(d, ot.ops, ot.prefactor, ne, ot.ops)
+    for outer_t in terms
+        for t in _apply_ordering(outer_t.prefactor, outer_t.ops, get_ordering())
+            _addto!(d, t.ops, t.prefactor, ne, t.ops)
         end
     end
     return QAdd(d, indices)
@@ -63,8 +63,7 @@ function _ordered_qadd(
     _iszero_cnum(c) && return QAdd(QTermDict(), Index[])
     d = QTermDict()
     for t in _apply_ordering(c, ops, get_ordering())
-        tracked_phys = _needs_phys_tracking(t.ops) ? phys_ops : t.ops
-        _addto!(d, t.ops, t.prefactor, ne, tracked_phys)
+        _addto!(d, t.ops, t.prefactor, ne, phys_ops)
     end
     return QAdd(d, Index[])
 end

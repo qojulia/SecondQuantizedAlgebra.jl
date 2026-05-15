@@ -147,7 +147,8 @@ function _term_key(
         ne::Vector{NonEqualPair} = _EMPTY_NE,
         phys_ops::Vector{QSym} = ops
     )
-    return QTerm(copy(ops), _canonical_ne(ne), copy(phys_ops))
+    actual_phys = _needs_phys_tracking(ops) ? phys_ops : ops
+    return QTerm(copy(ops), _canonical_ne(ne), copy(actual_phys))
 end
 
 function _push_key_unique!(out::Vector{QTerm}, term::QTerm)
