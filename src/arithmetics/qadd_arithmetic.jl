@@ -1,13 +1,234 @@
 # ============================================================================
-#  Multiplication — always returns QAdd, eagerly ordered
+#  Multiplication — canonical chain normalization with explicit scope branching
 # ============================================================================
 
+struct _ReductionMode end
+const _REDUCE_ONLY = _ReductionMode()
+
+struct _NormState
+    prefactor::CNum
+    bound::Vector{Index}
+    ne::Vector{NonEqualPair}
+    chains::Vector{_SpaceChain}
+end
+
+function _local_rewrite(c::CNum, ops::Vector{QSym}, ord::OrderingConvention)
+    return _apply_ordering(c, ops, ord)
+end
+_local_rewrite(c::CNum, ops::Vector{QSym}, ::_ReductionMode) = _apply_reductions(c, ops)
+
+function _copy_state(state::_NormState)
+    return _NormState(state.prefactor, _copy_bound(state.bound), _copy_ne(state.ne), _copy_chains(state.chains))
+end
+
+function _substitute_factor(f::_SiteFactor, from::Index, to::Index)
+    new_index = f.index == from ? to : f.index
+    new_ops = QSym[change_index(op, from, to) for op in f.ops]
+    return _SiteFactor(new_index, new_ops)
+end
+
+function _substitute_chain(chain::_SpaceChain, from::Index, to::Index)
+    return _SpaceChain(chain.space_index, [_substitute_factor(f, from, to) for f in chain.factors])
+end
+
+function _substitute_state(state::_NormState, from::Index, to::Index)
+    from_bound = _is_bound_index(state.bound, from)
+    to_bound = _is_bound_index(state.bound, to)
+    new_bound = if from_bound && !to_bound
+        _drop_bound_with(state.bound, from)
+    else
+        _substitute_bound(state.bound, from, to)
+    end
+    return _NormState(
+        change_index(state.prefactor, from, to),
+        new_bound,
+        _substitute_ne(state.ne, from, to),
+        [_substitute_chain(chain, from, to) for chain in state.chains],
+    )
+end
+
+function _factor_out_of_order(left::_SiteFactor, right::_SiteFactor)
+    return _site_order_key(right.index) < _site_order_key(left.index)
+end
+
+function _sites_known_disequal(ne::Vector{NonEqualPair}, left::Index, right::Index)
+    left == right && return false
+    (!has_index(left) || !has_index(right)) && return true
+    return _ne_contains(ne, left, right)
+end
+
+function _binding_slot(bound::Vector{Index}, idx::Index)
+    for (i, x) in enumerate(bound)
+        x == idx && return i
+    end
+    return 0
+end
+
+_is_bound_index(bound::Vector{Index}, idx::Index) = _binding_slot(bound, idx) != 0
+
+function _choose_unify(left::Index, right::Index, bound::Vector{Index})
+    left_slot = _binding_slot(bound, left)
+    right_slot = _binding_slot(bound, right)
+    if left_slot != 0 && right_slot == 0
+        return left, right
+    elseif right_slot != 0 && left_slot == 0
+        return right, left
+    elseif left_slot != 0 && right_slot != 0
+        return left_slot < right_slot ? (right, left) : (left, right)
+    else
+        return isless(left, right) ? (right, left) : (left, right)
+    end
+end
+
+function _replace_factor_pair(
+        factors::Vector{_SiteFactor}, i::Int, idx::Index, ops::Vector{QSym}
+    )
+    out = _SiteFactor[]
+    sizehint!(out, length(factors) - 1 + (isempty(ops) ? 0 : 1))
+    for k in 1:(i - 1)
+        push!(out, _copy_factor(factors[k]))
+    end
+    isempty(ops) || push!(out, _SiteFactor(idx, copy(ops)))
+    for k in (i + 2):length(factors)
+        push!(out, _copy_factor(factors[k]))
+    end
+    return out
+end
+
+function _replace_single_factor(
+        factors::Vector{_SiteFactor}, i::Int, idx::Index, ops::Vector{QSym}
+    )
+    out = _SiteFactor[]
+    sizehint!(out, length(factors) - 1 + (isempty(ops) ? 0 : 1))
+    for k in 1:(i - 1)
+        push!(out, _copy_factor(factors[k]))
+    end
+    isempty(ops) || push!(out, _SiteFactor(idx, copy(ops)))
+    for k in (i + 1):length(factors)
+        push!(out, _copy_factor(factors[k]))
+    end
+    return out
+end
+
+function _swap_factor_pair(factors::Vector{_SiteFactor}, i::Int)
+    out = [_copy_factor(f) for f in factors]
+    out[i], out[i + 1] = out[i + 1], out[i]
+    return out
+end
+
+function _with_chain_replaced(state::_NormState, chain_idx::Int, new_factors::Vector{_SiteFactor})
+    chains = _copy_chains(state.chains)
+    if isempty(new_factors)
+        deleteat!(chains, chain_idx)
+    else
+        chains[chain_idx] = _SpaceChain(chains[chain_idx].space_index, new_factors)
+    end
+    return _NormState(state.prefactor, _copy_bound(state.bound), _copy_ne(state.ne), chains)
+end
+
+function _normalize_state(state::_NormState, mode)
+    for chain_idx in eachindex(state.chains)
+        chain = state.chains[chain_idx]
+        factors = chain.factors
+        for factor_idx in eachindex(factors)
+            factor = factors[factor_idx]
+            length(factor.ops) <= 1 && continue
+            local_terms = _local_rewrite(state.prefactor, factor.ops, mode)
+            if length(local_terms) == 1
+                only_term = only(local_terms)
+                if isequal(only_term.prefactor, state.prefactor) && isequal(only_term.ops, factor.ops)
+                    continue
+                end
+            end
+            out = _NormState[]
+            for t in local_terms
+                next_state = _with_chain_replaced(
+                    _NormState(t.prefactor, state.bound, state.ne, state.chains),
+                    chain_idx,
+                    _replace_single_factor(factors, factor_idx, factor.index, t.ops),
+                )
+                append!(out, _normalize_state(next_state, mode))
+            end
+            return out
+        end
+        length(factors) <= 1 && continue
+        for i in 1:(length(factors) - 1)
+            left = factors[i]
+            right = factors[i + 1]
+
+            if left.index == right.index
+                merged = vcat(left.ops, right.ops)
+                out = _NormState[]
+                for t in _local_rewrite(state.prefactor, merged, mode)
+                    next_state = _with_chain_replaced(
+                        _NormState(t.prefactor, state.bound, state.ne, state.chains),
+                        chain_idx,
+                        _replace_factor_pair(factors, i, left.index, t.ops),
+                    )
+                    append!(out, _normalize_state(next_state, mode))
+                end
+                return out
+            end
+
+            if _sites_known_disequal(state.ne, left.index, right.index)
+                if _factor_out_of_order(left, right)
+                    swapped = _with_chain_replaced(state, chain_idx, _swap_factor_pair(factors, i))
+                    return _normalize_state(swapped, mode)
+                end
+                continue
+            end
+
+            left_bound = _is_bound_index(state.bound, left.index)
+            right_bound = _is_bound_index(state.bound, right.index)
+            if !(left_bound || right_bound)
+                continue
+            end
+
+            eq_from, eq_to = _choose_unify(left.index, right.index, state.bound)
+            eq_state = _substitute_state(state, eq_from, eq_to)
+
+            diseq_state = _NormState(
+                state.prefactor,
+                _copy_bound(state.bound),
+                _merge_ne_pair(state.ne, left.index, right.index),
+                _copy_chains(state.chains),
+            )
+            if _factor_out_of_order(left, right)
+                diseq_state = _with_chain_replaced(diseq_state, chain_idx, _swap_factor_pair(factors, i))
+            end
+
+            out = _NormState[]
+            append!(out, _normalize_state(eq_state, mode))
+            append!(out, _normalize_state(diseq_state, mode))
+            return out
+        end
+    end
+    return _NormState[state]
+end
+
+function _emit_state!(d::QTermDict, state::_NormState)
+    ops = _canonical_ops_from_chains(state.chains)
+    bound, ne = _normalize_scope(state.prefactor, ops, state.bound, state.ne)
+    _addto_key!(d, _term_key(state.chains, bound, ne), state.prefactor)
+    return d
+end
+
+function _accumulate_normalized!(
+        d::QTermDict, c::CNum, ops::Vector{QSym},
+        bound::Vector{Index}, ne::Vector{NonEqualPair}, mode
+    )
+    _iszero_cnum(c) && return d
+    state = _NormState(c, _copy_bound(bound), _copy_ne(ne), _chains_from_ops(ops))
+    for final_state in _normalize_state(state, mode)
+        _emit_state!(d, final_state)
+    end
+    return d
+end
+
 function Base.:*(a::QSym, b::QSym)
-    phys_ops = QSym[a, b]
-    _phys_sort!(phys_ops)
-    ops = copy(phys_ops)
-    _site_sort!(ops)
-    return _ordered_qadd(_CNUM_ONE, ops, _EMPTY_NE, phys_ops)
+    d = QTermDict()
+    _accumulate_normalized!(d, _CNUM_ONE, QSym[a, b], _empty_bound(), _empty_ne(), get_ordering())
+    return _qadd(d)
 end
 
 Base.:*(a::QSym, b::Number) = _single_qadd(_to_cnum(b), QSym[a])
@@ -21,222 +242,89 @@ function Base.:*(a::QAdd, b::Number)
         _iszero_cnum(new_c) && continue
         d[_copy_key(term)] = new_c
     end
-    return QAdd(d, copy(a.indices))
+    return _qadd(d, copy(a.indices))
 end
 Base.:*(a::Number, b::QAdd) = b * a
 
-function _apply_diag_terms!(
-        d::QTermDict, terms::Vector{OrderedTerm}, ne::Vector{NonEqualPair},
-        phys_ops::Vector{QSym}
-    )
-    for t in terms
-        tracked_phys = _needs_phys_tracking(t.ops) ? phys_ops : t.ops
-        _addto!(d, t.ops, t.prefactor, ne, tracked_phys)
+function _term_indices(term::QTerm)
+    out = copy(term.bound)
+    for op in term.ops
+        has_index(op.index) && _push_index_unique!(out, op.index)
     end
-    return d
-end
-
-"""
-    _substitute_unsorted(c, ops, α, β) -> Vector{OrderedTerm}
-
-Substitute `α → β` on the *unsorted* operator sequence `ops` (the original
-physical order before [`_site_sort!`](@ref)) and then site-sort + apply
-ordering. Pre-sort substitution preserves the physical operator order so
-that same-site composition rules (e.g. ``\\sigma_{ij}\\sigma_{jk} =
-\\sigma_{ik}``) fire on the correct adjacency. See `devdocs.md` "Diagonal
-splitting" for why post-sort substitution is wrong.
-"""
-function _substitute_unsorted(
-        c::CNum, ops::Vector{QSym}, α::Index, β::Index
-    )
-    sub_ops = QSym[change_index(o, α, β) for o in ops]
-    sub_c = change_index(c, α, β)
-    _site_sort!(sub_ops)
-    return _apply_ordering(sub_c, sub_ops, get_ordering())
-end
-
-function _substitute_oterms(terms::Vector{OrderedTerm}, α::Index, β::Index)
-    out = OrderedTerm[]
-    for t in terms
-        sub_oops = QSym[change_index(o, α, β) for o in t.ops]
-        sub_oc = change_index(t.prefactor, α, β)
-        _site_sort!(sub_oops)
-        append!(out, _apply_ordering(sub_oc, sub_oops, get_ordering()))
+    for (α, β) in term.ne
+        _push_index_unique!(out, α)
+        _push_index_unique!(out, β)
     end
     return out
 end
 
-"""
-    _oterms_equivalent(a, b) -> Bool
-
-Multiset equality for `Vector{OrderedTerm}` (order-insensitive). Used by
-[`_accumulate_with_diag!`](@ref) to detect when the pre-sort substitution
-([`_substitute_unsorted`](@ref)) agrees with the implicit post-sort one
-([`_substitute_oterms`](@ref)) — when they agree, the diagonal contribution is
-already implied and no extra constraint is recorded.
-"""
-function _oterms_equivalent(a::Vector{OrderedTerm}, b::Vector{OrderedTerm})
-    length(a) == length(b) || return false
-    matched = falses(length(b))
-    for ta in a
-        found = false
-        for (k, tb) in enumerate(b)
-            matched[k] && continue
-            ta.ops == tb.ops || continue
-            isequal(ta.prefactor, tb.prefactor) || continue
-            matched[k] = true
-            found = true
-            break
-        end
-        found || return false
+function _fresh_index(idx::Index, taken::Vector{Index})
+    n = 1
+    while true
+        name = Symbol(idx.name, "_", n)
+        sym_var = SymbolicUtils.Sym{SymbolicUtils.SymReal}(name; type = Int)
+        candidate = Index(name, idx.range, idx.space_index, Num(sym_var))
+        candidate ∉ taken && return candidate
+        n += 1
     end
-    return all(matched)
 end
 
-function _distinct_op_indices(ops::Vector{QSym})
-    out = Index[]
-    for op in ops
-        idx = op.index
-        has_index(idx) || continue
-        idx in out && continue
-        push!(out, idx)
+function _alpha_rename_collisions(term::QTerm, c::CNum, taken::Vector{Index})
+    new_c = c
+    new_chains = _copy_chains(term.chains)
+    new_bound = copy(term.bound)
+    new_ne = copy(term.ne)
+    seen = copy(taken)
+    changed = false
+    for idx in term.bound
+        idx in seen || continue
+        fresh = _fresh_index(idx, seen)
+        new_c = change_index(new_c, idx, fresh)
+        new_chains = [_substitute_chain(chain, idx, fresh) for chain in new_chains]
+        new_bound = _substitute_bound(new_bound, idx, fresh)
+        new_ne = _substitute_ne(new_ne, idx, fresh)
+        push!(seen, fresh)
+        changed = true
     end
-    return out
-end
-
-"""
-    _emit_diagonal!(d, diag_terms, off_diag_terms, α, β) -> Vector{QTerm}
-
-Add the diagonal contribution `diag_terms` (from `α = β`) into `d` using the
-shared `ne` of the off-diagonal entries, then re-key those off-diagonal entries
-under the augmented constraint `ne ∪ {(α, β)}`. Returns the new key list. All
-entries in `off_diag_terms` are assumed to share the same `ne` — an invariant
-maintained by [`_accumulate_with_diag!`](@ref).
-"""
-function _emit_diagonal!(
-        d::QTermDict, diag_terms::Vector{OrderedTerm},
-        off_diag_terms::Vector{QTerm}, diag_phys_ops::Vector{QSym},
-        α::Index, β::Index
-    )
-    isempty(off_diag_terms) && return off_diag_terms
-    current_ne = first(off_diag_terms).ne
-    _apply_diag_terms!(d, diag_terms, _drop_ne_with(current_ne, α), diag_phys_ops)
-
-    new_ne = _merge_ne_pair(current_ne, α, β)
-    moved = QTerm[]
-    for old_term in off_diag_terms
-        c = get(d, old_term, nothing)
-        c === nothing && continue
-        delete!(d, old_term)
-        new_term = _term_key(old_term.ops, new_ne, old_term.phys_ops)
-        _addto_key!(d, new_term, c)
-        _push_key_unique!(moved, new_term)
-    end
-    return moved
-end
-
-"""
-    _accumulate_with_diag!(d, c, unsorted_ops, sum_idxes, inherited_ne)
-
-Accumulate the off-diagonal ordered contribution from `(c, unsorted_ops)` into
-`d`, then emit any required diagonal substitutions using the unsorted physical
-operator order.
-"""
-function _accumulate_with_diag!(
-        d::QTermDict, c::CNum, unsorted_ops::Vector{QSym},
-        sum_idxes::Vector{Index},
-        inherited_ne::Vector{NonEqualPair}
-    )
-    phys_ops = copy(unsorted_ops)
-    _phys_sort!(phys_ops)
-    sorted = copy(unsorted_ops)
-    _site_sort!(sorted)
-    sorted_terms = _apply_ordering(c, sorted, get_ordering())
-
-    distinct = _distinct_op_indices(unsorted_ops)
-    if length(distinct) < 2
-        for t in sorted_terms
-            tracked_phys = _needs_phys_tracking(t.ops) ? phys_ops : t.ops
-            _addto!(d, t.ops, t.prefactor, inherited_ne, tracked_phys)
-        end
-        return nothing
-    end
-
-    off_diag_terms = QTerm[]
-    for t in sorted_terms
-        tracked_phys = _needs_phys_tracking(t.ops) ? phys_ops : t.ops
-        term = _term_key(t.ops, inherited_ne, tracked_phys)
-        _addto_key!(d, term, t.prefactor)
-        _push_key_unique!(off_diag_terms, term)
-    end
-
-    for sum_idx in sum_idxes
-        _depends_on_index_term(c, unsorted_ops, sum_idx) || continue
-        for ext_idx in distinct
-            ext_idx == sum_idx && continue
-            ext_idx.space_index == sum_idx.space_index || continue
-            _ne_contains(first(off_diag_terms).ne, sum_idx, ext_idx) && continue
-            diag_phys_ops = QSym[change_index(o, sum_idx, ext_idx) for o in phys_ops]
-            _phys_sort!(diag_phys_ops)
-            off_diag_terms = _emit_diagonal!(
-                d, _substitute_unsorted(c, unsorted_ops, sum_idx, ext_idx),
-                off_diag_terms, diag_phys_ops, sum_idx, ext_idx,
-            )
-        end
-    end
-
-    return nothing
+    changed || return term, c
+    return _term_key(new_chains, new_bound, new_ne), new_c
 end
 
 function Base.:*(a::QAdd, b::QSym)
     d = QTermDict()
     for (term, c) in a.arguments
-        n = length(term.phys_ops)
-        unsorted = Vector{QSym}(undef, n + 1)
-        copyto!(unsorted, 1, term.phys_ops, 1, n)
-        unsorted[n + 1] = b
-        _accumulate_with_diag!(d, c, unsorted, a.indices, term.ne)
+        _accumulate_normalized!(d, c, vcat(_flatten_chains(term.chains), QSym[b]), term.bound, term.ne, get_ordering())
     end
-    return QAdd(d, copy(a.indices))
+    return _qadd(d)
 end
 
 function Base.:*(a::QSym, b::QAdd)
     d = QTermDict()
     for (term, c) in b.arguments
-        n = length(term.phys_ops)
-        unsorted = Vector{QSym}(undef, n + 1)
-        unsorted[1] = a
-        copyto!(unsorted, 2, term.phys_ops, 1, n)
-        _accumulate_with_diag!(d, c, unsorted, b.indices, term.ne)
+        _accumulate_normalized!(d, c, vcat(QSym[a], _flatten_chains(term.chains)), term.bound, term.ne, get_ordering())
     end
-    return QAdd(d, copy(b.indices))
+    return _qadd(d)
 end
 
 function Base.:*(a::QAdd, b::QAdd)
-    if !isempty(a.indices) && !isempty(b.indices)
-        for idx in a.indices
-            idx in b.indices && throw(
-                ArgumentError(
-                    "Summation index $(idx.name) appears in both factors. " *
-                        "Use `change_index` to re-index one side, or use different indices."
-                )
-            )
-        end
-    end
-
     d = QTermDict()
-    sum_idxes = isempty(b.indices) ? a.indices :
-        (isempty(a.indices) ? b.indices : vcat(a.indices, b.indices))
-
     for (term_a, c_a) in a.arguments, (term_b, c_b) in b.arguments
-        unsorted = vcat(term_a.phys_ops, term_b.phys_ops)
-        c_prod = _mul_cnum(c_a, c_b)
-        inherited = isempty(term_a.ne) ? term_b.ne :
-            (isempty(term_b.ne) ? term_a.ne : _merge_ne(term_a.ne, term_b.ne))
-        _accumulate_with_diag!(d, c_prod, unsorted, sum_idxes, inherited)
+        term_b_eff, c_b_eff = _alpha_rename_collisions(term_b, c_b, _term_indices(term_a))
+        c_prod = _mul_cnum(c_a, c_b_eff)
+        inherited = isempty(term_a.ne) ? term_b_eff.ne :
+            (isempty(term_b_eff.ne) ? term_a.ne : _merge_ne(term_a.ne, term_b_eff.ne))
+        bound = isempty(term_a.bound) ? term_b_eff.bound :
+            (isempty(term_b_eff.bound) ? term_a.bound : _merge_bound(term_a.bound, term_b_eff.bound))
+        _accumulate_normalized!(
+            d,
+            c_prod,
+            vcat(_flatten_chains(term_a.chains), _flatten_chains(term_b_eff.chains)),
+            bound,
+            inherited,
+            get_ordering(),
+        )
     end
-
-    return QAdd(d, _merge_unique(a.indices, b.indices))
+    return _qadd(d)
 end
 
 # ============================================================================
@@ -247,13 +335,13 @@ function Base.:+(a::QSym, b::QSym)
     d = QTermDict()
     _addto!(d, QSym[a], _CNUM_ONE)
     _addto!(d, QSym[b], _CNUM_ONE)
-    return QAdd(d, Index[])
+    return _qadd(d)
 end
 
 function Base.:+(a::QAdd, b::QSym)
     d = _copy_args(a.arguments)
     _addto!(d, QSym[b], _CNUM_ONE)
-    return QAdd(d, copy(a.indices))
+    return _qadd(d, copy(a.indices))
 end
 Base.:+(a::QSym, b::QAdd) = b + a
 
@@ -262,21 +350,21 @@ function Base.:+(a::QAdd, b::QAdd)
     for (term, c) in b.arguments
         _addto_key!(d, _copy_key(term), c)
     end
-    return QAdd(d, _merge_unique(a.indices, b.indices))
+    return _qadd(d, _merge_unique(a.indices, b.indices))
 end
 
 function Base.:+(a::QSym, b::Number)
     d = QTermDict()
     _addto!(d, QSym[a], _CNUM_ONE)
     _addto!(d, QSym[], _to_cnum(b))
-    return QAdd(d, Index[])
+    return _qadd(d)
 end
 Base.:+(a::Number, b::QSym) = b + a
 
 function Base.:+(a::QAdd, b::Number)
     d = _copy_args(a.arguments)
     _addto!(d, QSym[], _to_cnum(b))
-    return QAdd(d, copy(a.indices))
+    return _qadd(d, copy(a.indices))
 end
 Base.:+(a::Number, b::QAdd) = b + a
 
@@ -294,7 +382,7 @@ function Base.:-(a::QAdd)
     for (term, c) in a.arguments
         d[_copy_key(term)] = _neg_cnum(c)
     end
-    return QAdd(d, copy(a.indices))
+    return _qadd(d, copy(a.indices))
 end
 
 Base.:-(a::QField, b::QField) = a + (-b)
@@ -310,8 +398,9 @@ Base.://(a::QAdd, b::Integer) = a * (1 // b)
 function Base.:^(a::QSym, n::Integer)
     n >= 0 || throw(ArgumentError("Negative powers not supported"))
     n == 0 && return _single_qadd(_CNUM_ONE, QSym[])
-    ops = QSym[a for _ in 1:n]
-    return _ordered_qadd(_CNUM_ONE, ops)
+    d = QTermDict()
+    _accumulate_normalized!(d, _CNUM_ONE, QSym[a for _ in 1:n], _empty_bound(), _empty_ne(), get_ordering())
+    return _qadd(d)
 end
 
 function Base.:^(a::QAdd, n::Integer)

@@ -1,72 +1,86 @@
 """
     QAdd <: QField
 
-The sole compound expression type — a sum of eagerly-ordered operator products.
+The sole compound expression type — a sum of canonical monomials.
 
 All arithmetic on [`QSym`](@ref) operators returns `QAdd`. Internally stores a
-dictionary whose keys are exact term identities `(ops, non_equal)` and whose
-values are `Complex{Num}` prefactors. Like-term collection applies only to
-terms with identical operator strings *and* identical scoped constraints.
-
-# Fields
-- `arguments::QTermDict` — `Dict{QTerm, CNum}` of exact term identity → prefactor
-- `indices::Vector{Index}` — summation indices (empty for a regular sum)
-
-# Iteration
-Iterating over a `QAdd` yields `Pair{QTerm, CNum}` entries; access
-`term.ops` and `term.ne` on the key directly.
-
-See also [`QTerm`](@ref), [`prefactor`](@ref), [`operators`](@ref), [`Σ`](@ref),
-[`constraint_pairs`](@ref).
+dictionary whose keys are exact term identities and whose values are `Complex{Num}`
+prefactors.
 """
 struct QAdd <: QField
     arguments::QTermDict
     indices::Vector{Index}
 end
 
+function _indices_union(d::QTermDict, extra::Vector{Index} = _empty_bound())
+    out = _bound_indices(d)
+    isempty(extra) && return out
+    return _merge_unique(out, _canonical_bound(extra))
+end
+
+_qadd(d::QTermDict, indices::Vector{Index} = _empty_bound()) = QAdd(d, _indices_union(d, indices))
+
 """
     constraint_pairs(q::QAdd) -> Vector{Tuple{Index, Index}}
 
-Return the deduplicated union of every term's `non_equal` pairs in `q`. This is
-an introspection helper only; it does not define the expression semantics.
+Return the deduplicated union of every term's `non_equal` pairs in `q`.
 """
 function constraint_pairs(q::QAdd)
     return _constraint_pairs(q.arguments)
 end
 
-# Convenience: single-term QAdd
-function _single_qadd(c::CNum, ops::Vector{QSym}, ne::Vector{NonEqualPair} = _EMPTY_NE)
-    _iszero_cnum(c) && return QAdd(QTermDict(), Index[])
+function _single_qadd(
+        c::CNum, ops::Vector{QSym},
+        ne::Vector{NonEqualPair} = _empty_ne()
+    )
+    _iszero_cnum(c) && return _zero_qadd()
     d = QTermDict()
     _addto!(d, ops, c, ne)
-    return QAdd(d, Index[])
+    return _qadd(d)
+end
+
+function _single_qadd(
+        c::CNum, ops::Vector{QSym},
+        bound::Vector{Index},
+        ne::Vector{NonEqualPair} = _empty_ne()
+    )
+    _iszero_cnum(c) && return _zero_qadd()
+    d = QTermDict()
+    _addto!(d, ops, c, bound, ne)
+    return _qadd(d, bound)
 end
 
 function _qadd_from_oterms(
         terms::Vector{OrderedTerm}, indices::Vector{Index},
-        ne::Vector{NonEqualPair} = _EMPTY_NE
+        ne::Vector{NonEqualPair} = _empty_ne()
     )
     d = QTermDict()
     for t in terms
         for ot in _apply_ordering(t.prefactor, t.ops, get_ordering())
-            _addto!(d, ot.ops, ot.prefactor, ne, ot.ops)
+            _addto!(d, ot.ops, ot.prefactor, indices, ne)
         end
     end
-    return QAdd(d, indices)
+    return _qadd(d, indices)
 end
 
 function _ordered_qadd(
         c::CNum, ops::Vector{QSym},
-        ne::Vector{NonEqualPair} = _EMPTY_NE,
-        phys_ops::Vector{QSym} = ops
+        ne::Vector{NonEqualPair} = _empty_ne(),
+        trace_ops::Vector{QSym} = ops
     )
-    _iszero_cnum(c) && return QAdd(QTermDict(), Index[])
+    return _ordered_qadd(c, ops, _empty_bound(), ne, trace_ops)
+end
+
+function _ordered_qadd(
+        c::CNum, ops::Vector{QSym},
+        bound::Vector{Index},
+        ne::Vector{NonEqualPair} = _empty_ne(),
+        trace_ops::Vector{QSym} = ops
+    )
+    _iszero_cnum(c) && return _zero_qadd()
     d = QTermDict()
-    for t in _apply_ordering(c, ops, get_ordering())
-        tracked_phys = _needs_phys_tracking(t.ops) ? phys_ops : t.ops
-        _addto!(d, t.ops, t.prefactor, ne, tracked_phys)
-    end
-    return QAdd(d, Index[])
+    _accumulate_normalized!(d, c, ops, bound, ne, get_ordering())
+    return _qadd(d, bound)
 end
 
 Base.length(a::QAdd) = length(a.arguments)
@@ -85,24 +99,18 @@ end
 function Base.adjoint(q::QAdd)
     d = QTermDict()
     for (term, c) in q.arguments
-        adj_ops = QSym[adjoint(op) for op in reverse(term.ops)]
-        _site_sort!(adj_ops)
-        adj_phys_ops = QSym[adjoint(op) for op in reverse(term.phys_ops)]
-        _phys_sort!(adj_phys_ops)
-        _addto!(d, adj_ops, conj(c), term.ne, adj_phys_ops)
+        adj_ops = QSym[adjoint(op) for op in reverse(_flatten_chains(term.chains))]
+        _accumulate_normalized!(d, conj(c), adj_ops, term.bound, term.ne, get_ordering())
     end
-    return QAdd(d, copy(q.indices))
+    return _qadd(d, copy(q.indices))
 end
-
-# --- Iteration: yield `term::QTerm => coeff::CNum` directly ---
 
 Base.iterate(q::QAdd) = iterate(q.arguments)
 Base.iterate(q::QAdd, state) = iterate(q.arguments, state)
 Base.eltype(::Type{QAdd}) = Pair{QTerm, CNum}
 
-# --- Sorted term access for printing and comparison ---
-
 _ne_sort_key(ne::Vector{NonEqualPair}) = Tuple(ne)
+_bound_sort_key(bound::Vector{Index}) = Tuple(bound)
 
 """
     sorted_arguments(q::QAdd) -> Vector{QAdd}
@@ -114,9 +122,9 @@ function sorted_arguments(q::QAdd)
     isempty(q.arguments) && return QAdd[]
     pairs = sort!(
         collect(q.arguments);
-        by = p -> (_term_sort_key(p.first.ops), _ne_sort_key(p.first.ne)),
+        by = p -> (_term_sort_key(p.first.ops), _bound_sort_key(p.first.bound), _ne_sort_key(p.first.ne)),
     )
-    return QAdd[_single_qadd(c, term.ops, term.ne) for (term, c) in pairs]
+    return QAdd[_qadd(QTermDict(_copy_key(term) => c), copy(term.bound)) for (term, c) in pairs]
 end
 
 _term_sort_key(ops::Vector{QSym}) = (length(ops), map(_full_op_key, ops)...)
@@ -133,7 +141,7 @@ _type_order(::Momentum) = 6
     Base.getindex(q::QAdd, key::AbstractVector{<:QSym}) -> CNum
 
 Look up the prefactor for a given operator sequence. Returns zero if absent.
-Throws if more than one constrained term shares the same operator sequence.
+Throws if more than one scoped term shares the same operator sequence.
 """
 function Base.getindex(q::QAdd, key::AbstractVector{<:QSym})
     found = nothing
@@ -141,7 +149,7 @@ function Base.getindex(q::QAdd, key::AbstractVector{<:QSym})
         term.ops == key || continue
         found === nothing || throw(
             ArgumentError(
-                "operator sequence has multiple constrained terms; iterate `q.arguments` " *
+                "operator sequence has multiple scoped terms; iterate `q.arguments` " *
                     "or `sorted_arguments(q)` to inspect them explicitly"
             )
         )
@@ -154,9 +162,7 @@ end
 """
     Base.haskey(q::QAdd, key::AbstractVector{<:QSym}) -> Bool
 
-Return `true` if some stored term has operator sequence `key`, ignoring
-constraint scope. Pair with [`Base.getindex`](@ref) for the unique-prefactor
-lookup; iterate `q.arguments` for full scope-aware access.
+Return `true` if some stored term has operator sequence `key`, ignoring scope.
 """
 function Base.haskey(q::QAdd, key::AbstractVector{<:QSym})
     for term in keys(q.arguments)
@@ -165,24 +171,10 @@ function Base.haskey(q::QAdd, key::AbstractVector{<:QSym})
     return false
 end
 
-# --- QAdd accessor helpers ---
-
 """
     prefactor(s::QAdd) -> CNum
 
-Return the `Complex{Num}` prefactor of a single-term [`QAdd`](@ref).
-
-Throws `ArgumentError` if `s` contains more than one term. For multi-term
-expressions, iterate over the `QAdd` directly.
-
-# Examples
-```julia
-h = FockSpace(:f)
-@qnumbers a::Destroy(h)
-prefactor(2 * a' * a)   # 2 + 0im
-```
-
-See also [`operators`](@ref), [`sorted_arguments`](@ref).
+Return the prefactor of a single-term [`QAdd`](@ref).
 """
 function prefactor(s::QAdd)
     length(s.arguments) == 1 || throw(
@@ -195,19 +187,6 @@ end
     operators(s::QAdd) -> Vector{QSym}
 
 Return the ordered operator sequence of a single-term [`QAdd`](@ref).
-
-Throws `ArgumentError` if `s` contains more than one term. For multi-term
-expressions, iterate over the `QAdd` directly and read `term.ops` from each
-[`QTerm`](@ref).
-
-# Examples
-```julia
-h = FockSpace(:f)
-@qnumbers a::Destroy(h)
-operators(a' * a)   # [Create(:a, 1, NO_INDEX, ...), Destroy(:a, 1, NO_INDEX)]
-```
-
-See also [`prefactor`](@ref), [`sorted_arguments`](@ref).
 """
 function operators(s::QAdd)
     length(s.arguments) == 1 || throw(

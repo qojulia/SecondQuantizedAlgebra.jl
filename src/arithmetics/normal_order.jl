@@ -35,12 +35,9 @@ function normal_order(s::QAdd)
     d = QTermDict()
     for (term, c) in s.arguments
         _iszero_cnum(c) && continue
-        for t in _apply_ordering(c, term.ops, NormalOrder())
-            tracked_phys = _needs_phys_tracking(t.ops) ? term.phys_ops : t.ops
-            _addto!(d, t.ops, t.prefactor, term.ne, tracked_phys)
-        end
+        _accumulate_normalized!(d, c, _flatten_chains(term.chains), term.bound, term.ne, NormalOrder())
     end
-    return QAdd(d, copy(s.indices))
+    return _qadd(d, copy(s.indices))
 end
 
 function normal_order(op::QSym, h::HilbertSpace)
@@ -112,9 +109,9 @@ function _convert_ordering(s::QAdd, α::Rational)
     d = QTermDict()
     for (term, c) in s.arguments
         _iszero_cnum(c) && continue
-        _convert_term!(d, c, term.ops, term.ne, α)
+        _convert_term!(d, c, term.ops, term.bound, term.ne, α)
     end
-    return QAdd(d, copy(s.indices))
+    return _qadd(d, copy(s.indices))
 end
 
 """
@@ -127,12 +124,12 @@ processed independently and combined as a tensor product of corrections.
 """
 function _convert_term!(
         d::QTermDict, c::CNum, ops::Vector{QSym},
-        ne::Vector{NonEqualPair}, α::Rational
+        bound::Vector{Index}, ne::Vector{NonEqualPair}, α::Rational
     )
     sites = _fock_site_groups(ops)
 
     if isempty(sites)
-        _addto!(d, ops, c, ne)
+        _addto!(d, ops, c, bound, ne)
         return
     end
 
@@ -146,7 +143,7 @@ function _convert_term!(
     end
 
     for t in current
-        _addto!(d, t.ops, t.prefactor, ne)
+        _addto!(d, t.ops, t.prefactor, bound, ne)
     end
     return
 end
@@ -246,10 +243,10 @@ function _apply_ground_state(expr::QAdd, ::HilbertSpace)
     d = QTermDict()
     for (term, c) in expr.arguments
         for (e_term, ec) in _expand_ground_state(c, term.ops).arguments
-            _addto!(d, e_term.ops, ec, term.ne)
+            _addto!(d, e_term.ops, ec, term.bound, term.ne)
         end
     end
-    return QAdd(d, copy(expr.indices))
+    return _qadd(d, copy(expr.indices))
 end
 
 
@@ -299,10 +296,10 @@ function _expand_ground_state(c::CNum, ops::Vector{QSym})
             d = QTermDict()
             for t in expanded
                 for (s_term, sc) in _expand_ground_state(t.prefactor, t.ops).arguments
-                    _addto!(d, s_term.ops, sc, s_term.ne)
+                    _addto!(d, s_term.ops, sc, s_term.bound, s_term.ne)
                 end
             end
-            return QAdd(d, Index[])
+            return _qadd(d)
         end
     end
     return _single_qadd(c, ops)

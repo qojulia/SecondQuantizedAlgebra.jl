@@ -98,7 +98,7 @@ function _average_operand(
     if length(ops) == 1 && isempty(ne) && isempty(indices)
         return only(ops)
     end
-    return _single_qadd(_CNUM_ONE, ops, ne)
+    return _single_qadd(_CNUM_ONE, ops, indices, ne)
 end
 
 function _average_with_metadata(
@@ -115,12 +115,12 @@ end
 
 function average(op::QAdd)
     result = Num(0)
-    shared_indices = isempty(op.indices) ? nothing : copy(op.indices)
     for (term, c) in op.arguments
         if isempty(term.ops)
             result += c
         else
-            inner = _average_operand(term.ops, term.ne, op.indices)
+            shared_indices = isempty(term.bound) ? nothing : copy(term.bound)
+            inner = _average_operand(term.ops, term.ne, term.bound)
             avg = _average_with_metadata(inner, shared_indices, term.ne)
             r, i = real(c), imag(c)
             if iszero(i)
@@ -152,12 +152,18 @@ function _restore_sum_metadata(result::QAdd, x::SymbolicUtils.BasicSymbolic)
     if SymbolicUtils.hasmetadata(x, SumIndices)
         indices = SymbolicUtils.getmetadata(x, SumIndices)
         stored_ne = SymbolicUtils.hasmetadata(x, SumNonEqual) ?
-            SymbolicUtils.getmetadata(x, SumNonEqual) : _EMPTY_NE
+            SymbolicUtils.getmetadata(x, SumNonEqual) : _empty_ne()
         new_args = QTermDict()
         for (term, c) in result.arguments
-            _addto!(new_args, term.ops, c, _merge_ne(term.ne, stored_ne))
+            _addto!(
+                new_args,
+                term.ops,
+                c,
+                _merge_bound(term.bound, indices),
+                _merge_ne(term.ne, stored_ne),
+            )
         end
-        return QAdd(new_args, indices)
+        return _qadd(new_args, indices)
     end
     return result
 end

@@ -576,13 +576,17 @@ import SecondQuantizedAlgebra: simplify, QAdd, QSym, CNum, _to_cnum, NO_INDEX,
         @test length(result) == 1
     end
 
-    @testset "QAdd * QAdd — clashing index error" begin
+    @testset "QAdd * QAdd — clashing indices alpha-rename" begin
         i = Index(hf, :i, 10, hf)
         ai = IndexedOperator(a, i)
 
         s1 = Σ(ai, i)
         s2 = Σ(ai', i)
-        @test_throws ArgumentError s1 * s2
+        result = s1 * s2
+        @test result isa QAdd
+        @test length(result) == 3
+        @test any(idx -> idx.name == :i_1, result.indices)
+        @test any(p -> p[1].name == :i && p[2].name == :i_1, constraint_pairs(result))
     end
 
     @testset "QAdd * QAdd — different indices, same space splits" begin

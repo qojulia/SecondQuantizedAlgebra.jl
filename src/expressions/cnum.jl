@@ -32,8 +32,7 @@ function _to_cnum(x::SymbolicUtils.BasicSymbolic)
 end
 
 @inline function _iszero_num(x::Num)
-    ex = Symbolics.expand(x)
-    v = SymbolicUtils.unwrap(ex)
+    v = SymbolicUtils.unwrap(x)
     v isa Number && return iszero(v)
     sv = SymbolicUtils.simplify(v)
     sv isa Number && return iszero(sv)
@@ -102,13 +101,18 @@ end
     ai_zero = _iszero_num(ai)
     bi_zero = _iszero_num(bi)
     if ai_zero && bi_zero
-        return Complex(ar + br, _NUM_ZERO)
+        re = Num(SymbolicUtils.simplify(SymbolicUtils.unwrap(ar + br)))
+        return Complex(_iszero_num(re) ? _NUM_ZERO : re, _NUM_ZERO)
     elseif ai_zero
-        return Complex(ar + br, bi)
+        re = Num(SymbolicUtils.simplify(SymbolicUtils.unwrap(ar + br)))
+        return Complex(_iszero_num(re) ? _NUM_ZERO : re, bi)
     elseif bi_zero
-        return Complex(ar + br, ai)
+        re = Num(SymbolicUtils.simplify(SymbolicUtils.unwrap(ar + br)))
+        return Complex(_iszero_num(re) ? _NUM_ZERO : re, ai)
     else
-        return Complex(ar + br, ai + bi)
+        re = Num(SymbolicUtils.simplify(SymbolicUtils.unwrap(ar + br)))
+        im = Num(SymbolicUtils.simplify(SymbolicUtils.unwrap(ai + bi)))
+        return Complex(_iszero_num(re) ? _NUM_ZERO : re, _iszero_num(im) ? _NUM_ZERO : im)
     end
 end
 

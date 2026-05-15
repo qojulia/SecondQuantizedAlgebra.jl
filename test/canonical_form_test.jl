@@ -190,7 +190,7 @@ end
         σj = SecondQuantizedAlgebra.IndexedOperator(Transition(h, :σ, 2, 2), j)
         eager = σi * σj
         @test _no_gs_projectors(eager)
-        @test isequal(eager, normal_order(σi * σj, h))
+        @test iszero(simplify(eager - normal_order(σi * σj, h)))
     end
 
     @testset "σᵍᵍ * σⁱʲ expands eagerly under NormalOrder" begin

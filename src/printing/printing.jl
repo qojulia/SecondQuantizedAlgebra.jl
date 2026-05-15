@@ -157,16 +157,16 @@ end
 
 function _term_signature(t::QAdd)
     term, c = first(t.arguments)
-    return term.ops, c, term.ne
+    return term.ops, c, term.bound, term.ne
 end
 
 # Show a list of terms joined by + / -
 function _show_terms(io::IO, st::Vector{QAdd})
     isempty(st) && return write(io, "0")
-    ops1, c1, _ = _term_signature(st[1])
+    ops1, c1, _, _ = _term_signature(st[1])
     _show_term(io, c1, ops1)
     for i in 2:length(st)
-        ops_i, c_i, _ = _term_signature(st[i])
+        ops_i, c_i, _, _ = _term_signature(st[i])
         if _is_real_negative(c_i)
             write(io, " - ")
             _show_term(io, -c_i, ops_i)
@@ -179,14 +179,14 @@ function _show_terms(io::IO, st::Vector{QAdd})
 end
 
 function _group_dep_terms(dep_qadds)
-    groups = Tuple{Vector{NonEqualPair}, Vector{QAdd}}[]
+    groups = Tuple{Vector{Index}, Vector{NonEqualPair}, Vector{QAdd}}[]
     for q in dep_qadds
-        _, _, ne = _term_signature(q)
-        slot = findfirst(g -> isequal(g[1], ne), groups)
+        _, _, indices, ne = _term_signature(q)
+        slot = findfirst(g -> isequal(g[1], indices) && isequal(g[2], ne), groups)
         if slot === nothing
-            push!(groups, (_copy_ne(ne), QAdd[q]))
+            push!(groups, (_copy_bound(indices), _copy_ne(ne), QAdd[q]))
         else
-            push!(groups[slot][2], q)
+            push!(groups[slot][3], q)
         end
     end
     return groups
@@ -231,33 +231,26 @@ function Base.show(io::IO, x::QAdd)
     st = sorted_arguments(x)
     isempty(st) && return write(io, "0")
 
-    if !isempty(x.indices)
-        dep = eltype(st)[]
-        indep = eltype(st)[]
-        for t in st
-            ops, c, _ = _term_signature(t)
-            if any(idx -> _depends_on_index_term(c, ops, idx), x.indices)
-                push!(dep, t)
-            else
-                push!(indep, t)
-            end
-        end
-        # Print index-independent terms first
-        if !isempty(indep)
-            _show_terms(io, indep)
-            if !isempty(dep)
-                write(io, " + ")
-            end
-        end
-        if !isempty(dep)
-            groups = _group_dep_terms(dep)
-            for (k, (ne_pairs, terms)) in enumerate(groups)
-                k > 1 && write(io, " + ")
-                _show_sum_group(io, terms, x.indices, ne_pairs)
-            end
-        end
-    else
-        _show_terms(io, st)
+    dep = QAdd[]
+    indep = QAdd[]
+    for t in st
+        isempty(t.indices) ? push!(indep, t) : push!(dep, t)
     end
+    if !isempty(indep)
+        _show_terms(io, indep)
+        if !isempty(dep)
+            write(io, " + ")
+        end
+    end
+    if !isempty(dep)
+        groups = _group_dep_terms(dep)
+        for (k, (indices, ne_pairs, terms)) in enumerate(groups)
+            k > 1 && write(io, " + ")
+            _show_sum_group(io, terms, indices, ne_pairs)
+        end
+        return
+    end
+    isempty(indep) || return
+    _show_terms(io, st)
     return
 end

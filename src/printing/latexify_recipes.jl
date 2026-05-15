@@ -129,7 +129,7 @@ end
 function _latex_sum_group(indices::Vector{Index}, ne_pairs::Vector{NonEqualPair}, terms::Vector{QAdd})
     prefix = _latex_sum_prefix(indices, ne_pairs)
     term_exprs = map(terms) do t
-        ops, c, _ = _term_signature(t)
+        ops, c, _, _ = _term_signature(t)
         _latex_term(c, ops)
     end
     if length(term_exprs) == 1
@@ -140,38 +140,30 @@ end
 
 @latexrecipe function f(x::QAdd)
     st = sorted_arguments(x)
-    if !isempty(x.indices)
-        # Split terms into index-dependent and index-independent
-        dep_qadds = QAdd[]
-        indep_terms = []
-        for t in st
-            ops, c, _ = _term_signature(t)
-            term_expr = _latex_term(c, ops)
-            if any(idx -> _depends_on_index_term(c, ops, idx), x.indices)
-                push!(dep_qadds, t)
-            else
-                push!(indep_terms, term_expr)
-            end
-        end
-        group_exprs = if isempty(dep_qadds)
-            Any[]
+    dep_qadds = QAdd[]
+    indep_terms = Any[]
+    for t in st
+        ops, c, _, _ = _term_signature(t)
+        term_expr = _latex_term(c, ops)
+        if isempty(t.indices)
+            push!(indep_terms, term_expr)
         else
-            Any[_latex_sum_group(x.indices, ne_pairs, terms) for (ne_pairs, terms) in _group_dep_terms(dep_qadds)]
+            push!(dep_qadds, t)
         end
-        terms_out = Any[indep_terms...]
-        append!(terms_out, group_exprs)
-        if isempty(terms_out)
-            return 0
-        elseif length(terms_out) == 1
-            return only(terms_out)
-        end
-        return Expr(:call, :+, terms_out...)
     end
-    terms = map(st) do t
-        ops, c, _ = _term_signature(t)
-        _latex_term(c, ops)
+    group_exprs = if isempty(dep_qadds)
+        Any[]
+    else
+        Any[_latex_sum_group(indices, ne_pairs, terms) for (indices, ne_pairs, terms) in _group_dep_terms(dep_qadds)]
     end
-    return Expr(:call, :+, terms...)
+    terms_out = Any[indep_terms...]
+    append!(terms_out, group_exprs)
+    if isempty(terms_out)
+        return 0
+    elseif length(terms_out) == 1
+        return only(terms_out)
+    end
+    return Expr(:call, :+, terms_out...)
 end
 
 const QLaTeX = Union{<:QField}
