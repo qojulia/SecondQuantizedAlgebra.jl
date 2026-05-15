@@ -11,9 +11,15 @@ using Test
     # alias (`const get = Base.ScopedValues.get`), so ExplicitImports resolves the
     # owner of `ScopedValues.get` to `Base.ScopedValues` rather than the package
     # we depend on. The skip records that this re-export is the legitimate path.
+    # On Julia 1.10, `Base.ScopedValues` does not exist (the standalone package
+    # is the only source), so the skip is unnecessary and would itself fail.
+    skip_tuple = if VERSION ≥ v"1.11"
+        (Base => Core, ScopedValues => Base.ScopedValues)
+    else
+        (Base => Core,)
+    end
     @test check_all_qualified_accesses_via_owners(
-        SecondQuantizedAlgebra;
-        skip = (Base => Core, ScopedValues => Base.ScopedValues),
+        SecondQuantizedAlgebra; skip = skip_tuple,
     ) === nothing
     @test check_no_self_qualified_accesses(SecondQuantizedAlgebra) === nothing
 end
