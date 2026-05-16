@@ -83,7 +83,23 @@ This also happens when a sum is multiplied by an indexed operator on the same sp
 Σ(σ(2, 2, k), k) * σ(2, 1, l)
 ```
 
-The diagonal term may produce a ground-state projector — for instance, the diagonal of ``\sigma^{12}_k \cdot \sigma^{21}_l`` at ``k=l`` is ``\sigma^{11}_l``. This is eagerly expanded via completeness ``\sigma^{11} = 1 - \sum_{j \neq 1}\sigma^{jj}`` so that ground-state projectors never appear in canonical form.
+The diagonal term may produce a ground-state projector — for instance, the diagonal of ``\sigma^{12}_k \cdot \sigma^{21}_l`` at ``k=l`` is ``\sigma^{11}_l``. Same-site composition that produces a ground-state projector triggers eager completeness expansion via ``\sigma^{gg} = 1 - \sum_{k \neq g}\sigma^{kk}``, so the canonical basis stays ``\{\sigma^{ij} : (i,j) \neq (g,g)\} \cup \{1\}``. Standalone ``\sigma^{gg}`` built directly with `Transition(h, :σ, g, g)` stays atomic until it enters a `*`; you can also trigger the rewrite by hand via [`expand_completeness`](@ref).
+
+
+## Free indices and `assume_distinct_index`
+
+Two indexed operators on the same Hilbert subspace whose indices are *both free* (neither bound by a [`Σ`](@ref)) have an undetermined site relationship — the algebra cannot tell whether the user means "distinct atomic sites" or "two index variables that may coincide". The conservative default is the second: the pair stays in its physical order and no same-site collapse fires.
+
+When you do want to assert that two free indices denote distinct sites, use [`assume_distinct_index`](@ref). It augments every term's per-term inequality constraints with the supplied pairs, re-canonicalizes so the resolved pairs sort deterministically, and runs [`expand_completeness`](@ref) on any ground-state projectors that emerge from same-site composition under the new constraint:
+
+```@example sums
+ki = Index(h, :ki, N, ha)
+li = Index(h, :li, N, ha)
+
+assume_distinct_index(σ(1, 2, ki) * σ(2, 1, li), [(ki, li)])
+```
+
+When at least one index is bound by a `Σ`, the diagonal-splitting machinery shown above handles the boundary case automatically and no explicit assumption is needed.
 
 
 ## Example: Tavis-Cummings model

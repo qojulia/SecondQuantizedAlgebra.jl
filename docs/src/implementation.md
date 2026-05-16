@@ -33,7 +33,7 @@ ha_gs = NLevelSpace(:atom, 4, 2)            # 4 levels; ground state = 2
 nothing # hide
 ```
 
-The ground-state projector ``|g\rangle\langle g|`` is eliminated via completeness ``\sum_j |j\rangle\langle j| = 1``. This happens eagerly inside `*` so canonical results never contain ``|g\rangle\langle g|``. User-constructed ground-state projectors (e.g. `Transition(h, :σ, 1, 1)` typed directly, never multiplied) stay atomic until you call `simplify(expr, h)` or `normal_order(expr, h)`, which applies completeness explicitly.
+The ground-state projector ``|g\rangle\langle g|`` is eliminated via completeness ``\sum_j |j\rangle\langle j| = 1``. Same-site composition that produces one (e.g. ``\sigma^{12} \cdot \sigma^{21}``) triggers this eagerly inside `*`. User-constructed ground-state projectors (e.g. `Transition(h, :σ, 1, 1)` typed directly, never multiplied) stay atomic until they enter a `*` or until you call [`expand_completeness`](@ref) explicitly.
 
 Composite systems are built with [`⊗`](@ref) (`\otimes<tab>`) or [`tensor`](@ref):
 
@@ -140,7 +140,7 @@ a * a'   # immediately gives a†a + 1
 normal_order(a * a')   # a†a + 1
 ```
 
-[`simplify`](@ref) is a reductions-only pass: it applies ordering-independent algebraic identities (Transition composition, Pauli products) and collects like terms, but never performs commutation-based reordering. Since eager `*` already produces canonical form, `simplify` is typically idempotent.
+[`simplify`](@ref) runs [`normal_order`](@ref) first, then walks the resulting terms applying `Symbolics.simplify` to each coefficient and dropping any summation indices no surviving term depends on. Since eager `*` already produces canonical form, calling `simplify` on the output of `*` is typically idempotent at the operator level, but it can still reduce symbolic coefficients (e.g. collapsing `sin²(ω) + cos²(ω)` to `1`).
 
 ## Averaging
 
@@ -160,7 +160,7 @@ Averaging is linear — it distributes over sums and pulls out c-number prefacto
 average(ω * a' * a + a + a')
 ```
 
-The result is a symbolic expression (a `Num` from Symbolics.jl) that can participate in standard symbolic arithmetic. To recover the underlying operator expression, use [`undo_average`](@ref):
+The result is a `BasicSymbolic` (from SymbolicUtils.jl) that participates in standard symbolic arithmetic. To recover the underlying operator expression, use [`undo_average`](@ref):
 
 ```@example averaging
 avg = average(a' * a)

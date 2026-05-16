@@ -8,13 +8,14 @@
 [![Aqua QA](https://raw.githubusercontent.com/JuliaTesting/Aqua.jl/master/badge.svg)](https://github.com/JuliaTesting/Aqua.jl)
 [![jet](https://img.shields.io/badge/%F0%9F%9B%A9%EF%B8%8F_tested_with-JET.jl-233f9a)](https://github.com/aviatesk/JET.jl)
 
-A Julia package for symbolic manipulation and algebraic computation with second quantized operators. SecondQuantizedAlgebra.jl provides a flexible framework for working with creation and annihilation operators, commutation relations, and algebraic expressions common in quantum many-body theory and quantum optics.
+A Julia package for symbolic manipulation and algebraic computation with second-quantized operators. SecondQuantizedAlgebra.jl provides a flexible framework for working with quantum operators, their commutation relations, and algebraic expressions common in quantum many-body theory and quantum optics.
 
 The package provides:
-- Symbolic representation of bosonic fock creation and annihilation operators
-- Automatic (anti-)commutation relation handling
-- Algebraic simplification and normal ordering
-- Support for atom and spin operators
+- Bosonic, N-level, Pauli, spin, and phase-space operators in composite Hilbert spaces
+- Automatic commutation relations and canonical-form arithmetic
+- Normal ordering, simplification, and completeness expansion
+- Symbolic summations with automatic diagonal splitting
+- Averaging and numeric conversion via QuantumOpticsBase
 - Extensible for custom operator types
 
 The code was refactored out of [QuantumCumulants.jl](https://github.com/qojulia/QuantumCumulants.jl).
