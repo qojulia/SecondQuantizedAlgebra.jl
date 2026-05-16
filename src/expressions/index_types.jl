@@ -57,7 +57,6 @@ function Base.hash(a::Index, h::UInt)
 end
 Base.isless(a::Index, b::Index) = (a.space_index, a.name) < (b.space_index, b.name)
 
-# Construction from HilbertSpace
 function Index(h::HilbertSpace, name::Symbol, range::Union{Int, Num}, space::HilbertSpace)
     si = _find_space_index(h, space)
     sym_var = SymbolicUtils.Sym{SymbolicUtils.SymReal}(name; type = Int)
@@ -68,7 +67,6 @@ function Index(h::HilbertSpace, name::Symbol, range::Union{Int, Num}, si::Int)
     return Index(name, Num(range), si, Num(sym_var))
 end
 
-# Find space index in ProductSpace
 _find_space_index(::HilbertSpace, ::HilbertSpace) = 1
 function _find_space_index(h::ProductSpace, space::HilbertSpace)
     for (i, s) in enumerate(h.spaces)

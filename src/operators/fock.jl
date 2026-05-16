@@ -41,7 +41,6 @@ struct Create <: QSym
 end
 Create(name::Symbol, si::Int) = Create(name, si, NO_INDEX)
 
-# Construction from Hilbert spaces
 Destroy(h::FockSpace, name::Symbol) = Destroy(name, 1)
 Create(h::FockSpace, name::Symbol) = Create(name, 1)
 
@@ -80,21 +79,17 @@ function IndexedOperator end
 IndexedOperator(op::Destroy, i::Index) = Destroy(op.name, op.space_index, i)
 IndexedOperator(op::Create, i::Index) = Create(op.name, op.space_index, i)
 
-# Adjoint
 Base.adjoint(op::Destroy) = Create(op.name, op.space_index, op.index)
 Base.adjoint(op::Create) = Destroy(op.name, op.space_index, op.index)
 
-# Equality
 Base.isequal(a::Destroy, b::Destroy) = a.name == b.name && a.space_index == b.space_index && a.index == b.index
 Base.isequal(a::Create, b::Create) = a.name == b.name && a.space_index == b.space_index && a.index == b.index
 Base.:(==)(a::Destroy, b::Destroy) = isequal(a, b)
 Base.:(==)(a::Create, b::Create) = isequal(a, b)
 
-# Hashing
 Base.hash(a::Destroy, h::UInt) = hash(:Destroy, hash(a.name, hash(a.space_index, hash(a.index, h))))
 Base.hash(a::Create, h::UInt) = hash(:Create, hash(a.name, hash(a.space_index, hash(a.index, h))))
 
-# Canonical ordering
 """
     ladder(op::QSym)
 

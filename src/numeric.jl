@@ -34,12 +34,10 @@ function to_numeric(op::Create, b::QuantumOpticsBase.FockBasis; kwargs...)
     return QuantumOpticsBase.create(b)
 end
 
-# Transition
 function to_numeric(op::Transition, b::QuantumOpticsBase.NLevelBasis; kwargs...)
     return QuantumOpticsBase.transition(b, op.i, op.j)
 end
 
-# Pauli — requires spin-1/2 basis
 function to_numeric(op::Pauli, b::QuantumOpticsBase.SpinBasis; kwargs...)
     b.spinnumber == 1 // 2 || throw(ArgumentError("Pauli operators require SpinBasis(1//2), got SpinBasis($(b.spinnumber))"))
     if op.axis == 1
@@ -51,7 +49,6 @@ function to_numeric(op::Pauli, b::QuantumOpticsBase.SpinBasis; kwargs...)
     end
 end
 
-# Spin
 function to_numeric(op::Spin, b::QuantumOpticsBase.SpinBasis; kwargs...)
     if op.axis == 1
         return 0.5 * QuantumOpticsBase.sigmax(b)
@@ -62,24 +59,20 @@ function to_numeric(op::Spin, b::QuantumOpticsBase.SpinBasis; kwargs...)
     end
 end
 
-# Position: X = (a + a†) / √2
 function to_numeric(op::Position, b::QuantumOpticsBase.FockBasis; kwargs...)
     return (QuantumOpticsBase.destroy(b) + QuantumOpticsBase.create(b)) / sqrt(2)
 end
 
-# Momentum: P = i(a† - a) / √2
 function to_numeric(op::Momentum, b::QuantumOpticsBase.FockBasis; kwargs...)
     return im * (QuantumOpticsBase.create(b) - QuantumOpticsBase.destroy(b)) / sqrt(2)
 end
 
-# Composite basis — embed single operator
 function to_numeric(op::QSym, b::QuantumOpticsBase.CompositeBasis; kwargs...)
     idx = op.space_index
     op_num = to_numeric(op, b.bases[idx]; kwargs...)
     return QuantumOpticsBase.LazyTensor(b, [idx], (op_num,))
 end
 
-# Internal: convert a single term (ops, prefactor) to numeric
 function _term_to_numeric(c::CNum, ops::Vector{QSym}, b::QuantumOpticsBase.Basis; kwargs...)
     if isempty(ops)
         return _to_number(c) * _lazy_one(b)
@@ -88,17 +81,14 @@ function _term_to_numeric(c::CNum, ops::Vector{QSym}, b::QuantumOpticsBase.Basis
     return _to_number(c) * prod(ops_num)
 end
 
-# QAdd
 function to_numeric(s::QAdd, b::QuantumOpticsBase.Basis; kwargs...)
     return sum(_term_to_numeric(c, term.ops, b; kwargs...) for (term, c) in s.arguments)
 end
 
-# Number
 function to_numeric(x::Number, b::QuantumOpticsBase.Basis; kwargs...)
     return _to_number(x) * _lazy_one(b)
 end
 
-# Convert CNum/Num to plain Julia number for numeric evaluation.
 _to_number(x::Number) = x
 function _to_number(x::Num)
     v = SymbolicUtils.unwrap(x)
@@ -116,7 +106,6 @@ function _to_number(x::SymbolicUtils.BasicSymbolic)
     return _to_number(Num(x))
 end
 
-# State-based dispatch
 function to_numeric(op::QField, state::QuantumState; kwargs...)
     return to_numeric(op, QuantumOpticsBase.basis(state); kwargs...)
 end
@@ -124,15 +113,12 @@ function to_numeric(x::Number, state::QuantumState; kwargs...)
     return to_numeric(x, QuantumOpticsBase.basis(state); kwargs...)
 end
 
-# Lazy identity helper
 _lazy_one(b::QuantumOpticsBase.Basis) = one(b)
 function _lazy_one(b::QuantumOpticsBase.CompositeBasis)
     return QuantumOpticsBase.LazyTensor(
         b, collect(1:length(b.bases)), Tuple(one(bi) for bi in b.bases)
     )
 end
-
-# --- to_numeric with Dict parameter substitution ---
 
 function to_numeric(op::QSym, b::QuantumOpticsBase.Basis, d::Dict; kwargs...)
     haskey(d, op) && return d[op]
@@ -190,7 +176,6 @@ function numeric_average(op, states::AbstractVector, d::Dict = Dict(); kwargs...
     return _numeric_average_vec(op, states, d; kwargs...)
 end
 
-# Single-state dispatch
 function _numeric_average(op::QField, state::QuantumState, d::Dict; kwargs...)
     op_num = to_numeric(op, state, d; kwargs...)
     return QuantumOpticsBase.expect(op_num, state)
@@ -217,7 +202,6 @@ function _numeric_average(avg::SymbolicUtils.BasicSymbolic, state::QuantumState,
     error("numeric_average not implemented for $(typeof(avg))")
 end
 
-# Vector-of-states dispatch
 function _numeric_average_vec(op::QField, states::AbstractVector, d::Dict; kwargs...)
     op_num = QuantumOpticsBase.sparse(to_numeric(op, first(states), d; kwargs...))
     return QuantumOpticsBase.expect(op_num, states)

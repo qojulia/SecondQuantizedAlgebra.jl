@@ -1,4 +1,3 @@
-# HilbertSpace
 function Base.show(io::IO, h::FockSpace)
     write(io, "ℋ(")
     print(io, h.name)
@@ -18,7 +17,6 @@ Base.show(io::IO, h::PauliSpace) = (write(io, "ℋ("); print(io, h.name); write(
 Base.show(io::IO, h::SpinSpace) = (write(io, "ℋ("); print(io, h.name); write(io, ")"))
 Base.show(io::IO, h::PhaseSpace) = (write(io, "ℋ("); print(io, h.name); write(io, ")"))
 
-# Index suffix helper
 function _show_index_suffix(io::IO, idx::Index)
     if has_index(idx)
         write(io, "_")
@@ -27,7 +25,6 @@ function _show_index_suffix(io::IO, idx::Index)
     return
 end
 
-# Operators — Fock
 function Base.show(io::IO, x::Destroy)
     print(io, x.name)
     return _show_index_suffix(io, x.index)
@@ -76,7 +73,6 @@ function Base.show(io::IO, x::Momentum)
     return _show_index_suffix(io, x.index)
 end
 
-# Prefactor display helpers
 function _show_prefactor(io::IO, c::CNum)
     return if iszero(imag(c))
         print(io, real(c))
@@ -129,7 +125,6 @@ function _needs_pf_parens(c::CNum)
     return op === (/) || op === (+)
 end
 
-# Show a single term: prefactor * op1 * op2 * ...
 function _show_term(io::IO, c::CNum, ops::Vector{QSym})
     if isempty(ops)
         _show_prefactor(io, c)
@@ -160,7 +155,6 @@ function _term_signature(t::QAdd)
     return term.ops, c, term.ne
 end
 
-# Show a list of terms joined by + / -
 function _show_terms(io::IO, st::Vector{QAdd})
     isempty(st) && return write(io, "0")
     ops1, c1, _ = _term_signature(st[1])
@@ -226,7 +220,6 @@ function _show_sum_group(io::IO, terms::Vector{QAdd}, indices::Vector{Index}, ne
     return nothing
 end
 
-# QAdd
 function Base.show(io::IO, x::QAdd)
     st = sorted_arguments(x)
     isempty(st) && return write(io, "0")
@@ -242,7 +235,6 @@ function Base.show(io::IO, x::QAdd)
                 push!(indep, t)
             end
         end
-        # Print index-independent terms first
         if !isempty(indep)
             _show_terms(io, indep)
             if !isempty(dep)

@@ -63,7 +63,6 @@ struct Momentum <: QSym
 end
 Momentum(name::Symbol, si::Int) = Momentum(name, si, NO_INDEX)
 
-# Construction from Hilbert spaces
 Position(h::PhaseSpace, name::Symbol) = Position(name, 1)
 Momentum(h::PhaseSpace, name::Symbol) = Momentum(name, 1)
 
@@ -82,25 +81,20 @@ end
 Position(h::ProductSpace, name::Symbol) = Position(h, name, _unique_subspace_index(h, PhaseSpace))
 Momentum(h::ProductSpace, name::Symbol) = Momentum(h, name, _unique_subspace_index(h, PhaseSpace))
 
-# IndexedOperator convenience
 IndexedOperator(op::Position, i::Index) = Position(op.name, op.space_index, i)
 IndexedOperator(op::Momentum, i::Index) = Momentum(op.name, op.space_index, i)
 
-# Adjoint — Hermitian
 Base.adjoint(op::Position) = op
 Base.adjoint(op::Momentum) = op
 
-# Equality
 Base.isequal(a::Position, b::Position) = a.name == b.name && a.space_index == b.space_index && a.index == b.index
 Base.isequal(a::Momentum, b::Momentum) = a.name == b.name && a.space_index == b.space_index && a.index == b.index
 Base.:(==)(a::Position, b::Position) = isequal(a, b)
 Base.:(==)(a::Momentum, b::Momentum) = isequal(a, b)
 
-# Hashing
 Base.hash(a::Position, h::UInt) = hash(:Position, hash(a.name, hash(a.space_index, hash(a.index, h))))
 Base.hash(a::Momentum, h::UInt) = hash(:Momentum, hash(a.name, hash(a.space_index, hash(a.index, h))))
 
-# Ladder
 ladder(::Position) = 0
 ladder(::Momentum) = 1
 

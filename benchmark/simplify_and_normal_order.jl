@@ -71,8 +71,8 @@ function benchmark_simplify_and_normal_order!(SUITE)
     hn3 = NLevelSpace(:atom, 3, 1)
     t(i, j) = Transition(hn3, :σ, i, j)
     gs_expr = t(1, 2) * t(2, 1) + t(1, 3) * t(3, 1) + t(1, 1) * t(2, 3)
-    SUITE["Normal Order"]["Ground state"]["3-level rewrite"] = @benchmarkable normal_order(
-        $gs_expr, $hn3
+    SUITE["Normal Order"]["Ground state"]["3-level rewrite"] = @benchmarkable expand_completeness(
+        normal_order($gs_expr)
     ) seconds = 3
 
     return nothing

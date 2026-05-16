@@ -1,16 +1,3 @@
-# ============================================================================
-#  algebra.jl — user-facing operator algebra
-#
-#  Defines the public API on top of the canonicalization passes (passes.jl) and
-#  pipeline composition (pipelines.jl): scalar arithmetic, addition,
-#  subtraction, powers, normal_order, simplify, commutator, expand,
-#  expand_completeness, substitute.
-# ============================================================================
-
-# ---------------------------------------------------------------------------
-#  Scalar multiplication
-# ---------------------------------------------------------------------------
-
 Base.:*(a::QSym, b::Number) = _single_qadd(_to_cnum(b), QSym[a])
 Base.:*(b::Number, a::QSym) = a * b
 
@@ -25,10 +12,6 @@ function Base.:*(a::QAdd, b::Number)
     return QAdd(d, copy(a.indices))
 end
 Base.:*(a::Number, b::QAdd) = b * a
-
-# ---------------------------------------------------------------------------
-#  Addition
-# ---------------------------------------------------------------------------
 
 function Base.:+(a::QSym, b::QSym)
     d = QTermDict()
@@ -70,10 +53,6 @@ Base.:+(a::Number, b::QAdd) = b + a
 Base.zero(::Type{QAdd}) = _zero_qadd()
 Base.zero(::QAdd) = _zero_qadd()
 
-# ---------------------------------------------------------------------------
-#  Subtraction, negation, division, power
-# ---------------------------------------------------------------------------
-
 Base.:-(a::QSym) = _single_qadd(_CNUM_NEG1, QSym[a])
 
 function Base.:-(a::QAdd)
@@ -113,10 +92,6 @@ function Base.:^(a::QAdd, n::Integer)
     return result
 end
 
-# ---------------------------------------------------------------------------
-#  normal_order
-# ---------------------------------------------------------------------------
-
 """
     normal_order(expr::QField)
 
@@ -139,10 +114,6 @@ function normal_order(q::QAdd)
     end
     return QAdd(out, copy(q.indices))
 end
-
-# ---------------------------------------------------------------------------
-#  simplify
-# ---------------------------------------------------------------------------
 
 function _simplify_prefactor(x::CNum)
     _const_val(x.re) !== nothing && _const_val(x.im) !== nothing && return x
@@ -188,10 +159,6 @@ function SymbolicUtils.simplify(q::QAdd; kwargs...)
     return QAdd(out, _drop_unused_indices(out, nq.indices))
 end
 
-# ---------------------------------------------------------------------------
-#  expand (prefactor expansion)
-# ---------------------------------------------------------------------------
-
 """
     expand(expr::QField)
 
@@ -210,10 +177,6 @@ Symbolics.expand(op::QSym; kwargs...) = _single_qadd(_CNUM_ONE, QSym[op])
 
 _expand_prefactor(x::CNum; kwargs...) = _iszero_cnum(x) ? x : Symbolics.expand(x; kwargs...)
 _expand_prefactor(x::Number; kwargs...) = x
-
-# ---------------------------------------------------------------------------
-#  expand_completeness (opt-in σᵍᵍ rewriting)
-# ---------------------------------------------------------------------------
 
 """
     expand_completeness(q) -> QAdd
@@ -262,15 +225,10 @@ function assume_distinct_index(q::QAdd, pairs::Vector{Tuple{Index, Index}})
     return expand_completeness(QAdd(out, copy(q.indices)))
 end
 
-# ---------------------------------------------------------------------------
-#  commutator / anticommutator
-# ---------------------------------------------------------------------------
-
 const _ZERO_QADD = QAdd(QTermDict(), Index[])
 _zero_qadd() = _ZERO_QADD
 
-# Two leaves are on the same site iff their (space_index, index) agree.
-# Different sites commute → `[a, b] = 0` without routing through `*`.
+# Different sites commute, so `[a, b] = 0` without routing through `*`.
 @inline _same_site(a::QSym, b::QSym) =
     a.space_index == b.space_index && a.index == b.index
 
@@ -300,17 +258,16 @@ commutator(::QField, ::Number) = _zero_qadd()
 function commutator(a::QSym, b::QSym)
     _same_site(a, b) || return _zero_qadd()
     isequal(a, b) && return _zero_qadd()
-    # Fast path: if exactly one direction needs a swap, [a, b] is the swap residual.
-    ab = _can_commute(a, b)
-    ba = _can_commute(b, a)
-    if !ab && ba
+    # If exactly one direction needs a swap, [a, b] is the swap residual.
+    forward = _can_commute(a, b)
+    reverse = _can_commute(b, a)
+    if !forward && reverse
         _, _, c, ops = _commute_pair(a, b)
         return _single_qadd(c, isempty(ops) ? _EMPTY_OPS : copy(ops))
-    elseif ab && !ba
+    elseif forward && !reverse
         _, _, c, ops = _commute_pair(b, a)
         return _single_qadd(_neg_cnum(c), isempty(ops) ? _EMPTY_OPS : copy(ops))
     end
-    # Both directions non-commuting (Pauli, Transition) — fall back to a*b - b*a.
     return a * b - b * a
 end
 
@@ -328,10 +285,6 @@ end
 Compute `{a, b} = a*b + b*a`.
 """
 anticommutator(a, b) = a * b + b * a
-
-# ---------------------------------------------------------------------------
-#  substitute (public API; pass lives in passes.jl)
-# ---------------------------------------------------------------------------
 
 """
     substitute(expr, d::Dict)

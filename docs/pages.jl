@@ -6,5 +6,6 @@ pages = [
         "Schrieffer-Wolff Transformation" => "examples/schrieffer_wolff.md",
     ],
     "API" => "API.md",
+    "Changelog" => "changelog.md",
     "Developer Documentation" => "devdocs.md",
 ]

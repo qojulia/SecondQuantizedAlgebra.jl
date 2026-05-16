@@ -134,6 +134,14 @@ anticommutator
 expand
 ```
 
+```@docs
+expand_completeness
+```
+
+```@docs
+assume_distinct_index
+```
+
 
 ## [Average](@id API: Average)
 

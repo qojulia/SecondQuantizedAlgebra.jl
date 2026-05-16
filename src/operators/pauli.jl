@@ -49,7 +49,6 @@ struct Pauli <: QSym
 end
 Pauli(name::Symbol, axis::Int, si::Int) = Pauli(name, axis, si, NO_INDEX)
 
-# Construction from Hilbert spaces
 Pauli(h::PauliSpace, name::Symbol, axis::Int) = Pauli(name, axis, 1)
 function Pauli(h::ProductSpace, name::Symbol, axis::Int, idx::Int)
     1 <= idx <= length(h.spaces) || throw(ArgumentError("Index $idx out of range"))
@@ -61,20 +60,15 @@ end
 Pauli(h::ProductSpace, name::Symbol, axis::Int) =
     Pauli(h, name, axis, _unique_subspace_index(h, PauliSpace))
 
-# IndexedOperator convenience
 IndexedOperator(op::Pauli, i::Index) = Pauli(op.name, op.axis, op.space_index, i)
 
-# Adjoint — Hermitian
 Base.adjoint(op::Pauli) = op
 
-# Equality
 Base.isequal(a::Pauli, b::Pauli) = a.name == b.name && a.axis == b.axis && a.space_index == b.space_index && a.index == b.index
 Base.:(==)(a::Pauli, b::Pauli) = isequal(a, b)
 
-# Hashing
 Base.hash(a::Pauli, h::UInt) = hash(:Pauli, hash(a.name, hash(a.axis, hash(a.space_index, hash(a.index, h)))))
 
-# Ladder (not applicable)
 ladder(::Pauli) = 0
 
 # --- Operator hooks ---

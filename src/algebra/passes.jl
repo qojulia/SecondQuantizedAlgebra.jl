@@ -1,14 +1,7 @@
-# ============================================================================
-#  Passes: the low-level building blocks of the canonicalization pipeline.
-#
-#  Each pass takes a `sink::F` first (so `do` blocks work), an `ops::Vector{QSym}`
-#  and a `c::CNum`. Forking passes may invoke the sink multiple times; folding
-#  passes invoke it once. Aliasing contracts are documented per pass.
-# ============================================================================
-
-# ---------------------------------------------------------------------------
-#  _partial_sort!: distinct-site reorder
-# ---------------------------------------------------------------------------
+# Passes: the low-level building blocks of the canonicalization pipeline.
+# Each pass takes a `sink::F` first (so `do` blocks work), an `ops::Vector{QSym}`
+# and a `c::CNum`. Forking passes may invoke the sink multiple times; folding
+# passes invoke it once. Aliasing contracts are documented per pass.
 
 """
     _partial_sort!(ops::Vector{QSym}, ne::Vector{NonEqualPair})
@@ -33,10 +26,6 @@ function _partial_sort!(ops::Vector{QSym}, ne::Vector{NonEqualPair})
     return ops
 end
 
-# ---------------------------------------------------------------------------
-#  _canonicalize_to_dict!: terminal sink
-# ---------------------------------------------------------------------------
-
 """
     _canonicalize_to_dict!(out::QTermDict, ops::Vector{QSym}, c::CNum, ne::Vector{NonEqualPair})
 
@@ -50,10 +39,6 @@ must not mutate after this call. Pre-condition: `ops` is in canonical form.
     _iszero_cnum(c) && return out
     return _addto_key!(out, QTerm(ops, _canonical_ne(ne)), c)
 end
-
-# ---------------------------------------------------------------------------
-#  _reduce_ops: fold same-site composition
-# ---------------------------------------------------------------------------
 
 """
     _reduce_ops(sink, ops, c)
@@ -90,10 +75,6 @@ same-site pair `(a, b)` for which `_reduce_pair(a, b)` returns non-`nothing`.
     sink(ops, c)
     return
 end
-
-# ---------------------------------------------------------------------------
-#  _commute_ops: same-site commutation, forks per swap
-# ---------------------------------------------------------------------------
 
 """
     _commute_ops(sink, ops, c)
@@ -142,10 +123,6 @@ function _commute_ops_at(sink::F, ops::Vector{QSym}, c::CNum, start::Int) where 
     return
 end
 
-# ---------------------------------------------------------------------------
-#  _expand_gs_ops: ground-state completeness rewriting (opt-in)
-# ---------------------------------------------------------------------------
-
 """
     _expand_gs_ops(sink, ops, c)
 
@@ -173,10 +150,6 @@ function _expand_gs_ops(sink::F, ops::Vector{QSym}, c::CNum) where {F}
     end
     return
 end
-
-# ---------------------------------------------------------------------------
-#  _substitute_ops: per-term substitution, may fork on QAdd values
-# ---------------------------------------------------------------------------
 
 """
     _substitute_ops(sink, ops, c, d)

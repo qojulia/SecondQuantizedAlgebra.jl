@@ -107,7 +107,7 @@ using Test
     #     @inferred to_numeric(a', b)
     # end
 
-    @testset "numeric_average — Average expressions" begin
+    @testset "numeric_average: Average expressions" begin
         h = FockSpace(:fock)
         @qnumbers a::Destroy(h)
         b = FockBasis(7)

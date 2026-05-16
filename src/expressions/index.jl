@@ -171,8 +171,6 @@ function create_index_arrays(indices::Vector{Index}, ranges::Vector{<:AbstractRa
     return vec(collect(Iterators.product(ranges...)))
 end
 
-# --- Shared helper for NotIdentical check ---
-
 """Check if a substituted BasicSymbolic node with NotIdentical metadata has equal args → 0."""
 function _check_not_identical(result::SymbolicUtils.BasicSymbolic)
     if SymbolicUtils.iscall(result) &&
@@ -184,10 +182,6 @@ function _check_not_identical(result::SymbolicUtils.BasicSymbolic)
     return Num(result)
 end
 _check_not_identical(result::Number) = Num(result)
-
-# ============================================================================
-#  Index dependence queries
-# ============================================================================
 
 function _depends_on_index_term(c::CNum, ops::Vector{QSym}, idx::Index)
     for op in ops
@@ -207,10 +201,6 @@ function _any_depends_on_index(s::QAdd, idx::Index)
     end
     return false
 end
-
-# ============================================================================
-#  Σ — symbolic sums
-# ============================================================================
 
 """
     _diagonal_split!(off_diag, diag, sum_idx) -> nothing
@@ -315,7 +305,6 @@ function Σ(expr::QAdd, i::Index, non_equal::Vector{Index} = Index[])
         end
         _canonicalize!(off_diag, copy(term.ops), c, full_ne)
 
-        # Diagonal contributions.
         for (_, ext_idx) in diag_pairs
             sub_ops = QSym[change_index(o, i, ext_idx) for o in term.ops]
             sub_c = change_index(c, i, ext_idx)

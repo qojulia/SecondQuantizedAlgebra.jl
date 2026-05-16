@@ -15,6 +15,11 @@ if CI
         normpath(@__FILE__, "../src/index.md");
         force = true,
     )
+    cp(
+        normpath(@__FILE__, "../../Changelog.md"),
+        normpath(@__FILE__, "../src/changelog.md");
+        force = true,
+    )
 else
     nothing
 end

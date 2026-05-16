@@ -1,8 +1,3 @@
-# ============================================================================
-#  Normal <-> Symmetric (Weyl) ordering conversion
-# ============================================================================
-
-# Local data structure for the Weyl-conversion helpers.
 struct OrderedTerm
     prefactor::CNum
     ops::Vector{QSym}

@@ -96,7 +96,6 @@ struct Transition <: QSym
     n_levels::Int
 end
 
-# Construction from Hilbert spaces
 function Transition(h::NLevelSpace, name::Symbol, i::Int, j::Int)
     1 <= i <= h.n || throw(ArgumentError("Level i=$i out of range 1:$(h.n)"))
     1 <= j <= h.n || throw(ArgumentError("Level j=$j out of range 1:$(h.n)"))
@@ -126,20 +125,15 @@ Transition(h::ProductSpace, name::Symbol, i::Int, j::Int) =
 Transition(h::ProductSpace, name::Symbol, i::Symbol, j::Symbol) =
     Transition(h, name, i, j, _unique_subspace_index(h, NLevelSpace))
 
-# IndexedOperator convenience
 IndexedOperator(op::Transition, i::Index) = Transition(op.name, op.i, op.j, op.space_index, i, op.ground_state, op.n_levels)
 
-# Adjoint: |i⟩⟨j|† = |j⟩⟨i|
 Base.adjoint(op::Transition) = Transition(op.name, op.j, op.i, op.space_index, op.index, op.ground_state, op.n_levels)
 
-# Equality
 Base.isequal(a::Transition, b::Transition) = a.name == b.name && a.i == b.i && a.j == b.j && a.space_index == b.space_index && a.index == b.index && a.ground_state == b.ground_state && a.n_levels == b.n_levels
 Base.:(==)(a::Transition, b::Transition) = isequal(a, b)
 
-# Hashing
 Base.hash(a::Transition, h::UInt) = hash(:Transition, hash(a.name, hash(a.i, hash(a.j, hash(a.space_index, hash(a.index, hash(a.ground_state, hash(a.n_levels, h))))))))
 
-# Ladder (not applicable to Transition)
 ladder(::Transition) = 0
 
 # --- Operator hooks ---

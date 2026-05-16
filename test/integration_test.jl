@@ -231,7 +231,7 @@ import SecondQuantizedAlgebra: simplify, QAdd, QSym, _single_qadd, _to_cnum, Ind
         @test any(result3) do (term, c)
             term.ops == [σ(2, 2, j)] && isequal(c, _to_cnum(1im * g(j)))
         end
-        # 2i * g(j) * a'a * σⱼ²²  (was im * g(j) before completeness folded in σⱼ¹¹)
+        # 2i * g(j) * a'a * σⱼ²²  (completeness folds in σⱼ¹¹)
         @test any(result3) do (term, c)
             term.ops == [a', a, σ(2, 2, j)] && isequal(c, _to_cnum(2im * g(j)))
         end

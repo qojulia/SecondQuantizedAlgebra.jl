@@ -36,9 +36,19 @@ end
 
 **Why `index::Index` on every operator.** Symbolic summation indices (for expressions like ``\sum_i a_i^\dagger a_i``) live directly on the operator rather than in a wrapper type. This avoids a separate `IndexedOperator` struct in the type hierarchy and keeps dispatch simple. The sentinel `NO_INDEX` (with `space_index = 0`) indicates no index is present, checked via `has_index(idx) = idx.space_index != 0`. The `_same_site` check requires both `space_index` and `index` to match — operators with the same `space_index` but different `index` represent distinct sites in an indexed sum and don't interact via commutation rules.
 
-**Transition-specific fields.** `Transition` adds `i::Int` and `j::Int` for the bra/ket levels. `Pauli` and `Spin` add `axis::Int` (1=x, 2=y, 3=z).
+**Transition-specific fields.** `Transition` adds `i::Int` and `j::Int` for the bra/ket levels along with `ground_state::Int` and `n_levels::Int`; `Pauli` and `Spin` add `axis::Int` (1=x, 2=y, 3=z).
 
-**`ladder` function.** Returns 0 for creation-like operators (`Create`, `Transition`, `Pauli`, `Spin`, `Position`) and 1 for annihilation-like operators (`Destroy`, `Momentum`). Used internally for canonical ordering.
+**The five operator hooks.** The whole algebra talks to operator types through five methods that every concrete `QSym` subtype implements. They are the entire interface; everything else in the package builds on top of them.
+
+| Hook | Returns | Meaning |
+|---|---|---|
+| `_site_compare(a, b, ne)` | `SiteCmp` | three-way site comparison driving the sort |
+| `_can_commute(a, b)` | `Bool` | true iff swapping needs no commutator residual (called only on provably-same-site pairs) |
+| `_commute_pair(a, b)` | `(swap_b, swap_a, residual_coeff, residual_ops)` | swap and residual for same-site non-commuting pairs |
+| `_reduce_pair(a, b)` | `Nothing`, `CNum`, or `(QSym, CNum)` | local algebraic identity (Transition composition, Pauli product, …) |
+| `_ground_state_expand(op)` | `Nothing` or `(g, n_levels, site)` | only `Transition` overrides non-trivially |
+
+Cross-type fallbacks in `operators/operators.jl` cover pairs of different concrete types — those always live on distinct sites, always commute, and never reduce — so the fallbacks return the trivial answers and `_commute_pair` errors on a cross-type call by construction. This is what keeps adding a new `QSym` subtype to a self-contained job: define the struct, fill in the five hooks, optionally add `adjoint` and `to_numeric` methods.
 
 
 ## Hilbert spaces
@@ -51,9 +61,7 @@ struct ProductSpace{T <: Tuple{Vararg{HilbertSpace}}} <: HilbertSpace
 end
 ```
 
-This gives full type stability — `ProductSpace{Tuple{FockSpace, NLevelSpace}}` is a concrete type. The `⊗` operator flattens nested `ProductSpace`s during construction.
-
-**No `ClusterSpace`.** Earlier versions of SecondQuantizedAlgebra.jl had a `ClusterSpace{H,T}` wrapper, inherited from QuantumCumulants.jl, that encoded "this subspace has ``N`` identical copies, track correlations up to order ``k``." It was paired with a `copy_index::Int` field on every `QSym` so that `cluster_expand(op, N)` could materialize ``N`` distinct copies (`a_1, a_2, …, a_N`). QuantumCumulants.jl has since deprecated the cluster workflow (compare its [old cluster-based](https://qojulia.github.io/QuantumCumulants.jl/stable/examples/superradiant-laser/) and [new indexed](https://qojulia.github.io/QuantumCumulants.jl/stable/examples/superradiant_laser_indexed/) superradiant-laser tutorials), and we removed the corresponding scaffolding here because the symbolic [`Index`](@ref) machinery already covers the same use case at lower cost: an indexed operator `IndexedOperator(op, i)` with `i::Index` of range ``N`` represents the same family of copies, the algebra reasons over it via [`Σ`](@ref) and diagonal splitting, and ``N`` stays symbolic through equation derivation. The cumulant truncation order is properly a property of the moment expansion, so it now lives in the downstream solver call (`meanfield(…; order=k)` in QuantumCumulants.jl) rather than being baked into the Hilbert space. The integer-instantiation helpers (`insert_index`, `IndexedOperator(op, ::Int)`, `to_numeric(op, b, ranges)`) were removed alongside `copy_index` since they only made sense when concrete copies needed distinct numeric basis slots.
+This gives full type stability — `ProductSpace{Tuple{FockSpace, NLevelSpace}}` is a concrete type. The `⊗` operator flattens nested `ProductSpace`s during construction. Indexed families of identical subsystems are represented through the [`Index`](@ref) and [`Σ`](@ref) machinery rather than as a dedicated Hilbert-space type.
 
 
 ## The `CNum` prefactor type
@@ -98,26 +106,11 @@ end
 
 **What a dict entry represents.** A single entry `QTerm(ops, ne) => c` in `arguments` represents the term `c · ops[1] · ops[2] · …` valid for any index assignment satisfying the pairwise constraints in `ne` (each `(α, β) ∈ ne` means `α ≠ β`). The `indices` field on `QAdd` carries the outer summation scope: a `QAdd` with `indices = [i, j]` represents ``\sum_i \sum_j \sum_\text{terms} c \cdot \text{ops}`` where each individual term may further constrain `(i, j)` per its own `ne`. This per-term scoping is what lets a single `QAdd` represent expressions like ``\sum_i a_i a_i + \sum_{i \neq j} a_i a_j`` as two dict entries with different `ne` rather than two separate `QAdd` summations.
 
-**Dictionary keys are full constrained terms.** Each `QTerm` is an ordered operator product plus the pairwise inequality constraints that scope that product. The ordering is canonical (determined by `_site_sort!` and `_apply_ordering`), so structurally equal products always have the same `ops`. Like-term collection happens only when both `ops` and `ne` match exactly. This is the key invariant that makes constrained sums correct: `a_i` and `a_i` under `i ≠ j` are distinct stored terms, not one merged term with unioned metadata.
+**Dictionary keys are full constrained terms.** Each `QTerm` is an ordered operator product plus the pairwise inequality constraints that scope that product. The ordering is canonical (established by `_partial_sort!` and the streaming passes described below), so structurally equal products always have the same `ops`. Like-term collection happens only when both `ops` and `ne` match exactly. This is the key invariant that makes constrained sums correct: `a_i` and `a_i` under `i ≠ j` are distinct stored terms, not one merged term with unioned metadata.
 
 **The schema is visible at the type level.** `QTermDict` is a plain `Dict{QTerm, CNum}` alias — there is no wrapper struct. Iterating a `QAdd` yields `Pair{QTerm, CNum}`, and callers reach `term.ops` / `term.ne` on the key directly. This keeps the storage shape (`(ops, ne) => coeff`, not `ops => (coeff, ne)`) honest at every callsite.
 
-**`_addto!` helper.** The core insertion function that handles like-term collection and zero elimination:
-
-```julia
-function _addto!(d::QTermDict, ops::Vector{QSym}, val::CNum, ne = _EMPTY_NE)
-    key = QTerm(copy(ops), canonical_ne(ne))
-    existing = get(d, key, nothing)
-    if existing === nothing
-        _iszero_cnum(val) || (d[key] = val)
-    else
-        new_val = _add_cnum(existing, val)
-        _iszero_cnum(new_val) ? delete!(d, key) : (d[key] = new_val)
-    end
-end
-```
-
-Zero terms are never stored. This keeps the dictionary clean without needing explicit cleanup passes.
+**Zero terms are never stored.** `_addto!` (the single insertion helper used by every code path that adds to a `QTermDict`) builds the key, looks it up, sums the coefficient if it already exists, and deletes the entry whenever the result is zero. The dictionary therefore stays clean without an explicit cleanup pass.
 
 **Summation metadata.** `indices` remains the sum-level metadata on `QAdd`: a `QAdd` with `indices = [i]` represents ``\sum_i (\text{terms})``. Pairwise inequality constraints like `(i, j)` meaning ``i \neq j`` live on the individual `QTerm`s, not on `QAdd` globally. This is why display and round-trip logic can represent mixed-scope sums truthfully.
 
@@ -125,78 +118,88 @@ Zero terms are never stored. This keeps the dictionary clean without needing exp
 ## Operator sorting
 
 ```julia
-_sort_key(op::QSym) = (op.space_index, op.index.name)
+@enum SiteCmp::UInt8 Less Equal Undetermined Greater
 
-_site_sort!(v::Vector{QSym}) = sort!(v; by = _sort_key, alg = Base.MergeSort)
+_site_compare(a::QSym, b::QSym, ne::Vector{NonEqualPair})::SiteCmp
+_partial_sort!(ops::Vector{QSym}, ne::Vector{NonEqualPair})
 ```
 
-**Why `MergeSort`?** Julia's default sort (`QuickSort`) is not stable — elements with equal keys can be reordered. Here, operators on the same site have identical `_sort_key` values, but their relative order encodes non-commutative multiplication (e.g. `a†·a ≠ a·a†`). A stable sort preserves this left-to-right order for equal keys while still grouping operators by site. `MergeSort` is the standard stable sort algorithm in Julia's `Base`.
+Sorting is driven by a three-way comparator. Two operators have one of three site relationships: **distinct** (different `space_index`, or different numeric indices on the same space, or a `ne` entry that resolves them), **equal** (same `space_index` and syntactically equal `index`), or **undetermined** (same `space_index`, indices not syntactically equal, no `ne` entry resolves them). `_site_compare` returns `Less` or `Greater` for distinct sites, `Equal` for same-site pairs, and `Undetermined` for the third case.
 
-**Why sort at all during multiplication?** Operators from different sites are grouped together. This is correct because operators on different sites always commute, and grouping them makes the ordering worklist algorithm more efficient (it only needs to scan adjacent same-site pairs).
+**Why `Equal` and `Undetermined` are different enum values** even though both mean "do not reorder": distinguishing them at the type level removes an entire class of bugs where an operator-type comparator returns the wrong "neutral" answer. `Equal` signals to the sibling passes that the pair is a candidate for same-site composition or commutation; `Undetermined` signals that the algebra has no information yet and the pair must be left alone until something — a sum-index substitution, an explicit `≠` declaration — turns it into one of the other three.
+
+**Why a stable insertion sort.** `_partial_sort!` is the only function in the package that ever reorders `ops`. It swaps adjacent pairs only when `_site_compare` returns `Greater`; `Equal` and `Undetermined` are left in their incoming physical order (their order encodes non-commutative multiplication that the sibling passes will interpret). Insertion sort is stable by construction and `O(n)` on the near-sorted inputs the algebra produces in practice.
+
+For example, `[a_fock, σ²¹_i, b_fock, σ¹²_j]` with `i, j` symbolic indices on the same atom space and no `ne` constraint resolving them partial-sorts to `[a_fock, b_fock, σ²¹_i, σ¹²_j]`: the two Fock operators move to the front (they are distinct from the σs), the two σs stay in their physical order (undetermined relative to each other).
 
 
-## Ordering: the worklist algorithm
+## The canonicalization pipeline
 
-The core of the algebra lives in `ordering.jl`. When two operators are multiplied, `_apply_ordering` processes the product through a worklist:
+Algebraic rewrites fall into three categories, and the package treats each one differently. *Unconditionally safe* rewrites — local reductions on operators provably on the same site, such as `|i⟩⟨j|·|k⟩⟨l| = δⱼₖ |i⟩⟨l|` or the Pauli product rule — fire eagerly inside every `*`. *Conditionally safe* rewrites — commutation swaps that reorder a same-site pair like `a·a† → a†·a + 1` — fire when the site relationship is known, and stay dormant when it is undetermined. *Structurally destructive* rewrites — the completeness identity `σᵍᵍ = 1 - Σ_{k≠g} σᵏᵏ`, which is mathematically exact but multiplies one atom into `n_levels` terms — fire only on user request. This split is why the canonical-form rules below distinguish `Equal` from `Undetermined`, and why ground-state expansion has its own public function.
 
+Every operation that perturbs an operator sequence ends in the same primitive, `_canonicalize!`, which runs `_partial_sort!` followed by a streaming pipeline of small passes:
+
+```julia
+@inline function _stream!(out, ops, c, ne)
+    _reduce_ops(ops, c) do ops1, c1
+        _commute_ops(ops1, c1) do ops2, c2
+            _reduce_ops(ops2, c2) do ops3, c3
+                _canonicalize_to_dict!(out, ops3, c3, ne)
+            end
+        end
+    end
+end
 ```
-1. Start: worklist = [(prefactor, [op₁, op₂, ...])]
-2. Pop a term, scan adjacent pairs left-to-right
-3. If a rule fires (algebraic reduction or ordering swap):
-   - Push the resulting term(s) back onto the worklist
-   - Stop scanning this term (start over with next pop)
-4. If no rule fires: term is fully ordered, push to "done"
-5. Repeat until worklist is empty
-```
 
-**Three categories of rules** all fire eagerly during `*`:
+Each pass has signature `(ops, c, sink::F) where {F}`. The type parameter on the sink forces specialization so the nested `do`-blocks inline into one fused function with zero closure allocation — the streaming pattern reads like a deferred pipeline but at the machine level is one straight-line function.
 
-1. **Algebraic reductions** (Transition composition, Pauli product rule):
-   - Transition composition: `|i⟩⟨j| · |k⟩⟨l| → δⱼₖ |i⟩⟨l|`
-   - Pauli product: `σⱼ · σₖ = δⱼₖ I + iεⱼₖₗ σₗ`
+The order `reduce → commute → reduce` matters. The first reduce folds Transition and Pauli same-site pairs, which never commute but always compose locally; this leaves only Fock, Spin, and PhaseSpace ladder pairs for `_commute_ops` to act on. The trailing reduce catches any same-site composition that surfaces when a commute residual lands next to another operator on the same site — for example, a Spin commutator's contracted-axis residual meeting a same-site neighbor.
 
-2. **Ordering swaps** (also reachable explicitly via `normal_order()`):
-   - Fock: `a · a† → a† · a + 1` (two terms: swapped + identity)
-   - Spin: `[Sⱼ, Sₖ] = iεⱼₖₗ Sₗ` when axis out of order
-   - PhaseSpace: `p · x → x · p - i`
+The four passes have one job each:
 
-3. **Completeness expansion** (applied post-worklist by `_expand_gs_oterms`, or explicitly via `simplify(expr, h)` / `normal_order(expr, h)` on hand-constructed `σᵍᵍ` that bypassed `*`):
-   - NLevel: `σᵍᵍ → 1 - Σ_{k≠g} σᵏᵏ` for the ground-state projector of any `NLevelSpace`. See "Simplification vs. normal ordering" below for the design rationale.
+| Pass | Behaviour |
+|---|---|
+| `_reduce_ops` | folds adjacent provably-same-site pairs via `_reduce_pair`; one output per input |
+| `_commute_ops` | applies swaps for adjacent same-site pairs whose `_can_commute` is false; emits both swap branch and residual branch |
+| `_expand_gs_ops` | applies `σᵍᵍ → 1 - Σ_{k≠g} σᵏᵏ` to every ground-state projector; opt-in, not part of the default pipeline |
+| `_substitute_ops` | walks `ops` applying a substitution dict; forks when a value is a multi-term `QAdd` |
 
-Each swap creates two terms (the swapped pair + the commutator term), so the worklist can grow. But like-term collection in `_addto!` keeps things manageable.
+The terminal sink, `_canonicalize_to_dict!`, is the only place a `QTerm` is constructed during a pipeline run. It builds `QTerm(ops, ne)`, looks up in `out`, sums the coefficient, drops zero entries.
 
-**`_same_site` guard.** All rules only fire when `a.space_index == b.space_index && a.index == b.index`. Operators on different sites trivially commute.
+The aliasing rules are what justify the streaming style: there is no intermediate term-list materialization. Single-output passes mutate `ops` in place and the sink receives the same `Vector`; forking passes call `copy(ops)` before mutating each branch except possibly one, so no two branches share a mutable operator string; the terminal sink takes ownership of whatever it receives. Every pass documents which rule it follows.
 
-**Performance.** Eager `*` collects like terms at each multiplication step, keeping intermediate expressions compact. For compound builds like `H^3` this pays off compared to a hypothetical deferred alternative that would carry every intermediate redundancy through to a single large final pass. The reductions-only `simplify()` and the on-demand `normal_order()` exist for two narrow cases: applying just the reductions (e.g. when canonicalizing user-constructed expressions), and as an idempotent finalizer (useful in tests and for hand-constructed expressions that bypass `*`).
+The pipeline establishes the **canonical-form invariant**: `ops` is in partial-canonical order, no adjacent provably-same-site pair has a remaining commutator residual or reduction, and like terms are collected. The invariant deliberately says nothing about `σᵍᵍ` — see the next section.
 
 
 ## Simplification vs. normal ordering
 
-The package exposes three normalization passes, each picking up a different subset of the rule categories above.
+The package exposes four entry points that combine the pipeline above in different ways.
 
-`simplify(expr)` (in `simplify.jl`) applies only the algebraic reductions (Transition composition, Pauli products), simplifies symbolic prefactors via `Symbolics.simplify`, and collects like terms. It never performs commutation swaps and never expands ground-state projectors. `normal_order(expr)` (in `normal_order.jl`) applies the full rule set — algebraic reductions plus commutation swaps plus completeness expansion — by calling `_apply_ordering(c, ops)`. Since eager `*` already produces canonical form, `normal_order` is typically idempotent and useful mainly as a finalizer for hand-constructed expressions or in tests. `expand(expr)` expands symbolic prefactors only (`(a+b)² → a² + 2ab + b²`), leaving operator structure untouched.
+`normal_order(expr)` re-streams each term through `_stream!`. Eager `*` already produces canonical form, so on the output of `*` it is idempotent; it earns its keep as a finalizer for hand-constructed expressions and as the second half of `simplify`. `simplify(expr)` runs `normal_order` and then walks the resulting terms once more, applying `Symbolics.simplify` to each coefficient and dropping summation indices that no surviving term depends on. The expensive per-coefficient simplification deliberately lives in this outer pass rather than inside the streaming pipeline: it runs once per surviving term, not on every dict insertion. `expand(expr)` distributes symbolic prefactors only — `(a + b)² → a² + 2ab + b²` — and leaves the operator structure untouched. `expand_completeness(expr)` applies the ground-state identity, described below.
 
-**The `h`-overload and completeness.** `simplify(expr, h)` and `normal_order(expr, h)` explicitly rewrite every `σᵍᵍ` (for any `NLevelSpace` subspace) as `1 - Σ_{k ≠ g} σᵏᵏ`. Since eager `*` already does this for composition-produced ground-state projectors, the `h`-overload is a no-op cleanup pass on expressions built via `*`. It remains useful for user-constructed `σᵍᵍ` that bypassed `*`. Each `Transition` carries its own `ground_state` and `n_levels` fields, so the algebra never consults `h` directly; the argument exists purely as the opt-in marker.
+`commutator(a, b)` is `a*b - b*a` in the general case, with a fast path on `QSym × QSym`: when exactly one direction of the pair is non-canonical, the commutator equals the swap residual returned by `_commute_pair`, so the call short-circuits to a single-term `QAdd` without running the full pipeline twice and a subtraction.
 
-**Why `σᵍᵍ` is not in canonical form.** The canonical basis for `NLevelSpace` is `{σⁱʲ : (i,j) ≠ (g,g)} ∪ {1}` — the ground-state projector is deliberately excluded. The reason is the `QAdd = Dict{QTerm, CNum}` design invariant: physically equal expressions must have equal dict keys. If `σᵍᵍ` could live in canonical form, then `σᵍᵍ + σ²² + σ³³` (3-level, g=1) and `1` would be physically equal but compare unequal as dicts, breaking `isequal`, hash-based dedup, and `_addto!` merging. The eager rewrite preserves the invariant: every product passes through `_expand_gs_oterms` post-worklist (or through `_try_algebraic_reduction!` with `expand_gs = true` during same-site composition), so dict-key equality always implies physical equality. As a side effect, composition results like `σ¹² · σ²¹ → 1 - σ²² - σ³³` come out in the form a physicist would write directly, and downstream code (e.g. QuantumCumulants.jl meanfield) never has to dedupe an algebraically redundant `⟨σᵍᵍ⟩` moment against `1 - Σ ⟨σᵏᵏ⟩`.
+**Why `σᵍᵍ` stays atomic in canonical form.** Ground-state projectors are legitimate atoms in the canonical basis. The completeness identity `σᵍᵍ = 1 - Σ_{k≠g} σᵏᵏ` is mathematically exact, but applying it eagerly multiplies every product containing a `σᵍᵍ` by `n_levels`. A product with `k` ground-state factors balloons to `n_levels^k` terms before the surrounding context has a chance to cancel anything, and like-term collection across operations cannot recover the original compactness once the explosion has happened. Keeping `σᵍᵍ` atomic also serves downstream consumers: in mean-field expansions, `⟨σᵍᵍ⟩` is a single moment that solvers carry through their equations directly, while `1 - Σ ⟨σᵏᵏ⟩` is a sum of `n_levels - 1` moments tied together by an identity constraint that meanfield code would otherwise have to recognize and dedupe.
 
-User-constructed `σᵍᵍ` is the one exception. `Transition(h, :σ, g, g)` returns a plain `Transition` without expanding — canonicalization only fires when the operator enters a `*`. This keeps direct construction and inspection cheap, and is why `simplify(expr, h)` / `normal_order(expr, h)` exist: to apply completeness to such hand-constructed projectors when needed.
-
-**Cost.** Each `σᵍᵍ` reduction emits `n_levels` terms, so `k` reductions in one product cost `n_levels^k`. For typical workloads (2-level atoms, or 3-level with 1–2 atoms per product) this is small. The exponential only matters for high level counts combined with many `σᵍᵍ` factors in one product; if a future workload hits that, the design points either to deferring expansion to a single post-pass (which only helps when `σᵍᵍ`-bearing terms collide before expansion) or to promoting `σᵍᵍ` to first-class canonical with an explicit `apply_completeness` pass (cleaner separation, but breaks the dict-key invariant and forces a meanfield-side audit). Neither change is warranted until the cost actually bites.
+`expand_completeness(expr)` is the explicit handle for the cases where the expansion is genuinely wanted — converting to a basis in which `σᵍᵍ` is a dependent quantity, or feeding into code that expects the identity already materialized. Internally it walks each term through `_expand_gs_ops` (which forks `n_levels` ways per `σᵍᵍ`) and re-streams the output. User-constructed `σᵍᵍ` is the matching boundary case: `Transition(h, :σ, g, g)` returns a plain `Transition`, and canonicalization only happens when the operator participates in a `*`, so direct construction and inspection stay cheap.
 
 
 ## Diagonal splitting
 
-When two `QAdd`s multiply (or a `QAdd` multiplies a `QSym`), the term-by-term product needs to handle the boundary case where two distinct-index operators land on the same site. `_accumulate_with_diag!` in `qadd_arithmetic.jl` does this in one pass; it is invoked from every `*(QAdd, ·)` overload after the per-term `vcat` of operand operators.
+When a multiplication crosses a summed index, the resulting product can equate two indices that were free in the operands. `_accumulate_with_diag!` handles that boundary case in one pass, invoked from every `*(QAdd, ·)` overload after the per-term `vcat` of operand operators.
 
-**The unified rule.** For each multiplied term, look at every pair of *distinct* free indices `(α, β)` on the same Hilbert subspace that isn't already constrained `α ≠ β`. The substitution `α → β` on the **unsorted** physical-order operator vcat gives the correct boundary value at `α = β`. The same substitution applied to the **post-sort, post-ordering** form may give a different result, because `_site_sort!` canonicalizes same-space ops alphabetically by index name and can put a same-site composition pair in the wrong order. When the two disagree, the boundary case is *not* implied by the off-diagonal term and must be emitted explicitly: add the unsorted-substituted contribution as a separate diagonal term, and re-key the original (off-diagonal) entry under the augmented constraint `ne ∪ {(α, β)}`.
+For each summation index `sum_idx` that the operand depends on, and each free index `ext_idx` on the same Hilbert subspace that is not already constrained `≠ sum_idx`, the pass emits two contributions. The **off-diagonal** branch canonicalizes the original operator vcat under `ne` augmented with `(sum_idx, ext_idx)`; the new constraint upgrades `_site_compare` for that pair from `Undetermined` to `Less` or `Greater`, which lets `_partial_sort!` place them deterministically. The **diagonal** branch substitutes `sum_idx → ext_idx` in the unsorted operator vcat and in the prefactor, then canonicalizes under `ne` with any constraint involving `sum_idx` dropped. The two branches together cover the partition `sum_idx ≠ ext_idx` and `sum_idx = ext_idx` exactly once each.
 
-**Two regimes for the disagreement check:**
+The one subtle point is that the diagonal substitution operates on the **unsorted** vcat. `_partial_sort!` can place same-space operators with different symbolic indices in an order that, after the substitution makes those indices equal, would feed `_reduce_ops` a same-site composition pair in the wrong physical order. Concretely, ``\sigma_j^{12} \cdot \sigma_i^{21}`` (with `i ≠ j`) partial-sorts on `name` order, and substituting `i → j` after that sort produces a sequence whose same-site collapse is ``\sigma_j^{22}``. Substituting on the unsorted product gives ``\sigma_j^{12} \cdot \sigma_j^{21} = \sigma_j^{11}``, the physically correct result. Doing the substitution before sorting preserves the physical adjacency that the same-site rules need.
 
-- **Pairs `(i, j)` where `i` is a summation index of the outer `QAdd`.** Always emit. The sum over `i` runs across `i = j`; once the off-diagonal entry is constrained `i ≠ j`, the boundary value must surface as its own term regardless of pre-/post-sort agreement.
-- **Free-index pairs `(α, β)`** (neither is a sum index). Only emit when `_oterms_equivalent(pre_sort, post_sort) == false`. If both substitutions land on the same multiset of ordered terms, the off-diagonal entry already carries the boundary contribution and no constraint is needed.
+This mechanism only handles the case where one of the two indices is bound by a `Σ`. Two free indices outside any sum land in the `Undetermined` regime and need an explicit user declaration — see the next section.
 
-**Why pre-sort, not post-sort.** Once `_site_sort!` runs, same-space operators are sorted alphabetically by index name; substituting then would feed `_apply_ordering` a pair in the wrong physical order. Concretely, ``\sigma_j^{12} \cdot \sigma_i^{21}`` (with `i ≠ j`) sorts to ``\sigma_i^{21} \cdot \sigma_j^{12}`` and collapses at `i = j` to ``\sigma_j^{22}``, but the physically correct collapse from the original ordering is ``\sigma_j^{11}``. Substituting on the unsorted product preserves the physical order so same-site rules like ``\sigma^{αβ}\sigma^{βγ} = \sigma^{αγ}`` fire on the correct sequence.
+
+## Free indices and `assume_distinct_index`
+
+Two operators with different symbolic indices on the same Hilbert subspace, neither bound by a `Σ`, have an undetermined site relationship. The algebra cannot tell whether the user means "these label distinct atomic sites" or "these are two index variables that may or may not coincide", and the conservative reading is the second: the operators stay in their physical order, no same-site collapse fires, and the resulting expression carries the ambiguity faithfully.
+
+`assume_distinct_index(q, [(α, β), …])` resolves the ambiguity in the first direction: it augments every term's `ne` with the supplied pairs, re-canonicalizes so `_partial_sort!` can place the resolved pairs deterministically, and runs `expand_completeness` so any ground-state projectors that emerge from same-site composition under the new constraint are folded. The two-atom inter-atom coherence `σⱼ¹² · σₖ²¹` is canonicalized by `assume_distinct_index(σⱼ¹² · σₖ²¹, [(j, k)])`.
 
 
 ## Index system
@@ -235,24 +238,9 @@ _average(op) = SymbolicUtils.Term{SymbolicUtils.SymReal}(sym_average, [op]; type
 
 ### Why `average` returns `BasicSymbolic`, not `Num`
 
-The Symbolics.jl ecosystem has two layers for symbolic expressions:
-- `SymbolicUtils.BasicSymbolic{T}` — the raw symbolic tree
-- `Symbolics.Num` — a `<: Real` wrapper that lets symbolic expressions participate in Julia's number promotion system
+Symbolics.jl conventionally wraps public-API outputs in `Symbolics.Num`, a `<: Real` adapter over the raw `SymbolicUtils.BasicSymbolic` tree. `average` deliberately breaks that convention because `Num` wrapping is not type-stable across `average(::QAdd)`: pulling c-number prefactors out of the average routes the internal arithmetic through SymbolicUtils promotion rules, which produce `BasicSymbolic`, and a `QAdd` that contains a symbolic-prefactor term then disagrees in wrapper type with a `QAdd` that does not.
 
-The standard Symbolics convention is for public APIs to wrap results in `Num` (e.g. `@variables x` produces `Num`, `Symbolics.derivative` returns `Num`). We deliberately break this convention for `average` because **`Num` wrapping is not type-stable across the `average(::QAdd)` code path**.
-
-The problem: `average(::QAdd)` pulls c-number prefactors out of the average. When a prefactor involves a symbolic variable (e.g. `average(g * a)` where `g` is `@variables g::Complex`), the internal arithmetic `Num(0) + real(g) * BasicSymbolic_avg` goes through SymbolicUtils' promotion rules, which produce `BasicSymbolic`, not `Num`. Wrapping the other methods (`average(::QSym)`) in `Num` while `average(::QAdd)` returns `BasicSymbolic` creates an inconsistent return type — the same function returns different wrapper types depending on the input.
-
-Rather than fighting the type system with explicit re-wrapping (which would be fragile and require `Num`-unwrapping dispatch methods on every downstream function), we return `BasicSymbolic` consistently:
-
-- `average(::QSym)` → `BasicSymbolic{SymReal}` (the `Term` node directly)
-- `average(::QAdd)` → `BasicSymbolic{SymReal}` (via `SymbolicUtils.unwrap` on the `Num` arithmetic result)
-- `average(::Number)` → `Number` (scalars pass through unchanged)
-- `average(::BasicSymbolic)` → `BasicSymbolic` (passthrough)
-
-This means downstream functions (`is_average`, `acts_on`, `get_indices`, `numeric_average`, `undo_average`) can dispatch directly on `BasicSymbolic` without unwrapping. For robustness, `Num`-accepting dispatches are provided as defensive fallbacks — they unwrap via `SymbolicUtils.unwrap` and forward to the `BasicSymbolic` method. These catch cases where a user (or Symbolics arithmetic) wraps an average in `Num`.
-
-`BasicSymbolic` values still support arithmetic (`+`, `*`, `^`) via SymbolicUtils, and SymbolicUtils keeps the result as `BasicSymbolic` even for expressions like `x - x = 0` (wrapped as `Const{SymReal}(0)`).
+Returning `BasicSymbolic` uniformly across `average(::QSym)`, `average(::QAdd)`, and `average(::BasicSymbolic)` (scalars pass through unchanged) keeps the return type stable, lets every downstream function (`is_average`, `acts_on`, `get_indices`, `numeric_average`, `undo_average`) dispatch on one type without unwrapping, and avoids fragile re-wrapping. `Num`-accepting dispatches exist as defensive fallbacks for callers (or Symbolics arithmetic) that re-wrap.
 
 **Summation metadata on averages.** When averaging an indexed `QAdd`, each averaged term carries its own `SumIndices` and `SumNonEqual` metadata via `SymbolicUtils.setmetadata`. This matches the internal term model: scoped constraints belong to individual terms, not to the whole sum. `undo_average` restores that exact metadata term-by-term, so symbolic sums survive the `average → manipulate → undo_average` round-trip even when the same operator string appears under different constraint scopes.
 

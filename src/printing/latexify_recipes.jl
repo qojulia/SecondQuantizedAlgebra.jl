@@ -1,4 +1,3 @@
-# Transition superscript toggle
 const transition_idx_script = Ref(:^)
 
 """

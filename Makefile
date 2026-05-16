@@ -3,7 +3,8 @@ JULIA:=julia
 default: help
 
 setup:
-	${JULIA} -e 'import Pkg; Pkg.add(["JuliaFormatter", "Changelog", "LiveServer"])'
+	${JULIA} -e 'import Pkg; Pkg.add(["Changelog", "LiveServer"])'
+	${JULIA} -e 'using Pkg; Pkg.Apps.add("Runic")'
 
 format: ## Format all Julia files with Runic
 	runic --inplace src/ test/ benchmark/ examples/ docs/
@@ -26,6 +27,9 @@ benchlocal: ## Run benchmarks, save to data/, and print changelog
 	${JULIA} --project=benchmark -e 'using Pkg; Pkg.develop(PackageSpec(path=pwd())); Pkg.instantiate()'
 	${JULIA} --project=benchmark benchmark/runbenchmarks_local.jl
 
+changelog: ## Format Changelog.md with Changelog.jl
+	${JULIA} -e 'using Changelog; Changelog.generate(Changelog.CommonMark(), "Changelog.md"; repo = "qojulia/SecondQuantizedAlgebra.jl")'
+
 all: setup format test docs
 
 help:
@@ -37,6 +41,7 @@ help:
 	@echo " - make servedocs: serve the documentation locally"
 	@echo " - make bench: run the benchmarks"
 	@echo " - make benchlocal: run benchmarks, save results, and print changelog"
+	@echo " - make changelog: format Changelog.md with Changelog.jl"
 	@echo " - make all: run every commands in the above order"
 
-.PHONY: default setup format test docs servedocs bench benchlocal all help
+.PHONY: default setup format test docs servedocs bench benchlocal changelog all help

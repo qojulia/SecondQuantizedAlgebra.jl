@@ -34,7 +34,6 @@ function constraint_pairs(q::QAdd)
     return _constraint_pairs(q.arguments)
 end
 
-# Convenience: single-term QAdd
 function _single_qadd(c::CNum, ops::Vector{QSym}, ne::Vector{NonEqualPair} = _EMPTY_NE)
     _iszero_cnum(c) && return QAdd(QTermDict(), _EMPTY_INDICES)
     d = QTermDict()
@@ -64,13 +63,9 @@ function Base.adjoint(q::QAdd)
     return QAdd(out, copy(q.indices))
 end
 
-# --- Iteration: yield `term::QTerm => coeff::CNum` directly ---
-
 Base.iterate(q::QAdd) = iterate(q.arguments)
 Base.iterate(q::QAdd, state) = iterate(q.arguments, state)
 Base.eltype(::Type{QAdd}) = Pair{QTerm, CNum}
-
-# --- Sorted term access for printing and comparison ---
 
 _ne_sort_key(ne::Vector{NonEqualPair}) = Tuple(ne)
 
@@ -134,8 +129,6 @@ function Base.haskey(q::QAdd, key::AbstractVector{<:QSym})
     end
     return false
 end
-
-# --- QAdd accessor helpers ---
 
 """
     prefactor(s::QAdd) -> CNum

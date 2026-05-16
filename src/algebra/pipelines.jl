@@ -34,10 +34,6 @@ Re-establish canonical form: sort, then run the pipeline.
     return nothing
 end
 
-# ---------------------------------------------------------------------------
-# Product emission
-# ---------------------------------------------------------------------------
-
 """
     _emit_product!(out, ta_ops, ca, ta_ne, tb_ops, cb, tb_ne, sum_indices, needs_diag)
 
@@ -135,10 +131,6 @@ function _accumulate_with_diag!(
     end
     return nothing
 end
-
-# ---------------------------------------------------------------------------
-# Base.:* overloads (replace the old definitions in arithmetics/qadd_arithmetic.jl)
-# ---------------------------------------------------------------------------
 
 function Base.:*(a::QSym, b::QSym)
     out = QTermDict()

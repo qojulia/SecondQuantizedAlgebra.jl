@@ -135,9 +135,7 @@ function average(op::QAdd)
     return SymbolicUtils.unwrap(result)
 end
 
-# --- undo_average ---
-
-"""Wrap any value as a QAdd — ensures uniform return type."""
+"""Wrap any value as a QAdd, ensuring uniform return type."""
 _to_qadd(x::QAdd) = x
 _to_qadd(x::QSym) = _single_qadd(_CNUM_ONE, QSym[x])
 _to_qadd(x::Number) = _single_qadd(_to_cnum(x), QSym[])
@@ -210,8 +208,6 @@ function undo_average(eq::Symbolics.Equation)
     return lhs => rhs
 end
 
-# --- Metadata helpers ---
-
 """
     has_sum_metadata(x) -> Bool
 
@@ -256,8 +252,6 @@ function get_sum_non_equal(x::SymbolicUtils.BasicSymbolic)
 end
 get_sum_non_equal(x::Num) = get_sum_non_equal(SymbolicUtils.unwrap(x))
 
-# --- get_indices for BasicSymbolic ---
-
 function get_indices(x::SymbolicUtils.BasicSymbolic)
     if SymbolicUtils.isconst(x)
         return get_indices(x.val)
@@ -279,8 +273,6 @@ function get_indices(x::SymbolicUtils.BasicSymbolic)
     end
     return Index[]
 end
-
-# --- acts_on ---
 
 """
     acts_on(expr) -> Vector{Int}
