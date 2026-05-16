@@ -1,22 +1,22 @@
 """
     Destroy <: QSym
 
-Bosonic annihilation operator ``a`` on a [`FockSpace`](@ref).
+Bosonic annihilation operator ``a`` on a [`FockSpace`](@ref). Satisfies the
+canonical commutation relation ``[a, a^\\dagger] = 1``. The adjoint `a'`
+returns the corresponding [`Create`](@ref) operator.
 
-Satisfies the canonical commutation relation ``[a, a^\\dagger] = 1``.
-The adjoint `a'` returns the corresponding [`Create`](@ref) operator.
+# Examples
 
-# Construction
-```julia
-h = FockSpace(:cavity)
-a = Destroy(h, :a)              # single-space
-h2 = FockSpace(:a) ⊗ FockSpace(:b)
-a = Destroy(h2, :a, 1)          # on first subspace of ProductSpace
+```jldoctest
+julia> h = FockSpace(:cavity);
+
+julia> @qnumbers a::Destroy(h);
+
+julia> a * a'
+1 + a' * a
 ```
-Or via the [`@qnumbers`](@ref) macro:
-```julia
-@qnumbers a::Destroy(h)
-```
+
+See also [`Create`](@ref), [`FockSpace`](@ref), [`@qnumbers`](@ref).
 """
 struct Destroy <: QSym
     name::Symbol
@@ -28,11 +28,11 @@ Destroy(name::Symbol, si::Int) = Destroy(name, si, NO_INDEX)
 """
     Create <: QSym
 
-Bosonic creation operator ``a^\\dagger`` on a [`FockSpace`](@ref).
+Bosonic creation operator ``a^\\dagger`` on a [`FockSpace`](@ref). The
+adjoint of [`Destroy`](@ref); typically obtained via `a'` rather than
+constructed directly.
 
-The adjoint of [`Destroy`](@ref). Satisfies `[a, a'] = 1` (applied eagerly by `*`).
-Constructed implicitly via `adjoint(::Destroy)`, or directly with the same signatures
-as [`Destroy`](@ref).
+See also [`Destroy`](@ref), [`FockSpace`](@ref).
 """
 struct Create <: QSym
     name::Symbol
@@ -62,18 +62,27 @@ Create(h::ProductSpace, name::Symbol) = Create(h, name, _unique_subspace_index(h
 """
     IndexedOperator(op::QSym, i::Index) -> QSym
 
-Attach a symbolic summation index to an operator.
+Return the indexed version of an operator.
 
-Returns a new operator of the same type with `index = i`. To clear the index, use
-`IndexedOperator(op, NO_INDEX)`.
+`IndexedOperator` keeps the operator type and quantum numbers, and only changes
+the symbolic index label. Use it to build objects such as `a_i`, `σ_j₁₂`, or
+`x_k` before forming sums with [`Σ`](@ref).
+
+Use `IndexedOperator(op, NO_INDEX)` to remove an index.
 
 # Examples
-```julia
-h = FockSpace(:cavity)
-@qnumbers a::Destroy(h)
-i = Index(h, :i, 5, h)
-a_i = IndexedOperator(a, i)   # symbolic: a_i
+```jldoctest
+julia> h = FockSpace(:cavity);
+
+julia> @qnumbers a::Destroy(h);
+
+julia> i = Index(h, :i, 5, h);
+
+julia> IndexedOperator(a, i)
+a_i
 ```
+
+See also [`Index`](@ref), [`Σ`](@ref), [`change_index`](@ref).
 """
 function IndexedOperator end
 IndexedOperator(op::Destroy, i::Index) = Destroy(op.name, op.space_index, i)

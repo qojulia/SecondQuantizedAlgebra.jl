@@ -1,24 +1,23 @@
 """
     fundamental_operators(h::HilbertSpace; names=nothing) -> Vector{QSym}
 
-Return the fundamental (basis) operators for a Hilbert space `h`.
+Return the minimal generating set of operators for Hilbert space `h`.
 
-The operator set depends on the space type:
-- [`FockSpace`](@ref): one [`Destroy`](@ref) operator
-- [`NLevelSpace`](@ref) with `n` levels: `n(n+1)/2 - 1` [`Transition`](@ref) operators
-  (diagonal + upper-triangular, excluding the ground-state projector)
-- [`PauliSpace`](@ref): three [`Pauli`](@ref) operators (σx, σy, σz)
-- [`SpinSpace`](@ref): three [`Spin`](@ref) operators (Sx, Sy, Sz)
-- [`PhaseSpace`](@ref): [`Position`](@ref) and [`Momentum`](@ref)
-- [`ProductSpace`](@ref): concatenation of fundamental operators from each subspace
-
-# Keyword arguments
-- `names=nothing` — custom operator names per subspace (default: auto-generated).
+Returns one [`Destroy`](@ref) per [`FockSpace`](@ref); `n(n+1)/2 - 1`
+[`Transition`](@ref) operators per [`NLevelSpace`](@ref) (upper-triangular plus
+diagonals, excluding the ground-state projector); three [`Pauli`](@ref) or
+[`Spin`](@ref) operators per [`PauliSpace`](@ref)/[`SpinSpace`](@ref); one
+[`Position`](@ref) and one [`Momentum`](@ref) per [`PhaseSpace`](@ref); and the
+concatenation of the above for a [`ProductSpace`](@ref). Pass `names` to override
+the auto-generated operator names.
 
 # Examples
-```julia
-h = FockSpace(:cavity) ⊗ NLevelSpace(:atom, 2)
-ops = fundamental_operators(h)   # [Destroy(:a, 1), Transition(:σ, 1, 2, 2, NO_INDEX, 1, 2)]
+
+```jldoctest
+julia> h = FockSpace(:cavity) ⊗ NLevelSpace(:atom, 2);
+
+julia> length(fundamental_operators(h))
+3
 ```
 
 See also [`find_operators`](@ref), [`unique_ops`](@ref).
@@ -71,6 +70,17 @@ Return unique operators from `ops`, treating `op` and `op'` (adjoint) as the
 same degree of freedom. Only the first occurrence of each operator/adjoint pair
 is kept.
 
+# Examples
+
+```jldoctest
+julia> h = FockSpace(:f);
+
+julia> @qnumbers a::Destroy(h);
+
+julia> length(unique_ops([a, a', a]))
+1
+```
+
 See also [`unique_ops!`](@ref), [`fundamental_operators`](@ref).
 """
 function unique_ops(ops::AbstractVector)
@@ -83,6 +93,21 @@ end
     unique_ops!(ops) -> Vector
 
 In-place version of [`unique_ops`](@ref).
+
+# Examples
+
+```jldoctest
+julia> h = FockSpace(:f);
+
+julia> @qnumbers a::Destroy(h);
+
+julia> v = [a, a'];
+
+julia> SecondQuantizedAlgebra.unique_ops!(v);
+
+julia> length(v)
+1
+```
 """
 function unique_ops!(ops::AbstractVector)
     seen = Set{UInt}()
@@ -106,22 +131,21 @@ end
 """
     find_operators(h::HilbertSpace, order::Int; names=nothing) -> Vector
 
-Generate all unique operator products up to the given `order` for Hilbert space `h`.
+Generate all unique operator products up to `order` factors for Hilbert space `h`.
 
-Starting from [`fundamental_operators(h)`](@ref fundamental_operators) and their adjoints,
-computes all products with up to `order` factors. Filters out zero terms (from algebraic
-identities) and adjoint-duplicates (via [`unique_ops!`](@ref)).
-
-Useful for constructing the operator basis needed for cumulant expansions or
-moment equations.
-
-# Keyword arguments
-- `names=nothing` — passed to [`fundamental_operators`](@ref).
+Starts from [`fundamental_operators(h)`](@ref fundamental_operators) and their
+adjoints, forms all products with up to `order` factors, then filters out zero
+terms and adjoint-duplicates. Useful for constructing the operator basis needed
+for cumulant expansions or moment equations. Pass `names` to override
+auto-generated operator names.
 
 # Examples
-```julia
-h = NLevelSpace(:atom, 2)
-ops = find_operators(h, 2)   # σ₁₂, σ₂₁, σ₂₂, σ₂₂σ₁₂, ...
+
+```jldoctest
+julia> h = FockSpace(:f);
+
+julia> length(find_operators(h, 1))
+1
 ```
 
 See also [`fundamental_operators`](@ref), [`unique_ops`](@ref).

@@ -45,7 +45,20 @@ end
 """
     is_average(x) -> Bool
 
-Return `true` if `x` is a symbolic average node (created by [`average`](@ref)).
+Return whether `x` is a symbolic average object created by [`average`](@ref).
+
+# Examples
+
+```jldoctest
+julia> h = FockSpace(:f);
+
+julia> @qnumbers a::Destroy(h);
+
+julia> is_average(average(a)), is_average(a)
+(true, false)
+```
+
+See also [`average`](@ref), [`undo_average`](@ref).
 """
 is_average(::QField) = false
 is_average(::Number) = false
@@ -62,25 +75,26 @@ end
 """
     average(expr) -> BasicSymbolic | Number
 
-Compute the symbolic average ``\\langle \\mathrm{expr} \\rangle`` of a quantum operator expression.
+Build the symbolic average ``\\langle \\mathrm{expr} \\rangle`` of an operator expression.
 
-Returns a `SymbolicUtils.BasicSymbolic` node (not a `Symbolics.Num` wrapper).
-This ensures a consistent return type regardless of whether the input has symbolic
-prefactors.
-
-Average nodes participate in standard symbolic arithmetic (`+`, `*`, `^`, etc.)
-and are displayed as `⟨...⟩`. Scalars pass through unchanged.
-
-**Linearity**: distributes over [`QAdd`](@ref) sums and pulls c-number prefactors
-outside the average. Summation metadata (indices, non-equal constraints) is preserved
-as SymbolicUtils metadata on the result.
+Distributes over sums and pulls c-number prefactors outside the brackets. Scalars
+pass through unchanged. The result participates in standard symbolic arithmetic
+(`+`, `*`, `^`) and is displayed as `⟨...⟩`.
 
 # Examples
-```julia
-h = FockSpace(:f)
-@qnumbers a::Destroy(h)
-avg = average(a' * a)     # ⟨a†a⟩
-avg + 1                    # ⟨a†a⟩ + 1  (symbolic arithmetic)
+
+```jldoctest
+julia> h = FockSpace(:f);
+
+julia> @qnumbers a::Destroy(h);
+
+julia> avg = average(a' * a);
+
+julia> is_average(avg)
+true
+
+julia> avg + 1
+1 + ⟨a' * a⟩
 ```
 
 See also [`undo_average`](@ref), [`is_average`](@ref), [`numeric_average`](@ref).
@@ -163,18 +177,21 @@ end
 """
     undo_average(expr) -> QAdd
 
-Recursively strip ``\\langle \\cdots \\rangle`` from a symbolic expression,
-recovering the underlying operator expressions.
+Recursively strip symbolic averages ``\\langle \\cdots \\rangle`` and recover
+the underlying operator expression as a [`QAdd`](@ref). Summation metadata
+(indices, non-equal constraints) is restored on the result. Also accepts a
+`Symbolics.Equation`, returning a `Pair{QAdd, QAdd}`.
 
-Always returns [`QAdd`](@ref) for type stability:
-- Scalars become single-term `QAdd`s with an empty operator sequence
-- Single operators become single-term `QAdd`s with unit prefactor
-- Sums/products of averages are reconstructed via `+` and `*` on `QAdd`s
+# Examples
 
-Summation metadata (indices, non-equal constraints) is restored from the
-SymbolicUtils metadata onto the resulting `QAdd`.
+```jldoctest
+julia> h = FockSpace(:f);
 
-Also accepts `Symbolics.Equation`, returning a `Pair{QAdd, QAdd}`.
+julia> @qnumbers a::Destroy(h);
+
+julia> undo_average(average(a' * a)) == a' * a
+true
+```
 
 See also [`average`](@ref), [`is_average`](@ref).
 """
@@ -214,6 +231,21 @@ end
 Return `true` if `x` is a `BasicSymbolic` node carrying summation index metadata
 (set by [`average`](@ref) when averaging indexed expressions).
 
+# Examples
+
+```jldoctest
+julia> h = FockSpace(:site);
+
+julia> @qnumbers a::Destroy(h);
+
+julia> i = Index(h, :i, 3, h);
+
+julia> x = average(Σ(IndexedOperator(a', i) * IndexedOperator(a, i), i));
+
+julia> SecondQuantizedAlgebra.has_sum_metadata(x)
+true
+```
+
 See also [`get_sum_indices`](@ref), [`get_sum_non_equal`](@ref).
 """
 has_sum_metadata(::Number) = false
@@ -230,6 +262,21 @@ Retrieve summation indices stored as metadata on a symbolic expression `x`.
 
 Only valid when [`has_sum_metadata(x)`](@ref has_sum_metadata) is `true`.
 
+# Examples
+
+```jldoctest
+julia> h = FockSpace(:site);
+
+julia> @qnumbers a::Destroy(h);
+
+julia> i = Index(h, :i, 3, h);
+
+julia> x = average(Σ(IndexedOperator(a', i) * IndexedOperator(a, i), i));
+
+julia> SecondQuantizedAlgebra.get_sum_indices(x) == [i]
+true
+```
+
 See also [`get_sum_non_equal`](@ref), [`has_sum_metadata`](@ref).
 """
 function get_sum_indices(x::SymbolicUtils.BasicSymbolic)
@@ -244,6 +291,21 @@ Retrieve the pairwise index inequality constraints stored on an averaged term.
 An empty vector means no constraints.
 
 Only valid when [`has_sum_metadata(x)`](@ref has_sum_metadata) is `true`.
+
+# Examples
+
+```jldoctest
+julia> h = FockSpace(:site);
+
+julia> @qnumbers a::Destroy(h);
+
+julia> i = Index(h, :i, 3, h);
+
+julia> x = average(Σ(IndexedOperator(a', i) * IndexedOperator(a, i), i));
+
+julia> isempty(SecondQuantizedAlgebra.get_sum_non_equal(x))
+true
+```
 
 See also [`get_sum_indices`](@ref), [`has_sum_metadata`](@ref).
 """
@@ -283,11 +345,20 @@ Works on [`QSym`](@ref), [`QAdd`](@ref), averaged `BasicSymbolic` expressions,
 and `Number`s (returns `Int[]`).
 
 # Examples
-```julia
-h = FockSpace(:a) ⊗ NLevelSpace(:b, 2)
-@qnumbers a::Destroy(h, 1) σ::Transition(h, 1, 2, 2)
-acts_on(a' * a)         # [1]
-acts_on(a' * σ)         # [1, 2]
+
+```jldoctest
+julia> h = FockSpace(:a) ⊗ NLevelSpace(:b, 2);
+
+julia> @qnumbers a::Destroy(h, 1) σ::Transition(h, 1, 2, 2);
+
+julia> acts_on(a' * a)
+1-element Vector{Int64}:
+ 1
+
+julia> acts_on(a' * σ)
+2-element Vector{Int64}:
+ 1
+ 2
 ```
 """
 acts_on(op::QSym) = Int[op.space_index]

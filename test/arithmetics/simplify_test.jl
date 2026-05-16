@@ -505,6 +505,52 @@ import SecondQuantizedAlgebra: simplify, QAdd, QSym, QField, sorted_arguments, _
         @test isequal(symmetric_to_normal(a), symmetric_to_normal(normal_order(a)))
     end
 
+    @testset "Type stability: Weyl ordering" begin
+        # Fock
+        @inferred normal_to_symmetric(a)
+        @inferred normal_to_symmetric(a' * a)
+        @inferred normal_to_symmetric((a * a')^2)
+        @inferred symmetric_to_normal(a)
+        @inferred symmetric_to_normal(a' * a)
+        @inferred symmetric_to_normal(normal_to_symmetric(a' * a))
+
+        # PhaseSpace
+        hps = PhaseSpace(:q)
+        x = Position(hps, :x)
+        p = Momentum(hps, :p)
+        @inferred normal_to_symmetric(x)
+        @inferred normal_to_symmetric(x * p)
+        @inferred normal_to_symmetric(x * x * p * p)
+        @inferred symmetric_to_normal(x * p)
+        @inferred symmetric_to_normal(normal_to_symmetric(x * p))
+
+        # Mixed Fock + PhaseSpace
+        hmix = FockSpace(:c) ⊗ PhaseSpace(:osc)
+        ac = Destroy(hmix, :a, 1)
+        xx = Position(hmix, :x, 2)
+        pp = Momentum(hmix, :p, 2)
+        @inferred normal_to_symmetric(ac' * ac * xx * pp)
+        @inferred symmetric_to_normal(ac' * ac * xx * pp)
+
+        # Non-pair operators (no Heisenberg pair to expand)
+        hn = NLevelSpace(:atom, 3, 1)
+        σ12 = Transition(hn, :σ, 1, 2)
+        σ23 = Transition(hn, :σ, 2, 3)
+        @inferred normal_to_symmetric(σ12 * σ23)
+        @inferred symmetric_to_normal(σ12 * σ23)
+
+        hpa = PauliSpace(:p)
+        σx = Pauli(hpa, :σ, 1)
+        @inferred normal_to_symmetric(σx)
+        @inferred symmetric_to_normal(σx)
+
+        hs = SpinSpace(:s)
+        Sx = Spin(hs, :S, 1)
+        Sy = Spin(hs, :S, 2)
+        @inferred normal_to_symmetric(Sx * Sy)
+        @inferred symmetric_to_normal(Sx * Sy)
+    end
+
     # ====================================================================
     #  Complex multi-space systems
     # ====================================================================

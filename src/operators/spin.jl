@@ -1,17 +1,19 @@
 """
-    SpinSpace(name::Symbol)
+    SpinSpace(name::Symbol) <: HilbertSpace
 
-Hilbert space for collective spin angular momentum operators.
-
-Supports [`Spin`](@ref) operators ``S_x, S_y, S_z`` with the commutation relation
-``[S_j, S_k] = i\\epsilon_{jkl} S_l``. The algebraic rules are independent of the
-spin size ``S`` — that only enters via the `QuantumOpticsBase.SpinBasis` chosen
-for numeric evaluation.
+Hilbert space for collective spin angular momentum. Hosts [`Spin`](@ref)
+operators satisfying ``[S_j, S_k] = i \\epsilon_{jkl} S_l``. The algebra is
+independent of the spin size ``S``, which enters only via the
+`QuantumOpticsBase.SpinBasis` chosen for numeric evaluation.
 
 # Examples
-```julia
-SpinSpace(:S)
+
+```jldoctest
+julia> SpinSpace(:S)
+ℋ(S)
 ```
+
+See also [`Spin`](@ref), [`PauliSpace`](@ref).
 """
 struct SpinSpace <: HilbertSpace
     name::Symbol
@@ -22,21 +24,23 @@ Base.hash(a::SpinSpace, h::UInt) = hash(:SpinSpace, hash(a.name, h))
 """
     Spin <: QSym
 
-Angular momentum operator ``S_x, S_y, S_z`` on a [`SpinSpace`](@ref).
+Angular momentum operator ``S_x, S_y, S_z`` on a [`SpinSpace`](@ref). The
+`axis` field selects the component: `1 = x`, `2 = y`, `3 = z`. Hermitian
+(`S' == S`) and satisfies ``[S_j, S_k] = i \\epsilon_{jkl} S_l`` (applied
+eagerly by `*`).
 
-The `axis` field selects the component: `1` = x, `2` = y, `3` = z.
-Spin operators are Hermitian (`S' == S`) and satisfy ``[S_j, S_k] = i\\epsilon_{jkl} S_l``
-(applied eagerly during `*`).
+# Examples
 
-# Construction
-```julia
-h = SpinSpace(:S)
-Sx = Spin(h, :S, 1)             # Sx on single space
-Sy = Spin(h, :S, 2)             # Sy
+```jldoctest
+julia> h = SpinSpace(:S);
 
-hp = FockSpace(:c) ⊗ SpinSpace(:S)
-Sz = Spin(hp, :S, 3, 2)         # Sz on 2nd subspace
+julia> Sx = Spin(h, :S, 1); Sy = Spin(h, :S, 2);
+
+julia> Sy * Sx
+-im * Sz + Sx * Sy
 ```
+
+See also [`SpinSpace`](@ref), [`Pauli`](@ref).
 """
 struct Spin <: QSym
     name::Symbol

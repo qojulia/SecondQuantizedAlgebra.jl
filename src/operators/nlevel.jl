@@ -3,25 +3,27 @@
     NLevelSpace(name::Symbol, n::Int, ground_state::Int)
     NLevelSpace(name::Symbol, levels::Tuple{Vararg{Symbol}})
 
-Hilbert space for an N-level system (atoms, qubits, qudits, etc.).
+Hilbert space for an N-level system (atoms, qubits, qudits). Hosts
+[`Transition`](@ref) operators
+``|i\\rangle\\langle j| \\cdot |k\\rangle\\langle l| = \\delta_{jk} |i\\rangle\\langle l|``.
 
-Supports [`Transition`](@ref) operators ``|i\\rangle\\langle j|`` with the composition
-rule ``|i\\rangle\\langle j| \\cdot |k\\rangle\\langle l| = \\delta_{jk} |i\\rangle\\langle l|``.
-
-The `ground_state` (default `1`) defines the canonical basis as
-``\\{|i\\rangle\\langle j| : (i,j) \\neq (g,g)\\} \\cup \\{1\\}``: ground-state projectors
-are eliminated via completeness ``|g\\rangle\\langle g| = 1 - \\sum_{k \\neq g} |k\\rangle\\langle k|``.
-This rewrite fires eagerly during multiplication. Each [`Transition`](@ref) carries
-`ground_state` and `n_levels` directly so the algebra stays Hilbert-space-decoupled.
-
-Levels can be integers (default `1:n`) or symbolic names:
+The `ground_state` (default `1`) selects the projector ``|g\\rangle\\langle g|``
+that the canonical basis omits; arithmetic keeps it atomic and
+[`expand_completeness`](@ref) materialises
+``|g\\rangle\\langle g| = 1 - \\sum_{k \\neq g}|k\\rangle\\langle k|`` on
+demand. Levels can be integers (default `1:n`) or symbolic names.
 
 # Examples
-```julia
-NLevelSpace(:atom, 3)              # levels 1, 2, 3 with ground state 1
-NLevelSpace(:atom, 3, 2)           # ground state = level 2
-NLevelSpace(:atom, (:g, :e, :a))   # symbolic level names
+
+```jldoctest
+julia> NLevelSpace(:atom, 3)
+ℋ(atom)
+
+julia> NLevelSpace(:atom, (:g, :e))
+ℋ(atom)
 ```
+
+See also [`Transition`](@ref), [`expand_completeness`](@ref).
 """
 struct NLevelSpace <: HilbertSpace
     name::Symbol
@@ -60,31 +62,32 @@ Base.hash(a::NLevelSpace, h::UInt) = hash(:NLevelSpace, hash(a.name, hash(a.n, h
     Transition <: QSym
 
 Transition operator ``|i\\rangle\\langle j|`` on an [`NLevelSpace`](@ref).
+Satisfies the composition rule
+``|i\\rangle\\langle j| \\cdot |k\\rangle\\langle l| = \\delta_{jk} |i\\rangle\\langle l|``,
+with adjoint ``|i\\rangle\\langle j|^\\dagger = |j\\rangle\\langle i|``.
 
-Satisfies the composition rule ``|i\\rangle\\langle j| \\cdot |k\\rangle\\langle l| = \\delta_{jk} |i\\rangle\\langle l|``.
-The adjoint is ``|i\\rangle\\langle j|^\\dagger = |j\\rangle\\langle i|``.
+Each `Transition` carries the ground-state level and number of levels of its
+host [`NLevelSpace`](@ref) so the eager arithmetic can keep
+``\\sigma^{gg}`` atomic in canonical form (use
+[`expand_completeness`](@ref) to materialise the identity
+``|g\\rangle\\langle g| = 1 - \\sum_{k \\neq g}|k\\rangle\\langle k|`` when
+needed).
 
-Each `Transition` carries the ground-state level (`ground_state`) and number of levels
-(`n_levels`) of its host [`NLevelSpace`](@ref). This lets the eager arithmetic apply
-the completeness relation ``|g\\rangle\\langle g| = 1 - \\sum_{k \\neq g}|k\\rangle\\langle k|``
-without consulting the Hilbert space — keeping the algebra Hilbert-space-decoupled
-while preserving canonical form.
+# Examples
 
-# Construction
-```julia
-h = NLevelSpace(:atom, 3)
-σ12 = Transition(h, :σ, 1, 2)          # |1⟩⟨2| with integer levels
+```jldoctest
+julia> h = NLevelSpace(:atom, 3);
 
-h_sym = NLevelSpace(:atom, (:g, :e))
-σge = Transition(h_sym, :σ, :g, :e)    # |g⟩⟨e| with symbolic levels
+julia> σ = Transition(h, :σ, 1, 2);
 
-hp = FockSpace(:c) ⊗ NLevelSpace(:a, 2)
-σ = Transition(hp, :σ, 1, 2, 2)        # on 2nd subspace of ProductSpace
+julia> σ * σ'
+σ₁₁
+
+julia> σ' * σ
+σ₂₂
 ```
-Or via the [`@qnumbers`](@ref) macro:
-```julia
-@qnumbers σ::Transition(h, 1, 2)
-```
+
+See also [`NLevelSpace`](@ref), [`expand_completeness`](@ref), [`@qnumbers`](@ref).
 """
 struct Transition <: QSym
     name::Symbol

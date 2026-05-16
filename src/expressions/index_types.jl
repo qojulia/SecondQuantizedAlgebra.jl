@@ -2,23 +2,24 @@
     Index(h::HilbertSpace, name::Symbol, range, space)
     Index(h::HilbertSpace, name::Symbol, range, space_index::Int)
 
-Symbolic summation index for many-body systems with identical subsystems.
+Symbolic summation index for site- or mode-resolved operator expressions.
 
-An `Index` labels a summation variable that runs from `1` to `range` over
-operators on a particular subspace. It is used with [`Σ`](@ref) to build
-symbolic sums and with [`IndexedOperator`](@ref) to attach indices to operators.
-
-# Fields
-- `name::Symbol` — display name (e.g. `:i`, `:j`)
-- `range::Num` — upper bound of the summation (integer or symbolic)
-- `space_index::Int` — which subspace in a [`ProductSpace`](@ref)
-- `sym::Num` — Symbolics symbolic variable for algebraic substitution
+Represents labels such as `i`, `j`, or `k` that attach to operators and
+parameters. Pass a subspace type or integer position to specify which factor of
+a [`ProductSpace`](@ref) the index ranges over. Use with [`IndexedOperator`](@ref)
+to build objects like ``a_i`` and with [`Σ`](@ref) to build sums
+``\\sum_i a_i^\\dagger a_i``.
 
 # Examples
-```julia
-h = FockSpace(:site) ⊗ FockSpace(:cavity)
-i = Index(h, :i, 10, FockSpace(:site))   # index i = 1:10 on the site space
-j = Index(h, :j, 10, 1)                  # same, using integer space index
+```jldoctest
+julia> h = FockSpace(:site) ⊗ FockSpace(:cavity);
+
+julia> i = Index(h, :i, 10, FockSpace(:site));
+
+julia> j = Index(h, :j, 10, 1); # same subspace via integer position
+
+julia> i == j
+false
 ```
 
 See also [`has_index`](@ref), [`IndexedOperator`](@ref), [`Σ`](@ref),
@@ -36,7 +37,10 @@ const NO_INDEX = Index(:_, Num(0), 0, Num(0))
 """
     has_index(idx::Index) -> Bool
 
-Return `true` if `idx` is a real summation index (not the sentinel `NO_INDEX`).
+Return `true` when `idx` is an actual symbolic index.
+
+Returns `false` for the sentinel `NO_INDEX`, used for operators without an
+attached index.
 """
 has_index(idx::Index) = idx.space_index != 0
 

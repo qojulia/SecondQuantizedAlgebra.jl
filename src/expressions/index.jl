@@ -1,15 +1,19 @@
 """
     IndexedVariable(name::Symbol, i::Index) -> Num
 
-Create a symbolic single-indexed variable ``\\mathrm{name}(i)`` as a `Num` from Symbolics.jl.
+Create a symbolic single-indexed parameter ``\\mathrm{name}(i)``.
 
-Useful for site-dependent parameters in indexed Hamiltonians (e.g. detunings, couplings).
+Use this for site-dependent quantities in Hamiltonians, for example detunings
+or local couplings.
 
 # Examples
-```julia
-h = FockSpace(:site) ⊗ FockSpace(:cavity)
-i = Index(h, :i, 10, 1)
-ω = IndexedVariable(:ω, i)    # ω(i) — symbolic parameter depending on site i
+```jldoctest
+julia> h = FockSpace(:site) ⊗ FockSpace(:cavity);
+
+julia> i = Index(h, :i, 10, 1);
+
+julia> ω = IndexedVariable(:ω, i)
+ω(i)
 ```
 
 See also [`DoubleIndexedVariable`](@ref).
@@ -29,20 +33,25 @@ struct NotIdentical end
 """
     DoubleIndexedVariable(name::Symbol, i::Index, j::Index; identical::Bool=true) -> Num
 
-Create a symbolic double-indexed variable ``\\mathrm{name}(i, j)`` as a `Num` from Symbolics.jl.
+Create a symbolic two-index parameter ``\\mathrm{name}(i, j)``.
 
-Useful for pairwise interaction parameters (e.g. coupling matrices, hopping amplitudes).
+Use this for pairwise interactions such as hopping amplitudes or coupling
+matrices.
 
 # Keyword arguments
 - `identical::Bool = true` — if `false`, the variable evaluates to zero when `i == j`,
   enforcing that the parameter is only defined for distinct sites.
 
 # Examples
-```julia
-h = FockSpace(:site) ⊗ FockSpace(:cavity)
-i = Index(h, :i, 10, 1)
-j = Index(h, :j, 10, 1)
-J = DoubleIndexedVariable(:J, i, j; identical=false)  # J(i,j), zero when i==j
+```jldoctest
+julia> h = FockSpace(:site) ⊗ FockSpace(:cavity);
+
+julia> i = Index(h, :i, 10, 1);
+
+julia> j = Index(h, :j, 10, 1);
+
+julia> J = DoubleIndexedVariable(:J, i, j; identical = false)
+J(i, j)
 ```
 
 See also [`IndexedVariable`](@ref).
@@ -69,12 +78,27 @@ end
 """
     change_index(expr, from::Index, to::Index)
 
-Replace every occurrence of index `from` with `to` throughout an expression tree.
+Rename an index in an expression by replacing `from` with `to` everywhere.
 
 Operator indices are swapped directly. Symbolic prefactors (e.g. [`IndexedVariable`](@ref),
 [`DoubleIndexedVariable`](@ref)) are substituted via `Symbolics.substitute` using
 the `sym` fields of the indices. `DoubleIndexedVariable` nodes with `identical=false`
 automatically evaluate to zero if the substitution makes both arguments equal.
+
+# Examples
+
+```jldoctest
+julia> h = FockSpace(:site);
+
+julia> @qnumbers a::Destroy(h);
+
+julia> i = Index(h, :i, 5, h); j = Index(h, :j, 5, h);
+
+julia> expr = IndexedVariable(:ω, i) * IndexedOperator(a, i);
+
+julia> change_index(expr, i, j)
+ω(j) * a_j
+```
 
 See also [`get_indices`](@ref).
 """
@@ -140,10 +164,24 @@ end
 """
     get_indices(expr) -> Vector{Index}
 
-Collect all symbolic summation indices appearing in `expr`.
+Return all symbolic indices that appear in `expr`.
 
 Returns a `Vector{Index}` of unique indices found in operator fields and
 summation metadata. Excludes the sentinel `NO_INDEX`.
+
+# Examples
+
+```jldoctest
+julia> h = FockSpace(:site);
+
+julia> @qnumbers a::Destroy(h);
+
+julia> i = Index(h, :i, 5, h);
+
+julia> get_indices(IndexedOperator(a, i))
+1-element Vector{Index}:
+ i
+```
 """
 get_indices(::Number) = Index[]
 get_indices(x::Num) = get_indices(SymbolicUtils.unwrap(x))
@@ -247,7 +285,7 @@ end
     Σ(expr, i::Index, j::Index, rest::Index...)
     ∑(expr, i::Index, ...)
 
-Build the symbolic sum ``\\sum_{i=1}^{N}`` of `expr` over index `i`.
+Build symbolic sums over indices, for example ``\\sum_i expr``.
 
 Returns a [`QAdd`](@ref) carrying `i` in its `indices` field. If `expr` does not
 depend on `i`, the sum is evaluated eagerly as `i.range * expr`.
@@ -261,10 +299,18 @@ constraint `(i, j)`.
 Multiple positional indices create nested sums: `Σ(expr, i, j)` is equivalent
 to `Σ(Σ(expr, i), j)`. The Unicode alias `∑` is also exported.
 
-# Arguments
-- `expr` — the operand ([`QAdd`](@ref), [`QSym`](@ref), or `Number`)
-- `i::Index` — the summation index
-- `non_equal` — indices that `i` must not equal (per-term scoped constraints)
+# Examples
+
+```jldoctest
+julia> h = FockSpace(:site);
+
+julia> @qnumbers a::Destroy(h);
+
+julia> i = Index(h, :i, 3, h);
+
+julia> Σ(IndexedOperator(a', i) * IndexedOperator(a, i), i)
+Σ(i=1:3) a_i' * a_i
+```
 
 See also [`Index`](@ref), [`IndexedOperator`](@ref), [`constraint_pairs`](@ref).
 """

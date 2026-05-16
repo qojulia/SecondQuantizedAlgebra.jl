@@ -47,20 +47,18 @@ include("printing/latexify_recipes.jl")
 Convenience macro for constructing named quantum operators.
 
 Each argument has the form `name::OperatorType(hilbert_space, args...)`. The macro
-creates the operator via `OperatorType(hilbert_space, :name, args...)` and binds it
-to `name` in the calling scope.
+calls `OperatorType(hilbert_space, :name, args...)` and binds the result to `name`
+in the calling scope. Multiple operators can be declared in one call.
 
 # Examples
-```julia
-h = FockSpace(:fock)
-@qnumbers a::Destroy(h)               # creates Destroy(h, :a) bound to `a`
+```jldoctest
+julia> h = FockSpace(:fock);
 
-h = FockSpace(:one) ⊗ FockSpace(:two)
-@qnumbers a::Destroy(h, 1) b::Destroy(h, 2)   # operators on subspaces 1 and 2
-
-h = NLevelSpace(:atom, 2)
-@qnumbers σ::Transition(h, 1, 2)  # creates Transition(h, :σ, 1, 2) bound to `σ`
+julia> @qnumbers a::Destroy(h)
+(a,)
 ```
+
+See also [`Destroy`](@ref), [`Transition`](@ref), [`Pauli`](@ref), [`Spin`](@ref).
 """
 macro qnumbers(qs...)
     ex = Expr(:block)

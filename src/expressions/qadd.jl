@@ -1,20 +1,11 @@
 """
     QAdd <: QField
 
-The sole compound expression type — a sum of eagerly-ordered operator products.
+The sole compound expression type: a sum of eagerly-ordered operator products.
 
-All arithmetic on [`QSym`](@ref) operators returns `QAdd`. Internally stores a
-dictionary whose keys are exact term identities `(ops, non_equal)` and whose
-values are `Complex{Num}` prefactors. Like-term collection applies only to
-terms with identical operator strings *and* identical scoped constraints.
-
-# Fields
-- `arguments::QTermDict` — `Dict{QTerm, CNum}` of exact term identity → prefactor
-- `indices::Vector{Index}` — summation indices (empty for a regular sum)
-
-# Iteration
-Iterating over a `QAdd` yields `Pair{QTerm, CNum}` entries; access
-`term.ops` and `term.ne` on the key directly.
+All arithmetic on [`QSym`](@ref) operators produces a `QAdd`. Iterating over a
+`QAdd` yields `Pair{QTerm, CNum}` entries; read `term.ops` for the operator
+sequence and `term.ne` for the scoped index constraints.
 
 See also [`QTerm`](@ref), [`prefactor`](@ref), [`operators`](@ref), [`Σ`](@ref),
 [`constraint_pairs`](@ref).
@@ -29,6 +20,21 @@ end
 
 Return the deduplicated union of every term's `non_equal` pairs in `q`. This is
 an introspection helper only; it does not define the expression semantics.
+
+# Examples
+
+```jldoctest
+julia> h = FockSpace(:site);
+
+julia> @qnumbers a::Destroy(h);
+
+julia> i = Index(h, :i, 3, h); j = Index(h, :j, 3, h);
+
+julia> q = Σ(IndexedOperator(a', i) * IndexedOperator(a, i), i, [j]);
+
+julia> length(SecondQuantizedAlgebra.constraint_pairs(q))
+1
+```
 """
 function constraint_pairs(q::QAdd)
     return _constraint_pairs(q.arguments)
@@ -74,6 +80,17 @@ _ne_sort_key(ne::Vector{NonEqualPair}) = Tuple(ne)
 
 Return each term of `q` as a single-entry [`QAdd`](@ref), in deterministic sort
 order.
+
+# Examples
+
+```jldoctest
+julia> h = FockSpace(:f);
+
+julia> @qnumbers a::Destroy(h);
+
+julia> length(SecondQuantizedAlgebra.sorted_arguments(a + a'))
+2
+```
 """
 function sorted_arguments(q::QAdd)
     isempty(q.arguments) && return QAdd[]
@@ -139,10 +156,14 @@ Throws `ArgumentError` if `s` contains more than one term. For multi-term
 expressions, iterate over the `QAdd` directly.
 
 # Examples
-```julia
-h = FockSpace(:f)
-@qnumbers a::Destroy(h)
-prefactor(2 * a' * a)   # 2 + 0im
+
+```jldoctest
+julia> h = FockSpace(:f);
+
+julia> @qnumbers a::Destroy(h);
+
+julia> prefactor(2 * a' * a)
+2
 ```
 
 See also [`operators`](@ref), [`sorted_arguments`](@ref).
@@ -164,10 +185,14 @@ expressions, iterate over the `QAdd` directly and read `term.ops` from each
 [`QTerm`](@ref).
 
 # Examples
-```julia
-h = FockSpace(:f)
-@qnumbers a::Destroy(h)
-operators(a' * a)   # [Create(:a, 1, NO_INDEX, ...), Destroy(:a, 1, NO_INDEX)]
+
+```jldoctest
+julia> h = FockSpace(:f);
+
+julia> @qnumbers a::Destroy(h);
+
+julia> length(operators(a' * a))
+2
 ```
 
 See also [`prefactor`](@ref), [`sorted_arguments`](@ref).

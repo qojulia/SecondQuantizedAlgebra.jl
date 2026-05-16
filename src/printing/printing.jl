@@ -17,6 +17,8 @@ Base.show(io::IO, h::PauliSpace) = (write(io, "ℋ("); print(io, h.name); write(
 Base.show(io::IO, h::SpinSpace) = (write(io, "ℋ("); print(io, h.name); write(io, ")"))
 Base.show(io::IO, h::PhaseSpace) = (write(io, "ℋ("); print(io, h.name); write(io, ")"))
 
+Base.show(io::IO, idx::Index) = print(io, idx.name)
+
 function _show_index_suffix(io::IO, idx::Index)
     if has_index(idx)
         write(io, "_")

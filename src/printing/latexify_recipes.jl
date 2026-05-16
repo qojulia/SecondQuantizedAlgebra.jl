@@ -10,9 +10,12 @@ or subscripts (`false`) in LaTeX output via Latexify.jl.
 - `false`: ``{\\sigma}_{{ij}}``
 
 # Examples
-```julia
-transition_superscript(false)   # use subscript notation
-transition_superscript(true)    # restore default superscript
+```jldoctest
+julia> SecondQuantizedAlgebra.transition_superscript(false)
+false
+
+julia> SecondQuantizedAlgebra.transition_superscript(true)
+true
 ```
 """
 function transition_superscript(x::Bool)

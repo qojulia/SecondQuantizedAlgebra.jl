@@ -1,34 +1,27 @@
 """
     HilbertSpace
 
-Abstract supertype for Hilbert spaces.
-
-Concrete subtypes: [`FockSpace`](@ref), [`NLevelSpace`](@ref), [`PauliSpace`](@ref),
-[`SpinSpace`](@ref), [`PhaseSpace`](@ref), [`ProductSpace`](@ref).
-
-Compose spaces with [`⊗`](@ref) (or [`tensor`](@ref)):
-```julia
-h = FockSpace(:cavity) ⊗ NLevelSpace(:atom, 2)
-```
+Abstract supertype for Hilbert spaces. Concrete subtypes:
+[`FockSpace`](@ref), [`NLevelSpace`](@ref), [`PauliSpace`](@ref),
+[`SpinSpace`](@ref), [`PhaseSpace`](@ref), and [`ProductSpace`](@ref) for
+tensor products. Compose with [`⊗`](@ref) or [`tensor`](@ref).
 """
 abstract type HilbertSpace end
 
 """
-    FockSpace <: HilbertSpace
-    FockSpace(name::Symbol)
-    FockSpace(; name::Symbol)
+    FockSpace(name::Symbol) <: HilbertSpace
 
-Hilbert space for a bosonic mode.
-
-Supports [`Destroy`](@ref) and [`Create`](@ref) operators with the canonical
-commutation relation ``[a, a^\\dagger] = 1``.
+Hilbert space for a bosonic mode. Hosts [`Destroy`](@ref) and [`Create`](@ref)
+operators satisfying ``[a, a^\\dagger] = 1``.
 
 # Examples
-```julia
-h = FockSpace(:cavity)
-@qnumbers a::Destroy(h)
-a' * a  # number operator in normal order
+
+```jldoctest
+julia> FockSpace(:cavity)
+ℋ(cavity)
 ```
+
+See also [`Destroy`](@ref), [`Create`](@ref), [`⊗`](@ref).
 """
 struct FockSpace <: HilbertSpace
     name::Symbol
@@ -41,17 +34,19 @@ Base.hash(a::FockSpace, h::UInt) = hash(:FockSpace, hash(a.name, h))
 
 Composite Hilbert space formed by the tensor product of multiple subspaces.
 The type parameter `T` is a concrete `Tuple` type for type-stable storage.
+Constructed via [`⊗`](@ref) or [`tensor`](@ref), not directly.
 
-Constructed via [`⊗`](@ref) or [`tensor`](@ref), not directly:
-```julia
-h = FockSpace(:cavity) ⊗ NLevelSpace(:atom, 2)
+Operators on a `ProductSpace` take a positional index specifying which
+subspace they act on, e.g. `Destroy(h, :a, 1)`.
+
+# Examples
+
+```jldoctest
+julia> FockSpace(:cavity) ⊗ NLevelSpace(:atom, 2)
+ℋ(cavity) ⊗ ℋ(atom)
 ```
 
-Operators on a `ProductSpace` require a positional index specifying which subspace
-they act on:
-```julia
-@qnumbers a::Destroy(h, 1) σ::Transition(h, 1, 2, 2)
-```
+See also [`⊗`](@ref), [`tensor`](@ref).
 """
 struct ProductSpace{T <: Tuple{Vararg{HilbertSpace}}} <: HilbertSpace
     spaces::T
@@ -63,14 +58,17 @@ Base.hash(a::ProductSpace, h::UInt) = hash(:ProductSpace, hash(a.spaces, h))
     ⊗(spaces::HilbertSpace...)
 
 Create a [`ProductSpace`](@ref) from multiple Hilbert spaces. Flattens nested
-`ProductSpace` arguments so that `(A ⊗ B) ⊗ C == A ⊗ B ⊗ C`.
-
-Unicode input: `\\otimes<tab>`. ASCII alias: [`tensor`](@ref).
+`ProductSpace` arguments so that `(A ⊗ B) ⊗ C == A ⊗ B ⊗ C`. Unicode input
+`\\otimes<tab>`; ASCII alias [`tensor`](@ref).
 
 # Examples
-```julia
-h = FockSpace(:cavity) ⊗ NLevelSpace(:atom, 2)
+
+```jldoctest
+julia> FockSpace(:a) ⊗ FockSpace(:b) ⊗ NLevelSpace(:atom, 2)
+ℋ(a) ⊗ ℋ(b) ⊗ ℋ(atom)
 ```
+
+See also [`ProductSpace`](@ref), [`tensor`](@ref).
 """
 ⊗(a::HilbertSpace, b::HilbertSpace) = ProductSpace((a, b))
 ⊗(a::ProductSpace, b::HilbertSpace) = ProductSpace((a.spaces..., b))
@@ -82,13 +80,17 @@ h = FockSpace(:cavity) ⊗ NLevelSpace(:atom, 2)
 """
     tensor(spaces::HilbertSpace...)
 
-Create a [`ProductSpace`](@ref) from multiple Hilbert spaces.
-ASCII alias for [`⊗`](@ref).
+ASCII alias for [`⊗`](@ref): create a [`ProductSpace`](@ref) from multiple
+Hilbert spaces.
 
 # Examples
-```julia
-h = tensor(FockSpace(:a), FockSpace(:b))  # equivalent to FockSpace(:a) ⊗ FockSpace(:b)
+
+```jldoctest
+julia> tensor(FockSpace(:a), FockSpace(:b))
+ℋ(a) ⊗ ℋ(b)
 ```
+
+See also [`⊗`](@ref), [`ProductSpace`](@ref).
 """
 tensor(args::Vararg{HilbertSpace}) = ⊗(args...)
 

@@ -5,24 +5,29 @@ const QuantumState = Union{QuantumOpticsBase.StateVector, QuantumOpticsBase.Abst
     to_numeric(op, state; kwargs...)
     to_numeric(op, basis, d::Dict; kwargs...)
 
-Convert a symbolic operator expression to its numerical matrix representation
-using QuantumOpticsBase.
+Convert a symbolic operator expression to a numeric QuantumOpticsBase operator.
 
-# Arguments
-- `op` — a [`QSym`](@ref), [`QAdd`](@ref), or `Number`
-- `basis` — a QuantumOpticsBase `Basis` (e.g. `FockBasis`, `NLevelBasis`, `SpinBasis`,
-  `CompositeBasis`), or a quantum state (from which the basis is extracted)
-- `d::Dict` — optional operator substitution dictionary (keys: `QSym`, values: numeric operators)
-
-Returns a QuantumOpticsBase operator (dense, sparse, or `LazyTensor` for composite bases).
+`basis` may be a QuantumOpticsBase `Basis` (`FockBasis`, `NLevelBasis`, `SpinBasis`,
+`CompositeBasis`) or a quantum state (from which the basis is extracted). The optional
+`d::Dict` substitutes specific symbolic operators with custom numeric operators before
+conversion. Returns a QuantumOpticsBase operator (dense, sparse, or `LazyTensor` for
+composite bases).
 
 # Examples
-```julia
-using QuantumOpticsBase
-h = FockSpace(:f)
-@qnumbers a::Destroy(h)
-b = FockBasis(10)
-op_num = to_numeric(a' * a, b)    # number operator as 11×11 matrix
+
+```jldoctest
+julia> using QuantumOpticsBase
+
+julia> h = FockSpace(:f);
+
+julia> @qnumbers a::Destroy(h);
+
+julia> b = FockBasis(5); ψ = fockstate(b, 2);
+
+julia> op_num = to_numeric(a' * a, ψ);
+
+julia> real(QuantumOpticsBase.expect(op_num, ψ)) ≈ 2
+true
 ```
 
 See also [`numeric_average`](@ref).
@@ -147,23 +152,25 @@ end
     numeric_average(op, state, d::Dict=Dict(); kwargs...)
     numeric_average(op, states::AbstractVector, d::Dict=Dict(); kwargs...)
 
-Compute the expectation value ``\\langle \\psi | \\hat{O} | \\psi \\rangle`` of a symbolic
-operator expression `op` with a QuantumOpticsBase quantum state, or a vector of such
-expectations for a vector of states.
-
-Converts `op` to numeric form via [`to_numeric`](@ref), then calls
-`QuantumOpticsBase.expect`. Also handles averaged `BasicSymbolic` expressions
-by first calling [`undo_average`](@ref). The optional `d` substitutes numeric
-operators for symbolic ones (keys: `QSym`, values: numeric operators).
+Compute the expectation value ``\\langle \\psi | \\hat{O} | \\psi \\rangle`` of a
+symbolic operator expression. For a vector of states, returns the corresponding
+vector of expectations. Averaged `BasicSymbolic` expressions (from [`average`](@ref))
+are unwrapped automatically. The optional `d::Dict` substitutes numeric operators for
+symbolic ones before evaluation.
 
 # Examples
-```julia
-using QuantumOpticsBase
-h = FockSpace(:f)
-@qnumbers a::Destroy(h)
-b = FockBasis(10)
-ψ = coherentstate(b, 2.0)
-numeric_average(a' * a, ψ)    # ≈ 4.0
+
+```jldoctest
+julia> using QuantumOpticsBase
+
+julia> h = FockSpace(:f);
+
+julia> @qnumbers a::Destroy(h);
+
+julia> b = FockBasis(5); ψ = fockstate(b, 2);
+
+julia> real(numeric_average(a' * a, ψ)) ≈ 2
+true
 ```
 
 See also [`to_numeric`](@ref), [`average`](@ref).

@@ -93,17 +93,34 @@ function Base.:^(a::QAdd, n::Integer)
 end
 
 """
-    normal_order(expr::QField)
+    normal_order(expr::QField) -> QAdd
 
-Apply normal ordering. Since `*` already produces canonical form, this is
-typically an idempotent finalizer that re-routes each term through the
-canonicalization pipeline.
+Route every term of `expr` through the canonicalization pipeline.
 
-For ground-state projector expansion (`σᵍᵍ = 1 - Σ σᵏᵏ`), use
-[`expand_completeness`](@ref) instead.
+In practice this is the identity on anything built through public arithmetic:
+`*`, `+`, `-`, `^`, [`commutator`](@ref), [`Σ`](@ref), [`substitute`](@ref),
+and `adjoint` all canonicalize eagerly, so the result of any such call is
+already normal-ordered. Reach for `normal_order` explicitly only when an
+expression was assembled through low-level internals that bypass the
+arithmetic, or when interfacing with code that expects a finalizer call.
+[`simplify`](@ref) uses it internally before simplifying coefficients.
 
-See also [`simplify`](@ref), [`normal_to_symmetric`](@ref),
-[`symmetric_to_normal`](@ref), [`expand_completeness`](@ref).
+# Examples
+
+```jldoctest
+julia> h = FockSpace(:f);
+
+julia> @qnumbers a::Destroy(h);
+
+julia> a * a'
+1 + a' * a
+
+julia> normal_order(a * a')
+1 + a' * a
+```
+
+See also [`simplify`](@ref), [`expand_completeness`](@ref),
+[`normal_to_symmetric`](@ref), [`symmetric_to_normal`](@ref).
 """
 normal_order(op::QSym) = _single_qadd(_CNUM_ONE, QSym[op])
 
@@ -139,10 +156,37 @@ function _drop_unused_indices(d::QTermDict, indices::Vector{Index})
 end
 
 """
-    simplify(expr::QField)
+    simplify(expr::QField) -> QAdd
 
-Apply normal ordering + algebraic identities + per-coefficient symbolic
-simplification, then drop summation indices that no surviving term depends on.
+Normal-order `expr`, then simplify each coefficient symbolically and drop
+summation indices that no surviving term depends on.
+
+The operator-level work (commutation, same-site composition, like-term
+collection) all happens inside [`normal_order`](@ref). What `simplify` adds
+on top is purely at the symbolic-coefficient layer: `Symbolics.expand`
+followed by `SymbolicUtils.simplify` runs on each surviving prefactor, and
+any term whose coefficient simplifies to zero is dropped. A final pass
+removes summation indices that no remaining term references.
+
+That symbolic step is expensive, so reach for `simplify` as a finalizer
+when cancellations or accumulated symbolic factors need to be folded; use
+`normal_order` for intermediate steps.
+
+# Examples
+
+```jldoctest
+julia> h = FockSpace(:f);
+
+julia> @qnumbers a::Destroy(h);
+
+julia> @variables x y;
+
+julia> expr = (x^2 + 2x*y + y^2) * a' * a - (x + y)^2 * a' * a
+(x^2 - ((x + y)^2) + 2x*y + y^2) * a' * a
+
+julia> simplify(expr)
+0
+```
 
 See also [`normal_order`](@ref), [`expand`](@ref), [`expand_completeness`](@ref).
 """
@@ -160,9 +204,24 @@ function SymbolicUtils.simplify(q::QAdd; kwargs...)
 end
 
 """
-    expand(expr::QField)
+    expand(expr::QField) -> QAdd
 
-Expand symbolic prefactors in each term, e.g. `(a+b)^2 → a^2 + 2ab + b^2`.
+Expand the symbolic prefactor of each term via `Symbolics.expand`.
+
+# Examples
+
+```jldoctest
+julia> h = FockSpace(:f);
+
+julia> @qnumbers a::Destroy(h);
+
+julia> @variables x y;
+
+julia> expand((x + y)^2 * a)
+(x^2 + 2x*y + y^2) * a
+```
+
+See also [`simplify`](@ref).
 """
 function Symbolics.expand(s::QAdd; kwargs...)
     d = QTermDict()
@@ -181,8 +240,26 @@ _expand_prefactor(x::Number; kwargs...) = x
 """
     expand_completeness(q) -> QAdd
 
-Apply `σᵍᵍ = 1 - Σ_{k≠g} σᵏᵏ` to every ground-state projector in `q` and
-re-canonicalize each branch. Opt-in; `*` keeps σᵍᵍ atomic.
+Rewrite every ground-state projector ``\\sigma^{gg}`` in `q` via the
+completeness relation ``\\sigma^{gg} = 1 - \\sum_{k \\neq g} \\sigma^{kk}``.
+
+`*` keeps ``\\sigma^{gg}`` atomic; reach for `expand_completeness` when
+downstream code needs the projector eliminated, e.g. before converting to a
+numeric basis where the ``\\sigma^{kk}`` for ``k \\neq g`` form the
+independent degrees of freedom.
+
+# Examples
+
+```jldoctest
+julia> h = NLevelSpace(:atom, 2);
+
+julia> σ11 = Transition(h, :σ, 1, 1);
+
+julia> expand_completeness(σ11)
+1 + -σ₂₂
+```
+
+See also [`assume_distinct_index`](@ref), [`normal_order`](@ref).
 """
 function expand_completeness(q::QAdd)
     out = QTermDict()
@@ -199,19 +276,34 @@ expand_completeness(op::QSym) = expand_completeness(_single_qadd(_CNUM_ONE, QSym
 """
     assume_distinct_index(q::QAdd, pairs::Vector{Tuple{Index, Index}}) -> QAdd
 
-Re-canonicalize `q` under the given pairwise `≠` constraints on free indices,
-then run [`expand_completeness`](@ref) so any ground-state projectors that
-emerge after the constraint resolves same-site composition are expanded.
+Re-canonicalize `q` under the declared pairwise `≠` constraints on free
+indices, then run [`expand_completeness`](@ref) so any ground-state
+projectors that emerge from same-site composition are expanded.
 
-Use this when free indices `j` and `k` semantically range over distinct atoms
-or modes but no `Σ` supplies the constraint. The pipeline cannot infer
-"different symbol → different site" automatically, so this is the explicit
-way to declare it.
+Use this when two free indices semantically range over distinct atoms or
+modes but no `Σ` supplies the constraint. SQA cannot infer "different symbol
+implies different site" automatically: two operators carrying different free
+indices on the same Hilbert subspace remain in their physical order, and no
+same-site collapse fires between them. Declaring the pair distinct here lets
+the canonical sort resolve their relationship and triggers any composition or
+completeness rewriting it unlocks.
 
-```julia
-# Declare j and k as distinct atomic sites:
-assume_distinct_index([H, σ¹²_j · σ²¹_k], [(j, k)])
+# Examples
+
+```jldoctest
+julia> h = NLevelSpace(:atom, 2);
+
+julia> j = Index(h, :j, 5, h); k = Index(h, :k, 5, h);
+
+julia> σ(i, m, idx) = IndexedOperator(Transition(h, :σ, i, m), idx);
+
+julia> q = σ(2, 1, k) * σ(1, 2, j);
+
+julia> assume_distinct_index(q, [(j, k)])
+σ_j₁₂ * σ_k₂₁
 ```
+
+See also [`expand_completeness`](@ref).
 """
 function assume_distinct_index(q::QAdd, pairs::Vector{Tuple{Index, Index}})
     out = QTermDict()
@@ -235,19 +327,20 @@ _zero_qadd() = _ZERO_QADD
 """
     commutator(a, b) -> QAdd
 
-Compute `[a, b] = a*b - b*a`.
-
-For indexed expressions, the diagonal substitutions performed by `*` (via
-`_accumulate_with_diag!`) produce the partial-collapse contributions when
-summation indices share a Hilbert subspace with the other factor.
+Return the commutator ``[a, b] = a\\,b - b\\,a`` as a [`QAdd`](@ref).
 
 # Examples
-```julia
-h = FockSpace(:f)
-@qnumbers a::Destroy(h)
-commutator(a, a')    # 1
-commutator(a', a)    # -1
+
+```jldoctest
+julia> h = FockSpace(:f);
+
+julia> @qnumbers a::Destroy(h);
+
+julia> commutator(a, a')
+1
 ```
+
+See also [`anticommutator`](@ref), [`normal_order`](@ref).
 """
 function commutator end
 
@@ -280,16 +373,48 @@ function commutator(a::QAdd, b::QAdd)
 end
 
 """
-    anticommutator(a, b)
+    anticommutator(a, b) -> QAdd
 
-Compute `{a, b} = a*b + b*a`.
+Return the anticommutator ``\\{a, b\\} = a\\,b + b\\,a`` as a [`QAdd`](@ref).
+
+# Examples
+
+```jldoctest
+julia> h = FockSpace(:f);
+
+julia> @qnumbers a::Destroy(h);
+
+julia> anticommutator(a, a')
+1 + 2 * a' * a
+```
+
+See also [`commutator`](@ref).
 """
 anticommutator(a, b) = a * b + b * a
 
 """
     substitute(expr, d::Dict)
 
-Substitute symbolic parameters and/or operators in `expr` according to `d`.
+Substitute symbolic parameters and/or operators in `expr` using dictionary `d`.
+
+Supports both symbolic coefficient replacement (for example `x => 2`) and
+operator replacement. The result is re-canonicalized and returned as a
+[`QAdd`](@ref).
+
+# Examples
+
+```jldoctest
+julia> h = FockSpace(:f);
+
+julia> @qnumbers a::Destroy(h);
+
+julia> @variables x;
+
+julia> substitute(x * a' * a, Dict(x => 2))
+2 * a' * a
+```
+
+See also [`change_index`](@ref).
 """
 function SymbolicUtils.substitute(op::QSym, d::Dict)
     return SymbolicUtils.substitute(_single_qadd(_CNUM_ONE, QSym[op]), d)
