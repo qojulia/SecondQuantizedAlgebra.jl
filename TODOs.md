@@ -13,18 +13,7 @@ PR with no ripple effect; suggested merge order is roughly the order listed.
       methods (callers use `numeric_average` directly — same length) or wrap averaged
       operands behind an SQA-owned type. Recommendation: **delete**. Removes four
       methods and the Aqua suppression.
-
-- [ ] **Remove `LazyOrder` and the `OrderingConvention` machinery**. Drop
-      `OrderingConvention`, `NormalOrder`, `LazyOrder`, `set_ordering!`,
-      `get_ordering`, `with_ordering`, and the `ORDERING` `ScopedValue`. Eager `*`
-      becomes the only mode; benchmarks show it is 1.5-5x faster than the lazy
-      alternative ([docs/src/assets/eager_vs_lazy.svg](docs/src/assets/eager_vs_lazy.svg)).
-      The dict-key equality footgun (under `LazyOrder`, `Dict{QTerm, CNum}` keys
-      don't match physical equality) goes away. Migration: one minor release with
-      `@deprecate` shims, then remove. Delete [docs/src/ordering.md](docs/src/ordering.md),
-      `benchmark/eager_vs_lazy.jl`, and any `with_ordering(LazyOrder())` test blocks.
-      The `(expr, h)` overloads of `simplify` and `normal_order` become no-ops
-      (eager `*` already applied completeness) or are removed.
+- [ ] migration guide
 
 ### Refactors
 

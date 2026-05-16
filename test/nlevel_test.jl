@@ -45,11 +45,11 @@ using Test
         σee = Transition(h, :σ, 2, 2)
         σgg = Transition(h, :σ, 1, 1)
 
-        # σ*σ' produces a ground-state projector under composition; eager `*`
-        # expands via completeness: σgg = 1 - σee.
-        @test isequal(simplify(normal_order(σ * σ')), simplify(1 - σee))
+        # σ*σ' produces a ground-state projector under composition; expand
+        # completeness explicitly: σgg = 1 - σee.
+        @test isequal(simplify(expand_completeness(σ * σ')), simplify(1 - σee))
         # The h-aware overload applies completeness explicitly to user-constructed σgg.
-        @test isequal(simplify(σgg, h), simplify(1 - σee, h))
+        @test isequal(expand_completeness(σgg), simplify(1 - σee))
     end
 
     @testset "Algebraic relations" begin
@@ -59,8 +59,8 @@ using Test
 
         # normal_order applies transition product rules
         @test isequal(simplify(normal_order(σ' * σ)), simplify(σee))
-        # σ*σ' produces σgg via composition; eager `*` expands σgg = 1 - σee.
-        no_result = simplify(normal_order(σ * σ'))
+        # σ*σ' produces σgg via composition; expand explicitly: σgg = 1 - σee.
+        no_result = simplify(expand_completeness(σ * σ'))
         @test isequal(no_result, simplify(1 - σee))
     end
 
@@ -75,8 +75,8 @@ using Test
         @test isequal(
             simplify(normal_order(σ1' * σ1)), simplify(Transition(hprod, :σ1, 2, 2, 1))
         )
-        # σ2 * σ2' produces σ2_11; eager `*` expands to 1 - σ2_22.
-        no_result = simplify(normal_order(σ2 * σ2'))
+        # σ2 * σ2' produces σ2_11; expand explicitly to 1 - σ2_22.
+        no_result = simplify(expand_completeness(σ2 * σ2'))
         @test isequal(no_result, simplify(1 - Transition(hprod, :σ2, 2, 2, 2)))
         # Different subspaces don't interact
         @test isequal(simplify(σ1 * σ2), simplify(σ1 * σ2))

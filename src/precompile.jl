@@ -1,8 +1,7 @@
 using PrecompileTools: @setup_workload, @compile_workload
 
 # Targeted precompile directives for internal methods.
-precompile(_ordered_qadd, (CNum, Vector{QSym}))
-precompile(_site_sort!, (Vector{QSym},))
+precompile(_canonicalize!, (QTermDict, Vector{QSym}, CNum, Vector{NonEqualPair}))
 precompile(_addto!, (QTermDict, Vector{QSym}, CNum, Vector{NonEqualPair}))
 precompile(_iszero_cnum, (CNum,))
 precompile(_neg_cnum, (CNum,))

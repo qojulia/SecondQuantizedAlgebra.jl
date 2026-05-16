@@ -93,31 +93,31 @@ end
     # ============================================================================
     # Eager completeness: same-site composition producing σᵍᵍ
     # ============================================================================
-    @testset "Eager: σ¹²·σ²¹ → 1 - σ²² (2-level, g=1)" begin
+    @testset "Composition+expand: σ¹²·σ²¹ → 1 - σ²² (2-level, g=1)" begin
         h = NLevelSpace(:atom, 2, 1)
         σ12 = Transition(h, :σ, 1, 2)
         σ21 = Transition(h, :σ, 2, 1)
         σ22 = Transition(h, :σ, 2, 2)
 
-        result = σ12 * σ21
+        result = expand_completeness(σ12 * σ21)
         @test result isa QAdd
         @test isequal(result, simplify(1 - σ22))
         @test _no_gs_projectors(result)
     end
 
-    @testset "Eager: σ¹²·σ²¹ → 1 - σ²² - σ³³ (3-level, g=1)" begin
+    @testset "Composition+expand: σ¹²·σ²¹ → 1 - σ²² - σ³³ (3-level, g=1)" begin
         h = NLevelSpace(:atom, 3, 1)
         σ12 = Transition(h, :σ, 1, 2)
         σ21 = Transition(h, :σ, 2, 1)
         σ22 = Transition(h, :σ, 2, 2)
         σ33 = Transition(h, :σ, 3, 3)
 
-        result = σ12 * σ21
+        result = expand_completeness(σ12 * σ21)
         @test isequal(result, simplify(1 - σ22 - σ33))
         @test _no_gs_projectors(result)
     end
 
-    @testset "Eager: ground state ≠ 1 (g=2)" begin
+    @testset "Composition+expand: ground state ≠ 1 (g=2)" begin
         h = NLevelSpace(:atom, 3, 2)        # ground state = 2
         σ12 = Transition(h, :σ, 1, 2)
         σ21 = Transition(h, :σ, 2, 1)
@@ -125,7 +125,7 @@ end
         σ33 = Transition(h, :σ, 3, 3)
 
         # σ²¹·σ¹² composes to σ²² which IS the ground state for g=2 → expand
-        result = σ21 * σ12
+        result = expand_completeness(σ21 * σ12)
         @test isequal(result, simplify(1 - σ11 - σ33))
         @test _no_gs_projectors(result)
 
@@ -137,7 +137,7 @@ end
         @test ops[1] == σ11   # σ¹¹ is not the ground state, so it's kept
     end
 
-    @testset "Eager: indexed σᵢ¹²·σᵢ²¹ preserves index" begin
+    @testset "Composition+expand: indexed σᵢ¹²·σᵢ²¹ preserves index" begin
         ha = NLevelSpace(:atom, 2, 1)
         hf = FockSpace(:c)
         h = hf ⊗ ha
@@ -146,7 +146,7 @@ end
         i = Index(h, :i, N, ha)
         σ(α, β) = IndexedOperator(Transition(h, :σ, α, β, 2), i)
 
-        result = σ(1, 2) * σ(2, 1)
+        result = expand_completeness(σ(1, 2) * σ(2, 1))
         @test result isa QAdd
         # Should be 1 - σᵢ²², so two dict entries: identity + -σᵢ²²
         @test length(result) == 2
@@ -163,7 +163,7 @@ end
         end
     end
 
-    @testset "Eager: σᵍᵍ via longer chain σ¹²·σ²³·σ³¹ (3-level, g=1)" begin
+    @testset "Composition+expand: σᵍᵍ via longer chain σ¹²·σ²³·σ³¹ (3-level, g=1)" begin
         h = NLevelSpace(:atom, 3, 1)
         σ12 = Transition(h, :σ, 1, 2)
         σ23 = Transition(h, :σ, 2, 3)
@@ -171,8 +171,8 @@ end
         σ22 = Transition(h, :σ, 2, 2)
         σ33 = Transition(h, :σ, 3, 3)
 
-        # σ¹²·σ²³·σ³¹ → σ¹³·σ³¹ → σ¹¹ → 1 - σ²² - σ³³
-        result = σ12 * σ23 * σ31
+        # σ¹²·σ²³·σ³¹ → σ¹³·σ³¹ → σ¹¹ → 1 - σ²² - σ³³ (after expand_completeness)
+        result = expand_completeness(σ12 * σ23 * σ31)
         @test isequal(result, simplify(1 - σ22 - σ33))
         @test _no_gs_projectors(result)
     end
@@ -180,26 +180,26 @@ end
     # ============================================================================
     # Eager * canonicalizes any product containing σᵍᵍ
     # ============================================================================
-    @testset "Different-site σᵍᵍ_i · σᵍᵍ_j expands eagerly" begin
+    @testset "Different-site σᵍᵍ_i · σᵍᵍ_j (atomic; expand via expand_completeness)" begin
         h = NLevelSpace(:atom, 3, 2)
         i = SecondQuantizedAlgebra.Index(h, :i, 10, 1)
         j = SecondQuantizedAlgebra.Index(h, :j, 10, 1)
         σi = SecondQuantizedAlgebra.IndexedOperator(Transition(h, :σ, 2, 2), i)
         σj = SecondQuantizedAlgebra.IndexedOperator(Transition(h, :σ, 2, 2), j)
-        eager = σi * σj
-        @test _no_gs_projectors(eager)
-        @test isequal(eager, normal_order(σi * σj, h))
+        expanded = expand_completeness(σi * σj)
+        @test _no_gs_projectors(expanded)
+        @test isequal(expanded, expand_completeness(normal_order(σi * σj)))
     end
 
-    @testset "σᵍᵍ * σⁱʲ expands eagerly" begin
+    @testset "σᵍᵍ * σⁱʲ (expand opt-in)" begin
         h = NLevelSpace(:atom, 3, 1)
         σgg = Transition(h, :σ, 1, 1)
         σ12 = Transition(h, :σ, 1, 2)
-        @test isequal(σgg * σ12, normal_order(σgg * σ12, h))
+        @test isequal(expand_completeness(σgg * σ12), expand_completeness(normal_order(σgg * σ12)))
     end
 
     # ============================================================================
-    # User-constructed σᵍᵍ stays atomic until simplify(_, h) / normal_order(_, h)
+    # User-constructed σᵍᵍ stays atomic until expand_completeness fires
     # ============================================================================
     @testset "User-constructed σᵍᵍ stays atomic (no composition fired)" begin
         h = NLevelSpace(:atom, 2, 1)
@@ -211,18 +211,18 @@ end
         # simplify without h: still atomic
         @test isequal(simplify(σgg), simplify(σgg))
 
-        # simplify with h: expands
+        # simplify wrapped in expand_completeness: expands
         σ22 = Transition(h, :σ, 2, 2)
-        @test isequal(simplify(σgg, h), simplify(1 - σ22, h))
+        @test isequal(expand_completeness(simplify(σgg)), expand_completeness(simplify(1 - σ22)))
 
-        # normal_order with h: expands
-        @test isequal(normal_order(σgg, h), simplify(1 - σ22, h))
+        # normal_order wrapped in expand_completeness: expands
+        @test isequal(expand_completeness(normal_order(σgg)), expand_completeness(simplify(1 - σ22)))
     end
 
     # ============================================================================
     # σᵍᵍ-never-appears invariant for representative expressions
     # ============================================================================
-    @testset "Invariant: σᵍᵍ never appears in commutators" begin
+    @testset "After expand_completeness: σᵍᵍ removed from commutators" begin
         ha = NLevelSpace(:atom, 2, 1)
         hf = FockSpace(:cavity)
         h = hf ⊗ ha
@@ -230,16 +230,15 @@ end
         @qnumbers a::Destroy(h, 1)
         σ(α, β) = Transition(h, :σ, α, β, 2)
 
-        # Several commutator constructions that internally produce σᵍᵍ
         H_jc = a' * σ(1, 2) + a * σ(2, 1)
         for op in (σ(1, 2), σ(2, 1), σ(2, 2), a' * σ(1, 2), a * σ(2, 1))
-            result = commutator(H_jc, op)
+            result = expand_completeness(commutator(H_jc, op))
             result isa QAdd || continue
             @test _no_gs_projectors(result)
         end
     end
 
-    @testset "Invariant: σᵍᵍ never appears for indexed sums" begin
+    @testset "After expand_completeness: σᵍᵍ removed for indexed sums" begin
         ha = NLevelSpace(:atom, 2, 1)
         hf = FockSpace(:cavity)
         h = hf ⊗ ha
@@ -255,21 +254,19 @@ end
 
         H = -Δ * a' * a + Σ(g(i) * (a' * σ(1, 2, i) + a * σ(2, 1, i)), i)
 
-        # Commutators with assorted operator structures
         for op in (
                 a' * σ(1, 2, j),
                 a * σ(2, 1, j),
                 σ(1, 2, j) * σ(2, 1, k),
                 σ(2, 2, j),
             )
-            result = commutator(H, op)
+            result = expand_completeness(commutator(H, op))
             result isa QAdd || continue
             @test _no_gs_projectors(result)
         end
     end
 
-    @testset "Invariant: σᵍᵍ never appears for higher-level systems" begin
-        # 4-level atom, ground state = 2
+    @testset "After expand_completeness: σᵍᵍ removed for higher-level systems" begin
         h = NLevelSpace(:atom, 4, 2)
         σ(α, β) = Transition(h, :σ, α, β)
 
@@ -277,10 +274,9 @@ end
         r1 = σ(1, 2) * σ(2, 1)
         @test _no_gs_projectors(r1)
 
-        # σ²¹ · σ¹² → σ²² (ground state) → 1 - σ¹¹ - σ³³ - σ⁴⁴
-        r2 = σ(2, 1) * σ(1, 2)
+        # σ²¹ · σ¹² → σ²² (ground state). After expand_completeness: 1 - σ¹¹ - σ³³ - σ⁴⁴
+        r2 = expand_completeness(σ(2, 1) * σ(1, 2))
         @test _no_gs_projectors(r2)
-        # Should have 4 dict entries: identity, -σ¹¹, -σ³³, -σ⁴⁴
         @test length(r2) == 4
 
         # σ³² · σ²³ → σ³³ (NOT ground state, g=2) → kept atomic
@@ -289,8 +285,7 @@ end
         @test term.ops == [Transition(h, :σ, 3, 3)]
     end
 
-    @testset "Invariant: ProductSpace with multiple NLevelSpaces" begin
-        # Two NLevelSpaces with different ground states in one ProductSpace
+    @testset "After expand_completeness: ProductSpace with multiple NLevelSpaces" begin
         ha = NLevelSpace(:atomA, 2, 1)
         hb = NLevelSpace(:atomB, 3, 2)
         h = ha ⊗ hb
@@ -298,15 +293,12 @@ end
         σA(α, β) = Transition(h, :σA, α, β, 1)
         σB(α, β) = Transition(h, :σB, α, β, 2)
 
-        # σA¹²·σA²¹ → σA¹¹ (g=1 for A) → 1 - σA²²
-        rA = σA(1, 2) * σA(2, 1)
+        rA = expand_completeness(σA(1, 2) * σA(2, 1))
         @test _no_gs_projectors(rA)
 
-        # σB²¹·σB¹² → σB²² (g=2 for B) → 1 - σB¹¹ - σB³³
-        rB = σB(2, 1) * σB(1, 2)
+        rB = expand_completeness(σB(2, 1) * σB(1, 2))
         @test _no_gs_projectors(rB)
 
-        # σB¹²·σB²¹ → σB¹¹ (NOT ground state for B) → stays atomic
         rB2 = σB(1, 2) * σB(2, 1)
         term, _ = only(collect(rB2))
         @test length(term.ops) == 1

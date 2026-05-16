@@ -1,7 +1,7 @@
 using SecondQuantizedAlgebra
 using Test
 using Symbolics: Symbolics, @variables
-import SecondQuantizedAlgebra: substitute, QAdd, QSym, CNum, _substitute_term, _split_sub_dict, _CNUM_ONE, _to_cnum
+import SecondQuantizedAlgebra: substitute, QAdd, QSym, CNum, _CNUM_ONE, _to_cnum
 
 @testset "Substitute" begin
     hf = FockSpace(:c)
@@ -14,8 +14,8 @@ import SecondQuantizedAlgebra: substitute, QAdd, QSym, CNum, _substitute_term, _
     end
 
     @testset "QSym substitution" begin
-        @test isequal(substitute(a, Dict(a => a')), a')
-        @test isequal(substitute(a, Dict(a' => a)), a)  # no match, unchanged
+        @test isequal(substitute(a, Dict(a => a')), 1 * a')
+        @test isequal(substitute(a, Dict(a' => a)), 1 * a)  # no match, unchanged
     end
 
     @testset "QAdd — symbolic variable substitution" begin
@@ -26,7 +26,6 @@ import SecondQuantizedAlgebra: substitute, QAdd, QSym, CNum, _substitute_term, _
 
     @testset "QAdd — operator substitution" begin
         @test iszero(substitute(x * a, Dict(a => 0)))
-        # Substituting op with scalar gives a scalar QAdd
         sub_scalar = substitute(x * a, Dict(a => y))
         @test sub_scalar isa QAdd
         @test length(sub_scalar) == 1
@@ -44,13 +43,5 @@ import SecondQuantizedAlgebra: substitute, QAdd, QSym, CNum, _substitute_term, _
         b = Destroy(h, :b, 2)
         expr = x * a' * b
         @test isequal(substitute(expr, Dict(x => 2)), 2 * a' * b)
-    end
-
-    @testset "Type stability — internal _substitute_term" begin
-        d = Dict(x => y)
-        sym_dict, op_dict = _split_sub_dict(d)
-        c = _to_cnum(x)
-        ops = QSym[a]
-        @inferred _substitute_term(c, ops, sym_dict, op_dict)
     end
 end

@@ -1,9 +1,3 @@
-# A pair of indices `(α, β)` meaning `α ≠ β`.
-const NonEqualPair = Tuple{Index, Index}
-
-# Shared sentinel for "no constraints". Never mutated.
-const _EMPTY_NE = NonEqualPair[]
-
 """
     QTerm
 
@@ -20,38 +14,11 @@ pairwise index inequality constraints that scope that product.
 struct QTerm
     ops::Vector{QSym}
     ne::Vector{NonEqualPair}
-    phys_ops::Vector{QSym}
 end
 
-QTerm(ops::Vector{QSym}, ne::Vector{NonEqualPair}) = QTerm(ops, ne, copy(ops))
-
-function _uses_phys_key(term::QTerm)
-    for i in 1:length(term.phys_ops)
-        idx_i = term.phys_ops[i].index
-        has_index(idx_i) || continue
-        for j in (i + 1):length(term.phys_ops)
-            idx_j = term.phys_ops[j].index
-            has_index(idx_j) || continue
-            idx_i == idx_j && continue
-            idx_i.space_index == idx_j.space_index || continue
-            _ne_contains(term.ne, idx_i, idx_j) && continue
-            return true
-        end
-    end
-    return false
-end
-
-function Base.isequal(a::QTerm, b::QTerm)
-    isequal(a.ops, b.ops) || return false
-    isequal(a.ne, b.ne) || return false
-    _uses_phys_key(a) || return true
-    return isequal(a.phys_ops, b.phys_ops)
-end
+Base.isequal(a::QTerm, b::QTerm) = isequal(a.ops, b.ops) && isequal(a.ne, b.ne)
 Base.:(==)(a::QTerm, b::QTerm) = isequal(a, b)
-function Base.hash(term::QTerm, h::UInt)
-    h2 = hash(:QTerm, hash(term.ops, hash(term.ne, h)))
-    return _uses_phys_key(term) ? hash(term.phys_ops, h2) : h2
-end
+Base.hash(term::QTerm, h::UInt) = hash(:QTerm, hash(term.ops, hash(term.ne, h)))
 
 """
     QTermDict
@@ -132,7 +99,7 @@ function _drop_ne_with(ne::Vector{NonEqualPair}, idx::Index)
 end
 
 function _copy_key(term::QTerm)
-    return QTerm(copy(term.ops), _copy_ne(term.ne), copy(term.phys_ops))
+    return QTerm(copy(term.ops), _copy_ne(term.ne))
 end
 
 """
@@ -145,10 +112,8 @@ structural equality of `(ops, ne)` always implies equal hash keys.
 function _term_key(
         ops::Vector{QSym},
         ne::Vector{NonEqualPair} = _EMPTY_NE,
-        phys_ops::Vector{QSym} = ops
     )
-    actual_phys = _needs_phys_tracking(ops) ? phys_ops : ops
-    return QTerm(copy(ops), _canonical_ne(ne), copy(actual_phys))
+    return QTerm(copy(ops), _canonical_ne(ne))
 end
 
 function _push_key_unique!(out::Vector{QTerm}, term::QTerm)
@@ -166,9 +131,8 @@ match exactly.
 function _addto!(
         d::QTermDict, ops::Vector{QSym}, c::CNum,
         ne::Vector{NonEqualPair} = _EMPTY_NE,
-        phys_ops::Vector{QSym} = ops
     )
-    return _addto_key!(d, _term_key(ops, ne, phys_ops), c)
+    return _addto_key!(d, _term_key(ops, ne), c)
 end
 
 """

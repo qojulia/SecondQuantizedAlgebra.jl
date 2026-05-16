@@ -141,3 +141,39 @@ Base.hash(a::Transition, h::UInt) = hash(:Transition, hash(a.name, hash(a.i, has
 
 # Ladder (not applicable to Transition)
 ladder(::Transition) = 0
+
+# --- Operator hooks ---
+
+function _site_compare(a::Transition, b::Transition, ne::Vector{NonEqualPair})::SiteCmp
+    a.space_index == b.space_index || return a.space_index < b.space_index ? Less : Greater
+    a.name == b.name || return a.name < b.name ? Less : Greater
+    a.index == b.index && return Equal
+    _ne_contains(ne, a.index, b.index) && return a.index < b.index ? Less : Greater
+    return Undetermined
+end
+
+# Transitions on the same site never commute freely (composition fires).
+_can_commute(a::Transition, b::Transition) = false
+
+# Composition: σⁱʲ · σᵏˡ = δⱼₖ σⁱˡ.
+function _reduce_pair(a::Transition, b::Transition)
+    a.name == b.name || return nothing
+    a.space_index == b.space_index || return nothing
+    a.index == b.index || return nothing
+    if a.j == b.i
+        new = Transition(a.name, a.i, b.j, a.space_index, a.index, a.ground_state, a.n_levels)
+        return (new, _CNUM_ONE)
+    else
+        return _CNUM_ZERO    # δ_{j,k} = 0
+    end
+end
+
+# _commute_pair is never called for Transition (because _can_commute is always false
+# and only out-of-order pairs would call it; here we use _reduce_pair instead).
+_commute_pair(a::Transition, b::Transition) = error("unreachable: Transition uses _reduce_pair, not _commute_pair")
+
+# Ground-state expansion: σᵍᵍ -> 1 - Σ_{k≠g} σᵏᵏ.
+function _ground_state_expand(op::Transition)
+    op.i == op.ground_state && op.j == op.ground_state || return nothing
+    return (op.ground_state, op.n_levels, op.space_index)
+end

@@ -32,3 +32,12 @@ Base.one(::Type{<:QField}) = 1
 Base.isone(::QField) = false
 Base.zero(::T) where {T <: QField} = zero(T)
 Base.zero(::Type{<:QField}) = 0
+
+"""
+    SiteCmp
+
+Three-way site comparison for the canonical partial-sort. `Equal` and
+`Undetermined` both mean "do not reorder," but distinguishing them in the type
+prevents the "I returned 0 but meant Equal" bug class.
+"""
+@enum SiteCmp::UInt8 Less Equal Undetermined Greater

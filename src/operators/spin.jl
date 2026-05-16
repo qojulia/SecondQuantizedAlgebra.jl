@@ -77,3 +77,34 @@ Base.hash(a::Spin, h::UInt) = hash(:Spin, hash(a.name, hash(a.axis, hash(a.space
 
 # Ladder (not applicable)
 ladder(::Spin) = 0
+
+# --- Operator hooks ---
+
+function _site_compare(a::Spin, b::Spin, ne::Vector{NonEqualPair})::SiteCmp
+    a.space_index == b.space_index || return a.space_index < b.space_index ? Less : Greater
+    a.name == b.name || return a.name < b.name ? Less : Greater
+    if a.index != b.index
+        _ne_contains(ne, a.index, b.index) && return a.index < b.index ? Less : Greater
+        return Undetermined
+    end
+    # Same site: return Equal; axis canonical order lives in _can_commute / _commute_pair.
+    return Equal
+end
+
+# Same-site spins commute only when in canonical axis order (ascending).
+_can_commute(a::Spin, b::Spin) = a.axis <= b.axis
+
+# [Sj, Sk] = iϵⱼₖₗSl. The pair (Sj·Sk) with j>k commutes to (Sk·Sj + iε·Sl).
+# Returns (swap_b, swap_a, residual_coeff, residual_ops) where residual_ops is
+# the single contracted spin Sl on the third axis.
+function _commute_pair(a::Spin, b::Spin)
+    a.name == b.name || error("unreachable")
+    a.space_index == b.space_index || error("unreachable")
+    a.index == b.index || error("unreachable")
+    a.axis > b.axis || error("unreachable: _commute_pair called on in-order pair")
+    eps = _levi_civita[a.axis][b.axis]
+    contracted = Spin(a.name, 6 - a.axis - b.axis, a.space_index, a.index)
+    return (b, a, _mul_cnum(_to_cnum(im * eps), _CNUM_ONE), QSym[contracted])
+end
+
+_reduce_pair(::Spin, ::Spin) = nothing

@@ -40,6 +40,14 @@ Return `true` if `idx` is a real summation index (not the sentinel `NO_INDEX`).
 """
 has_index(idx::Index) = idx.space_index != 0
 
+# A pair of indices `(α, β)` meaning `α ≠ β`.
+const NonEqualPair = Tuple{Index, Index}
+
+# Shared sentinels for empty vectors on hot paths. Never mutated.
+const _EMPTY_NE = NonEqualPair[]
+const _EMPTY_INDICES = Index[]
+const _EMPTY_OPS = QSym[]
+
 function Base.:(==)(a::Index, b::Index)
     a === b && return true
     return a.name == b.name && a.space_index == b.space_index && isequal(a.range, b.range)

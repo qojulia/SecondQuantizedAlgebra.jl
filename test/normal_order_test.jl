@@ -82,7 +82,7 @@ end
 
     @testset "Ground state rewriting — single space" begin
         σ11 = Transition(h, :σ, 1, 1)
-        result = normal_order(σ11, h)
+        result = expand_completeness(normal_order(σ11))
         @test result isa QAdd
         @test length(result) == 3
         simplified = simplify(result)
@@ -94,7 +94,7 @@ end
         ha = NLevelSpace(:atom, 2, 1)
         hp = hc ⊗ ha
         σ11 = Transition(hp, :σ, 1, 1, 2)
-        result = normal_order(σ11, hp)
+        result = expand_completeness(normal_order(σ11))
         @test result isa QAdd
         @test length(result) == 2
     end
@@ -103,7 +103,7 @@ end
         h2 = NLevelSpace(:atom, 2, 1)
         σ11 = Transition(h2, :σ, 1, 1)
         m = σ11 * σ11
-        result = normal_order(m, h2)
+        result = expand_completeness(normal_order(m))
         @test result isa QAdd
     end
 end
@@ -208,7 +208,7 @@ end
     σ12 = Transition(hn, :σ, 1, 2)
     σ23 = Transition(hn, :σ, 2, 3)
     @inferred normal_order(σ12 * σ23)
-    @inferred normal_order(σ12, hn)
+    @inferred expand_completeness(normal_order(σ12))
 
     hp = PauliSpace(:p)
     σx = Pauli(hp, :σ, 1)
@@ -240,8 +240,8 @@ end
 
     hn = NLevelSpace(:atom, 3, 1)
     σ11 = Transition(hn, :σ, 1, 1)
-    normal_order(σ11, hn)
-    @test @allocations(normal_order(σ11, hn)) < 5000
+    expand_completeness(normal_order(σ11))
+    @test @allocations(expand_completeness(normal_order(σ11))) < 5000
 
     hps = PhaseSpace(:q)
     x = Position(hps, :x)

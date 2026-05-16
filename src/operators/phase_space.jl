@@ -103,3 +103,41 @@ Base.hash(a::Momentum, h::UInt) = hash(:Momentum, hash(a.name, hash(a.space_inde
 # Ladder
 ladder(::Position) = 0
 ladder(::Momentum) = 1
+
+# --- Operator hooks ---
+
+function _site_compare(a::Position, b::Position, ne::Vector{NonEqualPair})::SiteCmp
+    a.space_index == b.space_index || return a.space_index < b.space_index ? Less : Greater
+    a.name == b.name || return a.name < b.name ? Less : Greater
+    return a.index == b.index ? Equal : Undetermined
+end
+function _site_compare(a::Momentum, b::Momentum, ne::Vector{NonEqualPair})::SiteCmp
+    return _site_compare(
+        Position(a.name, a.space_index, a.index),
+        Position(b.name, b.space_index, b.index), ne
+    )
+end
+
+# Cross-type same-site test ignores name: position x and momentum p on the same
+# Hilbert subspace and index are conjugate variables on one site.
+function _site_compare(a::Position, b::Momentum, ne::Vector{NonEqualPair})::SiteCmp
+    a.space_index == b.space_index || return a.space_index < b.space_index ? Less : Greater
+    return a.index == b.index ? Equal : Undetermined
+end
+function _site_compare(a::Momentum, b::Position, ne::Vector{NonEqualPair})::SiteCmp
+    a.space_index == b.space_index || return a.space_index < b.space_index ? Less : Greater
+    return a.index == b.index ? Equal : Undetermined
+end
+
+# Same-site P·X = X·P - i (commute residual is -i times identity).
+_can_commute(a::Position, b::Momentum) = true
+_can_commute(a::Momentum, b::Position) = false
+_can_commute(a::Position, b::Position) = true
+_can_commute(a::Momentum, b::Momentum) = true
+
+_commute_pair(a::Momentum, b::Position) = (b, a, _to_cnum(-im), _EMPTY_OPS)   # P·X = X·P - i·I
+
+_reduce_pair(::Position, ::Momentum) = nothing
+_reduce_pair(::Momentum, ::Position) = nothing
+_reduce_pair(::Position, ::Position) = nothing
+_reduce_pair(::Momentum, ::Momentum) = nothing

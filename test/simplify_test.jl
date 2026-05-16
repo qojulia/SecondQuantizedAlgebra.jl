@@ -132,8 +132,8 @@ import SecondQuantizedAlgebra: simplify, QAdd, QSym, QField, sorted_arguments, _
         σ11 = Transition(hn, :σ, 1, 1)
         σ21 = Transition(hn, :σ, 2, 1)
         @test isequal(
-            simplify(simplify(σ11 * σ12 * σ21, hn), hn),
-            simplify(σ11 * σ12 * σ21, hn)
+            expand_completeness(simplify(expand_completeness(simplify(σ11 * σ12 * σ21)))),
+            expand_completeness(simplify(σ11 * σ12 * σ21))
         )
 
         # Pauli — long chain
@@ -217,7 +217,7 @@ import SecondQuantizedAlgebra: simplify, QAdd, QSym, QField, sorted_arguments, _
         σ23 = Transition(hn, :σ, 2, 3)
         @inferred simplify(σ12 * σ23)
         @inferred simplify(σ12 + σ23)
-        @inferred simplify(σ12, hn)
+        @inferred expand_completeness(simplify(σ12))
 
         hp = PauliSpace(:p)
         σx = Pauli(hp, :σ, 1)
@@ -528,7 +528,7 @@ import SecondQuantizedAlgebra: simplify, QAdd, QSym, QField, sorted_arguments, _
         @test isequal(normal_order(no_result), no_result)
 
         σ11 = Transition(hjc, :σ, 1, 1, 2)
-        gs = normal_order(σ11, hjc)
+        gs = expand_completeness(normal_order(σ11))
         @test gs isa QAdd
         @test length(gs) == 2
     end

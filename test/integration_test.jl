@@ -222,7 +222,7 @@ import SecondQuantizedAlgebra: simplify, QAdd, QSym, _single_qadd, _to_cnum, Ind
         # Post-completeness: σⱼ²² - σⱼ¹¹ = 2σⱼ²² - 1, so:
         #   = -iΔ a'σⱼ¹² + Σᵢ≠ⱼ i g(i) σᵢ²¹σⱼ¹² + i g(j)(2 a'a σⱼ²² - a'a + σⱼ²²)
         op3 = a' * σ(1, 2, j)
-        result3 = 1im * commutator(H, op3)
+        result3 = expand_completeness(1im * commutator(H, op3))
         # -iΔ * a' * σⱼ¹²
         @test any(result3) do (term, c)
             term.ops == [a', σ(1, 2, j)] && isequal(c, _to_cnum(-1im * Δ))
@@ -254,20 +254,18 @@ import SecondQuantizedAlgebra: simplify, QAdd, QSym, _single_qadd, _to_cnum, Ind
         # Post-completeness: σⱼ²² - σⱼ¹¹ = 2σⱼ²² - 1, σₖ¹¹ - σₖ²² = 1 - 2σₖ²², so:
         #   = i g(j) a (2σⱼ²² σₖ²¹ - σₖ²¹) + i g(k) a' (σⱼ¹² - 2 σⱼ¹² σₖ²²)
         op4 = σ(1, 2, j) * σ(2, 1, k)
-        result4 = simplify(1im * commutator(H, op4))
-        # 2i * g(j) * a * σⱼ²² * σₖ²¹
+        # j and k are free indices the user reads as distinct atomic sites;
+        # the pipeline does not infer this, so we declare it explicitly.
+        result4 = simplify(assume_distinct_index(expand_completeness(1im * commutator(H, op4)), [(j, k)]))
         @test any(result4) do (term, c)
             term.ops == [a, σ(2, 2, j), σ(2, 1, k)] && isequal(c, _to_cnum(2im * g(j)))
         end
-        # -i * g(j) * a * σₖ²¹  (identity from σⱼ¹¹ expansion)
         @test any(result4) do (term, c)
             term.ops == [a, σ(2, 1, k)] && isequal(c, _to_cnum(-1im * g(j)))
         end
-        # i * g(k) * a' * σⱼ¹²  (identity from σₖ¹¹ expansion)
         @test any(result4) do (term, c)
             term.ops == [a', σ(1, 2, j)] && isequal(c, _to_cnum(1im * g(k)))
         end
-        # -2i * g(k) * a' * σⱼ¹² * σₖ²²
         @test any(result4) do (term, c)
             term.ops == [a', σ(1, 2, j), σ(2, 2, k)] && isequal(c, _to_cnum(-2im * g(k)))
         end
@@ -292,7 +290,7 @@ import SecondQuantizedAlgebra: simplify, QAdd, QSym, _single_qadd, _to_cnum, Ind
         j = Index(h, :j, N, ha)
 
         op = σ(2, 2, j)
-        result = 2 * Σ(σ(2, 1, i) * op * σ(1, 2, i), i)
+        result = expand_completeness(2 * Σ(σ(2, 1, i) * op * σ(1, 2, i), i))
 
         # Exactly one term, exactly the off-diagonal under i ≠ j
         @test length(result) == 1
@@ -355,12 +353,12 @@ import SecondQuantizedAlgebra: simplify, QAdd, QSym, _single_qadd, _to_cnum, Ind
             # [σ_ee, σ_ge] = -σ_ge,  [σ_ee, σ_eg] = +σ_eg,  [σ_ge, σ_eg] = σ_ee - σ_gg
             # Under canonical (no σ_gg, ground = :g): σ_gg = 1 - σ_ee
             # ⇒ [H, σ_ge] = -Δ σ_ge + Ω(σ_ee - σ_gg) = -Δ σ_ge + Ω(2 σ_ee - 1)
-            eq = commutator(H, σ(:g, :e))
+            eq = expand_completeness(commutator(H, σ(:g, :e)))
             expected = -Δ * σ(:g, :e) + Ω * (2 * σ(:e, :e) - 1)
             @test iszero(simplify(eq - expected))
 
             # [H, σ_eg] = Δ σ_eg - Ω(2 σ_ee - 1)
-            eq2 = commutator(H, σ(:e, :g))
+            eq2 = expand_completeness(commutator(H, σ(:e, :g)))
             expected2 = Δ * σ(:e, :g) - Ω * (2 * σ(:e, :e) - 1)
             @test iszero(simplify(eq2 - expected2))
 
@@ -396,7 +394,7 @@ import SecondQuantizedAlgebra: simplify, QAdd, QSym, _single_qadd, _to_cnum, Ind
             @test iszero(simplify(eq_a + Δ * a + g * s(:g, :e)))
 
             # [H, σ_ge] = g a (σ_ee - σ_gg) = g a (2σ_ee - 1) = -g a + 2g a σ_ee
-            eq_s = commutator(H, s(:g, :e))
+            eq_s = expand_completeness(commutator(H, s(:g, :e)))
             expected_s = -g * a + 2g * a * s(:e, :e)
             @test iszero(simplify(eq_s - expected_s))
 
@@ -458,14 +456,14 @@ import SecondQuantizedAlgebra: simplify, QAdd, QSym, _single_qadd, _to_cnum, Ind
             # σ_ee is idempotent: σ_ee² = σ_ee.
             @test iszero(simplify(σ(:e, :e) * σ(:e, :e) - σ(:e, :e)))
 
-            # σ_ge σ_eg = σ_gg = 1 - σ_ee  (canonical, σ_gg eliminated).
-            @test iszero(simplify(σ(:g, :e) * σ(:e, :g) - (1 - σ(:e, :e))))
+            # σ_ge σ_eg = σ_gg = 1 - σ_ee  (after expand_completeness).
+            @test iszero(simplify(expand_completeness(σ(:g, :e) * σ(:e, :g)) - (1 - σ(:e, :e))))
 
             # σ_eg σ_ge = σ_ee.
             @test iszero(simplify(σ(:e, :g) * σ(:g, :e) - σ(:e, :e)))
 
             # [σ_ge, σ_eg] = σ_gg - σ_ee = 1 - 2σ_ee.
-            @test iszero(simplify(commutator(σ(:g, :e), σ(:e, :g)) - (1 - 2 * σ(:e, :e))))
+            @test iszero(simplify(expand_completeness(commutator(σ(:g, :e), σ(:e, :g))) - (1 - 2 * σ(:e, :e))))
         end
 
         # ------------------------------------------------------------------------
@@ -487,7 +485,7 @@ import SecondQuantizedAlgebra: simplify, QAdd, QSym, _single_qadd, _to_cnum, Ind
             @test iszero(simplify(commutator(H, N_op)))
 
             # [H, σ_eg] = g a' (σ_gg - σ_ee) = g a' (1 - 2σ_ee) = g a' - 2g a' σ_ee.
-            eq = commutator(H, s(:e, :g))
+            eq = expand_completeness(commutator(H, s(:e, :g)))
             expected = g * a' - 2g * a' * s(:e, :e)
             @test iszero(simplify(eq - expected))
 
@@ -547,9 +545,8 @@ import SecondQuantizedAlgebra: simplify, QAdd, QSym, _single_qadd, _to_cnum, Ind
             # through subsequent multiplications. See devdocs.md.
             @test iszero(simplify(decay(a' * σi(1, 2, j)) + (γ / 2) * a' * σi(1, 2, j)))
 
-            # decay(σ_j¹²·σ_k²¹) = -γ σ_j¹²·σ_k²¹.
-            # Still broken — same root cause as above (diagonal anchoring).
-            @test iszero(simplify(decay(σi(1, 2, j) * σi(2, 1, k)) + γ * σi(1, 2, j) * σi(2, 1, k)))
+            # decay(σ_j¹²·σ_k²¹) = -γ σ_j¹²·σ_k²¹ when j ≠ k.
+            @test iszero(simplify(assume_distinct_index(decay(σi(1, 2, j) * σi(2, 1, k)) + γ * σi(1, 2, j) * σi(2, 1, k), [(j, k)])))
 
             # Direct algebraic identity: σ_i²¹ σ_j²² σ_i¹² with i ≠ j  must equal σ_i²² σ_j²².
             # When i = j: σ²¹·σ²²·σ¹² = (σ²¹·σ²²)·σ¹² = 0·σ¹² = 0 (since σ²¹·σ²² has ⟨1|2⟩ = 0).

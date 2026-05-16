@@ -103,3 +103,54 @@ Used for canonical ordering within operator product sequences.
 """
 ladder(::Create) = 0
 ladder(::Destroy) = 1
+
+# --- Operator hooks ---
+
+# Same-type same-site site relationship is always Equal (same name/space/index).
+# Different name or different space -> distinct (sorted by name lex order, then space).
+function _site_compare(a::Destroy, b::Destroy, ne::Vector{NonEqualPair})::SiteCmp
+    a.space_index == b.space_index || return a.space_index < b.space_index ? Less : Greater
+    a.name == b.name || return a.name < b.name ? Less : Greater
+    a.index == b.index && return Equal
+    _ne_contains(ne, a.index, b.index) && return a.index < b.index ? Less : Greater
+    return Undetermined
+end
+function _site_compare(a::Create, b::Create, ne::Vector{NonEqualPair})::SiteCmp
+    return _site_compare(
+        Destroy(a.name, a.space_index, a.index),
+        Destroy(b.name, b.space_index, b.index), ne
+    )
+end
+
+# Cross-type same-site returns Equal; canonical direction lives in _can_commute.
+# Distinct-site uses the Destroy/Destroy comparison (lex name, then space).
+function _site_compare(a::Create, b::Destroy, ne::Vector{NonEqualPair})::SiteCmp
+    return _site_compare(
+        Destroy(a.name, a.space_index, a.index),
+        Destroy(b.name, b.space_index, b.index), ne
+    )
+end
+function _site_compare(a::Destroy, b::Create, ne::Vector{NonEqualPair})::SiteCmp
+    return _site_compare(
+        Destroy(a.name, a.space_index, a.index),
+        Destroy(b.name, b.space_index, b.index), ne
+    )
+end
+
+# Same-site commutation: a·a† carries a residual (the identity term);
+# a†·a is already in canonical order and commutes freely.
+_can_commute(a::Destroy, b::Create) = false
+_can_commute(a::Create, b::Destroy) = true
+_can_commute(a::Destroy, b::Destroy) = true
+_can_commute(a::Create, b::Create) = true
+
+# _commute_pair returns (swap_b, swap_a, residual_coeff, residual_ops):
+# aa† = a†a + 1; residual op vector is empty (identity branch).
+_commute_pair(a::Destroy, b::Create) = (b, a, _CNUM_ONE, _EMPTY_OPS)
+
+# Reductions: ladder operators on the same site don't reduce locally.
+# (a·a is not a closed-form simplification; only a·a† triggers the commutation residual.)
+_reduce_pair(a::Destroy, b::Create) = nothing
+_reduce_pair(a::Create, b::Destroy) = nothing
+_reduce_pair(a::Destroy, b::Destroy) = nothing
+_reduce_pair(a::Create, b::Create) = nothing

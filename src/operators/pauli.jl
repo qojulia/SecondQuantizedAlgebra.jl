@@ -76,3 +76,34 @@ Base.hash(a::Pauli, h::UInt) = hash(:Pauli, hash(a.name, hash(a.axis, hash(a.spa
 
 # Ladder (not applicable)
 ladder(::Pauli) = 0
+
+# --- Operator hooks ---
+
+# Per-site Levi-Civita lookup (3×3 antisymmetric). _levi_civita[j][k] = ε_{jk(6-j-k)}.
+const _levi_civita = ((0, 1, -1), (-1, 0, 1), (1, -1, 0))
+
+function _site_compare(a::Pauli, b::Pauli, ne::Vector{NonEqualPair})::SiteCmp
+    a.space_index == b.space_index || return a.space_index < b.space_index ? Less : Greater
+    a.name == b.name || return a.name < b.name ? Less : Greater
+    a.index == b.index && return Equal
+    _ne_contains(ne, a.index, b.index) && return a.index < b.index ? Less : Greater
+    return Undetermined
+end
+
+_can_commute(a::Pauli, b::Pauli) = false   # always compose on same site
+
+# σⱼ·σₖ = δⱼₖI + iϵⱼₖₗσₗ
+function _reduce_pair(a::Pauli, b::Pauli)
+    a.name == b.name || return nothing
+    a.space_index == b.space_index || return nothing
+    a.index == b.index || return nothing
+    if a.axis == b.axis
+        return _CNUM_ONE     # σⱼ² = 1
+    else
+        eps = _levi_civita[a.axis][b.axis]
+        new = Pauli(a.name, 6 - a.axis - b.axis, a.space_index, a.index)
+        return (new, _mul_cnum(_to_cnum(im * eps), _CNUM_ONE))
+    end
+end
+
+_commute_pair(a::Pauli, b::Pauli) = error("unreachable: Pauli uses _reduce_pair")

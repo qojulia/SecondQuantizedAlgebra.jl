@@ -23,19 +23,17 @@ include("operators/pauli.jl")
 include("operators/spin.jl")
 include("operators/phase_space.jl")
 include("operators/operators.jl")
-
 include("expressions/cnum.jl")
-include("arithmetics/ordering.jl")
-
 include("expressions/qterm.jl")
 include("expressions/qadd.jl")
-include("arithmetics/qadd_arithmetic.jl")
+
+include("algebra/passes.jl")
+include("algebra/pipelines.jl")
+
 include("expressions/index.jl")
 
-include("arithmetics/simplify.jl")
-include("arithmetics/substitute.jl")
-include("arithmetics/commutator.jl")
-include("arithmetics/normal_order.jl")
+include("algebra/algebra.jl")
+include("algebra/weyl.jl")
 
 include("average.jl")
 include("numeric.jl")
@@ -102,7 +100,7 @@ export FockSpace, ProductSpace,
     prefactor, operators,
     substitute,
     normal_order, normal_to_symmetric, symmetric_to_normal,
-    simplify, expand, commutator, anticommutator,
+    simplify, expand, expand_completeness, assume_distinct_index, commutator, anticommutator,
     to_numeric, numeric_average
 
 

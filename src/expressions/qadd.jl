@@ -36,23 +36,10 @@ end
 
 # Convenience: single-term QAdd
 function _single_qadd(c::CNum, ops::Vector{QSym}, ne::Vector{NonEqualPair} = _EMPTY_NE)
-    _iszero_cnum(c) && return QAdd(QTermDict(), Index[])
+    _iszero_cnum(c) && return QAdd(QTermDict(), _EMPTY_INDICES)
     d = QTermDict()
     _addto!(d, ops, c, ne)
-    return QAdd(d, Index[])
-end
-
-function _ordered_qadd(
-        c::CNum, ops::Vector{QSym},
-        ne::Vector{NonEqualPair} = _EMPTY_NE,
-        phys_ops::Vector{QSym} = ops
-    )
-    _iszero_cnum(c) && return QAdd(QTermDict(), Index[])
-    d = QTermDict()
-    for t in _apply_ordering(c, ops)
-        _addto!(d, t.ops, t.prefactor, ne, phys_ops)
-    end
-    return QAdd(d, Index[])
+    return QAdd(d, _EMPTY_INDICES)
 end
 
 Base.length(a::QAdd) = length(a.arguments)
@@ -69,15 +56,12 @@ function Base.hash(q::QAdd, h::UInt)
 end
 
 function Base.adjoint(q::QAdd)
-    d = QTermDict()
-    for (term, c) in q.arguments
-        adj_ops = QSym[adjoint(op) for op in reverse(term.ops)]
-        _site_sort!(adj_ops)
-        adj_phys_ops = QSym[adjoint(op) for op in reverse(term.phys_ops)]
-        _phys_sort!(adj_phys_ops)
-        _addto!(d, adj_ops, conj(c), term.ne, adj_phys_ops)
+    out = QTermDict()
+    for (t, c) in q
+        rev = QSym[adjoint(o) for o in Iterators.reverse(t.ops)]
+        _canonicalize!(out, rev, conj(c), t.ne)
     end
-    return QAdd(d, copy(q.indices))
+    return QAdd(out, copy(q.indices))
 end
 
 # --- Iteration: yield `term::QTerm => coeff::CNum` directly ---

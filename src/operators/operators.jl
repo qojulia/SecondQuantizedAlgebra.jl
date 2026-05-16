@@ -214,3 +214,24 @@ Adjoint that works on both operators (uses `adjoint`) and symbolic numbers
 _adjoint(op::QField) = adjoint(op)
 _adjoint(s::SymbolicUtils.BasicSymbolic) = _conj(s)
 _adjoint(x::Number) = adjoint(x)
+
+# Total ordering across QSym concrete types — used by _site_compare cross-type fallback.
+_type_order(::Type{Destroy}) = 0
+_type_order(::Type{Create}) = 1
+_type_order(::Type{Transition}) = 2
+_type_order(::Type{Pauli}) = 3
+_type_order(::Type{Spin}) = 4
+_type_order(::Type{Position}) = 5
+_type_order(::Type{Momentum}) = 6
+
+# Generic fallbacks for cross-type operator pairs (always distinct sites).
+_can_commute(::QSym, ::QSym) = true
+_commute_pair(::QSym, ::QSym) = error("unreachable: cross-type _commute_pair")
+_reduce_pair(::QSym, ::QSym) = nothing
+_ground_state_expand(::QSym) = nothing
+
+function _site_compare(a::QSym, b::QSym, ne::Vector{NonEqualPair})::SiteCmp
+    ta = typeof(a); tb = typeof(b)
+    ta === tb && error("unreachable: same-type _site_compare must be overridden by $ta")
+    return _type_order(ta) < _type_order(tb) ? Less : Greater
+end

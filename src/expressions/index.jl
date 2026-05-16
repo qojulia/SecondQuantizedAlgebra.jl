@@ -121,20 +121,20 @@ function change_index(op::Momentum, from::Index, to::Index)
 end
 
 function change_index(s::QAdd, from::Index, to::Index)
-    new_d = QTermDict()
+    out = QTermDict()
+    needs = !isempty(s.indices)
     for (term, c) in s.arguments
         new_c = change_index(c, from, to)
         new_ops = QSym[change_index(op, from, to) for op in term.ops]
-        new_phys_ops = QSym[change_index(op, from, to) for op in term.phys_ops]
-        new_ne = if isempty(term.ne)
-            _EMPTY_NE
+        new_ne = _substitute_ne(term.ne, from, to)
+        if needs
+            _accumulate_with_diag!(out, new_ops, new_c, s.indices, new_ne)
         else
-            NonEqualPair[(a == from ? to : a, b == from ? to : b) for (a, b) in term.ne]
+            _canonicalize!(out, new_ops, new_c, new_ne)
         end
-        _addto!(new_d, new_ops, new_c, new_ne, new_phys_ops)
     end
-    new_indices = [idx == from ? to : idx for idx in s.indices]
-    return QAdd(new_d, new_indices)
+    new_indices = Index[idx == from ? to : idx for idx in s.indices]
+    return QAdd(out, new_indices)
 end
 
 """
@@ -238,23 +238,13 @@ function _diagonal_split!(off_diag::QTermDict, diag::QTermDict, sum_idx::Index)
             _ne_contains(current_term.ne, sum_idx, idx) && continue
 
             new_c = change_index(current_c, sum_idx, idx)
-            new_phys_ops = QSym[change_index(o, sum_idx, idx) for o in current_term.phys_ops]
-            _phys_sort!(new_phys_ops)
-            new_ops = copy(new_phys_ops)
-            _site_sort!(new_ops)
-            for t in _apply_ordering(new_c, new_ops)
-                _addto!(
-                    diag, t.ops, t.prefactor,
-                    _drop_ne_with(current_term.ne, sum_idx),
-                    new_phys_ops,
-                )
-            end
+            new_ops = QSym[change_index(o, sum_idx, idx) for o in current_term.ops]
+            _canonicalize!(diag, new_ops, new_c, _drop_ne_with(current_term.ne, sum_idx))
 
             delete!(off_diag, current_term)
             current_term = _term_key(
                 current_term.ops,
                 _merge_ne_pair(current_term.ne, sum_idx, idx),
-                current_term.phys_ops,
             )
             _addto_key!(off_diag, current_term, current_c)
         end
@@ -293,17 +283,46 @@ function Σ(expr::QAdd, i::Index, non_equal::Vector{Index} = Index[])
         return expr * i.range
     end
 
-    off_diag = _copy_args(expr.arguments)
-    for j in non_equal
-        for (term, c) in collect(off_diag)
-            _depends_on_index_term(c, term.ops, i) || continue
-            delete!(off_diag, term)
-            _addto!(off_diag, term.ops, c, _merge_ne_pair(term.ne, i, j))
+    off_diag = QTermDict()
+    diag = QTermDict()
+
+    for (term, c) in expr.arguments
+        # User-supplied non_equal constraints apply when the term depends on i.
+        ne_aug = term.ne
+        if _depends_on_index_term(c, term.ops, i)
+            for j in non_equal
+                ne_aug = _merge_ne_pair(ne_aug, i, j)
+            end
+        end
+
+        # Identify (i, ext_idx) pairs that need diagonal contributions.
+        distinct = _distinct_op_indices(term.ops)
+        diag_pairs = Tuple{Index, Index}[]
+        if _depends_on_index_term(c, term.ops, i)
+            for ext_idx in distinct
+                ext_idx == i && continue
+                ext_idx.space_index == i.space_index || continue
+                _ne_contains(ne_aug, i, ext_idx) && continue
+                push!(diag_pairs, (i, ext_idx))
+            end
+        end
+
+        # Off-diagonal: canonicalize under ne_aug augmented with every diag pair,
+        # so partial_sort can use those inequalities.
+        full_ne = ne_aug
+        for (a, b) in diag_pairs
+            full_ne = _merge_ne_pair(full_ne, a, b)
+        end
+        _canonicalize!(off_diag, copy(term.ops), c, full_ne)
+
+        # Diagonal contributions.
+        for (_, ext_idx) in diag_pairs
+            sub_ops = QSym[change_index(o, i, ext_idx) for o in term.ops]
+            sub_c = change_index(c, i, ext_idx)
+            sub_ne = _drop_ne_with(term.ne, i)
+            _canonicalize!(diag, sub_ops, sub_c, sub_ne)
         end
     end
-
-    diag = QTermDict()
-    _diagonal_split!(off_diag, diag, i)
 
     result = QAdd(off_diag, vcat(expr.indices, [i]))
     isempty(diag) && return result
