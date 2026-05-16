@@ -263,15 +263,14 @@ Returning `BasicSymbolic` uniformly across `average(::QSym)`, `average(::QAdd)`,
 **`_lazy_one`** creates the identity operator. For simple bases it returns `one(b)` (dense identity). For composite bases it returns a `LazyTensor` identity rather than materializing the full Kronecker-product identity matrix.
 
 
-## Conjugation helpers (operators.jl)
+## Hermitian conjugation (operators.jl)
 
-Three internal conjugation functions handle `conj`/`adjoint` on symbolic expression trees that may contain averaged operator nodes (`⟨...⟩`):
+Two exported helpers handle Hermitian conjugation on mixed operator/symbolic expression trees, including averaged operator nodes (`⟨...⟩`):
 
-- **`_conj(v)`**: Recursively conjugates symbolic trees. Leaves get `conj()`, QFields get `adjoint()`.
-- **`_inconj(v)`**: Like `_conj` but aware of `AvgFunc` nodes — conjugates the operator *inside* the average via `adjoint`, preserving the `⟨...⟩` wrapper. Also handles nested `conj(avg(...))` by recursing into the argument.
-- **`_adjoint(x)`**: Unified entry point dispatching to `adjoint` for operators, `_conj` for symbolic expressions.
+- **`qadjoint(x)`** (aliased as `qconj` and `dagger`): Hermitian conjugate that distributes through `SymbolicUtils.BasicSymbolic` trees and dispatches to `adjoint` on `QField` and `Number`. Distinct from `Base.conj`, which on a `BasicSymbolic` returns an opaque `conj(...)` wrapper instead of recursing into arguments; the distributed form is needed by downstream hashing and substitution machinery.
+- **`inner_adjoint(x)`**: Pushes the adjoint *inside* `AvgFunc` nodes, rewriting `conj(⟨X⟩)` as `⟨X†⟩`. Used when building equations of motion where both sides must share the canonical "average-of-operator" form. Also collapses nested `conj(avg(...))` by recursing into the argument.
 
-These are needed because `conj(⟨a†a⟩)` should give `⟨a†a⟩` (Hermitian operator has real expectation value), not a naively conjugated symbolic tree. Standard `Base.conj` doesn't know how to recurse into SymbolicUtils expression trees. These helpers cannot be wired directly to `Base.conj`/`Base.adjoint` because that would be type piracy — defining methods on `Base` functions for `SymbolicUtils.BasicSymbolic`, a type we don't own. Instead, downstream packages (e.g. QuantumCumulants.jl) call these helpers explicitly when they need to conjugate averaged expressions.
+These cannot be wired directly to `Base.conj`/`Base.adjoint` on `SymbolicUtils.BasicSymbolic` because that would be type piracy — defining methods on `Base` functions for a type we don't own. Downstream packages (QuantumCumulants.jl, QuantumInputOutput.jl) call these explicitly.
 
 
 ## Printing and LaTeX

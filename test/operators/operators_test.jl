@@ -1,8 +1,7 @@
 using SecondQuantizedAlgebra
 using Test
 using Symbolics: @variables
-import SecondQuantizedAlgebra: QAdd, QSym, QField, _conj, _inconj, _adjoint,
-    AvgFunc, _average
+import SecondQuantizedAlgebra: QAdd, QSym, QField, AvgFunc, _average
 
 @testset "Operators" begin
 
@@ -209,36 +208,31 @@ import SecondQuantizedAlgebra: QAdd, QSym, QField, _conj, _inconj, _adjoint,
         @test isequal(adjoint(G_test), conj(G_test))
     end
 
-    @testset "_conj" begin
-        @test _conj(3 + 2im) == 3 - 2im
-        @test _conj(5) == 5
+    @testset "qadjoint" begin
+        @test qadjoint(3 + 2im) == 3 - 2im
+        @test qadjoint(5) == 5
 
         h = FockSpace(:c)
         a = Destroy(h, :a)
-        @test _conj(a) == a'  # adjoint of Destroy is Create
+        @test qadjoint(a) == a'
+
+        # aliases are the same function object
+        @test qconj === qadjoint
+        @test dagger === qadjoint
     end
 
-    @testset "_inconj" begin
+    @testset "inner_adjoint" begin
         h = FockSpace(:c)
         a = Destroy(h, :a)
         ad = a'
 
-        # _inconj on an average: takes adjoint of inner operator
         avg_a = average(a)
-        result = _inconj(avg_a)
+        result = inner_adjoint(avg_a)
         @test is_average(result)
-        # Inner should be a† (adjoint of a)
         using SymbolicUtils: SymbolicUtils
         inner_wrapped = SymbolicUtils.arguments(result)[1]
         inner = SymbolicUtils.isconst(inner_wrapped) ? inner_wrapped.val : inner_wrapped
         @test inner == ad
-    end
-
-    @testset "_adjoint" begin
-        h = FockSpace(:c)
-        a = Destroy(h, :a)
-        @test _adjoint(a) == a'
-        @test _adjoint(3 + 2im) == 3 - 2im
     end
 
     @testset "one/zero for symbolic variables" begin
@@ -250,16 +244,14 @@ import SecondQuantizedAlgebra: QAdd, QSym, QField, _conj, _inconj, _adjoint,
         @test zero(G) == 0.0 + 0.0im
     end
 
-    @testset "_conj/_adjoint on symbolic expressions" begin
+    @testset "qadjoint on symbolic expressions" begin
         @variables G::Complex{Real} ϕ::Real r1::Real
-        # _conj distributes over products
-        @test isequal(_conj(3 * G), 3 * conj(G))
-        # _adjoint on real variable is identity
-        @test isequal(_adjoint(r1), r1)
-        # _conj on real variable is identity
-        @test isequal(_conj(r1), r1)
-        # _adjoint on complex variable gives conj
-        @test isequal(_adjoint(G), conj(G))
+        # distributes over products
+        @test isequal(qadjoint(3 * G), 3 * conj(G))
+        # real variable is identity
+        @test isequal(qadjoint(r1), r1)
+        # complex variable gives conj
+        @test isequal(qadjoint(G), conj(G))
     end
 
     @testset "ProductSpace constructors auto-detect unique subspace" begin

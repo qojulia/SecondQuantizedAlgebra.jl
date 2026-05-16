@@ -181,33 +181,46 @@ function find_operators(h::HilbertSpace, order::Int; names::Union{Nothing, Abstr
 end
 
 
-# --- Conjugation helpers ---
+# --- Hermitian conjugation ---
 
 """
-    _conj(v)
+    qadjoint(x)
 
-Recursively conjugate a symbolic expression. For `BasicSymbolic` trees,
-applies `conj` to leaves and reconstructs via `maketerm`.
+Hermitian conjugate that distributes through mixed operator/symbolic expressions.
+
+On a [`QField`](@ref) returns `adjoint(x)`. On a `Number` returns `adjoint(x)`.
+On a `SymbolicUtils.BasicSymbolic` tree, recurses into arguments so coefficients
+distribute (e.g. `qadjoint(2im * a)` becomes `-2im * a'`) rather than producing
+an opaque `conj(...)` wrapper.
+
+Aliased as [`qconj`](@ref) and [`dagger`](@ref).
 """
-function _conj(v::SymbolicUtils.BasicSymbolic)
+function qadjoint(v::SymbolicUtils.BasicSymbolic)
     if SymbolicUtils.iscall(v)
         f = SymbolicUtils.operation(v)
-        args = map(_conj, SymbolicUtils.arguments(v))
+        args = map(qadjoint, SymbolicUtils.arguments(v))
         return TermInterface.maketerm(typeof(v), f, args, TermInterface.metadata(v))
     else
         return conj(v)
     end
 end
-_conj(x::Number) = conj(x)
-_conj(x::QField) = adjoint(x)
+qadjoint(x::Number) = adjoint(x)
+qadjoint(x::QField) = adjoint(x)
+
+const qconj = qadjoint
+const dagger = qadjoint
 
 """
-    _inconj(v)
+    inner_adjoint(x)
 
-Conjugate an expression containing averages, preserving operator ordering inside
-averages (uses `adjoint` on the inner operator rather than naive `conj`).
+Push the adjoint inside `⟨...⟩` averages: rewrites `conj(⟨X⟩)` as `⟨X†⟩` so the
+result stays expressed as an average of an operator rather than a `conj` wrapper
+around one. Used when building equations of motion where both sides must share
+the canonical "average-of-operator" form for substitution and hashing.
+
+On non-average sub-expressions, behaves like [`qadjoint`](@ref).
 """
-function _inconj(v::SymbolicUtils.BasicSymbolic)
+function inner_adjoint(v::SymbolicUtils.BasicSymbolic)
     if SymbolicUtils.iscall(v)
         f = SymbolicUtils.operation(v)
         if f isa AvgFunc
@@ -215,29 +228,18 @@ function _inconj(v::SymbolicUtils.BasicSymbolic)
             inner = SymbolicUtils.isconst(arg) ? arg.val : arg
             return _average(adjoint(inner))
         elseif f === conj
-            # conj(avg(...)) → recurse into the argument
-            return _inconj(SymbolicUtils.arguments(v)[1])
+            return inner_adjoint(SymbolicUtils.arguments(v)[1])
         else
-            args = map(_inconj, SymbolicUtils.arguments(v))
+            args = map(inner_adjoint, SymbolicUtils.arguments(v))
             return TermInterface.maketerm(typeof(v), f, args, TermInterface.metadata(v))
         end
     else
         return conj(v)
     end
 end
-_inconj(x::Number) = conj(x)
-_inconj(x::Num) = _inconj(SymbolicUtils.unwrap(x))
-_inconj(x::QField) = adjoint(x)
-
-"""
-    _adjoint(x)
-
-Adjoint that works on both operators (uses `adjoint`) and symbolic numbers
-(uses `_conj`).
-"""
-_adjoint(op::QField) = adjoint(op)
-_adjoint(s::SymbolicUtils.BasicSymbolic) = _conj(s)
-_adjoint(x::Number) = adjoint(x)
+inner_adjoint(x::Number) = conj(x)
+inner_adjoint(x::Num) = inner_adjoint(SymbolicUtils.unwrap(x))
+inner_adjoint(x::QField) = adjoint(x)
 
 # Total ordering across QSym concrete types — used by _site_compare cross-type fallback.
 _type_order(::Type{Destroy}) = 0

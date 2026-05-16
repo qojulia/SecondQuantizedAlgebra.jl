@@ -99,7 +99,8 @@ export FockSpace, ProductSpace,
     substitute,
     normal_order, normal_to_symmetric, symmetric_to_normal,
     simplify, expand, expand_completeness, assume_distinct_index, commutator, anticommutator,
-    to_numeric, numeric_average
+    to_numeric, numeric_average,
+    qadjoint, qconj, dagger, inner_adjoint
 
 
 # Public API that is intentionally NOT exported — accessed as

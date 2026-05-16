@@ -90,6 +90,19 @@ function _convert_ordering(s::QAdd, α::Rational)
     return QAdd(d, copy(s.indices))
 end
 
+"""
+    _convert_term!(d, c, ops, ne, α)
+
+Expand one term under Weyl/symmetric ordering and accumulate into `d`.
+
+Collects Fock (Create/Destroy) and PhaseSpace (Position/Momentum) conjugate
+pairs, runs each through `_expand_site!` via the per-kind wrappers, then
+writes every resulting `OrderedTerm` into `d`. Terms with no conjugate pairs
+pass through unchanged.
+
+To add a new Heisenberg pair kind: add `_count_X_sites`, `_expand_X_site!`,
+and `_remove_X_at!`, then add one loop here mirroring the Fock/Phase loops.
+"""
 function _convert_term!(
         d::QTermDict, c::CNum, ops::Vector{QSym},
         ne::Vector{NonEqualPair}, α::Rational,

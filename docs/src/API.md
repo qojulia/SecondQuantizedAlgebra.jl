@@ -142,6 +142,14 @@ expand_completeness
 assume_distinct_index
 ```
 
+```@docs
+qadjoint
+```
+
+```@docs
+inner_adjoint
+```
+
 
 ## [Average](@id API: Average)
 
