@@ -199,6 +199,10 @@ Use [`numeric_average`](@ref) to compute expectation values for a given state:
 numeric_average(a' * a, ψ)
 ```
 
+For symbolic scalar expressions such as `average(a)`, call [`numeric_average`](@ref)
+directly. The `expect` alias is intentionally kept for operator expressions (`QField`)
+only.
+
 ### Level mapping for NLevelSpace
 
 When using symbolic levels, provide a `level_map` to specify the mapping from symbolic names to basis indices:
