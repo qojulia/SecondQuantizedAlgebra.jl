@@ -275,7 +275,7 @@ end
     σ12 = Transition(h, :σ, 1, 2, 2)
     σ21 = Transition(h, :σ, 2, 1, 2)
 
-    @variables g_jc
+    g_jc = 0.5  # to_numeric reduces prefactors to ComplexF64 or throws
     H_int = g_jc * (a' * σ12 + a * σ21)
     @test H_int isa QAdd
 

@@ -1,5 +1,5 @@
 using SecondQuantizedAlgebra
-import SecondQuantizedAlgebra: QAdd, QSym, _single_qadd, _to_cnum
+import SecondQuantizedAlgebra: QAdd, QSym, _single_qadd, _to_cnum, _to_complex
 using QuantumOpticsBase
 using Test
 
@@ -97,15 +97,31 @@ using Test
         @test to_numeric(σ12, bc) isa LazyTensor
     end
 
-    # TODO: to_numeric is not type-stable due to QuantumOpticsBase dispatch.
-    # Fix upstream in QuantumOpticsBase.
-    # @testset "Type stability" begin
-    #     h = FockSpace(:fock)
-    #     @qnumbers a::Destroy(h)
-    #     b = FockBasis(7)
-    #     @inferred to_numeric(a, b)
-    #     @inferred to_numeric(a', b)
-    # end
+    @testset "Type stability" begin
+        h = FockSpace(:fock)
+        @qnumbers a::Destroy(h)
+        b = FockBasis(7)
+        ψ = fockstate(b, 2)
+
+        # to_numeric: leaf + QAdd + dict-substitution paths
+        @test @inferred(to_numeric(a, b)) isa AbstractOperator
+        @test @inferred(to_numeric(a' * a, b)) isa AbstractOperator
+        @test @inferred(to_numeric(2 * a + 3 * a' + 5, b)) isa AbstractOperator
+        @test @inferred(to_numeric(a, b, Dict{QSym, Union{}}())) isa AbstractOperator
+
+        # numeric_average: every BasicSymbolic branch infers to ComplexF64
+        @test @inferred(numeric_average(a' * a, ψ)) isa ComplexF64
+        @test @inferred(numeric_average(average(a), ψ)) isa ComplexF64
+        @test @inferred(numeric_average(average(a) + average(a'), ψ)) isa ComplexF64
+        @test @inferred(numeric_average(2 * average(a) * average(a'), ψ)) isa ComplexF64
+        @test @inferred(numeric_average(average(a)^2, ψ)) isa ComplexF64
+        @test @inferred(numeric_average(3, ψ)) isa ComplexF64
+        @test @inferred(numeric_average(3.5 + 1im, ψ)) isa ComplexF64
+
+        # `_to_complex(::Any) → ComplexF64` is the keystone; canary against a
+        # 7th overload tripping Julia's union-split budget.
+        @test Base.return_types(_to_complex, (Any,))[1] === ComplexF64
+    end
 
     @testset "numeric_average: Average expressions" begin
         h = FockSpace(:fock)
@@ -160,8 +176,8 @@ using Test
         avg_a = average(a)
         @test numeric_average(avg_a, ψ, d) ≈ α
 
-        # Number passthrough
-        @test numeric_average(3, ψ, d) === 3
+        # Number passthrough — coerced to ComplexF64 like every other branch
+        @test numeric_average(3, ψ, d) === ComplexF64(3)
     end
 
     @testset "Composite basis with gaps" begin

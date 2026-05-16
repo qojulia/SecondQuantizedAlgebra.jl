@@ -79,6 +79,13 @@ using Test
         @inferred hash(ad, UInt(0))
         @inferred ladder(a)
         @inferred ladder(ad)
+        @inferred a * ad
+        @inferred ad * a
+        @inferred a + ad
+        @inferred a - ad
+        @inferred a^2
+        @inferred 2 * a
+        @inferred commutator(a, ad)
     end
 
     @static if VERSION >= v"1.12"

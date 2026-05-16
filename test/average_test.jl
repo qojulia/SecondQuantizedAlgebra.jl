@@ -438,4 +438,36 @@ import SecondQuantizedAlgebra: simplify, QAdd, QSym, QField, CNum, _to_cnum, _si
         @test is_average(avg_prod)
     end
 
+    @testset "Type stability" begin
+        h = FockSpace(:f)
+        @qnumbers a::Destroy(h)
+        i = Index(h, :i, 3, h)
+        x = average(Σ(IndexedOperator(a', i) * IndexedOperator(a, i), i))
+
+        # average / undo_average: round-trip pins to BasicSymbolic / QAdd
+        @test @inferred(average(a)) isa SymbolicUtils.BasicSymbolic
+        @test @inferred(average(a + a')) isa SymbolicUtils.BasicSymbolic
+        @test @inferred(average(2 * a)) isa SymbolicUtils.BasicSymbolic
+        @test @inferred(undo_average(average(a))) isa QAdd
+        @test @inferred(undo_average(SymbolicUtils.unwrap(average(a' * a)))) isa QAdd
+
+        # metadata accessors infer to their concrete return types
+        @test @inferred(get_sum_indices(x)) isa Vector{Index}
+        @test @inferred(get_sum_non_equal(x)) isa Vector{Tuple{Index, Index}}
+
+        # recursive walks reseal through `_idx_seal` / `_aon_seal`
+        @test @inferred(SecondQuantizedAlgebra.get_indices(SymbolicUtils.unwrap(average(a' * a)))) isa Vector{Index}
+        @test @inferred(SecondQuantizedAlgebra.acts_on(SymbolicUtils.unwrap(average(a' * a)))) isa Vector{Int}
+        @test @inferred(SecondQuantizedAlgebra.acts_on(a' * a)) isa Vector{Int}
+
+        # Predicates stay Bool from any input
+        @test @inferred(is_average(average(a))) isa Bool
+        @test @inferred(is_average(a)) isa Bool
+        @test @inferred(has_sum_metadata(x)) isa Bool
+
+        # Seals: canaries against a regression that re-introduces an `Any` path.
+        @test Base.return_types(SecondQuantizedAlgebra._idx_seal, (Any,))[1] === Vector{Index}
+        @test Base.return_types(SecondQuantizedAlgebra._aon_seal, (Any,))[1] === Vector{Int}
+    end
+
 end

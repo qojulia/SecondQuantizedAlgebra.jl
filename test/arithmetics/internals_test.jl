@@ -6,7 +6,8 @@ import SecondQuantizedAlgebra: simplify, QAdd, QSym, CNum, Transition, NO_INDEX,
     _reduce_pair, _ground_state_expand,
     SiteCmp, Less, Greater, Equal, Undetermined,
     ReduceKind, NoReduction, ScalarReduction, OpReduction,
-    _CNUM_ONE, _CNUM_ZERO, _EMPTY_NE,
+    _CNUM_ONE, _CNUM_ZERO, _CNUM_NEG1, _CNUM_IM, _CNUM_NEG_IM, _EMPTY_NE,
+    _mul_cnum, _add_cnum, _neg_cnum, _to_cnum, _NUM_ZERO, _NUM_ONE,
     _canonicalize_to_dict!, QTermDict,
     _reduce_ops, _commute_ops, _expand_gs_ops, _substitute_ops,
     _stream!, _canonicalize!, Index
@@ -286,6 +287,59 @@ end
                 @test _is_canonical(t)
             end
         end
+    end
+
+    @testset "CNum arithmetic type stability" begin
+        @test @inferred(_mul_cnum(_CNUM_ONE, _CNUM_ONE)) isa CNum
+        @test @inferred(_mul_cnum(_CNUM_ONE, _CNUM_ZERO)) isa CNum
+        @test @inferred(_mul_cnum(_CNUM_NEG1, _CNUM_IM)) isa CNum
+        @test @inferred(_add_cnum(_CNUM_ONE, _CNUM_ONE)) isa CNum
+        @test @inferred(_add_cnum(_CNUM_ONE, _CNUM_NEG1)) isa CNum
+        @test @inferred(_neg_cnum(_CNUM_ONE)) isa CNum
+        @test @inferred(_neg_cnum(_CNUM_IM)) isa CNum
+
+        @variables x y
+        c1 = Complex(SecondQuantizedAlgebra.Num(x), _NUM_ZERO)
+        c2 = Complex(SecondQuantizedAlgebra.Num(y), _NUM_ZERO)
+        @test @inferred(_mul_cnum(c1, c2)) isa CNum
+        @test @inferred(_add_cnum(c1, c2)) isa CNum
+        @test @inferred(_neg_cnum(c1)) isa CNum
+    end
+
+    @testset "_to_cnum type stability" begin
+        @test @inferred(_to_cnum(1)) isa CNum
+        @test @inferred(_to_cnum(0)) isa CNum
+        @test @inferred(_to_cnum(-1)) isa CNum
+        @test @inferred(_to_cnum(1.5)) isa CNum
+        @test @inferred(_to_cnum(im)) isa CNum
+        @test @inferred(_to_cnum(-im)) isa CNum
+        @test @inferred(_to_cnum(1 + 2im)) isa CNum
+    end
+
+    @testset "Operator hook type stability" begin
+        h = FockSpace(:f)
+        a = Destroy(h, :a)
+        ad = Create(h, :a)
+        @test @inferred(_site_compare(a, ad, _EMPTY_NE)) isa SiteCmp
+        @test @inferred(_can_commute(a, ad)) isa Bool
+        @test @inferred(_can_commute(ad, a)) isa Bool
+        @test @inferred(_commute_pair(a, ad)) isa Tuple{QSym, QSym, CNum, Vector{QSym}}
+
+        ha = NLevelSpace(:atom, 3)
+        σ12 = Transition(ha, :σ, 1, 2)
+        σ21 = Transition(ha, :σ, 2, 1)
+        @test @inferred(_reduce_pair(σ12, σ21)) isa Tuple{ReduceKind, QSym, CNum}
+        @test @inferred(_ground_state_expand(σ12)) isa Tuple{Bool, Int, Int, Int}
+
+        hp = PauliSpace(:s)
+        px = Pauli(hp, :σ, 1)
+        py = Pauli(hp, :σ, 2)
+        @test @inferred(_reduce_pair(px, py)) isa Tuple{ReduceKind, QSym, CNum}
+
+        hs = SpinSpace(:s)
+        sx = Spin(hs, :S, 1)
+        sy = Spin(hs, :S, 2)
+        @test @inferred(_commute_pair(sy, sx)) isa Tuple{QSym, QSym, CNum, Vector{QSym}}
     end
 
     @testset "Canonical form (NLevelSpace ground-state projection)" begin

@@ -116,6 +116,7 @@ using Test
         @inferred hash(Sx, UInt(0))
         @inferred Sx * Sy
         @inferred Sx + Sy
+        @inferred commutator(Sx, Sy)
     end
 
     @static if VERSION >= v"1.12"

@@ -127,6 +127,7 @@ using Test
         @inferred isequal(σ12, σ21)
         @inferred hash(σ12, UInt(0))
         @inferred σ12 * σ21
+        @inferred σ21 * σ12
         @inferred σ12 + σ21
     end
 

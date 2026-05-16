@@ -196,7 +196,9 @@ import SecondQuantizedAlgebra: simplify, QAdd, QSym, HilbertSpace
         @inferred hash(x, UInt(0))
         @inferred hash(p, UInt(0))
         @inferred x * p
+        @inferred p * x
         @inferred x + p
+        @inferred commutator(x, p)
     end
 
     @static if VERSION >= v"1.12"
