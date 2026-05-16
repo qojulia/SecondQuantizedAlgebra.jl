@@ -193,7 +193,7 @@ On a `SymbolicUtils.BasicSymbolic` tree, recurses into arguments so coefficients
 distribute (e.g. `qadjoint(2im * a)` becomes `-2im * a'`) rather than producing
 an opaque `conj(...)` wrapper.
 
-Aliased as [`qconj`](@ref) and [`dagger`](@ref).
+Aliased as `qconj` and `dagger`.
 """
 function qadjoint(v::SymbolicUtils.BasicSymbolic)
     if SymbolicUtils.iscall(v)
