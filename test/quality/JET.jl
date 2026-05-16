@@ -86,12 +86,20 @@ end
     end
 
     @testset "JET report_opt on selected hot paths" begin
-        # Strict entries (zero dispatch reports) cover the leaf-level hot paths
-        # of every operator family — commutator(QSym, QSym) and to_numeric on a
-        # single leaf — plus the leaf-level average API. These should stay fully
-        # inferred. QAdd-level entries below use the allowed-list pattern because
-        # the abstract `Vector{QSym}` storage forces unavoidable dispatch into
-        # the per-leaf hooks (`_site_compare`, `_can_commute`, etc.).
+        # Three buckets of escalating tolerance:
+        #
+        #  1. Strict — leaf-level operations that don't iterate over `Vector{QSym}`.
+        #     These must stay fully inferred (zero dispatch reports).
+        #
+        #  2. Hot-path allowed — operations that traverse `QAdd.arguments` and
+        #     therefore hit the abstract `Vector{QSym}` element type. The dispatch
+        #     leak into the per-leaf hooks (`_site_compare`, `_can_commute`,
+        #     `_commute_pair`) is intrinsic to the design: keeping `ops` as
+        #     `Vector{QSym}` lets a sum mix operator families without union splits.
+        #
+        #  3. Numeric allowed — `to_numeric` / `numeric_average` on QAdd-level
+        #     inputs, which additionally pass through the `_to_complex` seal
+        #     (Any → ComplexF64) and abstract-`QSym` per-basis dispatch.
         hf = FockSpace(:f); a = Destroy(hf, :a); ad = Create(hf, :a)
         hn = NLevelSpace(:atom, 3); σ12 = Transition(hn, :σ, 1, 2); σ21 = Transition(hn, :σ, 2, 1)
         hp = PauliSpace(:s); px = Pauli(hp, :σ, 1); py = Pauli(hp, :σ, 2)
@@ -103,12 +111,10 @@ end
         bs = SpinBasis(1 // 2)
         ψ = basisstate(b, 1)
 
+        # Bucket 1: strict (zero dispatch reports)
         for (name, thunk) in [
-                # Per-family commutator(QSym, QSym)
+                # Leaf-pair commutators with a `_commute_pair` fast path
                 ("commutator(a, a')", () -> commutator(a, ad)),
-                ("commutator(σ12, σ21)", () -> commutator(σ12, σ21)),
-                ("commutator(px, py)", () -> commutator(px, py)),
-                ("commutator(sx, sy)", () -> commutator(sx, sy)),
                 ("commutator(x, p)", () -> commutator(xx, pp)),
                 # Per-family to_numeric on a leaf
                 ("to_numeric(a, b)", () -> to_numeric(a, b)),
@@ -116,10 +122,18 @@ end
                 ("to_numeric(px, bs)", () -> to_numeric(px, bs)),
                 ("to_numeric(sx, bs)", () -> to_numeric(sx, bs)),
                 ("to_numeric(x, b)", () -> to_numeric(xx, b)),
-                # Leaf-level average API
+                # Per-family average on a leaf
                 ("average(a)", () -> average(a)),
+                ("average(σ12)", () -> average(σ12)),
+                ("average(px)", () -> average(px)),
+                ("average(sx)", () -> average(sx)),
+                ("average(x)", () -> average(xx)),
+                # Leaf-level predicates and accessors
                 ("acts_on(a)", () -> acts_on(a)),
-                ("undo_average(average(a))", () -> undo_average(average(a))),
+                ("acts_on(σ12)", () -> acts_on(σ12)),
+                ("is_average(a)", () -> is_average(a)),
+                ("is_average(average(a))", () -> is_average(average(a))),
+                ("has_sum_metadata(average(a))", () -> SecondQuantizedAlgebra.has_sum_metadata(average(a))),
             ]
             rep = JET.@report_opt target_modules = (SecondQuantizedAlgebra,) thunk()
             @testset "$name" begin
@@ -135,34 +149,60 @@ end
             "Base.indexed_iterate",
             "SecondQuantizedAlgebra.enumerate",
             "iterate(",
+            "SecondQuantizedAlgebra.:(==)",
+            "change_index(",
+            "SecondQuantizedAlgebra._to_qadd(",
+            "SecondQuantizedAlgebra.iszero(",
+            "SecondQuantizedAlgebra.:*",
+            "SecondQuantizedAlgebra.:+",
+            "SecondQuantizedAlgebra.:^",
+            "SecondQuantizedAlgebra._average(",
         ]
         allowed_numeric_reports = vcat(
             allowed_hotpath_reports,
             [
-                "SecondQuantizedAlgebra.:(==)",
-                "change_index(",
-                "SecondQuantizedAlgebra._to_qadd(",
-                "SecondQuantizedAlgebra.iszero(",
                 "SecondQuantizedAlgebra.Complex(",
                 "SecondQuantizedAlgebra.convert(",
-                "SecondQuantizedAlgebra.:*",
-                "SecondQuantizedAlgebra.:+",
                 "expect(",
                 "to_numeric(",
                 "SecondQuantizedAlgebra._to_complex(",
                 "SecondQuantizedAlgebra._numeric_average(",
-                "SecondQuantizedAlgebra.:^",
                 "string(",
             ],
         )
 
-        for (name, thunk, allowed) in [
-                ("to_numeric(a' * a, b)", () -> to_numeric(ad * a, b), allowed_numeric_reports),
-                ("numeric_average(average(a), ψ)", () -> numeric_average(average(a), ψ), allowed_numeric_reports),
+        # Bucket 2: hot-path allowed
+        for (name, thunk) in [
+                # Commutators that fall through to `a*b - b*a`
+                ("commutator(σ12, σ21)", () -> commutator(σ12, σ21)),
+                ("commutator(px, py)", () -> commutator(px, py)),
+                ("commutator(sx, sy)", () -> commutator(sx, sy)),
+                # QAdd-QAdd commutator and multi-body products
+                ("commutator(a*a', a'*a)", () -> commutator(a * ad, ad * a)),
+                ("a*a'*a", () -> a * ad * a),
+                ("(a + a')*(a - a')", () -> (a + ad) * (a - ad)),
+                # Canonicalisation pipelines on QAdd
+                ("normal_order(a)", () -> normal_order(a)),
+                ("simplify(a*a + a'*a')", () -> simplify(a * a + ad * ad)),
+                ("expand_completeness(σ12*σ21)", () -> expand_completeness(σ12 * σ21)),
+                # Average/undo_average round trip
+                ("average(a*a')", () -> average(a * ad)),
+                ("undo_average(average(a))", () -> undo_average(average(a))),
             ]
             rep = JET.@report_opt target_modules = (SecondQuantizedAlgebra,) thunk()
             @testset "$name" begin
-                _test_allowed_only(rep, allowed)
+                _test_allowed_only(rep, allowed_hotpath_reports)
+            end
+        end
+
+        # Bucket 3: numeric allowed
+        for (name, thunk) in [
+                ("to_numeric(a' * a, b)", () -> to_numeric(ad * a, b)),
+                ("numeric_average(average(a), ψ)", () -> numeric_average(average(a), ψ)),
+            ]
+            rep = JET.@report_opt target_modules = (SecondQuantizedAlgebra,) thunk()
+            @testset "$name" begin
+                _test_allowed_only(rep, allowed_numeric_reports)
             end
         end
     end
