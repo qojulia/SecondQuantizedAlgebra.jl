@@ -41,3 +41,13 @@ Three-way site comparison for the canonical partial-sort. `Equal` and
 prevents the "I returned 0 but meant Equal" bug class.
 """
 @enum SiteCmp::UInt8 Less Equal Undetermined Greater
+
+"""
+    ReduceKind
+
+Outcome tag for `_reduce_pair`:
+- `NoReduction`: pair does not reduce; `op` and `factor` slots are ignored.
+- `ScalarReduction`: pair contracts to the scalar `factor`; both ops disappear.
+- `OpReduction`: pair reduces to `op * factor`; `op` replaces the first input.
+"""
+@enum ReduceKind::UInt8 NoReduction ScalarReduction OpReduction

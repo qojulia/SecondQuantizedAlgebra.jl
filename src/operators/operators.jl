@@ -251,10 +251,10 @@ _type_order(::Type{Position}) = 5
 _type_order(::Type{Momentum}) = 6
 
 # Generic fallbacks for cross-type operator pairs (always distinct sites).
-_can_commute(::QSym, ::QSym) = true
-_commute_pair(::QSym, ::QSym) = error("unreachable: cross-type _commute_pair")
-_reduce_pair(::QSym, ::QSym) = nothing
-_ground_state_expand(::QSym) = nothing
+_can_commute(::QSym, ::QSym)::Bool = true
+_commute_pair(::QSym, ::QSym)::Tuple{QSym, QSym, CNum, Vector{QSym}} = error("unreachable: cross-type _commute_pair")
+_reduce_pair(a::QSym, ::QSym)::Tuple{ReduceKind, QSym, CNum} = (NoReduction, a, _CNUM_ZERO)
+_ground_state_expand(::QSym)::Tuple{Bool, Int, Int, Int} = (false, 0, 0, 0)
 
 function _site_compare(a::QSym, b::QSym, ne::Vector{NonEqualPair})::SiteCmp
     ta = typeof(a); tb = typeof(b)

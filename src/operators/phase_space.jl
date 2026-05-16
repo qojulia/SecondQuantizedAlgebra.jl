@@ -131,9 +131,6 @@ _can_commute(a::Momentum, b::Position) = false
 _can_commute(a::Position, b::Position) = true
 _can_commute(a::Momentum, b::Momentum) = true
 
-_commute_pair(a::Momentum, b::Position) = (b, a, _to_cnum(-im), _EMPTY_OPS)   # P·X = X·P - i·I
+_commute_pair(a::Momentum, b::Position)::Tuple{QSym, QSym, CNum, Vector{QSym}} = (b, a, _to_cnum(-im), _EMPTY_OPS)   # P·X = X·P - i·I
 
-_reduce_pair(::Position, ::Momentum) = nothing
-_reduce_pair(::Momentum, ::Position) = nothing
-_reduce_pair(::Position, ::Position) = nothing
-_reduce_pair(::Momentum, ::Momentum) = nothing
+# Phase-space pairs don't reduce locally — abstract fallback handles them.

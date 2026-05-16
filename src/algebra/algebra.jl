@@ -133,7 +133,7 @@ function normal_order(q::QAdd)
 end
 
 function _simplify_prefactor(x::CNum)
-    _const_val(x.re) !== nothing && _const_val(x.im) !== nothing && return x
+    SymbolicUtils.unwrap(x.re) isa Number && SymbolicUtils.unwrap(x.im) isa Number && return x
     re = Num(SymbolicUtils.simplify(SymbolicUtils.unwrap(Symbolics.expand(real(x)))))
     im = Num(SymbolicUtils.simplify(SymbolicUtils.unwrap(Symbolics.expand(imag(x)))))
     return Complex(re, im)
@@ -234,7 +234,7 @@ function Symbolics.expand(s::QAdd; kwargs...)
 end
 Symbolics.expand(op::QSym; kwargs...) = _single_qadd(_CNUM_ONE, QSym[op])
 
-_expand_prefactor(x::CNum; kwargs...) = _iszero_cnum(x) ? x : Symbolics.expand(x; kwargs...)
+_expand_prefactor(x::CNum; kwargs...) = _iszero_cnum(x) ? x : Complex(Symbolics.expand(real(x)), Symbolics.expand(imag(x)))
 _expand_prefactor(x::Number; kwargs...) = x
 
 """

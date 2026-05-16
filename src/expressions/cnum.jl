@@ -41,25 +41,9 @@ end
     return _iszero_num(c.re) && _iszero_num(c.im)
 end
 
-@inline function _const_val(x::Num)
-    v = SymbolicUtils.unwrap(x)
-    SymbolicUtils.isconst(v) && return v.val
-    return nothing
-end
-
 # Short-circuit CNum arithmetic: most prefactors have zero imaginary part,
 # so we avoid 4 Num multiplications and 2 Num subtractions in the common case.
-# When both operands are pure numeric constants we bypass Symbolics entirely.
-@inline function _mul_cnum(a::CNum, b::CNum)
-    arv = _const_val(a.re)
-    aiv = _const_val(a.im)
-    brv = _const_val(b.re)
-    biv = _const_val(b.im)
-    if arv !== nothing && aiv !== nothing && brv !== nothing && biv !== nothing
-        rv = arv * brv - aiv * biv
-        iv = arv * biv + aiv * brv
-        return _to_cnum(iszero(iv) ? rv : Complex(rv, iv))
-    end
+@inline function _mul_cnum(a::CNum, b::CNum)::CNum
     ar, ai = a.re, a.im
     br, bi = b.re, b.im
     ai_zero = _iszero_num(ai)
@@ -75,25 +59,11 @@ end
     end
 end
 
-@inline function _neg_cnum(a::CNum)
-    arv = _const_val(a.re)
-    aiv = _const_val(a.im)
-    if arv !== nothing && aiv !== nothing
-        return _to_cnum(iszero(aiv) ? -arv : Complex(-arv, -aiv))
-    end
+@inline function _neg_cnum(a::CNum)::CNum
     return _mul_cnum(_CNUM_NEG1, a)
 end
 
-@inline function _add_cnum(a::CNum, b::CNum)
-    arv = _const_val(a.re)
-    aiv = _const_val(a.im)
-    brv = _const_val(b.re)
-    biv = _const_val(b.im)
-    if arv !== nothing && aiv !== nothing && brv !== nothing && biv !== nothing
-        rv = arv + brv
-        iv = aiv + biv
-        return _to_cnum(iszero(iv) ? rv : Complex(rv, iv))
-    end
+@inline function _add_cnum(a::CNum, b::CNum)::CNum
     ar, ai = a.re, a.im
     br, bi = b.re, b.im
     ai_zero = _iszero_num(ai)

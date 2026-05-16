@@ -5,6 +5,7 @@ import SecondQuantizedAlgebra: simplify, QAdd, QSym, CNum, Transition, NO_INDEX,
     _partial_sort!, _site_compare, _can_commute, _commute_pair,
     _reduce_pair, _ground_state_expand,
     SiteCmp, Less, Greater, Equal, Undetermined,
+    ReduceKind, NoReduction, ScalarReduction, OpReduction,
     _CNUM_ONE, _CNUM_ZERO, _EMPTY_NE,
     _canonicalize_to_dict!, QTermDict,
     _reduce_ops, _commute_ops, _expand_gs_ops, _substitute_ops,
@@ -37,7 +38,7 @@ function _is_canonical(t)
         end
         if cmp === Equal
             _can_commute(ops[i], ops[i + 1]) || return false
-            _reduce_pair(ops[i], ops[i + 1]) === nothing || return false
+            first(_reduce_pair(ops[i], ops[i + 1])) === NoReduction || return false
         end
     end
     return true
@@ -62,9 +63,10 @@ end
         @test _site_compare(σ12, σ21, _EMPTY_NE) === Equal
         @test _can_commute(σ12, σ21) === false
         red = _reduce_pair(σ21, σ12)   # σ²¹·σ¹² = σ²²
-        @test red isa Tuple
-        @test red[1].i == 2 && red[1].j == 2
-        @test _ground_state_expand(Transition(ha, :σ, 1, 1)) !== nothing
+        @test red[1] === OpReduction
+        @test red[2].i == 2 && red[2].j == 2
+        @test red[3] === _CNUM_ONE
+        @test first(_ground_state_expand(Transition(ha, :σ, 1, 1)))
     end
 
     @testset "Partial sort" begin

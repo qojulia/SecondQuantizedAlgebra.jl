@@ -95,7 +95,7 @@ _can_commute(a::Spin, b::Spin) = a.axis <= b.axis
 # [Sj, Sk] = iϵⱼₖₗSl. The pair (Sj·Sk) with j>k commutes to (Sk·Sj + iε·Sl).
 # Returns (swap_b, swap_a, residual_coeff, residual_ops) where residual_ops is
 # the single contracted spin Sl on the third axis.
-function _commute_pair(a::Spin, b::Spin)
+function _commute_pair(a::Spin, b::Spin)::Tuple{QSym, QSym, CNum, Vector{QSym}}
     a.name == b.name || error("unreachable")
     a.space_index == b.space_index || error("unreachable")
     a.index == b.index || error("unreachable")
@@ -105,4 +105,4 @@ function _commute_pair(a::Spin, b::Spin)
     return (b, a, _mul_cnum(_to_cnum(im * eps), _CNUM_ONE), QSym[contracted])
 end
 
-_reduce_pair(::Spin, ::Spin) = nothing
+# Spin pairs don't reduce locally — abstract fallback handles it.

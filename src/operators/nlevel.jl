@@ -40,7 +40,7 @@ const _EMPTY_LEVELS = Symbol[]
 NLevelSpace(name::Symbol, n::Int, ground_state::Int) = NLevelSpace(name, n, ground_state, _EMPTY_LEVELS)
 NLevelSpace(name::Symbol, n::Int) = NLevelSpace(name, n, 1, _EMPTY_LEVELS)
 function NLevelSpace(name::Symbol, levels::Tuple{Vararg{Symbol}})
-    return NLevelSpace(name, length(levels), 1, collect(levels))
+    return NLevelSpace(name, length(levels), 1, collect(Symbol, levels))
 end
 
 """
@@ -153,15 +153,15 @@ end
 _can_commute(a::Transition, b::Transition) = false
 
 # Composition: σⁱʲ · σᵏˡ = δⱼₖ σⁱˡ.
-function _reduce_pair(a::Transition, b::Transition)
-    a.name == b.name || return nothing
-    a.space_index == b.space_index || return nothing
-    a.index == b.index || return nothing
+function _reduce_pair(a::Transition, b::Transition)::Tuple{ReduceKind, QSym, CNum}
+    a.name == b.name || return (NoReduction, a, _CNUM_ZERO)
+    a.space_index == b.space_index || return (NoReduction, a, _CNUM_ZERO)
+    a.index == b.index || return (NoReduction, a, _CNUM_ZERO)
     if a.j == b.i
         new = Transition(a.name, a.i, b.j, a.space_index, a.index, a.ground_state, a.n_levels)
-        return (new, _CNUM_ONE)
+        return (OpReduction, new, _CNUM_ONE)
     else
-        return _CNUM_ZERO    # δ_{j,k} = 0
+        return (ScalarReduction, a, _CNUM_ZERO)    # δ_{j,k} = 0
     end
 end
 
@@ -170,7 +170,7 @@ end
 _commute_pair(a::Transition, b::Transition) = error("unreachable: Transition uses _reduce_pair, not _commute_pair")
 
 # Ground-state expansion: σᵍᵍ -> 1 - Σ_{k≠g} σᵏᵏ.
-function _ground_state_expand(op::Transition)
-    op.i == op.ground_state && op.j == op.ground_state || return nothing
-    return (op.ground_state, op.n_levels, op.space_index)
+function _ground_state_expand(op::Transition)::Tuple{Bool, Int, Int, Int}
+    op.i == op.ground_state && op.j == op.ground_state || return (false, 0, 0, 0)
+    return (true, op.ground_state, op.n_levels, op.space_index)
 end

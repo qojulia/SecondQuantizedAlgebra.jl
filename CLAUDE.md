@@ -2,13 +2,13 @@
 
 ## What is this?
 
-A Julia package for symbolic manipulation of second-quantized operators used in quantum many-body theory and quantum optics. Refactored from QuantumCumulants.jl, it provides eagerly-ordered algebraic expressions over bosonic, spin, and N-level operators with automatic commutation relations, configurable ordering conventions, and numeric conversion via QuantumOpticsBase.
+A Julia package for symbolic manipulation of second-quantized operators used in quantum many-body theory and quantum optics. Refactored from QuantumCumulants.jl, it provides eagerly-canonicalized algebraic expressions over bosonic, spin, and N-level operators with automatic commutation relations and numeric conversion via QuantumOpticsBase.
 
 ## Package layout
 
 ```
 src/SecondQuantizedAlgebra.jl       # Main module, exports, imports
-src/types.jl                        # QField, QSym, OrderingConvention abstract hierarchy
+src/types.jl                        # QField, QSym abstract hierarchy
 src/precompile.jl                   # PrecompileTools workload
 src/average.jl                      # AvgFunc/AvgSym, average(), undo_average()
 src/numeric.jl                      # to_numeric(), numeric_average() via QuantumOpticsBase
@@ -25,14 +25,12 @@ src/operators/nlevel.jl             # NLevelSpace, Transition (|i⟩⟨j| operat
 src/operators/pauli.jl              # PauliSpace, Pauli (σx, σy, σz)
 src/operators/spin.jl               # SpinSpace, Spin (Sx, Sy, Sz)
 src/operators/phase_space.jl        # PhaseSpace, Position, Momentum
-src/operators/operators.jl          # fundamental_operators, find_operators, unique_ops
+src/operators/operators.jl          # fundamental_operators, find_operators, unique_ops, qadjoint
 
-src/arithmetics/ordering.jl         # ScopedValue ORDERING; with_ordering / set_ordering!
-src/arithmetics/qadd_arithmetic.jl  # +, -, *, ^ for QAdd; site sorting; worklist commutation
-src/arithmetics/simplify.jl         # simplify() — reductions only (no commutation swaps)
-src/arithmetics/normal_order.jl     # normal_order(), normal↔symmetric (Weyl) conversion
-src/arithmetics/commutator.jl       # commutator(a, b) = a*b - b*a with index collapse
-src/arithmetics/substitute.jl       # substitute(expr, Dict) for operators and symbols
+src/algebra/algebra.jl              # normal_order(), simplify(), expand_completeness(), commutator(), substitute()
+src/algebra/passes.jl               # _partial_sort!, _reduce_ops, _commute_ops, _expand_gs_ops
+src/algebra/pipelines.jl            # _stream!, _canonicalize!, _emit_product!, _accumulate_with_diag!
+src/algebra/weyl.jl                 # normal_to_symmetric(), symmetric_to_normal()
 
 src/printing/printing.jl            # Unicode display (†, σ subscripts, ℋ)
 src/printing/latexify_recipes.jl    # LaTeX rendering via Latexify.jl
@@ -59,26 +57,22 @@ HilbertSpace (abstract)
 ├── SpinSpace
 ├── PhaseSpace
 └── ProductSpace{T<:Tuple}
-
-OrderingConvention (abstract)
-├── NormalOrder                   (creation left, annihilation right)
-└── LazyOrder                     (no reordering)
 ```
 
 ## Key design decisions
 
-- **Eager ordering produces canonical form**: under `NormalOrder` (default), `*` immediately applies all three transformations — commutation swaps, algebraic reductions, and `NLevelSpace` completeness — so the result is always in the canonical basis. There is no lazy product type.
-- **Canonical basis for `NLevelSpace`**: the basis is `{σⁱʲ : (i,j) ≠ (g,g)} ∪ {1}` — ground-state projectors `σᵍᵍ` are *not* part of canonical form. Under `NormalOrder`, any product `*` containing a `σᵍᵍ` is eagerly rewritten via completeness `σᵍᵍ = 1 - Σ_{k≠g} σᵏᵏ` — both same-site composition that produces it (e.g. `σ¹²·σ²¹`) and standalone `σᵍᵍ` operands surviving from non-same-site products (e.g. `σᵍᵍ_i · σᵍᵍ_j`, `i≠j`). Construction itself does not expand: `Transition(h, g, g)` returns a plain `Transition` and only expands when used in a `*`. This makes dict-key equality match physical equality for any product.
-- **`Transition` carries its own GS info**: `ground_state::Int` and `n_levels::Int` are fields on `Transition`, not arguments to the algebra. The arithmetic does completeness without ever consulting the Hilbert space, keeping operators Hilbert-space-decoupled.
-- **`LazyOrder` is the explicit-control opt-out**: under `LazyOrder`, none of the three transformations fire eagerly. Users invoke them piecewise: `simplify(expr)` for reductions only (keeps `σᵍᵍ` atomic), `normal_order(expr)` adds commutation swaps, and `expand_completeness(expr)` adds completeness. Users compose them explicitly, e.g. `expand_completeness(normal_order(expr))`.
+- **Eager canonicalization**: every `*` immediately runs the full pipeline — sort operators to canonical order, reduce same-site pairs algebraically (`_reduce_ops`), commute non-canonical same-site pairs (`_commute_ops`), reduce again to catch any composition the commute residual produced. The result of `a * a'` is already `a'*a + 1`. `normal_order` and `simplify` are idempotent on expressions built via `*`.
+- **Pipeline order is `reduce → commute → reduce`**: the first reduce handles Transition/Pauli same-site composition (these compose, not commute); commute handles Fock/Spin/PhaseSpace ladder pairs; the trailing reduce catches residuals. The Spin commutator emits a contracted-axis operator (e.g. `[Sy, Sx] = -i Sz`) via a uniform 4-tuple `(swap_b, swap_a, residual_coeff, residual_ops)`.
+- **`σᵍᵍ` is a canonical atom**: ground-state projectors stay atomic through `*`, `normal_order`, and `simplify`. The completeness identity `σᵍᵍ = 1 - Σ_{k≠g} σᵏᵏ` does not fire automatically. Call `expand_completeness(expr)` explicitly when you want it. This prevents exponential term blowup in dissipator-style expressions.
+- **`Transition` carries its own GS info**: `ground_state::Int` and `n_levels::Int` are fields on `Transition`, keeping operators Hilbert-space-decoupled.
 - **`assume_distinct_index(q, pairs)`**: explicit escape hatch when two free indices semantically denote distinct sites but no `Σ` supplies the constraint. Takes a `Vector{Tuple{Index, Index}}` of inequality pairs, augments each term's `ne`, re-canonicalizes, and runs `expand_completeness`.
-- **Dict-based term storage**: `QAdd` stores `Dict{QTerm, CNum}` where `QTerm` is a struct bundling `ops::Vector{QSym}` with its `ne::Vector{NonEqualPair}` index-inequality scope. Like terms are collected on construction.
-- **Ordering is task-local via ScopedValues**: the active `OrderingConvention` lives in a `ScopedValue` (`ORDERING` in `arithmetics/ordering.jl`). Use `with_ordering(LazyOrder()) do ... end` for transient/task-local scoping; use `set_ordering!(ord)` only to change the process-wide default. Read it via `get_ordering()`.
+- **Free indices outside `Σ` stay `Undetermined`**: two operators with different symbolic indices on the same space, neither bound by a sum, are left in physical order. No same-site collapse fires until `assume_distinct_index` or a `Σ`-driven diagonal split resolves the relationship.
+- **Dict-based term storage**: `QAdd` stores `Dict{QTerm, CNum}` where `QTerm` bundles `ops::Vector{QSym}` with `ne::Vector{NonEqualPair}` index-inequality scope. Like terms are collected on construction.
 - **CNum prefactors**: prefactors are `Complex{Num}` (from Symbolics.jl), not parameterized. Dedicated fast paths in `cnum.jl` short-circuit for numeric (non-symbolic) cases.
 - **Site-indexed operators**: each `QSym` carries `space_index` and `index::Index`. Operators interact only if `_same_site(a, b)`.
-- **Three-layer separation**: `_apply_ordering` handles commutation swaps (used by `normal_order`) and post-worklist GS expansion via `_expand_gs_oterms` (NormalOrder only), `_apply_reductions` handles algebraic identities only (used by `simplify`), and composition-produced completeness is gated inside `_try_algebraic_reduction!` via the `expand_gs::Bool` parameter (NormalOrder passes `true`, simplify passes `false`) plus `_apply_ground_state` in `normal_order.jl` for the LazyOrder opt-in path.
+- **Five operator hooks**: every concrete `QSym` subtype implements `_site_compare`, `_can_commute`, `_commute_pair`, `_reduce_pair`, `_ground_state_expand`. The algebra talks to all operator types exclusively through these. Adding a new operator type only requires defining the struct and filling in the five hooks.
 - **Concrete struct fields**: all struct fields are concretely typed (enforced by CheckConcreteStructs in tests).
-- **Index tracking**: `QAdd` carries `indices::Vector{Index}` and `non_equal::Vector{Tuple{Index,Index}}` for summation metadata.
+- **Index tracking**: `QAdd` carries `indices::Vector{Index}` for summation scope; per-term inequality constraints live on `QTerm.ne`, not on `QAdd`.
 
 ## Git policy
 
@@ -104,17 +98,17 @@ Use the `julia-mcp` MCP server (tools: `julia_eval`, `julia_list_sessions`, `jul
 
 ### Test structure
 
-Each test file is self-contained (`test/*_test.jl`), run via `test/runtests.jl` (ParallelTestRunner).
+Tests are organized in subdirectories matching `src/`, run via `test/runtests.jl` (ParallelTestRunner).
 
-**Quality gates:**
-- `aqua_test.jl` — Aqua.jl: unbound args, undefined exports, stale deps, piracy
-- `jet_test.jl` — JET.jl: type errors and optimization analysis
-- `explicit_imports_test.jl` — ExplicitImports.jl: no implicit imports
-- `concrete_test.jl` — CheckConcreteStructs: all struct fields concretely typed
+**Quality gates** (`test/quality/quality_test.jl`): Aqua (unbound args, stale deps, piracy), JET (type errors), ExplicitImports, CheckConcreteStructs.
 
-**Unit tests:** `fock_test.jl`, `nlevel_test.jl`, `pauli_test.jl`, `spin_test.jl`, `phase_space_test.jl`, `hilbertspace_test.jl`, `qmul_test.jl`, `qadd_test.jl`, `canonical_form_test.jl`, `simplify_test.jl`, `commutator_test.jl`, `normal_order_test.jl`, `macros_test.jl`, `printing_test.jl`, `latexify_test.jl`, `numeric_test.jl`, `operators_test.jl`, `substitute_test.jl`, `average_test.jl`, `indexing_test.jl`
+**Operator tests** (`test/operators/`): `fock_test.jl`, `nlevel_test.jl`, `pauli_test.jl`, `spin_test.jl`, `phase_space_test.jl`, `hilbertspace_test.jl`, `operators_test.jl`
 
-**Integration:** `integration_test.jl` — end-to-end scenarios (Jaynes-Cummings, multi-mode cavities)
+**Expression tests** (`test/expressions/`): `algebra_test.jl`, `indexing_test.jl`, `macros_test.jl`
+
+**Arithmetic tests** (`test/arithmetics/`): `simplify_test.jl`, `commutator_test.jl`, `normal_order_test.jl`, `substitute_test.jl`, `internals_test.jl`
+
+**Other:** `test/printing/printing_test.jl`, `test/average_test.jl`, `test/numeric_test.jl`
 
 ### Testing patterns
 
@@ -151,7 +145,7 @@ Before merging any PR:
 ### Performance
 
 - **Type stability first.** All operations should be inferable — verify with `@inferred`.
-- **Minimize allocations in ordering.** The worklist algorithm in `ordering.jl` is the hot path.
+- **Minimize allocations in the pipeline.** The streaming passes in `passes.jl` are the hot path. Sink type-parameters (`F` in `where {F}`) force specialization so nested `do`-blocks inline with zero closure allocation.
 - **No kwargs in hot paths.** Keyword arguments prevent specialization and can allocate. Expose kwargs at the API boundary, forward to positional-arg inner functions.
 - **No kwargs splatting.** Never forward `kwargs...` — it blocks inference. Explicitly name and forward each keyword.
 
@@ -170,7 +164,6 @@ Before merging any PR:
 | Symbolics | Symbolic variables (`@variables`), `Num` type for CNum prefactors |
 | TermInterface | `iscall`, `operation`, `arguments` protocol |
 | Latexify | LaTeX rendering recipes |
-| ScopedValues | Task-local `ORDERING` for `with_ordering`/`get_ordering` |
 | PrecompileTools | `@setup_workload`/`@compile_workload` in `precompile.jl` |
 
 **Test dependencies:** Aqua, JET, CheckConcreteStructs, ExplicitImports, LaTeXStrings

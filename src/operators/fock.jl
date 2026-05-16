@@ -150,11 +150,9 @@ _can_commute(a::Create, b::Create) = true
 
 # _commute_pair returns (swap_b, swap_a, residual_coeff, residual_ops):
 # aa† = a†a + 1; residual op vector is empty (identity branch).
-_commute_pair(a::Destroy, b::Create) = (b, a, _CNUM_ONE, _EMPTY_OPS)
+_commute_pair(a::Destroy, b::Create)::Tuple{QSym, QSym, CNum, Vector{QSym}} = (b, a, _CNUM_ONE, _EMPTY_OPS)
 
-# Reductions: ladder operators on the same site don't reduce locally.
-# (a·a is not a closed-form simplification; only a·a† triggers the commutation residual.)
-_reduce_pair(a::Destroy, b::Create) = nothing
-_reduce_pair(a::Create, b::Destroy) = nothing
-_reduce_pair(a::Destroy, b::Destroy) = nothing
-_reduce_pair(a::Create, b::Create) = nothing
+# Reductions: ladder operators on the same site don't reduce locally — the
+# abstract fallback `_reduce_pair(::QSym, ::QSym)` returns `(NoReduction, …)` for
+# them. (a·a is not a closed-form simplification; only a·a† triggers the
+# commutation residual via `_commute_pair`.)

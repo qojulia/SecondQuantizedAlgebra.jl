@@ -93,16 +93,16 @@ end
 _can_commute(a::Pauli, b::Pauli) = false   # always compose on same site
 
 # σⱼ·σₖ = δⱼₖI + iϵⱼₖₗσₗ
-function _reduce_pair(a::Pauli, b::Pauli)
-    a.name == b.name || return nothing
-    a.space_index == b.space_index || return nothing
-    a.index == b.index || return nothing
+function _reduce_pair(a::Pauli, b::Pauli)::Tuple{ReduceKind, QSym, CNum}
+    a.name == b.name || return (NoReduction, a, _CNUM_ZERO)
+    a.space_index == b.space_index || return (NoReduction, a, _CNUM_ZERO)
+    a.index == b.index || return (NoReduction, a, _CNUM_ZERO)
     if a.axis == b.axis
-        return _CNUM_ONE     # σⱼ² = 1
+        return (ScalarReduction, a, _CNUM_ONE)     # σⱼ² = 1
     else
         eps = _levi_civita[a.axis][b.axis]
         new = Pauli(a.name, 6 - a.axis - b.axis, a.space_index, a.index)
-        return (new, _mul_cnum(_to_cnum(im * eps), _CNUM_ONE))
+        return (OpReduction, new, _mul_cnum(_to_cnum(im * eps), _CNUM_ONE))
     end
 end
 

@@ -55,20 +55,19 @@ same-site pair `(a, b)` for which `_reduce_pair(a, b)` returns non-`nothing`.
     i = 1
     while i < length(ops)
         a, b = ops[i], ops[i + 1]
-        res = _reduce_pair(a, b)
-        if res === nothing
+        kind, new_op, factor = _reduce_pair(a, b)
+        if kind === NoReduction
             i += 1
-        elseif res isa CNum
-            # Pair contracts to a scalar (e.g. σⁱʲσʲᵏ when j≠k yielding 0, or Pauli δ).
-            _iszero_cnum(res) && return
-            c = _mul_cnum(c, res)
-            deleteat!(ops, i:(i + 1))
-            i = max(i - 1, 1)
         else
-            new_op, factor = res
+            _iszero_cnum(factor) && return
             c = _mul_cnum(c, factor)
-            ops[i] = new_op
-            deleteat!(ops, i + 1)
+            if kind === ScalarReduction
+                # Pair contracts to a scalar (e.g. σⁱʲσʲᵏ when j≠k yielding 0, or Pauli δ).
+                deleteat!(ops, i:(i + 1))
+            else  # OpReduction
+                ops[i] = new_op
+                deleteat!(ops, i + 1)
+            end
             i = max(i - 1, 1)
         end
     end
@@ -133,12 +132,13 @@ receives its own `copy(ops)`; the original is not mutated.
 function _expand_gs_ops(sink::F, ops::Vector{QSym}, c::CNum) where {F}
     idx = 0
     for k in eachindex(ops)
-        _ground_state_expand(ops[k]) === nothing || (idx = k; break)
+        is_gs, _, _, _ = _ground_state_expand(ops[k])
+        is_gs && (idx = k; break)
     end
     idx == 0 && (sink(ops, c); return)
 
     op = ops[idx]
-    (g, n_levels, _site) = _ground_state_expand(op)
+    _, g, n_levels, _site = _ground_state_expand(op)
     id_ops = QSym[ops[k] for k in eachindex(ops) if k != idx]
     _expand_gs_ops(sink, id_ops, c)
     neg_c = _neg_cnum(c)
