@@ -141,7 +141,7 @@ ladder(::Transition) = 0
 
 # --- Operator hooks ---
 
-function _site_compare(a::Transition, b::Transition, ne::Vector{NonEqualPair})::SiteCmp
+function _site_compare(a::Transition, b::Transition, ne::Vector{NonEqualPair})
     a.space_index == b.space_index || return a.space_index < b.space_index ? Less : Greater
     a.name == b.name || return a.name < b.name ? Less : Greater
     a.index == b.index && return Equal
@@ -153,7 +153,7 @@ end
 _can_commute(a::Transition, b::Transition) = false
 
 # Composition: σⁱʲ · σᵏˡ = δⱼₖ σⁱˡ.
-function _reduce_pair(a::Transition, b::Transition)::Tuple{ReduceKind, QSym, CNum}
+function _reduce_pair(a::Transition, b::Transition)
     a.name == b.name || return (NoReduction, a, _CNUM_ZERO)
     a.space_index == b.space_index || return (NoReduction, a, _CNUM_ZERO)
     a.index == b.index || return (NoReduction, a, _CNUM_ZERO)
@@ -165,12 +165,10 @@ function _reduce_pair(a::Transition, b::Transition)::Tuple{ReduceKind, QSym, CNu
     end
 end
 
-# _commute_pair is never called for Transition (because _can_commute is always false
-# and only out-of-order pairs would call it; here we use _reduce_pair instead).
-_commute_pair(a::Transition, b::Transition) = error("unreachable: Transition uses _reduce_pair, not _commute_pair")
+_commute_pair(a::Transition, b::Transition) = (b, a, _CNUM_ZERO, _EMPTY_OPS)
 
 # Ground-state expansion: σᵍᵍ -> 1 - Σ_{k≠g} σᵏᵏ.
-function _ground_state_expand(op::Transition)::Tuple{Bool, Int, Int, Int}
+function _ground_state_expand(op::Transition)
     op.i == op.ground_state && op.j == op.ground_state || return (false, 0, 0, 0)
     return (true, op.ground_state, op.n_levels, op.space_index)
 end

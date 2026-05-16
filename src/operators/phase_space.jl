@@ -102,12 +102,12 @@ ladder(::Momentum) = 1
 
 # --- Operator hooks ---
 
-function _site_compare(a::Position, b::Position, ne::Vector{NonEqualPair})::SiteCmp
+function _site_compare(a::Position, b::Position, ne::Vector{NonEqualPair})
     a.space_index == b.space_index || return a.space_index < b.space_index ? Less : Greater
     a.name == b.name || return a.name < b.name ? Less : Greater
     return a.index == b.index ? Equal : Undetermined
 end
-function _site_compare(a::Momentum, b::Momentum, ne::Vector{NonEqualPair})::SiteCmp
+function _site_compare(a::Momentum, b::Momentum, ne::Vector{NonEqualPair})
     return _site_compare(
         Position(a.name, a.space_index, a.index),
         Position(b.name, b.space_index, b.index), ne
@@ -116,11 +116,11 @@ end
 
 # Cross-type same-site test ignores name: position x and momentum p on the same
 # Hilbert subspace and index are conjugate variables on one site.
-function _site_compare(a::Position, b::Momentum, ne::Vector{NonEqualPair})::SiteCmp
+function _site_compare(a::Position, b::Momentum, ne::Vector{NonEqualPair})
     a.space_index == b.space_index || return a.space_index < b.space_index ? Less : Greater
     return a.index == b.index ? Equal : Undetermined
 end
-function _site_compare(a::Momentum, b::Position, ne::Vector{NonEqualPair})::SiteCmp
+function _site_compare(a::Momentum, b::Position, ne::Vector{NonEqualPair})
     a.space_index == b.space_index || return a.space_index < b.space_index ? Less : Greater
     return a.index == b.index ? Equal : Undetermined
 end
@@ -131,6 +131,6 @@ _can_commute(a::Momentum, b::Position) = false
 _can_commute(a::Position, b::Position) = true
 _can_commute(a::Momentum, b::Momentum) = true
 
-_commute_pair(a::Momentum, b::Position)::Tuple{QSym, QSym, CNum, Vector{QSym}} = (b, a, _to_cnum(-im), _EMPTY_OPS)   # P·X = X·P - i·I
+_commute_pair(a::Momentum, b::Position) = (b, a, _to_cnum(-im), _EMPTY_OPS)   # P·X = X·P - i·I
 
 # Phase-space pairs don't reduce locally — abstract fallback handles them.

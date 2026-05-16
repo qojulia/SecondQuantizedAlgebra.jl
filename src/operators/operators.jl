@@ -251,12 +251,12 @@ _type_order(::Type{Position}) = 5
 _type_order(::Type{Momentum}) = 6
 
 # Generic fallbacks for cross-type operator pairs (always distinct sites).
-_can_commute(::QSym, ::QSym)::Bool = true
-_commute_pair(::QSym, ::QSym)::Tuple{QSym, QSym, CNum, Vector{QSym}} = error("unreachable: cross-type _commute_pair")
-_reduce_pair(a::QSym, ::QSym)::Tuple{ReduceKind, QSym, CNum} = (NoReduction, a, _CNUM_ZERO)
-_ground_state_expand(::QSym)::Tuple{Bool, Int, Int, Int} = (false, 0, 0, 0)
+_can_commute(::QSym, ::QSym) = true
+_commute_pair(a::QSym, b::QSym) = (b, a, _CNUM_ZERO, _EMPTY_OPS)
+_reduce_pair(a::QSym, ::QSym) = (NoReduction, a, _CNUM_ZERO)
+_ground_state_expand(::QSym) = (false, 0, 0, 0)
 
-function _site_compare(a::QSym, b::QSym, ne::Vector{NonEqualPair})::SiteCmp
+function _site_compare(a::QSym, b::QSym, ne::Vector{NonEqualPair})
     ta = typeof(a); tb = typeof(b)
     ta === tb && error("unreachable: same-type _site_compare must be overridden by $ta")
     return _type_order(ta) < _type_order(tb) ? Less : Greater

@@ -129,23 +129,31 @@ Apply `σᵍᵍ → 1 - Σ_{k≠g} σᵏᵏ` to every `σᵍᵍ` in `ops`. May f
 per `σᵍᵍ`; recurses to handle multiple `σᵍᵍ` atoms in one term. Each branch
 receives its own `copy(ops)`; the original is not mutated.
 """
-function _expand_gs_ops(sink::F, ops::Vector{QSym}, c::CNum) where {F}
-    idx = 0
+function _find_gs_idx(ops::Vector{QSym})
     for k in eachindex(ops)
         is_gs, _, _, _ = _ground_state_expand(ops[k])
-        is_gs && (idx = k; break)
+        is_gs && return k
     end
+    return 0
+end
+
+function _expand_gs_ops(sink::F, ops::Vector{QSym}, c::CNum) where {F}
+    idx = _find_gs_idx(ops)
     idx == 0 && (sink(ops, c); return)
 
-    op = ops[idx]
+    op = ops[idx]::Transition
     _, g, n_levels, _site = _ground_state_expand(op)
-    id_ops = QSym[ops[k] for k in eachindex(ops) if k != idx]
+    id_ops = QSym[]
+    sizehint!(id_ops, length(ops) - 1)
+    for k in eachindex(ops)
+        k == idx || push!(id_ops, ops[k])
+    end
     _expand_gs_ops(sink, id_ops, c)
     neg_c = _neg_cnum(c)
     for k in 1:n_levels
         k == g && continue
         new_ops = copy(ops)
-        new_ops[idx] = Transition(op.name, k, k, op.space_index, op.index, g, n_levels)
+        new_ops[idx] = Transition(op.name, k, k, _site, op.index, g, n_levels)
         _expand_gs_ops(sink, new_ops, neg_c)
     end
     return

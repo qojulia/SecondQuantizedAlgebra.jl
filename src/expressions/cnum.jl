@@ -43,7 +43,7 @@ end
 
 # Short-circuit CNum arithmetic: most prefactors have zero imaginary part,
 # so we avoid 4 Num multiplications and 2 Num subtractions in the common case.
-@inline function _mul_cnum(a::CNum, b::CNum)::CNum
+@inline function _mul_cnum(a::CNum, b::CNum)
     ar, ai = a.re, a.im
     br, bi = b.re, b.im
     ai_zero = _iszero_num(ai)
@@ -59,11 +59,11 @@ end
     end
 end
 
-@inline function _neg_cnum(a::CNum)::CNum
+@inline function _neg_cnum(a::CNum)
     return _mul_cnum(_CNUM_NEG1, a)
 end
 
-@inline function _add_cnum(a::CNum, b::CNum)::CNum
+@inline function _add_cnum(a::CNum, b::CNum)
     ar, ai = a.re, a.im
     br, bi = b.re, b.im
     ai_zero = _iszero_num(ai)

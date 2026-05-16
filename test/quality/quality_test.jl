@@ -3,14 +3,10 @@ using Test
 using Aqua
 using CheckConcreteStructs: all_concrete
 using ExplicitImports
-using QuantumOpticsBase: expect
 
 @testset "Quality gates" begin
     @testset "Aqua" begin
-        # TODO: remove `treat_as_own = [expect]` once the piracies in src/numeric.jl
-        # are resolved — `expect(::Num, ...)` and `expect(::BasicSymbolic, ...)` are
-        # methods on a QuantumOpticsBase function with externally-owned argument types.
-        Aqua.test_all(SecondQuantizedAlgebra; piracies = (treat_as_own = [expect],))
+        Aqua.test_all(SecondQuantizedAlgebra)
     end
 
     @testset "ExplicitImports" begin

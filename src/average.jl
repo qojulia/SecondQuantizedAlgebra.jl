@@ -195,7 +195,7 @@ true
 
 See also [`average`](@ref), [`is_average`](@ref).
 """
-function undo_average(x::SymbolicUtils.BasicSymbolic)::QAdd
+function undo_average(x::SymbolicUtils.BasicSymbolic)
     if SymbolicUtils.iscall(x)
         f = SymbolicUtils.operation(x)
         if f isa AvgFunc
@@ -214,10 +214,10 @@ function undo_average(x::SymbolicUtils.BasicSymbolic)::QAdd
     end
 end
 
-undo_average(x::Number)::QAdd = _single_qadd(_to_cnum(x), QSym[])
-undo_average(x::Num)::QAdd = undo_average(SymbolicUtils.unwrap(x))
-undo_average(x::QSym)::QAdd = _single_qadd(_CNUM_ONE, QSym[x])
-undo_average(x::QAdd)::QAdd = x
+undo_average(x::Number) = _single_qadd(_to_cnum(x), QSym[])
+undo_average(x::Num) = undo_average(SymbolicUtils.unwrap(x))
+undo_average(x::QSym) = _single_qadd(_CNUM_ONE, QSym[x])
+undo_average(x::QAdd) = x
 
 function undo_average(eq::Symbolics.Equation)
     lhs = undo_average(eq.lhs)

@@ -78,7 +78,7 @@ ladder(::Spin) = 0
 
 # --- Operator hooks ---
 
-function _site_compare(a::Spin, b::Spin, ne::Vector{NonEqualPair})::SiteCmp
+function _site_compare(a::Spin, b::Spin, ne::Vector{NonEqualPair})
     a.space_index == b.space_index || return a.space_index < b.space_index ? Less : Greater
     a.name == b.name || return a.name < b.name ? Less : Greater
     if a.index != b.index
@@ -95,7 +95,7 @@ _can_commute(a::Spin, b::Spin) = a.axis <= b.axis
 # [Sj, Sk] = iϵⱼₖₗSl. The pair (Sj·Sk) with j>k commutes to (Sk·Sj + iε·Sl).
 # Returns (swap_b, swap_a, residual_coeff, residual_ops) where residual_ops is
 # the single contracted spin Sl on the third axis.
-function _commute_pair(a::Spin, b::Spin)::Tuple{QSym, QSym, CNum, Vector{QSym}}
+function _commute_pair(a::Spin, b::Spin)
     a.name == b.name || error("unreachable")
     a.space_index == b.space_index || error("unreachable")
     a.index == b.index || error("unreachable")

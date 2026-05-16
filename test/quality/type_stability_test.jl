@@ -2,6 +2,7 @@ using SecondQuantizedAlgebra
 using Test
 using JET
 using Symbolics: @variables
+using QuantumOpticsBase: FockBasis
 
 import SecondQuantizedAlgebra: CNum, QSym,
     _mul_cnum, _add_cnum, _neg_cnum, _to_cnum, _iszero_num, _iszero_cnum,
@@ -161,7 +162,24 @@ import SecondQuantizedAlgebra: CNum, QSym,
                     ("commutator(a, a')", () -> commutator(a, ad)),
                     ("normal_order(a'*a*a')", () -> normal_order(ad * a * ad)),
                 ]
-                rep = JET.@report_call target_modules=(SecondQuantizedAlgebra,) ignore_missing_comparison=true expr()
+                rep = JET.@report_call target_modules = (SecondQuantizedAlgebra,) ignore_missing_comparison = true expr()
+                @testset "$name" begin
+                    @test isempty(JET.get_reports(rep))
+                end
+            end
+        end
+
+        @testset "JET report_opt on selected hot paths" begin
+            hf = FockSpace(:f)
+            a = Destroy(hf, :a)
+            ad = Create(hf, :a)
+            b = FockBasis(7)
+
+            for (name, thunk) in [
+                    ("commutator(a, a')", () -> commutator(a, ad)),
+                    ("to_numeric(a, b)", () -> to_numeric(a, b)),
+                ]
+                rep = JET.@report_opt target_modules = (SecondQuantizedAlgebra,) thunk()
                 @testset "$name" begin
                     @test isempty(JET.get_reports(rep))
                 end

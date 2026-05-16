@@ -153,7 +153,7 @@ using Test
         α = 0.1 + 0.2im
         ψ = coherentstate(b, α)
 
-        d = Dict{Any, Any}()  # empty dict — same as no dict
+        d = Dict{QSym, Any}()  # empty dict — same as no dict
         @test numeric_average(a, ψ, d) ≈ α
 
         # Average expression with dict
@@ -260,7 +260,7 @@ using Test
         # expect alias matches
         @test expect(a, ψs) ≈ numeric_average(a, ψs)
         @test expect(a' * a, ψs[1]) ≈ numeric_average(a' * a, ψs[1])
-        @test expect(average(a), ψs[1]) ≈ numeric_average(average(a), ψs[1])
+        @test numeric_average(average(a), ψs[1]) ≈ αs[1]
 
         # Empty vector errors
         empty_ψs = typeof(ψs[1])[]
@@ -273,7 +273,7 @@ using Test
         b = FockBasis(7)
         αs = (0.1 + 0.2im, -0.3 + 0.4im)
         ψs = [coherentstate(b, α) for α in αs]
-        d = Dict{Any, Any}()        # empty dict — passthrough to base case
+        d = Dict{QSym, Any}()       # empty dict — passthrough to base case
 
         @test numeric_average(a, ψs, d) ≈ numeric_average(a, ψs)
         @test numeric_average(average(a' * a), ψs, d) ≈ [abs2(α) for α in αs]
@@ -296,9 +296,9 @@ using Test
 
         dd = Dict([ad, a] .=> [s(2, 2, 1), s(2, 1, 2)])
 
-        @test to_numeric(a, b_test, Dict()) == to_numeric(a, b_test)
-        @test to_numeric(ad * n, b_test, Dict()) == to_numeric(ad * n, b_test)
-        @test to_numeric(2 * ad * a, b_test, Dict()) == to_numeric(2 * ad * a, b_test)
+        @test to_numeric(a, b_test, Dict{QSym, Any}()) == to_numeric(a, b_test)
+        @test to_numeric(ad * n, b_test, Dict{QSym, Any}()) == to_numeric(ad * n, b_test)
+        @test to_numeric(2 * ad * a, b_test, Dict{QSym, Any}()) == to_numeric(2 * ad * a, b_test)
         @test to_numeric(ad, b_all, dd) == s(2, 2, 1)
         @test to_numeric(2 * ad * a, b_all, dd) == 2 * s(2, 2, 1) * s(2, 1, 2)
         @test dense(to_numeric(3, b_all, dd)) == one(b_all) * 3

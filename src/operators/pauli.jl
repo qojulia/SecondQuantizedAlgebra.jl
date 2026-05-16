@@ -82,7 +82,7 @@ ladder(::Pauli) = 0
 # Per-site Levi-Civita lookup (3×3 antisymmetric). _levi_civita[j][k] = ε_{jk(6-j-k)}.
 const _levi_civita = ((0, 1, -1), (-1, 0, 1), (1, -1, 0))
 
-function _site_compare(a::Pauli, b::Pauli, ne::Vector{NonEqualPair})::SiteCmp
+function _site_compare(a::Pauli, b::Pauli, ne::Vector{NonEqualPair})
     a.space_index == b.space_index || return a.space_index < b.space_index ? Less : Greater
     a.name == b.name || return a.name < b.name ? Less : Greater
     a.index == b.index && return Equal
@@ -93,7 +93,7 @@ end
 _can_commute(a::Pauli, b::Pauli) = false   # always compose on same site
 
 # σⱼ·σₖ = δⱼₖI + iϵⱼₖₗσₗ
-function _reduce_pair(a::Pauli, b::Pauli)::Tuple{ReduceKind, QSym, CNum}
+function _reduce_pair(a::Pauli, b::Pauli)
     a.name == b.name || return (NoReduction, a, _CNUM_ZERO)
     a.space_index == b.space_index || return (NoReduction, a, _CNUM_ZERO)
     a.index == b.index || return (NoReduction, a, _CNUM_ZERO)
@@ -106,4 +106,4 @@ function _reduce_pair(a::Pauli, b::Pauli)::Tuple{ReduceKind, QSym, CNum}
     end
 end
 
-_commute_pair(a::Pauli, b::Pauli) = error("unreachable: Pauli uses _reduce_pair")
+_commute_pair(a::Pauli, b::Pauli) = (b, a, _CNUM_ZERO, _EMPTY_OPS)
