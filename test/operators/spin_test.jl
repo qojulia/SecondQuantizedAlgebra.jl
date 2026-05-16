@@ -49,13 +49,13 @@ using Test
         @test isequal(simplify(normal_order(s(3) * s(3))), _single_qadd(_to_cnum(1), QSym[]))
         @test isequal(simplify(normal_order(s(3) * s(1))), simplify(1im * s(2)))
         @test isequal(
-            simplify(normal_order(s(1) * s(2) * s(3))), _single_qadd(_to_cnum(1im), QSym[])
+            simplify(normal_order(s(1) * s(2) * s(3))), _single_qadd(_to_cnum(1im), QSym[]),
         )
 
         # adjoint (Hermitian)
-        @test adjoint(s(1)) == s(1)
-        @test adjoint(s(2)) == s(2)
-        @test adjoint(s(3)) == s(3)
+        for axis in 1:3
+            @test adjoint(s(axis)) == s(axis)
+        end
     end
 
     @testset "Multi-Pauli space operations" begin
@@ -64,23 +64,20 @@ using Test
         h = hs1 ⊗ hs2
 
         σ(i, axis) = Pauli(h, Symbol(:σ_, i), axis, i)
-        σx(i) = σ(i, 1)
-        σy(i) = σ(i, 2)
-        σz(i) = σ(i, 3)
 
-        # Different spins commute
-        @test isequal(σx(2) * σx(1), σx(1) * σx(2))
-        @test isequal(σy(2) * σx(1), σx(1) * σy(2))
-        @test isequal(σz(2) * σz(1), σz(1) * σz(2))
+        # Different spins commute regardless of axis
+        for (ax1, ax2) in ((1, 1), (1, 2), (3, 3))
+            @test isequal(σ(2, ax2) * σ(1, ax1), σ(1, ax1) * σ(2, ax2))
+        end
     end
 
-    @testset "Collective spin commutation — [Sx, Sy] = iSz" begin
+    @testset "Collective spin commutation — [Sₐ, Sᵦ] = iε_{abc} S_c" begin
         hcs = SpinSpace(:Spin1)
         S(axis) = Spin(hcs, :S, axis)
 
-        @test isequal(simplify(commutator(S(1), S(2))), simplify(1im * S(3)))
-        @test isequal(simplify(commutator(S(1), S(3))), simplify(-1im * S(2)))
-        @test isequal(simplify(commutator(S(2), S(3))), simplify(1im * S(1)))
+        for (a, b, c, sign) in ((1, 2, 3, 1), (2, 3, 1, 1), (1, 3, 2, -1))
+            @test isequal(simplify(commutator(S(a), S(b))), simplify(sign * 1im * S(c)))
+        end
     end
 
     @testset "Spin operator properties" begin
@@ -101,14 +98,11 @@ using Test
         h = hcs1 ⊗ hcs2
 
         S(i, axis) = Spin(h, Symbol(:S_, i), axis, i)
-        Sx(i) = S(i, 1)
-        Sy(i) = S(i, 2)
-        Sz(i) = S(i, 3)
 
-        # Different spins commute
-        @test isequal(Sx(2) * Sx(1), Sx(1) * Sx(2))
-        @test isequal(Sy(2) * Sx(1), Sx(1) * Sy(2))
-        @test isequal(Sz(2) * Sz(1), Sz(1) * Sz(2))
+        # Different spins commute regardless of axis
+        for (ax1, ax2) in ((1, 1), (1, 2), (3, 3))
+            @test isequal(S(2, ax2) * S(1, ax1), S(1, ax1) * S(2, ax2))
+        end
     end
 
     @testset "Type stability" begin

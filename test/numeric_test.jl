@@ -1,5 +1,5 @@
 using SecondQuantizedAlgebra
-import SecondQuantizedAlgebra: QAdd
+import SecondQuantizedAlgebra: QAdd, QSym, _single_qadd, _to_cnum
 using QuantumOpticsBase
 using Test
 
@@ -328,6 +328,28 @@ using Test
         @test @allocations(to_numeric(a, b)) < 50
         @test @allocations(to_numeric(a', b)) < 50
         @test @allocations(to_numeric(a' * a, b)) < 1500
+    end
+
+    @testset "Round-trip with coherent state" begin
+        h = FockSpace(:c)
+        @qnumbers a::Destroy(h)
+        b = FockBasis(7)
+
+        @test to_numeric(a, b) == destroy(b)
+        @test to_numeric(a', b) == create(b)
+        @test to_numeric(a' * a, b) == create(b) * destroy(b)
+
+        α = 0.1 + 0.2im
+        ψ = coherentstate(b, α)
+        @test numeric_average(a, ψ) ≈ α
+        @test numeric_average(a' * a, ψ) ≈ abs2(α)
+
+        # numeric_average on QAdd
+        expr = a + a' * a
+        @test numeric_average(expr, ψ) ≈ α + abs2(α)
+
+        # to_numeric with scalar QAdd (empty operators)
+        @test to_numeric(_single_qadd(_to_cnum(3), QSym[]), b) == 3 * one(b)
     end
 
 end

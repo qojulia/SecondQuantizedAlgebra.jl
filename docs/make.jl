@@ -5,6 +5,13 @@ using Documenter
 
 using CairoMakie
 
+DocMeta.setdocmeta!(
+    SecondQuantizedAlgebra,
+    :DocTestSetup,
+    :(using SecondQuantizedAlgebra);
+    recursive = true,
+)
+
 include("pages.jl")
 
 # The README.md file is used index (home) page of the documentation.
@@ -36,7 +43,7 @@ makedocs(;
     linkcheck = true,
     warnonly = :missing_docs,
     draft = false, #,(!CI),
-    doctest = false,  # We test it in the CI, no need to run it here
+    doctest = true,
     checkdocs = :exports,
 )
 

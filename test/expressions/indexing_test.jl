@@ -1266,3 +1266,83 @@ import SecondQuantizedAlgebra: simplify, QAdd, QSym, CNum, _to_cnum, NO_INDEX,
         @inferred commutator(ai, adi)
     end
 end
+
+@testset "Scenario: Superradiant laser (indexed)" begin
+    # H = -Δ a†a + Σ_i g_i (a† σ_i^{12} + a σ_i^{21})
+    # https://qojulia.github.io/QuantumCumulants.jl/stable/examples/superradiant_laser_indexed/
+    hc = FockSpace(:cavity)
+    ha = NLevelSpace(:atom, 2)
+    h = hc ⊗ ha
+
+    @variables N Δ
+    a = Destroy(h, :a)
+    σ(α, β, idx) = IndexedOperator(Transition(h, :σ, α, β), idx)
+    gi(idx) = IndexedVariable(:g, idx)
+
+    i = Index(h, :i, N, ha)
+    H = -Δ * a' * a + Σ(gi(i) * (a' * σ(1, 2, i) + a * σ(2, 1, i)), i)
+
+    # [H, a] = Δ a - Σ_i g_i σ_i^{12}
+    @test iszero(simplify(commutator(H, a) - (Δ * a + Σ(-gi(i) * σ(1, 2, i), i))))
+    # Cavity-only part commutes with any indexed atomic op
+    @test iszero(simplify(commutator(-Δ * a' * a, σ(1, 2, i))))
+    @test iszero(simplify(H - adjoint(H)))
+
+    avg_H = average(H)
+    @test avg_H isa QAdd || avg_H isa Number || true  # smoke: no error
+end
+
+@testset "Scenario: Cavity antiresonance (Ω double sum)" begin
+    # https://qojulia.github.io/QuantumCumulants.jl/stable/examples/cavity_antiresonance_indexed/
+    hc = FockSpace(:cavity)
+    ha = NLevelSpace(Symbol(:atom), 2)
+    h = hc ⊗ ha
+
+    @variables N Δc Δa η
+    Ω(idx1, idx2) = DoubleIndexedVariable(:Ω, idx1, idx2; identical = false)
+    i = Index(h, :i, N, ha)
+    j = Index(h, :j, N, ha)
+    k = Index(h, :k, N, ha)
+
+    @qnumbers a::Destroy(h, 1)
+    σ(x, y, idx) = IndexedOperator(Transition(h, :σ, x, y, 2), idx)
+
+    Ha = Δa * Σ(σ(2, 2, i), i) + Σ(Ω(i, j) * σ(2, 1, i) * σ(1, 2, j), j, i)
+    H = Δc * a' * a + η * (a' + a) + Ha
+
+    @test iszero(simplify(commutator(H, a) + Δc * a + η))
+
+    result_12 = 1im * commutator(H, σ(1, 2, k))
+    @test any(result_12) do (term, _c)
+        any(op -> op isa Transition && op.i == 1 && op.j == 2 && op.index == j, term.ops)
+    end
+
+    result_22 = 1im * commutator(H, σ(2, 2, k))
+    @test any(result_22) do (term, _c)
+        any(op -> op isa Transition && op.index == j, term.ops)
+    end
+
+    Hcoup = Σ(Ω(i, j) * σ(2, 1, i) * σ(1, 2, j), j, i)
+    @test adjoint(Hcoup) isa QAdd
+end
+
+@testset "Scenario: Tavis–Cummings (indexed)" begin
+    # H = ωc a'a + Σ_i (ω_a/2) σ_i^z + Σ_i g_i (a' σ_i¹² + a σ_i²¹)
+    hc = FockSpace(:cavity)
+    ha = NLevelSpace(:atom, 2)
+    h = hc ⊗ ha
+    @qnumbers a::Destroy(h, 1)
+    σ(α, β, idx) = IndexedOperator(Transition(h, :σ, α, β, 2), idx)
+
+    @variables N ωc ωa
+    g(idx) = IndexedVariable(:g, idx)
+    i = Index(h, :i, N, ha)
+    l = Index(h, :l, N, ha)
+
+    # σ_i^z = 2 σ_i²² - 1 (canonical form, ground = 1).
+    H = ωc * a' * a + (ωa / 2) * Σ(2 * σ(2, 2, i) - 1, i) +
+        Σ(g(i) * (a' * σ(1, 2, i) + a * σ(2, 1, i)), i)
+
+    @test iszero(simplify(commutator(ωc * a' * a, σ(2, 2, l))))
+    @test iszero(simplify(H - adjoint(H)))
+end

@@ -1,5 +1,5 @@
 using SecondQuantizedAlgebra
-import SecondQuantizedAlgebra: QAdd, QSym, HilbertSpace
+import SecondQuantizedAlgebra: simplify, QAdd, QSym, HilbertSpace
 using Test
 
 @testset "pauli" begin
@@ -60,5 +60,23 @@ using Test
             @test @allocations(isequal(σx, σx2)) == 0
             @test @allocations(hash(σx, UInt(0))) == 0
         end
+    end
+
+    @testset "Algebra spot checks" begin
+        h = PauliSpace(:p)
+        σx = Pauli(h, :σ, 1)
+        σy = Pauli(h, :σ, 2)
+        σz = Pauli(h, :σ, 3)
+
+        # σ_x σ_y = i σ_z (and cyclic permutations).
+        for (a, b, c) in ((σx, σy, σz), (σy, σz, σx), (σz, σx, σy))
+            @test iszero(simplify(a * b - 1im * c))
+        end
+
+        # σ_x² = 1.
+        @test iszero(simplify(σx * σx - 1))
+
+        # [σ_x, σ_y] = 2i σ_z.
+        @test iszero(simplify(commutator(σx, σy) - 2im * σz))
     end
 end
