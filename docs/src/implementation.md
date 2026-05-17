@@ -203,17 +203,19 @@ For symbolic scalar expressions such as `average(a)`, call [`numeric_average`](@
 directly. The `expect` alias is intentionally kept for operator expressions (`QField`)
 only.
 
-### Level mapping for NLevelSpace
+### Symbolic levels for NLevelSpace
 
-When using symbolic levels, provide a `level_map` to specify the mapping from symbolic names to basis indices:
+Symbolic level names are resolved to integer basis indices at `Transition`
+construction time, using the order of the `levels` tuple passed to
+[`NLevelSpace`](@ref). The first level maps to basis index `1`, the second to
+`2`, and so on:
 
 ```@example numeric-nlevel
 using SecondQuantizedAlgebra, QuantumOpticsBase
 h = NLevelSpace(:atom, (:g, :e))
 bn = NLevelBasis(2)
 s = Transition(h, :s, :g, :e)
-level_map = Dict(:g => 1, :e => 2)
-@assert to_numeric(s, bn; level_map = level_map) == transition(bn, 1, 2)
+@assert to_numeric(s, bn) == transition(bn, 1, 2)
 nothing # hide
 ```
 
@@ -234,9 +236,8 @@ bf = FockBasis(10)
 bn = NLevelBasis(3)
 bc = bf ⊗ bn
 
-level_map = Dict(:a => 3, :b => 2, :c => 1)
 a_num = to_numeric(a, bc)
-s_num = to_numeric(s(:a, :c), bc; level_map = level_map)
+s_num = to_numeric(s(:a, :c), bc)
 nothing # hide
 ```
 
@@ -245,5 +246,5 @@ For very large systems, use `LazyKet` to avoid materializing the full state vect
 ```@example numeric-composite
 ψ = LazyKet(bc, (coherentstate(bf, 0.3), (nlevelstate(bn, 1) + nlevelstate(bn, 3)) / sqrt(2)))
 avg = average(a' * s(:a, :c))
-numeric_average(avg, ψ; level_map = level_map)
+numeric_average(avg, ψ)
 ```
