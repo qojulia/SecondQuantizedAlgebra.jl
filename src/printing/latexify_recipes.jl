@@ -67,14 +67,28 @@ end
 
 # Extract a plain Julia number from CNum for LaTeX rendering
 function _latex_prefactor(c::CNum)
-    r_val = Symbolics.value(SymbolicUtils.unwrap(real(c)))
-    i_val = Symbolics.value(SymbolicUtils.unwrap(imag(c)))
-    if iszero(i_val)
+    r_unwrap = SymbolicUtils.unwrap(real(c))
+    i_unwrap = SymbolicUtils.unwrap(imag(c))
+    r_val = Symbolics.value(r_unwrap)
+    i_val = Symbolics.value(i_unwrap)
+    # `iszero` on a BasicSymbolic returns a symbolic expression, not Bool, which
+    # blows up the `if` below on older Symbolics (Julia 1.10 CI). Use structural
+    # equality on the unwrapped form to get a Bool either way.
+    i_is_zero = isequal(i_unwrap, 0) || (i_val isa Number && iszero(i_val))
+    r_is_zero = isequal(r_unwrap, 0) || (r_val isa Number && iszero(r_val))
+    if i_is_zero
         return r_val
-    elseif iszero(r_val)
-        return complex(zero(r_val), i_val)
-    else
+    elseif r_is_zero
+        # Pure imaginary: `complex(false, x)` only works for `x <: Real`, so on
+        # symbolic prefactors we fall through to the full `c` form below.
+        if i_val isa Real
+            return complex(false, i_val)
+        end
+        return c
+    elseif r_val isa Real && i_val isa Real
         return complex(r_val, i_val)
+    else
+        return c
     end
 end
 _latex_prefactor(c::Number) = c
