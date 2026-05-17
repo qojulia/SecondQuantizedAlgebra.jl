@@ -39,7 +39,7 @@ commutator(x, p)
 
 # ## Hamiltonian and Heisenberg dynamics
 
-H = (δ - κ)/2 * x^2 + (δ + κ)/2 * p^2
+H = (δ - κ) / 2 * x^2 + (δ + κ) / 2 * p^2
 
 -1im * commutator(x, H)
 
@@ -182,8 +182,8 @@ H_class(x_val, p_val, κ_val) =
     (δ_val - κ_val) / 2 * x_val^2 + (δ_val + κ_val) / 2 * p_val^2
 W_gs(x_val, p_val, κ_val) =
     (2 / π) * exp(
-        -x_val^2 / (2 * th_x(κ_val)) - p_val^2 / (2 * th_p(κ_val)),
-    )
+    -x_val^2 / (2 * th_x(κ_val)) - p_val^2 / (2 * th_p(κ_val)),
+)
 
 κs_show = [0.0, 0.5, 0.95, 1.2]
 xs_plot = -3:0.04:3
@@ -200,16 +200,24 @@ for (i, κ_val) in enumerate(κs_show)
     if κ_val < δ_val
         W_grid = [W_gs(xv, pv, κ_val) for xv in xs_plot, pv in ps_plot]
         heatmap!(ax, xs_plot, ps_plot, W_grid; colormap = :viridis)
-        contour!(ax, xs_plot, ps_plot, H_grid;
-                 levels = 10, color = (:white, 0.6), linewidth = 0.8)
+        contour!(
+            ax, xs_plot, ps_plot, H_grid;
+            levels = 10, color = (:white, 0.6), linewidth = 0.8
+        )
     else
-        contour!(ax, xs_plot, ps_plot, H_grid;
-                 levels = vcat(-3:0.5:-0.5, 0.5:0.5:3),
-                 color = :firebrick, linewidth = 0.9)
-        contour!(ax, xs_plot, ps_plot, H_grid; levels = [0.0],
-                 color = :black, linewidth = 1.5)
-        text!(ax, 0, -2.6; text = "unstable — no GS",
-              align = (:center, :center), color = :firebrick)
+        contour!(
+            ax, xs_plot, ps_plot, H_grid;
+            levels = vcat(-3:0.5:-0.5, 0.5:0.5:3),
+            color = :firebrick, linewidth = 0.9
+        )
+        contour!(
+            ax, xs_plot, ps_plot, H_grid; levels = [0.0],
+            color = :black, linewidth = 1.5
+        )
+        text!(
+            ax, 0, -2.6; text = "unstable — no GS",
+            align = (:center, :center), color = :firebrick
+        )
     end
     limits!(ax, -3, 3, -3, 3)
 end

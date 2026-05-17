@@ -81,7 +81,7 @@ c' * c + d' * d
 # diagonalise the resulting linear system.  The commutator structure pairs
 # ``a`` with ``b^\dagger`` and ``b`` with ``a^\dagger``:
 
-eq_a  = -1im * commutator(a, H)
+eq_a = -1im * commutator(a, H)
 eq_bd = -1im * commutator(b', H)
 
 # Reading off the coefficients, ``\dot a = -i\omega\,a - i\kappa\,b^\dagger``
@@ -96,8 +96,10 @@ eq_bd = -1im * commutator(b', H)
 # both readable symbolically:
 
 using LinearAlgebra
-M = [-1im*ω   -1im*κ;
-      1im*κ    1im*ω]
+M = [
+    -1im * ω   -1im * κ;
+    1im * κ    1im * ω
+]
 tr(M), simplify(det(M))
 
 # The characteristic equation ``\lambda^2 + (\omega^2 - \kappa^2) = 0`` gives
@@ -233,7 +235,7 @@ n_th(κ_val) = (ω_val / sqrt(ω_val^2 - κ_val^2) - 1) / 2
 
 κs = range(0.0, 0.9 * ω_val, length = 25)
 E0_num = Float64[]
-n_num  = Float64[]
+n_num = Float64[]
 for κ_val in κs
     subs = Dict(ω => ω_val, κ => κ_val)
     H_op = dense(to_numeric(substitute(H, subs), b_total))

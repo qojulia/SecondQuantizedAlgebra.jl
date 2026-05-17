@@ -127,7 +127,7 @@ h_pol = ha2 ⊗ hb2
 
 @variables λ
 H_pol = ωc * a_pol' * a_pol + ωa * b_pol' * b_pol +
-        λ * (a_pol + a_pol') * (b_pol + b_pol')
+    λ * (a_pol + a_pol') * (b_pol + b_pol')
 
 # ## Polariton spectrum from a Bogoliubov-de-Gennes determinant
 #
@@ -157,10 +157,12 @@ H_pol = ωc * a_pol' * a_pol + ωa * b_pol' * b_pol +
 
 using LinearAlgebra
 @variables x
-M = [-1im*ωc   -1im*λ     0          -1im*λ;
-     -1im*λ   -1im*ωa    -1im*λ       0;
-      0        1im*λ      1im*ωc      1im*λ;
-      1im*λ    0          1im*λ       1im*ωa]
+M = [
+    -1im * ωc   -1im * λ     0          -1im * λ;
+    -1im * λ   -1im * ωa    -1im * λ       0;
+    0        1im * λ      1im * ωc      1im * λ;
+    1im * λ    0          1im * λ       1im * ωa
+]
 
 simplify(det(M - x * I))
 
@@ -218,17 +220,18 @@ b = b_cav ⊗ b_spin
 
 ## Closed-form curves
 ε_minus(λ_val) = sqrt(
-    max(0.0,
+    max(
+        0.0,
         0.5 * (
             (ωa_val^2 + ωc_val^2) -
-            sqrt((ωa_val^2 - ωc_val^2)^2 + 16 * λ_val^2 * ωa_val * ωc_val)
+                sqrt((ωa_val^2 - ωc_val^2)^2 + 16 * λ_val^2 * ωa_val * ωc_val)
         ),
     ),
 )
 ε_plus(λ_val) = sqrt(
     0.5 * (
         (ωa_val^2 + ωc_val^2) +
-        sqrt((ωa_val^2 - ωc_val^2)^2 + 16 * λ_val^2 * ωa_val * ωc_val)
+            sqrt((ωa_val^2 - ωc_val^2)^2 + 16 * λ_val^2 * ωa_val * ωc_val)
     ),
 )
 n_mf(λ_val) = λ_val < λc ? 0.0 : (λ_val^2 / ωc_val^2) * (1 - (λc / λ_val)^4)

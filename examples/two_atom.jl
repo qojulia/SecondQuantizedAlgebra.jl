@@ -141,8 +141,10 @@ H_num = ω_val * (σ_e_a + σ_e_b) + J_val * (σ_eg_a * σ_ge_b + σ_eg_b * σ_g
 E = sort(real.(eigvals(Matrix(H_num.data))))
 
 println("spectrum             = ", round.(E; digits = 4))
-println("expected {0, ω-J, ω+J, 2ω} = ",
-        round.([0.0, ω_val - J_val, ω_val + J_val, 2*ω_val]; digits = 4))
+println(
+    "expected {0, ω-J, ω+J, 2ω} = ",
+    round.([0.0, ω_val - J_val, ω_val + J_val, 2 * ω_val]; digits = 4)
+)
 
 # The four eigenvalues come out as ``\{0, \omega - J, \omega + J,
 # 2\omega\}`` — the singlet, dark, bright, and doubly-excited levels — in
@@ -212,18 +214,24 @@ a_num = destroy(b_cav) ⊗ one(b_atom) ⊗ one(b_atom)
 σ_ge_b2 = one(b_cav) ⊗ one(b_atom) ⊗ transition(b_atom, 1, 2)
 
 H_tc = ωc_val * a_num' * a_num + ω_val * (σ_ee_a2 + σ_ee_b2) +
-       J_val * (σ_eg_a2 * σ_ge_b2 + σ_eg_b2 * σ_ge_a2) +
-       g_val * (a_num' * σ_ge_a2 + a_num' * σ_ge_b2 +
-                a_num * σ_eg_a2 + a_num * σ_eg_b2)
+    J_val * (σ_eg_a2 * σ_ge_b2 + σ_eg_b2 * σ_ge_a2) +
+    g_val * (
+    a_num' * σ_ge_a2 + a_num' * σ_ge_b2 +
+        a_num * σ_eg_a2 + a_num * σ_eg_b2
+)
 
 E_tc = sort(real.(eigvals(Hermitian(Matrix(H_tc.data)))))
 pol_lower = ωc_val - g_val * sqrt(2)
 pol_upper = ωc_val + g_val * sqrt(2)
 dark_lvl = ω_val - J_val
-println("single-excitation spectrum (numeric): ",
-        round.(E_tc[2:4]; digits = 4))
-println("polariton + dark prediction:           ",
-        round.(sort([pol_lower, dark_lvl, pol_upper]); digits = 4))
+println(
+    "single-excitation spectrum (numeric): ",
+    round.(E_tc[2:4]; digits = 4)
+)
+println(
+    "polariton + dark prediction:           ",
+    round.(sort([pol_lower, dark_lvl, pol_upper]); digits = 4)
+)
 
 # The three single-excitation eigenvalues fall right where the analytic
 # story predicts: a lower polariton at ``\omega_c - g\sqrt{2}``, the
@@ -279,8 +287,8 @@ function tavis_single_excitation(N::Int; ω = 1.0, J = 0.05, g = 0.2)
     σge_n = [op_at(k, transition(b_a, 1, 2)) for k in 1:N]
     ωc = ω + (N - 1) * J
     H_N = ωc * a_n' * a_n + ω * sum(σee_n) +
-          J * sum(σeg_n[p] * σge_n[q] for p in 1:N, q in 1:N if p != q) +
-          g * sum(a_n' * σge_n[k] + a_n * σeg_n[k] for k in 1:N)
+        J * sum(σeg_n[p] * σge_n[q] for p in 1:N, q in 1:N if p != q) +
+        g * sum(a_n' * σge_n[k] + a_n * σeg_n[k] for k in 1:N)
     N_tot = a_n' * a_n + sum(σee_n)
     Hd = Hermitian(Matrix(H_N.data))
     F = eigen(Hd)
@@ -295,12 +303,16 @@ for N in 2:4
     pol_hi_th = ωc_val_N + 0.2 * sqrt(N)
     dark_th = 1.0 - 0.05
     th_sorted = sort(vcat([pol_lo_th, pol_hi_th], fill(dark_th, N - 1)))
-    println("N = $N:  numeric single-excitation = ",
-            round.(E_single; digits = 4))
-    println("        theory                     = ",
-            round.(th_sorted; digits = 4),
-            "   (ε_pol± = ω_c ± g√N, ",
-            "dark ×$(N - 1) at ω - J)")
+    println(
+        "N = $N:  numeric single-excitation = ",
+        round.(E_single; digits = 4)
+    )
+    println(
+        "        theory                     = ",
+        round.(th_sorted; digits = 4),
+        "   (ε_pol± = ω_c ± g√N, ",
+        "dark ×$(N - 1) at ω - J)"
+    )
 end
 
 # The lower polariton tracks ``\omega_c - g\sqrt{N}`` exactly for every

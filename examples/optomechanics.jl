@@ -229,7 +229,7 @@ F_mim = eigen(Hermitian(H_mim_op.data))
 
 ε_mim(n) = ωm_val2 * sqrt(1 + 4 * g2_val * n / ωm_val2)
 E_th(n, m) = (ωc_val2 + g2_val) * n + ε_mim(n) * m +
-             (ε_mim(n) - ωm_val2 - 2 * g2_val * n) / 2
+    (ε_mim(n) - ωm_val2 - 2 * g2_val * n) / 2
 
 preds = sort(
     [(n, m, E_th(n, m)) for n in 0:3 for m in 0:10];
@@ -238,9 +238,11 @@ preds = sort(
 for k in 1:12
     n, m, eth = preds[k]
     enum = F_mim.values[k]
-    println("  (n=$n, m=$m)  E_th = $(round(eth; digits = 4))",
-            "   E_num = $(round(enum; digits = 4))",
-            "   |Δ| = $(round(abs(eth - enum); digits = 8))")
+    println(
+        "  (n=$n, m=$m)  E_th = $(round(eth; digits = 4))",
+        "   E_num = $(round(enum; digits = 4))",
+        "   |Δ| = $(round(abs(eth - enum); digits = 8))"
+    )
 end
 
 # Every level matches the closed-form prediction to truncation precision.
