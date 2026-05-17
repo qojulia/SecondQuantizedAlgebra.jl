@@ -82,6 +82,41 @@ PR with no ripple effect; suggested merge order is roughly the order listed.
       `simplify(expr; commute=false)`. Local control, no global mode. Add only
       when a concrete user need arises.
 
+- [ ] **Bogoliubov transformation**
+
+- [ ] **Index arithmetic / nearest-neighbour shifts**. Today an `Index` is a
+      single `name::Symbol`, and structural equality on `name` is what powers
+      `_diagonal_split!`, `_site_compare`, and the `NonEqualPair` constraint
+      system. Lattice Hamiltonians of the form ``H = -J \sum_i (\sigma_i^+
+      \sigma_{i+1}^- + \mathrm{h.c.})`` therefore can't be written natively —
+      `i+1` has no representation.
+      **MVP:** add a `shift::Int` (or `step`) field to `Index` so
+      `Index(name=:i, shift=1)` denotes ``i+1``. Touches:
+      - [src/expressions/index_types.jl](src/expressions/index_types.jl) —
+        struct, `==`, `hash`, `isless` extended on `(name, shift)`.
+      - [src/expressions/index.jl](src/expressions/index.jl) —
+        `change_index`, `get_indices`, and crucially
+        [`_diagonal_split!`](src/expressions/index.jl#L252): currently
+        collides indices by `name`; with shifts, decide when `(i, 0)` and
+        `(i, 1)` ever coincide (no, by construction) and when `(i, 1)`
+        colliding with free `j` on the same subspace should emit the
+        substitution `j → i+1`.
+      - Per-operator `_site_compare` (one per `QSym` subtype) — sort key
+        becomes `(space_index, name, shift)` so canonical ordering stays
+        deterministic.
+      - Numeric `Σ` enumeration — enumerate shifted indices respecting
+        boundary conditions: open chain (`i+1 ≤ N`) vs periodic
+        (`(i mod N) + 1`). Pass the BC via a `boundary=:open|:periodic`
+        keyword on `Σ`.
+      **Full lattice support** (out of scope for the MVP) would also want:
+      sparse-pattern `DoubleIndexedVariable` like `J(i, j)` for arbitrary
+      coupling matrices, a generic `j = f(i)` for higher-shell shifts and
+      multi-orbital unit cells, and explicit boundary-condition objects.
+      **Motivation:** unblocks an indexed Heisenberg/XXZ chain example
+      (spin-wave dispersion ``\varepsilon(k) = J(1 - \cos k)`` via
+      Holstein-Primakoff). Without it the chain example has to either
+      unroll for finite `N` (loses the `Σ` showcase) or be skipped.
+
 ### Speculative explorations
 
 - [ ] **UUID-based `i ≠ j` tracking** (per [QC.jl #230](https://github.com/qojulia/QuantumCumulants.jl/pull/230)).
