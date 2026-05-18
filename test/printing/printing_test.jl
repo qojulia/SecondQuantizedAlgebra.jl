@@ -233,6 +233,29 @@ import SecondQuantizedAlgebra: simplify, QAdd, QSym, _single_qadd, _zero_qadd, _
             end
         end
 
+        @testset "Compound names render as subscript label" begin
+            hn = NLevelSpace(:atom, 3, 1)
+            hp = PauliSpace(:p)
+            hs = SpinSpace(:s)
+            hps = PhaseSpace(:q)
+
+            # Raw `a_pol` would be parsed by KaTeX as `a` with subscript `p`,
+            # leaving `ol` as stray text. We emit `a_{\mathrm{pol}}` instead.
+            cases = [
+                (Destroy(hf, :a_pol), L"a_{\mathrm{pol}}"),
+                (Create(hf, :c_bog), L"c_{\mathrm{bog}}^{\dagger}"),
+                (Destroy(hf, :b_long_name), L"b_{\mathrm{long\_name}}"),
+                (Transition(hn, :σ_lab, 1, 2), L"{\sigma_{\mathrm{lab}}}^{{12}}"),
+                (Pauli(hp, :τ_atom, 2), L"{\tau_{\mathrm{atom}}}_{{y}}"),
+                (Spin(hs, :S_lab, 3), L"{S_{\mathrm{lab}}}_{{z}}"),
+                (Position(hps, :x_com), L"\hat{x_{\mathrm{com}}}"),
+                (Momentum(hps, :p_rel), L"\hat{p_{\mathrm{rel}}}"),
+            ]
+            for (input, out) in cases
+                @test latexify(input) == out
+            end
+        end
+
         @testset "Transition superscript toggle" begin
             hn = NLevelSpace(:atom, 3, 1)
             σ12 = Transition(hn, :σ, 1, 2)

@@ -28,41 +28,55 @@ function _latex_index_suffix(idx::Index)
     return "_{$(idx.name)}"
 end
 
+# Render an operator name for LaTeX. A bare name (`:a`) passes through, but a
+# Julia-style compound name (`:a_pol`, `:c_bog`) is split at the first `_` and
+# rendered as `a_{\mathrm{pol}}` — otherwise KaTeX reads the `_` as a subscript
+# operator and the trailing characters render as stray italic letters.
+function _latex_name(name)
+    s = string(name)
+    idx = findfirst('_', s)
+    idx === nothing && return s
+    head = s[1:prevind(s, idx)]
+    rest = s[nextind(s, idx):end]
+    rest_escaped = replace(rest, '_' => "\\_")
+    return string(head, "_{\\mathrm{", rest_escaped, "}}")
+end
+
 @latexrecipe function f(x::Destroy)
     suffix = _latex_index_suffix(x.index)
-    return Expr(:latexifymerge, "$(x.name)$(suffix)")
+    return Expr(:latexifymerge, "$(_latex_name(x.name))$(suffix)")
 end
 
 @latexrecipe function f(x::Create)
     suffix = _latex_index_suffix(x.index)
-    return Expr(:latexifymerge, "$(x.name)$(suffix)^{\\dagger}")
+    return Expr(:latexifymerge, "$(_latex_name(x.name))$(suffix)^{\\dagger}")
 end
 
 @latexrecipe function f(x::Transition)
     suffix = _latex_index_suffix(x.index)
-    return Expr(:latexifymerge, "{$(x.name)}$(suffix)$(transition_idx_script[]){{$(x.i)$(x.j)}}")
+    return Expr(:latexifymerge, "{$(_latex_name(x.name))}$(suffix)$(transition_idx_script[]){{$(x.i)$(x.j)}}")
 end
 
 @latexrecipe function f(x::Pauli)
     ax = _xyz_sym[x.axis]
     suffix = _latex_index_suffix(x.index)
-    return Expr(:latexifymerge, "{$(x.name)}$(suffix)_{{$ax}}")
+    return Expr(:latexifymerge, "{$(_latex_name(x.name))}$(suffix)_{{$ax}}")
 end
 
 @latexrecipe function f(x::Spin)
     ax = _xyz_sym[x.axis]
     suffix = _latex_index_suffix(x.index)
-    return Expr(:latexifymerge, "{$(x.name)}$(suffix)_{{$ax}}")
+    return Expr(:latexifymerge, "{$(_latex_name(x.name))}$(suffix)_{{$ax}}")
 end
 
 @latexrecipe function f(x::Position)
     suffix = _latex_index_suffix(x.index)
-    return Expr(:latexifymerge, "\\hat{$(x.name)}$(suffix)")
+    return Expr(:latexifymerge, "\\hat{$(_latex_name(x.name))}$(suffix)")
 end
 
 @latexrecipe function f(x::Momentum)
     suffix = _latex_index_suffix(x.index)
-    return Expr(:latexifymerge, "\\hat{$(x.name)}$(suffix)")
+    return Expr(:latexifymerge, "\\hat{$(_latex_name(x.name))}$(suffix)")
 end
 
 # Extract a plain Julia number from CNum for LaTeX rendering

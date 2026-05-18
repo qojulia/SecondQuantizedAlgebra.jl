@@ -113,9 +113,8 @@ H_pol = ωc * a' * a + ωm * bd_tilde * b_tilde + g * a' * a * (b_tilde + bd_til
 #
 # We diagonalise both the original ``H`` and the Kerr-only effective
 # Hamiltonian
-# ``H_\mathrm{Kerr} = \omega_c\,a^\dagger a + \omega_m\,b^\dagger b
-# - (g^2/\omega_m)\,(a^\dagger a)^2`` and check that they share the same
-# spectrum.
+# ``H_\mathrm{Kerr} = \omega_c\,a^\dagger a + \omega_m\,b^\dagger b - (g^2/\omega_m)\,(a^\dagger a)^2``
+# and check that they share the same spectrum.
 
 using QuantumOpticsBase, LinearAlgebra, CairoMakie
 
@@ -154,9 +153,10 @@ for n in 2:8
 end
 fig
 
-# Dashed lines: Kerr-effective spectrum ``E_{n,m}^\mathrm{eff} = \omega_c n
-# - (g^2/\omega_m)\,n^2 + \omega_m m``, visible as bundles of ``\omega_m``-spaced
-# mechanical phonons attached to each Kerr-shifted cavity level.
+# Dashed lines: Kerr-effective spectrum
+# ``E_{n,m}^\mathrm{eff} = \omega_c n - (g^2/\omega_m)\,n^2 + \omega_m m``,
+# visible as bundles of ``\omega_m``-spaced mechanical phonons attached to
+# each Kerr-shifted cavity level.
 # Markers: exact diagonalisation of the full radiation-pressure
 # Hamiltonian.  They agree to truncation error across the whole coupling
 # range — the polaron substitution is exact, and the package's eager

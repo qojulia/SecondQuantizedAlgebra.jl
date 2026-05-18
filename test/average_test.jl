@@ -438,6 +438,89 @@ import SecondQuantizedAlgebra: simplify, QAdd, QSym, QField, CNum, _to_cnum, _si
         @test is_average(avg_prod)
     end
 
+    @testset "average(QAdd) — no literal `complex(re, im)` in result" begin
+        # Background: `SymbolicUtils.unwrap(::Complex{<:Num})` (Symbolics) builds
+        # a `Term(complex, [re, img])` symbolic call whenever both re/img are
+        # symbolic. That literal call is opaque to `simplify` / `expand`. It
+        # also generates a runtime `complex(::Real, ::Complex)` call when MTK
+        # codegens the equation, for which Base has no method.
+        #
+        # `average(::QAdd)` must avoid materialising such literals. It does so
+        # by accumulating into a `Num` (or `BasicSymbolic{SymReal}`) result,
+        # bringing in `im` via `Symbolics.IM` (the BasicSymbolic sym for `im`)
+        # rather than via a `Complex{Num}` intermediate.
+
+        # Walk an expression tree and collect all `Term`s whose operation is `complex`.
+        function _find_complex_terms(x, out = Any[])
+            if x isa SymbolicUtils.BasicSymbolic && SymbolicUtils.iscall(x)
+                SymbolicUtils.operation(x) === complex && push!(out, x)
+                for arg in SymbolicUtils.arguments(x)
+                    _find_complex_terms(arg, out)
+                end
+            end
+            return out
+        end
+
+        @testset "operator branch: `i * im * avg` does not leak literals" begin
+            h = FockSpace(:c)
+            a = Destroy(h, :a)
+            @variables Δ::Real
+            # `commutator(im * Δ * a' * a, a)` ends up as `-Δim * a` (i.e. a QAdd
+            # whose single coefficient is `Complex{Num}(0, -Δ)`). Averaging it
+            # previously produced `⟨a⟩ * complex(0, -Δ)`.
+            qadd = (-im * Δ) * a
+            avg = average(qadd)
+            @test isempty(_find_complex_terms(avg))
+            # The result still represents the same mathematical quantity. We
+            # build the comparison target via `Symbolics.IM * average(a)`
+            # (additive form) rather than via `(-im) * Δ * average(a)`, because
+            # the latter promotes through `Complex{Num}` and itself materialises
+            # a literal `complex(...)` Term that defeats the diff.
+            target = -(Δ * Symbolics.IM * average(a))
+            @test SymbolicUtils._iszero(
+                SymbolicUtils.simplify(avg - target; expand = true)
+            )
+        end
+
+        @testset "constant branch: `result += c` does not leak literals" begin
+            h = FockSpace(:c)
+            a = Destroy(h, :a)
+            @variables η::Real
+            # `commutator(im*η*(a + a'), a')` = `i*η`, a pure-scalar QAdd (no ops)
+            # — exercises the `isempty(term.ops)` branch of `average(::QAdd)`.
+            scalar = _single_qadd(_to_cnum(Complex(0, η)), QSym[])
+            avg = average(scalar)
+            @test isempty(_find_complex_terms(avg))
+            # Mixed re + im constant must also stay literal-free.
+            @variables r::Real
+            mixed = _single_qadd(_to_cnum(Complex(r, η)), QSym[])
+            avg_mixed = average(mixed)
+            @test isempty(_find_complex_terms(avg_mixed))
+        end
+
+        @testset "operator + constant in the same QAdd" begin
+            h = FockSpace(:c)
+            a = Destroy(h, :a)
+            @variables Δ::Real η::Real
+            # Build a QAdd that has both a scalar (im*η) and an operator (im*Δ*a)
+            # coefficient with imaginary parts. Previously, accumulating these in
+            # one `result::Num` promoted to `Complex{Num}` on the first scalar
+            # add and corrupted every subsequent addition.
+            qa = (im * η) * one(a) + (-im * Δ) * a
+            avg = average(qa)
+            @test isempty(_find_complex_terms(avg))
+        end
+
+        @testset "real-only coefficients are unaffected" begin
+            h = FockSpace(:c)
+            a = Destroy(h, :a)
+            @variables κ::Real
+            avg = average((κ / 2) * a)
+            @test isempty(_find_complex_terms(avg))
+            @test isequal(avg, (κ / 2) * average(a))
+        end
+    end
+
     @testset "Type stability" begin
         h = FockSpace(:f)
         @qnumbers a::Destroy(h)

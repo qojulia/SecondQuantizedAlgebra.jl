@@ -84,11 +84,19 @@ average(x::SymbolicUtils.BasicSymbolic) = x
 average(x::Num) = average(SymbolicUtils.unwrap(x))
 
 function average(op::QAdd)
+    # Accumulate into a `Num` (or `BasicSymbolic{SymReal}` after the first
+    # multiplication-by-`avg`). Never let `result` become a `Complex{Num}`:
+    # `SymbolicUtils.unwrap(::Complex{<:Num})` would materialise the imaginary
+    # piece as a literal `complex(re, im)` symbolic call, which is opaque to
+    # `simplify` / `expand`. We bring in `im` via `Symbolics.IM`
+    # (the BasicSymbolic{SymReal} sym for `im`) so the chain stays symbolic.
     result = Num(0)
     shared = isempty(op.indices) ? nothing : copy(op.indices)
     for (term, c) in op.arguments
+        r, i = real(c), imag(c)
         if isempty(term.ops)
-            result += c
+            iszero(r) || (result += r)
+            iszero(i) || (result += i * Symbolics.IM)
             continue
         end
         inner = (length(term.ops) == 1 && isempty(term.ne) && isempty(op.indices)) ?
@@ -98,8 +106,8 @@ function average(op::QAdd)
             avg = SymbolicUtils.setmetadata(avg, SumIndices, shared)
             avg = SymbolicUtils.setmetadata(avg, SumNonEqual, _copy_ne(term.ne))
         end
-        r, i = real(c), imag(c)
-        result += iszero(i) ? r * avg : iszero(r) ? im * i * avg : (r + im * i) * avg
+        iszero(r) || (result += r * avg)
+        iszero(i) || (result += i * Symbolics.IM * avg)
     end
     return SymbolicUtils.unwrap(result)
 end

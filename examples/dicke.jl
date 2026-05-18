@@ -166,8 +166,7 @@ M = [
 
 simplify(det(M - x * I))
 
-# So ``\det(M - x I) = x^4 + (\omega_a^2 + \omega_c^2)\,x^2
-#  + \omega_a\omega_c\,(\omega_a\omega_c - 4\lambda^2)``.
+# So ``\det(M - x I) = x^4 + (\omega_a^2 + \omega_c^2)\,x^2 + \omega_a\omega_c\,(\omega_a\omega_c - 4\lambda^2)``.
 #
 # Setting ``y = -x^2`` (so ``x = \pm i\,\varepsilon`` with
 # ``\varepsilon = \sqrt{y}``) gives the **polariton dispersion**
@@ -183,9 +182,8 @@ simplify(det(M - x * I))
 # ## Critical coupling from gap closing
 #
 # Demanding ``\varepsilon_- = 0`` reduces to
-# ``(\omega_a^2 + \omega_c^2)^2 = (\omega_a^2 - \omega_c^2)^2
-# + 16\,\lambda^2\,\omega_a\,\omega_c``, which simplifies to
-# ``4\,\omega_a^2\,\omega_c^2 = 16\,\lambda^2\,\omega_a\,\omega_c`` and hence
+# ``(\omega_a^2 + \omega_c^2)^2 = (\omega_a^2 - \omega_c^2)^2 + 16\,\lambda^2\,\omega_a\,\omega_c``,
+# which simplifies to ``4\,\omega_a^2\,\omega_c^2 = 16\,\lambda^2\,\omega_a\,\omega_c`` and hence
 #
 # ```math
 # \boxed{\;\lambda_c = \tfrac{1}{2}\sqrt{\omega_a\,\omega_c}\;}
