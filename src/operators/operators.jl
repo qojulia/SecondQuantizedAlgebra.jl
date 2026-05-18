@@ -196,6 +196,10 @@ an opaque `conj(...)` wrapper.
 Aliased as `qconj` and `dagger`.
 """
 function qadjoint(v::SymbolicUtils.BasicSymbolic)
+    # TODO `Symbolics.IM` (used by `average(::QAdd)` to avoid `Complex{Num}`)
+    # has no `conj` fold yet upstream; do it here.
+    # https://github.com/JuliaSymbolics/SymbolicUtils.jl/pull/924
+    v === Symbolics.IM && return -Symbolics.IM
     if SymbolicUtils.iscall(v)
         f = SymbolicUtils.operation(v)
         args = map(qadjoint, SymbolicUtils.arguments(v))
@@ -222,6 +226,8 @@ the canonical "average-of-operator" form for substitution and hashing.
 On non-average sub-expressions, behaves like [`qadjoint`](@ref).
 """
 function inner_adjoint(v::SymbolicUtils.BasicSymbolic)
+    # TODO See `qadjoint`: upstream `conj(IM)` doesn't fold yet. https://github.com/JuliaSymbolics/SymbolicUtils.jl/pull/924
+    v === Symbolics.IM && return -Symbolics.IM
     if SymbolicUtils.iscall(v)
         f = SymbolicUtils.operation(v)
         if f isa AvgFunc
