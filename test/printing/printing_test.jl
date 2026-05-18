@@ -174,6 +174,41 @@ import SecondQuantizedAlgebra: simplify, QAdd, QSym, _single_qadd, _zero_qadd, _
         end
     end
 
+    @testset "Multi-term display: real-negative coefficient uses ' - '" begin
+        h = FockSpace(:f)
+        a = Destroy(h, :a)
+        s = string(a' + a - 3 * a' * a)
+        @test occursin(" - 3", s)
+        @test !occursin("+ -", s)
+    end
+
+    @testset "_show_prefactor pure-imag and mixed branches" begin
+        h = FockSpace(:f)
+        a = Destroy(h, :a)
+        @variables x y
+
+        # Pure-imag with isone(imag): expect literal "im *"
+        @test occursin("im", string(im * a))
+
+        # Pure-imag with imag == -1: expect "-im *"
+        @test occursin("-im", string(-im * a))
+
+        # Pure-imag with numeric |imag| != 1: prints "<value>im"
+        @test occursin("2", string(2im * a))
+        @test occursin("im", string(2im * a))
+
+        # Pure-imag with symbolic imag: prints "<symbol>im"
+        s_sym_im = string((im * x) * a)
+        @test occursin("x", s_sym_im)
+        @test occursin("im", s_sym_im)
+
+        # Mixed real+imag: prints "(<re> + <im>im) *"
+        s_mixed = string((x + im * y) * a)
+        @test occursin("x", s_mixed)
+        @test occursin("y", s_mixed)
+        @test occursin("im", s_mixed)
+    end
+
     @testset "LaTeX (latexify)" begin
         @testset "Operators" begin
             hn = NLevelSpace(:atom, 3, 1)

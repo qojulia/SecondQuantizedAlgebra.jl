@@ -44,4 +44,20 @@ import SecondQuantizedAlgebra: substitute, QAdd, QSym, CNum, _CNUM_ONE, _to_cnum
         expr = x * a' * b
         @test isequal(substitute(expr, Dict(x => 2)), 2 * a' * b)
     end
+
+    @testset "QSym → QAdd splices sum into product" begin
+        hpf = FockSpace(:p) ⊗ FockSpace(:q) ⊗ FockSpace(:r)
+        xop = Destroy(hpf, :x, 1)
+        yop = Destroy(hpf, :y, 2)
+        zop = Destroy(hpf, :z, 3)
+        # Replace yop with the sum (xop + zop); xop*yop must expand to xop*xop + xop*zop
+        result = substitute(xop * yop, Dict(yop => xop + zop))
+        expected = xop * xop + xop * zop
+        @test isequal(SecondQuantizedAlgebra.simplify(result), SecondQuantizedAlgebra.simplify(expected))
+
+        # Same in the other operator position
+        result2 = substitute(yop * zop, Dict(yop => xop + zop))
+        expected2 = xop * zop + zop * zop
+        @test isequal(SecondQuantizedAlgebra.simplify(result2), SecondQuantizedAlgebra.simplify(expected2))
+    end
 end

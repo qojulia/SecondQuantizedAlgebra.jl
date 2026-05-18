@@ -244,6 +244,26 @@ import SecondQuantizedAlgebra: QAdd, QSym, QField, AvgFunc, _average
         @test zero(G) == 0.0 + 0.0im
     end
 
+    @testset "Base.one / Base.isone on QField" begin
+        h = FockSpace(:c)
+        a = Destroy(h, :a)
+
+        u = one(a)
+        @test u isa SecondQuantizedAlgebra.QAdd
+        @test isequal(u, one(typeof(a)))
+
+        @test isone(u)
+        @test isequal(SecondQuantizedAlgebra.simplify(u * a), SecondQuantizedAlgebra.simplify(a))
+
+        @test !isone(a)
+        @test !isone(a')
+
+        @test isone(commutator(a, a'))
+
+        @test !isone(a + a')
+        @test !isone(zero(SecondQuantizedAlgebra.QAdd))
+    end
+
     @testset "qadjoint on symbolic expressions" begin
         @variables G::Complex{Real} ϕ::Real r1::Real
         # distributes over products
@@ -252,6 +272,32 @@ import SecondQuantizedAlgebra: QAdd, QSym, QField, AvgFunc, _average
         @test isequal(qadjoint(r1), r1)
         # complex variable gives conj
         @test isequal(qadjoint(G), conj(G))
+    end
+
+    @testset "qadjoint/inner_adjoint reach BasicSymbolic recursion" begin
+        import SymbolicUtils
+        @variables r1::Real r2::Real ϕ::Real
+
+        # qadjoint(::Num) now routes through the BasicSymbolic recursion.
+        # For real Nums the recursion preserves the expression (qadjoint of a
+        # real symbol is identity).
+        @test isequal(qadjoint(ϕ), ϕ)
+        @test isequal(qadjoint(r1 + r2), r1 + r2)
+
+        # Direct call on an unwrapped BasicSymbolic exercises the body, too.
+        raw = SymbolicUtils.unwrap(r1 + r2)
+        @test isequal(qadjoint(raw), raw)
+
+        # inner_adjoint folds conj(⟨op⟩) → ⟨op'⟩ via the BasicSymbolic recursion.
+        h = FockSpace(:c)
+        a = Destroy(h, :a)
+        avg = average(a)
+        raw_conj = SymbolicUtils.unwrap(conj(avg))
+        folded = inner_adjoint(raw_conj)
+        @test is_average(folded)
+        inner_wrapped = SymbolicUtils.arguments(folded)[1]
+        inner = SymbolicUtils.isconst(inner_wrapped) ? inner_wrapped.val : inner_wrapped
+        @test inner == a'
     end
 
     @testset "ProductSpace constructors auto-detect unique subspace" begin

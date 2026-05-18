@@ -205,6 +205,7 @@ function qadjoint(v::SymbolicUtils.BasicSymbolic)
     end
 end
 qadjoint(x::Number) = adjoint(x)
+qadjoint(x::Num) = qadjoint(SymbolicUtils.unwrap(x))
 qadjoint(x::QField) = adjoint(x)
 
 const qconj = qadjoint

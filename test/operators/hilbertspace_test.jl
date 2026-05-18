@@ -46,4 +46,32 @@ using Test
         @test length(FockSpace(:a) ⊗ NLevelSpace(:atom, 2) ⊗ PauliSpace(:p)) == 3
     end
 
+    @testset "hash + equality (Dict round-trip)" begin
+        spaces = HilbertSpace[
+            FockSpace(:f),
+            NLevelSpace(:atom, 3),
+            PauliSpace(:p),
+            SpinSpace(:s),
+            PhaseSpace(:osc),
+        ]
+        d = Dict{HilbertSpace, Int}()
+        for (i, h) in enumerate(spaces)
+            d[h] = i
+        end
+        for (i, h) in enumerate(spaces)
+            @test d[h] == i
+        end
+
+        # ProductSpace equality and hashing
+        p1 = FockSpace(:a) ⊗ NLevelSpace(:atom, 2)
+        p2 = FockSpace(:a) ⊗ NLevelSpace(:atom, 2)
+        p3 = FockSpace(:a) ⊗ NLevelSpace(:b, 2)
+        @test p1 == p2
+        @test hash(p1) == hash(p2)
+        @test p1 != p3
+
+        # ProductSpace ordering
+        @test isless(p1, p3) || isless(p3, p1)
+    end
+
 end

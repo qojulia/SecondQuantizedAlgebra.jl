@@ -241,46 +241,6 @@ function _any_depends_on_index(s::QAdd, idx::Index)
 end
 
 """
-    _diagonal_split!(off_diag, diag, sum_idx) -> nothing
-
-For every term in `off_diag` that depends on `sum_idx`, locate each free index
-`j` on the same Hilbert subspace (and not already constrained `sum_idx ≠ j`),
-emit the diagonal substitution `sum_idx → j` into `diag`, and re-key the
-off-diagonal entry under the augmented constraint `ne ∪ {(sum_idx, j)}`.
-Mutates both dicts in place; the caller composes them via `+`.
-"""
-function _diagonal_split!(off_diag::QTermDict, diag::QTermDict, sum_idx::Index)
-    seen = Index[]
-    for (term, c) in collect(off_diag)
-        _depends_on_index_term(c, term.ops, sum_idx) || continue
-        empty!(seen)
-        current_term = term
-        current_c = c
-        for op in term.ops
-            idx = op.index
-            has_index(idx) || continue
-            idx ∈ seen && continue
-            push!(seen, idx)
-            idx == sum_idx && continue
-            idx.space_index == sum_idx.space_index || continue
-            _ne_contains(current_term.ne, sum_idx, idx) && continue
-
-            new_c = change_index(current_c, sum_idx, idx)
-            new_ops = QSym[change_index(o, sum_idx, idx) for o in current_term.ops]
-            _canonicalize!(diag, new_ops, new_c, _drop_ne_with(current_term.ne, sum_idx))
-
-            delete!(off_diag, current_term)
-            current_term = _term_key(
-                current_term.ops,
-                _merge_ne_pair(current_term.ne, sum_idx, idx),
-            )
-            _addto_key!(off_diag, current_term, current_c)
-        end
-    end
-    return nothing
-end
-
-"""
     Σ(expr, i::Index, non_equal::Vector{Index} = Index[])
     Σ(expr, i::Index, j::Index, rest::Index...)
     ∑(expr, i::Index, ...)

@@ -138,8 +138,6 @@ function _simplify_prefactor(x::CNum)
     im = Num(SymbolicUtils.simplify(SymbolicUtils.unwrap(Symbolics.expand(imag(x)))))
     return Complex(re, im)
 end
-_simplify_prefactor(x::Number) = x
-
 function _drop_unused_indices(d::QTermDict, indices::Vector{Index})
     isempty(indices) && return indices
     used = Index[]
@@ -235,7 +233,6 @@ end
 Symbolics.expand(op::QSym; kwargs...) = _single_qadd(_CNUM_ONE, QSym[op])
 
 _expand_prefactor(x::CNum; kwargs...) = _iszero_cnum(x) ? x : Complex(Symbolics.expand(real(x)), Symbolics.expand(imag(x)))
-_expand_prefactor(x::Number; kwargs...) = x
 
 """
     expand_completeness(q) -> QAdd

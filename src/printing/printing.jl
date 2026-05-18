@@ -109,8 +109,8 @@ end
 _is_neg_unit(c::Number) = isequal(c, -1)
 
 function _is_real_negative(c::CNum)
-    if iszero(imag(c))
-        r = SymbolicUtils.unwrap(real(c))
+    if _iszero_num(c.im)
+        r = Symbolics.value(SymbolicUtils.unwrap(real(c)))
         return r isa Real && r < 0
     end
     return false

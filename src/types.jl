@@ -27,9 +27,6 @@ Concrete subtypes: [`Destroy`](@ref), [`Create`](@ref), [`Transition`](@ref),
 """
 abstract type QSym <: QField end
 
-Base.one(::T) where {T <: QField} = one(T)
-Base.one(::Type{<:QField}) = 1
-Base.isone(::QField) = false
 Base.zero(::T) where {T <: QField} = zero(T)
 Base.zero(::Type{<:QField}) = 0
 

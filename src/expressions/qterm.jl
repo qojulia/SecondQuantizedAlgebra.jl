@@ -116,11 +116,6 @@ function _term_key(
     return QTerm(copy(ops), _canonical_ne(ne))
 end
 
-function _push_key_unique!(out::Vector{QTerm}, term::QTerm)
-    term in out || push!(out, term)
-    return out
-end
-
 """
     _addto!(d, ops, c[, ne]) -> d
 

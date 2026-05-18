@@ -107,9 +107,6 @@ end
 # Uniform-return wrappers (all return QAdd).
 _to_qadd(x::QAdd) = x
 _to_qadd(x::QSym) = _single_qadd(_CNUM_ONE, QSym[x])
-_to_qadd(x::Number) = _single_qadd(_to_cnum(x), QSym[])
-_to_qadd(x::CNum) = _single_qadd(x, QSym[])
-_to_qadd(x::Num) = _single_qadd(_to_cnum(x), QSym[])
 _to_qadd(x::SymbolicUtils.BasicSymbolic) = _single_qadd(_to_cnum(x), QSym[])
 
 # Metadata is stored as `ImmutableDict{DataType, Any}`; the isa-narrow seals

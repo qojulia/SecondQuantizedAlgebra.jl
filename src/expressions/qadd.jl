@@ -50,6 +50,29 @@ end
 Base.length(a::QAdd) = length(a.arguments)
 Base.iszero(a::QAdd) = isempty(a.arguments)
 
+"""
+    Base.one(q::QField) -> QAdd
+
+Multiplicative identity as a unit `QAdd`.
+"""
+Base.one(::Type{<:QField}) = _single_qadd(_CNUM_ONE, QSym[])
+Base.one(q::QField) = one(typeof(q))
+
+"""
+    Base.isone(q::QField) -> Bool
+
+True iff `q` is structurally the multiplicative identity.
+"""
+Base.isone(::QSym) = false
+function Base.isone(q::QAdd)
+    length(q.arguments) == 1 || return false
+    (term, c) = first(q.arguments)
+    isempty(term.ops) || return false
+    _iszero_num(c.im) || return false
+    v = SymbolicUtils.unwrap(c.re)
+    return (v isa Number && isone(v)) || isequal(c.re, _NUM_ONE)
+end
+
 function Base.isequal(a::QAdd, b::QAdd)
     isequal(a.arguments, b.arguments) || return false
     a.indices == b.indices || return false
