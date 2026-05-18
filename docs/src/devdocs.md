@@ -195,11 +195,40 @@ The one subtle point is that the diagonal substitution operates on the **unsorte
 This mechanism only handles the case where one of the two indices is bound by a `Σ`. Two free indices outside any sum land in the `Undetermined` regime and need an explicit user declaration — see the next section.
 
 
+## Disjoint bound indices in products
+
+Diagonal splitting handles a *bound* index in one factor meeting a *free* index in the other. Two bound indices that share a display name are something else. The expression
+
+```math
+\left(\sum_i X_i\right)\left(\sum_i Y_i\right)
+```
+
+is ambiguous as written. Two readings are equally available:
+
+1. **Alpha-rename one side.** The two `i` letters denote independently bound variables that happen to print the same; the product is ``\sum_{i,j} X_i Y_j``. This is the convention math papers use, but only after the reader silently introduces a fresh variable the writer did not write.
+2. **Share the bound variable.** The two occurrences denote one variable, giving the diagonal ``\sum_i X_i Y_i``, a different operator.
+
+The reader applies alpha-conversion on the fly; the algebra cannot. The user constructed exactly one `Index(:i, …)` object and used it on both sides, so there are no two implicit `i`s in the term graph for the algebra to discover. Reading 2 would silently drop the off-diagonal ``\sum_{i \neq j}`` contributions; reading 1 would require inventing a fresh `Index` the user can't reach (see *Naming policy*).
+
+`*(QAdd, QAdd)` therefore throws `ArgumentError` when `a.indices ∩ b.indices` is non-empty. The caller disambiguates: rename one side via `change_index` with a user-constructed `Index`, or build the two factors with distinct `Index` objects from the start.
+
+
 ## Free indices and `assume_distinct_index`
 
 Two operators with different symbolic indices on the same Hilbert subspace, neither bound by a `Σ`, have an undetermined site relationship. The algebra cannot tell whether the user means "these label distinct atomic sites" or "these are two index variables that may or may not coincide", and the conservative reading is the second: the operators stay in their physical order, no same-site collapse fires, and the resulting expression carries the ambiguity faithfully.
 
 `assume_distinct_index(q, [(α, β), …])` resolves the ambiguity in the first direction: it augments every term's `ne` with the supplied pairs, re-canonicalizes so `_partial_sort!` can place the resolved pairs deterministically, and runs `expand_completeness` so any ground-state projectors that emerge from same-site composition under the new constraint are folded. The two-atom inter-atom coherence `σⱼ¹² · σₖ²¹` is canonicalized by `assume_distinct_index(σⱼ¹² · σₖ²¹, [(j, k)])`.
+
+
+## Naming policy
+
+Indices are user-owned: the algebra never mints `Index` objects on the user's behalf. Every name appearing in any output traces back to a user `Index(...)` call. The principle is operational, not aesthetic; an algebra-invented `Index` is invisible to the user's vocabulary, breaks pattern-matching on equation outputs, and gives no handle for `evaluate(...; limits = ...)` or initial-condition substitution.
+
+Three consequences beyond the `*(QAdd, QAdd)` throw described above:
+
+- **Diagonal splitting only fires for `(sum_idx, ext_idx)` pairs where `ext_idx` is already free in the operand.** The algebra does not invent a fresh `ext_idx`; without a user-declared free index on the same space, the `(i = ext_idx)` branch has nothing to substitute into.
+- **`assume_distinct_index(q, [(α, β), …])` is the user's channel** for resolving `Undetermined` free pairs. The user supplies the inequality; the algebra applies it.
+- **No public helper renames bound variables.** Consumers needing alpha-rename use `change_index` with their own freshly-constructed `Index`. QuantumCumulants.jl's `complete!`, for example, mints completion-internal canonical names from the user's existing vocabulary.
 
 
 ## Index system
@@ -242,7 +271,7 @@ Symbolics.jl conventionally wraps public-API outputs in `Symbolics.Num`, a `<: R
 
 Returning `BasicSymbolic` uniformly across `average(::QSym)`, `average(::QAdd)`, and `average(::BasicSymbolic)` (scalars pass through unchanged) keeps the return type stable, lets every downstream function (`is_average`, `acts_on`, `get_indices`, `numeric_average`, `undo_average`) dispatch on one type without unwrapping, and avoids fragile re-wrapping. `Num`-accepting dispatches exist as defensive fallbacks for callers (or Symbolics arithmetic) that re-wrap.
 
-**Summation metadata on averages.** When averaging an indexed `QAdd`, each averaged term carries its own `SumIndices` and `SumNonEqual` metadata via `SymbolicUtils.setmetadata`. This matches the internal term model: scoped constraints belong to individual terms, not to the whole sum. `undo_average` restores that exact metadata term-by-term, so symbolic sums survive the `average → manipulate → undo_average` round-trip even when the same operator string appears under different constraint scopes.
+**Summation metadata on averages.** When averaging an indexed `QAdd`, each averaged term carries its own `SumIndices` and `SumNonEqual` metadata via `SymbolicUtils.setmetadata`. The metadata records *the term's enclosing scope*, not a property of the leaf operator: a leaf `⟨a⟩` inside ``\sum_i g_i \, a`` is stamped with `SumIndices = [i]` even though `a` does not reference `i`, because the prefactor `g_i` (or, elsewhere, a `ne` constraint) binds `i` at term level. `undo_average` restores that exact metadata term-by-term, so symbolic sums survive the round-trip including the constant-operator case where stripping the metadata would silently drop the ``\sum_i``. Consumers comparing averages modulo scope must canonicalize for comparison only, not strip the metadata from storage.
 
 **No `Complex{Num}` intermediates in the result.** `average(::QAdd)` walks `(term, c::CNum)` pairs and folds each one into a single result. It must never let `result` become a `Complex{Num}`, because `SymbolicUtils.unwrap(::Complex{<:Num})` materialises a literal `Term(complex, [re, img])` node whenever both `re` and `img` are symbolic, and that node is opaque to `simplify` / `expand` and also generates a runtime `complex(::Real, ::Complex)` call when consumers like ModelingToolkit codegen the equation (Base defines no such method). The accumulator therefore stays a `Num` (or a `BasicSymbolic{SymReal}` once an averaged operator has been multiplied in), and the imaginary unit enters the chain through `Symbolics.IM` — the `BasicSymbolic{SymReal}` symbol that prints as `im` — instead of through `1im::Complex{Bool}`. Concretely, the constant branch contributes `r + i * Symbolics.IM` and the operator branch contributes `r * avg + i * Symbolics.IM * avg`, skipping the `r` or `i` add when zero. This keeps every result a clean polynomial in `Symbolics.IM` that downstream `simplify(...; expand = true)` can reduce to zero on identically-equal differences.
 

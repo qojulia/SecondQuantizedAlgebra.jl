@@ -174,7 +174,11 @@ function Base.:*(a::QAdd, b::QAdd)
         for idx in a.indices
             idx in b.indices && throw(
                 ArgumentError(
-                    "Summation index $(idx.name) appears in both factors."
+                    "Summation index $(idx.name) appears in both factors. " *
+                        "Bound variables on the two sides of a product must be " *
+                        "distinct so the resulting double sum is unambiguous. " *
+                        "Use `change_index` to rename one side, or construct the " *
+                        "two sums with different indices."
                 )
             )
         end
