@@ -7,7 +7,7 @@
 #   + \kappa\bigl(a^\dagger b^\dagger + a\,b\bigr)
 # ```
 #
-# arises whenever a quadratic bosonic system mixes particles and holes — in
+# arises whenever a quadratic bosonic system mixes particles and holes: in
 # parametric down-conversion, in the Bogoliubov-de-Gennes treatment of weakly
 # interacting Bose-Einstein condensates, and in the linearised dynamics of any
 # optomechanical or polariton system above its Hopf bifurcation.  A canonical
@@ -19,9 +19,9 @@
 #
 # brings ``H`` into diagonal form when ``u`` and ``v`` are chosen correctly.
 # In this example we use SecondQuantizedAlgebra.jl to drive this story end to
-# end — symbolic commutators, Heisenberg dynamics, vacuum expectation values,
-# EPR squeezing, and Weyl (Wigner) symbol — without ever resorting to a
-# pen-and-paper expansion.
+# end without ever resorting to a pen-and-paper expansion: symbolic
+# commutators, Heisenberg dynamics, vacuum expectation values, EPR squeezing,
+# and Weyl (Wigner) symbol.
 
 # ## Setup
 
@@ -92,7 +92,7 @@ eq_bd = -1im * commutator(b', H)
 # M = \begin{pmatrix} -i\omega & -i\kappa \\ \phantom{-}i\kappa & \phantom{-}i\omega \end{pmatrix}.
 # ```
 #
-# Its trace vanishes and its determinant is exactly ``\omega^2 - \kappa^2`` —
+# Its trace vanishes and its determinant is exactly ``\omega^2 - \kappa^2``,
 # both readable symbolically:
 
 using LinearAlgebra
@@ -108,12 +108,12 @@ tr(M), simplify(det(M))
 
 # ## Vacuum expectations from the inverse transformation
 #
-# A different trick — also handled fully symbolically — gives the vacuum
+# A different trick (also handled fully symbolically) gives the vacuum
 # correlation functions of the Bogoliubov ground state without diagonalising
 # anything numerically.  Treat the Bogoliubov modes as the fundamental Fock
 # operators, and rebuild the *physical* operators on top of them via the
 # inverse transformation ``a = u c - v d^\dagger``, ``b = u d - v c^\dagger``.
-# Then the package's eager normal ordering does all of the work — any
+# Then the package's eager normal ordering does all of the work: any
 # remaining c-number term in the canonical form is automatically the BdG
 # vacuum expectation value.
 
@@ -132,7 +132,7 @@ b_phys = u * d_bog - v * c_bog'
 a_phys' * a_phys
 
 # The constant term ``v^2`` is ``\langle a^\dagger a\rangle`` in the BdG
-# vacuum — squeezing populates the physical modes with ``v^2 = \sinh^2 r``
+# vacuum.  Squeezing populates the physical modes with ``v^2 = \sinh^2 r``
 # photons per mode even though the Bogoliubov vacuum is empty.
 
 a_phys * b_phys
@@ -179,7 +179,7 @@ P_plus * P_plus
 # ```
 #
 # saturates the Heisenberg bound, and one quadrature drops **below** the
-# single-mode shot-noise level ``1`` — the defining signature of two-mode
+# single-mode shot-noise level ``1``, the defining signature of two-mode
 # squeezing.
 
 # ## Weyl symbol and the zero-point energy
@@ -202,7 +202,7 @@ normal_to_symmetric(H)
 #   + \kappa\bigl(\alpha^*\beta^* + \alpha\beta\bigr) - \omega,
 # ```
 #
-# whose constant ``-\omega`` is Bogoliubov-invariant — exactly the same shift
+# whose constant ``-\omega`` is Bogoliubov-invariant.  Exactly the same shift
 # appears on the diagonalised form ``H = \varepsilon(c^\dagger c +
 # d^\dagger d) - 2\varepsilon v^2``:
 
@@ -268,6 +268,6 @@ axislegend(ax2; position = :lt)
 fig
 
 # Both observables match the closed-form predictions to truncation error: the
-# entire Bogoliubov story — dispersion, vacuum correlations, EPR squeezing,
-# and zero-point energy — emerged from a handful of symbolic manipulations
+# entire Bogoliubov story (dispersion, vacuum correlations, EPR squeezing,
+# and zero-point energy) emerged from a handful of symbolic manipulations
 # carried out by the eager canonicalisation built into the package.

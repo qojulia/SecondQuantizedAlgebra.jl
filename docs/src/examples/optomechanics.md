@@ -44,9 +44,9 @@ h = hc ⊗ hm
 @qnumbers a::Destroy(h, 1)
 @qnumbers b::Destroy(h, 2)
 
-@variables ωc ωm g
+@variables ωc ωₘ g
 
-H = ωc * a' * a + ωm * b' * b + g * a' * a * (b + b')
+H = ωc * a' * a + ωₘ * b' * b + g * a' * a * (b + b')
 ````
 
 ## Heisenberg dynamics: the radiation-pressure force
@@ -92,11 +92,11 @@ of the transformation and commutes with ``a`` up to scalars that cancel
 canonicalises the result:
 
 ````@example optomechanics
-α = g / ωm
+α = g / ωₘ
 b_tilde = b - α * a' * a
 bd_tilde = b' - α * a' * a
 
-H_pol = ωc * a' * a + ωm * bd_tilde * b_tilde + g * a' * a * (b_tilde + bd_tilde)
+H_pol = ωc * a' * a + ωₘ * bd_tilde * b_tilde + g * a' * a * (b_tilde + bd_tilde)
 ````
 
 ## Effective Kerr Hamiltonian
@@ -135,13 +135,13 @@ b_cav = FockBasis(n_max_c)
 b_mech = FockBasis(n_max_m)
 b_total = b_cav ⊗ b_mech
 
-H_Kerr = ωc * a' * a + ωm * b' * b - (g^2 / ωm) * a' * a * a' * a
+H_Kerr = ωc * a' * a + ωₘ * b' * b - (g^2 / ωₘ) * a' * a * a' * a
 
 gs = range(0.0, 0.6 * ωm_val, length = 16)
 E_full = Vector{Float64}[]
 E_eff = Vector{Float64}[]
 for g_val in gs
-    subs = Dict(ωc => ωc_val, ωm => ωm_val, g => g_val)
+    subs = Dict(ωc => ωc_val, ωₘ => ωm_val, g => g_val)
     Hf = dense(to_numeric(substitute(H, subs), b_total))
     He = dense(to_numeric(substitute(H_Kerr, subs), b_total))
     push!(E_full, sort(real.(eigvals(Hermitian(Hf.data))))[1:8])
@@ -191,8 +191,8 @@ on the *square* of its displacement, enabling QND measurement of the
 phonon number.  Expanding ``(b + b^\dagger)^2`` is the package's job:
 
 ````@example optomechanics
-@variables g2
-H_mim = ωc * a' * a + ωm * b' * b + g2 * a' * a * (b + b')^2
+@variables g₂
+H_mim = ωc * a' * a + ωₘ * b' * b + g₂ * a' * a * (b + b')^2
 ````
 
 Three distinct effects fall out: a constant cavity-frequency renormalisation
@@ -236,7 +236,7 @@ We verify by exact diagonalisation:
 b_total2 = FockBasis(4) ⊗ FockBasis(40)
 H_mim_op = dense(
     to_numeric(
-        substitute(H_mim, Dict(ωc => ωc_val2, ωm => ωm_val2, g2 => g2_val)),
+        substitute(H_mim, Dict(ωc => ωc_val2, ωₘ => ωm_val2, g₂ => g2_val)),
         b_total2,
     ),
 )

@@ -1,7 +1,7 @@
 # # Parametric Oscillator in the Phase-Space Representation
 #
-# The degenerate parametric oscillator (DPO) — a single bosonic mode driven
-# by parametric pumping at twice its frequency — is the workhorse of
+# The degenerate parametric oscillator (DPO), a single bosonic mode driven
+# by parametric pumping at twice its frequency, is the workhorse of
 # optical squeezing.  In the rotating frame at half the pump frequency its
 # effective Hamiltonian is
 #
@@ -20,7 +20,7 @@
 # saturating the Heisenberg bound.
 #
 # This example showcases the [`PhaseSpace`](@ref) hilbert space and the
-# canonical-commutator engine — every step uses
+# canonical-commutator engine: every step uses
 # [`Position`](@ref) and [`Momentum`](@ref) directly, without ever invoking
 # Fock ladder operators.
 
@@ -57,8 +57,8 @@ H = (δ - κ) / 2 * x^2 + (δ + κ) / 2 * p^2
 # Combining, ``\ddot x = -(\delta^2 - \kappa^2)\,x``: oscillation at
 # **normal-mode frequency** ``\varepsilon = \sqrt{\delta^2 - \kappa^2}``,
 # which softens to zero at the **parametric instability threshold**
-# ``\kappa = \delta``.  Above threshold the system runs away exponentially —
-# the squeezing parameter diverges.
+# ``\kappa = \delta``.  Above threshold the system runs away exponentially,
+# and the squeezing parameter diverges.
 
 # ## Squeezed-state variances
 #
@@ -137,7 +137,7 @@ fig
 
 # Both quadrature variances follow their closed-form predictions across the
 # entire below-threshold range, and the uncertainty product (right) sits
-# precisely at the Heisenberg-minimum ``\tfrac{1}{4}`` throughout — the DPO
+# precisely at the Heisenberg-minimum ``\tfrac{1}{4}`` throughout, so the DPO
 # ground state is a minimum-uncertainty squeezed vacuum.  As ``\kappa``
 # approaches ``\delta``, ``\langle x^2\rangle`` diverges while
 # ``\langle p^2\rangle`` collapses toward zero, the dynamical signature of
@@ -215,7 +215,7 @@ for (i, κ_val) in enumerate(κs_show)
             color = :black, linewidth = 1.5
         )
         text!(
-            ax, 0, -2.6; text = "unstable — no GS",
+            ax, 0, -2.6; text = "unstable, no GS",
             align = (:center, :center), color = :firebrick
         )
     end
@@ -229,7 +229,7 @@ fig2
 # classical orbits doing the same.  Bottom-right (above threshold): the
 # saddle separatrix ``H = 0`` (black) splits phase space into four
 # hyperbolic sectors; the orbits run off to infinity along the unstable
-# manifold.  Everything in this figure — the threshold condition, the
-# variances, the Wigner shape — came out of a canonical
+# manifold.  Everything in this figure (the threshold condition, the
+# variances, the Wigner shape) came out of a canonical
 # [`Position`](@ref)/[`Momentum`](@ref) pair and the built-in commutator
 # engine, with no manual translation to ladder operators required.

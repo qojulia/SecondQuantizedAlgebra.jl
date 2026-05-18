@@ -31,8 +31,8 @@
 #
 # We consider a single cavity mode coupled to a two-level atom
 # (Jaynes-Cummings model).  Working in the **interaction picture** with respect
-# to the cavity frequency ``\omega_c``, the only energy scale in ``H_0`` is the
-# detuning ``\Delta = \omega_a - \omega_c``.  This eliminates ``\omega_c`` from
+# to the cavity frequency ``\omega_0``, the only energy scale in ``H_0`` is the
+# detuning ``\Delta = \omega_a - \omega_0``.  This eliminates ``\omega_0`` from
 # all intermediate expressions and keeps the algebra clean.
 
 using SecondQuantizedAlgebra
@@ -146,7 +146,7 @@ H_eff_4 = H_eff + comm_S2_V // 2 - C // 24
 # We verify the symbolic effective Hamiltonians against the exact Jaynes-Cummings
 # eigenvalues using [`numeric_average`](@ref) and [`substitute`](@ref).
 # For each Fock state ``|n, g\rangle`` we compute the expectation value
-# ``\langle n,g| H_{\mathrm{eff}} |n,g\rangle`` — since the Schrieffer-Wolff
+# ``\langle n,g| H_{\mathrm{eff}} |n,g\rangle``.  Since the Schrieffer-Wolff
 # transformation block-diagonalises the Hamiltonian, this directly gives the
 # dressed-state energy at each order.
 
