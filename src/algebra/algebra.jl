@@ -253,7 +253,7 @@ julia> h = NLevelSpace(:atom, 2);
 julia> σ11 = Transition(h, :σ, 1, 1);
 
 julia> expand_completeness(σ11)
-1 + -σ₂₂
+1 - σ₂₂
 ```
 
 See also [`assume_distinct_index`](@ref), [`normal_order`](@ref).

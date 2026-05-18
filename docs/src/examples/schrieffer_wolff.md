@@ -125,7 +125,7 @@ Note how ``S_2`` contains terms with **three** ladder operators --- these
 generate photon-number-dependent corrections.
 
 ````@example schrieffer_wolff
-S2 = ((4//3) * g^3 / Δ^3) * (a' * σge - a * σeg + a' * a' * a * σge - a' * a * a * σeg)
+S2 = ((4 // 3) * g^3 / Δ^3) * (a' * σge - a * σeg + a' * a' * a * σge - a' * a * a * σeg)
 ````
 
 The fourth-order diagonal correction involves two pieces:
@@ -142,7 +142,7 @@ These combine into the fourth-order effective Hamiltonian via
 ``H_{\mathrm{eff}}^{(4)} = H_{\mathrm{eff}}^{(2)} + \tfrac{1}{2}[S_2, V] - \tfrac{1}{24}[S_1, B]``:
 
 ````@example schrieffer_wolff
-H_eff_4 = H_eff + comm_S2_V / 2 - C / 24
+H_eff_4 = H_eff + comm_S2_V // 2 - C // 24
 ````
 
 While the symbolic prefactors are not automatically simplified by the CAS,
@@ -165,31 +165,48 @@ nonlinearity in dispersive circuit QED.
 
 ## Numerical verification
 
-We verify against the exact Jaynes-Cummings eigenvalues.  The dressed-state
-energy of a ``|g\rangle``-like state with ``n`` photons is
-``E_g^-(n) = n\omega_c - g^2 n/\Delta + g^4 n^2/\Delta^3 + \mathcal{O}(g^6)``.
+We verify the symbolic effective Hamiltonians against the exact Jaynes-Cummings
+eigenvalues using [`numeric_average`](@ref) and [`substitute`](@ref).
+For each Fock state ``|n, g\rangle`` we compute the expectation value
+``\langle n,g| H_{\mathrm{eff}} |n,g\rangle`` — since the Schrieffer-Wolff
+transformation block-diagonalises the Hamiltonian, this directly gives the
+dressed-state energy at each order.
 
 ````@example schrieffer_wolff
-using CairoMakie
+using QuantumOpticsBase, CairoMakie
 
 g_val, Δ_val = 0.3, 2.0
 n_max = 8
 ns = 0:n_max
+subs = Dict(g => g_val, Δ => Δ_val)
+
+b_cav = FockBasis(n_max)
+b_atom = NLevelBasis(2)
+
+H_eff_num = substitute(H_eff, subs)
+H_eff_4_num = substitute(H_eff_4, subs)
+
+E_sw2 = Float64[]
+E_sw4 = Float64[]
+for n in ns
+    ψ = fockstate(b_cav, n) ⊗ nlevelstate(b_atom, 1)   # |n, g⟩
+    push!(E_sw2, real(numeric_average(H_eff_num, ψ)))
+    push!(E_sw4, real(numeric_average(H_eff_4_num, ψ)))
+end
 
 # Exact JC eigenvalue for the |n, g⟩-like dressed state (interaction picture):
 # E_g(n) = Δ/2 - √(Δ²/4 + g²n)  for n ≥ 1, and E_g(0) = 0.
 E_exact = [n == 0 ? 0.0 : Δ_val / 2 - sqrt(Δ_val^2 / 4 + g_val^2 * n) for n in ns]
-E_sw2 = [-(g_val^2 / Δ_val) * n for n in ns]
-E_sw4 = [-(g_val^2 / Δ_val) * n + (g_val^4 / Δ_val^3) * n^2 for n in ns]
 
 fig = Figure()
-ax = Axis(fig[1, 1];
-    xlabel="photon number n",
-    ylabel="energy error (rotating frame)",
-    title="Schrieffer-Wolff accuracy: g/Δ = $(g_val/Δ_val)",
+ax = Axis(
+    fig[1, 1];
+    xlabel = "photon number n",
+    ylabel = "energy error (rotating frame)",
+    title = "Schrieffer-Wolff accuracy: g/Δ = $(g_val / Δ_val)",
 )
-scatterlines!(ax, collect(ns), E_exact .- E_sw2; label="SW₂ error", marker=:circle)
-scatterlines!(ax, collect(ns), E_exact .- E_sw4; label="SW₄ error", marker=:diamond)
+scatterlines!(ax, collect(ns), E_exact .- E_sw2; label = "SW₂ error", marker = :circle)
+scatterlines!(ax, collect(ns), E_exact .- E_sw4; label = "SW₄ error", marker = :diamond)
 axislegend(ax)
 fig
 ````
