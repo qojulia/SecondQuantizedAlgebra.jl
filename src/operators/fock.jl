@@ -1,0 +1,153 @@
+"""
+    Destroy <: QSym
+
+Bosonic annihilation operator ``a`` on a [`FockSpace`](@ref). Satisfies the
+canonical commutation relation ``[a, a^\\dagger] = 1``. The adjoint `a'`
+returns the corresponding [`Create`](@ref) operator.
+
+# Examples
+
+```jldoctest
+julia> h = FockSpace(:cavity);
+
+julia> @qnumbers a::Destroy(h);
+
+julia> a * a'
+1 + a' * a
+```
+
+See also [`Create`](@ref), [`FockSpace`](@ref), [`@qnumbers`](@ref).
+"""
+struct Destroy <: QSym
+    name::Symbol
+    space_index::Int
+    index::Index
+end
+Destroy(name::Symbol, si::Int) = Destroy(name, si, NO_INDEX)
+
+"""
+    Create <: QSym
+
+Bosonic creation operator ``a^\\dagger`` on a [`FockSpace`](@ref). The
+adjoint of [`Destroy`](@ref); typically obtained via `a'` rather than
+constructed directly.
+
+See also [`Destroy`](@ref), [`FockSpace`](@ref).
+"""
+struct Create <: QSym
+    name::Symbol
+    space_index::Int
+    index::Index
+end
+Create(name::Symbol, si::Int) = Create(name, si, NO_INDEX)
+
+Destroy(h::FockSpace, name::Symbol) = Destroy(name, 1)
+Create(h::FockSpace, name::Symbol) = Create(name, 1)
+
+function Destroy(h::ProductSpace, name::Symbol, idx::Int)
+    1 <= idx <= length(h.spaces) || throw(ArgumentError("Index $idx out of range for ProductSpace with $(length(h.spaces)) spaces"))
+    h.spaces[idx] isa FockSpace || throw(ArgumentError("Space at index $idx is not a FockSpace"))
+    return Destroy(name, idx)
+end
+function Create(h::ProductSpace, name::Symbol, idx::Int)
+    1 <= idx <= length(h.spaces) || throw(ArgumentError("Index $idx out of range for ProductSpace with $(length(h.spaces)) spaces"))
+    h.spaces[idx] isa FockSpace || throw(ArgumentError("Space at index $idx is not a FockSpace"))
+    return Create(name, idx)
+end
+
+# Auto-detect subspace when the ProductSpace contains exactly one FockSpace.
+Destroy(h::ProductSpace, name::Symbol) = Destroy(h, name, _unique_subspace_index(h, FockSpace))
+Create(h::ProductSpace, name::Symbol) = Create(h, name, _unique_subspace_index(h, FockSpace))
+
+"""
+    IndexedOperator(op::QSym, i::Index) -> QSym
+
+Return the indexed version of an operator.
+
+`IndexedOperator` keeps the operator type and quantum numbers, and only changes
+the symbolic index label. Use it to build objects such as `a_i`, `σ_j₁₂`, or
+`x_k` before forming sums with [`Σ`](@ref).
+
+Use `IndexedOperator(op, NO_INDEX)` to remove an index.
+
+# Examples
+```jldoctest
+julia> h = FockSpace(:cavity);
+
+julia> @qnumbers a::Destroy(h);
+
+julia> i = Index(h, :i, 5, h);
+
+julia> IndexedOperator(a, i)
+a_i
+```
+
+See also [`Index`](@ref), [`Σ`](@ref), [`change_index`](@ref).
+"""
+function IndexedOperator end
+IndexedOperator(op::Destroy, i::Index) = Destroy(op.name, op.space_index, i)
+IndexedOperator(op::Create, i::Index) = Create(op.name, op.space_index, i)
+
+Base.adjoint(op::Destroy) = Create(op.name, op.space_index, op.index)
+Base.adjoint(op::Create) = Destroy(op.name, op.space_index, op.index)
+
+Base.isequal(a::Destroy, b::Destroy) = a.name == b.name && a.space_index == b.space_index && a.index == b.index
+Base.isequal(a::Create, b::Create) = a.name == b.name && a.space_index == b.space_index && a.index == b.index
+Base.:(==)(a::Destroy, b::Destroy) = isequal(a, b)
+Base.:(==)(a::Create, b::Create) = isequal(a, b)
+
+Base.hash(a::Destroy, h::UInt) = hash(:Destroy, hash(a.name, hash(a.space_index, hash(a.index, h))))
+Base.hash(a::Create, h::UInt) = hash(:Create, hash(a.name, hash(a.space_index, hash(a.index, h))))
+
+"""
+    ladder(op::QSym)
+
+Returns 0 for creation operators, 1 for annihilation operators.
+Used for canonical ordering within operator product sequences.
+"""
+ladder(::Create) = 0
+ladder(::Destroy) = 1
+
+# --- Operator hooks ---
+
+# Same-type same-site site relationship is always Equal (same name/space/index).
+# Different name or different space -> distinct (sorted by name lex order, then space).
+function _site_compare(a::Destroy, b::Destroy, ne::Vector{NonEqualPair})
+    a.space_index == b.space_index || return a.space_index < b.space_index ? Less : Greater
+    a.name == b.name || return a.name < b.name ? Less : Greater
+    a.index == b.index && return Equal
+    _ne_contains(ne, a.index, b.index) && return a.index < b.index ? Less : Greater
+    return Undetermined
+end
+function _site_compare(a::Create, b::Create, ne::Vector{NonEqualPair})
+    return _site_compare(
+        Destroy(a.name, a.space_index, a.index),
+        Destroy(b.name, b.space_index, b.index), ne
+    )
+end
+
+# Cross-type same-site returns Equal; canonical direction lives in _can_commute.
+# Distinct-site uses the Destroy/Destroy comparison (lex name, then space).
+function _site_compare(a::Create, b::Destroy, ne::Vector{NonEqualPair})
+    return _site_compare(
+        Destroy(a.name, a.space_index, a.index),
+        Destroy(b.name, b.space_index, b.index), ne
+    )
+end
+function _site_compare(a::Destroy, b::Create, ne::Vector{NonEqualPair})
+    return _site_compare(
+        Destroy(a.name, a.space_index, a.index),
+        Destroy(b.name, b.space_index, b.index), ne
+    )
+end
+
+# Same-site commutation: a·a† carries a residual (the identity term);
+# a†·a is already in canonical order and commutes freely.
+_can_commute(a::Destroy, b::Create) = false
+_can_commute(a::Create, b::Destroy) = true
+_can_commute(a::Destroy, b::Destroy) = true
+_can_commute(a::Create, b::Create) = true
+
+# _commute_pair returns (swap_b, swap_a, residual_coeff, residual_ops):
+# aa† = a†a + 1; residual op vector is empty (identity branch).
+_commute_pair(a::Destroy, b::Create) = (b, a, _CNUM_ONE, _EMPTY_OPS)
