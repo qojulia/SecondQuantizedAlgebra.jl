@@ -388,7 +388,15 @@ import SecondQuantizedAlgebra: simplify, QAdd, QSym, _single_qadd, _zero_qadd, _
 
             s = Σ(Γij * σ_i, i, [j])
             @test latexify(s) ==
-                L"\underset{i{\neq}i{\neq}j}{\overset{N}{\sum}}\Gamma\left( i, j \right) {\sigma}_{i}^{{12}}"
+                L"\underset{i{\neq}j}{\overset{N}{\sum}}\Gamma\left( i, j \right) {\sigma}_{i}^{{12}}"
+
+            σ_k = IndexedOperator(Transition(h2, :σ, 2, 2, 2), Index(h2, :k, N, NLevelSpace(:atom, 2, 1)))
+            σ_l = IndexedOperator(Transition(h2, :σ, 2, 1, 2), Index(h2, :l, N, NLevelSpace(:atom, 2, 1)))
+            kk = σ_k.index
+            ll = σ_l.index
+            s2 = Σ(σ_k, kk) * σ_l
+            @test latexify(s2) ==
+                L"{\sigma}_{l}^{{21}} + \underset{k{\neq}l}{\overset{N}{\sum}}{\sigma}_{k}^{{22}}{\sigma}_{l}^{{21}}"
         end
 
         @testset "Fraction prefactor gets brackets" begin

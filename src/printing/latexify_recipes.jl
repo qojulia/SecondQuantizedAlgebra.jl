@@ -147,14 +147,24 @@ function _latex_term(c::CNum, ops::Vector{QSym})
 end
 
 function _latex_sum_prefix(indices::Vector{Index}, ne_pairs::Vector{NonEqualPair})
+    isempty(indices) && return ""
     idx_parts = String[]
-    for idx in indices
+    last_name = indices[end].name
+    for (k, idx) in enumerate(indices)
         r = Symbolics.value(SymbolicUtils.unwrap(idx.range))
-        push!(idx_parts, "\\underset{$(idx.name)}{\\overset{$r}{\\sum}}")
-    end
-    if !isempty(ne_pairs)
-        ne_str = join(["$(a.name){\\neq}$(b.name)" for (a, b) in ne_pairs], ",")
-        idx_parts[end] = replace(idx_parts[end], "$(indices[end].name)" => "$(indices[end].name){\\neq}$(ne_str)")
+        if k == length(indices) && !isempty(ne_pairs)
+            chain = string(idx.name)
+            for (a, b) in ne_pairs
+                if a.name == last_name
+                    chain *= "{\\neq}$(b.name)"
+                else
+                    chain *= ",$(a.name){\\neq}$(b.name)"
+                end
+            end
+            push!(idx_parts, "\\underset{$chain}{\\overset{$r}{\\sum}}")
+        else
+            push!(idx_parts, "\\underset{$(idx.name)}{\\overset{$r}{\\sum}}")
+        end
     end
     return join(idx_parts, " ")
 end

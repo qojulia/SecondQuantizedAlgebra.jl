@@ -41,9 +41,9 @@ Sx = Spin(h, :S, 1)
 Sy = Spin(h, :S, 2)
 Sz = Spin(h, :S, 3)
 
-@variables ω₀ ωa g
+@variables ω₀ ωₐ g
 
-H = ω₀ * a' * a + ωa * Sz + g * (a + a') * Sx
+H = ω₀ * a' * a + ωₐ * Sz + g * (a + a') * Sx
 
 # ## Built-in angular-momentum algebra
 #
@@ -126,7 +126,7 @@ h_pol = ha2 ⊗ hb2
 @qnumbers b_pol::Destroy(h_pol, 2)
 
 @variables λ
-H_pol = ω₀ * a_pol' * a_pol + ωa * b_pol' * b_pol +
+H_pol = ω₀ * a_pol' * a_pol + ωₐ * b_pol' * b_pol +
     λ * (a_pol + a_pol') * (b_pol + b_pol')
 
 # ## Polariton spectrum from a Bogoliubov-de-Gennes determinant
@@ -159,9 +159,9 @@ using LinearAlgebra
 @variables x
 M = [
     -1im * ω₀   -1im * λ     0          -1im * λ;
-    -1im * λ   -1im * ωa    -1im * λ       0;
+    -1im * λ   -1im * ωₐ    -1im * λ       0;
     0        1im * λ      1im * ω₀      1im * λ;
-    1im * λ    0          1im * λ       1im * ωa
+    1im * λ    0          1im * λ       1im * ωₐ
 ]
 
 simplify(det(M - x * I))
@@ -239,7 +239,7 @@ n_over_N = Float64[]
 gap1 = Float64[]
 gap2 = Float64[]
 for λ_val in λs
-    subs = Dict(ω₀ => ω₀_val, ωa => ωa_val, g => g_of_λ(λ_val))
+    subs = Dict(ω₀ => ω₀_val, ωₐ => ωa_val, g => g_of_λ(λ_val))
     H_op = dense(to_numeric(substitute(H, subs), b))
     E = eigvals(Hermitian(H_op.data))
     ψ0 = Ket(b, eigvecs(Hermitian(H_op.data))[:, 1])

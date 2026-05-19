@@ -1334,13 +1334,13 @@ end
     @qnumbers a::Destroy(h, 1)
     σ(α, β, idx) = IndexedOperator(Transition(h, :σ, α, β, 2), idx)
 
-    @variables N ωc ωa
+    @variables N ωc ωₐ
     g(idx) = IndexedVariable(:g, idx)
     i = Index(h, :i, N, ha)
     l = Index(h, :l, N, ha)
 
     # σ_i^z = 2 σ_i²² - 1 (canonical form, ground = 1).
-    H = ωc * a' * a + (ωa / 2) * Σ(2 * σ(2, 2, i) - 1, i) +
+    H = ωc * a' * a + (ωₐ / 2) * Σ(2 * σ(2, 2, i) - 1, i) +
         Σ(g(i) * (a' * σ(1, 2, i) + a * σ(2, 1, i)), i)
 
     @test iszero(simplify(commutator(ωc * a' * a, σ(2, 2, l))))

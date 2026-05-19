@@ -376,8 +376,8 @@ import SecondQuantizedAlgebra: simplify, QAdd, QSym, QField, CNum, _to_cnum, _si
         @variables ωc::Real
         @test isequal(average(ωc), ωc)
         # average pulls scalar prefactors out
-        avg_ωa = average(ωc * a)
-        @test is_average(avg_ωa) || SymbolicUtils.iscall(avg_ωa)
+        avg_ωₐ = average(ωc * a)
+        @test is_average(avg_ωₐ) || SymbolicUtils.iscall(avg_ωₐ)
     end
 
     @testset "Double average (QC#242)" begin
