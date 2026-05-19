@@ -151,6 +151,34 @@ import SecondQuantizedAlgebra: simplify, QAdd, QSym, _single_qadd, _zero_qadd, _
                 "Σ(i=1:N) (g(i) * b * σ_i₂₁ + g(i) * b' * σ_i₁₂)"
         end
 
+        @testset "Average and averaged sums" begin
+            @variables N
+            h2 = FockSpace(:c) ⊗ NLevelSpace(:atom, 2, 1)
+            @qnumbers b::Destroy(h2, 1)
+            i = Index(h2, :i, N, NLevelSpace(:atom, 2, 1))
+            j = Index(h2, :j, N, NLevelSpace(:atom, 2, 1))
+            σ_i = IndexedOperator(Transition(h2, :σ, 1, 2, 2), i)
+            σ_j = IndexedOperator(Transition(h2, :σ, 1, 2, 2), j)
+
+            @test repr(average(b)) == "⟨b⟩"
+            @test repr(average(b' * b)) == "⟨b' * b⟩"
+
+            @test repr(average(Σ(b' * σ_i, i))) ==
+                "Σ(i=1:N) ⟨b' * σ_i₁₂⟩"
+
+            @test repr(average(Σ(σ_i, i, [j]))) ==
+                "Σ(i=1:N)(i≠j) ⟨σ_i₁₂⟩"
+
+            @test repr(average(Σ(σ_i * σ_j, i, j))) ==
+                "Σ(i=1:N)Σ(j=1:N)(i≠j) ⟨σ_i₁₂ * σ_j₁₂⟩"
+
+            @test repr(2 * average(Σ(b' * σ_i, i))) ==
+                "2Σ(i=1:N) ⟨b' * σ_i₁₂⟩"
+
+            @test repr(1 + average(Σ(b' * σ_i, i))) ==
+                "1 + Σ(i=1:N) ⟨b' * σ_i₁₂⟩"
+        end
+
         @testset "Scoped constraints stay in separate sum groups" begin
             @variables N
             h2 = FockSpace(:c) ⊗ NLevelSpace(:atom, 2, 1)

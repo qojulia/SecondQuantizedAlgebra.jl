@@ -222,6 +222,16 @@ function _show_sum_group(io::IO, terms::Vector{QAdd}, indices::Vector{Index}, ne
     return nothing
 end
 
+function SymbolicUtils.show_metadata(
+        io::IO, x::SymbolicUtils.BasicSymbolic, ::Type{SumIndices}, val::Vector{Index},
+    )
+    isempty(val) && return false
+    _show_sum_prefix(io, val, _restore_sum_metadata_ne(x))
+    write(io, " ")
+    SymbolicUtils.show_plain(io, x)
+    return true
+end
+
 function Base.show(io::IO, x::QAdd)
     st = sorted_arguments(x)
     isempty(st) && return write(io, "0")
