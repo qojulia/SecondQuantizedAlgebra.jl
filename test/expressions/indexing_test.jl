@@ -1346,3 +1346,92 @@ end
     @test iszero(simplify(commutator(ωc * a' * a, σ(2, 2, l))))
     @test iszero(simplify(H - adjoint(H)))
 end
+
+@testset "Sum-scope absorption: bound index pinned by same-Index free op" begin
+    # When a product factor carries a bound `.indices` entry that shares its
+    # `Index` identity with a free operator index in the other factor, the
+    # sum is "pinned" to that specific atom and should not survive in the
+    # result's sum scope. Otherwise `Σ_k (per-atom term) * σ_{k,22}` would
+    # incorrectly evaluate to N copies of the per-atom contribution.
+
+    hc = FockSpace(:cavity); ha = NLevelSpace(:atom, 2); h = hc ⊗ ha
+    @qnumbers a::Destroy(h, 1)
+    σ(α, β, k) = IndexedOperator(Transition(h, :σ, α, β, 2), k)
+    @variables N g
+    k = Index(h, :k, N, ha)
+    l = Index(h, :l, N, ha)
+
+    # 1. QSym * QAdd: bound k in QAdd matches free k in QSym, absorbed.
+    #    σ_{k,12} · σ_{k,22} = σ_{k,12} (same-site Transition fusion), so
+    #    `σ_{k,22} * Σ_k σ_{k,12}` collapses to the per-atom σ_{k,12} with
+    #    no surviving sum scope.
+    sum_factor = Σ(σ(1, 2, k), k)
+    prod1 = σ(1, 1, k) * sum_factor
+    @test prod1 isa QAdd
+    @test isempty(prod1.indices)
+    # σ_{k,11} σ_{k,12} = σ_{k,12} (single per-atom term).
+    @test length(prod1.arguments) == 1
+
+    # 2. QAdd * QSym: symmetric absorption (σ_{k,12} σ_{k,22} = σ_{k,12}).
+    prod2 = sum_factor * σ(2, 2, k)
+    @test prod2 isa QAdd
+    @test isempty(prod2.indices)
+    @test length(prod2.arguments) == 1
+
+    # 3. Distinct Index objects (different name) preserve the sum scope.
+    #    Σ_k σ_{k,12} * σ_{l,22} keeps `[k]` as bound (l is a different atom).
+    prod3 = sum_factor * σ(2, 2, l)
+    @test k in prod3.indices
+
+    # 4. Hamiltonian commutator on the laser pattern:
+    #    `commutator(g Σ_k a' σ_{k,12}, σ_{k,22})` must give the per-atom
+    #    cross term, not `Σ_k` of it.
+    H_pump = g * Σ(a' * σ(1, 2, k), k)
+    rhs = commutator(H_pump, σ(2, 2, k))
+    @test isempty(rhs.indices)
+end
+
+@testset "simplify: drops sum-scope metadata that no surviving term references" begin
+    # `simplify` runs `_drop_unused_indices` as the last step of its
+    # pipeline, so a `Σ_k F(k) - Σ_k F(k)` cancellation surfaces an empty
+    # term dict with no bound index attached.
+    h = FockSpace(:f)
+    @variables N
+    i = Index(h, :i, N, h)
+    bi = IndexedOperator(Destroy(h, :a), i)
+    s = Σ(bi, i)
+    cancelled = simplify(s - s)
+    @test isempty(cancelled.indices)
+    @test isempty(cancelled.arguments)
+end
+
+@testset "Batched change_index: simultaneous swap preserves two-atom structure" begin
+    # Sequential `change_index(σ_{k,12} σ_{j,22}, k, j)` followed by
+    # `change_index(_, j, k)` would substitute k→j first, producing
+    # `σ_{j,12} σ_{j,22}` which same-site-fuses to `σ_{j,12}` (single atom).
+    # The batched dict overload applies the rename simultaneously, so the
+    # swap preserves the two-atom structure.
+    h = NLevelSpace(:atom, 2)
+    σ(α, β, idx) = IndexedOperator(Transition(h, :σ, α, β), idx)
+    @variables N
+    j = Index(h, :j, N, h)
+    k = Index(h, :k, N, h)
+
+    two_atom = σ(1, 2, k) * σ(2, 2, j)
+    @test length(two_atom.arguments) == 1
+    term = first(keys(two_atom.arguments))
+    @test length(term.ops) == 2
+
+    swapped = change_index(two_atom, Dict(k => j, j => k))
+    @test length(swapped.arguments) == 1
+    swap_term = first(keys(swapped.arguments))
+    @test length(swap_term.ops) == 2
+    # The two-atom structure survives; the operators reference {j, k} just
+    # with their roles swapped.
+    op_indices = Set(op.index for op in swap_term.ops)
+    @test op_indices == Set([j, k])
+
+    # Empty pairs is a no-op.
+    @test change_index(two_atom, Dict{Index, Index}()) === two_atom
+    @test change_index(σ(1, 2, k), Dict{Index, Index}()) === σ(1, 2, k)
+end

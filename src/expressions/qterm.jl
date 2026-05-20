@@ -87,6 +87,19 @@ function _substitute_ne(ne::Vector{NonEqualPair}, from::Index, to::Index)
     return isempty(out) ? _EMPTY_NE : out
 end
 
+function _substitute_ne(ne::Vector{NonEqualPair}, pairs::AbstractDict{Index, Index})
+    isempty(ne) && return _EMPTY_NE
+    isempty(pairs) && return ne
+    out = NonEqualPair[]
+    for (α, β) in ne
+        new_α = get(pairs, α, α)
+        new_β = get(pairs, β, β)
+        new_α == new_β && continue
+        _push_ne_unique!(out, (new_α, new_β))
+    end
+    return isempty(out) ? _EMPTY_NE : out
+end
+
 function _drop_ne_with(ne::Vector{NonEqualPair}, idx::Index)
     isempty(ne) && return _EMPTY_NE
     out = NonEqualPair[]

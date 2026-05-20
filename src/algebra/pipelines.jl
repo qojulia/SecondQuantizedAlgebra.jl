@@ -153,7 +153,7 @@ function Base.:*(a::QAdd, b::QSym)
             a.indices, needs
         )
     end
-    return QAdd(out, copy(a.indices))
+    return QAdd(out, _absorb_pinned_sums(a.indices, a, b))
 end
 
 function Base.:*(a::QSym, b::QAdd)
@@ -166,7 +166,7 @@ function Base.:*(a::QSym, b::QAdd)
             b.indices, needs
         )
     end
-    return QAdd(out, copy(b.indices))
+    return QAdd(out, _absorb_pinned_sums(b.indices, a, b))
 end
 
 function Base.:*(a::QAdd, b::QAdd)
@@ -193,5 +193,43 @@ function Base.:*(a::QAdd, b::QAdd)
             sum_indices, needs
         )
     end
-    return QAdd(out, sum_indices)
+    return QAdd(out, _absorb_pinned_sums(sum_indices, a, b))
+end
+
+# Drop summation indices pinned by the product: a bound `.indices` entry
+# of one factor that every term of the other factor carries as a free op
+# index is no longer ranging, so the sum scope must not survive. The
+# uniformity check (`_every_term_has_op_index`) is what guarantees the
+# result still has consistent `.indices` semantics across every term.
+function _absorb_pinned_sums(
+        sum_indices::Vector{Index}, a::Union{QAdd, QSym}, b::Union{QAdd, QSym}
+    )
+    isempty(sum_indices) && return sum_indices
+    a_indices = a isa QAdd ? a.indices : _EMPTY_INDICES
+    b_indices = b isa QAdd ? b.indices : _EMPTY_INDICES
+    keep = Index[]
+    @inbounds for s in sum_indices
+        from_a = s in a_indices
+        from_b = s in b_indices
+        pinned = (from_a && !from_b && _every_term_has_op_index(b, s)) ||
+            (from_b && !from_a && _every_term_has_op_index(a, s))
+        pinned || push!(keep, s)
+    end
+    return length(keep) == length(sum_indices) ? sum_indices : keep
+end
+
+_every_term_has_op_index(q::QSym, idx::Index) = q.index == idx
+function _every_term_has_op_index(q::QAdd, idx::Index)
+    isempty(q.arguments) && return false
+    @inbounds for t in keys(q.arguments)
+        found = false
+        for op in t.ops
+            if op.index == idx
+                found = true
+                break
+            end
+        end
+        found || return false
+    end
+    return true
 end

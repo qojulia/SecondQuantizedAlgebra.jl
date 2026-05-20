@@ -115,33 +115,18 @@ function change_index(x::CNum, from::Index, to::Index)
     return Complex(change_index(real(x), from, to), change_index(imag(x), from, to))
 end
 
-function change_index(op::Destroy, from::Index, to::Index)
-    idx = op.index == from ? to : op.index
-    return Destroy(op.name, op.space_index, idx)
+_with_index(op::Destroy, i::Index) = Destroy(op.name, op.space_index, i)
+_with_index(op::Create, i::Index) = Create(op.name, op.space_index, i)
+function _with_index(op::Transition, i::Index)
+    return Transition(op.name, op.i, op.j, op.space_index, i, op.ground_state, op.n_levels)
 end
-function change_index(op::Create, from::Index, to::Index)
-    idx = op.index == from ? to : op.index
-    return Create(op.name, op.space_index, idx)
-end
-function change_index(op::Transition, from::Index, to::Index)
-    idx = op.index == from ? to : op.index
-    return Transition(op.name, op.i, op.j, op.space_index, idx, op.ground_state, op.n_levels)
-end
-function change_index(op::Pauli, from::Index, to::Index)
-    idx = op.index == from ? to : op.index
-    return Pauli(op.name, op.axis, op.space_index, idx)
-end
-function change_index(op::Spin, from::Index, to::Index)
-    idx = op.index == from ? to : op.index
-    return Spin(op.name, op.axis, op.space_index, idx)
-end
-function change_index(op::Position, from::Index, to::Index)
-    idx = op.index == from ? to : op.index
-    return Position(op.name, op.space_index, idx)
-end
-function change_index(op::Momentum, from::Index, to::Index)
-    idx = op.index == from ? to : op.index
-    return Momentum(op.name, op.space_index, idx)
+_with_index(op::Pauli, i::Index) = Pauli(op.name, op.axis, op.space_index, i)
+_with_index(op::Spin, i::Index) = Spin(op.name, op.axis, op.space_index, i)
+_with_index(op::Position, i::Index) = Position(op.name, op.space_index, i)
+_with_index(op::Momentum, i::Index) = Momentum(op.name, op.space_index, i)
+
+function change_index(op::QSym, from::Index, to::Index)
+    return _with_index(op, op.index == from ? to : op.index)
 end
 
 function change_index(s::QAdd, from::Index, to::Index)
@@ -158,6 +143,64 @@ function change_index(s::QAdd, from::Index, to::Index)
         end
     end
     new_indices = Index[idx == from ? to : idx for idx in s.indices]
+    return QAdd(out, new_indices)
+end
+
+"""
+    change_index(expr, pairs::AbstractDict{Index, Index})
+
+Simultaneous (batched) variant of [`change_index`](@ref): substitute every
+key in `pairs` by its mapped value in one pass.
+
+Unlike a sequence of single-pair `change_index` calls, this never produces
+an intermediate state where a renamed-into index temporarily collides with
+another encountered index. Use it when the rename describes a permutation
+or any map whose image overlaps its domain, e.g. swapping two indices:
+
+```julia
+julia> change_index(expr, Dict(i => j, j => i))   # swap, not fuse
+```
+
+A pair `(idx => idx)` is a no-op; `change_index(expr, Dict())` returns
+`expr` unchanged.
+"""
+change_index(x::Number, ::AbstractDict{Index, Index}) = x
+function change_index(x::Num, pairs::AbstractDict{Index, Index})
+    isempty(pairs) && return x
+    raw = SymbolicUtils.unwrap(x)
+    sub = Dict{SymbolicUtils.BasicSymbolic, SymbolicUtils.BasicSymbolic}()
+    for (from, to) in pairs
+        sub[SymbolicUtils.unwrap(from.sym)] = SymbolicUtils.unwrap(to.sym)
+    end
+    vars = Symbolics.get_variables(raw)
+    any(v -> any(s -> isequal(v, s), keys(sub)), vars) || return x
+    result = Symbolics.substitute(raw, sub)
+    return _check_not_identical(result)
+end
+function change_index(x::CNum, pairs::AbstractDict{Index, Index})
+    return Complex(change_index(real(x), pairs), change_index(imag(x), pairs))
+end
+
+function change_index(op::QSym, pairs::AbstractDict{Index, Index})
+    new_idx = get(pairs, op.index, op.index)
+    return new_idx === op.index ? op : _with_index(op, new_idx)
+end
+
+function change_index(s::QAdd, pairs::AbstractDict{Index, Index})
+    isempty(pairs) && return s
+    out = QTermDict()
+    needs = !isempty(s.indices)
+    for (term, c) in s.arguments
+        new_c = change_index(c, pairs)
+        new_ops = QSym[change_index(op, pairs) for op in term.ops]
+        new_ne = _substitute_ne(term.ne, pairs)
+        if needs
+            _accumulate_with_diag!(out, new_ops, new_c, s.indices, new_ne)
+        else
+            _canonicalize!(out, new_ops, new_c, new_ne)
+        end
+    end
+    new_indices = Index[get(pairs, idx, idx) for idx in s.indices]
     return QAdd(out, new_indices)
 end
 
