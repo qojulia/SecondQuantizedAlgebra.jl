@@ -132,6 +132,18 @@ function _accumulate_with_diag!(
         sub_ops = QSym[change_index(o, sum_idx, ext_idx) for o in ops]
         sub_c = change_index(c, sum_idx, ext_idx)
         sub_ne = _drop_ne_with(ne, sum_idx)
+        # Sibling diagonal slices for the same sum must be mutually exclusive;
+        # without ext_idx ≠ other_ext, the i=j and i=k branches both contain
+        # i=j=k and the canonical sort cannot collapse same-index operators
+        # separated by a sibling-index operator.
+        sibling_ne = NonEqualPair[]
+        for (other_sum, other_ext) in diag_pairs
+            other_sum == sum_idx || continue
+            other_ext == ext_idx && continue
+            other_ext.space_index == ext_idx.space_index || continue
+            push!(sibling_ne, (ext_idx, other_ext))
+        end
+        isempty(sibling_ne) || (sub_ne = _merge_ne(sub_ne, sibling_ne))
         if ext_idx in sum_indices
             _emit_scaled_by_scope!(out, sub_ops, sub_c, sub_ne, Index[ext_idx])
         else

@@ -63,6 +63,36 @@ import SecondQuantizedAlgebra: QAdd, Index, simplify
         @test commutator(H_TC, σ(1, 2, j)) == expected
     end
 
+    @testset "Tavis-Cummings: [H, σ_j^{12} σ_k^{21}] merges multi-σ_j and σ_k" begin
+        # Two-atom-correlator EOM with j ≠ k. The Σ_i collapses on i = j and
+        # i = k diagonals; on each diagonal two same-site Transitions (e.g.
+        # σ_j^{21} from the substitution adjacent to σ_j^{12} from X) must
+        # compose. Regression for the bug where `σ_j^{12} σ_k^{21} σ_j^{21}`
+        # was left un-merged (the two σ_j operators were separated by σ_k
+        # and the canonical sort treated j, k as Undetermined).
+        # Pen-and-paper: [a' σ_i^{12}, σ_j^{12} σ_k^{21}] → i=k gives
+        # σ_j^{12}(σ_k^{11} - σ_k^{22}); [a σ_i^{21}, σ_j^{12} σ_k^{21}] →
+        # i=j gives (σ_j^{22} - σ_j^{11}) σ_k^{21}. Off-diagonal vanishes
+        # because i ≠ j, k commutes with both factors of X.
+        k = Index(h, :k, N, ha)
+        expected = g(j) * a * (σ(2, 2, j) - σ(1, 1, j)) * σ(2, 1, k) +
+            g(k) * a' * σ(1, 2, j) * (σ(1, 1, k) - σ(2, 2, k))
+        # The package result carries an implicit j ≠ k constraint from the
+        # diagonal partition; assume_distinct_index aligns the expected
+        # term-key with that ne so == compares like-for-like.
+        @test assume_distinct_index(commutator(H_TC, σ(1, 2, j) * σ(2, 1, k)), [(j, k)]) ==
+            assume_distinct_index(expected, [(j, k)])
+
+        # Structural check independent of completeness rewriting: the raw
+        # commutator must reduce to four 3-operator terms (no residual
+        # 4-operator terms with un-merged same-index Transitions).
+        raw = commutator(H_TC, σ(1, 2, j) * σ(2, 1, k))
+        @test length(raw.arguments) == 4
+        for term in keys(raw.arguments)
+            @test length(term.ops) == 3
+        end
+    end
+
 end
 
 @testset "Dicke model commutators" begin
