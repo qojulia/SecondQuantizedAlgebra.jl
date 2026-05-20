@@ -89,8 +89,7 @@ function _product(ops::Vector{QSym}, b::QuantumOpticsBase.Basis, d::AbstractDict
     return acc
 end
 
-# Empty scalar substitution sentinel kept concretely typed.
-const _NO_SCALAR_SUBS = Dict{Num, Union{}}()
+const _NO_SCALAR_SUBS = Dict{Num, Any}()
 
 """
     to_numeric(q::QAdd, b::CompositeBasis, sites::Dict{Int, Vector{Int}}[, d[, scalar_subs]])
@@ -122,26 +121,26 @@ function to_numeric(
     if isempty(q.indices)
         return to_numeric(q, b, d)
     end
+    sub_re, sub_im, has_imag = _split_scalar_subs(scalar_subs)
     result = _to_complex(_CNUM_ZERO) * _lazy_one(b)
     for (term, c) in q.arguments
-        result = _accumulate_indexed_term!(result, term, c, q.indices, b, sites, d, scalar_subs)
+        result = _accumulate_indexed_term!(
+            result, term, c, q.indices, b, sites, d, sub_re, sub_im, has_imag,
+        )
     end
     return result
 end
 
-# `Function` and `AbstractDict` arg orderings: the term-level recursion stays
-# in a separate helper to keep `to_numeric` itself a simple driver.
 function _accumulate_indexed_term!(
         acc, term::QTerm, c::CNum, indices::Vector{Index},
         b::QuantumOpticsBase.CompositeBasis,
         sites::AbstractDict{Int, Vector{Int}},
         d::AbstractDict{<:QSym},
-        scalar_subs::AbstractDict,
+        sub_re::Dict, sub_im::Dict, has_imag::Bool,
     )
     dep_indices = Index[idx for idx in indices if _depends_on_index_term(c, term.ops, idx)]
     if isempty(dep_indices)
-        # Emit once: no bound dependence in this term.
-        c_resolved = _apply_scalar_subs(c, scalar_subs)
+        c_resolved = _apply_scalar_subs(c, sub_re, sub_im, has_imag)
         return acc + _emit_indexed_combo(term.ops, c_resolved, b, sites, d)
     end
     lens = Int[length(sites[idx.space_index]) for idx in dep_indices]
@@ -149,7 +148,6 @@ function _accumulate_indexed_term!(
     sub = Dict{Index, Index}()
     for combo in 1:total
         empty!(sub)
-        # Decode combo into per-index slot positions 1..lens[k].
         rem = combo - 1
         for k in 1:length(dep_indices)
             kpos = (rem % lens[k]) + 1
@@ -157,42 +155,48 @@ function _accumulate_indexed_term!(
             idx = dep_indices[k]
             sub[idx] = Index(idx.name, idx.range, idx.space_index, Num(kpos))
         end
-        # ne filter: any (a,b) pair both concrete and equal after sub => skip.
         if _violates_ne(term.ne, sub)
             continue
         end
         new_ops = QSym[change_index(op, sub) for op in term.ops]
         new_c = change_index(c, sub)
-        new_c = _apply_scalar_subs(new_c, scalar_subs)
+        new_c = _apply_scalar_subs(new_c, sub_re, sub_im, has_imag)
         acc = acc + _emit_indexed_combo(new_ops, new_c, b, sites, d)
     end
     return acc
 end
 
-# Symbolic-coefficient substitution applied per term after index unrolling.
-# Substitutions may map a `Num` (e.g. `g(k)` for concrete integer `k`) to a
-# `Complex{Real}` value; the substituted scalar is folded back into the
-# `Complex{Num}` representation as a single complex coefficient.
-function _apply_scalar_subs(c::CNum, scalar_subs::AbstractDict)
-    isempty(scalar_subs) && return c
-    # Build a real-only and imag-only substitution dict from the user input.
-    # Complex values `v = re + im*ii` propagate as separate scalar
-    # substitutions over the real and imaginary planes, preserving the
-    # `Complex{Num}` invariant (both legs wrap `Real`-valued symbolics).
+# Split user-supplied scalar substitutions into real and imag legs once per
+# `to_numeric` call. A complex RHS `re + im*ii` propagates as separate real
+# and imaginary substitutions, preserving the `Complex{Num}` invariant.
+function _split_scalar_subs(scalar_subs::AbstractDict)
     sub_re = Dict{Any, Any}()
     sub_im = Dict{Any, Any}()
+    has_imag = false
     for (k, v) in scalar_subs
         kraw = SymbolicUtils.unwrap(k)
         if v isa Complex
             sub_re[kraw] = real(v)
             sub_im[kraw] = imag(v)
+            iszero(imag(v)) || (has_imag = true)
         else
             sub_re[kraw] = v
             sub_im[kraw] = 0
         end
     end
+    return sub_re, sub_im, has_imag
+end
+
+function _apply_scalar_subs(c::CNum, sub_re::Dict, sub_im::Dict, has_imag::Bool)
+    isempty(sub_re) && return c
     re_part = SymbolicUtils.unwrap(real(c))
     im_part = SymbolicUtils.unwrap(imag(c))
+    if !has_imag
+        return Complex(
+            Num(Symbolics.substitute(re_part, sub_re)),
+            Num(Symbolics.substitute(im_part, sub_re)),
+        )
+    end
     # (re + i*im) -> (re|sub_re - im|sub_im) + i*(re|sub_im + im|sub_re)
     new_re = Symbolics.substitute(re_part, sub_re) -
         Symbolics.substitute(im_part, sub_im)
@@ -241,9 +245,6 @@ function _site_routed_op(
     return QuantumOpticsBase.LazyTensor(b, [slot], (to_numeric(op, b.bases[slot]),))
 end
 
-# Site selection: a concrete-int Index points into the slot vector; otherwise
-# fall back to the single-slot entry (or the op's raw space_index when sites
-# has no entry for this subspace).
 function _resolve_slot(op::QSym, sites::AbstractDict{Int, Vector{Int}})
     si = op.space_index
     slots = get(sites, si, Int[])
@@ -257,10 +258,12 @@ function _resolve_slot(op::QSym, sites::AbstractDict{Int, Vector{Int}})
         end
     end
     length(slots) == 1 && return slots[1]
-    throw(ArgumentError(
-        "cannot resolve slot for operator $(op): index is not a concrete integer site, " *
-            "and sites[$si] has $(length(slots)) candidates",
-    ))
+    throw(
+        ArgumentError(
+            "cannot resolve slot for operator $(op): index is not a concrete integer site, " *
+                "and sites[$si] has $(length(slots)) candidates",
+        )
+    )
 end
 
 to_numeric(x::Number, b::QuantumOpticsBase.Basis, ::AbstractDict{<:QSym} = _NO_SUBS) = _to_complex(x) * _lazy_one(b)

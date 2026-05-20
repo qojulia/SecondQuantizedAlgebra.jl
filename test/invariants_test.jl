@@ -60,9 +60,11 @@ function _walk_avg!(failures, x)
                     break
                 end
             end
-            any_dep || push!(failures,
+            any_dep || push!(
+                failures,
                 "average term $(inner) carries SumIndices=$(sum_idxs) but " *
-                "does not depend on any of them")
+                    "does not depend on any of them"
+            )
         end
         return
     end
@@ -120,61 +122,78 @@ end
     H = -Δ * a' * a + Σ(g(i) * (a' * σ(1, 2, i) + a * σ(2, 1, i)), i)
 
     corpus = [
-        ("Σ minus itself (Bug A)",       () -> Σ(g(i)*σ(1,2,i), i) - Σ(g(i)*σ(1,2,i), i)),
-        ("Σ product diag split",         () -> Σ(g(i)*σ(1,2,i), i) * σ(2,1,j)),
-        ("Σ * external op other space",  () -> Σ(g(i)*σ(1,2,i), i) * a),
-        ("commutator(H, σ_j)",           () -> commutator(H, σ(1,2,j))),
-        ("commutator(H, a' σ_j)",        () -> commutator(H, a' * σ(1,2,j))),
-        ("commutator(H, σ_j σ_k)",       () -> commutator(H, σ(1,2,j) * σ(2,1,k))),
-        ("sum-sum commutator (Bug A)",   () -> commutator(Σ(bi, iF), Σ(bj_dag, jF))),
-        ("(Σ_i b_i)(Σ_j b†_j) cancels",  () -> Σ(bi, iF) * Σ(bj_dag, jF) -
-                                              Σ(bi, iF) * Σ(bj_dag, jF)),
-        ("nested commutator on sums",    () -> begin
-            # Inner commutator binds j; rename one side to avoid bound-name clash.
-            kF = Index(hf, :k, N, hf)
-            bk = IndexedOperator(b, kF)
-            commutator(Σ(bi, iF), commutator(Σ(bj_dag, jF), Σ(bk, kF)))
-        end),
-        ("simplify(H - H)",              () -> simplify(H - H)),
-        ("normal_order on sum prod",     () -> normal_order(Σ(g(i)*σ(2,2,i), i) * a' * a)),
-        ("partial cancel: i dies, j lives",
-            () -> (Σ(g(i)*σ(1,2,i), i) + Σ(g(j)*σ(2,1,j), j)) - Σ(g(i)*σ(1,2,i), i)),
-        ("double pin (i pinned twice)",  () -> Σ(g(i)*σ(1,2,i)*σ(2,1,i), i) * σ(2,1,j) * σ(1,2,k)),
-        ("anticommutator on sums",       () -> anticommutator(Σ(bi, iF), Σ(bj_dag, jF))),
+        ("Σ minus itself (Bug A)", () -> Σ(g(i) * σ(1, 2, i), i) - Σ(g(i) * σ(1, 2, i), i)),
+        ("Σ product diag split", () -> Σ(g(i) * σ(1, 2, i), i) * σ(2, 1, j)),
+        ("Σ * external op other space", () -> Σ(g(i) * σ(1, 2, i), i) * a),
+        ("commutator(H, σ_j)", () -> commutator(H, σ(1, 2, j))),
+        ("commutator(H, a' σ_j)", () -> commutator(H, a' * σ(1, 2, j))),
+        ("commutator(H, σ_j σ_k)", () -> commutator(H, σ(1, 2, j) * σ(2, 1, k))),
+        ("sum-sum commutator (Bug A)", () -> commutator(Σ(bi, iF), Σ(bj_dag, jF))),
+        (
+            "(Σ_i b_i)(Σ_j b†_j) cancels", () -> Σ(bi, iF) * Σ(bj_dag, jF) -
+                Σ(bi, iF) * Σ(bj_dag, jF),
+        ),
+        (
+            "nested commutator on sums", () -> begin
+                # Inner commutator binds j; rename one side to avoid bound-name clash.
+                kF = Index(hf, :k, N, hf)
+                bk = IndexedOperator(b, kF)
+                commutator(Σ(bi, iF), commutator(Σ(bj_dag, jF), Σ(bk, kF)))
+            end,
+        ),
+        ("simplify(H - H)", () -> simplify(H - H)),
+        ("normal_order on sum prod", () -> normal_order(Σ(g(i) * σ(2, 2, i), i) * a' * a)),
+        (
+            "partial cancel: i dies, j lives",
+            () -> (Σ(g(i) * σ(1, 2, i), i) + Σ(g(j) * σ(2, 1, j), j)) - Σ(g(i) * σ(1, 2, i), i),
+        ),
+        ("double pin (i pinned twice)", () -> Σ(g(i) * σ(1, 2, i) * σ(2, 1, i), i) * σ(2, 1, j) * σ(1, 2, k)),
+        ("anticommutator on sums", () -> anticommutator(Σ(bi, iF), Σ(bj_dag, jF))),
         # ----- Operations the original corpus did not exercise -----
-        ("expand_completeness on Σ",     () -> expand_completeness(Σ(σ(1,1,i) * a, i))),
-        ("adjoint of Σ-product",         () -> (Σ(g(i)*σ(1,2,i), i) * σ(2,1,j))'),
-        ("substitute on Σ",              () -> substitute(Σ(g(i)*σ(1,2,i), i),
-                                                          Dict(σ(1,2,j) => 2 * σ(1,2,j)))),
-        ("change_index after cancel",    () -> change_index(
-            (Σ(g(i)*σ(1,2,i), i) + Σ(g(j)*σ(2,1,j), j)) - Σ(g(i)*σ(1,2,i), i),
-            j, k)),
-        ("Pauli sum-sum commutator",     () -> begin
-            hP = PauliSpace(:p)
-            iP = Index(hP, :ip, N, hP)
-            jP = Index(hP, :jp, N, hP)
-            σxi = IndexedOperator(Pauli(hP, :σ, 1), iP)
-            σyj = IndexedOperator(Pauli(hP, :σ, 2), jP)
-            commutator(Σ(σxi, iP), Σ(σyj, jP))
-        end),
-        ("Dicke [H_dicke, σy_j]",        () -> begin
-            # Cavity ⊗ Pauli-atom, atoms collectively coupled. Tests Pauli
-            # commutator emission interacting with both an indexed sum over
-            # atoms and a Fock-side prefactor (a + a').
-            hcD = FockSpace(:cavity)
-            hpD = PauliSpace(:atom)
-            hD = hcD ⊗ hpD
-            aD = Destroy(hD, :a, 1)
-            iD = Index(hD, :id, N, hpD)
-            jD = Index(hD, :jd, N, hpD)
-            σxD(kk) = IndexedOperator(Pauli(hD, :σ, 1, 2), kk)
-            σyD(kk) = IndexedOperator(Pauli(hD, :σ, 2, 2), kk)
-            σzD(kk) = IndexedOperator(Pauli(hD, :σ, 3, 2), kk)
-            @variables ω₀ ωₐ λ
-            H_dicke = ω₀ * aD' * aD + ωₐ * Σ(σzD(iD), iD) +
-                λ * (aD + aD') * Σ(σxD(iD), iD)
-            commutator(H_dicke, σyD(jD))
-        end),
+        ("expand_completeness on Σ", () -> expand_completeness(Σ(σ(1, 1, i) * a, i))),
+        ("adjoint of Σ-product", () -> (Σ(g(i) * σ(1, 2, i), i) * σ(2, 1, j))'),
+        (
+            "substitute on Σ", () -> substitute(
+                Σ(g(i) * σ(1, 2, i), i),
+                Dict(σ(1, 2, j) => 2 * σ(1, 2, j))
+            ),
+        ),
+        (
+            "change_index after cancel", () -> change_index(
+                (Σ(g(i) * σ(1, 2, i), i) + Σ(g(j) * σ(2, 1, j), j)) - Σ(g(i) * σ(1, 2, i), i),
+                j, k
+            ),
+        ),
+        (
+            "Pauli sum-sum commutator", () -> begin
+                hP = PauliSpace(:p)
+                iP = Index(hP, :ip, N, hP)
+                jP = Index(hP, :jp, N, hP)
+                σxi = IndexedOperator(Pauli(hP, :σ, 1), iP)
+                σyj = IndexedOperator(Pauli(hP, :σ, 2), jP)
+                commutator(Σ(σxi, iP), Σ(σyj, jP))
+            end,
+        ),
+        (
+            "Dicke [H_dicke, σy_j]", () -> begin
+                # Cavity ⊗ Pauli-atom, atoms collectively coupled. Tests Pauli
+                # commutator emission interacting with both an indexed sum over
+                # atoms and a Fock-side prefactor (a + a').
+                hcD = FockSpace(:cavity)
+                hpD = PauliSpace(:atom)
+                hD = hcD ⊗ hpD
+                aD = Destroy(hD, :a, 1)
+                iD = Index(hD, :id, N, hpD)
+                jD = Index(hD, :jd, N, hpD)
+                σxD(kk) = IndexedOperator(Pauli(hD, :σ, 1, 2), kk)
+                σyD(kk) = IndexedOperator(Pauli(hD, :σ, 2, 2), kk)
+                σzD(kk) = IndexedOperator(Pauli(hD, :σ, 3, 2), kk)
+                @variables ω₀ ωₐ λ
+                H_dicke = ω₀ * aD' * aD + ωₐ * Σ(σzD(iD), iD) +
+                    λ * (aD + aD') * Σ(σxD(iD), iD)
+                commutator(H_dicke, σyD(jD))
+            end
+        ),
     ]
 
     @testset "$label" for (label, builder) in corpus
@@ -214,18 +233,18 @@ end
     # across Fock, NLevel, and Spin so the law assertions hit every code
     # path the algebra uses.
     basis = [
-        ("a",                     a),
-        ("a'",                    a'),
-        ("a'*a",                  a' * a),
-        ("a + a'",                a + a'),
-        ("σ_j^{12}",              σ(1, 2, j)),
-        ("σ_j^{11}",              σ(1, 1, j)),
-        ("a * σ_j^{12}",          a * σ(1, 2, j)),
-        ("Σ_i g(i) σ_i^{12}",     Σ(g(i) * σ(1, 2, i), i)),
-        ("Σ_i g(i) a σ_i^{21}",   Σ(g(i) * a * σ(2, 1, i), i)),
-        ("Sx",                    Sx),
-        ("Sx + Sy",               Sx + Sy),
-        ("Sx * Sy",               Sx * Sy),
+        ("a", a),
+        ("a'", a'),
+        ("a'*a", a' * a),
+        ("a + a'", a + a'),
+        ("σ_j^{12}", σ(1, 2, j)),
+        ("σ_j^{11}", σ(1, 1, j)),
+        ("a * σ_j^{12}", a * σ(1, 2, j)),
+        ("Σ_i g(i) σ_i^{12}", Σ(g(i) * σ(1, 2, i), i)),
+        ("Σ_i g(i) a σ_i^{21}", Σ(g(i) * a * σ(2, 1, i), i)),
+        ("Sx", Sx),
+        ("Sx + Sy", Sx + Sy),
+        ("Sx * Sy", Sx * Sy),
     ]
 
     @testset "commutator antisymmetry [A,B] + [B,A] = 0" begin

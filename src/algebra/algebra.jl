@@ -1,9 +1,9 @@
-Base.:*(a::QSym, b::Number) = _single_qadd(_to_cnum(b), QSym[a])
-Base.:*(b::Number, a::QSym) = a * b
-Base.:*(a::QSym, b::SymbolicUtils.BasicSymbolic) = _single_qadd(_to_cnum(b), QSym[a])
-Base.:*(b::SymbolicUtils.BasicSymbolic, a::QSym) = a * b
+const _ScalarLike = Union{Number, SymbolicUtils.BasicSymbolic}
 
-function Base.:*(a::QAdd, b::Number)
+Base.:*(a::QSym, b::_ScalarLike) = _single_qadd(_to_cnum(b), QSym[a])
+Base.:*(b::_ScalarLike, a::QSym) = a * b
+
+function Base.:*(a::QAdd, b::_ScalarLike)
     cb = _to_cnum(b)
     d = QTermDict()
     for (term, c) in a.arguments
@@ -13,19 +13,7 @@ function Base.:*(a::QAdd, b::Number)
     end
     return QAdd(d, copy(a.indices))
 end
-Base.:*(a::Number, b::QAdd) = b * a
-
-function Base.:*(a::QAdd, b::SymbolicUtils.BasicSymbolic)
-    cb = _to_cnum(b)
-    d = QTermDict()
-    for (term, c) in a.arguments
-        new_c = _mul_cnum(c, cb)
-        _iszero_cnum(new_c) && continue
-        d[_copy_key(term)] = new_c
-    end
-    return QAdd(d, copy(a.indices))
-end
-Base.:*(a::SymbolicUtils.BasicSymbolic, b::QAdd) = b * a
+Base.:*(a::_ScalarLike, b::QAdd) = b * a
 
 function Base.:+(a::QSym, b::QSym)
     d = QTermDict()
@@ -274,26 +262,15 @@ See also [`assume_distinct_index`](@ref), [`normal_order`](@ref).
 """
 function expand_completeness(q::QAdd)
     out = QTermDict()
-    if isempty(q.indices)
-        for (t, c) in q
+    for (t, c) in q
+        depended = Index[idx for idx in q.indices if _depends_on_index_term(c, t.ops, idx)]
+        if isempty(depended)
             _expand_gs_ops(copy(t.ops), c) do ops1, c1
                 _stream!(out, ops1, c1, t.ne)
             end
-        end
-    else
-        for (t, c) in q
-            depended = Index[]
-            for idx in q.indices
-                _depends_on_index_term(c, t.ops, idx) && push!(depended, idx)
-            end
-            if isempty(depended)
-                _expand_gs_ops(copy(t.ops), c) do ops1, c1
-                    _stream!(out, ops1, c1, t.ne)
-                end
-            else
-                _expand_gs_ops(copy(t.ops), c) do ops1, c1
-                    _emit_scaled_by_scope!(out, ops1, c1, t.ne, depended)
-                end
+        else
+            _expand_gs_ops(copy(t.ops), c) do ops1, c1
+                _emit_scaled_by_scope!(out, ops1, c1, t.ne, depended)
             end
         end
     end

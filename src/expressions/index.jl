@@ -352,15 +352,11 @@ function Σ(expr::QAdd, i::Index, non_equal::Vector{Index} = Index[])
         for (a, b) in diag_pairs
             full_ne = _merge_ne_pair(full_ne, a, b)
         end
-        # Σ over i: every term inside the Σ scope contributes Σ_i term(i). For
-        # a term that doesn't depend on i, that's `i.range * term`. The body
-        # may also produce canonicalization residuals that lose their
-        # i-dependence (e.g., a_i*a_i' = a_i'*a_i + 1, where +1 is an
-        # i-independent residual). Bake the range factor into every emitted
-        # entry whose final ops are i-independent, so the QAdd's per-term
-        # scope semantics line up with the explicit `Σ_i` the user wrote.
+        # Σ_i: bake `i.range` into emitted entries whose final ops lose their
+        # i-dependence (e.g. the `+1` residual from `a_i*a_i' = a_i'*a_i + 1`),
+        # so per-term scope matches the explicit `Σ_i` written by the user.
         if _depends_on_index_term(c, term.ops, i)
-            _emit_scaled_by_range!(off_diag, copy(term.ops), c, full_ne, i)
+            _emit_scaled_by_scope!(off_diag, copy(term.ops), c, full_ne, Index[i])
         else
             _canonicalize!(
                 off_diag, copy(term.ops),

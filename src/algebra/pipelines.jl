@@ -97,15 +97,10 @@ function _accumulate_with_diag!(
         return nothing
     end
 
-    # Collect every (sum_idx, ext_idx) pair that needs a diagonal contribution.
-    # When both indices are bound (both appear in `sum_indices`), the two
-    # directions (i→j and j→i) describe the SAME mathematical diagonal slice,
-    # so we keep only one. Convention: pin the canonically-later name to the
-    # canonically-earlier one, so the survivor is the same regardless of
-    # factor order (otherwise `Σa * Σa'` and `Σa' * Σa` would produce
-    # structurally distinct diagonals that fail to cancel under subtraction).
-    # Emitting both would double-count constant residuals (e.g., the +1 from
-    # `a*a' = a'a + 1`) since each direction emits its own copy.
+    # When both indices are bound, the two directions (i→j and j→i) describe
+    # the same diagonal slice; keeping one (later→earlier) avoids double-counting
+    # constant residuals (the `+1` from `a*a' = a'a + 1`) and keeps the survivor
+    # invariant under factor order so `Σa * Σa'` and `Σa' * Σa` agree.
     diag_pairs = Tuple{Index, Index}[]
     for sum_idx in sum_indices
         _depends_on_index_ops(c, ops, sum_idx) || continue
@@ -114,7 +109,6 @@ function _accumulate_with_diag!(
             ext_idx.space_index == sum_idx.space_index || continue
             _ne_contains(ne, sum_idx, ext_idx) && continue
             if ext_idx in sum_indices
-                # Both bound. Keep only (later_name -> earlier_name).
                 sum_idx.name > ext_idx.name || continue
             end
             push!(diag_pairs, (sum_idx, ext_idx))
@@ -134,17 +128,12 @@ function _accumulate_with_diag!(
     end
     _canonicalize!(out, copy(ops), c, augmented_ne)
 
-    # Diagonal contributions: one per (sum_idx, ext_idx). When ext_idx is
-    # itself bound, the diagonal lives in scope [ext_idx]; any canonicalization
-    # residual that loses its ext_idx dependence (e.g. the +1 from
-    # `a*a' = a'a + 1` after a Fock diagonal pin) picks up `ext_idx.range`,
-    # since the surviving sum runs over ext_idx and contributes that factor.
     for (sum_idx, ext_idx) in diag_pairs
         sub_ops = QSym[change_index(o, sum_idx, ext_idx) for o in ops]
         sub_c = change_index(c, sum_idx, ext_idx)
         sub_ne = _drop_ne_with(ne, sum_idx)
         if ext_idx in sum_indices
-            _emit_scaled_by_range!(out, sub_ops, sub_c, sub_ne, ext_idx)
+            _emit_scaled_by_scope!(out, sub_ops, sub_c, sub_ne, Index[ext_idx])
         else
             _canonicalize!(out, sub_ops, sub_c, sub_ne)
         end
@@ -156,10 +145,9 @@ end
     _emit_scaled_by_scope!(out, ops, c, ne, scope)
 
 Canonicalize `(ops, c, ne)` into `out`, multiplying any resulting term by
-`prod(idx.range for idx in scope if !depends(term, idx))`. Use when the input
-term depended on a set of bound indices and any sub-term that loses that
-dependence must absorb the corresponding range factor (e.g. a constant residual
-emerging from completeness expansion inside a Σ scope).
+`prod(idx.range for idx in scope if !depends(term, idx))`. Use when residuals
+that lose a bound-index dependence must absorb the surviving sum's range factor
+(e.g. the `+1` from `a*a' = a'a + 1` inside a `Σ_i` scope).
 """
 function _emit_scaled_by_scope!(
         out::QTermDict, ops::Vector{QSym}, c::CNum,
@@ -173,28 +161,6 @@ function _emit_scaled_by_scope!(
             _depends_on_index_term(coef, term.ops, scope_idx) && continue
             coef = _mul_cnum(coef, _to_cnum(scope_idx.range))
         end
-        _addto_key!(out, _copy_key(term), coef)
-    end
-    return nothing
-end
-
-"""
-    _emit_scaled_by_range!(out, ops, c, ne, scope_idx)
-
-Canonicalize `(ops, c, ne)` into `out`, multiplying any resulting term whose
-final ops do not depend on `scope_idx` by `scope_idx.range`. Used to bake the
-explicit summation scope into residuals that lose their bound-index dependence
-during canonicalization (e.g. the `+1` from `a*a' = a'a + 1`).
-"""
-function _emit_scaled_by_range!(
-        out::QTermDict, ops::Vector{QSym}, c::CNum,
-        ne::Vector{NonEqualPair}, scope_idx::Index,
-    )
-    temp = QTermDict()
-    _canonicalize!(temp, ops, c, ne)
-    for (term, cv) in temp
-        coef = _depends_on_index_term(cv, term.ops, scope_idx) ?
-            cv : _mul_cnum(cv, _to_cnum(scope_idx.range))
         _addto_key!(out, _copy_key(term), coef)
     end
     return nothing

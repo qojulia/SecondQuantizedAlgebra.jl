@@ -146,8 +146,10 @@ import SecondQuantizedAlgebra: QAdd, QSym, Index, simplify, sorted_arguments,
         # The diagonal pin in the product emits the +1 residual under the
         # surviving bound scope, so it must carry an N factor. Currently
         # returns the un-scaled constant 1, which is mathematically wrong.
-        c = commutator(Σ(IndexedOperator(a, iF), iF),
-                       Σ(IndexedOperator(a', jF), jF))
+        c = commutator(
+            Σ(IndexedOperator(a, iF), iF),
+            Σ(IndexedOperator(a', jF), jF)
+        )
         cnums = [coef for (t, coef) in c.arguments if isempty(t.ops)]
         @test length(cnums) == 1
         @test isequal(cnums[1], Complex(N))
