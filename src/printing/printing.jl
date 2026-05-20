@@ -174,15 +174,25 @@ function _show_terms(io::IO, st::Vector{QAdd})
     return
 end
 
-function _group_dep_terms(dep_qadds)
-    groups = Tuple{Vector{NonEqualPair}, Vector{QAdd}}[]
+function _term_used_indices(t::QAdd, indices::Vector{Index})
+    ops, c, _ = _term_signature(t)
+    used = Index[]
+    for idx in indices
+        _depends_on_index_term(c, ops, idx) && push!(used, idx)
+    end
+    return used
+end
+
+function _group_dep_terms(dep_qadds, indices::Vector{Index})
+    groups = Tuple{Vector{Index}, Vector{NonEqualPair}, Vector{QAdd}}[]
     for q in dep_qadds
         _, _, ne = _term_signature(q)
-        slot = findfirst(g -> isequal(g[1], ne), groups)
+        used = _term_used_indices(q, indices)
+        slot = findfirst(g -> isequal(g[1], used) && isequal(g[2], ne), groups)
         if slot === nothing
-            push!(groups, (_copy_ne(ne), QAdd[q]))
+            push!(groups, (used, _copy_ne(ne), QAdd[q]))
         else
-            push!(groups[slot][2], q)
+            push!(groups[slot][3], q)
         end
     end
     return groups
@@ -254,10 +264,10 @@ function Base.show(io::IO, x::QAdd)
             end
         end
         if !isempty(dep)
-            groups = _group_dep_terms(dep)
-            for (k, (ne_pairs, terms)) in enumerate(groups)
+            groups = _group_dep_terms(dep, x.indices)
+            for (k, (used, ne_pairs, terms)) in enumerate(groups)
                 k > 1 && write(io, " + ")
-                _show_sum_group(io, terms, x.indices, ne_pairs)
+                _show_sum_group(io, terms, used, ne_pairs)
             end
         end
     else

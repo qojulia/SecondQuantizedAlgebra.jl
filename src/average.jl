@@ -99,10 +99,12 @@ function average(op::QAdd)
             iszero(i) || (result += i * Symbolics.IM)
             continue
         end
-        inner = (length(term.ops) == 1 && isempty(term.ne) && isempty(op.indices)) ?
+        term_uses_sum = shared !== nothing &&
+            any(idx -> _depends_on_index_term(c, term.ops, idx), shared)
+        inner = (length(term.ops) == 1 && isempty(term.ne) && !term_uses_sum) ?
             only(term.ops) : _single_qadd(_CNUM_ONE, term.ops, term.ne)
         avg = _average(inner)
-        if shared !== nothing
+        if term_uses_sum
             avg = SymbolicUtils.setmetadata(avg, SumIndices, shared)
             avg = SymbolicUtils.setmetadata(avg, SumNonEqual, _copy_ne(term.ne))
         end

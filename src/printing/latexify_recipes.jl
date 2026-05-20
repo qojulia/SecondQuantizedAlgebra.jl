@@ -199,8 +199,8 @@ end
             end
         end
         if !isempty(dep_qadds)
-            for (ne_pairs, terms) in _group_dep_terms(dep_qadds)
-                push!(terms_out, _latex_sum_group(x.indices, ne_pairs, terms))
+            for (used, ne_pairs, terms) in _group_dep_terms(dep_qadds, x.indices)
+                push!(terms_out, _latex_sum_group(used, ne_pairs, terms))
             end
         end
         if isempty(terms_out)

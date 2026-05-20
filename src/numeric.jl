@@ -89,6 +89,180 @@ function _product(ops::Vector{QSym}, b::QuantumOpticsBase.Basis, d::AbstractDict
     return acc
 end
 
+# Empty scalar substitution sentinel kept concretely typed.
+const _NO_SCALAR_SUBS = Dict{Num, Union{}}()
+
+"""
+    to_numeric(q::QAdd, b::CompositeBasis, sites::Dict{Int, Vector{Int}}[, d[, scalar_subs]])
+
+Convert a `QAdd` that carries bound summation indices (`q.indices`) to a numeric
+operator on a `CompositeBasis` whose layout replicates one or more abstract
+subspaces. `sites[orig_space_index]` is the list of slots into `b.bases` that
+realize that subspace; non-indexed subspaces map to a single-slot entry.
+
+For each term, every bound index that the term depends on is unrolled over the
+length of its `sites` vector, with `term.ne` constraints filtering out diagonal
+combinations. Concrete-site operators are routed to `sites[op.space_index][k]`,
+where `k` is the substituted integer site. Terms that do not depend on any
+bound index are emitted once as written, matching the `Σ` convention that
+i-independent residuals already carry their range factor.
+
+`d` substitutes individual `QSym` operators with custom numeric operators (same
+semantics as the single-basis-slot path). `scalar_subs` substitutes symbolic
+scalar parameters (e.g. `Δ` or `g(k)` for the integer `k` produced by index
+unrolling) with numeric values; supply this to resolve indexed parameters that
+only become fully concrete after the symbolic sum is unrolled.
+"""
+function to_numeric(
+        q::QAdd, b::QuantumOpticsBase.CompositeBasis,
+        sites::AbstractDict{Int, Vector{Int}},
+        d::AbstractDict{<:QSym} = _NO_SUBS,
+        scalar_subs::AbstractDict = _NO_SCALAR_SUBS,
+    )
+    if isempty(q.indices)
+        return to_numeric(q, b, d)
+    end
+    result = _to_complex(_CNUM_ZERO) * _lazy_one(b)
+    for (term, c) in q.arguments
+        result = _accumulate_indexed_term!(result, term, c, q.indices, b, sites, d, scalar_subs)
+    end
+    return result
+end
+
+# `Function` and `AbstractDict` arg orderings: the term-level recursion stays
+# in a separate helper to keep `to_numeric` itself a simple driver.
+function _accumulate_indexed_term!(
+        acc, term::QTerm, c::CNum, indices::Vector{Index},
+        b::QuantumOpticsBase.CompositeBasis,
+        sites::AbstractDict{Int, Vector{Int}},
+        d::AbstractDict{<:QSym},
+        scalar_subs::AbstractDict,
+    )
+    dep_indices = Index[idx for idx in indices if _depends_on_index_term(c, term.ops, idx)]
+    if isempty(dep_indices)
+        # Emit once: no bound dependence in this term.
+        c_resolved = _apply_scalar_subs(c, scalar_subs)
+        return acc + _emit_indexed_combo(term.ops, c_resolved, b, sites, d)
+    end
+    lens = Int[length(sites[idx.space_index]) for idx in dep_indices]
+    total = prod(lens)
+    sub = Dict{Index, Index}()
+    for combo in 1:total
+        empty!(sub)
+        # Decode combo into per-index slot positions 1..lens[k].
+        rem = combo - 1
+        for k in 1:length(dep_indices)
+            kpos = (rem % lens[k]) + 1
+            rem ÷= lens[k]
+            idx = dep_indices[k]
+            sub[idx] = Index(idx.name, idx.range, idx.space_index, Num(kpos))
+        end
+        # ne filter: any (a,b) pair both concrete and equal after sub => skip.
+        if _violates_ne(term.ne, sub)
+            continue
+        end
+        new_ops = QSym[change_index(op, sub) for op in term.ops]
+        new_c = change_index(c, sub)
+        new_c = _apply_scalar_subs(new_c, scalar_subs)
+        acc = acc + _emit_indexed_combo(new_ops, new_c, b, sites, d)
+    end
+    return acc
+end
+
+# Symbolic-coefficient substitution applied per term after index unrolling.
+# Substitutions may map a `Num` (e.g. `g(k)` for concrete integer `k`) to a
+# `Complex{Real}` value; the substituted scalar is folded back into the
+# `Complex{Num}` representation as a single complex coefficient.
+function _apply_scalar_subs(c::CNum, scalar_subs::AbstractDict)
+    isempty(scalar_subs) && return c
+    # Build a real-only and imag-only substitution dict from the user input.
+    # Complex values `v = re + im*ii` propagate as separate scalar
+    # substitutions over the real and imaginary planes, preserving the
+    # `Complex{Num}` invariant (both legs wrap `Real`-valued symbolics).
+    sub_re = Dict{Any, Any}()
+    sub_im = Dict{Any, Any}()
+    for (k, v) in scalar_subs
+        kraw = SymbolicUtils.unwrap(k)
+        if v isa Complex
+            sub_re[kraw] = real(v)
+            sub_im[kraw] = imag(v)
+        else
+            sub_re[kraw] = v
+            sub_im[kraw] = 0
+        end
+    end
+    re_part = SymbolicUtils.unwrap(real(c))
+    im_part = SymbolicUtils.unwrap(imag(c))
+    # (re + i*im) -> (re|sub_re - im|sub_im) + i*(re|sub_im + im|sub_re)
+    new_re = Symbolics.substitute(re_part, sub_re) -
+        Symbolics.substitute(im_part, sub_im)
+    new_im = Symbolics.substitute(re_part, sub_im) +
+        Symbolics.substitute(im_part, sub_re)
+    return Complex(Num(new_re), Num(new_im))
+end
+
+function _violates_ne(ne::Vector{NonEqualPair}, sub::Dict{Index, Index})
+    for (a, b) in ne
+        ra = get(sub, a, a)
+        rb = get(sub, b, b)
+        va = Symbolics.value(ra.sym)
+        vb = Symbolics.value(rb.sym)
+        va isa Int || continue
+        vb isa Int || continue
+        ra.space_index == rb.space_index || continue
+        va == vb && return true
+    end
+    return false
+end
+
+function _emit_indexed_combo(
+        ops::Vector{QSym}, c::CNum,
+        b::QuantumOpticsBase.CompositeBasis,
+        sites::AbstractDict{Int, Vector{Int}},
+        d::AbstractDict{<:QSym},
+    )
+    if isempty(ops)
+        return _to_complex(c) * _lazy_one(b)
+    end
+    acc = _site_routed_op(ops[1], b, sites, d)
+    for k in 2:length(ops)
+        acc = acc * _site_routed_op(ops[k], b, sites, d)
+    end
+    return _to_complex(c) * acc
+end
+
+function _site_routed_op(
+        op::QSym, b::QuantumOpticsBase.CompositeBasis,
+        sites::AbstractDict{Int, Vector{Int}},
+        d::AbstractDict{<:QSym},
+    )
+    slot = _resolve_slot(op, sites)
+    haskey(d, op) && return d[op]
+    return QuantumOpticsBase.LazyTensor(b, [slot], (to_numeric(op, b.bases[slot]),))
+end
+
+# Site selection: a concrete-int Index points into the slot vector; otherwise
+# fall back to the single-slot entry (or the op's raw space_index when sites
+# has no entry for this subspace).
+function _resolve_slot(op::QSym, sites::AbstractDict{Int, Vector{Int}})
+    si = op.space_index
+    slots = get(sites, si, Int[])
+    if isempty(slots)
+        return si
+    end
+    if has_index(op.index)
+        v = Symbolics.value(op.index.sym)
+        if v isa Int && 1 <= v <= length(slots)
+            return slots[v]
+        end
+    end
+    length(slots) == 1 && return slots[1]
+    throw(ArgumentError(
+        "cannot resolve slot for operator $(op): index is not a concrete integer site, " *
+            "and sites[$si] has $(length(slots)) candidates",
+    ))
+end
+
 to_numeric(x::Number, b::QuantumOpticsBase.Basis, ::AbstractDict{<:QSym} = _NO_SUBS) = _to_complex(x) * _lazy_one(b)
 to_numeric(op::QField, state::QuantumState, d::AbstractDict{<:QSym} = _NO_SUBS) = to_numeric(op, QuantumOpticsBase.basis(state), d)
 to_numeric(x::Number, state::QuantumState) = to_numeric(x, QuantumOpticsBase.basis(state))

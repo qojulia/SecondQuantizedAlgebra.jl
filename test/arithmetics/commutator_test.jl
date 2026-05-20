@@ -45,8 +45,10 @@ import SecondQuantizedAlgebra: simplify, QAdd, QSym, _single_qadd, _to_cnum, Ind
     end
 
     @testset "QAdd with QSym — shared space" begin
-        result = commutator(ad * a, a)
-        @test result isa QAdd
+        # Number-operator identities: [a'a, a] = -a, [a'a, a'] = a'.
+        # RHS wrapped via `1 *` to promote QSym to QAdd for equality.
+        @test commutator(ad * a, a) == -a
+        @test commutator(ad * a, ad) == 1 * ad
     end
 
     @testset "QAdd with QSym — no shared space" begin
@@ -82,7 +84,7 @@ import SecondQuantizedAlgebra: simplify, QAdd, QSym, _single_qadd, _to_cnum, Ind
         @test iszero(simplified)
     end
 
-    @testset "Sum-sum commutator preserves indices" begin
+    @testset "Sum-sum commutator drops dead indices" begin
         i = Index(h, :i, 10, h)
         j = Index(h, :j, 10, h)
         ai = IndexedOperator(a, i)
@@ -92,7 +94,10 @@ import SecondQuantizedAlgebra: simplify, QAdd, QSym, _single_qadd, _to_cnum, Ind
         s2 = Σ(adj, j)
         result = commutator(s1, s2)
         @test result isa QAdd
-        @test Set(result.indices) == Set([i, j])
+        # All off-diagonal (i≠j) terms cancel between s1*s2 and s2*s1, and the
+        # surviving diagonal contributions are c-numbers, so no surviving term
+        # depends on i or j and neither index should remain in `.indices`.
+        @test isempty(result.indices)
     end
 
     @testset "Nested commutator" begin
@@ -103,13 +108,16 @@ import SecondQuantizedAlgebra: simplify, QAdd, QSym, _single_qadd, _to_cnum, Ind
         @test iszero(simplify(result))
     end
 
-    @testset "Spin: [Sx, Sy] = iSz" begin
+    @testset "Spin: [Sx, Sy] = iSz (and cyclic)" begin
         hs = SpinSpace(:s)
         Sx = Spin(hs, :S, 1)
         Sy = Spin(hs, :S, 2)
         Sz = Spin(hs, :S, 3)
-        result = commutator(Sx, Sy)
-        @test result isa QAdd
+        @test commutator(Sx, Sy) == im * Sz
+        @test commutator(Sy, Sz) == im * Sx
+        @test commutator(Sz, Sx) == im * Sy
+        # Antisymmetry
+        @test commutator(Sy, Sx) == -im * Sz
     end
 
     @testset "PhaseSpace: [X, P] = i" begin
@@ -117,7 +125,12 @@ import SecondQuantizedAlgebra: simplify, QAdd, QSym, _single_qadd, _to_cnum, Ind
         x = Position(hps, :x)
         p = Momentum(hps, :p)
         result = commutator(x, p)
-        @test result isa QAdd
+        # Canonical commutator is the c-number i (empty-ops QAdd with prefactor im).
+        @test length(result) == 1
+        (term, c) = only(collect(result))
+        @test isempty(term.ops)
+        @test c == im
+        @test commutator(p, x) == -commutator(x, p)
     end
 
     @testset "Return type is always QAdd" begin

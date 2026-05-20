@@ -191,7 +191,38 @@ import SecondQuantizedAlgebra: simplify, QAdd, QSym, _single_qadd, _zero_qadd, _
             @test repr(expr) == "Σ(i=1:N) b_i + Σ(i=1:N)(i≠j) b_i"
         end
 
-        @testset "Edge cases — no crash" begin
+        @testset "Per-term Σ scope: distinct-index sums stay separate" begin
+            # A QAdd whose .indices = [i, j] but whose terms each depend on only
+            # one of them must NOT print as a global Σ_i Σ_j over the whole sum.
+            @variables N
+            hf = FockSpace(:f)
+            af = Destroy(hf, :a)
+            i = Index(hf, :i, N, hf)
+            j = Index(hf, :j, N, hf)
+            ai = IndexedOperator(af, i)
+            aj_dag = IndexedOperator(af', j)
+
+            expr = Σ(ai, i) + Σ(aj_dag, j)
+            @test repr(expr) == "Σ(i=1:N) a_i + Σ(j=1:N) a_j'"
+
+            # Same-index addition must group (single Σ over the sum), since both
+            # terms share index i.
+            ai_dag = IndexedOperator(af', i)
+            same = Σ(ai, i) + Σ(ai_dag, i)
+            @test repr(same) == "Σ(i=1:N) (a_i + a_i')"
+
+            # Mixed: i-group and j-group split, i-group keeps its own pair.
+            mixed = Σ(ai, i) + Σ(ai_dag, i) + Σ(aj_dag, j)
+            @test repr(mixed) == "Σ(i=1:N) (a_i + a_i') + Σ(j=1:N) a_j'"
+
+            # Diagonal-pin residual from Σa_i * Σa'_j: the bound diagonal lives
+            # in scope of the surviving index only.
+            prod = Σ(ai, i) * Σ(aj_dag, j)
+            @test repr(prod) ==
+                "N + Σ(i=1:N)Σ(j=1:N)(i≠j) a_i * a_j' + Σ(i=1:N) a_i' * a_i"
+        end
+
+        @testset "Edge cases, no crash" begin
             @test repr(_zero_qadd()) == "0"
         end
 
@@ -435,6 +466,20 @@ import SecondQuantizedAlgebra: simplify, QAdd, QSym, _single_qadd, _zero_qadd, _
 
             @test latexify(Δ * b' * b + Σ(gi * b' * σ_i, i)) ==
                 L"\Delta b^{\dagger}b + \underset{i}{\overset{N}{\sum}}g\left( i \right) b^{\dagger}{\sigma}_{i}^{{12}}"
+        end
+
+        @testset "Per-term Σ scope: LaTeX distinct-index sums stay separate" begin
+            @variables N
+            hf = FockSpace(:f)
+            af = Destroy(hf, :a)
+            i = Index(hf, :i, N, hf)
+            j = Index(hf, :j, N, hf)
+            ai = IndexedOperator(af, i)
+            aj_dag = IndexedOperator(af', j)
+
+            expr = Σ(ai, i) + Σ(aj_dag, j)
+            @test latexify(expr) ==
+                L"\underset{i}{\overset{N}{\sum}}a_{i} + \underset{j}{\overset{N}{\sum}}a_{j}^{\dagger}"
         end
 
         @testset "MIME text/latex" begin

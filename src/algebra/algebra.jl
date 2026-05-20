@@ -1,5 +1,7 @@
 Base.:*(a::QSym, b::Number) = _single_qadd(_to_cnum(b), QSym[a])
 Base.:*(b::Number, a::QSym) = a * b
+Base.:*(a::QSym, b::SymbolicUtils.BasicSymbolic) = _single_qadd(_to_cnum(b), QSym[a])
+Base.:*(b::SymbolicUtils.BasicSymbolic, a::QSym) = a * b
 
 function Base.:*(a::QAdd, b::Number)
     cb = _to_cnum(b)
@@ -13,6 +15,18 @@ function Base.:*(a::QAdd, b::Number)
 end
 Base.:*(a::Number, b::QAdd) = b * a
 
+function Base.:*(a::QAdd, b::SymbolicUtils.BasicSymbolic)
+    cb = _to_cnum(b)
+    d = QTermDict()
+    for (term, c) in a.arguments
+        new_c = _mul_cnum(c, cb)
+        _iszero_cnum(new_c) && continue
+        d[_copy_key(term)] = new_c
+    end
+    return QAdd(d, copy(a.indices))
+end
+Base.:*(a::SymbolicUtils.BasicSymbolic, b::QAdd) = b * a
+
 function Base.:+(a::QSym, b::QSym)
     d = QTermDict()
     _addto!(d, QSym[a], _CNUM_ONE)
@@ -23,7 +37,7 @@ end
 function Base.:+(a::QAdd, b::QSym)
     d = _copy_args(a.arguments)
     _addto!(d, QSym[b], _CNUM_ONE)
-    return QAdd(d, copy(a.indices))
+    return QAdd(d, _drop_unused_indices(d, a.indices))
 end
 Base.:+(a::QSym, b::QAdd) = b + a
 
@@ -32,7 +46,7 @@ function Base.:+(a::QAdd, b::QAdd)
     for (term, c) in b.arguments
         _addto_key!(d, _copy_key(term), c)
     end
-    return QAdd(d, _merge_unique(a.indices, b.indices))
+    return QAdd(d, _drop_unused_indices(d, _merge_unique(a.indices, b.indices)))
 end
 
 function Base.:+(a::QSym, b::Number)
@@ -260,9 +274,27 @@ See also [`assume_distinct_index`](@ref), [`normal_order`](@ref).
 """
 function expand_completeness(q::QAdd)
     out = QTermDict()
-    for (t, c) in q
-        _expand_gs_ops(copy(t.ops), c) do ops1, c1
-            _stream!(out, ops1, c1, t.ne)
+    if isempty(q.indices)
+        for (t, c) in q
+            _expand_gs_ops(copy(t.ops), c) do ops1, c1
+                _stream!(out, ops1, c1, t.ne)
+            end
+        end
+    else
+        for (t, c) in q
+            depended = Index[]
+            for idx in q.indices
+                _depends_on_index_term(c, t.ops, idx) && push!(depended, idx)
+            end
+            if isempty(depended)
+                _expand_gs_ops(copy(t.ops), c) do ops1, c1
+                    _stream!(out, ops1, c1, t.ne)
+                end
+            else
+                _expand_gs_ops(copy(t.ops), c) do ops1, c1
+                    _emit_scaled_by_scope!(out, ops1, c1, t.ne, depended)
+                end
+            end
         end
     end
     return QAdd(out, copy(q.indices))

@@ -72,34 +72,32 @@ import SecondQuantizedAlgebra: QAdd, QSym, QField, AvgFunc, _average
         h = FockSpace(:c)
         a = Destroy(h, :a)
         ad = a'
+        # `a` survives; `a'` is dropped as its adjoint duplicate.
+        @test unique_ops([a, ad]) == [a]
+        @test unique_ops([ad, a]) == [ad]  # order preserved (first wins)
 
-        # a and a† represent the same degree of freedom
-        ops = unique_ops([a, ad])
-        @test length(ops) == 1
-
-        # Hermitian operator: σx and σx' are the same
+        # Hermitian Pauli operator equals its own adjoint.
         hp = PauliSpace(:p)
         σx = Pauli(hp, :σ, 1)
-        @test length(unique_ops([σx, σx'])) == 1
-
-        # Different operators stay
         σy = Pauli(hp, :σ, 2)
-        @test length(unique_ops([σx, σy])) == 2
+        @test unique_ops([σx, σx']) == [σx]
+        @test unique_ops([σx, σy]) == [σx, σy]
+        @test unique_ops([σy, σx]) == [σy, σx]
     end
 
-    @testset "find_operators — Fock order 1" begin
+    @testset "find_operators on Fock order 1" begin
         h = FockSpace(:c)
-        ops = find_operators(h, 1)
-        # Order 1: a and a† but unique_ops removes one
-        @test length(ops) == 1
+        a = Destroy(h, :a)
+        # Order 1 is just {a, a'} reduced to {a} by adjoint deduplication.
+        @test find_operators(h, 1) == [a]
     end
 
-    @testset "find_operators — Fock order 2" begin
+    @testset "find_operators on Fock order 2" begin
         h = FockSpace(:c)
-        ops = find_operators(h, 2)
-        # Order 1: a (a† removed as adjoint duplicate)
-        # Order 2: a*a, a†*a, a†*a† (a*a† = adjoint of a†*a → removed)
-        @test length(ops) >= 3
+        a = Destroy(h, :a)
+        # Order 1: a. Order 2 (after adjoint dedup): a*a and a'*a.
+        # a*a' is the adjoint duplicate of a'*a; a'*a' is the adjoint of a*a.
+        @test find_operators(h, 2) == [a, a * a, a' * a]
     end
 
     @testset "find_operators — ProductSpace auto-naming" begin

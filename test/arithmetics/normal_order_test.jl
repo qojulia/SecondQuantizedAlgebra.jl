@@ -2,7 +2,8 @@ using SecondQuantizedAlgebra
 using QuantumOpticsBase
 using Symbolics: @variables
 using Test
-import SecondQuantizedAlgebra: simplify, QAdd, QSym, CNum, sorted_arguments
+import SecondQuantizedAlgebra: simplify, QAdd, QSym, CNum, sorted_arguments,
+    _single_qadd, _to_cnum
 
 @testset "normal_order" begin
     h = FockSpace(:c)
@@ -18,32 +19,28 @@ import SecondQuantizedAlgebra: simplify, QAdd, QSym, CNum, sorted_arguments
     end
 
     @testset "Single commutation: a*a† → a†a + 1" begin
-        m = a * ad
-        result = normal_order(m)
-        @test result isa QAdd
-        @test length(result) == 2
+        result = normal_order(a * ad)
+        @test result == ad * a + 1
     end
 
     @testset "QSym passthrough" begin
+        # normal_order wraps a leaf operator into a single-term QAdd equal to it.
         result = normal_order(a)
-        @test result isa QAdd
-        @test length(result) == 1
+        @test isequal(result, _single_qadd(_to_cnum(1), QSym[a]))
     end
 
     @testset "QAdd — normal-orders each term" begin
-        expr = a * ad + ad * a
-        result = normal_order(expr)
-        @test result isa QAdd
+        # a*a' + a'*a normal-orders to 2*a'*a + 1.
+        result = normal_order(a * ad + ad * a)
+        @test result == 2 * ad * a + 1
     end
 
     @testset "Different spaces don't commute" begin
         h2 = FockSpace(:a) ⊗ FockSpace(:b)
         a1 = Destroy(h2, :a, 1)
         a2 = Destroy(h2, :b, 2)
-        m = a1 * a2'
-        result = normal_order(m)
-        @test result isa QAdd
-        @test length(result) == 1
+        # No commutation between subspaces: result equals the original product.
+        @test normal_order(a1 * a2') == a1 * a2'
     end
 
     @testset "Return type is always QAdd" begin
@@ -158,9 +155,8 @@ end
     Sz = Spin(h, :S, 3)
 
     @testset "Sy·Sx gets reordered (swap + commutator)" begin
-        result = Sy * Sx  # eager ordering
-        @test result isa QAdd
-        @test length(result) >= 2
+        # Sy*Sx = Sx*Sy + [Sy,Sx] = Sx*Sy - i*Sz under canonical ordering.
+        @test Sy * Sx == Sx * Sy - im * Sz
     end
 
     @testset "Same axis — already ordered" begin
@@ -235,10 +231,7 @@ end
     @testset "Commutation via normal_order" begin
         h = FockSpace(:c)
         @qnumbers a::Destroy(h)
-        # a * a† normal-ordered → a†a + 1
-        result = normal_order(a * a')
-        @test result isa QAdd
-        @test length(result) == 2
+        @test normal_order(a * a') == a' * a + 1
     end
 
     @testset "Distinct modes on same space don't commute" begin
@@ -261,9 +254,8 @@ end
     @testset "Higher-order normal ordering" begin
         h = FockSpace(:c)
         @qnumbers a::Destroy(h)
-        result = normal_order(a * a * a' * a')
-        @test result isa QAdd
-        @test length(result) >= 3
+        # a²(a†)² = a'² a² + 4 a'a + 2 (standard Wick expansion).
+        @test normal_order(a * a * a' * a') == a' * a' * a * a + 4 * a' * a + 2
     end
 end
 
