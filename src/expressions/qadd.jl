@@ -13,6 +13,46 @@ See also [`QTerm`](@ref), [`prefactor`](@ref), [`operators`](@ref), [`Σ`](@ref)
 struct QAdd <: QField
     arguments::QTermDict
     indices::Vector{Index}
+    function QAdd(arguments::QTermDict, indices::Vector{Index})
+        return new(_prune_dead_ne(arguments, indices), indices)
+    end
+end
+
+# Strip NE pairs that reference no op index, coefficient index, or scope index.
+function _prune_dead_ne(args::QTermDict, indices::Vector{Index})
+    needs_rebuild = false
+    for (term, c) in args
+        for p in term.ne
+            if !_pair_referenced(p, term.ops, c, indices)
+                needs_rebuild = true
+                break
+            end
+        end
+        needs_rebuild && break
+    end
+    needs_rebuild || return args
+    out = QTermDict()
+    sizehint!(out, length(args))
+    for (term, c) in args
+        kept = NonEqualPair[]
+        for p in term.ne
+            _pair_referenced(p, term.ops, c, indices) && _push_ne_unique!(kept, p)
+        end
+        kept_ne = isempty(kept) ? _EMPTY_NE : sort!(kept)
+        _addto_key!(out, QTerm(copy(term.ops), kept_ne), c)
+    end
+    return out
+end
+
+@inline function _pair_referenced(
+        p::NonEqualPair, ops::Vector{QSym}, c::CNum, scope::Vector{Index},
+    )
+    α, β = p
+    α in scope && return true
+    β in scope && return true
+    _depends_on_index_term(c, ops, α) && return true
+    _depends_on_index_term(c, ops, β) && return true
+    return false
 end
 
 """

@@ -78,6 +78,8 @@ A third argument specifies indices that are not equal to the summation index:
 Σ(σ(2, 2, i), i, [j])
 ```
 
+Each non-equal pair carries meaning only where it can be observed: the summation index it filters, an operator carrying one of the paired indices, or a coefficient depending on one of them. Pairs failing that test (e.g. between two indices that appear nowhere in the term) are stripped automatically at construction. Callers building `QAdd`s directly do not need to clean up `term.ne` manually. See the *QAdd internals* section of the [developer documentation](devdocs.md) for the full invariant.
+
 
 ### Diagonal splitting
 

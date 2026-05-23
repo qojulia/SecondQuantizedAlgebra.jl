@@ -4,7 +4,8 @@ using SymbolicUtils: SymbolicUtils, SymReal, symtype
 using Symbolics: Symbolics, @variables
 import SecondQuantizedAlgebra: simplify, QAdd, QSym, QField, CNum, _to_cnum, _single_qadd,
     AvgSym, AvgFunc, sym_average, SumIndices, SumNonEqual, sorted_arguments,
-    has_sum_metadata, get_sum_indices, get_sum_non_equal
+    has_sum_metadata, get_sum_indices, get_sum_non_equal,
+    QTerm, QTermDict, NonEqualPair
 
 @testset "Average" begin
 
@@ -109,7 +110,92 @@ import SecondQuantizedAlgebra: simplify, QAdd, QSym, QField, CNum, _to_cnum, _si
         end
     end
 
-    @testset "undo_average — always returns QAdd" begin
+    @testset "average(QAdd): singleton single-op NE is vacuous" begin
+        ha = NLevelSpace(:atom, 2, 1)
+        hf = FockSpace(:f)
+        h = hf ⊗ ha
+        @variables N
+        i = Index(h, :i, N, ha)
+        j = Index(h, :j, N, ha)
+        σ_i = IndexedOperator(Transition(h, :σ, 1, 2, 2), i)
+
+        bare_avg = average(σ_i)
+
+        ne_qadd = QAdd(
+            QTermDict(QTerm(QSym[σ_i], NonEqualPair[(i, j)]) => _to_cnum(1)),
+            Index[],
+        )
+        ne_avg = average(ne_qadd)
+
+        @test isequal(bare_avg, ne_avg)
+        @test !SymbolicUtils.hasmetadata(ne_avg, SumIndices)
+        @test !SymbolicUtils.hasmetadata(ne_avg, SumNonEqual)
+
+        σ_j = IndexedOperator(Transition(h, :σ, 2, 2, 2), j)
+        prod_qadd_ne = QAdd(
+            QTermDict(QTerm(QSym[σ_i, σ_j], NonEqualPair[(i, j)]) => _to_cnum(1)),
+            Index[],
+        )
+        prod_qadd_no_ne = QAdd(
+            QTermDict(QTerm(QSym[σ_i, σ_j], NonEqualPair[]) => _to_cnum(1)),
+            Index[],
+        )
+        @test !isequal(average(prod_qadd_ne), average(prod_qadd_no_ne))
+    end
+
+    @testset "QAdd: dead NE pairs pruned at construction" begin
+        ha = NLevelSpace(:atom, 2, 1)
+        hf = FockSpace(:f)
+        h = hf ⊗ ha
+        @variables N
+        i = Index(h, :i, N, ha)
+        j = Index(h, :j, N, ha)
+        k = Index(h, :k, N, ha)
+        σ_i = IndexedOperator(Transition(h, :σ, 1, 2, 2), i)
+
+        dead = QAdd(
+            QTermDict(QTerm(QSym[σ_i], NonEqualPair[(j, k)]) => _to_cnum(1)),
+            Index[],
+        )
+        @test all(isempty(t.ne) for t in keys(dead.arguments))
+
+        live_op = QAdd(
+            QTermDict(QTerm(QSym[σ_i], NonEqualPair[(i, j)]) => _to_cnum(1)),
+            Index[],
+        )
+        @test any(!isempty(t.ne) for t in keys(live_op.arguments))
+
+        live_scope = QAdd(
+            QTermDict(QTerm(QSym[σ_i], NonEqualPair[(j, k)]) => _to_cnum(1)),
+            Index[j],
+        )
+        @test any(!isempty(t.ne) for t in keys(live_scope.arguments))
+
+        @test isequal(QAdd(deepcopy(dead.arguments), Index[]), dead)
+
+        gjk = DoubleIndexedVariable(:g, j, k)
+        live_coef = QAdd(
+            QTermDict(
+                QTerm(QSym[σ_i], NonEqualPair[(j, k)]) => _to_cnum(gjk),
+            ),
+            Index[],
+        )
+        @test any(!isempty(t.ne) for t in keys(live_coef.arguments))
+
+        clash = QAdd(
+            QTermDict(
+                QTerm(QSym[σ_i], NonEqualPair[(j, k)]) => _to_cnum(1),
+                QTerm(QSym[σ_i], NonEqualPair[]) => _to_cnum(2),
+            ),
+            Index[],
+        )
+        @test length(clash.arguments) == 1
+        (only_term, only_c) = first(clash.arguments)
+        @test isempty(only_term.ne)
+        @test isequal(only_c, _to_cnum(3))
+    end
+
+    @testset "undo_average: always returns QAdd" begin
         h = FockSpace(:c)
         a = Destroy(h, :a)
         ad = a'

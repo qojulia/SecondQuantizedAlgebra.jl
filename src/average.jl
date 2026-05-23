@@ -101,7 +101,7 @@ function average(op::QAdd)
         end
         term_uses_sum = shared !== nothing &&
             any(idx -> _depends_on_index_term(c, term.ops, idx), shared)
-        inner = (length(term.ops) == 1 && isempty(term.ne) && !term_uses_sum) ?
+        inner = (length(term.ops) == 1 && !term_uses_sum) ?
             only(term.ops) : _single_qadd(_CNUM_ONE, term.ops, term.ne)
         avg = _average(inner)
         if term_uses_sum
