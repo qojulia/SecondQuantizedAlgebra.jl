@@ -5,8 +5,6 @@ All notable changes to [`SecondQuantizedAlgebra.jl`](https://github.com/qojulia/
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased](https://github.com/qojulia/SecondQuantizedAlgebra.jl/tree/main)
-
 ## [v0.5.0]
 
 Breaking release: redesign of the algebraic core. Most public entry points keep their names and meaning. The substantive changes fall into three groups: direct renames, constructs replaced by more general machinery, and behavioural changes in shared API names. This entry is the migration reference for users with code written against **SecondQuantizedAlgebra.jl v0.4** or **QuantumCumulants.jl**, which shares the v0.4 API surface.

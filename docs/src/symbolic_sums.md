@@ -51,6 +51,19 @@ gi = IndexedVariable(:g, i)
 ```
 
 
+## Concrete slots
+
+After an index has been unrolled (e.g. by `QuantumCumulants.evaluate`), you
+often want to refer to a specific position. Calling an `Index` value with an
+`Integer` returns a fresh per-slot `Index` named `Symbol(i.name, "_", k)` with
+the same range and subspace. Pass it through [`IndexedOperator`](@ref) to build
+the concrete-site operator that matches the post-unroll naming convention:
+
+```@example sums
+σ(2, 1, i(3))
+```
+
+
 ## Summations
 
 Use [`Σ`](@ref) (or equivalently [`∑`](@ref)) to create a symbolic sum over an index:

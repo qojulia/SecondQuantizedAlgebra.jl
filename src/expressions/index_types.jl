@@ -71,6 +71,23 @@ function Index(h::HilbertSpace, name::Symbol, range::Union{Int, Num}, si::Int)
     return Index(name, Num(range), si, Num(sym_var))
 end
 
+"""
+    (i::Index)(k::Integer) -> Index
+
+Return a fresh per-slot `Index` for position `k`, named `Symbol(i.name, "_", k)`
+and inheriting `i.range` and `i.space_index`.
+
+Use as a slot template after `evaluate` unrolls a sum over `i`: `i(3)` is the
+concrete index for the third atom, matching the indices that `evaluate` mints
+internally so the resulting operators dedup-equal `evaluate`'s output. Naming
+seeds from `i.name`, so the user's vocabulary is preserved (SQA's naming policy).
+"""
+function (i::Index)(k::Integer)
+    name = Symbol(i.name, "_", k)
+    sym_var = SymbolicUtils.Sym{SymbolicUtils.SymReal}(name; type = Int)
+    return Index(name, i.range, i.space_index, Num(sym_var))
+end
+
 _find_space_index(::HilbertSpace, ::HilbertSpace) = 1
 function _find_space_index(h::ProductSpace, space::HilbertSpace)
     for (i, s) in enumerate(h.spaces)

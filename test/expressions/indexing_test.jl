@@ -168,6 +168,18 @@ import SecondQuantizedAlgebra: simplify, QAdd, QSym, CNum, _to_cnum, NO_INDEX,
         @test !isequal(gi, gj)
     end
 
+    @testset "Index call-syntax slot" begin
+        i = Index(hf, :i, 10, hf)
+        i3 = i(3)
+        @test i3 isa Index
+        @test i3.name === :i_3
+        @test isequal(i3.range, i.range)
+        @test i3.space_index == i.space_index
+        # Two calls produce equal Index values
+        @test i(3) == i(3)
+        @test i(3) != i(4)
+    end
+
     @testset "DoubleIndexedVariable" begin
         i = Index(hf, :i, 10, hf)
         j = Index(hf, :j, 10, hf)
