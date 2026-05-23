@@ -113,9 +113,6 @@ end
 
         # Bucket 1: strict (zero dispatch reports)
         for (name, thunk) in [
-                # Leaf-pair commutators with a `_commute_pair` fast path
-                ("commutator(a, a')", () -> commutator(a, ad)),
-                ("commutator(x, p)", () -> commutator(xx, pp)),
                 # Per-family to_numeric on a leaf
                 ("to_numeric(a, b)", () -> to_numeric(a, b)),
                 ("to_numeric(σ12, bn)", () -> to_numeric(σ12, bn)),
@@ -173,6 +170,12 @@ end
 
         # Bucket 2: hot-path allowed
         for (name, thunk) in [
+                # Leaf-pair commutators with a `_commute_pair` fast path. They
+                # build a `QAdd` whose inner constructor scans every term's
+                # `ne` via `_prune_dead_ne`, exposing the abstract `Vector{QSym}`
+                # to JET even though no NE pair is actually present at runtime.
+                ("commutator(a, a')", () -> commutator(a, ad)),
+                ("commutator(x, p)", () -> commutator(xx, pp)),
                 # Commutators that fall through to `a*b - b*a`
                 ("commutator(σ12, σ21)", () -> commutator(σ12, σ21)),
                 ("commutator(px, py)", () -> commutator(px, py)),
