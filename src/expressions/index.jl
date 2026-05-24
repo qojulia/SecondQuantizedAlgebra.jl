@@ -133,6 +133,9 @@ function change_index(s::QAdd, from::Index, to::Index)
     out = QTermDict()
     needs = !isempty(s.indices)
     for (term, c) in s.arguments
+        # A term whose NE constraint becomes contradictory under the rename
+        # carries weight zero and must be dropped, not relaxed.
+        _ne_becomes_contradictory(term.ne, from, to) && continue
         new_c = change_index(c, from, to)
         new_ops = QSym[change_index(op, from, to) for op in term.ops]
         new_ne = _substitute_ne(term.ne, from, to)
@@ -191,6 +194,7 @@ function change_index(s::QAdd, pairs::AbstractDict{Index, Index})
     out = QTermDict()
     needs = !isempty(s.indices)
     for (term, c) in s.arguments
+        _ne_becomes_contradictory(term.ne, pairs) && continue
         new_c = change_index(c, pairs)
         new_ops = QSym[change_index(op, pairs) for op in term.ops]
         new_ne = _substitute_ne(term.ne, pairs)

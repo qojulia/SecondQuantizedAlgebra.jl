@@ -87,6 +87,27 @@ function _substitute_ne(ne::Vector{NonEqualPair}, from::Index, to::Index)
     return isempty(out) ? _EMPTY_NE : out
 end
 
+function _ne_becomes_contradictory(ne::Vector{NonEqualPair}, from::Index, to::Index)
+    isempty(ne) && return false
+    for (α, β) in ne
+        new_α = α == from ? to : α
+        new_β = β == from ? to : β
+        new_α == new_β && return true
+    end
+    return false
+end
+
+function _ne_becomes_contradictory(ne::Vector{NonEqualPair}, pairs::AbstractDict{Index, Index})
+    isempty(ne) && return false
+    isempty(pairs) && return false
+    for (α, β) in ne
+        new_α = get(pairs, α, α)
+        new_β = get(pairs, β, β)
+        new_α == new_β && return true
+    end
+    return false
+end
+
 function _substitute_ne(ne::Vector{NonEqualPair}, pairs::AbstractDict{Index, Index})
     isempty(ne) && return _EMPTY_NE
     isempty(pairs) && return ne
