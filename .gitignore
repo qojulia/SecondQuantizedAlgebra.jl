@@ -25,3 +25,5 @@ Manifest*.toml
 
 benchmarks_output.json
 .vscode/settings.json
+
+*.claude

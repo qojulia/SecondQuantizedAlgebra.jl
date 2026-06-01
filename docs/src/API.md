@@ -1,5 +1,6 @@
 ```@meta
 CollapsedDocStrings = true
+CurrentModule = SecondQuantizedAlgebra
 ```
 
 # API
@@ -8,7 +9,6 @@ CollapsedDocStrings = true
 Pages = ["API.md"]
 Depth = 2:3
 ```
-
 
 ## [Hilbert Spaces](@id API: Hilbert Spaces)
 
@@ -41,10 +41,6 @@ PhaseSpace
 ```
 
 ```@docs
-ClusterSpace
-```
-
-```@docs
 ⊗
 ```
 
@@ -52,7 +48,12 @@ ClusterSpace
 tensor
 ```
 
-## [q-Numbers](@id API: Operators)
+
+## [Operators](@id API: Operators)
+
+```@docs
+QField
+```
 
 ```@docs
 QSym
@@ -60,6 +61,14 @@ QSym
 
 ```@docs
 QTerm
+```
+
+```@docs
+QTermDict
+```
+
+```@docs
+QAdd
 ```
 
 ```@docs
@@ -94,47 +103,53 @@ Position
 Momentum
 ```
 
-## [Symbolic Numbers](@id API: Symbolic numbers)
+
+## [Algebra](@id API: Algebra)
 
 ```@docs
-CNumber
+simplify
 ```
 
 ```@docs
-Parameter
+normal_order
 ```
 
 ```@docs
-cnumbers
+normal_to_symmetric
 ```
 
 ```@docs
-cnumber
+symmetric_to_normal
 ```
 
 ```@docs
-@cnumbers
+commutator
 ```
 
 ```@docs
-RNumber
+anticommutator
 ```
 
 ```@docs
-RealParameter
+expand
 ```
 
 ```@docs
-rnumbers
+expand_completeness
 ```
 
 ```@docs
-rnumber
+assume_distinct_index
 ```
 
 ```@docs
-@rnumbers
+qadjoint
 ```
+
+```@docs
+inner_adjoint
+```
+
 
 ## [Average](@id API: Average)
 
@@ -142,12 +157,16 @@ rnumber
 average
 ```
 
-
-## [Utility functions](@id API: Utils)
+```@docs
+undo_average
+```
 
 ```@docs
-commutator
+is_average
 ```
+
+
+## [Utility Functions](@id API: Utils)
 
 ```@docs
 acts_on
@@ -170,6 +189,26 @@ fundamental_operators
 ```
 
 ```@docs
+prefactor
+```
+
+```@docs
+operators
+```
+
+```@docs
+constraint_pairs
+```
+
+```@docs
+sorted_arguments
+```
+
+```@docs
+substitute
+```
+
+```@docs
 transition_superscript
 ```
 
@@ -180,6 +219,7 @@ to_numeric
 ```@docs
 numeric_average
 ```
+
 
 ## [Symbolic Summations](@id API: Sums)
 
@@ -200,11 +240,11 @@ DoubleIndexedVariable
 ```
 
 ```@docs
-SingleSum
+Σ
 ```
 
 ```@docs
-DoubleSum
+∑
 ```
 
 ```@docs
@@ -212,27 +252,21 @@ change_index
 ```
 
 ```@docs
-insert_index
+get_indices
 ```
 
 ```@docs
-SpecialIndexedTerm
+has_index
 ```
 
 ```@docs
-reorder
+has_sum_metadata
 ```
 
 ```@docs
-IndexedAverageSum
+get_sum_indices
 ```
 
 ```@docs
-IndexedAverageDoubleSum
+get_sum_non_equal
 ```
-
-```@docs
-NumberedOperator
-```
-
-
