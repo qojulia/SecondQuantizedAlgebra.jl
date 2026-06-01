@@ -1,106 +1,124 @@
 module SecondQuantizedAlgebra
 
-using SymbolicUtils: SymbolicUtils, BasicSymbolic, arguments, iscall, operation, substitute
-using Symbolics: Symbolics
+using SymbolicUtils: SymbolicUtils, simplify, substitute
+using Symbolics: Symbolics, Num, expand, @variables
 using TermInterface: TermInterface
 
-using Combinatorics: combinations, levicivita
+const CNum = Complex{Num}
 
-using SciMLBase: SciMLBase
 using QuantumOpticsBase: QuantumOpticsBase
 import QuantumOpticsBase: ⊗, tensor, expect
 
-using LaTeXStrings: LaTeXStrings, @L_str, latexstring
+using Combinatorics: with_replacement_combinations
 using Latexify: Latexify, latexify, @latexrecipe
-using MacroTools: MacroTools
+using PrecompileTools: @setup_workload, @compile_workload
 
-const NO_METADATA = SymbolicUtils.NO_METADATA
+include("types.jl")
+include("operators/hilbertspace.jl")
+include("expressions/index_types.jl")
 
-function source_metadata(source, name)
-    Base.ImmutableDict{DataType,Any}(Symbolics.VariableSource, (source, name))
-end
+include("operators/fock.jl")
+include("operators/nlevel.jl")
+include("operators/pauli.jl")
+include("operators/spin.jl")
+include("operators/phase_space.jl")
+include("operators/operators.jl")
+include("expressions/cnum.jl")
+include("expressions/qterm.jl")
+include("expressions/qadd.jl")
 
-include("hilbertspace.jl")
-include("qnumber.jl")
-include("cnumber.jl")
-include("fock.jl")
-include("nlevel.jl")
-include("spin.jl")
-include("phase_space.jl")
-include("commutator.jl")
+include("algebra/passes.jl")
+include("algebra/pipelines.jl")
+
+include("expressions/index.jl")
+
+include("algebra/algebra.jl")
+include("algebra/weyl.jl")
 
 include("average.jl")
-include("utils.jl")
-include("cluster.jl")
+include("numeric.jl")
 
-include("latexify_recipes.jl")
-include("printing.jl")
+include("printing/printing.jl")
+include("printing/latexify_recipes.jl")
 
-include("indexing.jl")
-include("index_numbered_operator.jl")
-include("index_double_sums.jl")
-include("index_average.jl")
-include("index_utils.jl")
+"""
+    @qnumbers ops...
 
-export HilbertSpace,
-    ProductSpace,
-    ⊗,
-    tensor,
-    expect,
-    QSym,
-    QTerm,
-    @qnumbers,
-    FockSpace,
-    Destroy,
-    Create,
-    NLevelSpace,
-    Transition,
-    CollectiveTransition,
-    PauliSpace,
-    Pauli,
-    SpinSpace,
-    Spin,
-    PhaseSpace,
-    Position,
-    Momentum,
-    commutator,
-    acts_on,
-    CNumber,
-    Parameter,
-    @cnumbers,
-    cnumbers,
-    cnumber,
-    RNumber,
-    RealParameter,
-    @rnumbers,
-    rnumbers,
-    rnumber,
-    unique_ops,
-    unique_ops!,
-    to_numeric,
-    numeric_average,
-    ClusterSpace,
-    find_operators,
-    fundamental_operators,
-    transition_superscript,
-    Average,
-    average,
-    Index,
-    reorder,
-    IndexedOperator,
-    SingleSum,
-    IndexedVariable,
-    DoubleIndexedVariable,
-    DoubleSum,
-    SpecialIndexedTerm,
-    Σ,
-    ∑,
-    NumberedOperator,
-    change_index,
-    order_by_index,
-    insert_index,
-    numeric_average,
-    IndexedAverageSum,
-    IndexedAverageDoubleSum
+Convenience macro for constructing named quantum operators.
+
+Each argument has the form `name::OperatorType(hilbert_space, args...)`. The macro
+calls `OperatorType(hilbert_space, :name, args...)` and binds the result to `name`
+in the calling scope. Multiple operators can be declared in one call.
+
+# Examples
+```jldoctest
+julia> h = FockSpace(:fock);
+
+julia> @qnumbers a::Destroy(h)
+(a,)
+```
+
+See also [`Destroy`](@ref), [`Transition`](@ref), [`Pauli`](@ref), [`Spin`](@ref).
+"""
+macro qnumbers(qs...)
+    ex = Expr(:block)
+    qnames = []
+    for q in qs
+        @assert q isa Expr && q.head == :(::)
+        name = q.args[1]
+        @assert name isa Symbol
+        push!(qnames, name)
+        f = q.args[2]
+        @assert f isa Expr && f.head == :call
+        op_type = f.args[1]
+        op_args = f.args[2:end]
+        name_quoted = Expr(:quote, name)
+        # Insert name as second argument: Op(hilbert, name, extra_args...)
+        construction = Expr(:call, esc(op_type), esc(op_args[1]), name_quoted, map(esc, op_args[2:end])...)
+        push!(ex.args, :($(esc(name)) = $(construction)))
+    end
+    push!(ex.args, Expr(:tuple, map(esc, qnames)...))
+    return ex
+end
+
+
+export FockSpace, ProductSpace,
+    NLevelSpace, Transition,
+    PauliSpace, Pauli,
+    SpinSpace, Spin,
+    PhaseSpace, Position, Momentum,
+    Index, has_index, IndexedOperator,
+    IndexedVariable, DoubleIndexedVariable,
+    Σ, ∑, change_index, get_indices,
+    ⊗, tensor, Destroy, Create,
+    @qnumbers, @variables,
+    average, undo_average,
+    acts_on, is_average,
+    fundamental_operators, find_operators, unique_ops,
+    prefactor, operators,
+    substitute,
+    normal_order, normal_to_symmetric, symmetric_to_normal,
+    simplify, expand, expand_completeness, assume_distinct_index, commutator, anticommutator,
+    to_numeric, numeric_average,
+    qadjoint, qconj, dagger, inner_adjoint
+
+
+# Public API that is intentionally NOT exported — accessed as
+# `SecondQuantizedAlgebra.symbol`. The `public` keyword is Julia ≥ 1.11; on
+# 1.10 the contract is documented in `docs/src/API.md`.
+macro public(ex)
+    return if VERSION >= v"1.11.0-DEV.469"
+        args = ex isa Symbol ? (ex,) : Base.isexpr(ex, :tuple) ? ex.args : error("something informative")
+        esc(Expr(:public, args...))
+    else
+        nothing
+    end
+end
+
+@public HilbertSpace, QField, QSym,
+    QAdd, QTerm, QTermDict, has_sum_metadata, get_sum_indices, get_sum_non_equal,
+    transition_superscript, constraint_pairs
+
+include("precompile.jl")
 
 end

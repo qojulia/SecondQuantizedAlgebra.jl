@@ -1,3 +1,6 @@
+[files]
+extend-exclude = ["CLAUDE.md"]
+
 [default.extend-words]
 commutating = "commutating"
 alph = "alph"
