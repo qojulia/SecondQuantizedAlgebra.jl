@@ -4,6 +4,10 @@
 
 A Julia package for symbolic manipulation of second-quantized operators used in quantum many-body theory and quantum optics. Refactored from QuantumCumulants.jl, it provides eagerly-canonicalized algebraic expressions over bosonic, spin, and N-level operators with automatic commutation relations and numeric conversion via QuantumOpticsBase.
 
+## Read the devdocs first
+
+**Always read [`docs/src/devdocs.md`](docs/src/devdocs.md) before making any change to the repo.** It documents the internal architecture and, crucially, the *design rationale*: why eager canonicalization works the way it does, why `σᵍᵍ` stays atomic, the naming policy (the algebra never mints `Index` objects on the user's behalf), diagonal splitting, and the dead-NE invariant. Many "obvious" changes are deliberately not made for reasons recorded there. Check it before proposing or implementing anything.
+
 ## Package layout
 
 ```
