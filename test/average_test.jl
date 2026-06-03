@@ -370,14 +370,12 @@ import SecondQuantizedAlgebra: simplify, QAdd, QSym, QField, CNum, _to_cnum, _si
         a = Destroy(h, :a)
         ad = a'
 
-        # LaTeX renders as \mathrm{avg}(...) — Symbolics' _toexpr pipeline
-        # has no non-piracy hook for custom operations. Upstream fix needed.
         @test string(latexify(average(a))) ==
-            "\\begin{equation}\n\\mathrm{avg}\\left( a \\right)\n\\end{equation}\n"
+            "\\begin{equation}\n\\langle a \\rangle\n\\end{equation}\n"
         @test string(latexify(average(ad * a))) ==
-            "\\begin{equation}\n\\mathrm{avg}\\left( a^{\\dagger}a \\right)\n\\end{equation}\n"
+            "\\begin{equation}\n\\langle a^{\\dagger}a \\rangle\n\\end{equation}\n"
         @test string(latexify(average(3 * ad * a))) ==
-            "\\begin{equation}\n3 ~ \\mathrm{avg}\\left( a^{\\dagger}a \\right)\n\\end{equation}\n"
+            "\\begin{equation}\n3 ~ \\langle a^{\\dagger}a \\rangle\n\\end{equation}\n"
     end
 
     @testset "Arithmetic composition" begin
