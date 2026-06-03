@@ -183,6 +183,31 @@ function _latex_sum_group(indices::Vector{Index}, ne_pairs::Vector{NonEqualPair}
     return Expr(:latexifymerge, prefix, Expr(:call, :+, term_exprs...))
 end
 
+function _latex_fragment(x)
+    inner = SymbolicUtils.isconst(x) ? x.val : x
+    return strip(String(latexify(inner)), '$')
+end
+
+function _latex_avg_expr(inner)
+    return "\\langle $(_latex_fragment(inner)) \\rangle"
+end
+
+function Symbolics._toexpr_op(::AvgFunc, args; kwargs...)
+    return _latex_avg_expr(only(args))
+end
+
+function Symbolics._toexpr_metadata(
+        x::SymbolicUtils.BasicSymbolic, ::Type{SumIndices}, indices::Vector{Index};
+        kwargs...,
+    )
+    isempty(indices) && return nothing
+    SymbolicUtils.iscall(x) || return nothing
+    SymbolicUtils.operation(x) isa AvgFunc || return nothing
+    prefix = _latex_sum_prefix(indices, _restore_sum_metadata_ne(x))
+    inner = only(SymbolicUtils.arguments(x))
+    return string(prefix, _latex_avg_expr(inner))
+end
+
 @latexrecipe function f(x::QAdd)
     st = sorted_arguments(x)
     if !isempty(x.indices)

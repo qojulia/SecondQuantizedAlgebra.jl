@@ -488,5 +488,22 @@ import SecondQuantizedAlgebra: simplify, QAdd, QSym, _single_qadd, _zero_qadd, _
             @test repr(MIME"text/latex"(), af * adf) == latexify(af * adf)
             @test repr(MIME"text/latex"(), af + adf) == latexify(af + adf)
         end
+
+        @testset "Averages" begin
+            avg_a = average(af)
+            avg_prod = average(adf * af)
+            @test string(latexify(avg_a)) ==
+                "\\begin{equation}\n\\langle a \\rangle\n\\end{equation}\n"
+            @test string(latexify(avg_prod)) ==
+                "\\begin{equation}\n\\langle a^{\\dagger}a \\rangle\n\\end{equation}\n"
+
+            h = FockSpace(:site)
+            @variables N
+            i = Index(h, :i, N, h)
+            ai = IndexedOperator(af, i)
+            avg_sum = average(Σ(ai, i))
+            @test string(latexify(avg_sum)) ==
+                "\\begin{equation}\n\\underset{i}{\\overset{N}{\\sum}}\\langle a_{i} \\rangle\n\\end{equation}\n"
+        end
     end
 end
