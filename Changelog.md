@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+### Changed
+
+- LaTeX rendering for averaged expressions now uses `\langle \cdots \rangle`, and averaged indexed sums preserve their `\sum` prefix in `latexify` output via the new Symbolics LaTeX hooks ([#153](https://github.com/qojulia/SecondQuantizedAlgebra.jl/issues/153)).
+
 ### Documentation
 
 - Document why alpha-equivalent sums (`Σᵢ σᵢ + Σⱼ σⱼ`) are not auto-collected and clarify the bound-index naming policy in the developer docs; add a "read the devdocs first" note for contributors ([#156]). Resolves [[#134](https://github.com/qojulia/SecondQuantizedAlgebra.jl/issues/134)].
