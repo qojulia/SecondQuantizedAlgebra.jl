@@ -301,4 +301,15 @@ end
         @test assume_distinct_index(c, [(j, k)]) ==
             assume_distinct_index(leibniz, [(j, k)])
     end
+
+    @testset "Σ diagonal split propagates non_equal onto the collapsed index" begin
+        # Σ_{i≠j} σ_i^{21} σ_k^{12}: the i=k diagonal must inherit k≠j, not drop it.
+        s = Σ(σ(2, 1, i) * σ(1, 2, k), i, [j])
+        diag_terms = [t for t in keys(s.arguments) if !any(o -> o.index == i, t.ops)]
+        @test length(diag_terms) == 1
+        @test any(p -> Set(p) == Set([j, k]), only(diag_terms).ne)
+        off = only(t for t in keys(s.arguments) if any(o -> o.index == i, t.ops))
+        @test any(p -> Set(p) == Set([i, j]), off.ne)
+        @test any(p -> Set(p) == Set([i, k]), off.ne)
+    end
 end

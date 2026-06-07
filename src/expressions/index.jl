@@ -330,9 +330,11 @@ function Σ(expr::QAdd, i::Index, non_equal::Vector{Index} = Index[])
     diag = QTermDict()
 
     for (term, c) in expr.arguments
+        depends_on_i = _depends_on_index_term(c, term.ops, i)
+
         # User-supplied non_equal constraints apply when the term depends on i.
         ne_aug = term.ne
-        if _depends_on_index_term(c, term.ops, i)
+        if depends_on_i
             for j in non_equal
                 ne_aug = _merge_ne_pair(ne_aug, i, j)
             end
@@ -341,7 +343,7 @@ function Σ(expr::QAdd, i::Index, non_equal::Vector{Index} = Index[])
         # Identify (i, ext_idx) pairs that need diagonal contributions.
         distinct = _distinct_op_indices(term.ops)
         diag_pairs = Tuple{Index, Index}[]
-        if _depends_on_index_term(c, term.ops, i)
+        if depends_on_i
             for ext_idx in distinct
                 ext_idx == i && continue
                 ext_idx.space_index == i.space_index || continue
@@ -359,7 +361,7 @@ function Σ(expr::QAdd, i::Index, non_equal::Vector{Index} = Index[])
         # Σ_i: bake `i.range` into emitted entries whose final ops lose their
         # i-dependence (e.g. the `+1` residual from `a_i*a_i' = a_i'*a_i + 1`),
         # so per-term scope matches the explicit `Σ_i` written by the user.
-        if _depends_on_index_term(c, term.ops, i)
+        if depends_on_i
             _emit_scaled_by_scope!(off_diag, copy(term.ops), c, full_ne, Index[i])
         else
             _canonicalize!(
@@ -371,7 +373,9 @@ function Σ(expr::QAdd, i::Index, non_equal::Vector{Index} = Index[])
         for (_, ext_idx) in diag_pairs
             sub_ops = QSym[change_index(o, i, ext_idx) for o in term.ops]
             sub_c = change_index(c, i, ext_idx)
-            sub_ne = _drop_ne_with(term.ne, i)
+            # Propagate NE onto the diagonal (i≠β becomes ext_idx≠β); dropping it
+            # lets a later sum re-admit ext_idx=β and double-count the diagonal.
+            sub_ne = _substitute_ne(ne_aug, i, ext_idx)
             _canonicalize!(diag, sub_ops, sub_c, sub_ne)
         end
     end
