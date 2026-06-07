@@ -5,7 +5,12 @@ All notable changes to [`SecondQuantizedAlgebra.jl`](https://github.com/qojulia/
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## Unreleased
+## [v0.5.1]
+
+
+### Fixed
+
+- `Σ` now **propagates index-inequality constraints onto the diagonal** when a summed index collapses onto an external one. When splitting the diagonal of `Σ_{i≠j} σᵢ²¹ σₖ¹²`, the `i = k` contribution now inherits `k ≠ j` instead of dropping it. Previously the constraint was discarded, letting a later sum re-admit the `k = j` point and double-count the diagonal of nested and ollective double sums.
 
 ### Changed
 
