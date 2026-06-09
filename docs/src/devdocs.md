@@ -83,7 +83,7 @@ if ai_zero && bi_zero
 end
 ```
 
-When both operands are plain numbers (not symbolic), `_const_val` extracts them and does native Julia arithmetic, bypassing Symbolics entirely. Cached constants (`_CNUM_ZERO`, `_CNUM_ONE`, `_CNUM_IM`, etc.) avoid repeated allocations.
+The `_iszero_num` check skips the imaginary arithmetic, and cached constants (`_CNUM_ZERO`, `_CNUM_ONE`, `_CNUM_IM`, etc.) avoid re-constructing the common literals. There is, however, **no native-number fast path**: the real-part product `ar * br` always goes through `Num` arithmetic, even when both operands wrap plain numbers. Because Symbolics wraps numeric literals as hash-consed `BasicSymbolic` constants, every coefficient multiply/add and every `Num` construction costs on the order of 10²–10³ ns (versus ~1 ns native). On product- and power-heavy workloads this coefficient arithmetic — not the operator algebra — dominates the run time.
 
 
 ## QAdd internals
