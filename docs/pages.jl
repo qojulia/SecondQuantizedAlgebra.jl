@@ -10,6 +10,7 @@ pages = [
         "Two-Atom Dipole-Dipole" => "examples/two_atom.md",
         "Parametric Oscillator" => "examples/parametric_oscillator.md",
     ],
+    "Comparison with QuantumAlgebra.jl" => "comparison.md",
     "API" => "API.md",
     "Changelog" => "changelog.md",
     "Developer Documentation" => "devdocs.md",
