@@ -41,6 +41,20 @@ end
     return _iszero_num(c.re) && _iszero_num(c.im)
 end
 
+# `unwrap` returns a `BasicSymbolic` even for numeric constants, so test the
+# node kind rather than `isa Number`.
+@inline function _is_symbolic_num(x::Num)
+    v = SymbolicUtils.unwrap(x)
+    return SymbolicUtils.issym(v) || SymbolicUtils.iscall(v)
+end
+
+@inline _is_symbolic_cnum(c::CNum) = _is_symbolic_num(c.re) || _is_symbolic_num(c.im)
+
+# Structural `a == -b`; see `_addto_key!` for why this is needed.
+@inline function _isneg_cnum(a::CNum, b::CNum)
+    return isequal(a.re, -b.re) && isequal(a.im, -b.im)
+end
+
 # Short-circuit CNum arithmetic: most prefactors have zero imaginary part,
 # so we avoid 4 Num multiplications and 2 Num subtractions in the common case.
 @inline function _mul_cnum(a::CNum, b::CNum)

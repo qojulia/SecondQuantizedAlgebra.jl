@@ -5,6 +5,14 @@ All notable changes to [`SecondQuantizedAlgebra.jl`](https://github.com/qojulia/
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v0.5.2]
+
+### Fixed
+
+- Commuting commutators with symbolic rational coefficients no longer bloat derived expressions ([#162](https://github.com/qojulia/SecondQuantizedAlgebra.jl/pull/162)). Deriving `[Hₖ, op]` for an `Hₖ` that commutes with `op` should vanish, but with a rational coupling such as `γ/|xᵢ-xⱼ|³` the two halves land as `γ/D + (-γ)/D`, which Symbolics leaves un-combined and `_iszero_cnum` does not see as zero; the spurious term then survives and inflates every downstream RHS. Fixed at two levels:
+  - `_addto_key!` cancels exact-negation prefactor pairs for symbolic coefficients (the numeric path stays allocation-free).
+  - `commutator` distributes over terms and skips disjoint-subspace pairs (`[aₖ, bₗ] = 0`), so the cancelling products are never formed.
+
 ## [v0.5.1]
 
 

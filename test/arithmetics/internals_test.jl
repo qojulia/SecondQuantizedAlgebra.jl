@@ -142,6 +142,24 @@ end
             @test isempty(out)
         end
 
+        @testset "canonicalize_to_dict!: symbolic prefactor cancellation" begin
+            @variables γ D
+            # γ/D + (-γ)/D is structurally non-zero to Symbolics (the `Div` nodes
+            # are left un-combined), so exact-negation collection must drop the term.
+            out = QTermDict()
+            _canonicalize_to_dict!(out, QSym[a], _to_cnum(γ / D), _EMPTY_NE)
+            _canonicalize_to_dict!(out, QSym[a], _to_cnum(-γ / D), _EMPTY_NE)
+            @test isempty(out)
+        end
+
+        @testset "canonicalize_to_dict!: distinct symbolic prefactors kept" begin
+            @variables γ D β
+            out = QTermDict()
+            _canonicalize_to_dict!(out, QSym[a], _to_cnum(γ / D), _EMPTY_NE)
+            _canonicalize_to_dict!(out, QSym[a], _to_cnum(β / D), _EMPTY_NE)
+            @test length(out) == 1
+        end
+
         @testset "_reduce_ops: Transition composition" begin
             σ12 = Transition(hn, :σ, 1, 2)
             σ23 = Transition(hn, :σ, 2, 3)
