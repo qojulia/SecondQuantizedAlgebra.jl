@@ -411,3 +411,20 @@ end
     @test isequal(decay(a' * a), simplify(-κ * (a' * a)))
     @test isequal(decay(σ(2, 2, j)), simplify(R - (R + γ) * σ(2, 2, j)))
 end
+
+@testset "Regression: rational coefficients cancel exactly" begin
+    # Symbolics leaves `J0/D + (-J0)/D` un-combined, so a commuting `[Hₖ,op]=0` with a
+    # rational coupling J0/|xᵢ-xⱼ|³ must still cancel exactly, not survive and bloat RHSs.
+    h = NLevelSpace(:a1, (:g, :e)) ⊗ NLevelSpace(:a2, (:g, :e)) ⊗ NLevelSpace(:a3, (:g, :e))
+    σ(x, y, k) = Transition(h, Symbol(:σ_, k), x, y, k)
+    @variables J0 x1 x2 x3
+    D(p, q) = abs(p - q)^3
+    Hk = (J0 / D(x2, x3)) * (σ(:e, :g, 2) * σ(:g, :e, 3) + σ(:g, :e, 2) * σ(:e, :g, 3))
+    @test iszero(commutator(Hk, σ(:g, :e, 1)))                       # disjoint atoms
+    @test iszero((J0 / D(x1, x2)) * σ(:g, :e, 1) - (J0 / D(x1, x2)) * σ(:g, :e, 1))
+    # A genuine (shared-space) rational-coefficient commutator is preserved:
+    hf = FockSpace(:c)
+    a = Destroy(hf, :a)
+    @variables Δ
+    @test iszero(commutator((J0 / Δ) * (a' * a), a) + (J0 / Δ) * a)  # [J/Δ·a†a, a] = -J/Δ·a
+end

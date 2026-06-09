@@ -370,12 +370,44 @@ function commutator(a::QSym, b::QSym)
     return a * b - b * a
 end
 
-commutator(a::QAdd, b::QSym) = a * b - b * a
-commutator(a::QSym, b::QAdd) = a * b - b * a
+# Skip term pairs on disjoint subspaces: [aₖ,bₗ]=0, so their products only cancel.
+function commutator(a::QAdd, b::QSym)
+    sb = b.space_index
+    d = QTermDict()
+    indices = _EMPTY_INDICES
+    for (ta, ca) in a.arguments
+        sb in acts_on(ta) || continue
+        qa = QAdd(QTermDict(_copy_key(ta) => ca), a.indices)
+        indices = _merge_unique(indices, _merge_into!(d, qa * b - b * qa))
+    end
+    return QAdd(d, _drop_unused_indices(d, indices))
+end
+commutator(a::QSym, b::QAdd) = -commutator(b, a)
 
 function commutator(a::QAdd, b::QAdd)
     isequal(a, b) && return _zero_qadd()
-    return a * b - b * a
+    bside = [(tb, cb, acts_on(tb)) for (tb, cb) in b.arguments]
+    d = QTermDict()
+    indices = _EMPTY_INDICES
+    for (ta, ca) in a.arguments
+        aon_a = acts_on(ta)
+        qa = QAdd(QTermDict(_copy_key(ta) => ca), a.indices)
+        for (tb, cb, aon_b) in bside
+            isdisjoint(aon_a, aon_b) && continue
+            qb = QAdd(QTermDict(_copy_key(tb) => cb), b.indices)
+            indices = _merge_unique(indices, _merge_into!(d, qa * qb - qb * qa))
+        end
+    end
+    return QAdd(d, _drop_unused_indices(d, indices))
+end
+
+# Collect every term of `r` into `d` (summing like terms); return `r`'s indices
+# so the caller can accumulate the summation scope as the `+` chain would.
+function _merge_into!(d::QTermDict, r::QAdd)
+    for (term, c) in r.arguments
+        _addto_key!(d, _copy_key(term), c)
+    end
+    return r.indices
 end
 
 """

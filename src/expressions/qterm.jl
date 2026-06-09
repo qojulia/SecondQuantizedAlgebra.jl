@@ -180,7 +180,9 @@ function _addto_key!(d::QTermDict, term::QTerm, c::CNum)
         return d
     end
     new_c = _add_cnum(existing, c)
-    if _iszero_cnum(new_c)
+    # Symbolics keeps `γ/D + (-γ)/D` un-combined, so `_iszero_cnum` misses such
+    # cancellations; fall back to an exact-negation test for symbolic coefficients.
+    if _iszero_cnum(new_c) || (_is_symbolic_cnum(new_c) && _isneg_cnum(existing, c))
         delete!(d, term)
     else
         d[term] = new_c

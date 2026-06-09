@@ -313,10 +313,16 @@ acts_on(op::QSym) = Int[op.space_index]
 acts_on(::Number) = Int[]
 acts_on(x::Num) = acts_on(SymbolicUtils.unwrap(x))
 
+function acts_on(t::QTerm)
+    aon = Int[x.space_index for x in t.ops]
+    unique!(sort!(aon))
+    return aon
+end
+
 function acts_on(op::QAdd)
     aon = Int[]
-    for term in keys(op.arguments), x in term.ops
-        push!(aon, x.space_index)
+    for term in keys(op.arguments)
+        append!(aon, acts_on(term))
     end
     unique!(sort!(aon))
     return aon
