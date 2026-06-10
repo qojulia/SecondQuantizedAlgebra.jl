@@ -154,6 +154,8 @@ end
             "SecondQuantizedAlgebra.:+",
             "SecondQuantizedAlgebra.:^",
             "SecondQuantizedAlgebra._average(",
+            "SecondQuantizedAlgebra.://",
+            "SecondQuantizedAlgebra.isequal(",
         ]
         allowed_numeric_reports = vcat(
             allowed_hotpath_reports,

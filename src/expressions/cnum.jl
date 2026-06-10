@@ -75,8 +75,10 @@ end
 # negation test above stays O(1) for the common (non-fraction) prefactors.
 function _canon_div(x::Num)
     v = SymbolicUtils.unwrap(x)
-    (v isa SymbolicUtils.BasicSymbolic && SymbolicUtils.iscall(v) &&
-        SymbolicUtils.operation(v) === (/)) || return x
+    (
+        v isa SymbolicUtils.BasicSymbolic && SymbolicUtils.iscall(v) &&
+            SymbolicUtils.operation(v) === (/)
+    ) || return x
     args = SymbolicUtils.arguments(v)
     length(args) == 2 || return x
     n = Symbolics.value(args[2])
