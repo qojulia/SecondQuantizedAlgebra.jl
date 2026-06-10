@@ -52,7 +52,38 @@ end
 
 # Structural `a == -b`; see `_addto_key!` for why this is needed.
 @inline function _isneg_cnum(a::CNum, b::CNum)
-    return isequal(a.re, -b.re) && isequal(a.im, -b.im)
+    return _isneg_num(a.re, b.re) && _isneg_num(a.im, b.im)
+end
+
+# `x == -y` for symbolic prefactors. The cheap structural test misses cancellations that
+# differ only in representation: a sign flip turns `λ/2` (a `/` node) into the rational
+# `(-1//2)λ` (a `*` node), and `isequal` sees two different trees. Retry with the
+# division-by-constant canonicalized so the two forms compare equal.
+@inline function _isneg_num(x::Num, y::Num)
+    ny = -y
+    isequal(x, ny) && return true
+    cx = _canon_div(x)
+    cny = _canon_div(ny)
+    # `_canon_div` returns its argument unchanged for non-fraction prefactors; if neither
+    # side canonicalized there is nothing new to compare, so skip the repeat `isequal`.
+    (cx === x && cny === ny) && return false
+    return isequal(cx, cny)
+end
+
+# Canonicalize `p / n` (division by an integer literal) to `(1//n) * p`, matching the form
+# a sign flip produces. A no-op unless the top-level operation is `/` by an integer, so the
+# negation test above stays O(1) for the common (non-fraction) prefactors.
+function _canon_div(x::Num)
+    v = SymbolicUtils.unwrap(x)
+    (
+        v isa SymbolicUtils.BasicSymbolic && SymbolicUtils.iscall(v) &&
+            SymbolicUtils.operation(v) === (/)
+    ) || return x
+    args = SymbolicUtils.arguments(v)
+    length(args) == 2 || return x
+    n = Symbolics.value(args[2])
+    (n isa Integer && !iszero(n)) || return x
+    return (1 // n) * Num(args[1])
 end
 
 # Short-circuit CNum arithmetic: most prefactors have zero imaginary part,

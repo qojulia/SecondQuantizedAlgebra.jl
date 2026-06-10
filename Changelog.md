@@ -5,6 +5,12 @@ All notable changes to [`SecondQuantizedAlgebra.jl`](https://github.com/qojulia/
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## Unreleased
+
+### Fixed
+
+- Like-term collection no longer keeps zero coefficients that differ only in representation. A sign flip turns `λ/2` (a `/` node) into the rational `(-1//2)·λ` (a `*` node), so the exact-negation test in `_addto_key!` saw two different trees and the term survived. For example `commutator(im*H, a*a)` with a quadratic (squeezing) Hamiltonian `H = Δ·a†a + (λ/2)(a†² + a²)` kept spurious fourth-order operators (`a†a†aa`, `aaaa`) with a zero-but-un-combined coefficient `λ/2 - (1//2)λ`, which downstream `average`/cumulant code then had to special-case. The negation test now canonicalizes division-by-an-integer-constant to the rational form before comparing, so the two representations cancel. The check is O(1) for the common non-fraction prefactors, so nested-commutator performance is unaffected ([#167](https://github.com/qojulia/SecondQuantizedAlgebra.jl/pull/167)).
+
 ## [v0.5.2]
 
 ### Fixed
