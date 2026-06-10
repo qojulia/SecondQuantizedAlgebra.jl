@@ -428,3 +428,15 @@ end
     @variables Δ
     @test iszero(commutator((J0 / Δ) * (a' * a), a) + (J0 / Δ) * a)  # [J/Δ·a†a, a] = -J/Δ·a
 end
+
+@testset "Regression: un-combined zero coefficients drop on merge (λ/2 vs (1//2)λ)" begin
+    # `λ/2 + (-(1//2)λ)` is zero but differently represented, so the exact-negation path
+    # misses it; the merge must still drop it, else spurious 4th-order operators survive.
+    h = FockSpace(:cav)
+    a = Destroy(h, :a)
+    @variables Δ λ
+    H = Δ * a' * a + (λ / 2) * (a' * a' + a * a)
+    cm = commutator(im * H, a * a)  # = -2iΔ·a² - iλ(2a†a + 1): no 4th-order terms
+    @test all(length(operators(t)) <= 2 for t in sorted_arguments(cm))
+    @test iszero((λ / 2) * (a * a) - ((1 // 2) * λ) * (a * a))
+end
