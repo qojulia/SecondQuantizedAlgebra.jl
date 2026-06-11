@@ -328,7 +328,8 @@ _numeric_average(x::Num, state::QuantumState, d::AbstractDict{<:QSym}) = _numeri
 # `arguments(::BasicSymbolic)` is statically `Any`; the `_to_complex` wraps
 # reseal each recursive result to `ComplexF64`.
 function _numeric_average(avg::SymbolicUtils.BasicSymbolic, state::QuantumState, d::AbstractDict{<:QSym})
-    if SymbolicUtils.iscall(avg) && SymbolicUtils.operation(avg) isa AvgFunc
+    if SymbolicUtils.hasmetadata(avg, AverageOperator) ||
+            (SymbolicUtils.iscall(avg) && SymbolicUtils.operation(avg) isa AvgFunc)
         return _to_complex(_numeric_average(undo_average(avg), state, d))
     end
     SymbolicUtils.isconst(avg) && return _to_complex(_numeric_average(avg.val, state, d))
