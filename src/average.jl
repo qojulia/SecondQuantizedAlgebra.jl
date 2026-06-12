@@ -1,11 +1,12 @@
 """
-    AvgSym
+    AverageOperator
 
-Marker `symtype` for averaged operator expressions: `BasicSymbolic{SymReal}`
-`Term` nodes with `symtype(x) === AvgSym`. Not public — use [`average`](@ref)
-and [`is_average`](@ref).
+Metadata key carrying the operator of a lifted (time-dependent) average variable.
+The lifted form is a `Number`-symtype `var(iv)` produced by [`make_time_dependent`](@ref); the
+operator moves to metadata because the single call argument is the independent
+variable. Not public, use [`average`](@ref), [`make_time_dependent`](@ref) and [`is_average`](@ref).
 """
-struct AvgSym <: Number end
+struct AverageOperator end
 
 """Metadata key for summation indices on averaged expressions."""
 struct SumIndices end
@@ -49,10 +50,79 @@ julia> is_average(average(a)), is_average(a)
 ```
 """
 is_average(::Any) = false
-is_average(x::SymbolicUtils.BasicSymbolic) = SymbolicUtils.iscall(x) && SymbolicUtils.symtype(x) === AvgSym
+function is_average(x::SymbolicUtils.BasicSymbolic)
+    (SymbolicUtils.iscall(x) && SymbolicUtils.operation(x) === sym_average) && return true
+    return SymbolicUtils.hasmetadata(x, AverageOperator)
+end
 is_average(x::Num) = is_average(SymbolicUtils.unwrap(x))
 
-_average(op::QField) = SymbolicUtils.Term{SymbolicUtils.SymReal}(sym_average, QField[op]; type = AvgSym)
+_average(op::QField) = SymbolicUtils.Term{SymbolicUtils.SymReal}(sym_average, QField[op]; type = Number)
+
+"""
+    make_time_dependent(expr, iv) -> expr
+
+Lift every iv-free average leaf in `expr` into a time-dependent `Number` variable
+`name(iv)` carrying the operator in [`AverageOperator`](@ref) metadata (and the
+`VariableSource` set by `@variables`, so it reads as a ModelingToolkit unknown).
+Non-average structure is rebuilt only where a child changed. The lifted node is a
+leaf: the walk does not descend into `iv`. The default `name` is uniqueness-only;
+downstream code may rename for display without changing identity.
+"""
+make_time_dependent(x::Num, iv) = Symbolics.wrap(make_time_dependent(SymbolicUtils.unwrap(x), iv))
+function make_time_dependent(x, iv)
+    x isa SymbolicUtils.BasicSymbolic || return x
+    if SymbolicUtils.iscall(x) && SymbolicUtils.operation(x) === sym_average
+        return _lift_average(x, iv)
+    end
+    SymbolicUtils.iscall(x) || return x
+    args = SymbolicUtils.arguments(x)
+    new_args = Vector{Any}(undef, length(args))
+    changed = false
+    for k in eachindex(args)
+        na = make_time_dependent(args[k], iv)
+        new_args[k] = na
+        changed |= na !== args[k]
+    end
+    changed || return x   # nothing rewritten: keep the node (and its identity) intact
+    return TermInterface.maketerm(typeof(x), SymbolicUtils.operation(x), new_args, TermInterface.metadata(x))
+end
+
+function _lift_average(leaf, iv)
+    op = undo_average(leaf)
+    nm = _avg_var_name(op)
+    ivw = iv isa SymbolicUtils.BasicSymbolic ? Symbolics.wrap(iv) : iv
+    v = SymbolicUtils.unwrap(first(@variables ($nm(ivw))::Number))
+    v = SymbolicUtils.setmetadata(v, AverageOperator, op)
+    return _restore_sum_metadata_meta(v, leaf)
+end
+
+# Deterministic, structurally injective name for a lifted variable. Identity rests on this
+# name: Symbolics `isequal`/`hash` ignore the `AverageOperator` metadata, so the name must
+# be 1:1 with the operator. `hash(op)` is a digest (collisions silently merge two distinct
+# unknowns); `string(op)` alone drops the subspace (`a` on different spaces prints alike),
+# so the per-operator token prepends `space_index` to the faithful operator rendering.
+function _avg_var_name(op::QAdd)
+    io = IOBuffer()
+    print(io, "_avg")
+    for (term, c) in op.arguments
+        print(io, '_', c)
+        for o in term.ops
+            print(io, '_', o.space_index, o)
+        end
+        for (p, q) in term.ne
+            print(io, "_ne", p.name, q.name)
+        end
+    end
+    return Symbol(String(take!(io)))
+end
+
+function _restore_sum_metadata_meta(v, leaf)
+    SymbolicUtils.hasmetadata(leaf, SumIndices) || return v
+    v = SymbolicUtils.setmetadata(v, SumIndices, SymbolicUtils.getmetadata(leaf, SumIndices))
+    SymbolicUtils.hasmetadata(leaf, SumNonEqual) &&
+        (v = SymbolicUtils.setmetadata(v, SumNonEqual, SymbolicUtils.getmetadata(leaf, SumNonEqual)))
+    return v
+end
 
 """
     average(expr) -> BasicSymbolic | Number
@@ -170,6 +240,9 @@ true
 ```
 """
 function undo_average(x::SymbolicUtils.BasicSymbolic)
+    if SymbolicUtils.hasmetadata(x, AverageOperator)
+        return _restore_sum_metadata(_to_qadd(SymbolicUtils.getmetadata(x, AverageOperator)), x)
+    end
     SymbolicUtils.iscall(x) || return _to_qadd(x)
     f = SymbolicUtils.operation(x)
     if f isa AvgFunc
@@ -278,6 +351,8 @@ _aon_seal(v) = v isa Vector{Int} ? v : Int[]
 
 function get_indices(x::SymbolicUtils.BasicSymbolic)
     SymbolicUtils.isconst(x) && return _idx_seal(get_indices(x.val))
+    SymbolicUtils.hasmetadata(x, AverageOperator) &&
+        return _idx_seal(get_indices(SymbolicUtils.getmetadata(x, AverageOperator)))
     SymbolicUtils.iscall(x) || return Index[]
     f = SymbolicUtils.operation(x)
     if f isa AvgFunc
@@ -330,6 +405,8 @@ end
 
 function acts_on(s::SymbolicUtils.BasicSymbolic)
     SymbolicUtils.isconst(s) && return _aon_seal(acts_on(s.val))
+    SymbolicUtils.hasmetadata(s, AverageOperator) &&
+        return _aon_seal(acts_on(SymbolicUtils.getmetadata(s, AverageOperator)))
     SymbolicUtils.iscall(s) || return Int[]
     f = SymbolicUtils.operation(s)
     f isa AvgFunc && return _aon_seal(acts_on(SymbolicUtils.arguments(s)[1]))

@@ -3,7 +3,7 @@ using Test
 using SymbolicUtils: SymbolicUtils, SymReal, symtype
 using Symbolics: Symbolics, @variables
 import SecondQuantizedAlgebra: simplify, QAdd, QSym, QField, CNum, _to_cnum, _single_qadd,
-    AvgSym, AvgFunc, sym_average, SumIndices, SumNonEqual, sorted_arguments,
+    AvgFunc, sym_average, SumIndices, SumNonEqual, sorted_arguments,
     has_sum_metadata, get_sum_indices, get_sum_non_equal,
     QTerm, QTermDict, NonEqualPair
 
@@ -18,7 +18,7 @@ import SecondQuantizedAlgebra: simplify, QAdd, QSym, QField, CNum, _to_cnum, _si
         avg_a = average(a)
         @test avg_a isa SymbolicUtils.BasicSymbolic{SymReal}
         @test SymbolicUtils.iscall(avg_a)
-        @test symtype(avg_a) === AvgSym
+        @test symtype(avg_a) === Number
         @test is_average(avg_a)
         @test SymbolicUtils.operation(avg_a) isa AvgFunc
         # SymbolicUtils wraps QField args as Const; extract .val to check identity
@@ -27,7 +27,7 @@ import SecondQuantizedAlgebra: simplify, QAdd, QSym, QField, CNum, _to_cnum, _si
         # average of adjoint is a distinct average
         avg_ad = average(ad)
         @test avg_ad isa SymbolicUtils.BasicSymbolic{SymReal}
-        @test symtype(avg_ad) === AvgSym
+        @test symtype(avg_ad) === Number
         @test SymbolicUtils.arguments(avg_ad)[1].val === ad
         @test !isequal(avg_a, avg_ad)
 

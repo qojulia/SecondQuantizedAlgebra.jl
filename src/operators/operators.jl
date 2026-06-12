@@ -228,12 +228,20 @@ On non-average sub-expressions, behaves like [`qadjoint`](@ref).
 function inner_adjoint(v::SymbolicUtils.BasicSymbolic)
     # TODO See `qadjoint`: upstream `conj(IM)` doesn't fold yet. https://github.com/JuliaSymbolics/SymbolicUtils.jl/pull/924
     v === Symbolics.IM && return -Symbolics.IM
+    if SymbolicUtils.hasmetadata(v, AverageOperator)
+        # Lifted average ⟨X⟩(iv): the inside-adjoint is ⟨X†⟩(iv), still a function of the
+        # same iv. Re-lift the adjoint so time-dependence is preserved, then carry the
+        # summation scope from the original node.
+        op = SymbolicUtils.getmetadata(v, AverageOperator)
+        iv = SymbolicUtils.arguments(v)[1]
+        return _restore_sum_metadata_meta(_lift_average(_average(adjoint(op)), iv), v)
+    end
     if SymbolicUtils.iscall(v)
         f = SymbolicUtils.operation(v)
         if f isa AvgFunc
             arg = SymbolicUtils.arguments(v)[1]
             inner = SymbolicUtils.isconst(arg) ? arg.val : arg
-            return _average(adjoint(inner))
+            return _restore_sum_metadata_meta(_average(adjoint(inner)), v)
         elseif f === conj
             return inner_adjoint(SymbolicUtils.arguments(v)[1])
         else
