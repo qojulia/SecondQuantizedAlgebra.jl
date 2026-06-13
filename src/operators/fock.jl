@@ -99,6 +99,9 @@ Base.:(==)(a::Create, b::Create) = isequal(a, b)
 Base.hash(a::Destroy, h::UInt) = hash(:Destroy, hash(a.name, hash(a.space_index, hash(a.index, h))))
 Base.hash(a::Create, h::UInt) = hash(:Create, hash(a.name, hash(a.space_index, hash(a.index, h))))
 
+order_key(o::Destroy) = (_type_order(Destroy), o.space_index, o.name, _index_key(o.index))
+order_key(o::Create) = (_type_order(Create), o.space_index, o.name, _index_key(o.index))
+
 """
     ladder(op::QSym)
 

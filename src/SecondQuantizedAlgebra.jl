@@ -117,7 +117,8 @@ end
 
 @public HilbertSpace, QField, QSym,
     QAdd, QTerm, QTermDict, has_sum_metadata, get_sum_indices, get_sum_non_equal,
-    transition_superscript, constraint_pairs
+    transition_superscript, constraint_pairs,
+    order_key, term_order_key, qadd_order_key
 
 include("precompile.jl")
 

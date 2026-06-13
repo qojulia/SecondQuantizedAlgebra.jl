@@ -97,6 +97,9 @@ Base.:(==)(a::Momentum, b::Momentum) = isequal(a, b)
 Base.hash(a::Position, h::UInt) = hash(:Position, hash(a.name, hash(a.space_index, hash(a.index, h))))
 Base.hash(a::Momentum, h::UInt) = hash(:Momentum, hash(a.name, hash(a.space_index, hash(a.index, h))))
 
+order_key(o::Position) = (_type_order(Position), o.space_index, o.name, _index_key(o.index))
+order_key(o::Momentum) = (_type_order(Momentum), o.space_index, o.name, _index_key(o.index))
+
 ladder(::Position) = 0
 ladder(::Momentum) = 1
 

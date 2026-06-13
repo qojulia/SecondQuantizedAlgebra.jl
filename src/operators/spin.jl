@@ -74,6 +74,8 @@ Base.:(==)(a::Spin, b::Spin) = isequal(a, b)
 
 Base.hash(a::Spin, h::UInt) = hash(:Spin, hash(a.name, hash(a.axis, hash(a.space_index, hash(a.index, h)))))
 
+order_key(o::Spin) = (_type_order(Spin), o.space_index, o.name, _index_key(o.index), o.axis)
+
 ladder(::Spin) = 0
 
 # --- Operator hooks ---

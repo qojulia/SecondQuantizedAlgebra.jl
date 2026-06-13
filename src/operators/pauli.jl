@@ -75,6 +75,8 @@ Base.:(==)(a::Pauli, b::Pauli) = isequal(a, b)
 
 Base.hash(a::Pauli, h::UInt) = hash(:Pauli, hash(a.name, hash(a.axis, hash(a.space_index, hash(a.index, h)))))
 
+order_key(o::Pauli) = (_type_order(Pauli), o.space_index, o.name, _index_key(o.index), o.axis)
+
 ladder(::Pauli) = 0
 
 # --- Operator hooks ---

@@ -309,6 +309,16 @@ Two exported helpers handle Hermitian conjugation on mixed operator/symbolic exp
 These cannot be wired directly to `Base.conj`/`Base.adjoint` on `SymbolicUtils.BasicSymbolic` because that would be type piracy — defining methods on `Base` functions for a type we don't own. Downstream packages (QuantumCumulants.jl, QuantumInputOutput.jl) call these explicitly.
 
 
+## Ordering keys: three distinct orders
+
+SQA carries three orderings that must not be conflated, because each answers a different question.
+
+**`_site_compare` (partial, commutation).** The `SiteCmp` three-way comparator drives `_partial_sort!` during normal ordering. It is deliberately *not* identity-faithful: it returns `Equal` for operators that differ only in `axis` (Pauli/Spin) or levels `i,j` (Transition), because it encodes which adjacent factors may be reordered, not whether two operators are the same. It is also partial (`Undetermined` for free indices with no resolving `ne`).
+
+**`_full_op_key`/`_sort_key` (display sort).** Used by `sorted_arguments` for deterministic *display* order only. Also not identity-faithful: it omits axis and levels, so two distinct operators can share a display key. Fine for printing, wrong for keying.
+
+**`order_key`/`term_order_key`/`qadd_order_key` (total, identity-faithful).** The public ordering used by downstream packages (QuantumCumulants.jl) to pick canonical representatives and compare expressions reproducibly. The contract is `order_key(a) == order_key(b)` iff `isequal(a, b)`: the key carries every identity field, so it is a strict total order that never ties distinct operators. `order_key` has one method per concrete `QSym` subtype, co-located with that type's `isequal`/`hash`, and no generic `QSym` fallback, so a new operator type added without a key is a loud `MethodError` rather than a silent field-dropping collision. It is preferred over hashing for ordering because Julia's `hash` is not stable across versions/platforms (which would make canonical-representative choice, and therefore generated equations, irreproducible) and collides; hashing remains correct for equality-only dedup via `Dict`/`Set`, which use `hash` plus `isequal`.
+
 ## Printing and LaTeX
 
 **Terminal printing** uses Unicode: `†` for dagger, subscript digits (`₀`-`₉`) for Transition levels, `σx`/`σy`/`σz` for Pauli axes. Summations render as `Σ(i=1:N)`.
