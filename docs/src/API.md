@@ -205,6 +205,12 @@ sorted_arguments
 ```
 
 ```@docs
+order_key
+term_order_key
+qadd_order_key
+```
+
+```@docs
 substitute
 ```
 

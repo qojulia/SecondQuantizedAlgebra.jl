@@ -137,6 +137,8 @@ Base.:(==)(a::Transition, b::Transition) = isequal(a, b)
 
 Base.hash(a::Transition, h::UInt) = hash(:Transition, hash(a.name, hash(a.i, hash(a.j, hash(a.space_index, hash(a.index, hash(a.ground_state, hash(a.n_levels, h))))))))
 
+order_key(o::Transition) = (_type_order(Transition), o.space_index, o.name, _index_key(o.index), o.i, o.j, o.ground_state, o.n_levels)
+
 ladder(::Transition) = 0
 
 # --- Operator hooks ---

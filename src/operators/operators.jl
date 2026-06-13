@@ -265,6 +265,16 @@ _type_order(::Type{Spin}) = 4
 _type_order(::Type{Position}) = 5
 _type_order(::Type{Momentum}) = 6
 
+"""
+    order_key(op::QSym) -> Tuple
+
+Total, identity-faithful ordering key: a comparable tuple that orders operators
+reproducibly and ties two exactly when they are `isequal`. One method per concrete
+subtype (no generic `QSym` fallback), so a new operator type without a key is a loud
+`MethodError`, not a silent field-dropping collision.
+"""
+function order_key end
+
 # Generic fallbacks for cross-type operator pairs (always distinct sites).
 _can_commute(::QSym, ::QSym) = true
 _commute_pair(a::QSym, b::QSym) = (b, a, _CNUM_ZERO, _EMPTY_OPS)

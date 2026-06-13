@@ -166,6 +166,30 @@ end
 
 _term_sort_key(ops::Vector{QSym}) = (length(ops), map(_full_op_key, ops)...)
 _full_op_key(op::QSym) = (_sort_key(op)..., _type_order(op), op.name)
+
+"""
+    term_order_key(t::QTerm) -> Tuple
+
+Total ordering key for an operator product, built from `order_key`: length, then
+operator-by-operator, then the canonical-sorted non-equal constraints.
+"""
+term_order_key(t::QTerm) = (length(t.ops), map(order_key, t.ops), _ne_sort_key(t.ne))
+
+"""
+    qadd_order_key(q::QAdd) -> Vector
+
+Total, reproducible ordering key for a sum: its term/coefficient pairs in sorted order, so
+two `QAdd`s compare with `<` on their keys and tie exactly when they are `isequal`. The
+coefficient contributes its printed form (a reproducible tiebreak, not a numeric order).
+"""
+function qadd_order_key(q::QAdd)
+    pairs = [(term_order_key(t), _coeff_key(c)) for (t, c) in q.arguments]
+    sort!(pairs)
+    return pairs
+end
+
+_coeff_key(c::CNum) = (string(c.re), string(c.im))
+
 _type_order(::Destroy) = 0
 _type_order(::Create) = 1
 _type_order(::Transition) = 2

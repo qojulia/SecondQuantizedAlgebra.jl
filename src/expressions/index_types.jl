@@ -61,6 +61,9 @@ function Base.hash(a::Index, h::UInt)
 end
 Base.isless(a::Index, b::Index) = (a.space_index, a.name) < (b.space_index, b.name)
 
+# Ordering key for an index; mirrors isless's (space_index, name) (range excluded).
+_index_key(idx::Index) = (idx.space_index, idx.name)
+
 function Index(h::HilbertSpace, name::Symbol, range::Union{Int, Num}, space::HilbertSpace)
     si = _find_space_index(h, space)
     sym_var = SymbolicUtils.Sym{SymbolicUtils.SymReal}(name; type = Int)
