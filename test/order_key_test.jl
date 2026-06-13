@@ -59,3 +59,49 @@ const order_key = SecondQuantizedAlgebra.order_key
         end
     end
 end
+
+@testset "term_order_key / qadd_order_key" begin
+    h = FockSpace(:c) ⊗ NLevelSpace(:atom, 2, 1)
+    a = Destroy(h, :a, 1)
+    σ = Transition(h, :σ, 1, 2, 2)
+
+    e1 = a' * a + 2.0 * a
+    e2 = 2.0 * a + a' * a   # same expression, different construction order
+    e3 = a' * a + 3.0 * a   # differs only in one coefficient
+    e4 = a' * σ             # different operators
+
+    @testset "construction-order independent (reproducible)" begin
+        @test isequal(e1, e2)
+        @test SecondQuantizedAlgebra.qadd_order_key(e1) == SecondQuantizedAlgebra.qadd_order_key(e2)
+    end
+
+    @testset "coefficient is a tiebreak (via _coeff_key)" begin
+        @test !isequal(e1, e3)
+        @test SecondQuantizedAlgebra.qadd_order_key(e1) != SecondQuantizedAlgebra.qadd_order_key(e3)
+        # _coeff_key distinguishes coefficients directly
+        c2 = SecondQuantizedAlgebra._to_cnum(2.0)
+        c3 = SecondQuantizedAlgebra._to_cnum(3.0)
+        @test SecondQuantizedAlgebra._coeff_key(c2) != SecondQuantizedAlgebra._coeff_key(c3)
+    end
+
+    qs = [e1, e3, e4, a * 1, (a' * a) * 1, σ * 1]
+
+    @testset "qadd_order_key ties exactly when isequal" begin
+        for x in qs, y in qs
+            @test (SecondQuantizedAlgebra.qadd_order_key(x) == SecondQuantizedAlgebra.qadd_order_key(y)) == isequal(x, y)
+        end
+    end
+
+    @testset "qadd_order_key is a strict total order (trichotomy)" begin
+        for x in qs, y in qs
+            kx, ky = SecondQuantizedAlgebra.qadd_order_key(x), SecondQuantizedAlgebra.qadd_order_key(y)
+            @test (kx < ky) + (ky < kx) + (kx == ky) == 1
+        end
+    end
+
+    @testset "term_order_key orders shorter products first" begin
+        t1 = first(keys((a * 1).arguments))         # length-1 product
+        t2 = first(keys(((a' * a) * 1).arguments))  # length-2 product
+        @test SecondQuantizedAlgebra.term_order_key(t1) < SecondQuantizedAlgebra.term_order_key(t2)
+    end
+end
