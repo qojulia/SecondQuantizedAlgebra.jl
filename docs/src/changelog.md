@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased](https://github.com/qojulia/SecondQuantizedAlgebra.jl/tree/main)
 
+## [v0.6.2]
+
+### Added
+
+- `index_slot` (public): recover the concrete position `k` of a per-slot index symbol minted by `(i::Index)(k)`, read from metadata rather than parsed out of the symbol's name. `(i::Index)(k)` now stamps `k` as metadata; since symbol equality and hashing ignore metadata, a per-slot index still dedup-equals its name-only counterpart.
+
+## [v0.6.1]
+
 ### Added
 
 - `order_key`, `term_order_key`, `qadd_order_key` (public): a total, identity-faithful structural ordering for operators, products, and sums, built from one per-type `order_key` method. Ties exactly when `isequal`, so downstream packages can pick canonical representatives and compare expressions reproducibly without round-tripping through `show` or `hash`.
