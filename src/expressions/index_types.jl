@@ -35,6 +35,13 @@ end
 const NO_INDEX = Index(:_, Num(0), 0, Num(0))
 
 """
+Metadata key carrying the concrete slot integer on a per-slot index sym minted by
+`(i::Index)(k)`. Sym equality/hashing ignore metadata, so a slot-stamped sym still
+dedup-equals its name-only counterpart.
+"""
+struct IndexSlot end
+
+"""
     has_index(idx::Index) -> Bool
 
 Return `true` when `idx` is an actual symbolic index.
@@ -88,8 +95,18 @@ seeds from `i.name`, so the user's vocabulary is preserved (SQA's naming policy)
 function (i::Index)(k::Integer)
     name = Symbol(i.name, "_", k)
     sym_var = SymbolicUtils.Sym{SymbolicUtils.SymReal}(name; type = Int)
+    sym_var = SymbolicUtils.setmetadata(sym_var, IndexSlot, k)
     return Index(name, i.range, i.space_index, Num(sym_var))
 end
+
+"""
+    index_slot(x) -> Union{Int, Nothing}
+
+Concrete slot integer of a per-slot index sym minted by [`(i::Index)(k)`](@ref),
+or `nothing` for any other symbol. Lets consumers recover the position `k` without
+parsing the symbol's name.
+"""
+index_slot(x) = SymbolicUtils.getmetadata(SymbolicUtils.unwrap(x), IndexSlot, nothing)
 
 _find_space_index(::HilbertSpace, ::HilbertSpace) = 1
 function _find_space_index(h::ProductSpace, space::HilbertSpace)
