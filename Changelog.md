@@ -165,6 +165,6 @@ These names keep their meaning across the migration. Code that only uses them sh
 [v0.6.0]: https://github.com/qojulia/SecondQuantizedAlgebra.jl/releases/tag/v0.6.0
 [v0.6.1]: https://github.com/qojulia/SecondQuantizedAlgebra.jl/releases/tag/v0.6.1
 [v0.6.2]: https://github.com/qojulia/SecondQuantizedAlgebra.jl/releases/tag/v0.6.2
-[v0.6.4]: https://github.com/qojulia/SecondQuantizedAlgebra.jl/releases/tag/v0.6.4
 [v0.6.3]: https://github.com/qojulia/SecondQuantizedAlgebra.jl/releases/tag/v0.6.3
+[v0.6.4]: https://github.com/qojulia/SecondQuantizedAlgebra.jl/releases/tag/v0.6.4
 [#156]: https://github.com/qojulia/SecondQuantizedAlgebra.jl/issues/156
