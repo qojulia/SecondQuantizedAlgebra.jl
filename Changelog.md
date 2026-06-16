@@ -5,6 +5,18 @@ All notable changes to [`SecondQuantizedAlgebra.jl`](https://github.com/qojulia/
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v0.6.3]
+
+### Changed
+
+- Lifted time-dependent averages now display as `⟨op⟩(t)` in both the REPL and `latexify` output, instead of exposing the internal `_avg_…` variable name. The `AverageOperator` metadata drives the rendering through new `show_metadata`/`_toexpr_metadata` hooks, so a moment's MTK unknown reads the same as its `average` ([#173](https://github.com/qojulia/SecondQuantizedAlgebra.jl/pull/173)).
+
+## [v0.6.2]
+
+### Added
+
+- `index_slot` (public): recover the concrete position `k` of a per-slot index symbol minted by `(i::Index)(k)`, read from metadata rather than parsed out of the symbol's name. `(i::Index)(k)` now stamps `k` as metadata; since symbol equality and hashing ignore metadata, a per-slot index still dedup-equals its name-only counterpart ([#170](https://github.com/qojulia/SecondQuantizedAlgebra.jl/pull/170)).
+
 ## [v0.6.1]
 
 ### Added
@@ -146,4 +158,6 @@ These names keep their meaning across the migration. Code that only uses them sh
 [v0.5.2]: https://github.com/qojulia/SecondQuantizedAlgebra.jl/releases/tag/v0.5.2
 [v0.6.0]: https://github.com/qojulia/SecondQuantizedAlgebra.jl/releases/tag/v0.6.0
 [v0.6.1]: https://github.com/qojulia/SecondQuantizedAlgebra.jl/releases/tag/v0.6.1
+[v0.6.2]: https://github.com/qojulia/SecondQuantizedAlgebra.jl/releases/tag/v0.6.2
+[v0.6.3]: https://github.com/qojulia/SecondQuantizedAlgebra.jl/releases/tag/v0.6.3
 [#156]: https://github.com/qojulia/SecondQuantizedAlgebra.jl/issues/156
