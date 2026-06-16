@@ -17,7 +17,9 @@ function _partial_sort!(ops::Vector{QSym}, ne::Vector{NonEqualPair})
     for i in 2:n
         j = i
         while j > 1
-            cmp = _site_compare(ops[j - 1], ops[j], ne)
+            # ops is Vector{QSym} (abstract elt), so leaf-pass dispatch is dynamic;
+            # pin the concrete return type so it cannot widen to Any and cascade.
+            cmp = _site_compare(ops[j - 1], ops[j], ne)::SiteCmp
             cmp === Greater || break
             ops[j - 1], ops[j] = ops[j], ops[j - 1]
             j -= 1
@@ -55,7 +57,7 @@ same-site pair `(a, b)` for which `_reduce_pair(a, b)` returns non-`nothing`.
     i = 1
     while i < length(ops)
         a, b = ops[i], ops[i + 1]
-        kind, new_op, factor = _reduce_pair(a, b)
+        kind, new_op, factor = _reduce_pair(a, b)::Tuple{ReduceKind, QSym, CNum}
         if kind === NoReduction
             i += 1
         else
@@ -96,9 +98,10 @@ function _commute_ops_at(sink::F, ops::Vector{QSym}, c::CNum, start::Int) where 
     i = start
     while i < length(ops)
         a, b = ops[i], ops[i + 1]
-        cmp = _site_compare(a, b, _EMPTY_NE)
-        if cmp === Equal && !_can_commute(a, b)
-            sw_b, sw_a, residual_coeff, residual_ops = _commute_pair(a, b)
+        cmp = _site_compare(a, b, _EMPTY_NE)::SiteCmp
+        if cmp === Equal && !(_can_commute(a, b)::Bool)
+            sw_b, sw_a, residual_coeff, residual_ops =
+                _commute_pair(a, b)::Tuple{QSym, QSym, CNum, Vector{QSym}}
             # Swap branch: stepping back to i-1 because ops[i-1] may now form
             # a new non-canonical pair with sw_b.
             swapped = copy(ops)
