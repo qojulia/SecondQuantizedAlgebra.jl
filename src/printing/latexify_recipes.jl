@@ -208,14 +208,10 @@ function Symbolics._toexpr_metadata(
     return string(prefix, _latex_avg_expr(inner))
 end
 
-# Render a lifted time-dependent average `⟨op⟩(iv)` from the `AverageOperator` metadata.
-# The stored operator carries its own `Σ` scope, so `_latex_avg_expr` renders that itself;
-# the `SumIndices` recipe above defers here (a lifted var's operation is not an `AvgFunc`).
 function Symbolics._toexpr_metadata(
         x::SymbolicUtils.BasicSymbolic, ::Type{AverageOperator}, op;
         kwargs...,
     )
-    # The iv renders inline; a bare `Sym` would otherwise latexify to a full equation env.
     iv_tex = strip(String(latexify(only(SymbolicUtils.arguments(x)); env = :inline)), '$')
     return string(_latex_avg_expr(op), "\\left( ", iv_tex, " \\right)")
 end

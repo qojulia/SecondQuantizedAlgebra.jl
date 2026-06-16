@@ -236,9 +236,6 @@ function SymbolicUtils.show_metadata(
         io::IO, x::SymbolicUtils.BasicSymbolic, ::Type{SumIndices}, val::Vector{Index},
     )
     isempty(val) && return false
-    # A lifted time-dependent average carries both metadata keys, and its stored operator
-    # already includes the `Σ`; defer to the `AverageOperator` hook, otherwise `show_plain`
-    # here would leak the `_avg_…` variable name (and double the sum prefix).
     SymbolicUtils.hasmetadata(x, AverageOperator) && return false
     _show_sum_prefix(io, val, _restore_sum_metadata_ne(x))
     write(io, " ")
@@ -246,10 +243,6 @@ function SymbolicUtils.show_metadata(
     return true
 end
 
-# Render a lifted time-dependent average `⟨op⟩(iv)` from the `AverageOperator` metadata,
-# mirroring `AvgFunc`'s `show_call`. The stored operator carries its own `Σ` scope, so it
-# renders that itself. Without this the structurally-injective variable name (`_avg_…`,
-# see `_avg_var_name`) leaks into `show`.
 function SymbolicUtils.show_metadata(
         io::IO, x::SymbolicUtils.BasicSymbolic, ::Type{AverageOperator}, op,
     )

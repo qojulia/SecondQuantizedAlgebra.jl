@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased](https://github.com/qojulia/SecondQuantizedAlgebra.jl/tree/main)
 
+## [v0.6.3]
+
+### Changed
+
+- Lifted time-dependent averages now display as `⟨op⟩(t)` in both the REPL and `latexify` output, instead of exposing the internal `_avg_…` variable name. The `AverageOperator` metadata drives the rendering through new `show_metadata`/`_toexpr_metadata` hooks, so a moment's MTK unknown reads the same as its `average` ([#173](https://github.com/qojulia/SecondQuantizedAlgebra.jl/pull/173)).
+
 ## [v0.6.2]
 
 ### Added
