@@ -236,9 +236,24 @@ function SymbolicUtils.show_metadata(
         io::IO, x::SymbolicUtils.BasicSymbolic, ::Type{SumIndices}, val::Vector{Index},
     )
     isempty(val) && return false
+    SymbolicUtils.hasmetadata(x, AverageOperator) && return false
     _show_sum_prefix(io, val, _restore_sum_metadata_ne(x))
     write(io, " ")
     SymbolicUtils.show_plain(io, x)
+    return true
+end
+
+function SymbolicUtils.show_metadata(
+        io::IO, x::SymbolicUtils.BasicSymbolic, ::Type{AverageOperator}, op,
+    )
+    write(io, "⟨")
+    print(io, op)
+    write(io, "⟩")
+    if SymbolicUtils.iscall(x)
+        write(io, "(")
+        print(io, only(SymbolicUtils.arguments(x)))
+        write(io, ")")
+    end
     return true
 end
 

@@ -10,7 +10,7 @@ format: ## Format all Julia files with Runic
 	runic --inplace src/ test/ benchmark/ examples/ docs/
 
 servedocs:
-	${JULIA} --project=docs -e 'using LiveServer; LiveServer.servedocs()'
+	${JULIA} --project=docs -e 'using LiveServer; LiveServer.servedocs(skip_files=[joinpath("docs", "src", "changelog.md")])'
 
 test:
 	${JULIA} --project -e 'using Pkg; Pkg.resolve(); Pkg.test()'

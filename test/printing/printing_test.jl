@@ -4,7 +4,7 @@ using LaTeXStrings
 using Symbolics: @variables
 using Test
 import SecondQuantizedAlgebra: simplify, QAdd, QSym, _single_qadd, _zero_qadd, _to_cnum,
-    transition_superscript
+    transition_superscript, make_time_dependent
 
 @testset "Rendering" begin
     h = FockSpace(:cavity)
@@ -177,6 +177,23 @@ import SecondQuantizedAlgebra: simplify, QAdd, QSym, _single_qadd, _zero_qadd, _
 
             @test repr(1 + average(Σ(b' * σ_i, i))) ==
                 "1 + Σ(i=1:N) ⟨b' * σ_i₁₂⟩"
+        end
+
+        @testset "Lifted (time-dependent) averages" begin
+            @variables t N
+            hsite = FockSpace(:site)
+            asite = Destroy(hsite, :a)
+            i = Index(hsite, :i, N, hsite)
+            j = Index(hsite, :j, N, hsite)
+            ai = IndexedOperator(asite, i)
+            σ = Transition(NLevelSpace(:atom, 3, 1), :σ, 1, 2)
+
+            @test repr(make_time_dependent(average(af), t)) == "⟨a⟩(t)"
+            @test repr(make_time_dependent(average(adf * af), t)) == "⟨a' * a⟩(t)"
+            @test repr(make_time_dependent(average(σ), t)) == "⟨σ₁₂⟩(t)"
+            @test repr(make_time_dependent(average(Σ(ai, i)), t)) == "⟨Σ(i=1:N) a_i⟩(t)"
+            @test repr(make_time_dependent(average(Σ(ai, i, [j])), t)) ==
+                "⟨Σ(i=1:N)(i≠j) a_i⟩(t)"
         end
 
         @testset "Scoped constraints stay in separate sum groups" begin
@@ -504,6 +521,26 @@ import SecondQuantizedAlgebra: simplify, QAdd, QSym, _single_qadd, _zero_qadd, _
             avg_sum = average(Σ(ai, i))
             @test string(latexify(avg_sum)) ==
                 "\\begin{equation}\n\\underset{i}{\\overset{N}{\\sum}}\\langle a_{i} \\rangle\n\\end{equation}\n"
+        end
+
+        @testset "Lifted (time-dependent) averages" begin
+            @variables t N
+            h = FockSpace(:site)
+            i = Index(h, :i, N, h)
+            j = Index(h, :j, N, h)
+            ai = IndexedOperator(Destroy(h, :a), i)
+            σ = Transition(NLevelSpace(:atom, 3, 1), :σ, 1, 2)
+
+            @test string(latexify(make_time_dependent(average(af), t))) ==
+                "\\begin{equation}\n\\langle a \\rangle\\left( t \\right)\n\\end{equation}\n"
+            @test string(latexify(make_time_dependent(average(adf * af), t))) ==
+                "\\begin{equation}\n\\langle a^{\\dagger}a \\rangle\\left( t \\right)\n\\end{equation}\n"
+            @test string(latexify(make_time_dependent(average(σ), t))) ==
+                "\\begin{equation}\n\\langle {\\sigma}^{{12}} \\rangle\\left( t \\right)\n\\end{equation}\n"
+            @test string(latexify(make_time_dependent(average(Σ(ai, i)), t))) ==
+                "\\begin{equation}\n\\langle \\underset{i}{\\overset{N}{\\sum}}a_{i} \\rangle\\left( t \\right)\n\\end{equation}\n"
+            @test string(latexify(make_time_dependent(average(Σ(ai, i, [j])), t))) ==
+                "\\begin{equation}\n\\langle \\underset{i{\\neq}j}{\\overset{N}{\\sum}}a_{i} \\rangle\\left( t \\right)\n\\end{equation}\n"
         end
     end
 end

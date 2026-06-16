@@ -208,6 +208,14 @@ function Symbolics._toexpr_metadata(
     return string(prefix, _latex_avg_expr(inner))
 end
 
+function Symbolics._toexpr_metadata(
+        x::SymbolicUtils.BasicSymbolic, ::Type{AverageOperator}, op;
+        kwargs...,
+    )
+    iv_tex = strip(String(latexify(only(SymbolicUtils.arguments(x)); env = :inline)), '$')
+    return string(_latex_avg_expr(op), "\\left( ", iv_tex, " \\right)")
+end
+
 @latexrecipe function f(x::QAdd)
     st = sorted_arguments(x)
     if !isempty(x.indices)
