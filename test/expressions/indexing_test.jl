@@ -378,6 +378,20 @@ import SecondQuantizedAlgebra: simplify, QAdd, QSym, CNum, _to_cnum, NO_INDEX,
         @test isequal(real(prefactor(mj)), gj)
     end
 
+    @testset "change_index: nested identical=false collapses to 0" begin
+        i = Index(hf, :i, 10, hf)
+        j = Index(hf, :j, 10, hf)
+        @variables x
+        Jij = DoubleIndexedVariable(:J, i, j; identical = false)  # 0 when i==j
+
+        # Bare node already worked; the regression is nested occurrences.
+        @test isequal(change_index(Jij, j, i), Symbolics.Num(0))
+        # Under a product: J(i,j)*x with j→i ⇒ J(i,i)=0 ⇒ whole product 0
+        @test isequal(change_index(Jij * x, j, i), Symbolics.Num(0))
+        # Under a sum: (J(i,j) + x) with j→i ⇒ x
+        @test isequal(change_index(Jij + x, j, i), x)
+    end
+
     @testset "change_index — QAdd" begin
         i = Index(hf, :i, 10, hf)
         j = Index(hf, :j, 10, hf)
