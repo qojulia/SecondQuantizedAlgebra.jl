@@ -14,6 +14,14 @@ DocMeta.setdocmeta!(
 
 include("pages.jl")
 
+# changelog.md mirrors the root Changelog.md: it is gitignored and regenerated on every
+# build. `make servedocs` skips it so LiveServer does not loop on the regenerated copy.
+cp(
+    normpath(@__FILE__, "../../Changelog.md"),
+    normpath(@__FILE__, "../src/changelog.md");
+    force = true,
+)
+
 # The README.md file is used index (home) page of the documentation.
 if CI
     include("make_md_examples.jl")
@@ -22,13 +30,6 @@ if CI
         normpath(@__FILE__, "../src/index.md");
         force = true,
     )
-    cp(
-        normpath(@__FILE__, "../../Changelog.md"),
-        normpath(@__FILE__, "../src/changelog.md");
-        force = true,
-    )
-else
-    nothing
 end
 # ^ when using LiveServer, this will generate a loop
 

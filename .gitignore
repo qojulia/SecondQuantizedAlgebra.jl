@@ -27,3 +27,5 @@ benchmarks_output.json
 .vscode/settings.json
 
 *.claude
+# Generated on doc build from the root Changelog.md
+docs/src/changelog.md
