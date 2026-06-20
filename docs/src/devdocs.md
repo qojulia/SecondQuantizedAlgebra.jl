@@ -85,6 +85,17 @@ end
 
 When both operands are plain numbers (not symbolic), `_const_val` extracts them and does native Julia arithmetic, bypassing Symbolics entirely. Cached constants (`_CNUM_ZERO`, `_CNUM_ONE`, `_CNUM_IM`, etc.) avoid repeated allocations.
 
+**Opaque vs. split complex parameters.** `_to_cnum` only splits a parameter into `real`/`imag` parts when it already arrives as a `Complex{Num}` (a `::Complex` variable, or an explicit `complex(re, im)` node). Any other symbol, including a `Number`-symtype variable (`@variables η::Number`), is stored *opaquely* in the real slot as `Complex(Num(η), 0)`. This keeps coefficient arithmetic on a single symbol (`η * η → η²`, one multiply) instead of expanding `(a+bi)(c+di)` over two independent unknowns, the cost a `::Complex` parameter pays on every product.
+
+The opaque storage means conjugation cannot be the generic `conj(::Complex{Num})`, which only flips `.im` and is a no-op when `.im == 0`; otherwise the phase of a `Number`-symtype parameter would be silently dropped. `_conj_cnum` is therefore **symtype-aware**: it leaves a real-symtype real part unchanged (its own conjugate) and applies the symbolic `conj` to a non-real one.
+
+```julia
+_sym_conj(x::Num) = SymbolicUtils.symtype(x) <: Real ? x : Num(conj(SymbolicUtils.unwrap(x)))
+_conj_cnum(c::CNum) = Complex(_sym_conj(c.re), -c.im)
+```
+
+`Base.adjoint(::QAdd)` conjugates each term coefficient through `_conj_cnum`, so `η::Number` correctly satisfies `adjoint(η) == conj(η)`, and `(η a)†(η a)` carries `|η|² = conj(η)·η` rather than `η²`.
+
 
 ## QAdd internals
 
@@ -295,6 +306,8 @@ Returning `BasicSymbolic` uniformly across `average(::QSym)`, `average(::QAdd)`,
   ```
 
 **`_to_number`** extracts plain Julia numbers from `Num`/`CNum` wrappers for numeric evaluation. Falls back to the symbolic value if it can't be unwrapped (for symbolic prefactors that haven't been substituted yet).
+
+**`_reduce_const`** reduces a fully-substituted coefficient part to a number. `Symbolics.value` handles numeric constants directly, but a part it leaves symbolic (for example `conj` of a complex literal, which SymbolicUtils does not fold) is compiled with `build_function` and evaluated. Because a `Number`-symtype parameter is held opaquely in the real slot, that real part can itself reduce to a `Complex`, so `_to_complex` recombines as `_reduce_const(real(x)) + im * _reduce_const(imag(x))` rather than `Complex(re, im)`.
 
 **`_lazy_one`** creates the identity operator. For simple bases it returns `one(b)` (dense identity). For composite bases it returns a `LazyTensor` identity rather than materializing the full Kronecker-product identity matrix.
 

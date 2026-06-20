@@ -31,6 +31,9 @@ function _to_cnum(x::SymbolicUtils.BasicSymbolic)
     return Complex(Num(x), _NUM_ZERO)
 end
 
+_sym_conj(x::Num) = SymbolicUtils.symtype(x) <: Real ? x : Num(conj(SymbolicUtils.unwrap(x)))
+_conj_cnum(c::CNum) = Complex(_sym_conj(c.re), -c.im)
+
 @inline function _iszero_num(x::Num)
     v = SymbolicUtils.unwrap(x)
     v isa Number && return iszero(v)
