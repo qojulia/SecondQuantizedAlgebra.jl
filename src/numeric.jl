@@ -273,7 +273,7 @@ to_numeric(x::Number, state::QuantumState) = to_numeric(x, QuantumOpticsBase.bas
 _lazy_one(b::QuantumOpticsBase.Basis) = one(b)
 _lazy_one(b::QuantumOpticsBase.CompositeBasis) = QuantumOpticsBase.LazyTensor(b, collect(1:length(b.bases)), Tuple(one(bi) for bi in b.bases))
 
-function _reduce_const(n)::ComplexF64
+function _reduce_const(n::Num)::ComplexF64
     v = Symbolics.value(n)
     v isa Number && return v
     f = Symbolics.build_function(n; expression = Val(false))

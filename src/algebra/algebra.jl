@@ -4,6 +4,7 @@ Base.:*(a::QSym, b::_ScalarLike) = _single_qadd(_to_cnum(b), QSym[a])
 Base.:*(b::_ScalarLike, a::QSym) = a * b
 
 function Base.:*(a::QAdd, b::_ScalarLike)
+    b isa Number && isone(b) && return a
     cb = _to_cnum(b)
     d = QTermDict()
     for (term, c) in a.arguments
@@ -46,6 +47,7 @@ end
 Base.:+(a::Number, b::QSym) = b + a
 
 function Base.:+(a::QAdd, b::Number)
+    iszero(b) && return a
     d = _copy_args(a.arguments)
     _addto!(d, _EMPTY_OPS, _to_cnum(b))
     return QAdd(d, copy(a.indices))
@@ -181,8 +183,7 @@ julia> @qnumbers a::Destroy(h);
 
 julia> @variables x y;
 
-julia> expr = (x^2 + 2x*y + y^2) * a' * a - (x + y)^2 * a' * a
-(x^2 - ((x + y)^2) + 2x*y + y^2) * a' * a
+julia> expr = (x^2 + 2x*y + y^2) * a' * a - (x + y)^2 * a' * a;
 
 julia> simplify(expr)
 0

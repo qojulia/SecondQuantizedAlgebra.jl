@@ -32,7 +32,9 @@ function _to_cnum(x::SymbolicUtils.BasicSymbolic)
 end
 
 _sym_conj(x::Num) = SymbolicUtils.symtype(x) <: Real ? x : Num(conj(SymbolicUtils.unwrap(x)))
-_conj_cnum(c::CNum) = Complex(_sym_conj(c.re), -c.im)
+# Both slots can hold a Number-symtype symbol (e.g. an `η` coeff × an `±i` residual lands
+# in `.im`), so conjugate each: conj(re + i*im) = conj(re) - i*conj(im).
+_conj_cnum(c::CNum) = Complex(_sym_conj(c.re), -_sym_conj(c.im))
 
 @inline function _iszero_num(x::Num)
     v = SymbolicUtils.unwrap(x)
