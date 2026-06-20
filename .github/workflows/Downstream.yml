@@ -19,6 +19,7 @@ jobs:
         os: [ubuntu-latest]
         package:
           - {user: qojulia, repo: QuantumCumulants.jl}
+          - {user: qojulia, repo: QuantumInputOutput.jl}
 
     steps:
       - uses: actions/checkout@v6
