@@ -5,11 +5,17 @@ All notable changes to [`SecondQuantizedAlgebra.jl`](https://github.com/qojulia/
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [v0.6.4]
+## [v0.6.5]
 
 ### Added
 
 - `@variables η::Number` declares a complex coefficient that stays a single atomic symbol, conjugating to the symbolic `conj(η)`. Unlike `::Complex` (which splits into independent real/imaginary unknowns and pays `(a+bi)(c+di)` expansion on every product), `::Number` keeps coefficient arithmetic on one symbol (`η * η → η²`). Adjoint routes coefficients through a symtype-aware `_conj_cnum`, so `(η a)†(η a)` correctly carries `|η|² = conj(η)·η`, and `to_numeric` reduces such coefficients (e.g. an unfolded `conj` of a complex literal) via `build_function`.
+
+## [v0.6.4]
+
+### Fixed
+
+- `change_index` now correctly zeros `DoubleIndexedVariable` nodes tagged `identical=false` even when they appear nested inside a larger product or sum. Previously `_check_not_identical` only examined the root of the substituted expression, so a `J(i,j)` factor inside `J(i,j) * x` would survive a `j → i` substitution intact instead of collapsing to zero. The fix walks the full expression tree, collects every `NotIdentical`-tagged node whose two index arguments became equal, and replaces them all via a single `Symbolics.substitute` pass.
 
 ## [v0.6.3]
 
@@ -167,4 +173,5 @@ These names keep their meaning across the migration. Code that only uses them sh
 [v0.6.2]: https://github.com/qojulia/SecondQuantizedAlgebra.jl/releases/tag/v0.6.2
 [v0.6.3]: https://github.com/qojulia/SecondQuantizedAlgebra.jl/releases/tag/v0.6.3
 [v0.6.4]: https://github.com/qojulia/SecondQuantizedAlgebra.jl/releases/tag/v0.6.4
+[v0.6.5]: https://github.com/qojulia/SecondQuantizedAlgebra.jl/releases/tag/v0.6.5
 [#156]: https://github.com/qojulia/SecondQuantizedAlgebra.jl/issues/156

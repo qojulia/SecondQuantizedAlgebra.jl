@@ -256,17 +256,33 @@ function create_index_arrays(indices::Vector{Index}, ranges::Vector{<:AbstractRa
     return vec(collect(Iterators.product(ranges...)))
 end
 
-"""Check if a substituted BasicSymbolic node with NotIdentical metadata has equal args → 0."""
+"""
+Zero every `NotIdentical`-tagged node anywhere in a substituted expression whose
+two indices became equal. Nested occurrences matter: a `DoubleIndexedVariable`
+with `identical=false` is almost always a factor in a larger product or sum, and
+the surrounding `*`/`+` only collapses once that factor is replaced by zero.
+"""
 function _check_not_identical(result::SymbolicUtils.BasicSymbolic)
-    if SymbolicUtils.iscall(result) &&
-            SymbolicUtils.hasmetadata(result, NotIdentical) &&
-            length(SymbolicUtils.arguments(result)) == 2
-        a1, a2 = SymbolicUtils.arguments(result)
-        isequal(a1, a2) && return Num(0)
-    end
-    return Num(result)
+    zeros = _collect_identical_zeros!(Dict{SymbolicUtils.BasicSymbolic, Int}(), result)
+    isempty(zeros) && return Num(result)
+    return Num(Symbolics.substitute(result, zeros))
 end
 _check_not_identical(result::Number) = Num(result)
+
+"""Accumulate into `acc` every `NotIdentical` node in `x` with two equal args, mapped to 0."""
+function _collect_identical_zeros!(acc, x)
+    (x isa SymbolicUtils.BasicSymbolic && SymbolicUtils.iscall(x)) || return acc
+    if SymbolicUtils.hasmetadata(x, NotIdentical) &&
+            length(SymbolicUtils.arguments(x)) == 2
+        a1, a2 = SymbolicUtils.arguments(x)
+        # The args are indices, so a matched node holds no nested NotIdentical node.
+        isequal(a1, a2) && (acc[x] = 0; return acc)
+    end
+    for a in SymbolicUtils.arguments(x)
+        _collect_identical_zeros!(acc, a)
+    end
+    return acc
+end
 
 function _depends_on_index_term(c::CNum, ops::Vector{QSym}, idx::Index)
     for op in ops
