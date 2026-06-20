@@ -102,7 +102,7 @@ end
 """
     index_slot(x) -> Union{Int, Nothing}
 
-Concrete slot integer of a per-slot index sym minted by [`(i::Index)(k)`](@ref),
+Concrete slot integer of a per-slot index sym minted by an [`Index`](@ref) call `(i::Index)(k)`,
 or `nothing` for any other symbol. Lets consumers recover the position `k` without
 parsing the symbol's name.
 """
