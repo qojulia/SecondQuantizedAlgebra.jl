@@ -42,7 +42,7 @@ makedocs(;
     pages = pages,
     clean = true,
     linkcheck = true,
-    warnonly = :missing_docs,
+    # warnonly = :missing_docs,
     draft = false, #,(!CI),
     doctest = true,
     checkdocs = :exports,
