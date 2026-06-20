@@ -100,28 +100,37 @@ nothing # hide
 
 ## Symbolic parameters
 
-Symbolic parameters (c-numbers) are created using `@variables` from [Symbolics.jl](https://github.com/JuliaSymbolics/Symbolics.jl), which is re-exported by SecondQuantizedAlgebra. Variables are real by default. Annotate with `::Complex` to declare a complex parameter:
+Symbolic parameters (c-numbers) are created using `@variables` from [Symbolics.jl](https://github.com/JuliaSymbolics/Symbolics.jl), which is re-exported by SecondQuantizedAlgebra. Variables are real by default. The `symtype` annotation controls how conjugation is handled:
+
+| Declaration | `conj` / `adjoint` | Representation |
+|-------------|--------------------|----------------|
+| `@variables ω` (or `ω::Real`) | identity (`conj(ω) == ω`) | one real symbol |
+| `@variables η::Number` | symbolic `conj(η)` | one symbol, complex-valued |
+| `@variables ζ::Complex` | `conj(ζ) == real(ζ) - im*imag(ζ)` | split into `real`/`imag` parts |
 
 ```@example c-numbers
 using SecondQuantizedAlgebra # hide
 h = FockSpace(:cavity)
 @qnumbers a::Destroy(h)
-@variables ω η::Complex     # ω is real, η is complex
+@variables ω η::Number      # ω is real, η is complex
 
-H = ω * a' * a + η * (a + a')
+H = ω * a' * a + η * a + conj(η) * a'
 nothing # hide
 ```
 
 Real variables satisfy `conj(ω) == ω`, which simplifies adjoint expressions:
 
-
 ```@example c-numbers
 conj(ω)
 ```
 
+A `::Number` parameter is complex-valued but stays a single symbol, so its conjugate is the symbolic `conj(η)`:
+
 ```@example c-numbers
 conj(η)
 ```
+
+Use `::Number` for a complex parameter you want kept atomic (e.g. a coupling amplitude); use `::Complex` when you want the parameter decomposed into independent real and imaginary unknowns. `::Number` keeps coefficient arithmetic on a single symbol, while `::Complex` carries both parts through every product.
 
 ## Algebraic expressions and commutation relations
 

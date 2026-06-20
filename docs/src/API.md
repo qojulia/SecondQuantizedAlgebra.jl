@@ -162,6 +162,10 @@ undo_average
 ```
 
 ```@docs
+make_time_dependent
+```
+
+```@docs
 is_average
 ```
 
@@ -263,6 +267,10 @@ get_indices
 
 ```@docs
 has_index
+```
+
+```@docs
+index_slot
 ```
 
 ```@docs

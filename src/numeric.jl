@@ -273,13 +273,54 @@ to_numeric(x::Number, state::QuantumState) = to_numeric(x, QuantumOpticsBase.bas
 _lazy_one(b::QuantumOpticsBase.Basis) = one(b)
 _lazy_one(b::QuantumOpticsBase.CompositeBasis) = QuantumOpticsBase.LazyTensor(b, collect(1:length(b.bases)), Tuple(one(bi) for bi in b.bases))
 
+_reduce_const(n::Num)::ComplexF64 = _fold_const(Symbolics.value(n))
+
+function _fold_const(x)::ComplexF64
+    x isa Number && return x
+    if x isa SymbolicUtils.BasicSymbolic
+        if SymbolicUtils.iscall(x)
+            op = SymbolicUtils.operation(x)
+            args = SymbolicUtils.arguments(x)
+            if op === (+)
+                acc = zero(ComplexF64)
+                for a in args
+                    acc += _fold_const(a)
+                end
+                return acc
+            elseif op === (*)
+                acc = one(ComplexF64)
+                for a in args
+                    acc *= _fold_const(a)
+                end
+                return acc
+            elseif op === conj
+                return conj(_fold_const(first(args)))
+            elseif op === real
+                return real(_fold_const(first(args)))
+            elseif op === imag
+                return imag(_fold_const(first(args)))
+            elseif op === (/)
+                return _fold_const(first(args)) / _fold_const(last(args))
+            elseif op === (^)
+                return _fold_const(first(args))^_fold_const(last(args))
+            elseif op === (-)
+                return length(args) == 1 ? -_fold_const(first(args)) :
+                    _fold_const(first(args)) - _fold_const(last(args))
+            end
+        elseif SymbolicUtils.isconst(x)
+            return x.val
+        end
+    end
+    throw(ArgumentError("cannot reduce symbolic expression $x to a concrete number"))
+end
+
 # One method (union-split budget) routing every input through `convert ∘ Complex`,
 # the only pattern that infers to ComplexF64 from `Any` after `Symbolics.value`.
 function _to_complex(x)
     x isa ComplexF64   && return x
-    x isa Complex{Num} && return convert(ComplexF64, Complex(Symbolics.value(real(x)), Symbolics.value(imag(x))))
+    x isa Complex{Num} && return _reduce_const(real(x)) + im * _reduce_const(imag(x))
     x isa Complex      && return convert(ComplexF64, x)
-    x isa Num          && return convert(ComplexF64, Complex(Symbolics.value(x), false))
+    x isa Num          && return _reduce_const(x)
     if x isa SymbolicUtils.BasicSymbolic
         SymbolicUtils.isconst(x) || throw(ArgumentError("cannot reduce symbolic expression $x to a concrete number"))
         return convert(ComplexF64, Complex(x.val, false))

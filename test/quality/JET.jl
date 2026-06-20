@@ -163,6 +163,8 @@ end
                 "expect(",
                 "to_numeric(",
                 "SecondQuantizedAlgebra._to_complex(",
+                "SecondQuantizedAlgebra._reduce_const(",
+                "SecondQuantizedAlgebra._fold_const(",
                 "SecondQuantizedAlgebra._numeric_average(",
                 "string(",
             ],

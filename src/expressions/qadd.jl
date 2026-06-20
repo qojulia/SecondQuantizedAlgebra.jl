@@ -127,7 +127,7 @@ function Base.adjoint(q::QAdd)
     out = QTermDict()
     for (t, c) in q
         rev = QSym[adjoint(o) for o in Iterators.reverse(t.ops)]
-        _canonicalize!(out, rev, conj(c), t.ne)
+        _canonicalize!(out, rev, _conj_cnum(c), t.ne)
     end
     return QAdd(out, copy(q.indices))
 end

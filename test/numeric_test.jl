@@ -1,6 +1,7 @@
 using SecondQuantizedAlgebra
 import SecondQuantizedAlgebra: QAdd, QSym, _single_qadd, _to_cnum, _to_complex
 using QuantumOpticsBase
+using Symbolics: @variables, substitute
 using Test
 
 @testset "numeric conversion" begin
@@ -366,6 +367,21 @@ using Test
 
         # to_numeric with scalar QAdd (empty operators)
         @test to_numeric(_single_qadd(_to_cnum(3), QSym[]), b) == 3 * one(b)
+    end
+
+    @testset "Number-symtype coefficient round-trip" begin
+        @variables g::Number
+        b = FockBasis(3)
+        a = Destroy(FockSpace(:c), :a)
+
+        # g†g must reduce to |g|², i.e. conj(g)*g, after substituting a complex value.
+        for v in (2 + 3im, 1 + 1im, 0.5 - 0.25im)
+            op = substitute((g * a)' * (g * a), Dict(g => v))
+            @test to_numeric(op, b) ≈ abs2(v) * to_numeric(a' * a, b)
+        end
+
+        # A bare complex coupling carries through (no conj): g·a → value·a.
+        @test to_numeric(substitute(g * a, Dict(g => 2 + 3im)), b) ≈ (2 + 3im) * to_numeric(a, b)
     end
 
 end

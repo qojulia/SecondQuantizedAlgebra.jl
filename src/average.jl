@@ -62,7 +62,7 @@ _average(op::QField) = SymbolicUtils.Term{SymbolicUtils.SymReal}(sym_average, QF
     make_time_dependent(expr, iv) -> expr
 
 Lift every iv-free average leaf in `expr` into a time-dependent `Number` variable
-`name(iv)` carrying the operator in [`AverageOperator`](@ref) metadata (and the
+`name(iv)` carrying the operator in `AverageOperator` metadata (and the
 `VariableSource` set by `@variables`, so it reads as a ModelingToolkit unknown).
 Non-average structure is rebuilt only where a child changed. The lifted node is a
 leaf: the walk does not descend into `iv`. The default `name` is uniqueness-only;

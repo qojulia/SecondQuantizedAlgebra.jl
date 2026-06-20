@@ -1,7 +1,7 @@
 using SecondQuantizedAlgebra
 using Test
-using Symbolics: @variables
-import SecondQuantizedAlgebra: QAdd, QSym, QField, AvgFunc, _average
+using Symbolics: @variables, Num
+import SecondQuantizedAlgebra: QAdd, QSym, QField, AvgFunc, _average, _conj_cnum
 
 @testset "Operators" begin
 
@@ -197,6 +197,7 @@ import SecondQuantizedAlgebra: QAdd, QSym, QField, AvgFunc, _average
     @testset "Symbolic variable adjoint and conj" begin
         @variables ω_test::Real
         @variables G_test::Complex
+        @variables N_test::Number
 
         # Real variable: adjoint is identity
         @test isequal(adjoint(ω_test), ω_test)
@@ -204,6 +205,28 @@ import SecondQuantizedAlgebra: QAdd, QSym, QField, AvgFunc, _average
 
         # Complex variable: adjoint is conj
         @test isequal(adjoint(G_test), conj(G_test))
+
+        # Number variable: adjoint is conj
+        @test isequal(adjoint(N_test), conj(N_test))
+    end
+
+    @testset "Number-symtype coefficient conjugation" begin
+        @variables g::Number
+        h = FockSpace(:c)
+        a = Destroy(h, :a)
+
+        @test isequal(adjoint(g * a), conj(g) * a')
+        @test isequal((g * a)' * (g * a), conj(g) * g * (a' * a))
+        @test !isequal((g * a)' * (g * a), g * g * (a' * a))
+
+        # A Number-symtype coefficient can land in the imaginary slot (e.g. g × an ±i
+        # commutator residual); conjugation must reach it: conj(i*g) = -i*conj(g).
+        c_imag = _conj_cnum(Complex(Num(0), Num(g)))
+        @test isequal(c_imag.re, Num(0))
+        @test isequal(c_imag.im, -conj(g))
+        c_real = _conj_cnum(Complex(Num(g), Num(0)))
+        @test isequal(c_real.re, conj(g))
+        @test isequal(c_real.im, Num(0))
     end
 
     @testset "qadjoint" begin
@@ -263,13 +286,16 @@ import SecondQuantizedAlgebra: QAdd, QSym, QField, AvgFunc, _average
     end
 
     @testset "qadjoint on symbolic expressions" begin
-        @variables G::Complex{Real} ϕ::Real r1::Real
+        @variables G::Complex{Real} ϕ::Real r1::Real N::Number
         # distributes over products
         @test isequal(qadjoint(3 * G), 3 * conj(G))
         # real variable is identity
         @test isequal(qadjoint(r1), r1)
         # complex variable gives conj
         @test isequal(qadjoint(G), conj(G))
+        # Number variable gives conj and distributes
+        @test isequal(qadjoint(N), conj(N))
+        @test isequal(qadjoint(3 * N), 3 * conj(N))
     end
 
     @testset "qadjoint/inner_adjoint reach BasicSymbolic recursion" begin
