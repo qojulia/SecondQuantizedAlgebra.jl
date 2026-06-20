@@ -5,6 +5,12 @@ All notable changes to [`SecondQuantizedAlgebra.jl`](https://github.com/qojulia/
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v0.6.4]
+
+### Added
+
+- `@variables η::Number` declares a complex coefficient that stays a single atomic symbol, conjugating to the symbolic `conj(η)`. Unlike `::Complex` (which splits into independent real/imaginary unknowns and pays `(a+bi)(c+di)` expansion on every product), `::Number` keeps coefficient arithmetic on one symbol (`η * η → η²`). Adjoint routes coefficients through a symtype-aware `_conj_cnum`, so `(η a)†(η a)` correctly carries `|η|² = conj(η)·η`, and `to_numeric` reduces such coefficients (e.g. an unfolded `conj` of a complex literal) via `build_function`.
+
 ## [v0.6.3]
 
 ### Changed
@@ -160,4 +166,5 @@ These names keep their meaning across the migration. Code that only uses them sh
 [v0.6.1]: https://github.com/qojulia/SecondQuantizedAlgebra.jl/releases/tag/v0.6.1
 [v0.6.2]: https://github.com/qojulia/SecondQuantizedAlgebra.jl/releases/tag/v0.6.2
 [v0.6.3]: https://github.com/qojulia/SecondQuantizedAlgebra.jl/releases/tag/v0.6.3
+[v0.6.4]: https://github.com/qojulia/SecondQuantizedAlgebra.jl/releases/tag/v0.6.4
 [#156]: https://github.com/qojulia/SecondQuantizedAlgebra.jl/issues/156
