@@ -1,7 +1,7 @@
 using SecondQuantizedAlgebra
 using Test
-using Symbolics: @variables
-import SecondQuantizedAlgebra: QAdd, QSym, QField, AvgFunc, _average
+using Symbolics: @variables, Num
+import SecondQuantizedAlgebra: QAdd, QSym, QField, AvgFunc, _average, _conj_cnum
 
 @testset "Operators" begin
 
@@ -219,13 +219,14 @@ import SecondQuantizedAlgebra: QAdd, QSym, QField, AvgFunc, _average
         @test isequal((g * a)' * (g * a), conj(g) * g * (a' * a))
         @test !isequal((g * a)' * (g * a), g * g * (a' * a))
 
-        # A coefficient that reaches the imaginary slot (g × an ±i commutator residual)
-        # must still conjugate: adjoint must carry conj(g), not g.
-        hs = SpinSpace(:s)
-        Sx = Spin(hs, :S, 1)
-        Sy = Spin(hs, :S, 2)
-        @test isequal(adjoint(g * Sy * Sx), adjoint(Sy * Sx) * conj(g))
-        @test !isequal(adjoint(g * Sy * Sx), adjoint(Sy * Sx) * g)
+        # A Number-symtype coefficient can land in the imaginary slot (e.g. g × an ±i
+        # commutator residual); conjugation must reach it: conj(i*g) = -i*conj(g).
+        c_imag = _conj_cnum(Complex(Num(0), Num(g)))
+        @test isequal(c_imag.re, Num(0))
+        @test isequal(c_imag.im, -conj(g))
+        c_real = _conj_cnum(Complex(Num(g), Num(0)))
+        @test isequal(c_real.re, conj(g))
+        @test isequal(c_real.im, Num(0))
     end
 
     @testset "qadjoint" begin
