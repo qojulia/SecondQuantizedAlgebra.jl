@@ -113,7 +113,12 @@ function change_index(x::Num, from::Index, to::Index)
 end
 function change_index(x::CNum, from::Index, to::Index)
     _is_native(x) && return x
-    return _cnum(change_index(real(x), from, to), change_index(imag(x), from, to))
+    c = to_num(x)
+    re = change_index(real(c), from, to)
+    im = change_index(imag(c), from, to)
+    # A rename keeps a symbolic tail symbolic; only a Poly may need re-interning.
+    _is_poly(x) && return _cnum(re, im)
+    return _cnum_sym(re, im)
 end
 
 _with_index(op::Destroy, i::Index) = Destroy(op.name, op.space_index, i)
@@ -183,7 +188,11 @@ function change_index(x::Num, pairs::AbstractDict{Index, Index})
 end
 function change_index(x::CNum, pairs::AbstractDict{Index, Index})
     _is_native(x) && return x
-    return _cnum(change_index(real(x), pairs), change_index(imag(x), pairs))
+    c = to_num(x)
+    re = change_index(real(c), pairs)
+    im = change_index(imag(c), pairs)
+    _is_poly(x) && return _cnum(re, im)
+    return _cnum_sym(re, im)
 end
 
 function change_index(op::QSym, pairs::AbstractDict{Index, Index})
