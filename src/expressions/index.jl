@@ -286,7 +286,7 @@ end
 
 function _depends_on_index_term(c::CNum, ops::Vector{QSym}, idx::Index)
     for op in ops
-        op.index == idx && return true
+        op.index::Index == idx && return true
     end
     isym = SymbolicUtils.unwrap(idx.sym)
     for part in (real(c), imag(c))

@@ -74,7 +74,7 @@ end
 
 function _depends_on_index_ops(c::CNum, ops::Vector{QSym}, idx::Index)
     for op in ops
-        op.index == idx && return true
+        op.index::Index == idx && return true
     end
     return _depends_on_index_term(c, ops, idx)
 end
@@ -129,7 +129,7 @@ function _accumulate_with_diag!(
     _canonicalize!(out, copy(ops), c, augmented_ne)
 
     for (sum_idx, ext_idx) in diag_pairs
-        sub_ops = QSym[change_index(o, sum_idx, ext_idx) for o in ops]
+        sub_ops = QSym[change_index(o, sum_idx, ext_idx)::QSym for o in ops]
         sub_c = change_index(c, sum_idx, ext_idx)
         sub_ne = _drop_ne_with(ne, sum_idx)
         # Sibling diagonal slices for the same sum must be mutually exclusive;
@@ -178,7 +178,7 @@ function _emit_scaled_by_scope!(
     return nothing
 end
 
-function Base.:*(a::QSym, b::QSym)
+Base.@nospecializeinfer function Base.:*(@nospecialize(a::QSym), @nospecialize(b::QSym))
     out = QTermDict()
     _emit_product!(
         out,
@@ -189,7 +189,7 @@ function Base.:*(a::QSym, b::QSym)
     return QAdd(out, _EMPTY_INDICES)
 end
 
-function Base.:*(a::QAdd, b::QSym)
+Base.@nospecializeinfer function Base.:*(a::QAdd, @nospecialize(b::QSym))
     out = QTermDict()
     needs = !isempty(a.indices)
     for (ta, ca) in a
@@ -202,7 +202,7 @@ function Base.:*(a::QAdd, b::QSym)
     return QAdd(out, _absorb_pinned_sums(a.indices, a, b))
 end
 
-function Base.:*(a::QSym, b::QAdd)
+Base.@nospecializeinfer function Base.:*(@nospecialize(a::QSym), b::QAdd)
     out = QTermDict()
     needs = !isempty(b.indices)
     for (tb, cb) in b
@@ -270,7 +270,7 @@ function _every_term_has_op_index(q::QAdd, idx::Index)
     @inbounds for t in keys(q.arguments)
         found = false
         for op in t.ops
-            if op.index == idx
+            if op.index::Index == idx
                 found = true
                 break
             end
