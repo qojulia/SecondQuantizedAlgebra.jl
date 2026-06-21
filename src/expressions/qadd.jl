@@ -108,9 +108,9 @@ function Base.isone(q::QAdd)
     length(q.arguments) == 1 || return false
     (term, c) = first(q.arguments)
     isempty(term.ops) || return false
-    _iszero_num(c.im) || return false
-    v = SymbolicUtils.unwrap(c.re)
-    return (v isa Number && isone(v)) || isequal(c.re, _NUM_ONE)
+    _iszero_num(imag(c)) || return false
+    v = SymbolicUtils.unwrap(real(c))
+    return (v isa Number && isone(v)) || isequal(real(c), _NUM_ONE)
 end
 
 # `indices` is a set of bound sum indices (`Σ_iΣ_j ≡ Σ_jΣ_i`); compare/hash it order-insensitively.
@@ -194,7 +194,7 @@ function qadd_order_key(q::QAdd)
     return pairs
 end
 
-_coeff_key(c::CNum) = (string(c.re), string(c.im))
+_coeff_key(c::CNum) = (string(real(c)), string(imag(c)))
 
 _type_order(::Destroy) = 0
 _type_order(::Create) = 1
@@ -222,8 +222,8 @@ function Base.getindex(q::QAdd, key::AbstractVector{<:QSym})
         )
         found = c
     end
-    found === nothing && return _CNUM_ZERO
-    return found
+    found === nothing && return to_num(_CNUM_ZERO)
+    return to_num(found)
 end
 
 """
@@ -265,7 +265,7 @@ function prefactor(s::QAdd)
     length(s.arguments) == 1 || throw(
         ArgumentError("prefactor requires a single-term expression, got $(length(s.arguments)) terms")
     )
-    return first(values(s.arguments))
+    return to_num(first(values(s.arguments)))
 end
 
 """

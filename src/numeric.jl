@@ -188,11 +188,11 @@ function _split_scalar_subs(scalar_subs::AbstractDict)
 end
 
 function _apply_scalar_subs(c::CNum, sub_re::Dict, sub_im::Dict, has_imag::Bool)
-    isempty(sub_re) && return c
+    (isempty(sub_re) || _is_native(c)) && return c
     re_part = SymbolicUtils.unwrap(real(c))
     im_part = SymbolicUtils.unwrap(imag(c))
     if !has_imag
-        return Complex(
+        return _cnum(
             Num(Symbolics.substitute(re_part, sub_re)),
             Num(Symbolics.substitute(im_part, sub_re)),
         )
@@ -202,7 +202,7 @@ function _apply_scalar_subs(c::CNum, sub_re::Dict, sub_im::Dict, has_imag::Bool)
         Symbolics.substitute(im_part, sub_im)
     new_im = Symbolics.substitute(re_part, sub_im) +
         Symbolics.substitute(im_part, sub_re)
-    return Complex(Num(new_re), Num(new_im))
+    return _cnum(Num(new_re), Num(new_im))
 end
 
 function _violates_ne(ne::Vector{NonEqualPair}, sub::Dict{Index, Index})
@@ -313,6 +313,8 @@ function _fold_const(x)::ComplexF64
     end
     throw(ArgumentError("cannot reduce symbolic expression $x to a concrete number"))
 end
+
+_to_complex(c::Coeff) = c.tail === nothing ? c.z : _to_complex(c.tail)
 
 # One method (union-split budget) routing every input through `convert ∘ Complex`,
 # the only pattern that infers to ComplexF64 from `Any` after `Symbolics.value`.

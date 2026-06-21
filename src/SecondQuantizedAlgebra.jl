@@ -4,7 +4,7 @@ using SymbolicUtils: SymbolicUtils, simplify, substitute
 using Symbolics: Symbolics, Num, expand, @variables
 using TermInterface: TermInterface
 
-const CNum = Complex{Num}
+# `CNum` (the coefficient type `Coeff`) is defined in `expressions/cnum.jl`.
 
 using QuantumOpticsBase: QuantumOpticsBase
 import QuantumOpticsBase: ⊗, tensor, expect
