@@ -209,10 +209,12 @@ function average(op::QAdd)
     BS = SymbolicUtils.BasicSymbolic{SymbolicUtils.SymReal}
     result::BS = SymbolicUtils.unwrap(Num(0))
     shared = isempty(op.indices) ? Index[] : op.indices
-    group_keys = Tuple{Vector{Index}, Vector{NonEqualPair}}[]
+    GroupKey = Tuple{Vector{Index}, Vector{NonEqualPair}}
+    group_keys = GroupKey[]
     group_bodies = BS[]
+    group_slot = Dict{GroupKey, Int}()   # scope -> index into group_bodies (O(1) lookup)
     for (term, c) in op.arguments
-        r, i = real(c), imag(c)
+        r, i = _realimag(c)
         used = Index[idx for idx in shared if _depends_on_index_term(c, term.ops, idx)]
         contrib = Num(0)
         if isempty(term.ops)
@@ -229,12 +231,12 @@ function average(op::QAdd)
         if isempty(used)
             result += body
         else
-            slot = findfirst(
-                gk -> isequal(gk[1], used) && isequal(gk[2], term.ne), group_keys,
-            )
-            if slot === nothing
+            key = (used, term.ne)
+            slot = get(group_slot, key, 0)
+            if slot == 0
                 push!(group_keys, (used, _copy_ne(term.ne)))
                 push!(group_bodies, body)
+                group_slot[key] = length(group_bodies)
             else
                 group_bodies[slot] += body
             end

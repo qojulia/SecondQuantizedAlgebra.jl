@@ -96,7 +96,31 @@ function _canonical_terms(terms::Vector{Monomial})
     return out
 end
 
-_poly_add(p::Vector{Monomial}, q::Vector{Monomial}) = _canonical_terms(vcat(p, q))
+# Both inputs are sorted by `_term_less`, so a sorted merge gives the canonical sum
+# in O(n+m) without the `vcat` copy + full `sort!` of `_canonical_terms`. Zero-scalar
+# terms are dropped so the output stays canonical and zero-free: a stray zero term
+# would silently break Poly equality/hashing (and thus QAdd dedup), so guard against
+# it here even though canonical callers never inject one.
+function _poly_add(p::Vector{Monomial}, q::Vector{Monomial})
+    out = Monomial[]
+    sizehint!(out, length(p) + length(q))
+    ip, iq = 1, 1
+    np, nq = length(p), length(q)
+    @inbounds while ip <= np || iq <= nq
+        if iq > nq || (ip <= np && _term_less(p[ip], q[iq]))
+            t = p[ip]; ip += 1
+            t.scalar != 0 && push!(out, t)
+        elseif ip > np || _term_less(q[iq], p[ip])
+            t = q[iq]; iq += 1
+            t.scalar != 0 && push!(out, t)
+        else   # same factor set: sum scalars, drop exact cancellations
+            s = p[ip].scalar + q[iq].scalar + complex(0.0, 0.0)
+            s != 0 && push!(out, Monomial(s, p[ip].syms, p[ip].exps))
+            ip += 1; iq += 1
+        end
+    end
+    return out
+end
 
 function _poly_mul(p::Vector{Monomial}, q::Vector{Monomial})
     out = Monomial[]

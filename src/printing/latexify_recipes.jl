@@ -198,7 +198,13 @@ end
 
 function Symbolics._toexpr_op(::SumFunc, args; kwargs...)
     scope = _scope_of(args[2])
-    body_tex = strip(String(latexify(args[1]; env = :inline)), '$')
+    body = args[1]
+    body_tex = strip(String(latexify(body; env = :inline)), '$')
+    # Wrap a multi-term (`+`) body so the Σ binds the whole sum, not just its
+    # first summand (mirrors the Unicode `show_call(::SumFunc)`).
+    if SymbolicUtils.iscall(body) && SymbolicUtils.operation(body) === (+)
+        body_tex = string("\\left( ", body_tex, " \\right)")
+    end
     return string(_latex_sum_prefix(scope.indices, scope.ne), body_tex)
 end
 

@@ -245,6 +245,12 @@ Base.convert(::Type{Coeff}, x::Number) = _to_cnum(x)
 Base.real(c::Coeff) = _is_native(c) ? _num_from_float(real(c.z)) : real(to_num(c))
 Base.imag(c::Coeff) = _is_native(c) ? _num_from_float(imag(c.z)) : imag(to_num(c))
 
+@inline function _realimag(c::Coeff)
+    _is_native(c) && return (_num_from_float(real(c.z)), _num_from_float(imag(c.z)))
+    cn = to_num(c)
+    return (real(cn), imag(cn))
+end
+
 # Materialize the full `Complex{Num}`; the only place a coefficient lowers back to
 # Symbolics for symbolic boundaries (substitute / simplify / expand / printing).
 function to_num(c::Coeff)
@@ -312,7 +318,8 @@ _sym_conj(x::Num) = SymbolicUtils.symtype(x) <: Real ? x : Num(conj(SymbolicUtil
     # conj(re + i*im) = conj(re) - i*conj(im); each part may be a Number-symtype
     # symbol. Materialized parts serve the polynomial and symbolic tails alike;
     # `_cnum` re-recognizes the polynomial after conjugation.
-    return _cnum(_sym_conj(real(c)), -_sym_conj(imag(c)))
+    re, im = _realimag(c)
+    return _cnum(_sym_conj(re), -_sym_conj(im))
 end
 
 @inline function _iszero_num(x::Num)
@@ -344,12 +351,26 @@ end
 @inline function _isneg_cnum(a::Coeff, b::Coeff)
     an = _is_native(a)
     bn = _is_native(b)
-    an && bn && return isequal(a.z, -b.z)
+    # `iszero(a.z + b.z)`, not `isequal(a.z, -b.z)`: negating a normalized `+0.0im`
+    # gives `-0.0im`, and `isequal(0.0, -0.0)` is false, so the latter misses real
+    # negatives (e.g. `1` vs `-1`).
+    an && bn && return iszero(a.z + b.z)
     (an != bn) && return false   # one native, one symbolic: never exact negatives
     if a.tail isa Poly && b.tail isa Poly
         return isempty(_poly_add(a.tail.terms, b.tail.terms))
     end
-    return isequal(real(a), -real(b)) && isequal(imag(a), -imag(b))
+    ar, ai = _realimag(a)
+    br, bi = _realimag(b)
+    return isequal(ar, -br) && isequal(ai, -bi)
+end
+
+# Materialize both operands once and return their real/imag parts plus the
+# zero-imaginary flags the symbolic mul/add fast paths share.
+@inline function _cnum_parts(a::Coeff, b::Coeff)
+    ca, cb = to_num(a), to_num(b)
+    ar, ai = real(ca), imag(ca)
+    br, bi = real(cb), imag(cb)
+    return (ar, ai, br, bi, _iszero_num(ai), _iszero_num(bi))
 end
 
 @inline function _mul_cnum(a::Coeff, b::Coeff)
@@ -369,11 +390,7 @@ end
     elseif tb isa Poly && ta isa Native
         return _from_poly(_poly_scale(tb.terms, a.z))
     end
-    ca, cb = to_num(a), to_num(b)
-    ar, ai = real(ca), imag(ca)
-    br, bi = real(cb), imag(cb)
-    ai_zero = _iszero_num(ai)
-    bi_zero = _iszero_num(bi)
+    ar, ai, br, bi, ai_zero, bi_zero = _cnum_parts(a, b)
     if ai_zero && bi_zero
         return _cnum_sym(ar * br, _NUM_ZERO)
     elseif ai_zero
@@ -394,6 +411,11 @@ end
 
 @inline function _add_cnum(a::Coeff, b::Coeff)
     (_is_native(a) && _is_native(b)) && return _native(a.z + b.z)
+    # Addition by zero is identity. Skipping it matters: `_rec` folds every symbolic
+    # sum from `_CNUM_ZERO`, so without this each fold would splice a throwaway
+    # `Monomial(0.0, …)` constant into the Poly and merge it away again.
+    _is_native(a) && iszero(a.z) && return b
+    _is_native(b) && iszero(b.z) && return a
     return _add_cnum_slow(a, b)
 end
 
@@ -408,11 +430,7 @@ end
     elseif tb isa Poly && ta isa Native
         return _from_poly(_poly_add(tb.terms, Monomial[Monomial(a.z, _EMPTY_SYMS, _EMPTY_EXPS)]))
     end
-    ca, cb = to_num(a), to_num(b)
-    ar, ai = real(ca), imag(ca)
-    br, bi = real(cb), imag(cb)
-    ai_zero = _iszero_num(ai)
-    bi_zero = _iszero_num(bi)
+    ar, ai, br, bi, ai_zero, bi_zero = _cnum_parts(a, b)
     if ai_zero && bi_zero
         return _cnum_sym(ar + br, _NUM_ZERO)
     elseif ai_zero
