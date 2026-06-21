@@ -225,8 +225,10 @@ function _rec(x::SymbolicUtils.BasicSymbolic)::Coeff
             m = den.tail.terms[1]
             s = inv(m.scalar)
             s * m.scalar == _ONE_C &&
-                return _mul_cnum(_rec(args[1]),
-                    _poly_coeff(Poly(Monomial[Monomial(s, m.syms, Int[-e for e in m.exps])])))
+                return _mul_cnum(
+                _rec(args[1]),
+                _poly_coeff(Poly(Monomial[Monomial(s, m.syms, Int[-e for e in m.exps])]))
+            )
         end
         return _sym_leaf(x)
     elseif op === complex

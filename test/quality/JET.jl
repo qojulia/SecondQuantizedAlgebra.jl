@@ -151,23 +151,25 @@ end
             "convert(SecondQuantizedAlgebra.Coeff",
             ".val::Any",
         ]
-        allowed_hotpath_reports = vcat(allowed_coeff_reports, [
-            "_site_compare",
-            "_can_commute",
-            "SecondQuantizedAlgebra.:!",
-            "_commute_pair",
-            "Base.indexed_iterate",
-            "SecondQuantizedAlgebra.enumerate",
-            "iterate(",
-            "SecondQuantizedAlgebra.:(==)",
-            "change_index(",
-            "SecondQuantizedAlgebra._to_qadd(",
-            "SecondQuantizedAlgebra.iszero(",
-            "SecondQuantizedAlgebra.:*",
-            "SecondQuantizedAlgebra.:+",
-            "SecondQuantizedAlgebra.:^",
-            "SecondQuantizedAlgebra._average(",
-        ])
+        allowed_hotpath_reports = vcat(
+            allowed_coeff_reports, [
+                "_site_compare",
+                "_can_commute",
+                "SecondQuantizedAlgebra.:!",
+                "_commute_pair",
+                "Base.indexed_iterate",
+                "SecondQuantizedAlgebra.enumerate",
+                "iterate(",
+                "SecondQuantizedAlgebra.:(==)",
+                "change_index(",
+                "SecondQuantizedAlgebra._to_qadd(",
+                "SecondQuantizedAlgebra.iszero(",
+                "SecondQuantizedAlgebra.:*",
+                "SecondQuantizedAlgebra.:+",
+                "SecondQuantizedAlgebra.:^",
+                "SecondQuantizedAlgebra._average(",
+            ]
+        )
         allowed_numeric_reports = vcat(
             allowed_hotpath_reports,
             [
