@@ -378,6 +378,29 @@ import SecondQuantizedAlgebra: simplify, QAdd, QSym, _single_qadd, _zero_qadd, _
             @test latexify(result) == L"\mathit{i} {\sigma}_{{z}}"
         end
 
+        @testset "Symbolic imaginary and complex prefactors" begin
+            # Regression guard: a `Coeff` with a symbolic imaginary part must lower
+            # to `Complex{Num}` in `_latex_prefactor`, so rendering (including the
+            # text/latex MIME path Documenter uses for `@example` output) never hits
+            # `_needs_pf_brackets(::Coeff)`.
+            @variables g κ
+            hL = FockSpace(:f)
+            aL = Destroy(hL, :a)
+
+            # native scaled pure-imaginary: the complex(false, i_val) branch
+            @test latexify(2im * aL) == L"2\mathit{i} a"
+            # symbolic pure-imaginary prefactor (the r_is_zero, non-Real-imag fallback)
+            @test latexify((im * g) * aL) == L"g ~ \mathit{i} a"
+            @test repr(MIME"text/latex"(), (im * g) * aL) == latexify((im * g) * aL)
+            # symbolic complex prefactor: real and imaginary parts both symbolic
+            @test latexify((g + im * κ) * aL) == L"g + \kappa ~ \mathit{i} a"
+
+            # the exact shape that reached docs CI: a Spin commutator yields i * g * Sz
+            Sx = Spin(SpinSpace(:S), :S, 1)
+            Sy = Spin(SpinSpace(:S), :S, 2)
+            @test repr(MIME"text/latex"(), commutator(g * Sx, Sy)) == L"g ~ \mathit{i} {S}_{{z}}"
+        end
+
         @testset "Indexed operators" begin
             @variables N
             h2 = FockSpace(:c) ⊗ NLevelSpace(:atom, 2, 1)
