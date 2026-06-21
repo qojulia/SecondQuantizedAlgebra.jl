@@ -203,8 +203,9 @@ function _substitute_ops(sink::F, ops::Vector{QSym}, c::CNum, d) where {F}
 end
 
 function _substitute_cnum(c::CNum, d)
+    _is_native(c) && return c
     rep, imp = real(c), imag(c)
     new_rep = SymbolicUtils.substitute(Symbolics.value(rep), d)
     new_imp = SymbolicUtils.substitute(Symbolics.value(imp), d)
-    return Num(new_rep) + im * Num(new_imp)
+    return _cnum(Num(new_rep), Num(new_imp))
 end

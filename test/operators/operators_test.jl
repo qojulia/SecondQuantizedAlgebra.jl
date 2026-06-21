@@ -1,7 +1,7 @@
 using SecondQuantizedAlgebra
 using Test
 using Symbolics: @variables, Num
-import SecondQuantizedAlgebra: QAdd, QSym, QField, AvgFunc, _average, _conj_cnum
+import SecondQuantizedAlgebra: QAdd, QSym, QField, AvgFunc, _average, _conj_cnum, _to_cnum
 
 @testset "Operators" begin
 
@@ -221,12 +221,12 @@ import SecondQuantizedAlgebra: QAdd, QSym, QField, AvgFunc, _average, _conj_cnum
 
         # A Number-symtype coefficient can land in the imaginary slot (e.g. g × an ±i
         # commutator residual); conjugation must reach it: conj(i*g) = -i*conj(g).
-        c_imag = _conj_cnum(Complex(Num(0), Num(g)))
-        @test isequal(c_imag.re, Num(0))
-        @test isequal(c_imag.im, -conj(g))
-        c_real = _conj_cnum(Complex(Num(g), Num(0)))
-        @test isequal(c_real.re, conj(g))
-        @test isequal(c_real.im, Num(0))
+        c_imag = _conj_cnum(_to_cnum(Complex(Num(0), Num(g))))
+        @test isequal(real(c_imag), Num(0))
+        @test isequal(imag(c_imag), -conj(g))
+        c_real = _conj_cnum(_to_cnum(Complex(Num(g), Num(0))))
+        @test isequal(real(c_real), conj(g))
+        @test isequal(imag(c_real), Num(0))
     end
 
     @testset "qadjoint" begin

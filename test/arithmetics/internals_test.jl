@@ -317,8 +317,8 @@ end
         @test @inferred(_neg_cnum(_CNUM_IM)) isa CNum
 
         @variables x y
-        c1 = Complex(SecondQuantizedAlgebra.Num(x), _NUM_ZERO)
-        c2 = Complex(SecondQuantizedAlgebra.Num(y), _NUM_ZERO)
+        c1 = _to_cnum(Complex(SecondQuantizedAlgebra.Num(x), _NUM_ZERO))
+        c2 = _to_cnum(Complex(SecondQuantizedAlgebra.Num(y), _NUM_ZERO))
         @test @inferred(_mul_cnum(c1, c2)) isa CNum
         @test @inferred(_add_cnum(c1, c2)) isa CNum
         @test @inferred(_neg_cnum(c1)) isa CNum

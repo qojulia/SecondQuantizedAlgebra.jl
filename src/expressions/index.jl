@@ -112,7 +112,13 @@ function change_index(x::Num, from::Index, to::Index)
     return _check_not_identical(result)
 end
 function change_index(x::CNum, from::Index, to::Index)
-    return Complex(change_index(real(x), from, to), change_index(imag(x), from, to))
+    _is_native(x) && return x
+    c = to_num(x)
+    re = change_index(real(c), from, to)
+    im = change_index(imag(c), from, to)
+    # A rename keeps a symbolic tail symbolic; only a Poly may need re-interning.
+    _is_poly(x) && return _cnum(re, im)
+    return _cnum_sym(re, im)
 end
 
 _with_index(op::Destroy, i::Index) = Destroy(op.name, op.space_index, i)
@@ -181,7 +187,12 @@ function change_index(x::Num, pairs::AbstractDict{Index, Index})
     return _check_not_identical(result)
 end
 function change_index(x::CNum, pairs::AbstractDict{Index, Index})
-    return Complex(change_index(real(x), pairs), change_index(imag(x), pairs))
+    _is_native(x) && return x
+    c = to_num(x)
+    re = change_index(real(c), pairs)
+    im = change_index(imag(c), pairs)
+    _is_poly(x) && return _cnum(re, im)
+    return _cnum_sym(re, im)
 end
 
 function change_index(op::QSym, pairs::AbstractDict{Index, Index})
@@ -288,6 +299,7 @@ function _depends_on_index_term(c::CNum, ops::Vector{QSym}, idx::Index)
     for op in ops
         op.index == idx && return true
     end
+    _is_native(c) && return false
     isym = SymbolicUtils.unwrap(idx.sym)
     for part in (real(c), imag(c))
         vars = Symbolics.get_variables(part)

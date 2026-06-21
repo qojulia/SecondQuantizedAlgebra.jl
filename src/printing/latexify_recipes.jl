@@ -94,15 +94,15 @@ function _latex_prefactor(c::CNum)
         return r_val
     elseif r_is_zero
         # Pure imaginary: `complex(false, x)` only works for `x <: Real`, so on
-        # symbolic prefactors we fall through to the full `c` form below.
+        # symbolic prefactors we fall through to the full `Complex{Num}` form below.
         if i_val isa Real
             return complex(false, i_val)
         end
-        return c
+        return to_num(c)
     elseif r_val isa Real && i_val isa Real
         return complex(r_val, i_val)
     else
-        return c
+        return to_num(c)
     end
 end
 _latex_prefactor(c::Number) = c
@@ -198,7 +198,13 @@ end
 
 function Symbolics._toexpr_op(::SumFunc, args; kwargs...)
     scope = _scope_of(args[2])
-    body_tex = strip(String(latexify(args[1]; env = :inline)), '$')
+    body = args[1]
+    body_tex = strip(String(latexify(body; env = :inline)), '$')
+    # Wrap a multi-term (`+`) body so the Σ binds the whole sum, not just its
+    # first summand (mirrors the Unicode `show_call(::SumFunc)`).
+    if SymbolicUtils.iscall(body) && SymbolicUtils.operation(body) === (+)
+        body_tex = string("\\left( ", body_tex, " \\right)")
+    end
     return string(_latex_sum_prefix(scope.indices, scope.ne), body_tex)
 end
 

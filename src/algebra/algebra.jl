@@ -137,10 +137,12 @@ function normal_order(q::QAdd)
 end
 
 function _simplify_prefactor(x::CNum)
-    SymbolicUtils.unwrap(x.re) isa Number && SymbolicUtils.unwrap(x.im) isa Number && return x
+    (_is_native(x) || _is_poly(x)) && return x   # already simplest product form
+    (_numeric_value(real(x)) !== nothing && _numeric_value(imag(x)) !== nothing) &&
+        return _cnum(real(x), imag(x))
     re = Num(SymbolicUtils.simplify(SymbolicUtils.unwrap(Symbolics.expand(real(x)))))
     im = Num(SymbolicUtils.simplify(SymbolicUtils.unwrap(Symbolics.expand(imag(x)))))
-    return Complex(re, im)
+    return _cnum(re, im)
 end
 function _drop_unused_indices(d::QTermDict, indices::Vector{Index})
     isempty(indices) && return indices
@@ -235,7 +237,7 @@ function Symbolics.expand(s::QAdd; kwargs...)
 end
 Symbolics.expand(op::QSym; kwargs...) = _single_qadd(_CNUM_ONE, QSym[op])
 
-_expand_prefactor(x::CNum; kwargs...) = _iszero_cnum(x) ? x : Complex(Symbolics.expand(real(x)), Symbolics.expand(imag(x)))
+_expand_prefactor(x::CNum; kwargs...) = (_is_native(x) || _is_poly(x) || _iszero_cnum(x)) ? x : _cnum(Symbolics.expand(real(x)), Symbolics.expand(imag(x)))
 
 """
     expand_completeness(q) -> QAdd

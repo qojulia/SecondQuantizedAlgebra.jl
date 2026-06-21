@@ -14,6 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - `make_time_dependent` on an averaged indexed sum now yields `Σ(i) ⟨a_i⟩(t)` (per-site time-dependent moments under the sum) instead of `⟨Σ_i a_i⟩(t)` (one collective lumped variable), matching the non-lifted display `Σ(i) ⟨a_i⟩` and giving indexable per-site unknowns for indexed equations.
+- Operator prefactors are stored as a concrete `Coeff` with three forms (a native `ComplexF64` fast path, a sparse parameter polynomial for products and sums of named parameters, and a `Complex{Num}` fallback) instead of always `Complex{Num}`. Numeric and parameter-polynomial coefficient arithmetic stays native and never routes through SymbolicUtils hashconsing; a coefficient lowers to `Complex{Num}` only at the symbolic boundaries (`substitute`/`average`/printing/`prefactor`). The polynomial arithmetic is fully type-stable, with factor identity via `objectid`/`===` (which assumes SymbolicUtils hashconsing is enabled, the default). Polynomial coefficients are kept in canonical expanded form, so `(g+h)^2` is stored as `g^2 + 2*g*h + h^2`. Measured speedups over `Complex{Num}`: numeric power expansion about 2.1×, single-mode `H^4` about 2.65×, many-mode `H^2` about 3.5×, nested commutator about 2.4× ([#164](https://github.com/qojulia/SecondQuantizedAlgebra.jl/issues/164), [#183](https://github.com/qojulia/SecondQuantizedAlgebra.jl/pull/183)).
 
 ## [v0.6.5]
 

@@ -33,14 +33,14 @@ julia> hf = FockSpace(:f);
 julia> @qnumbers a::Destroy(hf);
 
 julia> normal_to_symmetric(a' * a)
--1//2 + a' * a
+-0.5 + a' * a
 
 julia> hp = PhaseSpace(:osc);
 
 julia> @qnumbers x::Position(hp) p::Momentum(hp);
 
 julia> normal_to_symmetric(x * p)
-1//2im + x * p
+0.5im + x * p
 ```
 
 See also [`symmetric_to_normal`](@ref), [`normal_order`](@ref).

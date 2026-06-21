@@ -108,15 +108,20 @@ function Base.isone(q::QAdd)
     length(q.arguments) == 1 || return false
     (term, c) = first(q.arguments)
     isempty(term.ops) || return false
-    _iszero_num(c.im) || return false
-    v = SymbolicUtils.unwrap(c.re)
-    return (v isa Number && isone(v)) || isequal(c.re, _NUM_ONE)
+    _iszero_num(imag(c)) || return false
+    v = SymbolicUtils.unwrap(real(c))
+    return (v isa Number && isone(v)) || isequal(real(c), _NUM_ONE)
 end
 
-# `indices` is a set of bound sum indices (`Σ_iΣ_j ≡ Σ_jΣ_i`); compare/hash it order-insensitively.
+# `indices` is a multiset of bound sum indices (`Σ_iΣ_j ≡ Σ_jΣ_i`); compare/hash it
+# order-insensitively but multiplicity-faithfully. A plain subset test is asymmetric
+# and the XOR hash collapses repeated indices, so both use per-element multiplicity.
 function _same_index_set(a::Vector{Index}, b::Vector{Index})
     length(a) == length(b) || return false
-    return all(idx -> any(x -> isequal(x, idx), b), a)
+    for idx in a
+        count(x -> isequal(x, idx), a) == count(x -> isequal(x, idx), b) || return false
+    end
+    return true
 end
 
 function Base.isequal(a::QAdd, b::QAdd)
@@ -125,7 +130,8 @@ function Base.isequal(a::QAdd, b::QAdd)
 end
 Base.:(==)(a::QAdd, b::QAdd) = isequal(a, b)
 function Base.hash(q::QAdd, h::UInt)
-    ih = foldl((acc, idx) -> acc ⊻ hash(idx), q.indices; init = zero(UInt))
+    # `+` (not `⊻`) so repeated indices contribute, matching `_same_index_set`.
+    ih = foldl((acc, idx) -> acc + hash(idx), q.indices; init = zero(UInt))
     return hash(:QAdd, hash(q.arguments, hash(ih, hash(length(q.indices), h))))
 end
 
@@ -194,7 +200,7 @@ function qadd_order_key(q::QAdd)
     return pairs
 end
 
-_coeff_key(c::CNum) = (string(c.re), string(c.im))
+_coeff_key(c::CNum) = (string(real(c)), string(imag(c)))
 
 _type_order(::Destroy) = 0
 _type_order(::Create) = 1
@@ -205,7 +211,7 @@ _type_order(::Position) = 5
 _type_order(::Momentum) = 6
 
 """
-    Base.getindex(q::QAdd, key::AbstractVector{<:QSym}) -> CNum
+    Base.getindex(q::QAdd, key::AbstractVector{<:QSym}) -> Complex{Num}
 
 Look up the prefactor for a given operator sequence. Returns zero if absent.
 Throws if more than one constrained term shares the same operator sequence.
@@ -222,8 +228,8 @@ function Base.getindex(q::QAdd, key::AbstractVector{<:QSym})
         )
         found = c
     end
-    found === nothing && return _CNUM_ZERO
-    return found
+    found === nothing && return to_num(_CNUM_ZERO)
+    return to_num(found)
 end
 
 """
@@ -241,7 +247,7 @@ function Base.haskey(q::QAdd, key::AbstractVector{<:QSym})
 end
 
 """
-    prefactor(s::QAdd) -> CNum
+    prefactor(s::QAdd) -> Complex{Num}
 
 Return the `Complex{Num}` prefactor of a single-term [`QAdd`](@ref).
 
@@ -265,7 +271,7 @@ function prefactor(s::QAdd)
     length(s.arguments) == 1 || throw(
         ArgumentError("prefactor requires a single-term expression, got $(length(s.arguments)) terms")
     )
-    return first(values(s.arguments))
+    return to_num(first(values(s.arguments)))
 end
 
 """
