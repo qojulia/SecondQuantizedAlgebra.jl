@@ -186,9 +186,12 @@ function _addto_key!(d::QTermDict, term::QTerm, c::CNum)
         return d
     end
     new_c = _add_cnum(existing, c)
-    # Symbolics keeps `γ/D + (-γ)/D` un-combined, so `_iszero_cnum` misses such
-    # cancellations; fall back to an exact-negation test for symbolic coefficients.
-    if _iszero_cnum(new_c) || (_is_symbolic_cnum(new_c) && _isneg_cnum(existing, c))
+    # Poly cancellations already collapse to native zero via `_from_poly` (caught by
+    # `_iszero_cnum`), so the exact-negation fallback is only needed for genuine
+    # `Complex{Num}` tails, where Symbolics keeps `γ/D + (-γ)/D` un-combined. Gating
+    # on the tail type (not `_is_symbolic_cnum`, true for every Poly) avoids a
+    # redundant second `_poly_add` on every polynomial like-term merge.
+    if _iszero_cnum(new_c) || (new_c.tail isa Complex{Num} && _isneg_cnum(existing, c))
         delete!(d, term)
     else
         d[term] = new_c
