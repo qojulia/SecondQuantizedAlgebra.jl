@@ -191,9 +191,12 @@ import SecondQuantizedAlgebra: simplify, QAdd, QSym, _single_qadd, _zero_qadd, _
             @test repr(make_time_dependent(average(af), t)) == "⟨a⟩(t)"
             @test repr(make_time_dependent(average(adf * af), t)) == "⟨a' * a⟩(t)"
             @test repr(make_time_dependent(average(σ), t)) == "⟨σ₁₂⟩(t)"
-            @test repr(make_time_dependent(average(Σ(ai, i)), t)) == "⟨Σ(i=1:N) a_i⟩(t)"
+            # Lifting descends into the sum body: each per-site moment becomes
+            # time-dependent and the Σ stays outside, matching the non-lifted form
+            # `Σ(i) ⟨a_i⟩` rather than collapsing to one collective ⟨Σ a_i⟩(t).
+            @test repr(make_time_dependent(average(Σ(ai, i)), t)) == "Σ(i=1:N) ⟨a_i⟩(t)"
             @test repr(make_time_dependent(average(Σ(ai, i, [j])), t)) ==
-                "⟨Σ(i=1:N)(i≠j) a_i⟩(t)"
+                "Σ(i=1:N)(i≠j) ⟨a_i⟩(t)"
         end
 
         @testset "Scoped constraints stay in separate sum groups" begin
@@ -538,9 +541,9 @@ import SecondQuantizedAlgebra: simplify, QAdd, QSym, _single_qadd, _zero_qadd, _
             @test string(latexify(make_time_dependent(average(σ), t))) ==
                 "\\begin{equation}\n\\langle {\\sigma}^{{12}} \\rangle\\left( t \\right)\n\\end{equation}\n"
             @test string(latexify(make_time_dependent(average(Σ(ai, i)), t))) ==
-                "\\begin{equation}\n\\langle \\underset{i}{\\overset{N}{\\sum}}a_{i} \\rangle\\left( t \\right)\n\\end{equation}\n"
+                "\\begin{equation}\n\\underset{i}{\\overset{N}{\\sum}}\\langle a_{i} \\rangle\\left( t \\right)\n\\end{equation}\n"
             @test string(latexify(make_time_dependent(average(Σ(ai, i, [j])), t))) ==
-                "\\begin{equation}\n\\langle \\underset{i{\\neq}j}{\\overset{N}{\\sum}}a_{i} \\rangle\\left( t \\right)\n\\end{equation}\n"
+                "\\begin{equation}\n\\underset{i{\\neq}j}{\\overset{N}{\\sum}}\\langle a_{i} \\rangle\\left( t \\right)\n\\end{equation}\n"
         end
     end
 end

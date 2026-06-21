@@ -196,16 +196,10 @@ function Symbolics._toexpr_op(::AvgFunc, args; kwargs...)
     return _latex_avg_expr(only(args))
 end
 
-function Symbolics._toexpr_metadata(
-        x::SymbolicUtils.BasicSymbolic, ::Type{SumIndices}, indices::Vector{Index};
-        kwargs...,
-    )
-    isempty(indices) && return nothing
-    SymbolicUtils.iscall(x) || return nothing
-    SymbolicUtils.operation(x) isa AvgFunc || return nothing
-    prefix = _latex_sum_prefix(indices, _restore_sum_metadata_ne(x))
-    inner = only(SymbolicUtils.arguments(x))
-    return string(prefix, _latex_avg_expr(inner))
+function Symbolics._toexpr_op(::SumFunc, args; kwargs...)
+    scope = _scope_of(args[2])
+    body_tex = strip(String(latexify(args[1]; env = :inline)), '$')
+    return string(_latex_sum_prefix(scope.indices, scope.ne), body_tex)
 end
 
 function Symbolics._toexpr_metadata(

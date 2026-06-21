@@ -113,14 +113,20 @@ function Base.isone(q::QAdd)
     return (v isa Number && isone(v)) || isequal(c.re, _NUM_ONE)
 end
 
+# `indices` is a set of bound sum indices (`Σ_iΣ_j ≡ Σ_jΣ_i`); compare/hash it order-insensitively.
+function _same_index_set(a::Vector{Index}, b::Vector{Index})
+    length(a) == length(b) || return false
+    return all(idx -> any(x -> isequal(x, idx), b), a)
+end
+
 function Base.isequal(a::QAdd, b::QAdd)
     isequal(a.arguments, b.arguments) || return false
-    a.indices == b.indices || return false
-    return true
+    return _same_index_set(a.indices, b.indices)
 end
 Base.:(==)(a::QAdd, b::QAdd) = isequal(a, b)
 function Base.hash(q::QAdd, h::UInt)
-    return hash(:QAdd, hash(q.arguments, hash(q.indices, h)))
+    ih = foldl((acc, idx) -> acc ⊻ hash(idx), q.indices; init = zero(UInt))
+    return hash(:QAdd, hash(q.arguments, hash(ih, hash(length(q.indices), h))))
 end
 
 function Base.adjoint(q::QAdd)
