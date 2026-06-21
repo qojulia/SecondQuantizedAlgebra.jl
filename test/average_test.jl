@@ -3,7 +3,7 @@ using Test
 using SymbolicUtils: SymbolicUtils, SymReal, symtype
 using Symbolics: Symbolics, @variables
 import SecondQuantizedAlgebra: simplify, QAdd, QSym, QField, CNum, _to_cnum, _single_qadd,
-    AvgFunc, sym_average, SumIndices, SumNonEqual, sorted_arguments,
+    AvgFunc, sym_average, SumFunc, sym_sum, is_indexed_sum, sorted_arguments,
     has_sum_metadata, get_sum_indices, get_sum_non_equal,
     QTerm, QTermDict, NonEqualPair
 
@@ -97,17 +97,65 @@ import SecondQuantizedAlgebra: simplify, QAdd, QSym, QField, CNum, _to_cnum, _si
         avg_s = average(s)
         @test avg_s isa SymbolicUtils.BasicSymbolic
 
-        # Metadata should be preserved
-        @test SymbolicUtils.hasmetadata(avg_s, SumIndices)
-        @test SymbolicUtils.getmetadata(avg_s, SumIndices) == [i]
-        @test SymbolicUtils.hasmetadata(avg_s, SumNonEqual)
+        # The summed term becomes a dedicated `sym_sum` node carrying the scope.
+        @test is_indexed_sum(avg_s)
+        @test SymbolicUtils.operation(avg_s) isa SumFunc
+        @test get_sum_indices(avg_s) == [i]
+        @test isempty(get_sum_non_equal(avg_s))
 
-        # Non-indexed QAdd has no metadata
+        # Non-indexed QAdd produces no sum node
         plain = a + ad
         avg_plain = average(plain)
-        if avg_plain isa SymbolicUtils.BasicSymbolic
-            @test !SymbolicUtils.hasmetadata(avg_plain, SumIndices)
-        end
+        @test !is_indexed_sum(avg_plain)
+    end
+
+    @testset "average(QAdd): index-dependent coefficient stays in sum (issue #175)" begin
+        ha = NLevelSpace(:atoms, 2)
+        hb = FockSpace(:bus)
+        h = hb ⊗ ha
+        @variables L::Real
+        k = Index(h, :k, L, ha)
+        kk = Index(h, :kk, L, ha)
+        i = Index(h, :i, L, ha)
+        j = Index(h, :j, L, ha)
+        u(x, y) = DoubleIndexedVariable(:u, x, y)
+        g(z) = IndexedVariable(:g, z)
+        σ(z) = IndexedOperator(Transition(h, :σ, 1, 1), z)
+
+        # Symptom 1: a pure c-number indexed sum keeps its Σ scope.
+        c1 = average(Σ(u(kk, k), k))
+        @test is_indexed_sum(c1)
+        @test get_sum_indices(c1) == [k]
+        @test undo_average(c1) == Σ(u(kk, k), k)
+
+        # Symptom 2: an index-dependent coefficient lives INSIDE the Σ node body,
+        # not hoisted out so `k` dangles. Check the off-diagonal node directly
+        # (factor order within the body is Symbolics-internal and not asserted).
+        c2 = average(Σ(u(kk, k) * σ(kk), k))
+        @test undo_average(c2) == Σ(u(kk, k) * σ(kk), k)
+        summands = SymbolicUtils.operation(c2) === (+) ? SymbolicUtils.arguments(c2) : [c2]
+        offdiag = only(filter(is_indexed_sum, summands))
+        @test get_sum_indices(offdiag) == [k]
+        @test !isempty(get_sum_non_equal(offdiag))
+        @test occursin("u(kk, k)", repr(SecondQuantizedAlgebra._sum_body(offdiag)))
+
+        # Cancellation correctness: two sums over the same body but different
+        # scope must NOT be `isequal` (metadata-only nodes would wrongly cancel).
+        A = average(Σ(g(i) * σ(i), i))
+        B = average(Σ(g(i) * σ(i), i, [j]))
+        @test !isequal(A, B)
+        @test !isequal(Symbolics.simplify(A - B), 0)
+
+        # Grouping: terms sharing (indices, ne) collapse into one node body.
+        h2(z) = IndexedVariable(:h, z)
+        G = average(Σ(g(i) * σ(i) + h2(i) * IndexedOperator(Transition(h, :σ, 2, 2), i), i))
+        @test is_indexed_sum(G)
+        @test get_sum_indices(G) == [i]
+
+        # Nested sums flatten into one scope; round-trips (compared modulo the
+        # `.indices` ordering, which addition does not canonicalize).
+        N = average(Σ(g(i) * g(j) * σ(i) * σ(j), i, j))
+        @test iszero(simplify(undo_average(N) - Σ(g(i) * g(j) * σ(i) * σ(j), i, j)))
     end
 
     @testset "average(QAdd): singleton single-op NE is vacuous" begin
@@ -128,8 +176,7 @@ import SecondQuantizedAlgebra: simplify, QAdd, QSym, QField, CNum, _to_cnum, _si
         ne_avg = average(ne_qadd)
 
         @test isequal(bare_avg, ne_avg)
-        @test !SymbolicUtils.hasmetadata(ne_avg, SumIndices)
-        @test !SymbolicUtils.hasmetadata(ne_avg, SumNonEqual)
+        @test !is_indexed_sum(ne_avg)
 
         σ_j = IndexedOperator(Transition(h, :σ, 2, 2, 2), j)
         prod_qadd_ne = QAdd(

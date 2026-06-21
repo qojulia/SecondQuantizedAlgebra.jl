@@ -8,12 +8,6 @@ variable. Not public, use [`average`](@ref), [`make_time_dependent`](@ref) and [
 """
 struct AverageOperator end
 
-"""Metadata key for summation indices on averaged expressions."""
-struct SumIndices end
-
-"""Metadata key for non-equal index pairs on averaged expressions."""
-struct SumNonEqual end
-
 """
     AvgFunc
 
@@ -34,6 +28,67 @@ function SymbolicUtils.show_call(io::IO, ::AvgFunc, x::SymbolicUtils.BasicSymbol
     end
     return print(io, "⟩")
 end
+
+"""
+    SumScope
+
+Opaque carrier for an indexed-sum's summation scope (`indices::Vector{Index}`
+and `ne::Vector{NonEqualPair}`). Stored as a single scalar argument of a
+[`SumFunc`](@ref) node: SymbolicUtils array-ifies a bare `Vector` argument
+(losing the `Index` objects), but a scalar struct is kept opaque and
+recoverable, exactly like the `QField` argument of an average node. Custom
+`==`/`isequal`/`hash` compare it by value so two scopes that differ wrongly
+cancel only when they are genuinely equal.
+"""
+struct SumScope
+    indices::Vector{Index}
+    ne::Vector{NonEqualPair}
+end
+Base.:(==)(a::SumScope, b::SumScope) = a.indices == b.indices && a.ne == b.ne
+Base.isequal(a::SumScope, b::SumScope) = isequal(a.indices, b.indices) && isequal(a.ne, b.ne)
+Base.hash(s::SumScope, h::UInt) = hash(s.ne, hash(s.indices, hash(:SumScope, h)))
+
+"""
+    SumFunc
+
+Singleton callable used as the `operation` of moment-layer indexed-sum `Term`
+nodes (cf. [`AvgFunc`](@ref)). A node is `sym_sum(body, scope)`: the summed
+`body` is an arbitrary averaged expression and the [`SumScope`](@ref) rides as a
+plain `Term` argument, so it participates in `isequal`/`hash` (metadata would be
+ignored, letting two differently-scoped sums over the same body wrongly cancel).
+Because the operation is neither `+` nor `*`, `Add`/`Mul` keep the node opaque,
+so the body and scope survive SymbolicUtils canonicalization.
+"""
+struct SumFunc end
+const sym_sum = SumFunc()
+
+Base.nameof(::SumFunc) = :sum
+Base.show(io::IO, ::SumFunc) = print(io, "sum")
+
+_indexed_sum(body, indices::Vector{Index}, ne::Vector{NonEqualPair}) =
+    SymbolicUtils.Term{SymbolicUtils.SymReal}(sym_sum, Any[body, SumScope(indices, ne)]; type = Number)
+
+# Locators for the node's two arguments. The scope rides as a const-wrapped
+# `SumScope` (SymbolicUtils wraps a scalar argument); `_scope_of` recovers it
+# whether it arrives wrapped or bare.
+_scope_of(s::SumScope) = s
+_scope_of(s::SymbolicUtils.BasicSymbolic) = s.val::SumScope
+_sum_body(x::SymbolicUtils.BasicSymbolic) = SymbolicUtils.arguments(x)[1]
+_sum_scope(x::SymbolicUtils.BasicSymbolic) = _scope_of(SymbolicUtils.arguments(x)[2])
+_sum_indices(x::SymbolicUtils.BasicSymbolic) = _sum_scope(x).indices
+_sum_ne(x::SymbolicUtils.BasicSymbolic) = _sum_scope(x).ne
+
+"""
+    is_indexed_sum(x) -> Bool
+
+Whether `x` is a moment-layer indexed-sum node created by [`average`](@ref) on a
+summed [`QAdd`](@ref). The summation scope is recovered with
+[`get_sum_indices`](@ref) and [`get_sum_non_equal`](@ref).
+"""
+is_indexed_sum(::Any) = false
+is_indexed_sum(x::SymbolicUtils.BasicSymbolic) =
+    SymbolicUtils.iscall(x) && SymbolicUtils.operation(x) isa SumFunc
+is_indexed_sum(x::Num) = is_indexed_sum(SymbolicUtils.unwrap(x))
 
 """
     is_average(x) -> Bool
@@ -74,6 +129,9 @@ function make_time_dependent(x, iv)
     if SymbolicUtils.iscall(x) && SymbolicUtils.operation(x) === sym_average
         return _lift_average(x, iv)
     end
+    if is_indexed_sum(x)
+        return _indexed_sum(make_time_dependent(_sum_body(x), iv), _sum_indices(x), _sum_ne(x))
+    end
     SymbolicUtils.iscall(x) || return x
     args = SymbolicUtils.arguments(x)
     new_args = Vector{Any}(undef, length(args))
@@ -92,8 +150,7 @@ function _lift_average(leaf, iv)
     nm = _avg_var_name(op)
     ivw = iv isa SymbolicUtils.BasicSymbolic ? Symbolics.wrap(iv) : iv
     v = SymbolicUtils.unwrap(first(@variables ($nm(ivw))::Number))
-    v = SymbolicUtils.setmetadata(v, AverageOperator, op)
-    return _restore_sum_metadata_meta(v, leaf)
+    return SymbolicUtils.setmetadata(v, AverageOperator, op)
 end
 
 # Deterministic, structurally injective name for a lifted variable. Identity rests on this
@@ -114,14 +171,6 @@ function _avg_var_name(op::QAdd)
         end
     end
     return Symbol(String(take!(io)))
-end
-
-function _restore_sum_metadata_meta(v, leaf)
-    SymbolicUtils.hasmetadata(leaf, SumIndices) || return v
-    v = SymbolicUtils.setmetadata(v, SumIndices, SymbolicUtils.getmetadata(leaf, SumIndices))
-    SymbolicUtils.hasmetadata(leaf, SumNonEqual) &&
-        (v = SymbolicUtils.setmetadata(v, SumNonEqual, SymbolicUtils.getmetadata(leaf, SumNonEqual)))
-    return v
 end
 
 """
@@ -160,28 +209,56 @@ function average(op::QAdd)
     # piece as a literal `complex(re, im)` symbolic call, which is opaque to
     # `simplify` / `expand`. We bring in `im` via `Symbolics.IM`
     # (the BasicSymbolic{SymReal} sym for `im`) so the chain stays symbolic.
-    result = Num(0)
-    shared = isempty(op.indices) ? nothing : copy(op.indices)
+    #
+    # Index-dependent terms are wrapped in a `sym_sum` node so the whole averaged
+    # body (numeric prefactor and multi-factor c-number coefficient included)
+    # lives INSIDE the sum scope. Terms are grouped by their `(used indices, ne)`
+    # so one node carries a multi-term body, mirroring display grouping
+    # (`_group_dep_terms`) and the `QAdd` round-trip.
+    #
+    # Each per-term contribution is unwrapped to `BasicSymbolic{SymReal}` (the
+    # single concrete Moshi type) at the boundary, so `result` and the grouped
+    # bodies stay concretely typed: every contribution flavour (numeric, real- or
+    # number-symtype coefficient, constant) reduces to `SymReal` because `avg`,
+    # `Symbolics.IM`, and the `CNum` real/imag parts are all real-symtype.
+    BS = SymbolicUtils.BasicSymbolic{SymbolicUtils.SymReal}
+    result::BS = SymbolicUtils.unwrap(Num(0))
+    shared = isempty(op.indices) ? Index[] : op.indices
+    group_keys = Tuple{Vector{Index}, Vector{NonEqualPair}}[]
+    group_bodies = BS[]
     for (term, c) in op.arguments
         r, i = real(c), imag(c)
+        used = Index[idx for idx in shared if _depends_on_index_term(c, term.ops, idx)]
+        contrib = Num(0)
         if isempty(term.ops)
-            iszero(r) || (result += r)
-            iszero(i) || (result += i * Symbolics.IM)
-            continue
+            iszero(r) || (contrib += r)
+            iszero(i) || (contrib += i * Symbolics.IM)
+        else
+            inner = length(term.ops) == 1 ? only(term.ops) :
+                _single_qadd(_CNUM_ONE, term.ops, term.ne)
+            avg = _average(inner)
+            iszero(r) || (contrib += r * avg)
+            iszero(i) || (contrib += i * Symbolics.IM * avg)
         end
-        term_uses_sum = shared !== nothing &&
-            any(idx -> _depends_on_index_term(c, term.ops, idx), shared)
-        inner = (length(term.ops) == 1 && !term_uses_sum) ?
-            only(term.ops) : _single_qadd(_CNUM_ONE, term.ops, term.ne)
-        avg = _average(inner)
-        if term_uses_sum
-            avg = SymbolicUtils.setmetadata(avg, SumIndices, shared)
-            avg = SymbolicUtils.setmetadata(avg, SumNonEqual, _copy_ne(term.ne))
+        body = SymbolicUtils.unwrap(contrib)
+        if isempty(used)
+            result += body
+        else
+            slot = findfirst(
+                gk -> isequal(gk[1], used) && isequal(gk[2], term.ne), group_keys,
+            )
+            if slot === nothing
+                push!(group_keys, (used, _copy_ne(term.ne)))
+                push!(group_bodies, body)
+            else
+                group_bodies[slot] += body
+            end
         end
-        iszero(r) || (result += r * avg)
-        iszero(i) || (result += i * Symbolics.IM * avg)
     end
-    return SymbolicUtils.unwrap(result)
+    for (gk, body) in zip(group_keys, group_bodies)
+        result += _indexed_sum(body, gk[1], gk[2])
+    end
+    return result
 end
 
 # Uniform-return wrappers (all return QAdd).
@@ -189,27 +266,13 @@ _to_qadd(x::QAdd) = x
 _to_qadd(x::QSym) = _single_qadd(_CNUM_ONE, QSym[x])
 _to_qadd(x::SymbolicUtils.BasicSymbolic) = _single_qadd(_to_cnum(x), QSym[])
 
-# Metadata is stored as `ImmutableDict{DataType, Any}`; the isa-narrow seals
-# each result to its concrete type without a return annotation.
-function _restore_sum_metadata_indices(x::SymbolicUtils.BasicSymbolic)
-    v = SymbolicUtils.getmetadata(x, SumIndices)
-    v isa Vector{Index} && return v
-    throw(ArgumentError("SumIndices metadata has unexpected type $(typeof(v))"))
-end
-function _restore_sum_metadata_ne(x::SymbolicUtils.BasicSymbolic)
-    SymbolicUtils.hasmetadata(x, SumNonEqual) || return _EMPTY_NE
-    v = SymbolicUtils.getmetadata(x, SumNonEqual)
-    v isa Vector{NonEqualPair} && return v
-    throw(ArgumentError("SumNonEqual metadata has unexpected type $(typeof(v))"))
-end
-
-function _restore_sum_metadata(result::QAdd, x::SymbolicUtils.BasicSymbolic)
-    SymbolicUtils.hasmetadata(x, SumIndices) || return result
-    indices = _restore_sum_metadata_indices(x)
-    stored_ne = _restore_sum_metadata_ne(x)
+# Wrap the operator-layer body of a `sym_sum` node back into a summed `QAdd`:
+# attach the summation `indices` and fold the node's `ne` into every term.
+function _rebuild_indexed_sum(inner::QAdd, indices::Vector{Index}, ne::Vector{NonEqualPair})
+    isempty(ne) && return QAdd(inner.arguments, indices)
     new_args = QTermDict()
-    for (term, c) in result.arguments
-        _addto!(new_args, term.ops, c, _merge_ne(term.ne, stored_ne))
+    for (term, c) in inner.arguments
+        _addto!(new_args, term.ops, c, _merge_ne(term.ne, ne))
     end
     return QAdd(new_args, indices)
 end
@@ -241,7 +304,10 @@ true
 """
 function undo_average(x::SymbolicUtils.BasicSymbolic)
     if SymbolicUtils.hasmetadata(x, AverageOperator)
-        return _restore_sum_metadata(_to_qadd(SymbolicUtils.getmetadata(x, AverageOperator)), x)
+        return _to_qadd(SymbolicUtils.getmetadata(x, AverageOperator))
+    end
+    if is_indexed_sum(x)
+        return _rebuild_indexed_sum(undo_average(_sum_body(x)), _sum_indices(x), _sum_ne(x))
     end
     SymbolicUtils.iscall(x) || return _to_qadd(x)
     f = SymbolicUtils.operation(x)
@@ -252,14 +318,13 @@ function undo_average(x::SymbolicUtils.BasicSymbolic)
         else
             arg
         end
-        return _restore_sum_metadata(_to_qadd(inner), x)
+        return _to_qadd(inner)
     end
     if f === (+) || f === (*)
         args = QAdd[undo_average(a) for a in SymbolicUtils.arguments(x)]
-        folded = f === (+) ?
+        return f === (+) ?
             _fold_qadds(+, args, _zero_qadd()) :
             _fold_qadds(*, args, _single_qadd(_CNUM_ONE, _EMPTY_OPS))
-        return _restore_sum_metadata(folded, x)
     end
     return _to_qadd(x)
 end
@@ -273,8 +338,9 @@ undo_average(eq::Symbolics.Equation) = undo_average(eq.lhs) => undo_average(eq.r
 """
     has_sum_metadata(x) -> Bool
 
-Whether `x` is a `BasicSymbolic` node carrying summation index metadata set by
-[`average`](@ref) on indexed expressions.
+Whether `x` is a moment-layer indexed-sum node (see [`is_indexed_sum`](@ref))
+created by [`average`](@ref) on a summed expression. Retained as the public
+predicate name; equivalent to `is_indexed_sum(x)`.
 
 ```jldoctest
 julia> h = FockSpace(:site);
@@ -292,13 +358,13 @@ true
 See also [`get_sum_indices`](@ref), [`get_sum_non_equal`](@ref).
 """
 has_sum_metadata(::Any) = false
-has_sum_metadata(x::SymbolicUtils.BasicSymbolic) = SymbolicUtils.hasmetadata(x, SumIndices)
+has_sum_metadata(x::SymbolicUtils.BasicSymbolic) = is_indexed_sum(x)
 has_sum_metadata(x::Num) = has_sum_metadata(SymbolicUtils.unwrap(x))
 
 """
     get_sum_indices(x::BasicSymbolic) -> Vector{Index}
 
-Summation indices stored as metadata on `x`. Only valid when
+Summation indices carried by the indexed-sum node `x`. Only valid when
 [`has_sum_metadata(x)`](@ref has_sum_metadata) is `true`.
 
 ```jldoctest
@@ -316,14 +382,14 @@ true
 
 See also [`get_sum_non_equal`](@ref), [`has_sum_metadata`](@ref).
 """
-get_sum_indices(x::SymbolicUtils.BasicSymbolic) = _restore_sum_metadata_indices(x)
+get_sum_indices(x::SymbolicUtils.BasicSymbolic) = _sum_indices(x)
 get_sum_indices(x::Num) = get_sum_indices(SymbolicUtils.unwrap(x))
 
 """
     get_sum_non_equal(x::BasicSymbolic) -> Vector{Tuple{Index, Index}}
 
-Pairwise index-inequality constraints stored on an averaged term. An empty
-vector means no constraints. Only valid when
+Pairwise index-inequality constraints carried by the indexed-sum node `x`. An
+empty vector means no constraints. Only valid when
 [`has_sum_metadata(x)`](@ref has_sum_metadata) is `true`.
 
 ```jldoctest
@@ -341,7 +407,7 @@ true
 
 See also [`get_sum_indices`](@ref), [`has_sum_metadata`](@ref).
 """
-get_sum_non_equal(x::SymbolicUtils.BasicSymbolic) = _restore_sum_metadata_ne(x)
+get_sum_non_equal(x::SymbolicUtils.BasicSymbolic) = _sum_ne(x)
 get_sum_non_equal(x::Num) = get_sum_non_equal(SymbolicUtils.unwrap(x))
 
 # Seals: recursive calls go through `Any`-typed inputs; isa-narrow restores
@@ -353,6 +419,7 @@ function get_indices(x::SymbolicUtils.BasicSymbolic)
     SymbolicUtils.isconst(x) && return _idx_seal(get_indices(x.val))
     SymbolicUtils.hasmetadata(x, AverageOperator) &&
         return _idx_seal(get_indices(SymbolicUtils.getmetadata(x, AverageOperator)))
+    is_indexed_sum(x) && return _idx_seal(get_indices(_sum_body(x)))
     SymbolicUtils.iscall(x) || return Index[]
     f = SymbolicUtils.operation(x)
     if f isa AvgFunc
@@ -407,6 +474,7 @@ function acts_on(s::SymbolicUtils.BasicSymbolic)
     SymbolicUtils.isconst(s) && return _aon_seal(acts_on(s.val))
     SymbolicUtils.hasmetadata(s, AverageOperator) &&
         return _aon_seal(acts_on(SymbolicUtils.getmetadata(s, AverageOperator)))
+    is_indexed_sum(s) && return _aon_seal(acts_on(_sum_body(s)))
     SymbolicUtils.iscall(s) || return Int[]
     f = SymbolicUtils.operation(s)
     f isa AvgFunc && return _aon_seal(acts_on(SymbolicUtils.arguments(s)[1]))

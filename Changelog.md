@@ -5,6 +5,16 @@ All notable changes to [`SecondQuantizedAlgebra.jl`](https://github.com/qojulia/
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v0.7.0]
+
+### Fixed
+
+- Averaging an indexed sum whose coefficient depends on the summation index no longer drops the scope or lets the index dangle outside the `Σ`. `average` previously stamped `SumIndices`/`SumNonEqual` metadata on the average leaf and emitted `coeff * leaf`; SymbolicUtils discards metadata on composite/numerically-scaled nodes, so `average(Σ(u(kk,k), k))` collapsed to a bare `u(kk,k)` and an index-dependent coefficient was hoisted outside the sum. Index-dependent terms are now wrapped in a dedicated moment-layer node (`SumFunc`/`sym_sum`) carrying the summation scope as a `SumScope` argument, so the whole averaged body stays inside the sum and the representation survives `Add`/`Mul` canonicalization. Because the scope rides as an argument (not metadata, which `isequal`/`hash` ignore), differently-scoped sums over the same body no longer wrongly cancel in a subtraction. New `is_indexed_sum` predicate; `has_sum_metadata`/`get_sum_indices`/`get_sum_non_equal` retained and now read the node ([#175](https://github.com/qojulia/SecondQuantizedAlgebra.jl/issues/175)).
+
+### Changed
+
+- `make_time_dependent` on an averaged indexed sum now yields `Σ(i) ⟨a_i⟩(t)` (per-site time-dependent moments under the sum) instead of `⟨Σ_i a_i⟩(t)` (one collective lumped variable), matching the non-lifted display `Σ(i) ⟨a_i⟩` and giving indexable per-site unknowns for indexed equations.
+
 ## [v0.6.5]
 
 ### Added
@@ -174,4 +184,5 @@ These names keep their meaning across the migration. Code that only uses them sh
 [v0.6.3]: https://github.com/qojulia/SecondQuantizedAlgebra.jl/releases/tag/v0.6.3
 [v0.6.4]: https://github.com/qojulia/SecondQuantizedAlgebra.jl/releases/tag/v0.6.4
 [v0.6.5]: https://github.com/qojulia/SecondQuantizedAlgebra.jl/releases/tag/v0.6.5
+[v0.7.0]: https://github.com/qojulia/SecondQuantizedAlgebra.jl/releases/tag/v0.7.0
 [#156]: https://github.com/qojulia/SecondQuantizedAlgebra.jl/issues/156

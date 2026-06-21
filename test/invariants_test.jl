@@ -35,10 +35,9 @@ function check_qadd_invariants(q::QAdd)
 end
 
 """
-Walk an averaged symbolic expression and collect every AvgFunc node. For
-each, if it carries `SumIndices` metadata then the underlying QField must
-actually depend on at least one of those indices. Blanket metadata (Bug B)
-violates this.
+Walk an averaged symbolic expression and collect every indexed-sum node. For
+each, the underlying QAdd body must actually depend on at least one of the
+summation indices the node advertises. Blanket scope (Bug B) violates this.
 """
 function check_average_metadata(avg)
     failures = String[]
@@ -48,21 +47,14 @@ end
 
 function _walk_avg!(failures, x)
     x isa SymbolicUtils.BasicSymbolic || return
-    if is_average(x)
-        if has_sum_metadata(x)
-            sum_idxs = get_sum_indices(x)
-            inner = undo_average(x)
-            inner isa QAdd || return
-            any_dep = false
-            for idx in sum_idxs
-                if _any_depends_on_index(inner, idx)
-                    any_dep = true
-                    break
-                end
-            end
+    if has_sum_metadata(x)
+        sum_idxs = get_sum_indices(x)
+        inner = undo_average(x)
+        if inner isa QAdd
+            any_dep = any(idx -> _any_depends_on_index(inner, idx), sum_idxs)
             any_dep || push!(
                 failures,
-                "average term $(inner) carries SumIndices=$(sum_idxs) but " *
+                "indexed-sum node $(inner) carries indices=$(sum_idxs) but " *
                     "does not depend on any of them"
             )
         end

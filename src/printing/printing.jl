@@ -232,15 +232,15 @@ function _show_sum_group(io::IO, terms::Vector{QAdd}, indices::Vector{Index}, ne
     return nothing
 end
 
-function SymbolicUtils.show_metadata(
-        io::IO, x::SymbolicUtils.BasicSymbolic, ::Type{SumIndices}, val::Vector{Index},
-    )
-    isempty(val) && return false
-    SymbolicUtils.hasmetadata(x, AverageOperator) && return false
-    _show_sum_prefix(io, val, _restore_sum_metadata_ne(x))
+function SymbolicUtils.show_call(io::IO, ::SumFunc, x::SymbolicUtils.BasicSymbolic; kw...)
+    _show_sum_prefix(io, _sum_indices(x), _sum_ne(x))
     write(io, " ")
-    SymbolicUtils.show_plain(io, x)
-    return true
+    body = _sum_body(x)
+    paren = SymbolicUtils.iscall(body) && SymbolicUtils.operation(body) === (+)
+    paren && write(io, "(")
+    print(io, body)
+    paren && write(io, ")")
+    return nothing
 end
 
 function SymbolicUtils.show_metadata(
