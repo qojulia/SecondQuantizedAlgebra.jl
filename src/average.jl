@@ -68,9 +68,6 @@ Base.show(io::IO, ::SumFunc) = print(io, "sum")
 _indexed_sum(body, indices::Vector{Index}, ne::Vector{NonEqualPair}) =
     SymbolicUtils.Term{SymbolicUtils.SymReal}(sym_sum, Any[body, SumScope(indices, ne)]; type = Number)
 
-# Locators for the node's two arguments. The scope rides as a const-wrapped
-# `SumScope` (SymbolicUtils wraps a scalar argument); `_scope_of` recovers it
-# whether it arrives wrapped or bare.
 _scope_of(s::SumScope) = s
 _scope_of(s::SymbolicUtils.BasicSymbolic) = s.val::SumScope
 _sum_body(x::SymbolicUtils.BasicSymbolic) = SymbolicUtils.arguments(x)[1]
@@ -209,18 +206,6 @@ function average(op::QAdd)
     # piece as a literal `complex(re, im)` symbolic call, which is opaque to
     # `simplify` / `expand`. We bring in `im` via `Symbolics.IM`
     # (the BasicSymbolic{SymReal} sym for `im`) so the chain stays symbolic.
-    #
-    # Index-dependent terms are wrapped in a `sym_sum` node so the whole averaged
-    # body (numeric prefactor and multi-factor c-number coefficient included)
-    # lives INSIDE the sum scope. Terms are grouped by their `(used indices, ne)`
-    # so one node carries a multi-term body, mirroring display grouping
-    # (`_group_dep_terms`) and the `QAdd` round-trip.
-    #
-    # Each per-term contribution is unwrapped to `BasicSymbolic{SymReal}` (the
-    # single concrete Moshi type) at the boundary, so `result` and the grouped
-    # bodies stay concretely typed: every contribution flavour (numeric, real- or
-    # number-symtype coefficient, constant) reduces to `SymReal` because `avg`,
-    # `Symbolics.IM`, and the `CNum` real/imag parts are all real-symtype.
     BS = SymbolicUtils.BasicSymbolic{SymbolicUtils.SymReal}
     result::BS = SymbolicUtils.unwrap(Num(0))
     shared = isempty(op.indices) ? Index[] : op.indices
@@ -266,8 +251,6 @@ _to_qadd(x::QAdd) = x
 _to_qadd(x::QSym) = _single_qadd(_CNUM_ONE, QSym[x])
 _to_qadd(x::SymbolicUtils.BasicSymbolic) = _single_qadd(_to_cnum(x), QSym[])
 
-# Wrap the operator-layer body of a `sym_sum` node back into a summed `QAdd`:
-# attach the summation `indices` and fold the node's `ne` into every term.
 function _rebuild_indexed_sum(inner::QAdd, indices::Vector{Index}, ne::Vector{NonEqualPair})
     isempty(ne) && return QAdd(inner.arguments, indices)
     new_args = QTermDict()

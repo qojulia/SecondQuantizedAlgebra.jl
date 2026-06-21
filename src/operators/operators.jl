@@ -236,8 +236,6 @@ function inner_adjoint(v::SymbolicUtils.BasicSymbolic)
         return _lift_average(_average(adjoint(op)), iv)
     end
     if is_indexed_sum(v)
-        # Indexed-sum node: the adjoint distributes into the summed body; the
-        # summation scope is unchanged. Rebuild the node around the adjointed body.
         return _indexed_sum(inner_adjoint(_sum_body(v)), _sum_indices(v), _sum_ne(v))
     end
     if SymbolicUtils.iscall(v)
