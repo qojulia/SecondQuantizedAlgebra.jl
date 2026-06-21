@@ -3,7 +3,7 @@ using SecondQuantizedAlgebra
 using Symbolics: @variables
 import SecondQuantizedAlgebra: simplify, QAdd, QSym, CNum, Transition, NO_INDEX,
     _partial_sort!, _site_compare, _can_commute, _commute_pair,
-    _reduce_pair, _ground_state_expand,
+    _reduce_pair, _may_reduce, _ground_state_expand,
     SiteCmp, Less, Greater, Equal, Undetermined,
     ReduceKind, NoReduction, ScalarReduction, OpReduction,
     _CNUM_ONE, _CNUM_ZERO, _CNUM_NEG1, _CNUM_IM, _CNUM_NEG_IM, _EMPTY_NE,
@@ -358,6 +358,13 @@ end
         sx = Spin(hs, :S, 1)
         sy = Spin(hs, :S, 2)
         @test @inferred(_commute_pair(sy, sx)) isa Tuple{QSym, QSym, CNum, Vector{QSym}}
+
+        # _may_reduce: true iff the same-type pair's _reduce_pair can fire
+        @test @inferred(_may_reduce(σ12, σ21)) === true
+        @test @inferred(_may_reduce(px, py)) === true
+        @test _may_reduce(a, ad) === false
+        @test _may_reduce(sx, sy) === false
+        @test _may_reduce(a, σ12) === false
     end
 
     @testset "Canonical form (NLevelSpace ground-state projection)" begin

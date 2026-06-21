@@ -283,6 +283,9 @@ _commute_pair(a::QSym, b::QSym) = (b, a, _CNUM_ZERO, _EMPTY_OPS)
 _reduce_pair(a::QSym, ::QSym) = (NoReduction, a, _CNUM_ZERO)
 _ground_state_expand(::QSym) = (false, 0, 0, 0)
 
+# Reduce-pass gate; reducing types override it alongside `_reduce_pair`. See devdocs.
+_may_reduce(::QSym, ::QSym) = false
+
 function _site_compare(a::QSym, b::QSym, ne::Vector{NonEqualPair})
     ta = typeof(a); tb = typeof(b)
     ta === tb && error("unreachable: same-type _site_compare must be overridden by $ta")
