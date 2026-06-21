@@ -5,6 +5,12 @@ All notable changes to [`SecondQuantizedAlgebra.jl`](https://github.com/qojulia/
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v0.7.1]
+
+### changed
+
+- The per-term operator machinery is faster on product and power workloads, lowering the floor that remained after the `Coeff` rework. `QTerm` now caches its hash in a field computed once at construction, so the repeated dict probes, inserts, and growth-rehashes that key every canonicalization no longer re-walk the operator vector (whose abstract `QSym` eltype forces a dynamic dispatch per element); `isequal` also short-circuits on the cached hash before comparing operators. The reduce pass gained a type-domain `_may_reduce` gate consulted before `_reduce_pair`: only same-type `Transition` and `Pauli` pairs can compose, so every Fock, Spin, and `PhaseSpace` pair (the bulk of bosonic products) now skips the dynamically dispatched `_reduce_pair` call whose `(kind, op, factor)` tuple would otherwise box on each adjacent pair. Measured speedups over the post-`Coeff` baseline: Fock `(a·a†)^10` about 1.74×, many-mode `H^2` (M=8) about 1.81×, single-mode `H^4` about 1.54×, with roughly half the allocations ([#141](https://github.com/qojulia/SecondQuantizedAlgebra.jl/issues/141), [#164](https://github.com/qojulia/SecondQuantizedAlgebra.jl/issues/164)).
+
 ## [v0.7.0]
 
 ### Fixed
@@ -15,6 +21,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - `make_time_dependent` on an averaged indexed sum now yields `Σ(i) ⟨a_i⟩(t)` (per-site time-dependent moments under the sum) instead of `⟨Σ_i a_i⟩(t)` (one collective lumped variable), matching the non-lifted display `Σ(i) ⟨a_i⟩` and giving indexable per-site unknowns for indexed equations.
 - Operator prefactors are stored as a concrete `Coeff` with three forms (a native `ComplexF64` fast path, a sparse parameter polynomial for products and sums of named parameters, and a `Complex{Num}` fallback) instead of always `Complex{Num}`. Numeric and parameter-polynomial coefficient arithmetic stays native and never routes through SymbolicUtils hashconsing; a coefficient lowers to `Complex{Num}` only at the symbolic boundaries (`substitute`/`average`/printing/`prefactor`). The polynomial arithmetic is fully type-stable, with factor identity via `objectid`/`===` (which assumes SymbolicUtils hashconsing is enabled, the default). Polynomial coefficients are kept in canonical expanded form, so `(g+h)^2` is stored as `g^2 + 2*g*h + h^2`. Measured speedups over `Complex{Num}`: numeric power expansion about 2.1×, single-mode `H^4` about 2.65×, many-mode `H^2` about 3.5×, nested commutator about 2.4× ([#164](https://github.com/qojulia/SecondQuantizedAlgebra.jl/issues/164), [#183](https://github.com/qojulia/SecondQuantizedAlgebra.jl/pull/183)).
+
 
 ## [v0.6.5]
 
@@ -186,4 +193,5 @@ These names keep their meaning across the migration. Code that only uses them sh
 [v0.6.4]: https://github.com/qojulia/SecondQuantizedAlgebra.jl/releases/tag/v0.6.4
 [v0.6.5]: https://github.com/qojulia/SecondQuantizedAlgebra.jl/releases/tag/v0.6.5
 [v0.7.0]: https://github.com/qojulia/SecondQuantizedAlgebra.jl/releases/tag/v0.7.0
+[v0.7.1]: https://github.com/qojulia/SecondQuantizedAlgebra.jl/releases/tag/v0.7.1
 [#156]: https://github.com/qojulia/SecondQuantizedAlgebra.jl/issues/156

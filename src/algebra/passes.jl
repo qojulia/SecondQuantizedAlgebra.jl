@@ -55,6 +55,10 @@ same-site pair `(a, b)` for which `_reduce_pair(a, b)` returns non-`nothing`.
     i = 1
     while i < length(ops)
         a, b = ops[i], ops[i + 1]
+        if !_may_reduce(a, b)  # skip the boxing _reduce_pair call; only Transition/Pauli reduce
+            i += 1
+            continue
+        end
         kind, new_op, factor = _reduce_pair(a, b)
         if kind === NoReduction
             i += 1

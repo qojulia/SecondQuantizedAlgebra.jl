@@ -154,6 +154,8 @@ end
 # Transitions on the same site never commute freely (composition fires).
 _can_commute(a::Transition, b::Transition) = false
 
+_may_reduce(::Transition, ::Transition) = true
+
 # Composition: σⁱʲ · σᵏˡ = δⱼₖ σⁱˡ.
 function _reduce_pair(a::Transition, b::Transition)
     a.name == b.name || return (NoReduction, a, _CNUM_ZERO)

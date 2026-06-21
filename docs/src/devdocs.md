@@ -48,7 +48,9 @@ end
 | `_reduce_pair(a, b)` | `Nothing`, `CNum`, or `(QSym, CNum)` | local algebraic identity (Transition composition, Pauli product, …) |
 | `_ground_state_expand(op)` | `Nothing` or `(g, n_levels, site)` | only `Transition` overrides non-trivially |
 
-Cross-type fallbacks in `operators/operators.jl` cover pairs of different concrete types — those always live on distinct sites, always commute, and never reduce — so the fallbacks return the trivial answers and `_commute_pair` errors on a cross-type call by construction. This is what keeps adding a new `QSym` subtype to a self-contained job: define the struct, fill in the five hooks, optionally add `adjoint` and `to_numeric` methods.
+A sixth, defaulted hook supports the reduce pass: `_may_reduce(a, b)::Bool` answers whether `_reduce_pair(a, b)` could return anything other than `NoReduction`. The default is `false`; only the same-type pairs that genuinely compose (`Transition×Transition`, `Pauli×Pauli`) override it to `true`. The reduce pass consults this isbits-`Bool` gate before the `_reduce_pair` call. The reason is type stability: `_reduce_pair` returns a `(kind, op, factor)` tuple holding a non-isbits `QSym`, so a dynamic dispatch on an abstract `QSym` pair boxes that tuple on every adjacent pair, whereas the `_may_reduce` `Bool` comes back unboxed. Fock/Spin/PhaseSpace products (which never reduce) therefore skip the boxing entirely. A new reducing operator type overrides both `_reduce_pair` and `_may_reduce`; a new non-reducing type needs neither.
+
+Cross-type fallbacks in `operators/operators.jl` cover pairs of different concrete types (always distinct sites, always commuting, never reducing), so the fallbacks return the trivial answers and `_commute_pair` errors on a cross-type call by construction. This is what keeps adding a new `QSym` subtype to a self-contained job: define the struct, fill in the five hooks, optionally add `adjoint` and `to_numeric` methods.
 
 
 ## Hilbert spaces
@@ -105,6 +107,7 @@ const NonEqualPair = Tuple{Index, Index}
 struct QTerm
     ops::Vector{QSym}
     ne::Vector{NonEqualPair}
+    hash::UInt          # cached hash(ops, ne), computed once at construction
 end
 
 const QTermDict = Dict{QTerm, CNum}
@@ -114,6 +117,8 @@ struct QAdd <: QField
     indices::Vector{Index}
 end
 ```
+
+**Why `QTerm` caches its hash.** `QTerm` is a dict key, and every `_addto_key!` both probes (`get`) and writes (`setindex!`/`delete!`) the same key, so the key is hashed at least twice per insertion, plus once more for each entry whenever the dict grows and rehashes. Hashing recurses over the whole `ops` vector, and because `ops` has the abstract eltype `QSym`, each per-operator `hash` is a dynamic dispatch (its `UInt` result is boxed). Caching `hash(ops, ne)` once in the inner constructor turns every later hash of that key into a single `hash(::UInt, h)` and makes dict-growth rehashing free. The cache is sound because `QTerm` is immutable and `ne` is already canonicalized before construction, so structurally equal keys always carry the same cached value; `isequal` short-circuits on the cached hash before comparing `ops`. A trusted three-argument constructor lets `_copy_key` carry the known hash across a verbatim copy without recomputing it.
 
 **What a dict entry represents.** A single entry `QTerm(ops, ne) => c` in `arguments` represents the term `c · ops[1] · ops[2] · …` valid for any index assignment satisfying the pairwise constraints in `ne` (each `(α, β) ∈ ne` means `α ≠ β`). The `indices` field on `QAdd` carries the outer summation scope: a `QAdd` with `indices = [i, j]` represents ``\sum_i \sum_j \sum_\text{terms} c \cdot \text{ops}`` where each individual term may further constrain `(i, j)` per its own `ne`. This per-term scoping is what lets a single `QAdd` represent expressions like ``\sum_i a_i a_i + \sum_{i \neq j} a_i a_j`` as two dict entries with different `ne` rather than two separate `QAdd` summations.
 

@@ -94,6 +94,8 @@ end
 
 _can_commute(a::Pauli, b::Pauli) = false   # always compose on same site
 
+_may_reduce(::Pauli, ::Pauli) = true
+
 # σⱼ·σₖ = δⱼₖI + iϵⱼₖₗσₗ
 function _reduce_pair(a::Pauli, b::Pauli)
     a.name == b.name || return (NoReduction, a, _CNUM_ZERO)

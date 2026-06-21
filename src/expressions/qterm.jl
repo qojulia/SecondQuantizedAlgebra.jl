@@ -14,11 +14,17 @@ pairwise index inequality constraints that scope that product.
 struct QTerm
     ops::Vector{QSym}
     ne::Vector{NonEqualPair}
+    hash::UInt
+    QTerm(ops::Vector{QSym}, ne::Vector{NonEqualPair}) = new(ops, ne, _qterm_hash(ops, ne))
+    QTerm(ops::Vector{QSym}, ne::Vector{NonEqualPair}, h::UInt) = new(ops, ne, h)  # trusted: h == _qterm_hash(ops, ne)
 end
 
-Base.isequal(a::QTerm, b::QTerm) = isequal(a.ops, b.ops) && isequal(a.ne, b.ne)
+@inline _qterm_hash(ops::Vector{QSym}, ne::Vector{NonEqualPair}) =
+    hash(:QTerm, hash(ops, hash(ne, zero(UInt))))
+
+Base.isequal(a::QTerm, b::QTerm) = a.hash == b.hash && isequal(a.ops, b.ops) && isequal(a.ne, b.ne)
 Base.:(==)(a::QTerm, b::QTerm) = isequal(a, b)
-Base.hash(term::QTerm, h::UInt) = hash(:QTerm, hash(term.ops, hash(term.ne, h)))
+Base.hash(term::QTerm, h::UInt) = hash(term.hash, h)
 
 """
     QTermDict
@@ -133,7 +139,7 @@ function _drop_ne_with(ne::Vector{NonEqualPair}, idx::Index)
 end
 
 function _copy_key(term::QTerm)
-    return QTerm(copy(term.ops), _copy_ne(term.ne))
+    return QTerm(copy(term.ops), _copy_ne(term.ne), term.hash)
 end
 
 """
