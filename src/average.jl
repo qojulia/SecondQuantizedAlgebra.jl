@@ -19,6 +19,7 @@ const sym_average = AvgFunc()
 
 Base.nameof(::AvgFunc) = :avg
 Base.show(io::IO, ::AvgFunc) = print(io, "avg")
+SymbolicUtils.promote_symtype(::AvgFunc, Ts...) = Number
 
 function SymbolicUtils.show_call(io::IO, ::AvgFunc, x::SymbolicUtils.BasicSymbolic; kw...)
     print(io, "⟨")
@@ -64,6 +65,7 @@ const sym_sum = SumFunc()
 
 Base.nameof(::SumFunc) = :sum
 Base.show(io::IO, ::SumFunc) = print(io, "sum")
+SymbolicUtils.promote_symtype(::SumFunc, Ts...) = Number
 
 _indexed_sum(body, indices::Vector{Index}, ne::Vector{NonEqualPair}) =
     SymbolicUtils.Term{SymbolicUtils.SymReal}(sym_sum, Any[body, SumScope(indices, ne)]; type = Number)
