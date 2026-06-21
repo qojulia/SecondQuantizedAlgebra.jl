@@ -169,6 +169,10 @@ make_time_dependent
 is_average
 ```
 
+```@docs
+is_indexed_sum
+```
+
 
 ## [Utility Functions](@id API: Utils)
 
