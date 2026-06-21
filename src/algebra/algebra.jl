@@ -137,7 +137,7 @@ function normal_order(q::QAdd)
 end
 
 function _simplify_prefactor(x::CNum)
-    _is_native(x) && return x
+    (_is_native(x) || _is_poly(x)) && return x   # already simplest product form
     (_numeric_value(real(x)) !== nothing && _numeric_value(imag(x)) !== nothing) &&
         return _cnum(real(x), imag(x))
     re = Num(SymbolicUtils.simplify(SymbolicUtils.unwrap(Symbolics.expand(real(x)))))
@@ -237,7 +237,7 @@ function Symbolics.expand(s::QAdd; kwargs...)
 end
 Symbolics.expand(op::QSym; kwargs...) = _single_qadd(_CNUM_ONE, QSym[op])
 
-_expand_prefactor(x::CNum; kwargs...) = (_is_native(x) || _iszero_cnum(x)) ? x : _cnum(Symbolics.expand(real(x)), Symbolics.expand(imag(x)))
+_expand_prefactor(x::CNum; kwargs...) = (_is_native(x) || _is_poly(x) || _iszero_cnum(x)) ? x : _cnum(Symbolics.expand(real(x)), Symbolics.expand(imag(x)))
 
 """
     expand_completeness(q) -> QAdd

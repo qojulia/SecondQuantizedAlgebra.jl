@@ -138,7 +138,20 @@ end
             end
         end
 
-        allowed_hotpath_reports = [
+        # Coefficient recognition / materialization boundary. Constructing an
+        # operator builds its `Coeff`, and the recognizer (`_rec`) plus the numeric
+        # fold read a heterogeneous Symbolics expression (`arguments` is `Vector{Any}`,
+        # `BasicSymbolic.val` is `::Any`). That read is intrinsically dynamic, exactly
+        # like the `Vector{QSym}` operator dispatch below, and is confined to this
+        # one-time boundary: the polynomial arithmetic itself is fully type-stable
+        # (verified separately by `@report_opt` on the `Poly` operations).
+        allowed_coeff_reports = [
+            "SecondQuantizedAlgebra._rec(",
+            "SecondQuantizedAlgebra.ComplexF64(",
+            "convert(SecondQuantizedAlgebra.Coeff",
+            ".val::Any",
+        ]
+        allowed_hotpath_reports = vcat(allowed_coeff_reports, [
             "_site_compare",
             "_can_commute",
             "SecondQuantizedAlgebra.:!",
@@ -154,7 +167,7 @@ end
             "SecondQuantizedAlgebra.:+",
             "SecondQuantizedAlgebra.:^",
             "SecondQuantizedAlgebra._average(",
-        ]
+        ])
         allowed_numeric_reports = vcat(
             allowed_hotpath_reports,
             [

@@ -99,16 +99,16 @@ import SecondQuantizedAlgebra: simplify, QAdd, QSym, QField, sorted_arguments, _
         @test result isa QAdd
         @test length(result) == 4
 
-        # Prefactor-level distribution: NOT automatic from the dict.
-        # Operator distribution happens via dict-key collection, but a
-        # symbolic Num prefactor like (g+h)^2 stays unexpanded until
-        # `expand` walks it through `Symbolics.expand`.
+        # Prefactor-level distribution: polynomial coefficients are stored in
+        # canonical expanded form, so a symbolic prefactor like (g+h)^2 is
+        # already g^2 + 2gh + h^2 at construction (the package-wide 'always
+        # expand' invariant), and `Symbolics.expand` on it is a no-op.
         @variables g h
-        unexpanded = ((g + h)^2) * a
-        @test length(unexpanded) == 1
-        @test !isequal(unexpanded, (g^2 + 2 * g * h + h^2) * a)
+        coeff_expr = ((g + h)^2) * a
+        @test length(coeff_expr) == 1
+        @test isequal(coeff_expr, (g^2 + 2 * g * h + h^2) * a)
 
-        expanded = Symbolics.expand(unexpanded)
+        expanded = Symbolics.expand(coeff_expr)
         @test length(expanded) == 1
         @test isequal(expanded, (g^2 + 2 * g * h + h^2) * a)
     end
