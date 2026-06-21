@@ -59,19 +59,19 @@ Base.:(==)(a::NLevelSpace, b::NLevelSpace) = a.name == b.name && a.n == b.n && a
 Base.hash(a::NLevelSpace, h::UInt) = hash(:NLevelSpace, hash(a.name, hash(a.n, hash(a.ground_state, hash(a.levels, h)))))
 
 """
-    Transition <: QSym
+    Transition(h::NLevelSpace, name::Symbol, i, j) -> Op
 
 Transition operator ``|i\\rangle\\langle j|`` on an [`NLevelSpace`](@ref).
 Satisfies the composition rule
 ``|i\\rangle\\langle j| \\cdot |k\\rangle\\langle l| = \\delta_{jk} |i\\rangle\\langle l|``,
-with adjoint ``|i\\rangle\\langle j|^\\dagger = |j\\rangle\\langle i|``.
+with adjoint ``|i\\rangle\\langle j|^\\dagger = |j\\rangle\\langle i|``. Returns an
+[`Op`](@ref) tagged `OP_TRANSITION`, packing `i`, `j`, the ground state, and the
+number of levels into `l1`, `l2`, `g`, `nlev`.
 
-Each `Transition` carries the ground-state level and number of levels of its
-host [`NLevelSpace`](@ref) so the eager arithmetic can keep
-``\\sigma^{gg}`` atomic in canonical form (use
-[`expand_completeness`](@ref) to materialise the identity
-``|g\\rangle\\langle g| = 1 - \\sum_{k \\neq g}|k\\rangle\\langle k|`` when
-needed).
+The carried ground-state level and level count let the eager arithmetic keep
+``\\sigma^{gg}`` atomic in canonical form (use [`expand_completeness`](@ref) to
+materialise ``|g\\rangle\\langle g| = 1 - \\sum_{k \\neq g}|k\\rangle\\langle k|``
+when needed).
 
 # Examples
 
@@ -89,15 +89,8 @@ julia> σ' * σ
 
 See also [`NLevelSpace`](@ref), [`expand_completeness`](@ref), [`@qnumbers`](@ref).
 """
-struct Transition <: QSym
-    name::Symbol
-    i::Int
-    j::Int
-    space_index::Int
-    index::Index
-    ground_state::Int
-    n_levels::Int
-end
+Transition(name::Symbol, i::Integer, j::Integer, si::Integer, idx::Index, ground_state::Integer, n_levels::Integer) =
+    Op(OP_TRANSITION, name, si, idx, i, j, ground_state, n_levels)
 
 function Transition(h::NLevelSpace, name::Symbol, i::Int, j::Int)
     1 <= i <= h.n || throw(ArgumentError("Level i=$i out of range 1:$(h.n)"))
@@ -127,52 +120,3 @@ Transition(h::ProductSpace, name::Symbol, i::Int, j::Int) =
     Transition(h, name, i, j, _unique_subspace_index(h, NLevelSpace))
 Transition(h::ProductSpace, name::Symbol, i::Symbol, j::Symbol) =
     Transition(h, name, i, j, _unique_subspace_index(h, NLevelSpace))
-
-IndexedOperator(op::Transition, i::Index) = Transition(op.name, op.i, op.j, op.space_index, i, op.ground_state, op.n_levels)
-
-Base.adjoint(op::Transition) = Transition(op.name, op.j, op.i, op.space_index, op.index, op.ground_state, op.n_levels)
-
-Base.isequal(a::Transition, b::Transition) = a.name == b.name && a.i == b.i && a.j == b.j && a.space_index == b.space_index && a.index == b.index && a.ground_state == b.ground_state && a.n_levels == b.n_levels
-Base.:(==)(a::Transition, b::Transition) = isequal(a, b)
-
-Base.hash(a::Transition, h::UInt) = hash(:Transition, hash(a.name, hash(a.i, hash(a.j, hash(a.space_index, hash(a.index, hash(a.ground_state, hash(a.n_levels, h))))))))
-
-order_key(o::Transition) = (_type_order(Transition), o.space_index, o.name, _index_key(o.index), o.i, o.j, o.ground_state, o.n_levels)
-
-ladder(::Transition) = 0
-
-# --- Operator hooks ---
-
-function _site_compare(a::Transition, b::Transition, ne::Vector{NonEqualPair})
-    a.space_index == b.space_index || return a.space_index < b.space_index ? Less : Greater
-    a.name == b.name || return a.name < b.name ? Less : Greater
-    a.index == b.index && return Equal
-    _ne_contains(ne, a.index, b.index) && return a.index < b.index ? Less : Greater
-    return Undetermined
-end
-
-# Transitions on the same site never commute freely (composition fires).
-_can_commute(a::Transition, b::Transition) = false
-
-_may_reduce(::Transition, ::Transition) = true
-
-# Composition: σⁱʲ · σᵏˡ = δⱼₖ σⁱˡ.
-function _reduce_pair(a::Transition, b::Transition)
-    a.name == b.name || return (NoReduction, a, _CNUM_ZERO)
-    a.space_index == b.space_index || return (NoReduction, a, _CNUM_ZERO)
-    a.index == b.index || return (NoReduction, a, _CNUM_ZERO)
-    if a.j == b.i
-        new = Transition(a.name, a.i, b.j, a.space_index, a.index, a.ground_state, a.n_levels)
-        return (OpReduction, new, _CNUM_ONE)
-    else
-        return (ScalarReduction, a, _CNUM_ZERO)    # δ_{j,k} = 0
-    end
-end
-
-_commute_pair(a::Transition, b::Transition) = (b, a, _CNUM_ZERO, _EMPTY_OPS)
-
-# Ground-state expansion: σᵍᵍ -> 1 - Σ_{k≠g} σᵏᵏ.
-function _ground_state_expand(op::Transition)
-    op.i == op.ground_state && op.j == op.ground_state || return (false, 0, 0, 0)
-    return (true, op.ground_state, op.n_levels, op.space_index)
-end

@@ -1,5 +1,5 @@
 """
-    _stream!(out::QTermDict, ops::Vector{QSym}, c::CNum, ne::Vector{NonEqualPair})
+    _stream!(out::QTermDict, ops::Vector{Op}, c::CNum, ne::Vector{NonEqualPair})
 
 The default canonicalization pipeline. Order: `reduce -> commute -> reduce -> sink`.
 
@@ -9,7 +9,7 @@ The trailing reduce catches any same-site composition surfaced by the commute
 residual (e.g. a Spin commutator's contracted op meeting a same-site neighbor).
 """
 @inline function _stream!(
-        out::QTermDict, ops::Vector{QSym}, c::CNum, ne::Vector{NonEqualPair},
+        out::QTermDict, ops::Vector{Op}, c::CNum, ne::Vector{NonEqualPair},
     )
     _reduce_ops(ops, c) do ops1, c1
         _commute_ops(ops1, c1) do ops2, c2
@@ -22,12 +22,12 @@ residual (e.g. a Spin commutator's contracted op meeting a same-site neighbor).
 end
 
 """
-    _canonicalize!(out::QTermDict, ops::Vector{QSym}, c::CNum, ne::Vector{NonEqualPair})
+    _canonicalize!(out::QTermDict, ops::Vector{Op}, c::CNum, ne::Vector{NonEqualPair})
 
 Re-establish canonical form: sort, then run the pipeline.
 """
 @inline function _canonicalize!(
-        out::QTermDict, ops::Vector{QSym}, c::CNum, ne::Vector{NonEqualPair},
+        out::QTermDict, ops::Vector{Op}, c::CNum, ne::Vector{NonEqualPair},
     )
     _partial_sort!(ops, ne)
     _stream!(out, ops, c, ne)
@@ -43,12 +43,12 @@ indices may collapse).
 """
 @inline function _emit_product!(
         out::QTermDict,
-        ta_ops::Vector{QSym}, ca::CNum, ta_ne::Vector{NonEqualPair},
-        tb_ops::Vector{QSym}, cb::CNum, tb_ne::Vector{NonEqualPair},
+        ta_ops::Vector{Op}, ca::CNum, ta_ne::Vector{NonEqualPair},
+        tb_ops::Vector{Op}, cb::CNum, tb_ne::Vector{NonEqualPair},
         sum_indices::Vector{Index}, needs_diag_split::Bool,
     )
     n = length(ta_ops) + length(tb_ops)
-    ops = Vector{QSym}(undef, n)
+    ops = Vector{Op}(undef, n)
     copyto!(ops, 1, ta_ops, 1, length(ta_ops))
     copyto!(ops, length(ta_ops) + 1, tb_ops, 1, length(tb_ops))
     ne = _merge_ne(ta_ne, tb_ne)
@@ -61,7 +61,7 @@ indices may collapse).
     return nothing
 end
 
-function _distinct_op_indices(ops::Vector{QSym})
+function _distinct_op_indices(ops::Vector{Op})
     out = Index[]
     for op in ops
         idx = op.index
@@ -72,7 +72,7 @@ function _distinct_op_indices(ops::Vector{QSym})
     return out
 end
 
-function _depends_on_index_ops(c::CNum, ops::Vector{QSym}, idx::Index)
+function _depends_on_index_ops(c::CNum, ops::Vector{Op}, idx::Index)
     for op in ops
         op.index == idx && return true
     end
@@ -88,7 +88,7 @@ the indices differ) and each diagonal contribution (substituting
 `sum_idx -> ext_idx`, under `ne` with any constraint on `sum_idx` dropped).
 """
 function _accumulate_with_diag!(
-        out::QTermDict, ops::Vector{QSym}, c::CNum,
+        out::QTermDict, ops::Vector{Op}, c::CNum,
         sum_indices::Vector{Index}, ne::Vector{NonEqualPair},
     )
     distinct = _distinct_op_indices(ops)
@@ -129,7 +129,7 @@ function _accumulate_with_diag!(
     _canonicalize!(out, copy(ops), c, augmented_ne)
 
     for (sum_idx, ext_idx) in diag_pairs
-        sub_ops = QSym[change_index(o, sum_idx, ext_idx) for o in ops]
+        sub_ops = Op[change_index(o, sum_idx, ext_idx) for o in ops]
         sub_c = change_index(c, sum_idx, ext_idx)
         sub_ne = _drop_ne_with(ne, sum_idx)
         # Sibling diagonal slices for the same sum must be mutually exclusive;
@@ -162,7 +162,7 @@ that lose a bound-index dependence must absorb the surviving sum's range factor
 (e.g. the `+1` from `a*a' = a'a + 1` inside a `Σ_i` scope).
 """
 function _emit_scaled_by_scope!(
-        out::QTermDict, ops::Vector{QSym}, c::CNum,
+        out::QTermDict, ops::Vector{Op}, c::CNum,
         ne::Vector{NonEqualPair}, scope::Vector{Index},
     )
     temp = QTermDict()
@@ -182,8 +182,8 @@ function Base.:*(a::QSym, b::QSym)
     out = QTermDict()
     _emit_product!(
         out,
-        QSym[a], _CNUM_ONE, _EMPTY_NE,
-        QSym[b], _CNUM_ONE, _EMPTY_NE,
+        Op[a], _CNUM_ONE, _EMPTY_NE,
+        Op[b], _CNUM_ONE, _EMPTY_NE,
         _EMPTY_INDICES, false
     )
     return QAdd(out, _EMPTY_INDICES)
@@ -195,7 +195,7 @@ function Base.:*(a::QAdd, b::QSym)
     for (ta, ca) in a
         _emit_product!(
             out, ta.ops, ca, ta.ne,
-            QSym[b], _CNUM_ONE, _EMPTY_NE,
+            Op[b], _CNUM_ONE, _EMPTY_NE,
             a.indices, needs
         )
     end
@@ -207,7 +207,7 @@ function Base.:*(a::QSym, b::QAdd)
     needs = !isempty(b.indices)
     for (tb, cb) in b
         _emit_product!(
-            out, QSym[a], _CNUM_ONE, _EMPTY_NE,
+            out, Op[a], _CNUM_ONE, _EMPTY_NE,
             tb.ops, cb, tb.ne,
             b.indices, needs
         )

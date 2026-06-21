@@ -202,7 +202,7 @@ import SecondQuantizedAlgebra: simplify, QAdd, QSym, _single_qadd, _to_cnum, Ind
         @test iszero(anticommutator(σx, σz))
         @test iszero(anticommutator(σy, σz))
         # σx² = I, so {σx, σx} = 2
-        @test isequal(simplify(anticommutator(σx, σx)), _single_qadd(_to_cnum(2), QSym[]))
+        @test isequal(simplify(anticommutator(σx, σx)), _single_qadd(_to_cnum(2), Op[]))
 
         # Different sites: {A, B} = 2 A B
         h2 = FockSpace(:c1) ⊗ FockSpace(:c2)
@@ -258,7 +258,7 @@ end
     @test any(p -> p == (i, j) || p == (j, i), constraint_pairs(result3))
     # σⱼ¹¹ should NOT appear under canonical form
     @test !any(result3) do (term, _c)
-        any(op -> op isa Transition && op.i == 1 && op.j == 1, term.ops)
+        any(op -> is_transition(op) && op.l1 == 1 && op.l2 == 1, term.ops)
     end
 
     # Eq. (7): i [H, σⱼ¹²σₖ²¹]
@@ -281,7 +281,7 @@ end
         term.ops == [a', σ(1, 2, j), σ(2, 2, k)] && isequal(c, _to_cnum(-2im * g(k)))
     end
     @test !any(result4) do (term, _c)
-        any(op -> op isa Transition && op.i == 1 && op.j == 1, term.ops)
+        any(op -> is_transition(op) && op.l1 == 1 && op.l2 == 1, term.ops)
     end
 end
 
@@ -329,12 +329,12 @@ end
 
     result = 1im * commutator(H, σ(1, 2, k))
     @test any(result) do (term, _c)
-        any(op -> op isa Transition && op.i == 1 && op.j == 2 && op.index == j, term.ops)
+        any(op -> is_transition(op) && op.l1 == 1 && op.l2 == 2 && op.index == j, term.ops)
     end
 
     result3 = 1im * commutator(H, σ(2, 2, k))
     @test any(result3) do (term, _c)
-        any(op -> op isa Transition && op.index == j, term.ops)
+        any(op -> is_transition(op) && op.index == j, term.ops)
     end
 end
 

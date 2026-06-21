@@ -9,7 +9,7 @@ import SecondQuantizedAlgebra: QAdd, QSym, QField, AvgFunc, _average, _conj_cnum
         h = FockSpace(:c)
         ops = fundamental_operators(h)
         @test length(ops) == 1
-        @test ops[1] isa Destroy
+        @test is_destroy(ops[1])
         @test ops[1].name == :a
         @test ops[1].space_index == 1
     end
@@ -18,7 +18,7 @@ import SecondQuantizedAlgebra: QAdd, QSym, QField, AvgFunc, _average, _conj_cnum
         # 2-level with ground state 1: only σ₁₂ and σ₂₂
         h = NLevelSpace(:atom, 2, 1)
         ops = fundamental_operators(h)
-        @test all(op -> op isa Transition, ops)
+        @test all(op -> is_transition(op), ops)
         @test length(ops) == 2  # σ₁₂ and σ₂₂ (skips σ₁₁ = ground state projector)
 
         # 3-level with ground state 1
@@ -32,24 +32,24 @@ import SecondQuantizedAlgebra: QAdd, QSym, QField, AvgFunc, _average, _conj_cnum
         h = PauliSpace(:p)
         ops = fundamental_operators(h)
         @test length(ops) == 3
-        @test all(op -> op isa Pauli, ops)
-        @test [op.axis for op in ops] == [1, 2, 3]
+        @test all(op -> is_pauli(op), ops)
+        @test [op.l1 for op in ops] == [1, 2, 3]
     end
 
     @testset "fundamental_operators — SpinSpace" begin
         h = SpinSpace(:s)
         ops = fundamental_operators(h)
         @test length(ops) == 3
-        @test all(op -> op isa Spin, ops)
-        @test [op.axis for op in ops] == [1, 2, 3]
+        @test all(op -> is_spin(op), ops)
+        @test [op.l1 for op in ops] == [1, 2, 3]
     end
 
     @testset "fundamental_operators — PhaseSpace" begin
         h = PhaseSpace(:q)
         ops = fundamental_operators(h)
         @test length(ops) == 2
-        @test ops[1] isa Position
-        @test ops[2] isa Momentum
+        @test is_position(ops[1])
+        @test is_momentum(ops[2])
     end
 
     @testset "fundamental_operators — ProductSpace" begin

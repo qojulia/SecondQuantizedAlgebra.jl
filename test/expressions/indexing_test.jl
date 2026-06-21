@@ -74,32 +74,32 @@ import SecondQuantizedAlgebra: simplify, QAdd, QSym, CNum, _to_cnum, NO_INDEX,
 
         # Fock
         ai = IndexedOperator(a, i)
-        @test ai isa Destroy
+        @test is_destroy(ai)
         @test ai.index == i
         @test has_index(ai.index)
 
         adi = IndexedOperator(ad, i)
-        @test adi isa Create
+        @test is_create(adi)
         @test adi.index == i
 
         # NLevel
         j = Index(hn, :j, 5, hn)
         sj = IndexedOperator(sigma, j)
-        @test sj isa Transition
+        @test is_transition(sj)
         @test sj.index == j
 
         # Pauli
         sx = Pauli(hp, :σ, 1)
         ip = Index(hp, :i, 10, hp)
         sxi = IndexedOperator(sx, ip)
-        @test sxi isa Pauli
+        @test is_pauli(sxi)
         @test sxi.index == ip
 
         # Spin
         Sx = Spin(hs, :S, 1)
         is_ = Index(hs, :i, 10, hs)
         Sxi = IndexedOperator(Sx, is_)
-        @test Sxi isa Spin
+        @test is_spin(Sxi)
         @test Sxi.index == is_
 
         # PhaseSpace
@@ -108,8 +108,8 @@ import SecondQuantizedAlgebra: simplify, QAdd, QSym, CNum, _to_cnum, NO_INDEX,
         iq = Index(hq, :i, 10, hq)
         xi = IndexedOperator(x, iq)
         pi = IndexedOperator(p, iq)
-        @test xi isa Position
-        @test pi isa Momentum
+        @test is_position(xi)
+        @test is_momentum(pi)
         @test xi.index == iq
     end
 
@@ -117,7 +117,7 @@ import SecondQuantizedAlgebra: simplify, QAdd, QSym, CNum, _to_cnum, NO_INDEX,
         i = Index(hf, :i, 10, hf)
         ai = IndexedOperator(a, i)
         adi = ai'
-        @test adi isa Create
+        @test is_create(adi)
         @test adi.index == i
     end
 
@@ -292,13 +292,13 @@ import SecondQuantizedAlgebra: simplify, QAdd, QSym, CNum, _to_cnum, NO_INDEX,
         # Destroy
         ai = IndexedOperator(a, i)
         aj = change_index(ai, i, j)
-        @test aj isa Destroy
+        @test is_destroy(aj)
         @test aj.index == j
 
         # Create
         adi = ai'
         adj = change_index(adi, i, j)
-        @test adj isa Create
+        @test is_create(adj)
         @test adj.index == j
 
         # Transition
@@ -306,7 +306,7 @@ import SecondQuantizedAlgebra: simplify, QAdd, QSym, CNum, _to_cnum, NO_INDEX,
         l = Index(hn, :l, 5, hn)
         sk = IndexedOperator(sigma, k)
         sl = change_index(sk, k, l)
-        @test sl isa Transition
+        @test is_transition(sl)
         @test sl.index == l
 
         # Pauli
@@ -315,7 +315,7 @@ import SecondQuantizedAlgebra: simplify, QAdd, QSym, CNum, _to_cnum, NO_INDEX,
         jp = Index(hp, :j, 10, hp)
         sxi = IndexedOperator(sx, ip)
         sxj = change_index(sxi, ip, jp)
-        @test sxj isa Pauli
+        @test is_pauli(sxj)
         @test sxj.index == jp
 
         # Spin
@@ -324,7 +324,7 @@ import SecondQuantizedAlgebra: simplify, QAdd, QSym, CNum, _to_cnum, NO_INDEX,
         js_ = Index(hs, :j, 10, hs)
         Sxi = IndexedOperator(Sx, is_)
         Sxj = change_index(Sxi, is_, js_)
-        @test Sxj isa Spin
+        @test is_spin(Sxj)
         @test Sxj.index == js_
 
         # Position / Momentum
@@ -494,7 +494,7 @@ import SecondQuantizedAlgebra: simplify, QAdd, QSym, CNum, _to_cnum, NO_INDEX,
         @test any(p -> p == (i, j) || p == (j, i), constraint_pairs(expr))
         # Diagonal term: a†_j * a_j from the physical i = j boundary.
         aj = IndexedOperator(a, j)
-        diag_key = QSym[adj, aj]
+        diag_key = Op[adj, aj]
         @test haskey(expr, diag_key)
     end
 
@@ -640,7 +640,7 @@ import SecondQuantizedAlgebra: simplify, QAdd, QSym, CNum, _to_cnum, NO_INDEX,
         @test double isa QAdd
 
         # The diagonal term: σ(2,1,j) * σ(1,2,j) eagerly composes to σ(2,2,j)
-        diag_ops = QSym[σ2(2, 2, j2)]
+        diag_ops = Op[σ2(2, 2, j2)]
         @test haskey(double, diag_ops)
     end
 
@@ -1340,12 +1340,12 @@ end
 
     result_12 = 1im * commutator(H, σ(1, 2, k))
     @test any(result_12) do (term, _c)
-        any(op -> op isa Transition && op.i == 1 && op.j == 2 && op.index == j, term.ops)
+        any(op -> is_transition(op) && op.l1 == 1 && op.l2 == 2 && op.index == j, term.ops)
     end
 
     result_22 = 1im * commutator(H, σ(2, 2, k))
     @test any(result_22) do (term, _c)
-        any(op -> op isa Transition && op.index == j, term.ops)
+        any(op -> is_transition(op) && op.index == j, term.ops)
     end
 
     Hcoup = Σ(Ω(i, j) * σ(2, 1, i) * σ(1, 2, j), j, i)

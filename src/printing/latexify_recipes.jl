@@ -42,41 +42,22 @@ function _latex_name(name)
     return string(head, "_{\\mathrm{", rest_escaped, "}}")
 end
 
-@latexrecipe function f(x::Destroy)
+@latexrecipe function f(x::Op)
     suffix = _latex_index_suffix(x.index)
-    return Expr(:latexifymerge, "$(_latex_name(x.name))$(suffix)")
-end
-
-@latexrecipe function f(x::Create)
-    suffix = _latex_index_suffix(x.index)
-    return Expr(:latexifymerge, "$(_latex_name(x.name))$(suffix)^{\\dagger}")
-end
-
-@latexrecipe function f(x::Transition)
-    suffix = _latex_index_suffix(x.index)
-    return Expr(:latexifymerge, "{$(_latex_name(x.name))}$(suffix)$(transition_idx_script[]){{$(x.i)$(x.j)}}")
-end
-
-@latexrecipe function f(x::Pauli)
-    ax = _xyz_sym[x.axis]
-    suffix = _latex_index_suffix(x.index)
-    return Expr(:latexifymerge, "{$(_latex_name(x.name))}$(suffix)_{{$ax}}")
-end
-
-@latexrecipe function f(x::Spin)
-    ax = _xyz_sym[x.axis]
-    suffix = _latex_index_suffix(x.index)
-    return Expr(:latexifymerge, "{$(_latex_name(x.name))}$(suffix)_{{$ax}}")
-end
-
-@latexrecipe function f(x::Position)
-    suffix = _latex_index_suffix(x.index)
-    return Expr(:latexifymerge, "\\hat{$(_latex_name(x.name))}$(suffix)")
-end
-
-@latexrecipe function f(x::Momentum)
-    suffix = _latex_index_suffix(x.index)
-    return Expr(:latexifymerge, "\\hat{$(_latex_name(x.name))}$(suffix)")
+    name = _latex_name(x.name)
+    k = x.kind
+    body = if k === OP_DESTROY
+        "$(name)$(suffix)"
+    elseif k === OP_CREATE
+        "$(name)$(suffix)^{\\dagger}"
+    elseif k === OP_TRANSITION
+        "{$(name)}$(suffix)$(transition_idx_script[]){{$(Int(x.l1))$(Int(x.l2))}}"
+    elseif k === OP_PAULI || k === OP_SPIN
+        "{$(name)}$(suffix)_{{$(_xyz_sym[x.l1])}}"
+    else   # OP_POSITION, OP_MOMENTUM
+        "\\hat{$(name)}$(suffix)"
+    end
+    return Expr(:latexifymerge, body)
 end
 
 # Extract a plain Julia number from CNum for LaTeX rendering
@@ -122,7 +103,7 @@ function _needs_pf_brackets(pf::SymbolicUtils.BasicSymbolic)
 end
 
 # Helper: render a single term (prefactor * operators) as LaTeX
-function _latex_term(c::CNum, ops::Vector{QSym})
+function _latex_term(c::CNum, ops::Vector{Op})
     pf = _latex_prefactor(c)
     if isempty(ops)
         return pf

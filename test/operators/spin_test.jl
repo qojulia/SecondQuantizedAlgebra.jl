@@ -31,9 +31,9 @@ using Test
     @testset "@qnumbers" begin
         h = SpinSpace(:s)
         @qnumbers Sx::Spin(h, 1)
-        @test Sx isa Spin
+        @test is_spin(Sx)
         @test Sx.name == :Sx
-        @test Sx.axis == 1
+        @test Sx.l1 == 1
     end
 
     @testset "Pauli algebra — single space" begin
@@ -46,10 +46,10 @@ using Test
         @test isequal(simplify(normal_order(s(1) * s(2))), simplify(1im * s(3)))
         @test !isequal(simplify(normal_order(s(1) * s(2))), simplify(1im * s(2)))
         @test isequal(simplify(normal_order(s(1) * s(3))), simplify(-1im * s(2)))
-        @test isequal(simplify(normal_order(s(3) * s(3))), _single_qadd(_to_cnum(1), QSym[]))
+        @test isequal(simplify(normal_order(s(3) * s(3))), _single_qadd(_to_cnum(1), Op[]))
         @test isequal(simplify(normal_order(s(3) * s(1))), simplify(1im * s(2)))
         @test isequal(
-            simplify(normal_order(s(1) * s(2) * s(3))), _single_qadd(_to_cnum(1im), QSym[]),
+            simplify(normal_order(s(1) * s(2) * s(3))), _single_qadd(_to_cnum(1im), Op[]),
         )
 
         # adjoint (Hermitian)

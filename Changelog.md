@@ -5,6 +5,12 @@ All notable changes to [`SecondQuantizedAlgebra.jl`](https://github.com/qojulia/
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v0.8.0]
+
+### Changed
+
+- **Breaking: the seven operator types collapsed into one concrete `Op`.** `Destroy`, `Create`, `Transition`, `Pauli`, `Spin`, `Position`, and `Momentum` were separate `QSym` subtypes; they are now a single concrete `struct Op <: QSym` carrying a `kind::OpKind` tag plus shared packed fields. The role names stay as constructor functions, so every existing `Destroy(h, :a)` or `Transition(h, :σ, 1, 2)` call still builds the right operator with no source change. What breaks is type-level dispatch: code that branched on `isa Destroy` (or used `::Transition` method signatures, or `typeof(op) == Pauli`) must switch to the exported predicates `is_destroy`, `is_create`, `is_transition`, `is_pauli`, `is_spin`, `is_position`, `is_momentum`, or read the role with `optype(op)::OpKind`. Direct field reads also moved: a `Transition`'s `i`/`j`/`ground_state`/`n_levels` are now `l1`/`l2`/`g`/`nlev`, and a `Pauli`/`Spin` `axis` is `l1`. `Op` and the predicates are exported. Because operator products are now stored as a concrete `Vector{Op}` (`QTerm.ops`), the per-operator hooks (`_site_compare`, `_can_commute`, `_commute_pair`, `_reduce_pair`, `hash`) dispatch and inline statically instead of through the former abstract-`QSym` dynamic dispatch, and `_commute_pair`/`_reduce_pair` return concrete `Tuple{Op, …}` with no tuple boxing; custom `hash`/`isequal` on `Op` exclude the index's `Num` fields. Measured speedups over the v0.8.0 baseline: Fock `(a·a†)^10` about 2.7×, single-mode `H^4` about 2.1×, many-mode `H^2` (M=8) about 1.7×, with roughly 30% fewer allocations on the Fock-dominated cases ([#164](https://github.com/qojulia/SecondQuantizedAlgebra.jl/issues/164)).
+
 ## [v0.7.1]
 
 ### changed
@@ -194,4 +200,5 @@ These names keep their meaning across the migration. Code that only uses them sh
 [v0.6.5]: https://github.com/qojulia/SecondQuantizedAlgebra.jl/releases/tag/v0.6.5
 [v0.7.0]: https://github.com/qojulia/SecondQuantizedAlgebra.jl/releases/tag/v0.7.0
 [v0.7.1]: https://github.com/qojulia/SecondQuantizedAlgebra.jl/releases/tag/v0.7.1
+[v0.8.0]: https://github.com/qojulia/SecondQuantizedAlgebra.jl/releases/tag/v0.8.0
 [#156]: https://github.com/qojulia/SecondQuantizedAlgebra.jl/issues/156

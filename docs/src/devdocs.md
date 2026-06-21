@@ -6,51 +6,86 @@ This page explains the internal architecture and design rationale of **SecondQua
 
 ```
 QField (abstract)
-├── QSym (abstract) — atomic operators (leaves)
-│   ├── Destroy / Create          (FockSpace)
-│   ├── Transition                (NLevelSpace)
-│   ├── Pauli                     (PauliSpace)
-│   ├── Spin                      (SpinSpace)
-│   └── Position / Momentum       (PhaseSpace)
-└── QAdd                          (sum of QTerm products — the only compound type)
+├── QSym (abstract): atomic operators (leaves)
+│   └── Op: the single concrete leaf; a `kind::OpKind` tag picks the role
+│           Destroy / Create (FockSpace), Transition (NLevelSpace),
+│           Pauli (PauliSpace), Spin (SpinSpace), Position / Momentum (PhaseSpace)
+└── QAdd: sum of QTerm products (the only compound type)
 ```
 
-`QTerm` is the per-entry storage key (operator product + non-equal constraints) used as the dict key inside `QAdd`. There is no abstract `QTerm` supertype — `QAdd` is a `QField` directly.
+`QTerm` is the per-entry storage key (operator product + non-equal constraints) used as the dict key inside `QAdd`. There is no abstract `QTerm` supertype; `QAdd` is a `QField` directly.
+
+`QSym` stays abstract with `Op` as its sole subtype so external `::QSym` signatures keep resolving, while the operator *vector* `QTerm.ops` is `Vector{Op}` with a concrete element type. That concrete eltype is the point of the collapse: the per-operator hooks below dispatch and inline statically, where the former seven-subtype hierarchy forced a dynamic dispatch (and a boxed result) on every per-operator call.
 
 **Why `QAdd` is the only compound type.** Earlier versions of the package had both `QMul` (products) and `QAdd` (sums). This created a two-level expression tree where dispatch needed to handle `QSym`, `QMul`, and `QAdd` at every level, and the return type of `*` was unpredictable (`QSym`, `QMul`, or `QAdd` depending on simplification). The redesign collapses this into a single `QAdd` whose internal dictionary is keyed by the full term identity `(ops, ne)` and stores only the prefactor as the value. Every multiplication immediately produces a `QAdd`, giving a uniform return type. This type stability is critical for performance — the Julia compiler can infer return types through chains of arithmetic, avoiding dynamic dispatch and heap-allocated boxes at every intermediate step. The exact-key representation also keeps like-term collection honest: only terms with the same operator string *and* the same scoped constraints are merged.
 
 
 ## Operator struct layout
 
-Every `QSym` subtype shares a common field layout:
+All operators are one concrete struct with a runtime `kind` tag; the level/axis
+fields are shared storage interpreted per `kind`:
 
 ```julia
-struct Destroy <: QSym
+@enum OpKind::UInt8 OP_DESTROY OP_CREATE OP_TRANSITION OP_PAULI OP_SPIN OP_POSITION OP_MOMENTUM
+
+struct Op <: QSym
+    kind::OpKind        # which physical role this operator plays
     name::Symbol        # display name
     space_index::Int    # which subspace in a ProductSpace (always 1 for simple spaces)
     index::Index        # symbolic summation index (NO_INDEX when absent)
+    l1::Int32           # Transition i  | Pauli/Spin axis
+    l2::Int32           # Transition j
+    g::Int32            # Transition ground state
+    nlev::Int32         # Transition number of levels
 end
 ```
+
+The role names `Destroy`, `Create`, `Transition`, `Pauli`, `Spin`, `Position`,
+`Momentum` are constructor functions returning an `Op` with the matching `kind`;
+`is_destroy`/`is_create`/… (and `optype`) are the exported predicates that
+replace `isa`. The `Int32` packing keeps `Op` compact (an all-`Int` 80-byte
+layout measured noticeably slower); Fock/Position/Momentum leave `l1..nlev` zero,
+and create-vs-destroy lives in `kind` (the old `ladder` field is gone, though
+`ladder(::Op)` is still provided for canonical-ordering callers).
+
+**Custom `hash`/`isequal` are mandatory, not cosmetic.** Julia's default struct
+hash recurses `objectid` through the `Index`'s `Num` fields, which measured
+*slower* than the abstract-hierarchy baseline. `Op` therefore defines `hash`/
+`isequal`/`==` by hand: they hash the `kind`, `name`, `space_index`, packed
+levels, and the `Index` (whose own `hash`/`==` exclude its `Num`s and
+short-circuit on `NO_INDEX` via the shared `const` sentinel). Skipping this is
+the single easiest way to make the collapse a regression instead of a win.
 
 **Why `space_index` instead of storing the Hilbert space.** Operators don't hold a reference to their Hilbert space. The space is only used at construction time for validation (checking bounds, matching types). At runtime, only the integer `space_index` matters — it determines which operators commute (different `space_index` → commute trivially) and where to embed in a composite basis during numeric conversion. This keeps operators lightweight and avoids type instability from heterogeneous space references.
 
 **Why `index::Index` on every operator.** Symbolic summation indices (for expressions like ``\sum_i a_i^\dagger a_i``) live directly on the operator rather than in a wrapper type. This avoids a separate `IndexedOperator` struct in the type hierarchy and keeps dispatch simple. The sentinel `NO_INDEX` (with `space_index = 0`) indicates no index is present, checked via `has_index(idx) = idx.space_index != 0`. The `_same_site` check requires both `space_index` and `index` to match — operators with the same `space_index` but different `index` represent distinct sites in an indexed sum and don't interact via commutation rules.
 
-**Transition-specific fields.** `Transition` adds `i::Int` and `j::Int` for the bra/ket levels along with `ground_state::Int` and `n_levels::Int`; `Pauli` and `Spin` add `axis::Int` (1=x, 2=y, 3=z).
+**Per-role field meaning.** `Transition` reads the bra/ket levels from `l1`/`l2`
+and the ground state and level count from `g`/`nlev`; `Pauli` and `Spin` read the
+axis (1=x, 2=y, 3=z) from `l1`. Fock and PhaseSpace operators ignore the packed
+fields entirely.
 
-**The five operator hooks.** The whole algebra talks to operator types through five methods that every concrete `QSym` subtype implements. They are the entire interface; everything else in the package builds on top of them.
+**The five operator hooks.** The whole algebra talks to operators through five
+methods. After the collapse each is a single `(::Op, ::Op)` method that branches
+on `kind` (in `operators/operators.jl`), rather than the former
+one-method-per-subtype-pair. They are the entire interface; everything else
+builds on them.
 
 | Hook | Returns | Meaning |
 |---|---|---|
 | `_site_compare(a, b, ne)` | `SiteCmp` | three-way site comparison driving the sort |
 | `_can_commute(a, b)` | `Bool` | true iff swapping needs no commutator residual (called only on provably-same-site pairs) |
 | `_commute_pair(a, b)` | `(swap_b, swap_a, residual_coeff, residual_ops)` | swap and residual for same-site non-commuting pairs |
-| `_reduce_pair(a, b)` | `Nothing`, `CNum`, or `(QSym, CNum)` | local algebraic identity (Transition composition, Pauli product, …) |
-| `_ground_state_expand(op)` | `Nothing` or `(g, n_levels, site)` | only `Transition` overrides non-trivially |
+| `_reduce_pair(a, b)` | `(ReduceKind, Op, CNum)` | local algebraic identity (Transition composition, Pauli product, …) |
+| `_ground_state_expand(op)` | `(is_gs, g, n_levels, site)` | only `Transition` (a `σᵍᵍ`) returns non-trivially |
 
-A sixth, defaulted hook supports the reduce pass: `_may_reduce(a, b)::Bool` answers whether `_reduce_pair(a, b)` could return anything other than `NoReduction`. The default is `false`; only the same-type pairs that genuinely compose (`Transition×Transition`, `Pauli×Pauli`) override it to `true`. The reduce pass consults this isbits-`Bool` gate before the `_reduce_pair` call. The reason is type stability: `_reduce_pair` returns a `(kind, op, factor)` tuple holding a non-isbits `QSym`, so a dynamic dispatch on an abstract `QSym` pair boxes that tuple on every adjacent pair, whereas the `_may_reduce` `Bool` comes back unboxed. Fock/Spin/PhaseSpace products (which never reduce) therefore skip the boxing entirely. A new reducing operator type overrides both `_reduce_pair` and `_may_reduce`; a new non-reducing type needs neither.
+Because `Op` is concrete, these hooks now infer concrete return types: `_commute_pair` and `_reduce_pair` return `Tuple{Op, …}` instead of `Tuple{QSym, …}`, so the former tuple boxing is gone for free.
 
-Cross-type fallbacks in `operators/operators.jl` cover pairs of different concrete types (always distinct sites, always commuting, never reducing), so the fallbacks return the trivial answers and `_commute_pair` errors on a cross-type call by construction. This is what keeps adding a new `QSym` subtype to a self-contained job: define the struct, fill in the five hooks, optionally add `adjoint` and `to_numeric` methods.
+A sixth, defaulted hook supports the reduce pass: `_may_reduce(a, b)::Bool` answers whether `_reduce_pair(a, b)` could return anything other than `NoReduction`. It is `true` only for `Transition×Transition` and `Pauli×Pauli`. With the concrete `Op` eltype its original boxing-avoidance motivation is moot, but it still cheaply skips the same-site field checks for the common non-reducing pair.
+
+**Site families inside `_site_compare`.** Cross-role comparison is family-scoped: Fock `{Destroy, Create}` and PhaseSpace `{Position, Momentum}` compare within their family (PhaseSpace ignores the operator name, treating x and p as conjugate variables on one site); the other roles are singleton families. Pairs in different families fall back to the `kind` integer order (`OP_DESTROY=0 < … < OP_MOMENTUM=6`), which is exactly the old `_type_order`.
+
+**Adding an operator role.** Add an `OP_*` enum arm, a constructor function and an `is_*` predicate, then a branch in each of the six hooks plus `adjoint`, `order_key`, `to_numeric`, and the printing/Latexify methods. The hooks are written so a future open-extension escape hatch (an `OP_CUSTOM` arm carrying a payload) could be slotted in without reshaping them; a `Union{Nothing,QSym}` payload field is deliberately *not* added now because it would fail the `CheckConcreteStructs` (`all_concrete`) gate.
 
 
 ## Hilbert spaces
@@ -72,7 +107,7 @@ This gives full type stability — `ProductSpace{Tuple{FockSpace, NLevelSpace}}`
 const CNum = Complex{Num}
 ```
 
-All prefactors are promoted to `CNum` — integers, floats, symbolic variables, complex numbers all get converted via `_to_cnum`. This ensures a single concrete prefactor type throughout the entire algebra, which is essential for type stability and therefore performance. The Julia compiler sees `Dict{Vector{QSym}, CNum}` as a fully concrete type, so dictionary operations, arithmetic, and iteration never trigger dynamic dispatch.
+All prefactors are promoted to `CNum` — integers, floats, symbolic variables, complex numbers all get converted via `_to_cnum`. This ensures a single concrete prefactor type throughout the entire algebra, which is essential for type stability and therefore performance. The Julia compiler sees `Dict{QTerm, CNum}` (with `QTerm.ops::Vector{Op}`) as a fully concrete type, so dictionary operations, arithmetic, and iteration never trigger dynamic dispatch.
 
 `Num` is the symbolic number type from Symbolics.jl, so `Complex{Num}` can represent both symbolic prefactors (`ω`, `g + im*κ`) and plain numeric ones (`3.0 + 0.0im`).
 
@@ -105,7 +140,7 @@ _conj_cnum(c::CNum) = Complex(_sym_conj(c.re), -c.im)
 const NonEqualPair = Tuple{Index, Index}
 
 struct QTerm
-    ops::Vector{QSym}
+    ops::Vector{Op}
     ne::Vector{NonEqualPair}
     hash::UInt          # cached hash(ops, ne), computed once at construction
 end
@@ -118,7 +153,7 @@ struct QAdd <: QField
 end
 ```
 
-**Why `QTerm` caches its hash.** `QTerm` is a dict key, and every `_addto_key!` both probes (`get`) and writes (`setindex!`/`delete!`) the same key, so the key is hashed at least twice per insertion, plus once more for each entry whenever the dict grows and rehashes. Hashing recurses over the whole `ops` vector, and because `ops` has the abstract eltype `QSym`, each per-operator `hash` is a dynamic dispatch (its `UInt` result is boxed). Caching `hash(ops, ne)` once in the inner constructor turns every later hash of that key into a single `hash(::UInt, h)` and makes dict-growth rehashing free. The cache is sound because `QTerm` is immutable and `ne` is already canonicalized before construction, so structurally equal keys always carry the same cached value; `isequal` short-circuits on the cached hash before comparing `ops`. A trusted three-argument constructor lets `_copy_key` carry the known hash across a verbatim copy without recomputing it.
+**Why `QTerm` caches its hash.** `QTerm` is a dict key, and every `_addto_key!` both probes (`get`) and writes (`setindex!`/`delete!`) the same key, so the key is hashed at least twice per insertion, plus once more for each entry whenever the dict grows and rehashes. Hashing recurses over the whole `ops` vector (each per-operator `hash` is now a static call, since `ops::Vector{Op}` has a concrete element type). Caching `hash(ops, ne)` once in the inner constructor still pays off: it turns every later hash of that key into a single `hash(::UInt, h)` and makes dict-growth rehashing free, regardless of how long the product is. The cache is sound because `QTerm` is immutable and `ne` is already canonicalized before construction, so structurally equal keys always carry the same cached value; `isequal` short-circuits on the cached hash before comparing `ops`. A trusted three-argument constructor lets `_copy_key` carry the known hash across a verbatim copy without recomputing it.
 
 **What a dict entry represents.** A single entry `QTerm(ops, ne) => c` in `arguments` represents the term `c · ops[1] · ops[2] · …` valid for any index assignment satisfying the pairwise constraints in `ne` (each `(α, β) ∈ ne` means `α ≠ β`). The `indices` field on `QAdd` carries the outer summation scope: a `QAdd` with `indices = [i, j]` represents ``\sum_i \sum_j \sum_\text{terms} c \cdot \text{ops}`` where each individual term may further constrain `(i, j)` per its own `ne`. This per-term scoping is what lets a single `QAdd` represent expressions like ``\sum_i a_i a_i + \sum_{i \neq j} a_i a_j`` as two dict entries with different `ne` rather than two separate `QAdd` summations.
 
@@ -138,8 +173,8 @@ end
 ```julia
 @enum SiteCmp::UInt8 Less Equal Undetermined Greater
 
-_site_compare(a::QSym, b::QSym, ne::Vector{NonEqualPair})::SiteCmp
-_partial_sort!(ops::Vector{QSym}, ne::Vector{NonEqualPair})
+_site_compare(a::Op, b::Op, ne::Vector{NonEqualPair})::SiteCmp
+_partial_sort!(ops::Vector{Op}, ne::Vector{NonEqualPair})
 ```
 
 Sorting is driven by a three-way comparator. Two operators have one of three site relationships: **distinct** (different `space_index`, or different numeric indices on the same space, or a `ne` entry that resolves them), **equal** (same `space_index` and syntactically equal `index`), or **undetermined** (same `space_index`, indices not syntactically equal, no `ne` entry resolves them). `_site_compare` returns `Less` or `Greater` for distinct sites, `Equal` for same-site pairs, and `Undetermined` for the third case.
@@ -337,7 +372,7 @@ SQA carries three orderings that must not be conflated, because each answers a d
 
 **`_full_op_key`/`_sort_key` (display sort).** Used by `sorted_arguments` for deterministic *display* order only. Also not identity-faithful: it omits axis and levels, so two distinct operators can share a display key. Fine for printing, wrong for keying.
 
-**`order_key`/`term_order_key`/`qadd_order_key` (total, identity-faithful).** The public ordering used by downstream packages (QuantumCumulants.jl) to pick canonical representatives and compare expressions reproducibly. The contract is `order_key(a) == order_key(b)` iff `isequal(a, b)`: the key carries every identity field, so it is a strict total order that never ties distinct operators. `order_key` has one method per concrete `QSym` subtype, co-located with that type's `isequal`/`hash`, and no generic `QSym` fallback, so a new operator type added without a key is a loud `MethodError` rather than a silent field-dropping collision. It is preferred over hashing for ordering because Julia's `hash` is not stable across versions/platforms (which would make canonical-representative choice, and therefore generated equations, irreproducible) and collides; hashing remains correct for equality-only dedup via `Dict`/`Set`, which use `hash` plus `isequal`.
+**`order_key`/`term_order_key`/`qadd_order_key` (total, identity-faithful).** The public ordering used by downstream packages (QuantumCumulants.jl) to pick canonical representatives and compare expressions reproducibly. The contract is `order_key(a) == order_key(b)` iff `isequal(a, b)`: the key carries every identity field, so it is a strict total order that never ties distinct operators. `order_key(o::Op)` is a single method returning a uniform tuple `(kind, space_index, name, index_key, l1, l2, g, nlev)`; the packed `l1..nlev` keep distinct levels/axes distinct (zero for roles that do not use them), and the leading `kind` gives the cross-family order. It is preferred over hashing for ordering because Julia's `hash` is not stable across versions/platforms (which would make canonical-representative choice, and therefore generated equations, irreproducible) and collides; hashing remains correct for equality-only dedup via `Dict`/`Set`, which use `hash` plus `isequal`.
 
 ## Printing and LaTeX
 

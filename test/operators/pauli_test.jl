@@ -31,9 +31,9 @@ using Test
     @testset "@qnumbers" begin
         h = PauliSpace(:p)
         @qnumbers σx::Pauli(h, 1)
-        @test σx isa Pauli
+        @test is_pauli(σx)
         @test σx.name == :σx
-        @test σx.axis == 1
+        @test σx.l1 == 1
     end
 
     @testset "Type stability" begin

@@ -252,8 +252,8 @@ end
 
 # Uniform-return wrappers (all return QAdd).
 _to_qadd(x::QAdd) = x
-_to_qadd(x::QSym) = _single_qadd(_CNUM_ONE, QSym[x])
-_to_qadd(x::SymbolicUtils.BasicSymbolic) = _single_qadd(_to_cnum(x), QSym[])
+_to_qadd(x::QSym) = _single_qadd(_CNUM_ONE, Op[x])
+_to_qadd(x::SymbolicUtils.BasicSymbolic) = _single_qadd(_to_cnum(x), Op[])
 
 function _rebuild_indexed_sum(inner::QAdd, indices::Vector{Index}, ne::Vector{NonEqualPair})
     isempty(ne) && return QAdd(inner.arguments, indices)
@@ -316,9 +316,9 @@ function undo_average(x::SymbolicUtils.BasicSymbolic)
     return _to_qadd(x)
 end
 
-undo_average(x::Number) = _single_qadd(_to_cnum(x), QSym[])
+undo_average(x::Number) = _single_qadd(_to_cnum(x), Op[])
 undo_average(x::Num) = undo_average(SymbolicUtils.unwrap(x))
-undo_average(x::QSym) = _single_qadd(_CNUM_ONE, QSym[x])
+undo_average(x::QSym) = _single_qadd(_CNUM_ONE, Op[x])
 undo_average(x::QAdd) = x
 undo_average(eq::Symbolics.Equation) = undo_average(eq.lhs) => undo_average(eq.rhs)
 

@@ -61,7 +61,7 @@ import SecondQuantizedAlgebra: simplify, QAdd, QSym, _single_qadd, _zero_qadd, _
                 (3 * ad * a, "3 * a' * a"),
                 (-1 * a, "-a"),
                 (-3 * a, "-3 * a"),
-                (_single_qadd(_to_cnum(5), QSym[]), "5"),
+                (_single_qadd(_to_cnum(5), Op[]), "5"),
                 (0.5 * a, "0.5 * a"),
             ]
             for (input, out) in cases
@@ -353,7 +353,7 @@ import SecondQuantizedAlgebra: simplify, QAdd, QSym, _single_qadd, _zero_qadd, _
                 (1 * adf * af, L"a^{\dagger}a"),
                 (3 * adf * af, L"3 a^{\dagger}a"),
                 (-1 * af, L"-a"),
-                (_single_qadd(_to_cnum(5), QSym[]), L"5"),
+                (_single_qadd(_to_cnum(5), Op[]), L"5"),
             ]
             for (input, out) in cases
                 @test latexify(input) == out

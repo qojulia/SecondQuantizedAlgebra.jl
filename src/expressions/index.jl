@@ -121,15 +121,8 @@ function change_index(x::CNum, from::Index, to::Index)
     return _cnum_sym(re, im)
 end
 
-_with_index(op::Destroy, i::Index) = Destroy(op.name, op.space_index, i)
-_with_index(op::Create, i::Index) = Create(op.name, op.space_index, i)
-function _with_index(op::Transition, i::Index)
-    return Transition(op.name, op.i, op.j, op.space_index, i, op.ground_state, op.n_levels)
-end
-_with_index(op::Pauli, i::Index) = Pauli(op.name, op.axis, op.space_index, i)
-_with_index(op::Spin, i::Index) = Spin(op.name, op.axis, op.space_index, i)
-_with_index(op::Position, i::Index) = Position(op.name, op.space_index, i)
-_with_index(op::Momentum, i::Index) = Momentum(op.name, op.space_index, i)
+# Rebuild with a new site index; kind-agnostic since all other fields carry over.
+_with_index(op::Op, i::Index) = IndexedOperator(op, i)
 
 function change_index(op::QSym, from::Index, to::Index)
     return _with_index(op, op.index == from ? to : op.index)
@@ -143,7 +136,7 @@ function change_index(s::QAdd, from::Index, to::Index)
         # carries weight zero and must be dropped, not relaxed.
         _ne_becomes_contradictory(term.ne, from, to) && continue
         new_c = change_index(c, from, to)
-        new_ops = QSym[change_index(op, from, to) for op in term.ops]
+        new_ops = Op[change_index(op, from, to) for op in term.ops]
         new_ne = _substitute_ne(term.ne, from, to)
         if needs
             _accumulate_with_diag!(out, new_ops, new_c, s.indices, new_ne)
@@ -207,7 +200,7 @@ function change_index(s::QAdd, pairs::AbstractDict{Index, Index})
     for (term, c) in s.arguments
         _ne_becomes_contradictory(term.ne, pairs) && continue
         new_c = change_index(c, pairs)
-        new_ops = QSym[change_index(op, pairs) for op in term.ops]
+        new_ops = Op[change_index(op, pairs) for op in term.ops]
         new_ne = _substitute_ne(term.ne, pairs)
         if needs
             _accumulate_with_diag!(out, new_ops, new_c, s.indices, new_ne)
@@ -295,7 +288,7 @@ function _collect_identical_zeros!(acc, x)
     return acc
 end
 
-function _depends_on_index_term(c::CNum, ops::Vector{QSym}, idx::Index)
+function _depends_on_index_term(c::CNum, ops::Vector{Op}, idx::Index)
     for op in ops
         op.index == idx && return true
     end
@@ -399,7 +392,7 @@ function Σ(expr::QAdd, i::Index, non_equal::Vector{Index} = Index[])
         end
 
         for (_, ext_idx) in diag_pairs
-            sub_ops = QSym[change_index(o, i, ext_idx) for o in term.ops]
+            sub_ops = Op[change_index(o, i, ext_idx) for o in term.ops]
             sub_c = change_index(c, i, ext_idx)
             # Propagate NE onto the diagonal (i≠β becomes ext_idx≠β); dropping it
             # lets a later sum re-admit ext_idx=β and double-count the diagonal.
@@ -414,11 +407,11 @@ function Σ(expr::QAdd, i::Index, non_equal::Vector{Index} = Index[])
 end
 
 function Σ(expr::QSym, i::Index, non_equal::Vector{Index} = Index[])
-    return Σ(_single_qadd(_CNUM_ONE, QSym[expr]), i, non_equal)
+    return Σ(_single_qadd(_CNUM_ONE, Op[expr]), i, non_equal)
 end
 
 function Σ(expr::Number, i::Index, non_equal::Vector{Index} = Index[])
-    return Σ(_single_qadd(_to_cnum(expr), QSym[]), i, non_equal)
+    return Σ(_single_qadd(_to_cnum(expr), Op[]), i, non_equal)
 end
 
 function Σ(expr::Union{QField, Number}, i::Index, j::Index, rest::Index...)

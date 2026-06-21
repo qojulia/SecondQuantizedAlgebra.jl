@@ -5,21 +5,21 @@ A single entry of a [`QAdd`](@ref) sum: an ordered operator product plus the
 pairwise index inequality constraints that scope that product.
 
 # Fields
-- `ops::Vector{QSym}` — the ordered operator product
+- `ops::Vector{Op}` — the ordered operator product
 - `ne::Vector{NonEqualPair}` — pairwise `α ≠ β` constraints (canonicalized)
 
 `QTerm` is the dict key in [`QTermDict`](@ref); iterating a `QAdd` yields
 `Pair{QTerm, CNum}`, and callers reach `term.ops` / `term.ne` directly.
 """
 struct QTerm
-    ops::Vector{QSym}
+    ops::Vector{Op}
     ne::Vector{NonEqualPair}
     hash::UInt
-    QTerm(ops::Vector{QSym}, ne::Vector{NonEqualPair}) = new(ops, ne, _qterm_hash(ops, ne))
-    QTerm(ops::Vector{QSym}, ne::Vector{NonEqualPair}, h::UInt) = new(ops, ne, h)  # trusted: h == _qterm_hash(ops, ne)
+    QTerm(ops::Vector{Op}, ne::Vector{NonEqualPair}) = new(ops, ne, _qterm_hash(ops, ne))
+    QTerm(ops::Vector{Op}, ne::Vector{NonEqualPair}, h::UInt) = new(ops, ne, h)  # trusted: h == _qterm_hash(ops, ne)
 end
 
-@inline _qterm_hash(ops::Vector{QSym}, ne::Vector{NonEqualPair}) =
+@inline _qterm_hash(ops::Vector{Op}, ne::Vector{NonEqualPair}) =
     hash(:QTerm, hash(ops, hash(ne, zero(UInt))))
 
 Base.isequal(a::QTerm, b::QTerm) = a.hash == b.hash && isequal(a.ops, b.ops) && isequal(a.ne, b.ne)
@@ -150,7 +150,7 @@ canonicalizes `ne`. Every [`QTermDict`](@ref) insertion goes through this so tha
 structural equality of `(ops, ne)` always implies equal hash keys.
 """
 function _term_key(
-        ops::Vector{QSym},
+        ops::Vector{Op},
         ne::Vector{NonEqualPair} = _EMPTY_NE,
     )
     return QTerm(copy(ops), _canonical_ne(ne))
@@ -164,7 +164,7 @@ collection applies only when both the operator sequence and the constraint set
 match exactly.
 """
 function _addto!(
-        d::QTermDict, ops::Vector{QSym}, c::CNum,
+        d::QTermDict, ops::Vector{Op}, c::CNum,
         ne::Vector{NonEqualPair} = _EMPTY_NE,
     )
     return _addto_key!(d, _term_key(ops, ne), c)

@@ -27,16 +27,6 @@ function _show_index_suffix(io::IO, idx::Index)
     return
 end
 
-function Base.show(io::IO, x::Destroy)
-    print(io, x.name)
-    return _show_index_suffix(io, x.index)
-end
-function Base.show(io::IO, x::Create)
-    print(io, x.name)
-    _show_index_suffix(io, x.index)
-    return write(io, "'")
-end
-
 const _subscript_digits = ('₀', '₁', '₂', '₃', '₄', '₅', '₆', '₇', '₈', '₉')
 function _write_subscript(io::IO, n::Int)
     return if 0 <= n <= 9
@@ -47,32 +37,22 @@ function _write_subscript(io::IO, n::Int)
         end
     end
 end
-function Base.show(io::IO, x::Transition)
-    print(io, x.name)
-    _show_index_suffix(io, x.index)
-    _write_subscript(io, x.i)
-    return _write_subscript(io, x.j)
-end
 
 const _xyz_sym = (:x, :y, :z)
-function Base.show(io::IO, x::Pauli)
-    print(io, x.name)
-    _show_index_suffix(io, x.index)
-    return print(io, _xyz_sym[x.axis])
-end
-function Base.show(io::IO, x::Spin)
-    print(io, x.name)
-    _show_index_suffix(io, x.index)
-    return print(io, _xyz_sym[x.axis])
-end
 
-function Base.show(io::IO, x::Position)
+function Base.show(io::IO, x::Op)
     print(io, x.name)
-    return _show_index_suffix(io, x.index)
-end
-function Base.show(io::IO, x::Momentum)
-    print(io, x.name)
-    return _show_index_suffix(io, x.index)
+    _show_index_suffix(io, x.index)
+    k = x.kind
+    if k === OP_CREATE
+        write(io, "'")
+    elseif k === OP_TRANSITION
+        _write_subscript(io, Int(x.l1))
+        _write_subscript(io, Int(x.l2))
+    elseif k === OP_PAULI || k === OP_SPIN
+        print(io, _xyz_sym[x.l1])
+    end
+    return
 end
 
 function _show_prefactor(io::IO, c::CNum)
@@ -127,7 +107,7 @@ function _needs_pf_parens(c::CNum)
     return op === (/) || op === (+)
 end
 
-function _show_term(io::IO, c::CNum, ops::Vector{QSym})
+function _show_term(io::IO, c::CNum, ops::Vector{Op})
     if isempty(ops)
         _show_prefactor(io, c)
         return

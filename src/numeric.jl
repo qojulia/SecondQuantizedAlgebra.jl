@@ -30,37 +30,37 @@ See also [`numeric_average`](@ref).
 """
 function to_numeric end
 
-# Per-basis isa-chain (≤4 alternatives stays in Julia's union-split budget).
-function to_numeric(op::QSym, b::QuantumOpticsBase.FockBasis)
-    op isa Destroy  && return QuantumOpticsBase.destroy(b)
-    op isa Create   && return QuantumOpticsBase.create(b)
-    op isa Position && return (QuantumOpticsBase.destroy(b) + QuantumOpticsBase.create(b)) / sqrt(2)
-    op isa Momentum && return im * (QuantumOpticsBase.create(b) - QuantumOpticsBase.destroy(b)) / sqrt(2)
-    throw(ArgumentError("$(typeof(op)) does not act on a FockBasis"))
+# Per-basis kind-chain on the single concrete `Op`.
+function to_numeric(op::Op, b::QuantumOpticsBase.FockBasis)
+    is_destroy(op)  && return QuantumOpticsBase.destroy(b)
+    is_create(op)   && return QuantumOpticsBase.create(b)
+    is_position(op) && return (QuantumOpticsBase.destroy(b) + QuantumOpticsBase.create(b)) / sqrt(2)
+    is_momentum(op) && return im * (QuantumOpticsBase.create(b) - QuantumOpticsBase.destroy(b)) / sqrt(2)
+    throw(ArgumentError("Op kind $(op.kind) does not act on a FockBasis"))
 end
-function to_numeric(op::QSym, b::QuantumOpticsBase.NLevelBasis)
-    op isa Transition && return QuantumOpticsBase.transition(b, op.i, op.j)
-    throw(ArgumentError("$(typeof(op)) does not act on an NLevelBasis"))
+function to_numeric(op::Op, b::QuantumOpticsBase.NLevelBasis)
+    is_transition(op) && return QuantumOpticsBase.transition(b, Int(op.l1), Int(op.l2))
+    throw(ArgumentError("Op kind $(op.kind) does not act on an NLevelBasis"))
 end
-function to_numeric(op::QSym, b::QuantumOpticsBase.SpinBasis)
-    if op isa Pauli
+function to_numeric(op::Op, b::QuantumOpticsBase.SpinBasis)
+    if is_pauli(op)
         b.spinnumber == 1 // 2 || throw(ArgumentError("Pauli operators require SpinBasis(1//2), got SpinBasis($(b.spinnumber))"))
-        op.axis == 1 && return QuantumOpticsBase.sigmax(b)
-        op.axis == 2 && return QuantumOpticsBase.sigmay(b)
+        op.l1 == 1 && return QuantumOpticsBase.sigmax(b)
+        op.l1 == 2 && return QuantumOpticsBase.sigmay(b)
         return QuantumOpticsBase.sigmaz(b)
     end
-    if op isa Spin
-        op.axis == 1 && return 0.5 * QuantumOpticsBase.sigmax(b)
-        op.axis == 2 && return 0.5 * QuantumOpticsBase.sigmay(b)
+    if is_spin(op)
+        op.l1 == 1 && return 0.5 * QuantumOpticsBase.sigmax(b)
+        op.l1 == 2 && return 0.5 * QuantumOpticsBase.sigmay(b)
         return 0.5 * QuantumOpticsBase.sigmaz(b)
     end
-    throw(ArgumentError("$(typeof(op)) does not act on a SpinBasis"))
+    throw(ArgumentError("Op kind $(op.kind) does not act on a SpinBasis"))
 end
-function to_numeric(op::QSym, b::QuantumOpticsBase.CompositeBasis)
+function to_numeric(op::Op, b::QuantumOpticsBase.CompositeBasis)
     return QuantumOpticsBase.LazyTensor(b, [op.space_index], (to_numeric(op, b.bases[op.space_index]),))
 end
 
-function to_numeric(op::QSym, b::QuantumOpticsBase.Basis, d::AbstractDict{<:QSym})
+function to_numeric(op::Op, b::QuantumOpticsBase.Basis, d::AbstractDict{<:QSym})
     haskey(d, op) && return d[op]
     return to_numeric(op, b)
 end
@@ -81,7 +81,7 @@ function to_numeric(s::QAdd, b::QuantumOpticsBase.Basis, d::AbstractDict{<:QSym}
     return
 end
 
-function _product(ops::Vector{QSym}, b::QuantumOpticsBase.Basis, d::AbstractDict{<:QSym} = _NO_SUBS)
+function _product(ops::Vector{Op}, b::QuantumOpticsBase.Basis, d::AbstractDict{<:QSym} = _NO_SUBS)
     acc = to_numeric(first(ops), b, d)
     for i in 2:length(ops)
         acc *= to_numeric(ops[i], b, d)
@@ -158,7 +158,7 @@ function _accumulate_indexed_term!(
         if _violates_ne(term.ne, sub)
             continue
         end
-        new_ops = QSym[change_index(op, sub) for op in term.ops]
+        new_ops = Op[change_index(op, sub) for op in term.ops]
         new_c = change_index(c, sub)
         new_c = _apply_scalar_subs(new_c, sub_re, sub_im, has_imag)
         acc = acc + _emit_indexed_combo(new_ops, new_c, b, sites, d)
@@ -220,7 +220,7 @@ function _violates_ne(ne::Vector{NonEqualPair}, sub::Dict{Index, Index})
 end
 
 function _emit_indexed_combo(
-        ops::Vector{QSym}, c::CNum,
+        ops::Vector{Op}, c::CNum,
         b::QuantumOpticsBase.CompositeBasis,
         sites::AbstractDict{Int, Vector{Int}},
         d::AbstractDict{<:QSym},
