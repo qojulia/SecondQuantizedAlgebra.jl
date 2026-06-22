@@ -5,6 +5,13 @@ All notable changes to [`SecondQuantizedAlgebra.jl`](https://github.com/qojulia/
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v0.7.2]
+
+### Changed
+
+- Complex parameters and irreducible scalar couplings now stay on the native `Poly` coefficient path instead of escalating to the `Complex{Num}` symbolic tail, where every later product/sum round-tripped through SymbolicUtils hashconsing. `_is_atom`/`_rec` now recognize any non-algebraic one-argument call on an atom (`real(g)`, `imag(g)`, `exp`, `sin`, ...) as a single opaque polynomial atom; a `@variables g::Complex` parameter (stored as `Complex(real(g), imag(g))`) therefore no longer poisons downstream coefficient arithmetic. Conjugation of a `Poly` coefficient is now native (`_conj_poly`: conjugate scalars and atoms, re-canonicalize) rather than materializing each term through `to_num`. On the downstream `QuantumInputOutput.jl` SLH cascade benchmark this lowers a 3-cavity `hamiltonian`/`lindblad` build from about 140 µs to about 7.6 µs (roughly 18×).
+- Radicals of a single parameter now canonicalize on the native `Poly` path: `Monomial` exponents are `Rational{Int}`, so `sqrt(p)` is stored as `p^(1//2)` (likewise `cbrt(p)` as `p^(1//3)`, and `p^(m//n)`). Building `sqrt(p)` and squaring it folds to `p` natively, matching the `sqrt(p)^2 -> p` fold Symbolics performs at the `Num` level; previously `sqrt(p)` was an opaque integer-exponent atom, so the two construction paths produced distinct, non-`isequal` coefficients and `QAdd` like-term dedup could miss merges. A radical of a non-atom (`sqrt(g*κ)`, `(g+κ)^(1//2)`) is not distributed (unsound in general) and stays a `Complex{Num}` symbolic leaf, consistent with how Symbolics treats it.
+
 ## [v0.7.1]
 
 ### changed

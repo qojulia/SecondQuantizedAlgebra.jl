@@ -109,9 +109,23 @@ import SecondQuantizedAlgebra: Coeff, CNum, Monomial, Poly, _to_cnum, _to_comple
             for x in (g, ω * g, 2 * ω * g, 0.5g, g^3, g / κ, im * g, ω + g, (g + κ)^2)
                 @test _is_poly(_to_cnum(x))
             end
-            # transcendental functions stay on the symbolic (Complex{Num}) path
-            @test _is_symbolic_cnum(_to_cnum(exp(g)))
-            @test !_is_poly(_to_cnum(exp(g)))
+            # an irreducible one-argument call on an atom (`exp`, `sin`,
+            # `real`/`imag` of a complex parameter, ...) is kept native as an opaque
+            # Poly atom rather than escalating the whole coefficient to the symbolic path
+            for x in (exp(g), sin(g), real(gc), imag(gc), conj(gc))
+                @test _is_poly(_to_cnum(x))
+            end
+            # a radical of a single atom is a Poly with a *rational* exponent
+            # (`sqrt(g) = g^(1//2)`), so radicals canonicalize on the fast path too
+            for x in (sqrt(g), cbrt(g), g^(1 // 2), g^(3 // 2), g^0.5, g^(-1 // 2), sqrt(sqrt(g)))
+                @test _is_poly(_to_cnum(x))
+            end
+            # genuinely non-atomic expressions stay on the symbolic (Complex{Num}) path:
+            # a non-atom argument, a radical of a product, or a division by a sum
+            for x in (exp(g + κ), sin(g * κ), sqrt(g * κ), (g + κ)^(1 // 2), 1 / (g + κ))
+                @test _is_symbolic_cnum(_to_cnum(x))
+                @test !_is_poly(_to_cnum(x))
+            end
             # inexact scalars keep the coefficient symbolic (exactness gate), never a Poly
             @test !_is_native(_to_cnum((1 // 3) * g))
             @test !_is_poly(_to_cnum((1 // 3) * g))
@@ -156,6 +170,61 @@ import SecondQuantizedAlgebra: Coeff, CNum, Monomial, Poly, _to_cnum, _to_comple
             # complex-symtype parameter: conj reaches the factor
             @test isequal(to_num(_conj_cnum(_to_cnum(gc))), Complex(Num(conj(gc)), Num(0)))
             @test isequal(to_num(_conj_cnum(_to_cnum(im * g))), Complex(Num(0), Num(-g)))
+        end
+
+        @testset "complex parameters and irreducible couplings stay native" begin
+            # `@variables _::Complex` is stored as `Complex(real(_), imag(_))`; its
+            # real/imag parts are recognized atoms, so the parameter stays on the Poly
+            # path instead of poisoning downstream arithmetic with a Complex{Num} tail.
+            @variables gv::Complex γ::Real
+            @test _is_poly(_to_cnum(gv))
+            @test _is_poly(_to_cnum(√(γ) * gv))
+            # conjugation is native and faithful: real γ is self-conjugate, the complex
+            # parameter's imaginary part flips sign.
+            @test isequal(to_num(_conj_cnum(_to_cnum(gv))), conj(gv))
+            @test isequal(to_num(_conj_cnum(_to_cnum(√(γ) * gv))), conj(√(γ) * gv))
+        end
+
+        @testset "radicals canonicalize via rational exponents" begin
+            @variables gv::Complex γ::Real
+            # squaring a radical folds to its radicand, matching Symbolics' `sqrt(g)^2 -> g`
+            @test isequal(_mul_cnum(_to_cnum(sqrt(g)), _to_cnum(sqrt(g))), _to_cnum(g))
+            @test isequal(_to_cnum(sqrt(g)^2), _to_cnum(g))
+            @test hash(_to_cnum(sqrt(g)^2)) == hash(_to_cnum(g))
+            three = _mul_cnum(_mul_cnum(_to_cnum(sqrt(g)), _to_cnum(sqrt(g))), _to_cnum(sqrt(g)))
+            @test isequal(three, _to_cnum(g * sqrt(g)))
+            @test isequal(three, _to_cnum(g^(3 // 2)))
+            @test isequal(_mul_cnum(_to_cnum(sqrt(γ)), _to_cnum(γ)), _to_cnum(γ^(3 // 2)))
+            @test isequal(_to_cnum(sqrt(sqrt(g))), _to_cnum(g^(1 // 4)))
+            # sqrt, g^0.5, g^(1//2) are the same coefficient
+            @test isequal(_to_cnum(sqrt(g)), _to_cnum(g^(1 // 2)))
+            @test isequal(_to_cnum(g^0.5), _to_cnum(g^(1 // 2)))
+            for c in (_to_cnum(sqrt(g)), _to_cnum(γ^(3 // 2)), _to_cnum(g^(1 // 4)))
+                @test isequal(_to_cnum(to_num(c)), c)   # materialization round-trips
+            end
+            @test isequal(to_num(_conj_cnum(_to_cnum(√(γ) * gv))), conj(√(γ) * gv))
+            # radical of a product / scaled atom is not distributed: symbolic leaf
+            @test _is_symbolic_cnum(_to_cnum(sqrt(g * κ)))
+            @test _is_symbolic_cnum(_to_cnum((2g)^(1 // 2)))
+            for e in (-1 // 2, -3 // 2)   # negative fractional exps use the divide branch
+                c = _to_cnum(g^e)
+                @test _is_poly(c) && isequal(_to_cnum(to_num(c)), c)
+            end
+            @test isequal(_mul_cnum(_to_cnum(sqrt(g)), _to_cnum(1 / g)), _to_cnum(g^(-1 // 2)))
+            @test _is_native(_to_cnum(Num(4)^(1 // 2)))   # numeric base stays native
+            @test to_num(_to_cnum(Num(4)^(1 // 2))) == 2
+            # a float exponent is accepted only when it is exactly a small rational
+            @test _is_poly(_to_cnum(g^(1 / 3)))
+            @test _is_symbolic_cnum(_to_cnum(g^0.30102999566))
+        end
+
+        @testset "radical coefficients dedup in a QAdd" begin
+            @variables γ::Real
+            h = FockSpace(:f)
+            a = Destroy(h, :a)
+            @test isequal((sqrt(γ) * sqrt(γ)) * (a' * a), γ * (a' * a))
+            @test hash((sqrt(γ) * sqrt(γ)) * (a' * a)) == hash(γ * (a' * a))
+            @test isequal(sqrt(γ) * sqrt(γ) * a + γ * a, 2γ * a)
         end
 
         @testset "negation and exact cancellation" begin

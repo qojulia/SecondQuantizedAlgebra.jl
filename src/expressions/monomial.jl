@@ -2,13 +2,15 @@
     Monomial
 
 One term of a parameter polynomial: a native `ComplexF64` scalar times a product
-of named symbolic parameters with integer exponents, `scalar * ∏ symᵢ^expᵢ`.
-Factors are stored sorted by their `objectid` and deduplicated.
+of named symbolic parameters with rational exponents, `scalar * ∏ symᵢ^expᵢ`.
+Factors are stored sorted by their `objectid` and deduplicated. Exponents are
+`Rational{Int}` so radicals of a single atom merge canonically (`sqrt(p) = p^(1//2)`,
+`sqrt(p)*sqrt(p) = p`).
 """
 struct Monomial
     scalar::ComplexF64
     syms::Vector{SymbolicUtils.BasicSymbolic}   # sorted by objectid, distinct
-    exps::Vector{Int}                           # matching nonzero exponents
+    exps::Vector{Rational{Int}}                 # matching nonzero exponents
 end
 
 """
@@ -60,7 +62,7 @@ function _merge_factors(syma, expa, symb, expb)
     ia, ib = 1, 1
     na, nb = length(syma), length(symb)
     syms = SymbolicUtils.BasicSymbolic[]
-    exps = Int[]
+    exps = Rational{Int}[]
     sizehint!(syms, na + nb); sizehint!(exps, na + nb)
     @inbounds while ia <= na || ib <= nb
         if ib > nb || (ia <= na && _fkey(syma[ia]) < _fkey(symb[ib]))

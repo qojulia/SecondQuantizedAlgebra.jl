@@ -26,7 +26,7 @@ const _NUM_ZERO = Num(0)
 const _NUM_ONE = Num(1)
 const _ONE_C = ComplexF64(1)
 const _EMPTY_SYMS = SymbolicUtils.BasicSymbolic[]
-const _EMPTY_EXPS = Int[]
+const _EMPTY_EXPS = Rational{Int}[]
 
 # Adding 0.0+0.0im normalizes any signed zero (`-0.0 -> 0.0`) so that structurally
 # equal coefficients (e.g. `conj(2)` vs `2`) stay `isequal` and hash identically.
@@ -119,14 +119,25 @@ function _term_to_num(m::Monomial)
     @inbounds for i in eachindex(m.syms)
         base = Num(m.syms[i])
         e = m.exps[i]
-        if e >= 0
-            for _ in 1:e
+        # integer part by repeated multiply/divide (stays `Num`-inferred), then a
+        # `±1//2` `sqrt` remainder or, rarely, a single symbolic power.
+        q = div(numerator(e), denominator(e))   # toward zero
+        if q >= 0
+            for _ in 1:q
                 prod = prod * base
             end
         else
-            for _ in 1:(-e)
+            for _ in 1:(-q)
                 prod = prod / base
             end
+        end
+        f = e - q
+        if f == 1 // 2
+            prod = prod * sqrt(base)
+        elseif f == -1 // 2
+            prod = prod / sqrt(base)
+        elseif f != 0
+            prod = prod * (base^f)
         end
     end
     sr = _num_from_float(real(m.scalar))
@@ -144,32 +155,80 @@ function _poly_to_num(p::Poly)
     return acc
 end
 
-# An "atom" factor is a bare symbol, an array-variable index (`ω[i]`, a
-# `getindex` call), or `conj(atom)`.
+# An "atom" factor is an irreducible scalar that the polynomial tier treats as a
+# single opaque variable: a bare symbol, an array-variable index (`ω[i]`, a
+# `getindex` call), or any *non-algebraic* one-argument call applied to an atom
+# (`conj(atom)`, `real(atom)`, `imag(atom)`, `sqrt(atom)`, `exp(atom)`, ...). The
+# algebraic ops (`+ * ^ /`, `complex`) are *not* atoms: `_rec` decomposes them so
+# their polynomial structure stays native. Recognizing the rest as atoms keeps
+# complex parameters (`real(g)`/`imag(g)`) and irreducible couplings (`√γ`) on the
+# fast Poly path instead of escalating the whole expression to a `Complex{Num}`
+# tail, where every later product/sum would round-trip through SymbolicUtils.
 @inline function _is_atom(b)
     b isa SymbolicUtils.BasicSymbolic || return false
     SymbolicUtils.issym(b) && return true
     SymbolicUtils.iscall(b) || return false
     op = SymbolicUtils.operation(b)
     op === getindex && return true
-    return op === conj && length(SymbolicUtils.arguments(b)) == 1 &&
-        _is_atom(only(SymbolicUtils.arguments(b)))
+    (op === (+) || op === (*) || op === (^) || op === (/) || op === complex) &&
+        return false
+    args = SymbolicUtils.arguments(b)
+    return length(args) == 1 && _is_atom(only(args))
 end
 
 # A bare atom (symbol / array index / `conj(atom)`) as a single-monomial Coeff.
 @inline _atom_coeff(x::SymbolicUtils.BasicSymbolic) =
-    _poly_coeff(Poly(Monomial[Monomial(_ONE_C, SymbolicUtils.BasicSymbolic[x], [1])]))
+    _poly_coeff(Poly(Monomial[Monomial(_ONE_C, SymbolicUtils.BasicSymbolic[x], Rational{Int}[1])]))
 # An unrecognized symbolic value, kept on the `Complex{Num}` symbolic path.
 @inline _sym_leaf(x::SymbolicUtils.BasicSymbolic) = _symbolic(Complex(Num(x), _NUM_ZERO))
+
+# A power's exponent as an exact `Rational{Int}`, or `nothing`. A float is accepted
+# only when it is exactly a small rational, never approximated.
+@inline function _rat_exp(pv)
+    pv isa Integer && return Rational{Int}(Int(pv))
+    if pv isa Rational
+        try
+            return convert(Rational{Int}, pv)
+        catch
+            return nothing
+        end
+    end
+    if pv isa AbstractFloat && isfinite(pv)
+        try
+            r = rationalize(Int, pv)
+            float(r) == pv && return r
+        catch
+        end
+    end
+    return nothing
+end
+
+# A fractional power `base^r`. Native only for a numeric base or a single-atom
+# unit-scalar monomial (giving that atom a rational exponent); any other base would
+# need to distribute the radical (unsound), so it becomes a symbolic leaf.
+function _rational_power(basearg, r::Rational{Int}, x)
+    base = _rec(basearg)
+    _is_native(base) && return _native(base.z^r)
+    if base.tail isa Poly && length(base.tail.terms) == 1
+        m = base.tail.terms[1]
+        if length(m.syms) == 1 && m.scalar == _ONE_C
+            return _poly_coeff(Poly(Monomial[Monomial(_ONE_C, m.syms, Rational{Int}[m.exps[1] * r])]))
+        end
+    end
+    return _sym_leaf(x)
+end
 
 # Total recognizer: interpret a symbolic value as a `Coeff` by evaluating its
 # expression tree in the Coeff algebra. Numbers / atoms map to native / 1-term
 # polynomial coefficients; `+`, `*`, integer `^`, and monomial `/` compose through
 # the coefficient arithmetic (which keeps polynomials native and escalates to the
-# `Complex{Num}` tail only when an operand is non-polynomial); everything else
-# (`exp`, `sin`, symbolic powers, divisions by sums, ...) is a symbolic leaf.
-# There is no failure sentinel: an unrecognized subterm is just a symbolic-tail
-# `Coeff` that the arithmetic absorbs, so recognition is total and never `nothing`.
+# `Complex{Num}` tail only when an operand is non-polynomial); an irreducible
+# one-argument call on an atom (`exp`, `sin`, `sqrt`, `real`, `imag`, ...) is kept
+# native as an opaque atom (see `_is_atom`); only genuinely non-atomic leftovers
+# (symbolic powers, divisions by sums, multi-arg non-algebraic calls, ...) become a
+# symbolic leaf. There is no failure sentinel: an unrecognized subterm is just a
+# symbolic-tail `Coeff` that the arithmetic absorbs, so recognition is total and
+# never `nothing`.
 _rec(x::Number)::Coeff = _to_cnum(x)
 _rec(x::Num)::Coeff = _rec(SymbolicUtils.unwrap(x))
 _rec(x)::Coeff = _to_cnum(x)
@@ -193,9 +252,10 @@ function _rec(x::SymbolicUtils.BasicSymbolic)::Coeff
         return c
     elseif op === (^)
         length(args) == 2 || return _sym_leaf(x)
-        pv = _const_value(args[2])
-        pv isa Integer || return _sym_leaf(x)
-        n = Int(pv)
+        r = _rat_exp(_const_value(args[2]))
+        r === nothing && return _sym_leaf(x)
+        isinteger(r) || return _rational_power(args[1], r, x)
+        n = Int(r)
         base = _rec(args[1])
         if n >= 0
             c = _CNUM_ONE
@@ -209,7 +269,7 @@ function _rec(x::SymbolicUtils.BasicSymbolic)::Coeff
             m = base.tail.terms[1]
             s = inv(m.scalar)
             s * m.scalar == _ONE_C &&
-                return _poly_coeff(Poly(Monomial[Monomial(s^(-n), m.syms, Int[e * n for e in m.exps])]))
+                return _poly_coeff(Poly(Monomial[Monomial(s^(-n), m.syms, Rational{Int}[e * n for e in m.exps])]))
         end
         return _sym_leaf(x)
     elseif op === getindex
@@ -227,15 +287,23 @@ function _rec(x::SymbolicUtils.BasicSymbolic)::Coeff
             s * m.scalar == _ONE_C &&
                 return _mul_cnum(
                 _rec(args[1]),
-                _poly_coeff(Poly(Monomial[Monomial(s, m.syms, Int[-e for e in m.exps])]))
+                _poly_coeff(Poly(Monomial[Monomial(s, m.syms, Rational{Int}[-e for e in m.exps])]))
             )
         end
         return _sym_leaf(x)
     elseif op === complex
         length(args) == 2 && return _cnum(Num(args[1]), Num(args[2]))
         return _sym_leaf(x)
+    elseif op === sqrt
+        length(args) == 1 && return _rational_power(only(args), 1 // 2, x)
+        return _sym_leaf(x)
+    elseif op === cbrt
+        length(args) == 1 && return _rational_power(only(args), 1 // 3, x)
+        return _sym_leaf(x)
     end
-    return _sym_leaf(x)
+    # Irreducible one-arg call on an atom (`exp`, `sin`, `real`, `imag`, ...): keep it
+    # native as an opaque integer-exponent atom. Radicals are handled above instead.
+    return _is_atom(x) ? _atom_coeff(x) : _sym_leaf(x)
 end
 
 Base.convert(::Type{Coeff}, x::Coeff) = x
@@ -313,11 +381,43 @@ Base.:/(a::Number, b::Coeff) = _to_cnum(a) / b
 
 _sym_conj(x::Num) = SymbolicUtils.symtype(x) <: Real ? x : Num(conj(SymbolicUtils.unwrap(x)))
 
+# Conjugate an atom factor. Real-symtype atoms (bare real params, `real(g)`,
+# `imag(g)`, `sqrt` of a real, ...) are self-conjugate; anything else gets a
+# `conj(...)` wrapper, which `_is_atom` still recognizes as an atom.
+@inline _conj_atom(s::SymbolicUtils.BasicSymbolic) =
+    SymbolicUtils.symtype(s) <: Real ? s : SymbolicUtils.unwrap(conj(s))
+
+# Native conjugation of a parameter polynomial: conjugate each monomial's scalar
+# and atoms in place, re-sort the (now rekeyed) factors by `objectid`, and merge
+# back into canonical form. Conjugation is injective on distinct atoms, so the
+# factor set of each monomial stays distinct; only the cross-term canonicalization
+# is needed. Staying on the Poly path avoids the `to_num` -> SymbolicUtils
+# hashconsing round-trip the materialized fallback incurs per term.
+function _conj_poly(p::Poly)
+    terms = Vector{Monomial}(undef, length(p.terms))
+    @inbounds for k in eachindex(p.terms)
+        m = p.terms[k]
+        n = length(m.syms)
+        if n == 0
+            terms[k] = Monomial(conj(m.scalar), m.syms, m.exps)
+            continue
+        end
+        nsyms = Vector{SymbolicUtils.BasicSymbolic}(undef, n)
+        for i in 1:n
+            nsyms[i] = _conj_atom(m.syms[i])
+        end
+        perm = sortperm(nsyms; by = _fkey)
+        terms[k] = Monomial(conj(m.scalar), nsyms[perm], m.exps[perm])
+    end
+    return _from_poly(_canonical_terms(terms))
+end
+
 @inline function _conj_cnum(c::Coeff)
-    _is_native(c) && return _native(conj(c.z))
-    # conj(re + i*im) = conj(re) - i*conj(im); each part may be a Number-symtype
-    # symbol. Materialized parts serve the polynomial and symbolic tails alike;
-    # `_cnum` re-recognizes the polynomial after conjugation.
+    t = c.tail
+    t isa Native && return _native(conj(c.z))
+    t isa Poly && return _conj_poly(t)
+    # Symbolic tail: conj(re + i*im) = conj(re) - i*conj(im); each part may be a
+    # Number-symtype symbol. `_cnum` re-recognizes the result.
     re, im = _realimag(c)
     return _cnum(_sym_conj(re), -_sym_conj(im))
 end
