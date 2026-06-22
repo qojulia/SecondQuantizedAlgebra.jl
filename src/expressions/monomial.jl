@@ -1,11 +1,9 @@
 """
     Monomial
 
-One term of a parameter polynomial: a native `ComplexF64` scalar times a product
-of named symbolic parameters with rational exponents, `scalar * ∏ symᵢ^expᵢ`.
-Factors are stored sorted by their `objectid` and deduplicated. Exponents are
-`Rational{Int}` so radicals of a single atom merge canonically (`sqrt(p) = p^(1//2)`,
-`sqrt(p)*sqrt(p) = p`).
+One term of a parameter polynomial: `scalar * ∏ symᵢ^expᵢ`. Factors are sorted by
+`objectid` and deduplicated; `Rational{Int}` exponents let radicals of a single
+atom merge (`sqrt(p)*sqrt(p) = p`).
 """
 struct Monomial
     scalar::ComplexF64
@@ -16,23 +14,16 @@ end
 """
     Poly
 
-A native sparse multivariate polynomial over named parameters: a sum of
-[`Monomial`](@ref) terms with distinct factor sets, sorted into a canonical
-order. Tier-2 coefficient representation: products and sums of parameter
-polynomials are native (scalar arithmetic plus integer-exponent merges), so the
-common symbolic coefficient never routes through SymbolicUtils hashconsing. It
-lowers to `Complex{Num}` only at the symbolic boundaries (see `_poly_to_num`).
+A native sparse multivariate polynomial over named parameters (a sum of distinct
+[`Monomial`](@ref) terms in canonical order), kept off SymbolicUtils hashconsing
+and lowered to `Complex{Num}` only at the symbolic boundaries (see `_poly_to_num`).
 """
 struct Poly
     terms::Vector{Monomial}
 end
 
-# Factor identity key. SymbolicUtils hashconses (the SU4 default), so two
-# structurally-equal symbols are the *same object*; `objectid` is therefore a
-# stable identity key and `===` is exact factor equality. Both are builtins that
-# take `Any` without dispatching, unlike `hash(::BasicSymbolic)` /
-# `isequal(::BasicSymbolic, ::BasicSymbolic)` whose abstract element type forces
-# runtime dispatch. Using them keeps every polynomial operation fully type-stable.
+# Factor identity key: SymbolicUtils hashconses, so `objectid`/`===` are exact and
+# type-stable factor identity (unlike `hash`/`isequal` on abstract `BasicSymbolic`).
 @inline _fkey(s::SymbolicUtils.BasicSymbolic) = objectid(s)
 
 @inline function _same_factors(a::Monomial, b::Monomial)
@@ -105,11 +96,8 @@ function _canonical_terms!(terms::Vector{Monomial})
     return terms
 end
 
-# Both inputs are sorted by `_term_less`, so a sorted merge gives the canonical sum
-# in O(n+m) without the `vcat` copy + full `sort!` of `_canonical_terms!`. Zero-scalar
-# terms are dropped so the output stays canonical and zero-free: a stray zero term
-# would silently break Poly equality/hashing (and thus QAdd dedup), so guard against
-# it here even though canonical callers never inject one.
+# Sorted merge of two canonical term lists, dropping zero-scalar terms so the result
+# stays canonical and zero-free (a stray zero would break Poly equality/hashing).
 function _poly_add(p::Vector{Monomial}, q::Vector{Monomial})
     out = Monomial[]
     sizehint!(out, length(p) + length(q))

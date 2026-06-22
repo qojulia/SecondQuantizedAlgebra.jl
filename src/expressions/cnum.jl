@@ -1,18 +1,12 @@
 """
-Coefficient representation and canonical sorting for operator sequences.
-
-A `Coeff` is the prefactor stored against each [`QTerm`](@ref). It has three forms:
-a native `ComplexF64` fast path for concrete numbers, a [`Poly`](@ref) sparse
-parameter polynomial for products and sums of named parameters, and a
-`Complex{Num}` fallback for genuinely non-polynomial coefficients (`exp`, `sin`,
-divisions by sums, ...). Numeric and parameter-polynomial arithmetic stay native,
-so the common coefficient never routes through SymbolicUtils hashconsing; the
-coefficient lowers to `Complex{Num}` only at the symbolic boundaries (`to_num`).
+Coefficient representation for operator prefactors. A `Coeff` has three forms: a
+native `ComplexF64` (concrete numbers), a [`Poly`](@ref) parameter polynomial
+(products/sums of named parameters), and a `Complex{Num}` fallback. Native and
+polynomial arithmetic stay off SymbolicUtils, lowering to `Complex{Num}` only at
+the symbolic boundaries (`to_num`).
 """
 
 # Zero-size tag marking the native fast path (the value lives inline in `z`).
-# A named singleton rather than `nothing`: same layout and cost, but the type
-# says "native" instead of "absent".
 struct Native end
 const NATIVE = Native()
 
@@ -42,10 +36,8 @@ const _CNUM_NEG1 = _native(-one(ComplexF64))
 const _CNUM_IM = _native(ComplexF64(0, 1))
 const _CNUM_NEG_IM = _native(ComplexF64(0, -1))
 
-# Concrete numeric content of an (unwrapped) symbolic value, else `nothing`.
-# `substitute`/`simplify` yield `BasicSymbolic` *constants*, not plain numbers,
-# so both must be recognized to keep numeric coefficients on the native path.
-# (`nothing` is consumed by `isa` checks at the call sites, never threaded.)
+# Concrete numeric content of an (unwrapped) symbolic value, else `nothing`
+# (`BasicSymbolic` constants from substitute/simplify count, keeping them native).
 @inline function _const_value(v)
     v isa Number && return v
     (v isa SymbolicUtils.BasicSymbolic && SymbolicUtils.isconst(v)) && return v.val
@@ -74,19 +66,13 @@ end
 _to_cnum(x::Complex{Num}) = _cnum(real(x), imag(x))
 _to_cnum(x::SymbolicUtils.BasicSymbolic) = _rec(x)
 
-# Build a coefficient from real/imag `Num` parts by interpreting `re + im*i` in the
-# Coeff algebra (see `_rec`). The canonicalizing constructor used by symbolic
-# boundaries that may yield a polynomial (substitute / conj / change_index), so
-# native / polynomial / symbolic forms are recovered uniformly.
+# Canonicalizing constructor from real/imag `Num` parts (`re + im*i`), used by the
+# symbolic boundaries (substitute / conj / change_index) that may yield a polynomial.
 _cnum(re::Num, im::Num) =
     _add_cnum(_rec(SymbolicUtils.unwrap(re)), _mul_cnum(_CNUM_IM, _rec(SymbolicUtils.unwrap(im))))
 
-# Rebuild after a *materialized symbolic arithmetic* step (the `Complex{Num}`
-# fallback of `_mul_cnum`/`_add_cnum`/`_neg_cnum`). One operand was already a
-# genuinely non-polynomial symbolic tail, so the result is native (when it folds to
-# a constant) or symbolic, never a fresh polynomial. It therefore must NOT re-enter
-# `_rec`, which would re-decompose the product and recurse without end; it only
-# folds a numeric constant back to the native path.
+# Rebuild after a materialized symbolic arithmetic step: folds a numeric constant
+# back to native, else stays symbolic. Must NOT re-enter `_rec` (would recurse).
 function _cnum_sym(re::Num, im::Num)
     rv = _numeric_value(re)
     iv = _numeric_value(im)
@@ -100,9 +86,8 @@ end
 
 # === Parameter-polynomial tier: folding, materialization, recognition ===
 
-# Fold a canonical term list into a Coeff: empty -> zero, a single constant term
-# -> native, otherwise a Poly. Producers (`_poly_add`/`_poly_mul`/`_poly_scale`)
-# return canonical term lists, so no re-sort is needed here.
+# Fold a canonical term list into a Coeff: empty -> zero, one constant term ->
+# native, else a Poly. Inputs are already canonical, so no re-sort here.
 function _from_poly(terms::Vector{Monomial})
     isempty(terms) && return _CNUM_ZERO
     if length(terms) == 1 && isempty(terms[1].syms)
@@ -111,17 +96,14 @@ function _from_poly(terms::Vector{Monomial})
     return _poly_coeff(Poly(terms))
 end
 
-# One monomial term -> Complex{Num}. Powers are built by repeated `Num`
-# multiplication/division (both infer to `Num`) rather than `Num ^ Int`, which
-# SymbolicUtils infers as `Any` and would degrade `to_num` / `real` everywhere.
+# One monomial term -> Complex{Num}. The integer part of each exponent is built by
+# repeated multiply/divide (both infer `Num`, unlike `Num ^ Int` which infers `Any`).
 function _term_to_num(m::Monomial)
     prod = _NUM_ONE
     @inbounds for i in eachindex(m.syms)
         base = Num(m.syms[i])
         e = m.exps[i]
-        # integer part by repeated multiply/divide (stays `Num`-inferred), then a
-        # `±1//2` `sqrt` remainder or, rarely, a single symbolic power.
-        q = div(numerator(e), denominator(e))   # toward zero
+        q = div(numerator(e), denominator(e))   # integer part, toward zero
         if q >= 0
             for _ in 1:q
                 prod = prod * base
@@ -137,9 +119,7 @@ function _term_to_num(m::Monomial)
         elseif f == -1 // 2
             prod = prod / sqrt(base)
         elseif f != 0
-            # `Num ^ Rational` infers as `Any` (like `Num ^ Int`); assert `Num` so the
-            # rare fractional case does not make `_term_to_num`/`to_num` return-unstable.
-            prod = prod * (base^f)::Num
+            prod = prod * (base^f)::Num   # `::Num`: `Num ^ Rational` infers `Any`
         end
     end
     sr = _num_from_float(real(m.scalar))
@@ -157,15 +137,10 @@ function _poly_to_num(p::Poly)
     return acc
 end
 
-# An "atom" factor is an irreducible scalar that the polynomial tier treats as a
-# single opaque variable: a bare symbol, an array-variable index (`ω[i]`, a
-# `getindex` call), or any *non-algebraic* one-argument call applied to an atom
-# (`conj(atom)`, `real(atom)`, `imag(atom)`, `sqrt(atom)`, `exp(atom)`, ...). The
-# algebraic ops (`+ * ^ /`, `complex`) are *not* atoms: `_rec` decomposes them so
-# their polynomial structure stays native. Recognizing the rest as atoms keeps
-# complex parameters (`real(g)`/`imag(g)`) and irreducible couplings (`√γ`) on the
-# fast Poly path instead of escalating the whole expression to a `Complex{Num}`
-# tail, where every later product/sum would round-trip through SymbolicUtils.
+# An "atom" is an irreducible scalar the polynomial tier treats as one opaque
+# variable: a symbol, an array index (`ω[i]`), or a non-algebraic one-arg call on an
+# atom (`real(g)`, `imag(g)`, `sqrt`, `exp`, `conj`, ...). Algebraic ops (`+ * ^ /`,
+# `complex`) are decomposed by `_rec` instead, keeping their structure native.
 @inline function _is_atom(b)
     b isa SymbolicUtils.BasicSymbolic || return false
     SymbolicUtils.issym(b) && return true
@@ -199,17 +174,10 @@ function _rational_power(basearg, r::Rational{Int}, x)
     return _sym_leaf(x)
 end
 
-# Total recognizer: interpret a symbolic value as a `Coeff` by evaluating its
-# expression tree in the Coeff algebra. Numbers / atoms map to native / 1-term
-# polynomial coefficients; `+`, `*`, integer `^`, and monomial `/` compose through
-# the coefficient arithmetic (which keeps polynomials native and escalates to the
-# `Complex{Num}` tail only when an operand is non-polynomial); an irreducible
-# one-argument call on an atom (`exp`, `sin`, `sqrt`, `real`, `imag`, ...) is kept
-# native as an opaque atom (see `_is_atom`); only genuinely non-atomic leftovers
-# (symbolic powers, divisions by sums, multi-arg non-algebraic calls, ...) become a
-# symbolic leaf. There is no failure sentinel: an unrecognized subterm is just a
-# symbolic-tail `Coeff` that the arithmetic absorbs, so recognition is total and
-# never `nothing`.
+# Total recognizer: evaluate a symbolic expression tree in the Coeff algebra.
+# Numbers/atoms map to native/Poly; `+ * ^(int) /` compose through the coefficient
+# arithmetic; radicals fold to rational exponents; everything else is a symbolic
+# leaf. Always returns a `Coeff` (no `nothing` sentinel).
 _rec(x::Number)::Coeff = _to_cnum(x)
 _rec(x::Num)::Coeff = _rec(SymbolicUtils.unwrap(x))
 _rec(x)::Coeff = _to_cnum(x)
@@ -233,9 +201,8 @@ function _rec(x::SymbolicUtils.BasicSymbolic)::Coeff
         return c
     elseif op === (^)
         length(args) == 2 || return _sym_leaf(x)
-        # `isa` guards narrow the `Any` exponent to a concrete type before any
-        # arithmetic, so this branch stays dispatch-free (calling a helper on the
-        # `Any` value would force a runtime dispatch and widen the whole branch).
+        # `isa` guards narrow the `Any` exponent before arithmetic (a helper call on
+        # the `Any` value would force a runtime dispatch).
         pv = _const_value(args[2])
         if pv isa Integer
             n = Int(pv)
@@ -367,18 +334,13 @@ Base.:/(a::Number, b::Coeff) = _to_cnum(a) / b
 
 _sym_conj(x::Num) = SymbolicUtils.symtype(x) <: Real ? x : Num(conj(SymbolicUtils.unwrap(x)))
 
-# Conjugate an atom factor. Real-symtype atoms (bare real params, `real(g)`,
-# `imag(g)`, `sqrt` of a real, ...) are self-conjugate; anything else gets a
-# `conj(...)` wrapper, which `_is_atom` still recognizes as an atom.
+# Conjugate an atom factor: real-symtype atoms are self-conjugate, else wrap in
+# `conj(...)` (still an atom to `_is_atom`).
 @inline _conj_atom(s::SymbolicUtils.BasicSymbolic) =
     SymbolicUtils.symtype(s) <: Real ? s : SymbolicUtils.unwrap(conj(s))
 
-# Native conjugation of a parameter polynomial: conjugate each monomial's scalar
-# and atoms in place, re-sort the (now rekeyed) factors by `objectid`, and merge
-# back into canonical form. Conjugation is injective on distinct atoms, so the
-# factor set of each monomial stays distinct; only the cross-term canonicalization
-# is needed. Staying on the Poly path avoids the `to_num` -> SymbolicUtils
-# hashconsing round-trip the materialized fallback incurs per term.
+# Native conjugation of a Poly: conjugate each scalar and atom, re-sort the rekeyed
+# factors by `objectid`, re-canonicalize. Avoids the `to_num` round-trip per term.
 function _conj_poly(p::Poly)
     terms = Vector{Monomial}(undef, length(p.terms))
     @inbounds for k in eachindex(p.terms)
@@ -464,9 +426,8 @@ end
     return _mul_cnum_slow(a, b)
 end
 
-# Polynomial fast paths (native scalar mul + integer-exponent merge, no CAS), then
-# the materialized symbolic multiply. Most prefactors have zero imaginary part, so
-# the symbolic path skips the extra Num mul/sub in that case.
+# Native Poly fast paths first, then the materialized symbolic multiply (which skips
+# the extra Num mul/sub when an operand has zero imaginary part).
 @noinline function _mul_cnum_slow(a::Coeff, b::Coeff)
     ta, tb = a.tail, b.tail
     if ta isa Poly && tb isa Poly
@@ -497,9 +458,8 @@ end
 
 @inline function _add_cnum(a::Coeff, b::Coeff)
     (_is_native(a) && _is_native(b)) && return _native(a.z + b.z)
-    # Addition by zero is identity. Skipping it matters: `_rec` folds every symbolic
-    # sum from `_CNUM_ZERO`, so without this each fold would splice a throwaway
-    # `Monomial(0.0, …)` constant into the Poly and merge it away again.
+    # Skip add-by-zero: `_rec` folds every sum from `_CNUM_ZERO`, so without this each
+    # fold would splice a throwaway zero `Monomial` into the Poly and merge it away.
     _is_native(a) && iszero(a.z) && return b
     _is_native(b) && iszero(b.z) && return a
     return _add_cnum_slow(a, b)
