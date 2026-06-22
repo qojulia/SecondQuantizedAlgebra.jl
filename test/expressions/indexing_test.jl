@@ -22,8 +22,8 @@ import SecondQuantizedAlgebra: simplify, QAdd, QSym, CNum, _to_cnum, NO_INDEX,
     # ========== Index construction ==========
     @testset "Index basics" begin
         i = Index(hf, :i, 10, hf)
-        @test i.name == :i
-        @test i.range == 10
+        @test index_name(i) == :i
+        @test index_range(i) == 10
         @test i.space_index == 1
         @test has_index(i)
         @test !has_index(NO_INDEX)
@@ -172,8 +172,8 @@ import SecondQuantizedAlgebra: simplify, QAdd, QSym, CNum, _to_cnum, NO_INDEX,
         i = Index(hf, :i, 10, hf)
         i3 = i(3)
         @test i3 isa Index
-        @test i3.name === :i_3
-        @test isequal(i3.range, i.range)
+        @test index_name(i3) === :i_3
+        @test isequal(index_range(i3), index_range(i))
         @test i3.space_index == i.space_index
         # Two calls produce equal Index values
         @test i(3) == i(3)

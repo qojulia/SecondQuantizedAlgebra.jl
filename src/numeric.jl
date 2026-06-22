@@ -57,7 +57,8 @@ function to_numeric(op::Op, b::QuantumOpticsBase.SpinBasis)
     throw(ArgumentError("Op kind $(op.kind) does not act on a SpinBasis"))
 end
 function to_numeric(op::Op, b::QuantumOpticsBase.CompositeBasis)
-    return QuantumOpticsBase.LazyTensor(b, [op.space_index], (to_numeric(op, b.bases[op.space_index]),))
+    si = Int(op.space_index)
+    return QuantumOpticsBase.LazyTensor(b, [si], (to_numeric(op, b.bases[si]),))
 end
 
 function to_numeric(op::Op, b::QuantumOpticsBase.Basis, d::AbstractDict{<:QSym})
@@ -153,7 +154,10 @@ function _accumulate_indexed_term!(
             kpos = (rem % lens[k]) + 1
             rem ÷= lens[k]
             idx = dep_indices[k]
-            sub[idx] = Index(idx.name, idx.range, idx.space_index, Num(kpos))
+            # Anonymous concrete site: name_id 0 + slot kpos. `index_sym` maps it
+            # to the integer Num(kpos) so coefficient substitution resolves to the
+            # concrete site, and `index_slot` reads kpos for site routing / ne checks.
+            sub[idx] = Index(Int32(0), idx.range_id, idx.space_index, Int32(kpos))
         end
         if _violates_ne(term.ne, sub)
             continue
@@ -209,10 +213,10 @@ function _violates_ne(ne::Vector{NonEqualPair}, sub::Dict{Index, Index})
     for (a, b) in ne
         ra = get(sub, a, a)
         rb = get(sub, b, b)
-        va = Symbolics.value(ra.sym)
-        vb = Symbolics.value(rb.sym)
-        va isa Int || continue
-        vb isa Int || continue
+        va = index_slot(ra)
+        vb = index_slot(rb)
+        va === nothing && continue
+        vb === nothing && continue
         ra.space_index == rb.space_index || continue
         va == vb && return true
     end
@@ -246,14 +250,14 @@ function _site_routed_op(
 end
 
 function _resolve_slot(op::QSym, sites::AbstractDict{Int, Vector{Int}})
-    si = op.space_index
+    si = Int(op.space_index)
     slots = get(sites, si, Int[])
     if isempty(slots)
         return si
     end
     if has_index(op.index)
-        v = Symbolics.value(op.index.sym)
-        if v isa Int && 1 <= v <= length(slots)
+        v = index_slot(op.index)
+        if v !== nothing && 1 <= v <= length(slots)
             return slots[v]
         end
     end

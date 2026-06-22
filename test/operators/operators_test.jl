@@ -10,7 +10,7 @@ import SecondQuantizedAlgebra: QAdd, QSym, QField, AvgFunc, _average, _conj_cnum
         ops = fundamental_operators(h)
         @test length(ops) == 1
         @test is_destroy(ops[1])
-        @test ops[1].name == :a
+        @test operator_name(ops[1]) == :a
         @test ops[1].space_index == 1
     end
 
@@ -65,7 +65,7 @@ import SecondQuantizedAlgebra: QAdd, QSym, QField, AvgFunc, _average, _conj_cnum
     @testset "fundamental_operators — custom names" begin
         h = FockSpace(:c)
         ops = fundamental_operators(h; names = [:b])
-        @test ops[1].name == :b
+        @test operator_name(ops[1]) == :b
     end
 
     @testset "unique_ops" begin
@@ -104,7 +104,7 @@ import SecondQuantizedAlgebra: QAdd, QSym, QField, AvgFunc, _average, _conj_cnum
         # Two FockSpaces → duplicate types → auto-named a, b
         h = FockSpace(:f1) ⊗ FockSpace(:f2)
         ops = find_operators(h, 1)
-        names = [op isa QAdd ? first(keys(op.arguments)).ops[1].name : op.name for op in ops]
+        names = [op isa QAdd ? operator_name(first(keys(op.arguments)).ops[1]) : operator_name(op) for op in ops]
         @test :a in names
         @test :b in names
     end

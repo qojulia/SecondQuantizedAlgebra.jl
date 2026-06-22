@@ -15,6 +15,7 @@ using PrecompileTools: @setup_workload, @compile_workload
 
 include("types.jl")
 include("operators/hilbertspace.jl")
+include("expressions/intern.jl")
 include("expressions/index_types.jl")
 include("operators/op.jl")
 
@@ -89,7 +90,7 @@ export FockSpace, ProductSpace,
     PauliSpace, Pauli,
     SpinSpace, Spin,
     PhaseSpace, Position, Momentum,
-    Index, has_index, index_slot, IndexedOperator,
+    Index, has_index, index_slot, index_range, index_name, index_sym, IndexedOperator,
     IndexedVariable, DoubleIndexedVariable,
     Σ, ∑, change_index, get_indices,
     ⊗, tensor, Destroy, Create,
@@ -103,7 +104,7 @@ export FockSpace, ProductSpace,
     simplify, expand, expand_completeness, assume_distinct_index, commutator, anticommutator,
     to_numeric, numeric_average,
     qadjoint, qconj, dagger, inner_adjoint,
-    Op, is_destroy, is_create, is_transition, is_pauli, is_spin, is_position, is_momentum, optype
+    Op, operator_name, is_destroy, is_create, is_transition, is_pauli, is_spin, is_position, is_momentum, optype
 
 
 # Public API that is intentionally NOT exported — accessed as

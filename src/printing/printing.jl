@@ -17,12 +17,12 @@ Base.show(io::IO, h::PauliSpace) = (write(io, "ℋ("); print(io, h.name); write(
 Base.show(io::IO, h::SpinSpace) = (write(io, "ℋ("); print(io, h.name); write(io, ")"))
 Base.show(io::IO, h::PhaseSpace) = (write(io, "ℋ("); print(io, h.name); write(io, ")"))
 
-Base.show(io::IO, idx::Index) = print(io, idx.name)
+Base.show(io::IO, idx::Index) = print(io, index_name(idx))
 
 function _show_index_suffix(io::IO, idx::Index)
     if has_index(idx)
         write(io, "_")
-        print(io, idx.name)
+        print(io, index_name(idx))
     end
     return
 end
@@ -41,7 +41,7 @@ end
 const _xyz_sym = (:x, :y, :z)
 
 function Base.show(io::IO, x::Op)
-    print(io, x.name)
+    print(io, operator_name(x))
     _show_index_suffix(io, x.index)
     k = x.kind
     if k === OP_CREATE
@@ -181,18 +181,18 @@ end
 function _show_sum_prefix(io::IO, indices::Vector{Index}, ne_pairs::Vector{NonEqualPair})
     for idx in indices
         write(io, "Σ(")
-        print(io, idx.name)
+        print(io, index_name(idx))
         write(io, "=1:")
-        print(io, idx.range)
+        print(io, index_range(idx))
         write(io, ")")
     end
     if !isempty(ne_pairs)
         write(io, "(")
         for (k, (a, b)) in enumerate(ne_pairs)
             k > 1 && write(io, ",")
-            print(io, a.name)
+            print(io, index_name(a))
             write(io, "≠")
-            print(io, b.name)
+            print(io, index_name(b))
         end
         write(io, ")")
     end

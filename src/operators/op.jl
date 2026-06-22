@@ -30,8 +30,8 @@ hooks dispatch statically. See `docs/src/devdocs.md`.
 """
 struct Op <: QSym
     kind::OpKind
-    name::Symbol
-    space_index::Int
+    name_id::Int32        # interned name (see intern.jl)
+    space_index::Int32
     index::Index
     l1::Int32
     l2::Int32
@@ -39,15 +39,22 @@ struct Op <: QSym
     nlev::Int32
 end
 
-# Custom hash/isequal are mandatory for performance: the default struct hash
-# recurses `objectid` through the `Index`'s `Num` fields, which is slower than
-# the abstract-hierarchy baseline. We exclude the `Num`s and lean on `Index`'s
-# `===` short-circuit (NO_INDEX is a shared const).
+# All fields are isbits, so `Op` is isbits and `Vector{Op}` stores inline with no
+# GC scanning. hash/isequal compare the interned ids as pure integers. The custom
+# methods are kept for explicit field ordering and the `Index` `===` short-circuit
+# (NO_INDEX is a shared const).
 Base.hash(o::Op, h::UInt) =
-    hash(o.index, hash(o.nlev, hash(o.g, hash(o.l2, hash(o.l1, hash(o.space_index, hash(o.name, hash(o.kind, h))))))))
+    hash(o.index, hash(o.nlev, hash(o.g, hash(o.l2, hash(o.l1, hash(o.space_index, hash(o.name_id, hash(o.kind, h))))))))
 Base.isequal(a::Op, b::Op) =
-    a.kind === b.kind && a.name === b.name && a.space_index == b.space_index &&
+    a.kind === b.kind && a.name_id == b.name_id && a.space_index == b.space_index &&
     a.l1 == b.l1 && a.l2 == b.l2 && a.g == b.g && a.nlev == b.nlev && a.index == b.index
+
+"""
+    operator_name(op::Op) -> Symbol
+
+The display name of `op` (recovered from the intern table).
+"""
+operator_name(o::Op)::Symbol = _name_from_id(o.name_id)
 Base.:(==)(a::Op, b::Op) = isequal(a, b)
 
 """

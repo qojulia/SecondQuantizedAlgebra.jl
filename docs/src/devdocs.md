@@ -30,8 +30,8 @@ fields are shared storage interpreted per `kind`:
 
 struct Op <: QSym
     kind::OpKind        # which physical role this operator plays
-    name::Symbol        # display name
-    space_index::Int    # which subspace in a ProductSpace (always 1 for simple spaces)
+    name_id::Int32      # interned display name (intern.jl); resolve via operator_name(op)
+    space_index::Int32  # which subspace in a ProductSpace (always 1 for simple spaces)
     index::Index        # symbolic summation index (NO_INDEX when absent)
     l1::Int32           # Transition i  | Pauli/Spin axis
     l2::Int32           # Transition j
@@ -43,18 +43,39 @@ end
 The role names `Destroy`, `Create`, `Transition`, `Pauli`, `Spin`, `Position`,
 `Momentum` are constructor functions returning an `Op` with the matching `kind`;
 `is_destroy`/`is_create`/… (and `optype`) are the exported predicates that
-replace `isa`. The `Int32` packing keeps `Op` compact (an all-`Int` 80-byte
-layout measured noticeably slower); Fock/Position/Momentum leave `l1..nlev` zero,
-and create-vs-destroy lives in `kind` (the old `ladder` field is gone, though
+replace `isa`. Fock/Position/Momentum leave `l1..nlev` zero, and
+create-vs-destroy lives in `kind` (the old `ladder` field is gone, though
 `ladder(::Op)` is still provided for canonical-ordering callers).
 
-**Custom `hash`/`isequal` are mandatory, not cosmetic.** Julia's default struct
-hash recurses `objectid` through the `Index`'s `Num` fields, which measured
-*slower* than the abstract-hierarchy baseline. `Op` therefore defines `hash`/
-`isequal`/`==` by hand: they hash the `kind`, `name`, `space_index`, packed
-levels, and the `Index` (whose own `hash`/`==` exclude its `Num`s and
-short-circuit on `NO_INDEX` via the shared `const` sentinel). Skipping this is
-the single easiest way to make the collapse a regression instead of a win.
+**`Op` is `isbits` (issue #137).** Every field is a bits type, so `Op` is
+`isbits` (44 bytes) and `Vector{Op}` (the per-term `ops` storage) is a dense
+inline buffer the GC never scans, hashed and compared on pure integers. The win
+over a `Symbol`-name layout came from the struct *shrinking*: a 72-byte
+`Symbol`-name `Op` and even an `InlineStrings.String7` 72-byte layout measured
+within noise, while interning the name to an `Int32` (so the struct drops to
+44 bytes) measured about 40% faster on dict-keyed product/sum construction. The
+name is therefore stored as an interned `Int32` id into a module-global table
+(see `intern.jl`); `operator_name(op)::Symbol` resolves it back for printing. Internal
+rebuilds (adjoint, `IndexedOperator`, reduce/commute residuals,
+`expand_completeness`) forward the existing `name_id` through the role
+constructors without re-interning (`_name_id(::Int32)` passes the id through;
+`_name_id(::Symbol)` interns).
+
+**Custom `hash`/`isequal` are kept, now trivially cheap.** They hash/compare the
+`kind`, `name_id`, `space_index`, packed levels, and the `Index` (whose own
+`hash`/`==` compare interned ids and short-circuit on `NO_INDEX` via the shared
+`const` sentinel). They are retained for explicit field ordering and the
+`Index === ` short-circuit, not to avoid `Num` recursion (no `Num`s remain in
+`Index`).
+
+**Canonical ordering uses a name-rank table, not the raw id.** Interned ids are
+insertion-order, so ordering operators by `name_id` would make canonical form
+depend on declaration order. `intern.jl` maintains `_NAME_RANK` (each id's
+lexicographic position, recomputed when a new name is interned, a cold path), and
+every ordering site (`_site_compare`, `order_key`, `_full_op_key`, `_sort_key`,
+the diagonal-pair filter) orders by `_name_rank(name_id)`. This preserves the
+exact alphabetical canonical form and keeps it deterministic across sessions even
+though the ids themselves are not.
 
 **Why `space_index` instead of storing the Hilbert space.** Operators don't hold a reference to their Hilbert space. The space is only used at construction time for validation (checking bounds, matching types). At runtime, only the integer `space_index` matters — it determines which operators commute (different `space_index` → commute trivially) and where to embed in a composite basis during numeric conversion. This keeps operators lightweight and avoids type instability from heterogeneous space references.
 
@@ -287,19 +308,25 @@ Three consequences beyond the `*(QAdd, QAdd)` throw described above:
 
 ## Index system
 
-**`Index` struct:**
+**`Index` struct (`isbits`):**
 ```julia
 struct Index
-    name::Symbol       # display name
-    range::Num         # upper bound (Int or symbolic N)
-    space_index::Int   # which space
-    sym::Num           # Symbolics.jl variable for substitution in prefactors
+    name_id::Int32     # interned display name (intern.jl); 0 == anonymous site / NO_INDEX
+    range_id::Int32    # interned range Num (intern.jl); 0 == no range
+    space_index::Int32 # which space
+    slot::Int32        # 0 == abstract; k>0 == concrete site k
 end
 ```
+`Index` is `isbits` so that the `Op` embedding it can be `isbits` (see *Single concrete `Op`*). The two `Num` fields it used to carry (`range`, `sym`) cannot be `isbits`, so they are interned/reconstructed instead:
 
-**Why `sym` field?** When `change_index(expr, i, j)` operates on a symbolic prefactor like `g(i)`, it needs to substitute the Symbolics variable for `i` with the one for `j`. The `sym` field holds this variable. Without it, we'd need a separate mapping from index names to symbolic variables.
+- **`range`** is interned to a `range_id::Int32` (a module-global `Num` table in `intern.jl`) and recovered with `index_range(idx)::Num`, which returns the user's original `Num` (so a symbolic range `N` stays usable in coefficients). Range lives on the index, not lifted to the `Σ` scope, so a bare `a_i` knows its range without consulting the enclosing sum (term-locality), and the downstream `QuantumCumulants.jl` reads it off operator-attached indices.
+- **`sym`** is dropped and reconstructed on demand by `index_sym(idx)::Num` as `Sym{SymReal}(name; type=Int)` (plus the `IndexSlot` metadata when `slot != 0`). SymbolicUtils hashconsing makes the reconstruction the *same* object as the originally minted symbol, so substitution and `get_variables` are unaffected. An anonymous concrete site (`name_id == 0`, `slot == k`, minted by `to_numeric`) reconstructs to the integer `Num(k)`, matching the resolved-site convention so coefficient substitution `ω(i) → ω(k)` works.
 
-**`change_index(expr, from, to)`** performs symbolic substitution, replacing the index `from` with `to` throughout an expression tree (operator indices and the `sym` field of symbolic prefactors). Used for diagonal splitting and renaming sum indices.
+`index_name(idx)::Symbol` resolves the name; `index_slot(idx)` reads the `slot` directly (the sym-metadata `index_slot(x)` method is kept for back-compat). Equality/hash compare interned ids and exclude `slot` (just as the old equality excluded `sym`); ordering uses the lexicographic name-rank table.
+
+**Why interned ids?** Measured: interning the name to an `Int32` (vs storing bytes inline via `InlineStrings`) is what shrinks `Index`/`Op` enough to realize the performance win; bytes-inline reaches `isbits` but not the smaller struct. The tables are written only at construction (cold path) under a `ReentrantLock`; the `@compile_workload` is index-free so the tables are empty at image-bake. Ids are insertion-order and are never serialized (not portable across sessions).
+
+**`change_index(expr, from, to)`** performs symbolic substitution, replacing the index `from` with `to` throughout an expression tree (operator indices and the reconstructed `index_sym` of symbolic prefactors). Used for diagonal splitting and renaming sum indices.
 
 **`NotIdentical` metadata.** `DoubleIndexedVariable(:g, i, j; identical=false)` creates `g(i,j)` with metadata `NotIdentical = true`. Two mechanisms enforce `g(i,i) = 0`: (1) at construction time, if `i == j` the function immediately returns `Num(0)`; (2) after a later substitution makes both arguments equal (e.g. `change_index` with `i → j`), `_check_not_identical` detects the equality and returns zero. Together these enforce `g(i,i) = 0` for off-diagonal coupling constants.
 

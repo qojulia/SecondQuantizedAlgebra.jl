@@ -25,7 +25,7 @@ end
 
 function _latex_index_suffix(idx::Index)
     has_index(idx) || return ""
-    return "_{$(idx.name)}"
+    return "_{$(index_name(idx))}"
 end
 
 # Render an operator name for LaTeX. A bare name (`:a`) passes through, but a
@@ -44,7 +44,7 @@ end
 
 @latexrecipe function f(x::Op)
     suffix = _latex_index_suffix(x.index)
-    name = _latex_name(x.name)
+    name = _latex_name(operator_name(x))
     k = x.kind
     body = if k === OP_DESTROY
         "$(name)$(suffix)"
@@ -130,21 +130,21 @@ end
 function _latex_sum_prefix(indices::Vector{Index}, ne_pairs::Vector{NonEqualPair})
     isempty(indices) && return ""
     idx_parts = String[]
-    last_name = indices[end].name
+    last_name = index_name(indices[end])
     for (k, idx) in enumerate(indices)
-        r = Symbolics.value(SymbolicUtils.unwrap(idx.range))
+        r = Symbolics.value(SymbolicUtils.unwrap(index_range(idx)))
         if k == length(indices) && !isempty(ne_pairs)
-            chain = string(idx.name)
+            chain = string(index_name(idx))
             for (a, b) in ne_pairs
-                if a.name == last_name
-                    chain *= "{\\neq}$(b.name)"
+                if index_name(a) == last_name
+                    chain *= "{\\neq}$(index_name(b))"
                 else
-                    chain *= ",$(a.name){\\neq}$(b.name)"
+                    chain *= ",$(index_name(a)){\\neq}$(index_name(b))"
                 end
             end
             push!(idx_parts, "\\underset{$chain}{\\overset{$r}{\\sum}}")
         else
-            push!(idx_parts, "\\underset{$(idx.name)}{\\overset{$r}{\\sum}}")
+            push!(idx_parts, "\\underset{$(index_name(idx))}{\\overset{$r}{\\sum}}")
         end
     end
     return join(idx_parts, " ")

@@ -264,12 +264,12 @@ inner_adjoint(x::QField) = adjoint(x)
 function Base.adjoint(o::Op)
     k = o.kind
     if k === OP_DESTROY
-        return Op(OP_CREATE, o.name, o.space_index, o.index, o.l1, o.l2, o.g, o.nlev)
+        return Op(OP_CREATE, o.name_id, o.space_index, o.index, o.l1, o.l2, o.g, o.nlev)
     elseif k === OP_CREATE
-        return Op(OP_DESTROY, o.name, o.space_index, o.index, o.l1, o.l2, o.g, o.nlev)
+        return Op(OP_DESTROY, o.name_id, o.space_index, o.index, o.l1, o.l2, o.g, o.nlev)
     elseif k === OP_TRANSITION
         # |i⟩⟨j|† = |j⟩⟨i|: swap the packed levels.
-        return Op(OP_TRANSITION, o.name, o.space_index, o.index, o.l2, o.l1, o.g, o.nlev)
+        return Op(OP_TRANSITION, o.name_id, o.space_index, o.index, o.l2, o.l1, o.g, o.nlev)
     else
         return o   # Pauli, Spin, Position, Momentum are Hermitian
     end
@@ -286,7 +286,7 @@ reproducibly and ties two exactly when they are `isequal`. The leading `kind`
 value gives the cross-family order; the packed `l1..nlev` fields keep distinct
 levels/axes distinct.
 """
-order_key(o::Op) = (Int(o.kind), o.space_index, o.name, _index_key(o.index), Int(o.l1), Int(o.l2), Int(o.g), Int(o.nlev))
+order_key(o::Op) = (Int(o.kind), o.space_index, _name_rank(o.name_id), _index_key(o.index), Int(o.l1), Int(o.l2), Int(o.g), Int(o.nlev))
 
 """
     ladder(op::Op)
@@ -316,7 +316,7 @@ function _site_compare(a::Op, b::Op, ne::Vector{NonEqualPair})
     # PhaseSpace x-vs-p ignores name (conjugate variables on one site); every
     # other same-family pair distinguishes by name.
     if !(fa === 0x05 && ka !== kb)
-        a.name == b.name || return a.name < b.name ? Less : Greater
+        a.name_id == b.name_id || return _name_rank(a.name_id) < _name_rank(b.name_id) ? Less : Greater
     end
     a.index == b.index && return Equal
     # PhaseSpace never consults `ne`; Fock/Transition/Pauli/Spin do.
@@ -352,7 +352,7 @@ function _commute_pair(a::Op, b::Op)
     elseif ka === OP_SPIN && kb === OP_SPIN
         # [Sj, Sk] = iϵⱼₖₗSl; the residual is the contracted spin on the third axis.
         eps = _levi_civita[a.l1][b.l1]
-        contracted = Spin(a.name, 6 - a.l1 - b.l1, a.space_index, a.index)
+        contracted = Spin(a.name_id, Int(6 - a.l1 - b.l1), Int(a.space_index), a.index)
         return (b, a, _mul_cnum(_to_cnum(im * eps), _CNUM_ONE), Op[contracted])
     else
         return (b, a, _CNUM_ZERO, _EMPTY_OPS)
@@ -369,23 +369,23 @@ function _reduce_pair(a::Op, b::Op)
     ka = a.kind
     if ka === OP_TRANSITION && b.kind === OP_TRANSITION
         # σⁱʲ · σᵏˡ = δⱼₖ σⁱˡ.
-        (a.name == b.name && a.space_index == b.space_index && a.index == b.index) ||
+        (a.name_id == b.name_id && a.space_index == b.space_index && a.index == b.index) ||
             return (NoReduction, a, _CNUM_ZERO)
         if a.l2 == b.l1
-            new = Transition(a.name, a.l1, b.l2, a.space_index, a.index, a.g, a.nlev)
+            new = Transition(a.name_id, a.l1, b.l2, a.space_index, a.index, a.g, a.nlev)
             return (OpReduction, new, _CNUM_ONE)
         else
             return (ScalarReduction, a, _CNUM_ZERO)    # δ_{j,k} = 0
         end
     elseif ka === OP_PAULI && b.kind === OP_PAULI
         # σⱼ·σₖ = δⱼₖI + iϵⱼₖₗσₗ.
-        (a.name == b.name && a.space_index == b.space_index && a.index == b.index) ||
+        (a.name_id == b.name_id && a.space_index == b.space_index && a.index == b.index) ||
             return (NoReduction, a, _CNUM_ZERO)
         if a.l1 == b.l1
             return (ScalarReduction, a, _CNUM_ONE)     # σⱼ² = 1
         else
             eps = _levi_civita[a.l1][b.l1]
-            new = Pauli(a.name, 6 - a.l1 - b.l1, a.space_index, a.index)
+            new = Pauli(a.name_id, Int(6 - a.l1 - b.l1), Int(a.space_index), a.index)
             return (OpReduction, new, _mul_cnum(_to_cnum(im * eps), _CNUM_ONE))
         end
     else
@@ -397,5 +397,5 @@ end
 function _ground_state_expand(op::Op)
     op.kind === OP_TRANSITION || return (false, 0, 0, 0)
     (op.l1 == op.g && op.l2 == op.g) || return (false, 0, 0, 0)
-    return (true, Int(op.g), Int(op.nlev), op.space_index)
+    return (true, Int(op.g), Int(op.nlev), Int(op.space_index))
 end

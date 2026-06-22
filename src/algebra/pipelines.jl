@@ -109,7 +109,7 @@ function _accumulate_with_diag!(
             ext_idx.space_index == sum_idx.space_index || continue
             _ne_contains(ne, sum_idx, ext_idx) && continue
             if ext_idx in sum_indices
-                sum_idx.name > ext_idx.name || continue
+                _name_rank(sum_idx.name_id) > _name_rank(ext_idx.name_id) || continue
             end
             push!(diag_pairs, (sum_idx, ext_idx))
         end
@@ -171,7 +171,7 @@ function _emit_scaled_by_scope!(
         coef = cv
         for scope_idx in scope
             _depends_on_index_term(coef, term.ops, scope_idx) && continue
-            coef = _mul_cnum(coef, _to_cnum(scope_idx.range))
+            coef = _mul_cnum(coef, _to_cnum(index_range(scope_idx)))
         end
         _addto_key!(out, _copy_key(term), coef)
     end
@@ -220,7 +220,7 @@ function Base.:*(a::QAdd, b::QAdd)
         for idx in a.indices
             idx in b.indices && throw(
                 ArgumentError(
-                    "Summation index $(idx.name) appears in both factors. " *
+                    "Summation index $(index_name(idx)) appears in both factors. " *
                         "Bound variables on the two sides of a product must be " *
                         "distinct so the resulting double sum is unambiguous. " *
                         "Use `change_index` to rename one side, or construct the " *

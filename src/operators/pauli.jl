@@ -44,11 +44,11 @@ julia> σx * σx
 
 See also [`PauliSpace`](@ref), [`Spin`](@ref).
 """
-function Pauli(name::Symbol, axis::Int, si::Int, idx::Index)
+function Pauli(name::Union{Symbol, Int32}, axis::Int, si::Int, idx::Index)
     1 <= axis <= 3 || throw(ArgumentError("Pauli axis must be 1, 2, or 3, got $axis"))
-    return Op(OP_PAULI, name, si, idx, axis, 0, 0, 0)
+    return Op(OP_PAULI, _name_id(name), si, idx, axis, 0, 0, 0)
 end
-Pauli(name::Symbol, axis::Int, si::Int) = Pauli(name, axis, si, NO_INDEX)
+Pauli(name::Union{Symbol, Int32}, axis::Int, si::Int) = Pauli(name, axis, si, NO_INDEX)
 
 Pauli(h::PauliSpace, name::Symbol, axis::Int) = Pauli(name, axis, 1)
 function Pauli(h::ProductSpace, name::Symbol, axis::Int, idx::Int)

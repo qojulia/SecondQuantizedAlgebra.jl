@@ -26,7 +26,7 @@ function check_qadd_invariants(q::QAdd)
     failures = String[]
     for idx in q.indices
         _any_depends_on_index(q, idx) ||
-            push!(failures, "index $(idx.name) in .indices has no surviving carrier")
+            push!(failures, "index $(index_name(idx)) in .indices has no surviving carrier")
     end
     for (term, c) in q.arguments
         _iszero_cnum(c) && push!(failures, "term $(term.ops) has zero prefactor")
