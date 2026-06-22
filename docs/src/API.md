@@ -105,6 +105,7 @@ Momentum
 
 ```@docs
 Op
+OpKind
 ```
 
 ```@docs
