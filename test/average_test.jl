@@ -58,7 +58,7 @@ import SecondQuantizedAlgebra: simplify, QAdd, QSym, QField, CNum, _to_cnum, _si
         @test !is_average(avg_3)  # prefactor pulled out
 
         # Pure scalar QAdd (empty operator key)
-        scalar_add = _single_qadd(_to_cnum(5), QSym[])
+        scalar_add = _single_qadd(_to_cnum(5), Op[])
         avg_scalar = average(scalar_add)
         @test SymbolicUtils.isconst(avg_scalar) && avg_scalar.val == _to_cnum(5)
 
@@ -170,7 +170,7 @@ import SecondQuantizedAlgebra: simplify, QAdd, QSym, QField, CNum, _to_cnum, _si
         bare_avg = average(σ_i)
 
         ne_qadd = QAdd(
-            QTermDict(QTerm(QSym[σ_i], NonEqualPair[(i, j)]) => _to_cnum(1)),
+            QTermDict(QTerm(Op[σ_i], NonEqualPair[(i, j)]) => _to_cnum(1)),
             Index[],
         )
         ne_avg = average(ne_qadd)
@@ -180,11 +180,11 @@ import SecondQuantizedAlgebra: simplify, QAdd, QSym, QField, CNum, _to_cnum, _si
 
         σ_j = IndexedOperator(Transition(h, :σ, 2, 2, 2), j)
         prod_qadd_ne = QAdd(
-            QTermDict(QTerm(QSym[σ_i, σ_j], NonEqualPair[(i, j)]) => _to_cnum(1)),
+            QTermDict(QTerm(Op[σ_i, σ_j], NonEqualPair[(i, j)]) => _to_cnum(1)),
             Index[],
         )
         prod_qadd_no_ne = QAdd(
-            QTermDict(QTerm(QSym[σ_i, σ_j], NonEqualPair[]) => _to_cnum(1)),
+            QTermDict(QTerm(Op[σ_i, σ_j], NonEqualPair[]) => _to_cnum(1)),
             Index[],
         )
         @test !isequal(average(prod_qadd_ne), average(prod_qadd_no_ne))
@@ -201,19 +201,19 @@ import SecondQuantizedAlgebra: simplify, QAdd, QSym, QField, CNum, _to_cnum, _si
         σ_i = IndexedOperator(Transition(h, :σ, 1, 2, 2), i)
 
         dead = QAdd(
-            QTermDict(QTerm(QSym[σ_i], NonEqualPair[(j, k)]) => _to_cnum(1)),
+            QTermDict(QTerm(Op[σ_i], NonEqualPair[(j, k)]) => _to_cnum(1)),
             Index[],
         )
         @test all(isempty(t.ne) for t in keys(dead.arguments))
 
         live_op = QAdd(
-            QTermDict(QTerm(QSym[σ_i], NonEqualPair[(i, j)]) => _to_cnum(1)),
+            QTermDict(QTerm(Op[σ_i], NonEqualPair[(i, j)]) => _to_cnum(1)),
             Index[],
         )
         @test any(!isempty(t.ne) for t in keys(live_op.arguments))
 
         live_scope = QAdd(
-            QTermDict(QTerm(QSym[σ_i], NonEqualPair[(j, k)]) => _to_cnum(1)),
+            QTermDict(QTerm(Op[σ_i], NonEqualPair[(j, k)]) => _to_cnum(1)),
             Index[j],
         )
         @test any(!isempty(t.ne) for t in keys(live_scope.arguments))
@@ -223,7 +223,7 @@ import SecondQuantizedAlgebra: simplify, QAdd, QSym, QField, CNum, _to_cnum, _si
         gjk = DoubleIndexedVariable(:g, j, k)
         live_coef = QAdd(
             QTermDict(
-                QTerm(QSym[σ_i], NonEqualPair[(j, k)]) => _to_cnum(gjk),
+                QTerm(Op[σ_i], NonEqualPair[(j, k)]) => _to_cnum(gjk),
             ),
             Index[],
         )
@@ -231,8 +231,8 @@ import SecondQuantizedAlgebra: simplify, QAdd, QSym, QField, CNum, _to_cnum, _si
 
         clash = QAdd(
             QTermDict(
-                QTerm(QSym[σ_i], NonEqualPair[(j, k)]) => _to_cnum(1),
-                QTerm(QSym[σ_i], NonEqualPair[]) => _to_cnum(2),
+                QTerm(Op[σ_i], NonEqualPair[(j, k)]) => _to_cnum(1),
+                QTerm(Op[σ_i], NonEqualPair[]) => _to_cnum(2),
             ),
             Index[],
         )
@@ -250,22 +250,22 @@ import SecondQuantizedAlgebra: simplify, QAdd, QSym, QField, CNum, _to_cnum, _si
         # QSym round-trip → QAdd wrapping the operator
         r = undo_average(average(a))
         @test r isa QAdd
-        @test isequal(r, _single_qadd(_to_cnum(1), QSym[a]))
+        @test isequal(r, _single_qadd(_to_cnum(1), Op[a]))
 
         r2 = undo_average(average(ad))
         @test r2 isa QAdd
-        @test isequal(r2, _single_qadd(_to_cnum(1), QSym[ad]))
+        @test isequal(r2, _single_qadd(_to_cnum(1), Op[ad]))
 
         # Number → QAdd with scalar prefactor and empty ops
         @test undo_average(3) isa QAdd
-        @test isequal(undo_average(3), _single_qadd(_to_cnum(3), QSym[]))
+        @test isequal(undo_average(3), _single_qadd(_to_cnum(3), Op[]))
 
         @test undo_average(0.5) isa QAdd
-        @test isequal(undo_average(0.5), _single_qadd(_to_cnum(0.5), QSym[]))
+        @test isequal(undo_average(0.5), _single_qadd(_to_cnum(0.5), Op[]))
 
         # QField → QAdd
         @test undo_average(a) isa QAdd
-        @test isequal(undo_average(a), _single_qadd(_to_cnum(1), QSym[a]))
+        @test isequal(undo_average(a), _single_qadd(_to_cnum(1), Op[a]))
 
         # QAdd passthrough
         qadd = ad * a
@@ -619,12 +619,12 @@ import SecondQuantizedAlgebra: simplify, QAdd, QSym, QField, CNum, _to_cnum, _si
             @variables η::Real
             # `commutator(im*η*(a + a'), a')` = `i*η`, a pure-scalar QAdd (no ops)
             # — exercises the `isempty(term.ops)` branch of `average(::QAdd)`.
-            scalar = _single_qadd(_to_cnum(Complex(0, η)), QSym[])
+            scalar = _single_qadd(_to_cnum(Complex(0, η)), Op[])
             avg = average(scalar)
             @test isempty(_find_complex_terms(avg))
             # Mixed re + im constant must also stay literal-free.
             @variables r::Real
-            mixed = _single_qadd(_to_cnum(Complex(r, η)), QSym[])
+            mixed = _single_qadd(_to_cnum(Complex(r, η)), Op[])
             avg_mixed = average(mixed)
             @test isempty(_find_complex_terms(avg_mixed))
         end

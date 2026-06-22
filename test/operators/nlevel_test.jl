@@ -14,9 +14,9 @@ using Test
         h = NLevelSpace(:atom, 3, 1)
         σ12 = Transition(h, :σ, 1, 2)
         σ21 = σ12'
-        @test σ21 isa Transition
-        @test σ21.i == 2
-        @test σ21.j == 1
+        @test is_transition(σ21)
+        @test σ21.l1 == 2
+        @test σ21.l2 == 1
         @test σ12'' == σ12
     end
 
@@ -35,7 +35,7 @@ using Test
     @testset "@qnumbers" begin
         h = NLevelSpace(:atom, 2, 1)
         @qnumbers σ::Transition(h, 1, 2)
-        @test σ isa Transition
+        @test is_transition(σ)
         @test σ.name == :σ
     end
 
@@ -91,11 +91,11 @@ using Test
 
         # Transition with symbol levels resolves to integer indices
         σge = Transition(h, :σ, :g, :e)
-        @test σge.i == 1
-        @test σge.j == 2
+        @test σge.l1 == 1
+        @test σge.l2 == 2
         σea = Transition(h, :σ, :e, :a)
-        @test σea.i == 2
-        @test σea.j == 3
+        @test σea.l1 == 2
+        @test σea.l2 == 3
 
         # Unknown level throws
         @test_throws ArgumentError Transition(h, :σ, :x, :g)
@@ -108,8 +108,8 @@ using Test
         hf = FockSpace(:c)
         hp = hf ⊗ h
         σge_p = Transition(hp, :σ, :g, :e, 2)
-        @test σge_p.i == 1
-        @test σge_p.j == 2
+        @test σge_p.l1 == 1
+        @test σge_p.l2 == 2
         @test σge_p.space_index == 2
 
         # Equality: spaces with different levels are not equal

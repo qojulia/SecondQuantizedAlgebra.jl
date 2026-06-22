@@ -16,8 +16,8 @@ import SecondQuantizedAlgebra: simplify, QAdd, QSym, CNum, Transition, NO_INDEX,
 
 # Helper: is this op a ground-state projector of an NLevelSpace?
 function _is_gs_projector(op)
-    op isa Transition || return false
-    return op.i == op.ground_state && op.j == op.ground_state
+    is_transition(op) || return false
+    return op.l1 == op.g && op.l2 == op.g
 end
 
 # Helper: every dict key in `expr` is free of ground-state projectors
@@ -65,7 +65,7 @@ end
         @test _can_commute(σ12, σ21) === false
         red = _reduce_pair(σ21, σ12)   # σ²¹·σ¹² = σ²²
         @test red[1] === OpReduction
-        @test red[2].i == 2 && red[2].j == 2
+        @test red[2].l1 == 2 && red[2].l2 == 2
         @test red[3] === _CNUM_ONE
         @test first(_ground_state_expand(Transition(ha, :σ, 1, 1)))
     end
@@ -75,17 +75,17 @@ end
             h = FockSpace(:c) ⊗ NLevelSpace(:a, 2)
             a = Destroy(h, :a, 1)
             σ = Transition(h, :σ, 1, 2)
-            ops = QSym[σ, a]
+            ops = Op[σ, a]
             _partial_sort!(ops, _EMPTY_NE)
-            @test ops[1] isa Destroy
-            @test ops[2] isa Transition
+            @test is_destroy(ops[1])
+            @test is_transition(ops[2])
         end
 
         @testset "same-site preserved" begin
             h = NLevelSpace(:a, 3)
             σ12 = Transition(h, :σ, 1, 2)
             σ21 = Transition(h, :σ, 2, 1)
-            ops = QSym[σ12, σ21]
+            ops = Op[σ12, σ21]
             pre = copy(ops)
             _partial_sort!(ops, _EMPTY_NE)
             @test ops == pre
@@ -97,7 +97,7 @@ end
             j = Index(ha, :j, 5, ha)
             σ_i = IndexedOperator(Transition(ha, :σ, 1, 2), i)
             σ_j = IndexedOperator(Transition(ha, :σ, 1, 2), j)
-            ops = QSym[σ_j, σ_i]
+            ops = Op[σ_j, σ_i]
             _partial_sort!(ops, _EMPTY_NE)
             @test ops[1] === σ_j
             @test ops[2] === σ_i
@@ -109,7 +109,7 @@ end
             j = Index(ha, :j, 5, ha)
             σ_i = IndexedOperator(Transition(ha, :σ, 1, 2), i)
             σ_j = IndexedOperator(Transition(ha, :σ, 1, 2), j)
-            ops = QSym[σ_j, σ_i]
+            ops = Op[σ_j, σ_i]
             _partial_sort!(ops, [(i, j)])
             @test ops[1] === σ_i
             @test ops[2] === σ_j
@@ -124,21 +124,21 @@ end
 
         @testset "canonicalize_to_dict!: basic insert" begin
             out = QTermDict()
-            _canonicalize_to_dict!(out, QSym[a], _CNUM_ONE, _EMPTY_NE)
+            _canonicalize_to_dict!(out, Op[a], _CNUM_ONE, _EMPTY_NE)
             @test length(out) == 1
         end
 
         @testset "canonicalize_to_dict!: like-term collection" begin
             out = QTermDict()
-            _canonicalize_to_dict!(out, QSym[a], _CNUM_ONE, _EMPTY_NE)
-            _canonicalize_to_dict!(out, QSym[a], _CNUM_ONE, _EMPTY_NE)
+            _canonicalize_to_dict!(out, Op[a], _CNUM_ONE, _EMPTY_NE)
+            _canonicalize_to_dict!(out, Op[a], _CNUM_ONE, _EMPTY_NE)
             @test length(out) == 1
             @test first(values(out)) == 2 + 0im
         end
 
         @testset "canonicalize_to_dict!: zero coeff dropped" begin
             out = QTermDict()
-            _canonicalize_to_dict!(out, QSym[a], _CNUM_ZERO, _EMPTY_NE)
+            _canonicalize_to_dict!(out, Op[a], _CNUM_ZERO, _EMPTY_NE)
             @test isempty(out)
         end
 
@@ -147,112 +147,112 @@ end
             # γ/D + (-γ)/D is structurally non-zero to Symbolics (the `Div` nodes
             # are left un-combined), so exact-negation collection must drop the term.
             out = QTermDict()
-            _canonicalize_to_dict!(out, QSym[a], _to_cnum(γ / D), _EMPTY_NE)
-            _canonicalize_to_dict!(out, QSym[a], _to_cnum(-γ / D), _EMPTY_NE)
+            _canonicalize_to_dict!(out, Op[a], _to_cnum(γ / D), _EMPTY_NE)
+            _canonicalize_to_dict!(out, Op[a], _to_cnum(-γ / D), _EMPTY_NE)
             @test isempty(out)
         end
 
         @testset "canonicalize_to_dict!: distinct symbolic prefactors kept" begin
             @variables γ D β
             out = QTermDict()
-            _canonicalize_to_dict!(out, QSym[a], _to_cnum(γ / D), _EMPTY_NE)
-            _canonicalize_to_dict!(out, QSym[a], _to_cnum(β / D), _EMPTY_NE)
+            _canonicalize_to_dict!(out, Op[a], _to_cnum(γ / D), _EMPTY_NE)
+            _canonicalize_to_dict!(out, Op[a], _to_cnum(β / D), _EMPTY_NE)
             @test length(out) == 1
         end
 
         @testset "_reduce_ops: Transition composition" begin
             σ12 = Transition(hn, :σ, 1, 2)
             σ23 = Transition(hn, :σ, 2, 3)
-            emitted = Tuple{Vector{QSym}, CNum}[]
-            _reduce_ops(QSym[σ12, σ23], _CNUM_ONE) do o, c
+            emitted = Tuple{Vector{Op}, CNum}[]
+            _reduce_ops(Op[σ12, σ23], _CNUM_ONE) do o, c
                 push!(emitted, (copy(o), c))
             end
             @test length(emitted) == 1
             @test length(emitted[1][1]) == 1
-            @test emitted[1][1][1].i == 1 && emitted[1][1][1].j == 3
+            @test emitted[1][1][1].l1 == 1 && emitted[1][1][1].l2 == 3
         end
 
         @testset "_reduce_ops: zero from incompatible composition" begin
             σ12 = Transition(hn, :σ, 1, 2)
             σ31 = Transition(hn, :σ, 3, 1)
-            emitted = Tuple{Vector{QSym}, CNum}[]
-            _reduce_ops(QSym[σ12, σ31], _CNUM_ONE) do o, c
+            emitted = Tuple{Vector{Op}, CNum}[]
+            _reduce_ops(Op[σ12, σ31], _CNUM_ONE) do o, c
                 push!(emitted, (copy(o), c))
             end
             @test isempty(emitted)
         end
 
         @testset "_reduce_ops: no-op input passes through" begin
-            emitted = Tuple{Vector{QSym}, CNum}[]
-            _reduce_ops(QSym[ad, a], _CNUM_ONE) do o, c
+            emitted = Tuple{Vector{Op}, CNum}[]
+            _reduce_ops(Op[ad, a], _CNUM_ONE) do o, c
                 push!(emitted, (copy(o), c))
             end
             @test length(emitted) == 1
-            @test emitted[1][1] == QSym[ad, a]
+            @test emitted[1][1] == Op[ad, a]
         end
 
         @testset "_commute_ops: Fock aa† → a†a + 1" begin
-            emitted = Tuple{Vector{QSym}, CNum}[]
-            _commute_ops(QSym[a, ad], _CNUM_ONE) do o, c
+            emitted = Tuple{Vector{Op}, CNum}[]
+            _commute_ops(Op[a, ad], _CNUM_ONE) do o, c
                 push!(emitted, (copy(o), c))
             end
             @test length(emitted) == 2
             sort!(emitted, by = e -> length(e[1]))
             @test isempty(emitted[1][1]) && emitted[1][2] == _CNUM_ONE
-            @test emitted[2][1] == QSym[ad, a]
+            @test emitted[2][1] == Op[ad, a]
         end
 
         @testset "_commute_ops: no-op on already-ordered pair" begin
-            emitted = Tuple{Vector{QSym}, CNum}[]
-            _commute_ops(QSym[ad, a], _CNUM_ONE) do o, c
+            emitted = Tuple{Vector{Op}, CNum}[]
+            _commute_ops(Op[ad, a], _CNUM_ONE) do o, c
                 push!(emitted, (copy(o), c))
             end
             @test length(emitted) == 1
-            @test emitted[1][1] == QSym[ad, a]
+            @test emitted[1][1] == Op[ad, a]
         end
 
         @testset "_expand_gs_ops: σ¹¹ → 1 - σ²²" begin
             h2 = NLevelSpace(:a, 2)
             σ11 = Transition(h2, :σ, 1, 1)
-            emitted = Tuple{Vector{QSym}, CNum}[]
-            _expand_gs_ops(QSym[σ11], _CNUM_ONE) do o, c
+            emitted = Tuple{Vector{Op}, CNum}[]
+            _expand_gs_ops(Op[σ11], _CNUM_ONE) do o, c
                 push!(emitted, (copy(o), c))
             end
             @test length(emitted) == 2
             sort!(emitted, by = e -> length(e[1]))
             @test isempty(emitted[1][1]) && emitted[1][2] == _CNUM_ONE
             @test length(emitted[2][1]) == 1 && emitted[2][2] == -_CNUM_ONE
-            @test emitted[2][1][1].i == 2 && emitted[2][1][1].j == 2
+            @test emitted[2][1][1].l1 == 2 && emitted[2][1][1].l2 == 2
         end
 
         @testset "_expand_gs_ops: passthrough when no σᵍᵍ" begin
-            emitted = Tuple{Vector{QSym}, CNum}[]
-            _expand_gs_ops(QSym[a], _CNUM_ONE) do o, c
+            emitted = Tuple{Vector{Op}, CNum}[]
+            _expand_gs_ops(Op[a], _CNUM_ONE) do o, c
                 push!(emitted, (copy(o), c))
             end
             @test length(emitted) == 1
-            @test emitted[1][1] == QSym[a]
+            @test emitted[1][1] == Op[a]
         end
 
         @testset "_substitute_ops: operator → scalar" begin
-            emitted = Tuple{Vector{QSym}, CNum}[]
-            _substitute_ops(QSym[a, ad], _CNUM_ONE, Dict(a => 2)) do o, c
+            emitted = Tuple{Vector{Op}, CNum}[]
+            _substitute_ops(Op[a, ad], _CNUM_ONE, Dict(a => 2)) do o, c
                 push!(emitted, (copy(o), c))
             end
             @test length(emitted) == 1
             @test emitted[1][2] == 2 + 0im
-            @test emitted[1][1] == QSym[ad]
+            @test emitted[1][1] == Op[ad]
         end
 
         @testset "_stream!: idempotent on canonical input" begin
             out = QTermDict()
-            _stream!(out, QSym[ad, a], _CNUM_ONE, _EMPTY_NE)
+            _stream!(out, Op[ad, a], _CNUM_ONE, _EMPTY_NE)
             @test length(out) == 1
         end
 
         @testset "_canonicalize!: aa† → a†a + 1" begin
             out = QTermDict()
-            _canonicalize!(out, QSym[a, ad], _CNUM_ONE, _EMPTY_NE)
+            _canonicalize!(out, Op[a, ad], _CNUM_ONE, _EMPTY_NE)
             @test length(out) == 2
         end
     end
@@ -341,23 +341,23 @@ end
         @test @inferred(_site_compare(a, ad, _EMPTY_NE)) isa SiteCmp
         @test @inferred(_can_commute(a, ad)) isa Bool
         @test @inferred(_can_commute(ad, a)) isa Bool
-        @test @inferred(_commute_pair(a, ad)) isa Tuple{QSym, QSym, CNum, Vector{QSym}}
+        @test @inferred(_commute_pair(a, ad)) isa Tuple{Op, Op, CNum, Vector{Op}}
 
         ha = NLevelSpace(:atom, 3)
         σ12 = Transition(ha, :σ, 1, 2)
         σ21 = Transition(ha, :σ, 2, 1)
-        @test @inferred(_reduce_pair(σ12, σ21)) isa Tuple{ReduceKind, QSym, CNum}
+        @test @inferred(_reduce_pair(σ12, σ21)) isa Tuple{ReduceKind, Op, CNum}
         @test @inferred(_ground_state_expand(σ12)) isa Tuple{Bool, Int, Int, Int}
 
         hp = PauliSpace(:s)
         px = Pauli(hp, :σ, 1)
         py = Pauli(hp, :σ, 2)
-        @test @inferred(_reduce_pair(px, py)) isa Tuple{ReduceKind, QSym, CNum}
+        @test @inferred(_reduce_pair(px, py)) isa Tuple{ReduceKind, Op, CNum}
 
         hs = SpinSpace(:s)
         sx = Spin(hs, :S, 1)
         sy = Spin(hs, :S, 2)
-        @test @inferred(_commute_pair(sy, sx)) isa Tuple{QSym, QSym, CNum, Vector{QSym}}
+        @test @inferred(_commute_pair(sy, sx)) isa Tuple{Op, Op, CNum, Vector{Op}}
 
         # _may_reduce: true iff the same-type pair's _reduce_pair can fire
         @test @inferred(_may_reduce(σ12, σ21)) === true
@@ -371,19 +371,19 @@ end
         @testset "Transition carries ground_state and n_levels" begin
             h = NLevelSpace(:atom, 3, 2)
             σ = Transition(h, :σ, 1, 3)
-            @test σ.ground_state == 2
-            @test σ.n_levels == 3
+            @test σ.g == 2
+            @test σ.nlev == 3
 
             h2 = NLevelSpace(:atom, 2)
             σ2 = Transition(h2, :σ, 1, 2)
-            @test σ2.ground_state == 1
-            @test σ2.n_levels == 2
+            @test σ2.g == 1
+            @test σ2.nlev == 2
 
             hf = FockSpace(:c)
             hp = hf ⊗ h
             σp = Transition(hp, :σ, 1, 3, 2)
-            @test σp.ground_state == 2
-            @test σp.n_levels == 3
+            @test σp.g == 2
+            @test σp.nlev == 3
         end
 
         @testset "Field preservation through ops" begin
@@ -391,18 +391,18 @@ end
             σ = Transition(h, :σ, 1, 2)
 
             σadj = adjoint(σ)
-            @test σadj.ground_state == 3
-            @test σadj.n_levels == 4
+            @test σadj.g == 3
+            @test σadj.nlev == 4
 
             i = Index(h, :i, 10, h)
             σi = IndexedOperator(σ, i)
-            @test σi.ground_state == 3
-            @test σi.n_levels == 4
+            @test σi.g == 3
+            @test σi.nlev == 4
 
             j = Index(h, :j, 10, h)
             σj = change_index(σi, i, j)
-            @test σj.ground_state == 3
-            @test σj.n_levels == 4
+            @test σj.g == 3
+            @test σj.nlev == 4
         end
 
         @testset "Equality distinguishes ground_state and n_levels" begin
@@ -473,10 +473,10 @@ end
             @test _no_gs_projectors(result)
             for term in keys(result.arguments)
                 for op in term.ops
-                    if op isa Transition
+                    if is_transition(op)
                         @test op.index == i
-                        @test op.ground_state == 1
-                        @test op.n_levels == 2
+                        @test op.g == 1
+                        @test op.nlev == 2
                     end
                 end
             end
@@ -519,8 +519,8 @@ end
         @testset "User-constructed σᵍᵍ stays atomic (no composition fired)" begin
             h = NLevelSpace(:atom, 2, 1)
             σgg = Transition(h, :σ, 1, 1)
-            @test σgg isa Transition
-            @test σgg.i == 1 && σgg.j == 1
+            @test is_transition(σgg)
+            @test σgg.l1 == 1 && σgg.l2 == 1
             @test isequal(simplify(σgg), simplify(σgg))
 
             σ22 = Transition(h, :σ, 2, 2)
@@ -610,8 +610,8 @@ end
             rB2 = σB(1, 2) * σB(2, 1)
             term, _ = only(collect(rB2))
             @test length(term.ops) == 1
-            @test term.ops[1].i == 1 && term.ops[1].j == 1
-            @test term.ops[1].ground_state == 2
+            @test term.ops[1].l1 == 1 && term.ops[1].l2 == 1
+            @test term.ops[1].g == 2
         end
     end
 end

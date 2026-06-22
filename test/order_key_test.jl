@@ -28,7 +28,7 @@ const order_key = SecondQuantizedAlgebra.order_key
     x = Position(h, :x, 5)
     p = Momentum(h, :p, 5)            # differs only in type from a Position-shaped key
 
-    ops = QSym[a, ad, b, ai, aj, σ12, σ13, px, py, Sx, Sy, x, p]
+    ops = Op[a, ad, b, ai, aj, σ12, σ13, px, py, Sx, Sy, x, p]
 
     @testset "ties exactly when isequal" begin
         for o1 in ops, o2 in ops
@@ -44,12 +44,11 @@ const order_key = SecondQuantizedAlgebra.order_key
         @test order_key(ai) != order_key(aj)    # index name
     end
 
-    @testset "every concrete QSym subtype has a method" begin
-        for T in (Destroy, Create, Transition, Pauli, Spin, Position, Momentum)
-            @test hasmethod(order_key, Tuple{T})
-            # a dedicated method, not the generic QSym fallback (which would drop fields)
-            @test which(order_key, Tuple{T}).sig !== Tuple{typeof(order_key), QSym}
-        end
+    @testset "dedicated Op method, no field-dropping QSym fallback" begin
+        @test hasmethod(order_key, Tuple{Op})
+        @test which(order_key, Tuple{Op}).sig === Tuple{typeof(order_key), Op}
+        # A generic order_key(::QSym) fallback would silently drop kind-specific fields.
+        @test !hasmethod(order_key, Tuple{QSym})
     end
 
     @testset "is a strict total order (trichotomy)" begin

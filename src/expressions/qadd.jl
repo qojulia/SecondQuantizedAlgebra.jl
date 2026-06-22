@@ -45,7 +45,7 @@ function _prune_dead_ne(args::QTermDict, indices::Vector{Index})
 end
 
 @inline function _pair_referenced(
-        p::NonEqualPair, ops::Vector{QSym}, c::CNum, scope::Vector{Index},
+        p::NonEqualPair, ops::Vector{Op}, c::CNum, scope::Vector{Index},
     )
     α, β = p
     α in scope && return true
@@ -80,7 +80,7 @@ function constraint_pairs(q::QAdd)
     return _constraint_pairs(q.arguments)
 end
 
-function _single_qadd(c::CNum, ops::Vector{QSym}, ne::Vector{NonEqualPair} = _EMPTY_NE)
+function _single_qadd(c::CNum, ops::Vector{Op}, ne::Vector{NonEqualPair} = _EMPTY_NE)
     _iszero_cnum(c) && return QAdd(QTermDict(), _EMPTY_INDICES)
     d = QTermDict()
     _addto!(d, ops, c, ne)
@@ -95,7 +95,7 @@ Base.iszero(a::QAdd) = isempty(a.arguments)
 
 Multiplicative identity as a unit `QAdd`.
 """
-Base.one(::Type{<:QField}) = _single_qadd(_CNUM_ONE, QSym[])
+Base.one(::Type{<:QField}) = _single_qadd(_CNUM_ONE, Op[])
 Base.one(q::QField) = one(typeof(q))
 
 """
@@ -138,7 +138,7 @@ end
 function Base.adjoint(q::QAdd)
     out = QTermDict()
     for (t, c) in q
-        rev = QSym[adjoint(o) for o in Iterators.reverse(t.ops)]
+        rev = Op[adjoint(o) for o in Iterators.reverse(t.ops)]
         _canonicalize!(out, rev, _conj_cnum(c), t.ne)
     end
     return QAdd(out, copy(q.indices))
@@ -176,7 +176,7 @@ function sorted_arguments(q::QAdd)
     return QAdd[_single_qadd(c, term.ops, term.ne) for (term, c) in pairs]
 end
 
-_term_sort_key(ops::Vector{QSym}) = (length(ops), map(_full_op_key, ops)...)
+_term_sort_key(ops::Vector{Op}) = (length(ops), map(_full_op_key, ops)...)
 _full_op_key(op::QSym) = (_sort_key(op)..., _type_order(op), op.name)
 
 """
@@ -201,14 +201,6 @@ function qadd_order_key(q::QAdd)
 end
 
 _coeff_key(c::CNum) = (string(real(c)), string(imag(c)))
-
-_type_order(::Destroy) = 0
-_type_order(::Create) = 1
-_type_order(::Transition) = 2
-_type_order(::Pauli) = 3
-_type_order(::Spin) = 4
-_type_order(::Position) = 5
-_type_order(::Momentum) = 6
 
 """
     Base.getindex(q::QAdd, key::AbstractVector{<:QSym}) -> Complex{Num}
@@ -275,7 +267,7 @@ function prefactor(s::QAdd)
 end
 
 """
-    operators(s::QAdd) -> Vector{QSym}
+    operators(s::QAdd) -> Vector{Op}
 
 Return the ordered operator sequence of a single-term [`QAdd`](@ref).
 

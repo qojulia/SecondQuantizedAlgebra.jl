@@ -17,7 +17,7 @@ using Test
     end
 
     @testset "Adjoint" begin
-        @test ad isa Create
+        @test is_create(ad)
         @test ad.name == :a
         @test ad.space_index == 1
         @test ad' == a
@@ -59,10 +59,10 @@ using Test
         a2 = Destroy(hm, :a2, 2)
 
         @test isequal(
-            simplify(commutator(a1 + a2, a1')), _single_qadd(_to_cnum(1), QSym[])
+            simplify(commutator(a1 + a2, a1')), _single_qadd(_to_cnum(1), Op[])
         )
         @test isequal(
-            simplify(commutator(a2', a1 + a2)), _single_qadd(_to_cnum(-1), QSym[])
+            simplify(commutator(a2', a1 + a2)), _single_qadd(_to_cnum(-1), Op[])
         )
 
         @test commutator(a1, 1) == commutator(1, a2)

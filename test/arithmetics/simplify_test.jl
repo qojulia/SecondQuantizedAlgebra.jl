@@ -10,7 +10,7 @@ import SecondQuantizedAlgebra: simplify, QAdd, QSym, QField, sorted_arguments, _
     ad = a'
 
     @testset "Collect like terms" begin
-        s = _single_qadd(_to_cnum(5), QSym[ad, a])
+        s = _single_qadd(_to_cnum(5), Op[ad, a])
         result = simplify(s)
         @test result isa QAdd
         @test length(result) == 1
@@ -18,7 +18,7 @@ import SecondQuantizedAlgebra: simplify, QAdd, QSym, QField, sorted_arguments, _
     end
 
     @testset "Remove zero terms" begin
-        s = _single_qadd(_to_cnum(3), QSym[ad, a])
+        s = _single_qadd(_to_cnum(3), Op[ad, a])
         result = simplify(s)
         @test length(result) == 1
         @test prefactor(only(sorted_arguments(result))) == 3
@@ -33,7 +33,7 @@ import SecondQuantizedAlgebra: simplify, QAdd, QSym, QField, sorted_arguments, _
 
     @testset "Symbolic prefactors" begin
         @variables g h_sym
-        s = _single_qadd(_to_cnum(g + h_sym), QSym[ad, a])
+        s = _single_qadd(_to_cnum(g + h_sym), Op[ad, a])
         result = simplify(s)
         @test length(result) == 1
     end
@@ -51,8 +51,8 @@ import SecondQuantizedAlgebra: simplify, QAdd, QSym, QField, sorted_arguments, _
         σ23 = Transition(hn, :σ, 2, 3)
         result = simplify(σ12 * σ23)
         @test length(result) == 1
-        @test operators(only(sorted_arguments(result)))[1].i == 1
-        @test operators(only(sorted_arguments(result)))[1].j == 3
+        @test operators(only(sorted_arguments(result)))[1].l1 == 1
+        @test operators(only(sorted_arguments(result)))[1].l2 == 3
     end
 
     @testset "Transition: simplify applies orthogonality" begin
@@ -77,7 +77,7 @@ import SecondQuantizedAlgebra: simplify, QAdd, QSym, QField, sorted_arguments, _
         # σx·σy = iσz
         result = simplify(σx * σy)
         @test prefactor(only(sorted_arguments(result))) == im
-        @test operators(only(sorted_arguments(result)))[1].axis == 3
+        @test operators(only(sorted_arguments(result)))[1].l1 == 3
     end
 
     @testset "simplify on eagerly ordered expression" begin
@@ -88,7 +88,7 @@ import SecondQuantizedAlgebra: simplify, QAdd, QSym, QField, sorted_arguments, _
 
     @testset "SymbolicUtils.simplify on QField" begin
         @variables g
-        s = _single_qadd(_to_cnum(2g), QSym[ad, a])
+        s = _single_qadd(_to_cnum(2g), Op[ad, a])
         result = SymbolicUtils.simplify(s)
         @test result isa QAdd
     end
@@ -357,7 +357,7 @@ import SecondQuantizedAlgebra: simplify, QAdd, QSym, QField, sorted_arguments, _
         σy = Pauli(hp, :σ, 2)
         result = σx * σy
         @test prefactor(only(sorted_arguments(result))) == im
-        @test operators(only(sorted_arguments(result)))[1].axis == 3
+        @test operators(only(sorted_arguments(result)))[1].l1 == 3
 
         # Spin: out-of-order axes swap eagerly
         hs = SpinSpace(:s)
@@ -401,17 +401,17 @@ import SecondQuantizedAlgebra: simplify, QAdd, QSym, QField, sorted_arguments, _
         no = normal_order(a * ad)
         weyl = normal_to_symmetric(no)
         @test length(weyl) == 2
-        @test weyl[QSym[]] == _to_cnum(1 // 2)
-        @test weyl[QSym[ad, a]] == _to_cnum(1)
+        @test weyl[Op[]] == _to_cnum(1 // 2)
+        @test weyl[Op[ad, a]] == _to_cnum(1)
     end
 
     @testset "symmetric_to_normal: basic Fock" begin
         # a†a + 1/2 → a†a + 1
-        weyl = _single_qadd(_to_cnum(1), QSym[ad, a]) + _single_qadd(_to_cnum(1 // 2), QSym[])
+        weyl = _single_qadd(_to_cnum(1), Op[ad, a]) + _single_qadd(_to_cnum(1 // 2), Op[])
         no = symmetric_to_normal(weyl)
         @test length(no) == 2
-        @test no[QSym[]] == _to_cnum(1)
-        @test no[QSym[ad, a]] == _to_cnum(1)
+        @test no[Op[]] == _to_cnum(1)
+        @test no[Op[ad, a]] == _to_cnum(1)
     end
 
     @testset "normal_to_symmetric: higher powers" begin

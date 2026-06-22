@@ -1,6 +1,6 @@
 struct OrderedTerm
     prefactor::CNum
-    ops::Vector{QSym}
+    ops::Vector{Op}
 end
 
 # A Heisenberg pair at one site, with `m` left-operators and `n` right-operators
@@ -48,7 +48,7 @@ See also [`symmetric_to_normal`](@ref), [`normal_order`](@ref).
 function normal_to_symmetric(s::QAdd)
     return _convert_ordering(s, -1 // 2)
 end
-normal_to_symmetric(op::QSym) = normal_to_symmetric(_single_qadd(_CNUM_ONE, QSym[op]))
+normal_to_symmetric(op::QSym) = normal_to_symmetric(_single_qadd(_CNUM_ONE, Op[op]))
 
 """
     symmetric_to_normal(expr) -> QAdd
@@ -79,7 +79,7 @@ See also [`normal_to_symmetric`](@ref), [`normal_order`](@ref).
 function symmetric_to_normal(s::QAdd)
     return _convert_ordering(s, 1 // 2)
 end
-symmetric_to_normal(op::QSym) = symmetric_to_normal(_single_qadd(_CNUM_ONE, QSym[op]))
+symmetric_to_normal(op::QSym) = symmetric_to_normal(_single_qadd(_CNUM_ONE, Op[op]))
 
 function _convert_ordering(s::QAdd, α::Rational)
     d = QTermDict()
@@ -104,7 +104,7 @@ To add a new Heisenberg pair kind: add `_count_X_sites`, `_expand_X_site!`,
 and `_remove_X_at!`, then add one loop here mirroring the Fock/Phase loops.
 """
 function _convert_term!(
-        d::QTermDict, c::CNum, ops::Vector{QSym},
+        d::QTermDict, c::CNum, ops::Vector{Op},
         ne::Vector{NonEqualPair}, α::Rational,
     )
     fock_sites = _count_fock_sites(ops)
@@ -126,14 +126,14 @@ function _convert_term!(
     return
 end
 
-function _count_fock_sites(ops::Vector{QSym})
+function _count_fock_sites(ops::Vector{Op})
     counts = Dict{Tuple{Int, Symbol, Symbol}, Tuple{Int, Int}}()
     for op in ops
-        if op isa Create
+        if is_create(op)
             k = (op.space_index, op.index.name, op.name)
             m, n = get(counts, k, (0, 0))
             counts[k] = (m + 1, n)
-        elseif op isa Destroy
+        elseif is_destroy(op)
             k = (op.space_index, op.index.name, op.name)
             m, n = get(counts, k, (0, 0))
             counts[k] = (m, n + 1)
@@ -146,14 +146,14 @@ function _count_fock_sites(ops::Vector{QSym})
     return sites
 end
 
-function _count_phase_sites(ops::Vector{QSym})
+function _count_phase_sites(ops::Vector{Op})
     counts = Dict{Tuple{Int, Symbol}, Tuple{Int, Int}}()
     for op in ops
-        if op isa Position
+        if is_position(op)
             k = (op.space_index, op.index.name)
             m, n = get(counts, k, (0, 0))
             counts[k] = (m + 1, n)
-        elseif op isa Momentum
+        elseif is_momentum(op)
             k = (op.space_index, op.index.name)
             m, n = get(counts, k, (0, 0))
             counts[k] = (m, n + 1)
@@ -205,13 +205,13 @@ function _expand_phase_site!(current::Vector{OrderedTerm}, site::_PhaseSite, α:
 end
 
 function _remove_fock_at!(
-        ops::Vector{QSym}, si::Int, idxname::Symbol, name::Symbol, k::Int,
+        ops::Vector{Op}, si::Int, idxname::Symbol, name::Symbol, k::Int,
     )
     creates = 0
     i = 1
     while i <= length(ops) && creates < k
         op = ops[i]
-        if op isa Create && op.space_index == si &&
+        if is_create(op) && op.space_index == si &&
                 op.index.name == idxname && op.name == name
             deleteat!(ops, i)
             creates += 1
@@ -223,7 +223,7 @@ function _remove_fock_at!(
     i = 1
     while i <= length(ops) && destroys < k
         op = ops[i]
-        if op isa Destroy && op.space_index == si &&
+        if is_destroy(op) && op.space_index == si &&
                 op.index.name == idxname && op.name == name
             deleteat!(ops, i)
             destroys += 1
@@ -235,13 +235,13 @@ function _remove_fock_at!(
 end
 
 function _remove_phase_at!(
-        ops::Vector{QSym}, si::Int, idxname::Symbol, k::Int,
+        ops::Vector{Op}, si::Int, idxname::Symbol, k::Int,
     )
     positions = 0
     i = 1
     while i <= length(ops) && positions < k
         op = ops[i]
-        if op isa Position && op.space_index == si && op.index.name == idxname
+        if is_position(op) && op.space_index == si && op.index.name == idxname
             deleteat!(ops, i)
             positions += 1
         else
@@ -252,7 +252,7 @@ function _remove_phase_at!(
     i = 1
     while i <= length(ops) && momenta < k
         op = ops[i]
-        if op isa Momentum && op.space_index == si && op.index.name == idxname
+        if is_momentum(op) && op.space_index == si && op.index.name == idxname
             deleteat!(ops, i)
             momenta += 1
         else

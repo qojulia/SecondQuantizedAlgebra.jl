@@ -55,9 +55,9 @@ has_index(idx::Index) = idx.space_index != 0
 const NonEqualPair = Tuple{Index, Index}
 
 # Shared sentinels for empty vectors on hot paths. Never mutated.
+# `_EMPTY_OPS` lives in `operators/op.jl` (needs `Op`, defined after `Index`).
 const _EMPTY_NE = NonEqualPair[]
 const _EMPTY_INDICES = Index[]
-const _EMPTY_OPS = QSym[]
 
 function Base.:(==)(a::Index, b::Index)
     a === b && return true

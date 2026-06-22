@@ -103,6 +103,22 @@ Position
 Momentum
 ```
 
+```@docs
+Op
+OpKind
+```
+
+```@docs
+optype
+is_destroy
+is_create
+is_transition
+is_pauli
+is_spin
+is_position
+is_momentum
+```
+
 
 ## [Algebra](@id API: Algebra)
 

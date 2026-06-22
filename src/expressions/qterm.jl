@@ -5,21 +5,21 @@ A single entry of a [`QAdd`](@ref) sum: an ordered operator product plus the
 pairwise index inequality constraints that scope that product.
 
 # Fields
-- `ops::Vector{QSym}` — the ordered operator product
+- `ops::Vector{Op}` — the ordered operator product
 - `ne::Vector{NonEqualPair}` — pairwise `α ≠ β` constraints (canonicalized)
 
 `QTerm` is the dict key in [`QTermDict`](@ref); iterating a `QAdd` yields
 `Pair{QTerm, CNum}`, and callers reach `term.ops` / `term.ne` directly.
 """
 struct QTerm
-    ops::Vector{QSym}
+    ops::Vector{Op}
     ne::Vector{NonEqualPair}
     hash::UInt
-    QTerm(ops::Vector{QSym}, ne::Vector{NonEqualPair}) = new(ops, ne, _qterm_hash(ops, ne))
-    QTerm(ops::Vector{QSym}, ne::Vector{NonEqualPair}, h::UInt) = new(ops, ne, h)  # trusted: h == _qterm_hash(ops, ne)
+    QTerm(ops::Vector{Op}, ne::Vector{NonEqualPair}) = new(ops, ne, _qterm_hash(ops, ne))
+    QTerm(ops::Vector{Op}, ne::Vector{NonEqualPair}, h::UInt) = new(ops, ne, h)  # trusted: h == _qterm_hash(ops, ne)
 end
 
-@inline _qterm_hash(ops::Vector{QSym}, ne::Vector{NonEqualPair}) =
+@inline _qterm_hash(ops::Vector{Op}, ne::Vector{NonEqualPair}) =
     hash(:QTerm, hash(ops, hash(ne, zero(UInt))))
 
 Base.isequal(a::QTerm, b::QTerm) = a.hash == b.hash && isequal(a.ops, b.ops) && isequal(a.ne, b.ne)
@@ -150,7 +150,7 @@ canonicalizes `ne`. Every [`QTermDict`](@ref) insertion goes through this so tha
 structural equality of `(ops, ne)` always implies equal hash keys.
 """
 function _term_key(
-        ops::Vector{QSym},
+        ops::Vector{Op},
         ne::Vector{NonEqualPair} = _EMPTY_NE,
     )
     return QTerm(copy(ops), _canonical_ne(ne))
@@ -164,7 +164,7 @@ collection applies only when both the operator sequence and the constraint set
 match exactly.
 """
 function _addto!(
-        d::QTermDict, ops::Vector{QSym}, c::CNum,
+        d::QTermDict, ops::Vector{Op}, c::CNum,
         ne::Vector{NonEqualPair} = _EMPTY_NE,
     )
     return _addto_key!(d, _term_key(ops, ne), c)
@@ -186,9 +186,12 @@ function _addto_key!(d::QTermDict, term::QTerm, c::CNum)
         return d
     end
     new_c = _add_cnum(existing, c)
-    # Symbolics keeps `γ/D + (-γ)/D` un-combined, so `_iszero_cnum` misses such
-    # cancellations; fall back to an exact-negation test for symbolic coefficients.
-    if _iszero_cnum(new_c) || (_is_symbolic_cnum(new_c) && _isneg_cnum(existing, c))
+    # Poly cancellations already collapse to native zero via `_from_poly` (caught by
+    # `_iszero_cnum`), so the exact-negation fallback is only needed for genuine
+    # `Complex{Num}` tails, where Symbolics keeps `γ/D + (-γ)/D` un-combined. Gating
+    # on the tail type (not `_is_symbolic_cnum`, true for every Poly) avoids a
+    # redundant second `_poly_add` on every polynomial like-term merge.
+    if _iszero_cnum(new_c) || (new_c.tail isa Complex{Num} && _isneg_cnum(existing, c))
         delete!(d, term)
     else
         d[term] = new_c

@@ -1,5 +1,5 @@
 """
-    fundamental_operators(h::HilbertSpace; names=nothing) -> Vector{QSym}
+    fundamental_operators(h::HilbertSpace; names=nothing) -> Vector{Op}
 
 Return the minimal generating set of operators for Hilbert space `h`.
 
@@ -24,12 +24,12 @@ See also [`find_operators`](@ref), [`unique_ops`](@ref).
 """
 function fundamental_operators(h::FockSpace, si::Int = 1; names::Union{Nothing, AbstractVector} = nothing)
     name = names === nothing ? :a : names[si]
-    return QSym[Destroy(name, si)]
+    return Op[Destroy(name, si)]
 end
 
 function fundamental_operators(h::NLevelSpace, si::Int = 1; names::Union{Nothing, AbstractVector} = nothing)
     name = names === nothing ? :σ : names[si]
-    ops = Transition[]
+    ops = Op[]
     for i in 1:(h.n)
         for j in i:(h.n)
             (i == j) && i == h.ground_state && continue
@@ -41,21 +41,21 @@ end
 
 function fundamental_operators(h::PauliSpace, si::Int = 1; names::Union{Nothing, AbstractVector} = nothing)
     name = names === nothing ? :σ : names[si]
-    return QSym[Pauli(name, 1, si), Pauli(name, 2, si), Pauli(name, 3, si)]
+    return Op[Pauli(name, 1, si), Pauli(name, 2, si), Pauli(name, 3, si)]
 end
 
 function fundamental_operators(h::SpinSpace, si::Int = 1; names::Union{Nothing, AbstractVector} = nothing)
     name = names === nothing ? :S : names[si]
-    return QSym[Spin(name, 1, si), Spin(name, 2, si), Spin(name, 3, si)]
+    return Op[Spin(name, 1, si), Spin(name, 2, si), Spin(name, 3, si)]
 end
 
 function fundamental_operators(h::PhaseSpace, si::Int = 1; names::Union{Nothing, AbstractVector} = nothing)
     name_pair = names === nothing ? (:x, :p) : names[si]
-    return QSym[Position(name_pair[1], si), Momentum(name_pair[2], si)]
+    return Op[Position(name_pair[1], si), Momentum(name_pair[2], si)]
 end
 
 function fundamental_operators(h::ProductSpace; names::Union{Nothing, AbstractVector} = nothing)
-    ops = QSym[]
+    ops = Op[]
     for (i, space) in enumerate(h.spaces)
         space_ops = fundamental_operators(space, i; names = names)
         append!(ops, space_ops)
@@ -181,7 +181,7 @@ function find_operators(h::HilbertSpace, order::Int; names::Union{Nothing, Abstr
 end
 
 
-# --- Hermitian conjugation ---
+# Hermitian conjugation
 
 """
     qadjoint(x)
@@ -258,36 +258,144 @@ inner_adjoint(x::Number) = conj(x)
 inner_adjoint(x::Num) = inner_adjoint(SymbolicUtils.unwrap(x))
 inner_adjoint(x::QField) = adjoint(x)
 
-# Total ordering across QSym concrete types — used by _site_compare cross-type fallback.
-_type_order(::Type{Destroy}) = 0
-_type_order(::Type{Create}) = 1
-_type_order(::Type{Transition}) = 2
-_type_order(::Type{Pauli}) = 3
-_type_order(::Type{Spin}) = 4
-_type_order(::Type{Position}) = 5
-_type_order(::Type{Momentum}) = 6
+
+# Adjoint, ordering, ladder
+
+function Base.adjoint(o::Op)
+    k = o.kind
+    if k === OP_DESTROY
+        return Op(OP_CREATE, o.name, o.space_index, o.index, o.l1, o.l2, o.g, o.nlev)
+    elseif k === OP_CREATE
+        return Op(OP_DESTROY, o.name, o.space_index, o.index, o.l1, o.l2, o.g, o.nlev)
+    elseif k === OP_TRANSITION
+        # |i⟩⟨j|† = |j⟩⟨i|: swap the packed levels.
+        return Op(OP_TRANSITION, o.name, o.space_index, o.index, o.l2, o.l1, o.g, o.nlev)
+    else
+        return o   # Pauli, Spin, Position, Momentum are Hermitian
+    end
+end
+
+# Instance form used by `_full_op_key`; the enum value is the cross-type order.
+_type_order(o::Op) = Int(o.kind)
 
 """
-    order_key(op::QSym) -> Tuple
+    order_key(op::Op) -> Tuple
 
 Total, identity-faithful ordering key: a comparable tuple that orders operators
-reproducibly and ties two exactly when they are `isequal`. One method per concrete
-subtype (no generic `QSym` fallback), so a new operator type without a key is a loud
-`MethodError`, not a silent field-dropping collision.
+reproducibly and ties two exactly when they are `isequal`. The leading `kind`
+value gives the cross-family order; the packed `l1..nlev` fields keep distinct
+levels/axes distinct.
 """
-function order_key end
+order_key(o::Op) = (Int(o.kind), o.space_index, o.name, _index_key(o.index), Int(o.l1), Int(o.l2), Int(o.g), Int(o.nlev))
 
-# Generic fallbacks for cross-type operator pairs (always distinct sites).
-_can_commute(::QSym, ::QSym) = true
-_commute_pair(a::QSym, b::QSym) = (b, a, _CNUM_ZERO, _EMPTY_OPS)
-_reduce_pair(a::QSym, ::QSym) = (NoReduction, a, _CNUM_ZERO)
-_ground_state_expand(::QSym) = (false, 0, 0, 0)
+"""
+    ladder(op::Op)
 
-# Reduce-pass gate; reducing types override it alongside `_reduce_pair`. See devdocs.
-_may_reduce(::QSym, ::QSym) = false
+Returns 1 for the lowering members of a canonical pair (annihilation `OP_DESTROY`,
+momentum `OP_MOMENTUM`) and 0 otherwise. Used for canonical ordering within
+operator product sequences.
+"""
+ladder(o::Op) = (o.kind === OP_DESTROY || o.kind === OP_MOMENTUM) ? 1 : 0
 
-function _site_compare(a::QSym, b::QSym, ne::Vector{NonEqualPair})
-    ta = typeof(a); tb = typeof(b)
-    ta === tb && error("unreachable: same-type _site_compare must be overridden by $ta")
-    return _type_order(ta) < _type_order(tb) ? Less : Greater
+
+# Operator hooks (single concrete methods branching on `kind`)
+
+# Site family: Fock {Destroy,Create} and PhaseSpace {Position,Momentum} compare
+# cross-role within the family; the others are singleton families. Distinct
+# families fall back to the `kind` integer order (= the old `_type_order`).
+@inline _site_family(k::OpKind) =
+    (k === OP_DESTROY || k === OP_CREATE) ? 0x00 :
+    (k === OP_POSITION || k === OP_MOMENTUM) ? 0x05 :
+    UInt8(k)
+
+function _site_compare(a::Op, b::Op, ne::Vector{NonEqualPair})
+    ka = a.kind; kb = b.kind
+    fa = _site_family(ka)
+    fa === _site_family(kb) || return UInt8(ka) < UInt8(kb) ? Less : Greater
+    a.space_index == b.space_index || return a.space_index < b.space_index ? Less : Greater
+    # PhaseSpace x-vs-p ignores name (conjugate variables on one site); every
+    # other same-family pair distinguishes by name.
+    if !(fa === 0x05 && ka !== kb)
+        a.name == b.name || return a.name < b.name ? Less : Greater
+    end
+    a.index == b.index && return Equal
+    # PhaseSpace never consults `ne`; Fock/Transition/Pauli/Spin do.
+    fa === 0x05 && return Undetermined
+    _ne_contains(ne, a.index, b.index) && return a.index < b.index ? Less : Greater
+    return Undetermined
+end
+
+function _can_commute(a::Op, b::Op)
+    ka = a.kind; kb = b.kind
+    if ka === OP_DESTROY && kb === OP_CREATE
+        return false                 # a·a† carries the identity residual
+    elseif ka === OP_TRANSITION && kb === OP_TRANSITION
+        return false                 # always compose
+    elseif ka === OP_PAULI && kb === OP_PAULI
+        return false                 # always compose
+    elseif ka === OP_SPIN && kb === OP_SPIN
+        return a.l1 <= b.l1          # commute only in ascending axis order
+    elseif ka === OP_MOMENTUM && kb === OP_POSITION
+        return false                 # P·X = X·P - i
+    else
+        return true
+    end
+end
+
+# `_commute_pair` returns (swap_b, swap_a, residual_coeff, residual_ops).
+function _commute_pair(a::Op, b::Op)
+    ka = a.kind; kb = b.kind
+    if ka === OP_DESTROY && kb === OP_CREATE
+        return (b, a, _CNUM_ONE, _EMPTY_OPS)             # aa† = a†a + 1
+    elseif ka === OP_MOMENTUM && kb === OP_POSITION
+        return (b, a, _to_cnum(-im), _EMPTY_OPS)         # P·X = X·P - i·I
+    elseif ka === OP_SPIN && kb === OP_SPIN
+        # [Sj, Sk] = iϵⱼₖₗSl; the residual is the contracted spin on the third axis.
+        eps = _levi_civita[a.l1][b.l1]
+        contracted = Spin(a.name, 6 - a.l1 - b.l1, a.space_index, a.index)
+        return (b, a, _mul_cnum(_to_cnum(im * eps), _CNUM_ONE), Op[contracted])
+    else
+        return (b, a, _CNUM_ZERO, _EMPTY_OPS)
+    end
+end
+
+# Reduce-pass gate: only Transition·Transition and Pauli·Pauli compose locally,
+# so non-reducing pairs skip the field checks below.
+_may_reduce(a::Op, b::Op) =
+    (a.kind === OP_TRANSITION && b.kind === OP_TRANSITION) ||
+    (a.kind === OP_PAULI && b.kind === OP_PAULI)
+
+function _reduce_pair(a::Op, b::Op)
+    ka = a.kind
+    if ka === OP_TRANSITION && b.kind === OP_TRANSITION
+        # σⁱʲ · σᵏˡ = δⱼₖ σⁱˡ.
+        (a.name == b.name && a.space_index == b.space_index && a.index == b.index) ||
+            return (NoReduction, a, _CNUM_ZERO)
+        if a.l2 == b.l1
+            new = Transition(a.name, a.l1, b.l2, a.space_index, a.index, a.g, a.nlev)
+            return (OpReduction, new, _CNUM_ONE)
+        else
+            return (ScalarReduction, a, _CNUM_ZERO)    # δ_{j,k} = 0
+        end
+    elseif ka === OP_PAULI && b.kind === OP_PAULI
+        # σⱼ·σₖ = δⱼₖI + iϵⱼₖₗσₗ.
+        (a.name == b.name && a.space_index == b.space_index && a.index == b.index) ||
+            return (NoReduction, a, _CNUM_ZERO)
+        if a.l1 == b.l1
+            return (ScalarReduction, a, _CNUM_ONE)     # σⱼ² = 1
+        else
+            eps = _levi_civita[a.l1][b.l1]
+            new = Pauli(a.name, 6 - a.l1 - b.l1, a.space_index, a.index)
+            return (OpReduction, new, _mul_cnum(_to_cnum(im * eps), _CNUM_ONE))
+        end
+    else
+        return (NoReduction, a, _CNUM_ZERO)
+    end
+end
+
+# Ground-state expansion: σᵍᵍ -> 1 - Σ_{k≠g} σᵏᵏ (Transition only).
+function _ground_state_expand(op::Op)
+    op.kind === OP_TRANSITION || return (false, 0, 0, 0)
+    (op.l1 == op.g && op.l2 == op.g) || return (false, 0, 0, 0)
+    return (true, Int(op.g), Int(op.nlev), op.space_index)
 end

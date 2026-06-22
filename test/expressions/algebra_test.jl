@@ -101,13 +101,13 @@ import SecondQuantizedAlgebra: QAdd, QSym, QField, sorted_arguments, CNum,
         @testset "Eager normal ordering" begin
             # a * a† = a†a + 1 (normal ordered)
             result = a * ad
-            @test result[QSym[ad, a]] == _CNUM_ONE
-            @test result[QSym[]] == _CNUM_ONE
+            @test result[Op[ad, a]] == _CNUM_ONE
+            @test result[Op[]] == _CNUM_ONE
             @test length(result) == 2
 
             # a† * a is already normal ordered
             result2 = ad * a
-            @test result2[QSym[ad, a]] == _CNUM_ONE
+            @test result2[Op[ad, a]] == _CNUM_ONE
             @test length(result2) == 1
         end
 
@@ -125,7 +125,7 @@ import SecondQuantizedAlgebra: QAdd, QSym, QField, sorted_arguments, CNum,
         @testset "Division" begin
             m = a / 2
             @test m isa QAdd
-            @test m[QSym[a]] == 1 // 2
+            @test m[Op[a]] == 1 // 2
             @test (a / 2.0) isa QAdd
             @test prefactor(only(sorted_arguments(a / 2.0))) ≈ 0.5
             @test prefactor(only(sorted_arguments(a / 2))) == 1 // 2
@@ -141,7 +141,7 @@ import SecondQuantizedAlgebra: QAdd, QSym, QField, sorted_arguments, CNum,
             m0 = a^0
             @test m0 isa QAdd
             @test length(m0) == 1
-            @test m0[QSym[]] == _CNUM_ONE
+            @test m0[Op[]] == _CNUM_ONE
             @test isempty(operators(only(sorted_arguments(m0))))
             @test prefactor(only(sorted_arguments(m0))) == 1
         end
@@ -149,7 +149,7 @@ import SecondQuantizedAlgebra: QAdd, QSym, QField, sorted_arguments, CNum,
         @testset "Negation" begin
             m = -a
             @test m isa QAdd
-            @test m[QSym[a]] == -1
+            @test m[Op[a]] == -1
         end
 
         @testset "Adjoint of QMul" begin
@@ -173,7 +173,7 @@ import SecondQuantizedAlgebra: QAdd, QSym, QField, sorted_arguments, CNum,
     end
 
     @testset "== consistency" begin
-        @test _single_qadd(_to_cnum(1), QSym[a]) == _single_qadd(_to_cnum(1), QSym[a])
+        @test _single_qadd(_to_cnum(1), Op[a]) == _single_qadd(_to_cnum(1), Op[a])
         @test (a + a') == (a + a')
     end
 

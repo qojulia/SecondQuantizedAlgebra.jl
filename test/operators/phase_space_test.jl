@@ -176,9 +176,9 @@ import SecondQuantizedAlgebra: simplify, QAdd, QSym, HilbertSpace
         h = PhaseSpace(:q)
         @qnumbers x::Position(h)
         @qnumbers p::Momentum(h)
-        @test x isa Position
+        @test is_position(x)
         @test x.name == :x
-        @test p isa Momentum
+        @test is_momentum(p)
         @test p.name == :p
     end
 

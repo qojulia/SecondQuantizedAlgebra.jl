@@ -366,7 +366,7 @@ using Test
         @test numeric_average(expr, ψ) ≈ α + abs2(α)
 
         # to_numeric with scalar QAdd (empty operators)
-        @test to_numeric(_single_qadd(_to_cnum(3), QSym[]), b) == 3 * one(b)
+        @test to_numeric(_single_qadd(_to_cnum(3), Op[]), b) == 3 * one(b)
     end
 
     @testset "Number-symtype coefficient round-trip" begin

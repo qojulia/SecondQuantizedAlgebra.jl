@@ -1,6 +1,6 @@
 const _ScalarLike = Union{Number, SymbolicUtils.BasicSymbolic}
 
-Base.:*(a::QSym, b::_ScalarLike) = _single_qadd(_to_cnum(b), QSym[a])
+Base.:*(a::QSym, b::_ScalarLike) = _single_qadd(_to_cnum(b), Op[a])
 Base.:*(b::_ScalarLike, a::QSym) = a * b
 
 function Base.:*(a::QAdd, b::_ScalarLike)
@@ -18,14 +18,14 @@ Base.:*(a::_ScalarLike, b::QAdd) = b * a
 
 function Base.:+(a::QSym, b::QSym)
     d = QTermDict()
-    _addto!(d, QSym[a], _CNUM_ONE)
-    _addto!(d, QSym[b], _CNUM_ONE)
+    _addto!(d, Op[a], _CNUM_ONE)
+    _addto!(d, Op[b], _CNUM_ONE)
     return QAdd(d, _EMPTY_INDICES)
 end
 
 function Base.:+(a::QAdd, b::QSym)
     d = _copy_args(a.arguments)
-    _addto!(d, QSym[b], _CNUM_ONE)
+    _addto!(d, Op[b], _CNUM_ONE)
     return QAdd(d, _drop_unused_indices(d, a.indices))
 end
 Base.:+(a::QSym, b::QAdd) = b + a
@@ -40,7 +40,7 @@ end
 
 function Base.:+(a::QSym, b::Number)
     d = QTermDict()
-    _addto!(d, QSym[a], _CNUM_ONE)
+    _addto!(d, Op[a], _CNUM_ONE)
     _addto!(d, _EMPTY_OPS, _to_cnum(b))
     return QAdd(d, _EMPTY_INDICES)
 end
@@ -57,7 +57,7 @@ Base.:+(a::Number, b::QAdd) = b + a
 Base.zero(::Type{QAdd}) = _zero_qadd()
 Base.zero(::QAdd) = _zero_qadd()
 
-Base.:-(a::QSym) = _single_qadd(_CNUM_NEG1, QSym[a])
+Base.:-(a::QSym) = _single_qadd(_CNUM_NEG1, Op[a])
 
 function Base.:-(a::QAdd)
     d = QTermDict()
@@ -81,7 +81,7 @@ function Base.:^(a::QSym, n::Integer)
     n >= 0 || throw(ArgumentError("Negative powers not supported"))
     n == 0 && return _single_qadd(_CNUM_ONE, _EMPTY_OPS)
     out = QTermDict()
-    ops = QSym[a for _ in 1:n]
+    ops = Op[a for _ in 1:n]
     _canonicalize!(out, ops, _CNUM_ONE, _EMPTY_NE)
     return QAdd(out, Index[])
 end
@@ -126,7 +126,7 @@ julia> normal_order(a * a')
 See also [`simplify`](@ref), [`expand_completeness`](@ref),
 [`normal_to_symmetric`](@ref), [`symmetric_to_normal`](@ref).
 """
-normal_order(op::QSym) = _single_qadd(_CNUM_ONE, QSym[op])
+normal_order(op::QSym) = _single_qadd(_CNUM_ONE, Op[op])
 
 function normal_order(q::QAdd)
     out = QTermDict()
@@ -193,7 +193,7 @@ julia> simplify(expr)
 
 See also [`normal_order`](@ref), [`expand`](@ref), [`expand_completeness`](@ref).
 """
-SymbolicUtils.simplify(op::QSym; kwargs...) = _single_qadd(_CNUM_ONE, QSym[op])
+SymbolicUtils.simplify(op::QSym; kwargs...) = _single_qadd(_CNUM_ONE, Op[op])
 
 function SymbolicUtils.simplify(q::QAdd; kwargs...)
     nq = normal_order(q)
@@ -235,7 +235,7 @@ function Symbolics.expand(s::QAdd; kwargs...)
     end
     return QAdd(d, copy(s.indices))
 end
-Symbolics.expand(op::QSym; kwargs...) = _single_qadd(_CNUM_ONE, QSym[op])
+Symbolics.expand(op::QSym; kwargs...) = _single_qadd(_CNUM_ONE, Op[op])
 
 _expand_prefactor(x::CNum; kwargs...) = (_is_native(x) || _is_poly(x) || _iszero_cnum(x)) ? x : _cnum(Symbolics.expand(real(x)), Symbolics.expand(imag(x)))
 
@@ -280,7 +280,7 @@ function expand_completeness(q::QAdd)
     return QAdd(out, copy(q.indices))
 end
 
-expand_completeness(op::QSym) = expand_completeness(_single_qadd(_CNUM_ONE, QSym[op]))
+expand_completeness(op::QSym) = expand_completeness(_single_qadd(_CNUM_ONE, Op[op]))
 
 """
     assume_distinct_index(q::QAdd, pairs::Vector{Tuple{Index, Index}}) -> QAdd
@@ -458,7 +458,7 @@ julia> substitute(x * a' * a, Dict(x => 2))
 See also [`change_index`](@ref).
 """
 function SymbolicUtils.substitute(op::QSym, d::Dict)
-    return SymbolicUtils.substitute(_single_qadd(_CNUM_ONE, QSym[op]), d)
+    return SymbolicUtils.substitute(_single_qadd(_CNUM_ONE, Op[op]), d)
 end
 
 function SymbolicUtils.substitute(q::QAdd, d::Dict)

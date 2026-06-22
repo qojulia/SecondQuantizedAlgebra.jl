@@ -26,7 +26,7 @@ import SecondQuantizedAlgebra: simplify, QAdd, QSym, CNum, sorted_arguments,
     @testset "QSym passthrough" begin
         # normal_order wraps a leaf operator into a single-term QAdd equal to it.
         result = normal_order(a)
-        @test isequal(result, _single_qadd(_to_cnum(1), QSym[a]))
+        @test isequal(result, _single_qadd(_to_cnum(1), Op[a]))
     end
 
     @testset "QAdd — normal-orders each term" begin
@@ -60,8 +60,8 @@ end
         @test result isa QAdd
         @test length(result) == 1
         ops = first(keys(result.arguments)).ops
-        @test ops[1] isa Transition
-        @test ops[1].i == 1 && ops[1].j == 3
+        @test is_transition(ops[1])
+        @test ops[1].l1 == 1 && ops[1].l2 == 3
     end
 
     @testset "Orthogonality: |1⟩⟨2| · |3⟩⟨1| = 0" begin
@@ -138,12 +138,12 @@ end
             (term, c) = only(collect(result))
             @test c == im
             @test length(term.ops) == 1
-            @test term.ops[1] isa Pauli
-            @test term.ops[1].axis == axis
+            @test is_pauli(term.ops[1])
+            @test term.ops[1].l1 == axis
 
             (term2, c2) = only(collect(b * a))
             @test c2 == -im
-            @test term2.ops[1].axis == axis
+            @test term2.ops[1].l1 == axis
         end
     end
 end

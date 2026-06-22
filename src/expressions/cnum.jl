@@ -409,7 +409,7 @@ function _conj_poly(p::Poly)
         perm = sortperm(nsyms; by = _fkey)
         terms[k] = Monomial(conj(m.scalar), nsyms[perm], m.exps[perm])
     end
-    return _from_poly(_canonical_terms(terms))
+    return _from_poly(_canonical_terms!(terms))
 end
 
 @inline function _conj_cnum(c::Coeff)

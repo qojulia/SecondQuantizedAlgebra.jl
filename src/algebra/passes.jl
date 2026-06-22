@@ -1,16 +1,16 @@
 # Passes: the low-level building blocks of the canonicalization pipeline.
-# Each pass takes a `sink::F` first (so `do` blocks work), an `ops::Vector{QSym}`
+# Each pass takes a `sink::F` first (so `do` blocks work), an `ops::Vector{Op}`
 # and a `c::CNum`. Forking passes may invoke the sink multiple times; folding
 # passes invoke it once. Aliasing contracts are documented per pass.
 
 """
-    _partial_sort!(ops::Vector{QSym}, ne::Vector{NonEqualPair})
+    _partial_sort!(ops::Vector{Op}, ne::Vector{NonEqualPair})
 
 In-place stable partial-sort using `_site_compare`. Distinct-site adjacents are
 placed in canonical order; `Equal` and `Undetermined` pairs are left in
 physical order so the sibling passes can interpret them.
 """
-function _partial_sort!(ops::Vector{QSym}, ne::Vector{NonEqualPair})
+function _partial_sort!(ops::Vector{Op}, ne::Vector{NonEqualPair})
     n = length(ops)
     n < 2 && return ops
     # Insertion sort: stable, O(n²) worst case, n is small in practice.
@@ -27,14 +27,14 @@ function _partial_sort!(ops::Vector{QSym}, ne::Vector{NonEqualPair})
 end
 
 """
-    _canonicalize_to_dict!(out::QTermDict, ops::Vector{QSym}, c::CNum, ne::Vector{NonEqualPair})
+    _canonicalize_to_dict!(out::QTermDict, ops::Vector{Op}, c::CNum, ne::Vector{NonEqualPair})
 
 Terminal sink for the pipeline. Constructs `QTerm(ops, ne)`, looks up in `out`,
 sums `c`, drops zero-coefficient entries. Takes ownership of `ops`; the caller
 must not mutate after this call. Pre-condition: `ops` is in canonical form.
 """
 @inline function _canonicalize_to_dict!(
-        out::QTermDict, ops::Vector{QSym}, c::CNum, ne::Vector{NonEqualPair},
+        out::QTermDict, ops::Vector{Op}, c::CNum, ne::Vector{NonEqualPair},
     )
     _iszero_cnum(c) && return out
     return _addto_key!(out, QTerm(ops, _canonical_ne(ne)), c)
@@ -49,7 +49,7 @@ input. Mutates `ops` in place; sink receives the same Vector.
 Pre: `ops` is in canonical partial-sort order. Post: no adjacent provably-
 same-site pair `(a, b)` for which `_reduce_pair(a, b)` returns non-`nothing`.
 """
-@inline function _reduce_ops(sink::F, ops::Vector{QSym}, c::CNum) where {F}
+@inline function _reduce_ops(sink::F, ops::Vector{Op}, c::CNum) where {F}
     n = length(ops)
     n < 2 && (sink(ops, c); return)
     i = 1
@@ -91,12 +91,12 @@ Pre-condition: pairs that reduce locally (Transition, Pauli) should have been
 folded by `_reduce_ops` first. The residual branch mutates `ops` in place; the
 swap branch receives a `copy(ops)`.
 """
-@inline function _commute_ops(sink::F, ops::Vector{QSym}, c::CNum) where {F}
+@inline function _commute_ops(sink::F, ops::Vector{Op}, c::CNum) where {F}
     _commute_ops_at(sink, ops, c, 1)
     return
 end
 
-function _commute_ops_at(sink::F, ops::Vector{QSym}, c::CNum, start::Int) where {F}
+function _commute_ops_at(sink::F, ops::Vector{Op}, c::CNum, start::Int) where {F}
     i = start
     while i < length(ops)
         a, b = ops[i], ops[i + 1]
@@ -133,7 +133,7 @@ Apply `σᵍᵍ → 1 - Σ_{k≠g} σᵏᵏ` to every `σᵍᵍ` in `ops`. May f
 per `σᵍᵍ`; recurses to handle multiple `σᵍᵍ` atoms in one term. Each branch
 receives its own `copy(ops)`; the original is not mutated.
 """
-function _find_gs_idx(ops::Vector{QSym})
+function _find_gs_idx(ops::Vector{Op})
     for k in eachindex(ops)
         is_gs, _, _, _ = _ground_state_expand(ops[k])
         is_gs && return k
@@ -141,13 +141,13 @@ function _find_gs_idx(ops::Vector{QSym})
     return 0
 end
 
-function _expand_gs_ops(sink::F, ops::Vector{QSym}, c::CNum) where {F}
+function _expand_gs_ops(sink::F, ops::Vector{Op}, c::CNum) where {F}
     idx = _find_gs_idx(ops)
     idx == 0 && (sink(ops, c); return)
 
-    op = ops[idx]::Transition
+    op = ops[idx]
     _, g, n_levels, _site = _ground_state_expand(op)
-    id_ops = QSym[]
+    id_ops = Op[]
     sizehint!(id_ops, length(ops) - 1)
     for k in eachindex(ops)
         k == idx || push!(id_ops, ops[k])
@@ -173,7 +173,7 @@ Walk `ops` applying substitutions from `d`. Supported value types:
 - `QAdd`            — spliced; forks once per term of the `QAdd`
 - symbolic key      — passes through to `_substitute_cnum` on the coefficient
 """
-function _substitute_ops(sink::F, ops::Vector{QSym}, c::CNum, d) where {F}
+function _substitute_ops(sink::F, ops::Vector{Op}, c::CNum, d) where {F}
     for i in eachindex(ops)
         op = ops[i]
         haskey(d, op) || continue
@@ -185,7 +185,7 @@ function _substitute_ops(sink::F, ops::Vector{QSym}, c::CNum, d) where {F}
         elseif val isa Number
             new_c = _mul_cnum(c, _to_cnum(val))
             _iszero_cnum(new_c) && return
-            new_ops = QSym[ops[k] for k in eachindex(ops) if k != i]
+            new_ops = Op[ops[k] for k in eachindex(ops) if k != i]
             return _substitute_ops(sink, new_ops, new_c, d)
         elseif val isa QAdd
             for (vt, vc) in val

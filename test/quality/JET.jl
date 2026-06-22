@@ -19,8 +19,10 @@ end
         # report_package finds actual type errors (method-not-found, etc.).
         # `ignore_missing_comparison = true
         # silences `Missing` union-split warnings that bubble up from Symbolics.
-        # report_opt is intentionally omitted: 4 root dispatches + 7 cascade from
-        # `Vector{QSym}` abstract elements are intrinsic to the design.
+        # report_opt is checked separately (below) on selected hot paths; collapsing
+        # the operators to a concrete `Vector{Op}` removed the per-leaf dynamic
+        # dispatch the abstract hierarchy used to force, leaving only the `Coeff`
+        # materialization and numeric/average conversion boundaries.
         result = JET.report_package(
             SecondQuantizedAlgebra;
             target_modules = (SecondQuantizedAlgebra,),
@@ -86,20 +88,19 @@ end
     end
 
     @testset "JET report_opt on selected hot paths" begin
-        # Three buckets of escalating tolerance:
+        # Three buckets:
         #
-        #  1. Strict — leaf-level operations that don't iterate over `Vector{QSym}`.
-        #     These must stay fully inferred (zero dispatch reports).
+        #  1. Strict (leaf-level operations). Fully inferred, zero dispatch reports.
+        #     With the concrete `Vector{Op}` storage the per-operator hooks and
+        #     leaf-level `to_numeric` infer statically, so these stay clean.
         #
-        #  2. Hot-path allowed — operations that traverse `QAdd.arguments` and
-        #     therefore hit the abstract `Vector{QSym}` element type. The dispatch
-        #     leak into the per-leaf hooks (`_site_compare`, `_can_commute`,
-        #     `_commute_pair`) is intrinsic to the design: keeping `ops` as
-        #     `Vector{QSym}` lets a sum mix operator families without union splits.
+        #  2. Hot-path allowed. QAdd-level pipelines whose only residual dispatch is
+        #     the `Coeff` materialization boundary, plus `undo_average`'s rebuild from
+        #     a Symbolics `average` node (see the allowlists below).
         #
-        #  3. Numeric allowed — `to_numeric` / `numeric_average` on QAdd-level
-        #     inputs, which additionally pass through the `_to_complex` seal
-        #     (Any → ComplexF64) and abstract-`QSym` per-basis dispatch.
+        #  3. Numeric allowed. `to_numeric` / `numeric_average` on QAdd inputs, which
+        #     additionally cross the `Any → ComplexF64` numeric-conversion boundary
+        #     and call into QuantumOpticsBase.
         hf = FockSpace(:f); a = Destroy(hf, :a); ad = Create(hf, :a)
         hn = NLevelSpace(:atom, 3); σ12 = Transition(hn, :σ, 1, 2); σ21 = Transition(hn, :σ, 2, 1)
         hp = PauliSpace(:s); px = Pauli(hp, :σ, 1); py = Pauli(hp, :σ, 2)
@@ -138,59 +139,59 @@ end
             end
         end
 
-        # Coefficient recognition / materialization boundary. Constructing an
-        # operator builds its `Coeff`, and the recognizer (`_rec`) plus the numeric
-        # fold read a heterogeneous Symbolics expression (`arguments` is `Vector{Any}`,
-        # `BasicSymbolic.val` is `::Any`). That read is intrinsically dynamic, exactly
-        # like the `Vector{QSym}` operator dispatch below, and is confined to this
-        # one-time boundary: the polynomial arithmetic itself is fully type-stable
-        # (verified separately by `@report_opt` on the `Poly` operations).
+        # Collapsing the operators to a concrete `Vector{Op}` removed the former
+        # per-leaf operator dispatch (`_site_compare`/`_can_commute`/`_commute_pair`),
+        # so those reports are gone. Two residual `report_opt` boundaries remain, both
+        # independent of the operator type:
+        #
+        # (a) Coefficient materialization. Constructing an operator builds its
+        #     `Coeff`; the recognizer (`_rec`) and the numeric fold read a
+        #     heterogeneous Symbolics expression whose `BasicSymbolic.val` is `::Any`,
+        #     so the reduction (`+`/`*`/`==`/`ComplexF64`/`convert`) is dynamic.
         allowed_coeff_reports = [
             "SecondQuantizedAlgebra._rec(",
             "SecondQuantizedAlgebra.ComplexF64(",
             "convert(SecondQuantizedAlgebra.Coeff",
+            "SecondQuantizedAlgebra.:*",
+            "SecondQuantizedAlgebra.:+",
+            "SecondQuantizedAlgebra.:(==)",
             ".val::Any",
         ]
+        # (b) `undo_average` rebuilds a QAdd from a Symbolics `average` node, reading
+        #     its `Any`-typed arguments/metadata (`_average`, `_to_qadd`) and folding
+        #     the rebuilt terms through generic iteration.
         allowed_hotpath_reports = vcat(
             allowed_coeff_reports, [
-                "_site_compare",
-                "_can_commute",
-                "SecondQuantizedAlgebra.:!",
-                "_commute_pair",
-                "Base.indexed_iterate",
-                "SecondQuantizedAlgebra.enumerate",
-                "iterate(",
-                "SecondQuantizedAlgebra.:(==)",
-                "change_index(",
+                "SecondQuantizedAlgebra._average(",
                 "SecondQuantizedAlgebra._to_qadd(",
                 "SecondQuantizedAlgebra.iszero(",
-                "SecondQuantizedAlgebra.:*",
-                "SecondQuantizedAlgebra.:+",
                 "SecondQuantizedAlgebra.:^",
-                "SecondQuantizedAlgebra._average(",
-            ]
+                "Base.indexed_iterate",
+                "iterate(",
+            ],
         )
+        # (c) Numeric conversion seals `Any → ComplexF64` (`_to_complex` /
+        #     `_reduce_const` / `_fold_const` walking a Symbolics tree) and calls into
+        #     QuantumOpticsBase (`to_numeric` / `expect` / `_numeric_average`). This
+        #     boundary is independent of the operator collapse and was always
+        #     allowlisted.
         allowed_numeric_reports = vcat(
-            allowed_hotpath_reports,
-            [
-                "SecondQuantizedAlgebra.Complex(",
-                "SecondQuantizedAlgebra.convert(",
-                "expect(",
-                "to_numeric(",
+            allowed_hotpath_reports, [
                 "SecondQuantizedAlgebra._to_complex(",
                 "SecondQuantizedAlgebra._reduce_const(",
                 "SecondQuantizedAlgebra._fold_const(",
                 "SecondQuantizedAlgebra._numeric_average(",
+                "SecondQuantizedAlgebra.Complex(",
+                "SecondQuantizedAlgebra.convert(",
+                "to_numeric(",
+                "expect(",
                 "string(",
             ],
         )
 
         # Bucket 2: hot-path allowed
         for (name, thunk) in [
-                # Leaf-pair commutators with a `_commute_pair` fast path. They
-                # build a `QAdd` whose inner constructor scans every term's
-                # `ne` via `_prune_dead_ne`, exposing the abstract `Vector{QSym}`
-                # to JET even though no NE pair is actually present at runtime.
+                # Leaf-pair commutators with a `_commute_pair` fast path.
                 ("commutator(a, a')", () -> commutator(a, ad)),
                 ("commutator(x, p)", () -> commutator(xx, pp)),
                 # Commutators that fall through to `a*b - b*a`

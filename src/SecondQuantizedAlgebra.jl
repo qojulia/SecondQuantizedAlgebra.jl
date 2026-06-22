@@ -16,6 +16,7 @@ using PrecompileTools: @setup_workload, @compile_workload
 include("types.jl")
 include("operators/hilbertspace.jl")
 include("expressions/index_types.jl")
+include("operators/op.jl")
 
 include("operators/fock.jl")
 include("operators/nlevel.jl")
@@ -101,7 +102,8 @@ export FockSpace, ProductSpace,
     normal_order, normal_to_symmetric, symmetric_to_normal,
     simplify, expand, expand_completeness, assume_distinct_index, commutator, anticommutator,
     to_numeric, numeric_average,
-    qadjoint, qconj, dagger, inner_adjoint
+    qadjoint, qconj, dagger, inner_adjoint,
+    Op, is_destroy, is_create, is_transition, is_pauli, is_spin, is_position, is_momentum, optype
 
 
 # Public API that is intentionally NOT exported — accessed as
@@ -116,7 +118,8 @@ macro public(ex)
     end
 end
 
-@public HilbertSpace, QField, QSym,
+@public HilbertSpace, QField, QSym, OpKind,
+    OP_DESTROY, OP_CREATE, OP_TRANSITION, OP_PAULI, OP_SPIN, OP_POSITION, OP_MOMENTUM,
     QAdd, QTerm, QTermDict, has_sum_metadata, get_sum_indices, get_sum_non_equal,
     transition_superscript, constraint_pairs,
     order_key, term_order_key, qadd_order_key

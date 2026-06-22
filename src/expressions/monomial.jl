@@ -78,28 +78,35 @@ function _merge_factors(syma, expa, symb, expb)
     return (syms, exps)
 end
 
-_term_mul(a::Monomial, b::Monomial) =
-    (se = _merge_factors(a.syms, a.exps, b.syms, b.exps); Monomial(a.scalar * b.scalar, se[1], se[2]))
+function _term_mul(a::Monomial, b::Monomial)
+    isempty(a.syms) && return Monomial(a.scalar * b.scalar, b.syms, b.exps)
+    isempty(b.syms) && return Monomial(a.scalar * b.scalar, a.syms, a.exps)
+    se = _merge_factors(a.syms, a.exps, b.syms, b.exps)
+    return Monomial(a.scalar * b.scalar, se[1], se[2])
+end
 
 # Sort terms into canonical order, merge like-factor terms, drop zero scalars.
-function _canonical_terms(terms::Vector{Monomial})
+function _canonical_terms!(terms::Vector{Monomial})
     isempty(terms) && return terms
     sort!(terms; lt = _term_less)
-    out = Monomial[]
-    @inbounds for t in terms
-        if !isempty(out) && _same_factors(out[end], t)
-            s = out[end].scalar + t.scalar
-            out[end] = Monomial(s + complex(0.0, 0.0), t.syms, t.exps)
+    w = 0
+    @inbounds for r in eachindex(terms)
+        t = terms[r]
+        if w > 0 && _same_factors(terms[w], t)
+            s = terms[w].scalar + t.scalar + complex(0.0, 0.0)
+            terms[w] = Monomial(s, terms[w].syms, terms[w].exps)
         else
-            push!(out, Monomial(t.scalar + complex(0.0, 0.0), t.syms, t.exps))
+            w += 1
+            terms[w] = Monomial(t.scalar + complex(0.0, 0.0), t.syms, t.exps)
         end
     end
-    filter!(t -> t.scalar != 0, out)
-    return out
+    resize!(terms, w)
+    filter!(t -> t.scalar != 0, terms)
+    return terms
 end
 
 # Both inputs are sorted by `_term_less`, so a sorted merge gives the canonical sum
-# in O(n+m) without the `vcat` copy + full `sort!` of `_canonical_terms`. Zero-scalar
+# in O(n+m) without the `vcat` copy + full `sort!` of `_canonical_terms!`. Zero-scalar
 # terms are dropped so the output stays canonical and zero-free: a stray zero term
 # would silently break Poly equality/hashing (and thus QAdd dedup), so guard against
 # it here even though canonical callers never inject one.
@@ -125,12 +132,16 @@ function _poly_add(p::Vector{Monomial}, q::Vector{Monomial})
 end
 
 function _poly_mul(p::Vector{Monomial}, q::Vector{Monomial})
+    if length(p) == 1 && length(q) == 1
+        t = _term_mul(p[1], q[1])
+        return Monomial[Monomial(t.scalar + complex(0.0, 0.0), t.syms, t.exps)]
+    end
     out = Monomial[]
     sizehint!(out, length(p) * length(q))
     for a in p, b in q
         push!(out, _term_mul(a, b))
     end
-    return _canonical_terms(out)
+    return _canonical_terms!(out)
 end
 
 # Scale every term; preserves canonical order (factors unchanged).
