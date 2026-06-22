@@ -294,6 +294,16 @@ function _depends_on_index_term(c::CNum, ops::Vector{Op}, idx::Index)
     end
     _is_native(c) && return false
     isym = SymbolicUtils.unwrap(idx.sym)
+    # A `Poly` coefficient carries its parameters as opaque atoms; scan them directly
+    # instead of materializing the whole coefficient to a `Complex{Num}` first.
+    if c.tail isa Poly
+        for m in c.tail.terms, s in m.syms
+            # wrap the atom in `Num` so `get_variables` hits its type-stable method
+            # (the abstract-`BasicSymbolic` overload dispatches dynamically)
+            any(v -> isequal(v, isym), Symbolics.get_variables(Num(s))) && return true
+        end
+        return false
+    end
     for part in (real(c), imag(c))
         vars = Symbolics.get_variables(part)
         any(v -> isequal(v, isym), vars) && return true

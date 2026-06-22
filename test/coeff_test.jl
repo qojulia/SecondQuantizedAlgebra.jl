@@ -117,12 +117,13 @@ import SecondQuantizedAlgebra: Coeff, CNum, Monomial, Poly, _to_cnum, _to_comple
             end
             # a radical of a single atom is a Poly with a *rational* exponent
             # (`sqrt(g) = g^(1//2)`), so radicals canonicalize on the fast path too
-            for x in (sqrt(g), cbrt(g), g^(1 // 2), g^(3 // 2), g^0.5, g^(-1 // 2), sqrt(sqrt(g)))
+            for x in (sqrt(g), cbrt(g), g^(1 // 2), g^(3 // 2), g^(-1 // 2), sqrt(sqrt(g)))
                 @test _is_poly(_to_cnum(x))
             end
             # genuinely non-atomic expressions stay on the symbolic (Complex{Num}) path:
-            # a non-atom argument, a radical of a product, or a division by a sum
-            for x in (exp(g + κ), sin(g * κ), sqrt(g * κ), (g + κ)^(1 // 2), 1 / (g + κ))
+            # a non-atom argument, a radical of a product, a float exponent (only exact
+            # `Rational` exponents fold), or a division by a sum
+            for x in (exp(g + κ), sin(g * κ), sqrt(g * κ), (g + κ)^(1 // 2), g^0.5, 1 / (g + κ))
                 @test _is_symbolic_cnum(_to_cnum(x))
                 @test !_is_poly(_to_cnum(x))
             end
@@ -196,9 +197,8 @@ import SecondQuantizedAlgebra: Coeff, CNum, Monomial, Poly, _to_cnum, _to_comple
             @test isequal(three, _to_cnum(g^(3 // 2)))
             @test isequal(_mul_cnum(_to_cnum(sqrt(γ)), _to_cnum(γ)), _to_cnum(γ^(3 // 2)))
             @test isequal(_to_cnum(sqrt(sqrt(g))), _to_cnum(g^(1 // 4)))
-            # sqrt, g^0.5, g^(1//2) are the same coefficient
+            # sqrt(g) and g^(1//2) are the same coefficient
             @test isequal(_to_cnum(sqrt(g)), _to_cnum(g^(1 // 2)))
-            @test isequal(_to_cnum(g^0.5), _to_cnum(g^(1 // 2)))
             for c in (_to_cnum(sqrt(g)), _to_cnum(γ^(3 // 2)), _to_cnum(g^(1 // 4)))
                 @test isequal(_to_cnum(to_num(c)), c)   # materialization round-trips
             end
@@ -213,9 +213,10 @@ import SecondQuantizedAlgebra: Coeff, CNum, Monomial, Poly, _to_cnum, _to_comple
             @test isequal(_mul_cnum(_to_cnum(sqrt(g)), _to_cnum(1 / g)), _to_cnum(g^(-1 // 2)))
             @test _is_native(_to_cnum(Num(4)^(1 // 2)))   # numeric base stays native
             @test to_num(_to_cnum(Num(4)^(1 // 2))) == 2
-            # a float exponent is accepted only when it is exactly a small rational
-            @test _is_poly(_to_cnum(g^(1 / 3)))
-            @test _is_symbolic_cnum(_to_cnum(g^0.30102999566))
+            # only exact `Rational` exponents fold; a float exponent (even `1/3`) stays
+            # a symbolic leaf, so the `^` recognizer needs no float-to-rational guesswork
+            @test _is_symbolic_cnum(_to_cnum(g^(1 / 3)))
+            @test _is_symbolic_cnum(_to_cnum(g^0.5))
         end
 
         @testset "radical coefficients dedup in a QAdd" begin

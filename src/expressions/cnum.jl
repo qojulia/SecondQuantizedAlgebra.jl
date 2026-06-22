@@ -137,7 +137,9 @@ function _term_to_num(m::Monomial)
         elseif f == -1 // 2
             prod = prod / sqrt(base)
         elseif f != 0
-            prod = prod * (base^f)
+            # `Num ^ Rational` infers as `Any` (like `Num ^ Int`); assert `Num` so the
+            # rare fractional case does not make `_term_to_num`/`to_num` return-unstable.
+            prod = prod * (base^f)::Num
         end
     end
     sr = _num_from_float(real(m.scalar))
@@ -181,27 +183,6 @@ end
     _poly_coeff(Poly(Monomial[Monomial(_ONE_C, SymbolicUtils.BasicSymbolic[x], Rational{Int}[1])]))
 # An unrecognized symbolic value, kept on the `Complex{Num}` symbolic path.
 @inline _sym_leaf(x::SymbolicUtils.BasicSymbolic) = _symbolic(Complex(Num(x), _NUM_ZERO))
-
-# A power's exponent as an exact `Rational{Int}`, or `nothing`. A float is accepted
-# only when it is exactly a small rational, never approximated.
-@inline function _rat_exp(pv)
-    pv isa Integer && return Rational{Int}(Int(pv))
-    if pv isa Rational
-        try
-            return convert(Rational{Int}, pv)
-        catch
-            return nothing
-        end
-    end
-    if pv isa AbstractFloat && isfinite(pv)
-        try
-            r = rationalize(Int, pv)
-            float(r) == pv && return r
-        catch
-        end
-    end
-    return nothing
-end
 
 # A fractional power `base^r`. Native only for a numeric base or a single-atom
 # unit-scalar monomial (giving that atom a rational exponent); any other base would
@@ -252,24 +233,29 @@ function _rec(x::SymbolicUtils.BasicSymbolic)::Coeff
         return c
     elseif op === (^)
         length(args) == 2 || return _sym_leaf(x)
-        r = _rat_exp(_const_value(args[2]))
-        r === nothing && return _sym_leaf(x)
-        isinteger(r) || return _rational_power(args[1], r, x)
-        n = Int(r)
-        base = _rec(args[1])
-        if n >= 0
-            c = _CNUM_ONE
-            for _ in 1:n
-                c = _mul_cnum(c, base)
+        # `isa` guards narrow the `Any` exponent to a concrete type before any
+        # arithmetic, so this branch stays dispatch-free (calling a helper on the
+        # `Any` value would force a runtime dispatch and widen the whole branch).
+        pv = _const_value(args[2])
+        if pv isa Integer
+            n = Int(pv)
+            base = _rec(args[1])
+            if n >= 0
+                c = _CNUM_ONE
+                for _ in 1:n
+                    c = _mul_cnum(c, base)
+                end
+                return c
+            elseif _is_native(base)
+                return _native(base.z^n)
+            elseif base.tail isa Poly && length(base.tail.terms) == 1
+                m = base.tail.terms[1]
+                s = inv(m.scalar)
+                s * m.scalar == _ONE_C &&
+                    return _poly_coeff(Poly(Monomial[Monomial(s^(-n), m.syms, Rational{Int}[e * n for e in m.exps])]))
             end
-            return c
-        elseif _is_native(base)
-            return _native(base.z^n)
-        elseif base.tail isa Poly && length(base.tail.terms) == 1
-            m = base.tail.terms[1]
-            s = inv(m.scalar)
-            s * m.scalar == _ONE_C &&
-                return _poly_coeff(Poly(Monomial[Monomial(s^(-n), m.syms, Rational{Int}[e * n for e in m.exps])]))
+        elseif pv isa Rational{Int}
+            return _rational_power(args[1], pv, x)
         end
         return _sym_leaf(x)
     elseif op === getindex
