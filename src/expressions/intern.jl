@@ -18,10 +18,32 @@ const _INTERN_LOCK = ReentrantLock()
 const _NAME_BY_ID = Symbol[]              # id (1-based) -> Symbol
 const _NAME_TO_ID = Dict{Symbol, Int32}() # Symbol -> id
 const _NAME_RANK = Int32[]                # id -> lexicographic position
+const _SYM_BY_ID = Union{Nothing, Num}[]  # id -> cached Num(Sym(name)); lazy (see _base_sym_from_id)
 
 # id 0 is the reserved sentinel (NO_INDEX / no name).
 _name_from_id(id::Int32)::Symbol = id == 0 ? :_ : @inbounds _NAME_BY_ID[id]
 _name_rank(id::Int32)::Int32 = id == 0 ? Int32(0) : @inbounds _NAME_RANK[id]
+
+function _base_sym_from_id(id::Int32)::Num
+    if id <= length(_SYM_BY_ID)
+        @inbounds cached = _SYM_BY_ID[id]
+        cached === nothing || return cached
+    end
+    return _build_base_sym(id)
+end
+
+@noinline function _build_base_sym(id::Int32)::Num
+    return lock(_INTERN_LOCK) do
+        while length(_SYM_BY_ID) < length(_NAME_BY_ID)  # defensive lockstep
+            push!(_SYM_BY_ID, nothing)
+        end
+        @inbounds cached = _SYM_BY_ID[id]
+        cached === nothing || return cached
+        s = Num(SymbolicUtils.Sym{SymbolicUtils.SymReal}(_name_from_id(id); type = Int))
+        @inbounds _SYM_BY_ID[id] = s
+        return s
+    end
+end
 
 function _recompute_name_ranks!()
     n = length(_NAME_BY_ID)
@@ -38,6 +60,7 @@ function _intern_name(s::Symbol)::Int32
         id = get(_NAME_TO_ID, s, Int32(0))
         id != 0 && return id
         push!(_NAME_BY_ID, s)
+        push!(_SYM_BY_ID, nothing)        # lazy slot for the index_sym cache
         id = Int32(length(_NAME_BY_ID))
         _NAME_TO_ID[s] = id
         _recompute_name_ranks!()          # O(n log n) over distinct names; cold path

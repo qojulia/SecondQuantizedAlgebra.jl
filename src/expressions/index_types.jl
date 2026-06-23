@@ -139,9 +139,9 @@ resolved-site convention.
 """
 function index_sym(idx::Index)::Num
     idx.name_id == 0 && return Num(Int(idx.slot))
-    s = SymbolicUtils.Sym{SymbolicUtils.SymReal}(_name_from_id(idx.name_id); type = Int)
-    idx.slot != 0 && (s = SymbolicUtils.setmetadata(s, IndexSlot, Int(idx.slot)))
-    return Num(s)
+    base = _base_sym_from_id(idx.name_id)            # cached name-only Sym (hot path: cached read)
+    idx.slot == 0 && return base
+    return Num(SymbolicUtils.setmetadata(SymbolicUtils.unwrap(base), IndexSlot, Int(idx.slot)))
 end
 
 _find_space_index(::HilbertSpace, ::HilbertSpace) = 1
