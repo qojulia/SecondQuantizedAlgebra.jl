@@ -4,7 +4,7 @@ using Test
 import MutableArithmetics as MA
 import SecondQuantizedAlgebra:
     QAdd, Index, IndexedOperator, Σ, constraint_pairs, ⊗,
-    _QAddBuilder, _build
+    _QAddBuilder, _build, _accumulate!
 
 # Basic correctness vs the explicit `+`-chain is already covered by the
 # "sum and reduce" testset in test/expressions/algebra_test.jl (those
@@ -94,10 +94,58 @@ import SecondQuantizedAlgebra:
         MA.operate!!(+, b, ad * a)
         @test _build(b) == 2 * (ad * a)
 
+        # add_mul: accumulate c * x in place
+        b = _QAddBuilder()
+        MA.operate!!(MA.add_mul, b, 2, ad * a)
+        @test _build(b) == 2 * (ad * a)
+
+        # zero: reset the builder
+        b = _QAddBuilder()
+        _accumulate!(b, ad * a)
+        MA.operate!(zero, b)
+        @test isempty(b.args) && isempty(b.indices)
+        @test iszero(_build(b))
+
         # @rewrite over a +-chain equals the chain
         t1 = a + ad
         t2 = 2 * a
         t3 = 3 * ad
         @test (MA.@rewrite t1 + t2 + t3) == t1 + t2 + t3
+    end
+
+    @testset "Accumulate primitive (QSym / scalar branches)" begin
+        @variables x
+        # bare QSym operands
+        b = _QAddBuilder()
+        _accumulate!(b, a)
+        _accumulate!(b, ad)
+        @test _build(b) == a + ad
+
+        # numeric scalar (non-zero) mixed with a QAdd term
+        b = _QAddBuilder()
+        _accumulate!(b, ad * a)
+        _accumulate!(b, 3)
+        @test _build(b) == ad * a + 3
+
+        # zero scalar is a no-op (both Int and Float)
+        b = _QAddBuilder()
+        _accumulate!(b, ad * a)
+        _accumulate!(b, 0)
+        _accumulate!(b, 0.0)
+        @test _build(b) == ad * a
+
+        # symbolic scalar
+        b = _QAddBuilder()
+        _accumulate!(b, ad * a)
+        _accumulate!(b, x)
+        @test _build(b) == ad * a + x
+    end
+
+    @testset "sum(f, array)" begin
+        terms = [a + ad, 2 * a, 3 * ad]
+        @test sum(y -> 2 * y, terms) == 2 * sum(terms)
+        @test sum(identity, terms) == foldl(+, terms)
+        @test iszero(sum(y -> 2 * y, QAdd[]))
+        @test (@inferred sum(y -> 2 * y, terms)) isa QAdd
     end
 end
