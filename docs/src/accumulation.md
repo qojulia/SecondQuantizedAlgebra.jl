@@ -30,7 +30,6 @@ Each site carries a detuning ``\Delta``, an on-site interaction ``U``, a coheren
 
 ```@example accum
 using SecondQuantizedAlgebra
-using Symbolics: @variables
 
 @variables Δ U Ω J
 
@@ -103,12 +102,12 @@ For a two-mode toy model the difference is invisible; for tens or hundreds of si
 
 Internally the accumulation is exposed through the [MutableArithmetics.jl](https://github.com/jump-dev/MutableArithmetics.jl) interface on a small builder type. This is what makes `sum` and `reduce(+, …)` fast, and it also lets the [`@rewrite`](https://jump.dev/MutableArithmetics.jl/stable/) macro and manual `operate!!` loops compose with `QAdd` correctly:
 
-```@example accum
+```julia
 import MutableArithmetics as MA
 
 acc = sum([Ω*(a[k] + a[k]') for k in 1:M])
 manual = MA.@rewrite sum(Ω*(a[k] + a[k]') for k in 1:M)
-acc == manual
+acc == manual   # true
 ```
 
 !!! tip "For plain sums, prefer the bracketed `sum`"
