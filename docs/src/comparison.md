@@ -2,7 +2,7 @@
 
 [QuantumAlgebra.jl](https://github.com/jfeist/QuantumAlgebra.jl) is the other mature Julia package for symbolic second-quantized operator algebra. It and SecondQuantizedAlgebra (SQA) overlap on bosonic ladder operators, two-level systems, indexed sums, and expectation values, so a direct performance comparison is meaningful, as long as it is done fairly. This page documents a fair benchmark and the methodology behind it.
 
-The benchmark script is [`benchmark/quantumalgebra_comparison.jl`](https://github.com/qojulia/SecondQuantizedAlgebra.jl/blob/main/benchmark/quantumalgebra_comparison.jl); re-run it with `julia --project=benchmark benchmark/quantumalgebra_comparison.jl`.
+The benchmark script is `benchmark/quantumalgebra_comparison.jl`; re-run it with `julia --project=benchmark benchmark/quantumalgebra_comparison.jl`.
 
 ## Methodology
 
