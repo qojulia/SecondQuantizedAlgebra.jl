@@ -5,6 +5,12 @@ All notable changes to [`SecondQuantizedAlgebra.jl`](https://github.com/qojulia/
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v0.8.1]
+
+### Added
+
+- `sum` and `reduce(+, …)` over a `Vector{QAdd}` now accumulate in place instead of folding with `Base.:+`. Building an n-term `QAdd` by repeated addition is O(n²) because every `+` copies the whole backing dict before inserting; the new `_QAddBuilder` (exposed through the [MutableArithmetics.jl](https://github.com/jump-dev/MutableArithmetics.jl) interface, so `MA.@rewrite` and `operate!!` loops work too) threads one shared dict through the entire reduction and materializes once. Results are byte-identical to the `+`-chain and `Base.:+` value semantics are unchanged. The fast path is the bracketed comprehension `sum([ω[k]*a[k]'*a[k] for k in 1:M])` (a bare generator stays on the generic fold). Measured on the many-mode Hamiltonian `Σ_k ω_k a_k† a_k`: about 3.9×/5.9×/11.8× faster and 5.5×/6.2×/11.4× less memory at M=8/16/24, the win growing with system size. The product path is intentionally left as repeated `*` (a prototype builder showed no win; the intrinsic distributive expansion dominates), see the devdocs.
+
 ## [v0.8.0]
 
 ### Changed
