@@ -615,3 +615,20 @@ end
         end
     end
 end
+
+@testset "Intern tables: out-of-range id is bounds-checked" begin
+    # A stale/out-of-range Int32 name id (e.g. an Op deserialized across a session
+    # boundary) must throw on read, not index out of bounds and corrupt memory.
+    @test_throws BoundsError SecondQuantizedAlgebra._name_from_id(Int32(1_000_000))
+    @test_throws BoundsError SecondQuantizedAlgebra._name_rank(Int32(1_000_000))
+end
+
+@testset "Intern tables: incremental name rank is lexicographic" begin
+    # Names interned out of alphabetical order must still rank alphabetically
+    # (the per-name rank splice must match a full re-sort).
+    za = SecondQuantizedAlgebra._intern_name(:zzz_rank)
+    an = SecondQuantizedAlgebra._intern_name(:aaa_rank)
+    mi = SecondQuantizedAlgebra._intern_name(:mmm_rank)
+    r(id) = SecondQuantizedAlgebra._name_rank(id)
+    @test r(an) < r(mi) < r(za)
+end

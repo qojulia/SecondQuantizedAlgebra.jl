@@ -352,7 +352,7 @@ function _commute_pair(a::Op, b::Op)
     elseif ka === OP_SPIN && kb === OP_SPIN
         # [Sj, Sk] = iϵⱼₖₗSl; the residual is the contracted spin on the third axis.
         eps = _levi_civita[a.l1][b.l1]
-        contracted = Spin(a.name_id, Int(6 - a.l1 - b.l1), Int(a.space_index), a.index)
+        contracted = Op(OP_SPIN, a.name_id, a.space_index, a.index, 6 - a.l1 - b.l1, 0, 0, 0)
         return (b, a, _mul_cnum(_to_cnum(im * eps), _CNUM_ONE), Op[contracted])
     else
         return (b, a, _CNUM_ZERO, _EMPTY_OPS)
@@ -372,7 +372,7 @@ function _reduce_pair(a::Op, b::Op)
         (a.name_id == b.name_id && a.space_index == b.space_index && a.index == b.index) ||
             return (NoReduction, a, _CNUM_ZERO)
         if a.l2 == b.l1
-            new = Transition(a.name_id, a.l1, b.l2, a.space_index, a.index, a.g, a.nlev)
+            new = Op(OP_TRANSITION, a.name_id, a.space_index, a.index, a.l1, b.l2, a.g, a.nlev)
             return (OpReduction, new, _CNUM_ONE)
         else
             return (ScalarReduction, a, _CNUM_ZERO)    # δ_{j,k} = 0
@@ -385,7 +385,7 @@ function _reduce_pair(a::Op, b::Op)
             return (ScalarReduction, a, _CNUM_ONE)     # σⱼ² = 1
         else
             eps = _levi_civita[a.l1][b.l1]
-            new = Pauli(a.name_id, Int(6 - a.l1 - b.l1), Int(a.space_index), a.index)
+            new = Op(OP_PAULI, a.name_id, a.space_index, a.index, 6 - a.l1 - b.l1, 0, 0, 0)
             return (OpReduction, new, _mul_cnum(_to_cnum(im * eps), _CNUM_ONE))
         end
     else

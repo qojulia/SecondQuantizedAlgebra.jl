@@ -25,7 +25,8 @@ using ExplicitImports
         @test isbitstype(SecondQuantizedAlgebra.Index)
         @test isbitstype(SecondQuantizedAlgebra.Op)
         @test Base.allocatedinline(SecondQuantizedAlgebra.Op)
-        @test sizeof(SecondQuantizedAlgebra.Op) <= 48
+        # Pinned to the documented 44 bytes so a layout regression can't slip through.
+        @test sizeof(SecondQuantizedAlgebra.Op) == 44
     end
 
     @testset "CheckConcreteStructs" begin

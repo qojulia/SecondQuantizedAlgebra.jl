@@ -89,7 +89,7 @@ julia> σ' * σ
 
 See also [`NLevelSpace`](@ref), [`expand_completeness`](@ref), [`@qnumbers`](@ref).
 """
-Transition(name::Union{Symbol, Int32}, i::Integer, j::Integer, si::Integer, idx::Index, ground_state::Integer, n_levels::Integer) =
+Transition(name::Symbol, i::Integer, j::Integer, si::Integer, idx::Index, ground_state::Integer, n_levels::Integer) =
     Op(OP_TRANSITION, _name_id(name), si, idx, i, j, ground_state, n_levels)
 
 function Transition(h::NLevelSpace, name::Symbol, i::Int, j::Int)

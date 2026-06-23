@@ -157,7 +157,7 @@ function _expand_gs_ops(sink::F, ops::Vector{Op}, c::CNum) where {F}
     for k in 1:n_levels
         k == g && continue
         new_ops = copy(ops)
-        new_ops[idx] = Transition(op.name_id, k, k, _site, op.index, g, n_levels)
+        new_ops[idx] = Op(OP_TRANSITION, op.name_id, _site, op.index, k, k, g, n_levels)
         _expand_gs_ops(sink, new_ops, neg_c)
     end
     return

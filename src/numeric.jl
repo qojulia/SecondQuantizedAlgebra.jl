@@ -144,26 +144,29 @@ function _accumulate_indexed_term!(
         c_resolved = _apply_scalar_subs(c, sub_re, sub_im, has_imag)
         return acc + _emit_indexed_combo(term.ops, c_resolved, b, sites, d)
     end
-    lens = Int[length(sites[idx.space_index]) for idx in dep_indices]
+    lens = Int[length(sites[Int(idx.space_index)]) for idx in dep_indices]
     total = prod(lens)
-    sub = Dict{Index, Index}()
+    sub_op = Dict{Index, Index}()
+    sub_coef = Dict{Index, Index}()
     for combo in 1:total
-        empty!(sub)
+        empty!(sub_op)
+        empty!(sub_coef)
         rem = combo - 1
         for k in 1:length(dep_indices)
             kpos = (rem % lens[k]) + 1
             rem ÷= lens[k]
             idx = dep_indices[k]
-            # Anonymous concrete site: name_id 0 + slot kpos. `index_sym` maps it
-            # to the integer Num(kpos) so coefficient substitution resolves to the
-            # concrete site, and `index_slot` reads kpos for site routing / ne checks.
-            sub[idx] = Index(Int32(0), idx.range_id, idx.space_index, Int32(kpos))
+            # Operators keep the index name (slot kpos drives routing / ne checks and
+            # lets a resolved op still match a user `d` key); coefficients use the
+            # anonymous name_id-0 form so `index_sym` is Num(kpos), resolving g(i)→g(k).
+            sub_op[idx] = Index(idx.name_id, idx.range_id, idx.space_index, Int32(kpos))
+            sub_coef[idx] = Index(Int32(0), idx.range_id, idx.space_index, Int32(kpos))
         end
-        if _violates_ne(term.ne, sub)
+        if _violates_ne(term.ne, sub_op)
             continue
         end
-        new_ops = Op[change_index(op, sub) for op in term.ops]
-        new_c = change_index(c, sub)
+        new_ops = Op[change_index(op, sub_op) for op in term.ops]
+        new_c = change_index(c, sub_coef)
         new_c = _apply_scalar_subs(new_c, sub_re, sub_im, has_imag)
         acc = acc + _emit_indexed_combo(new_ops, new_c, b, sites, d)
     end

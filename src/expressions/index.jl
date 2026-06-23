@@ -353,6 +353,7 @@ julia> Σ(IndexedOperator(a', i) * IndexedOperator(a, i), i)
 See also [`Index`](@ref), [`IndexedOperator`](@ref), [`constraint_pairs`](@ref).
 """
 function Σ(expr::QAdd, i::Index, non_equal::Vector{Index} = Index[])
+    i.range_id == 0 && throw(ArgumentError("Σ: index $(index_name(i)) has no summation range"))
     if !_any_depends_on_index(expr, i)
         return expr * index_range(i)
     end

@@ -55,11 +55,12 @@ over a `Symbol`-name layout came from the struct *shrinking*: a 72-byte
 within noise, while interning the name to an `Int32` (so the struct drops to
 44 bytes) measured about 40% faster on dict-keyed product/sum construction. The
 name is therefore stored as an interned `Int32` id into a module-global table
-(see `intern.jl`); `operator_name(op)::Symbol` resolves it back for printing. Internal
+(see `intern.jl`); `operator_name(op)::Symbol` resolves it back for printing. The
+role constructors take a `Symbol` name (interned via `_name_id`); internal
 rebuilds (adjoint, `IndexedOperator`, reduce/commute residuals,
-`expand_completeness`) forward the existing `name_id` through the role
-constructors without re-interning (`_name_id(::Int32)` passes the id through;
-`_name_id(::Symbol)` interns).
+`expand_completeness`) forward the existing `name_id` by constructing `Op`
+directly, so an already-interned id is never re-interned and no raw id is ever
+accepted on the public constructor surface.
 
 **Custom `hash`/`isequal` are kept, now trivially cheap.** They hash/compare the
 `kind`, `name_id`, `space_index`, packed levels, and the `Index` (whose own
@@ -320,11 +321,11 @@ end
 `Index` is `isbits` so that the `Op` embedding it can be `isbits` (see *Single concrete `Op`*). The two `Num` fields it used to carry (`range`, `sym`) cannot be `isbits`, so they are interned/reconstructed instead:
 
 - **`range`** is interned to a `range_id::Int32` (a module-global `Num` table in `intern.jl`) and recovered with `index_range(idx)::Num`, which returns the user's original `Num` (so a symbolic range `N` stays usable in coefficients). Range lives on the index, not lifted to the `Σ` scope, so a bare `a_i` knows its range without consulting the enclosing sum (term-locality), and the downstream `QuantumCumulants.jl` reads it off operator-attached indices.
-- **`sym`** is dropped and rebuilt by `index_sym(idx)::Num` as `Sym{SymReal}(name; type=Int)` (plus the `IndexSlot` metadata when `slot != 0`). SymbolicUtils hashconsing makes the reconstruction the *same* object as the originally minted symbol, so substitution and `get_variables` are unaffected. The name-only `Sym` is the expensive part (a hashcons lookup, roughly 260 ns and 5 allocations), so it is **cached per name id** in `_SYM_BY_ID` (parallel to `_NAME_BY_ID`); `index_sym` on an abstract index is then an `@inbounds` read. The cache is filled lazily on first use, *not* eagerly at intern time, so no `Sym` is baked into the precompile image. A baked `Sym` would be a stale duplicate of the new session's hashconsed canonical one and would break the `===` guarantee. An anonymous concrete site (`name_id == 0`, `slot == k`, minted by `to_numeric`) reconstructs to the integer `Num(k)`, matching the resolved-site convention so coefficient substitution `ω(i) → ω(k)` works.
+- **`sym`** is dropped and rebuilt by `index_sym(idx)::Num` as `Sym{SymReal}(name; type=Int)` (plus the `IndexSlot` metadata when `slot != 0`). SymbolicUtils hashconsing makes the reconstruction the *same* object as the originally minted symbol, so substitution and `get_variables` are unaffected. The name-only `Sym` is the expensive part (a hashcons lookup, roughly 260 ns and 5 allocations), so it is **cached per name id** in `_SYM_BY_ID` (parallel to `_NAME_BY_ID`); `index_sym` on an abstract index is then a cached read. The cache is filled lazily on first use, *not* eagerly at intern time, so no `Sym` is baked into the precompile image. A baked `Sym` would be a stale duplicate of the new session's hashconsed canonical one and would break the `===` guarantee. An anonymous concrete site (`name_id == 0`, `slot == k`) reconstructs to the integer `Num(k)`. `to_numeric`'s indexed sites path uses this anonymous form *only* for the coefficient substitution (`ω(i) → ω(k)`); the resolved *operator* index keeps its real name (with `slot == k`), so resolved ops still print, satisfy `has_index`, and match a `d` override key.
 
 `index_name(idx)::Symbol` resolves the name; `index_slot(idx)` reads the `slot` directly (the sym-metadata `index_slot(x)` method is kept for back-compat). Equality/hash compare interned ids and exclude `slot` (just as the old equality excluded `sym`); ordering uses the lexicographic name-rank table.
 
-**Why interned ids?** Measured: interning the name to an `Int32` (vs storing bytes inline via `InlineStrings`) is what shrinks `Index`/`Op` enough to realize the performance win; bytes-inline reaches `isbits` but not the smaller struct. The tables are written only at construction (cold path) under a `ReentrantLock`; the `@compile_workload` is index-free so the tables are empty at image-bake. Ids are insertion-order and are never serialized (not portable across sessions).
+**Why interned ids?** Measured: interning the name to an `Int32` (vs storing bytes inline via `InlineStrings`) is what shrinks `Index`/`Op` enough to realize the performance win; bytes-inline reaches `isbits` but not the smaller struct. The tables are written only at construction (cold path) under a `ReentrantLock`, and read bounds-checked on the hot path, so a stale/out-of-range id throws `BoundsError` rather than corrupting memory. Construction is the only writer and is *not* thread-safe: populate the tables from one thread before any concurrent canonicalization (the lock guards writers against each other, not against the lock-free readers). Ids are insertion-order and are never serialized (not portable across sessions).
 
 **`change_index(expr, from, to)`** performs symbolic substitution, replacing the index `from` with `to` throughout an expression tree (operator indices and the reconstructed `index_sym` of symbolic prefactors). Used for diagonal splitting and renaming sum indices.
 
