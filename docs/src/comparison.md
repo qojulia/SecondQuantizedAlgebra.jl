@@ -34,7 +34,7 @@ Further caveats:
 Measured with `BenchmarkTools` (median of each side), Julia 1.12, SecondQuantizedAlgebra v0.8.0, QuantumAlgebra v1.6.0, on a single Linux workstation (2026-06-23). QA uses its eager workflow for products and powers, as described in the fairness contract above. `QA / SQA` is the QuantumAlgebra time divided by the SecondQuantizedAlgebra time, so `12.0×` means QA took 12× as long and `0.5×` means QA was faster. Absolute numbers are machine-dependent; the ratios and *scaling trends* are the point.
 
 | Benchmark | SQA | QuantumAlgebra | QA / SQA | SQA allocs | QA allocs |
-|----|----:|----:|----:|----:|----:|
+|---|---:|---:|---:|---:|---:|
 | **Core algebra** | | | | | |
 | Jaynes–Cummings: build H | 3.2 μs | 38.6 μs | 12.0× | 104 | 921 |
 | Jaynes–Cummings: H² | 7.2 μs | 291.5 μs | 40.4× | 204 | 8831 |
@@ -68,7 +68,7 @@ Point measurements at small sizes are dominated by constant overhead. The more h
 ![SQA vs QuantumAlgebra scaling](assets/qa_comparison_scaling.png)
 
 | Benchmark | SQA | QuantumAlgebra | QA / SQA | SQA allocs | QA allocs |
-|----|----:|----:|----:|----:|----:|
+|---|---:|---:|---:|---:|---:|
 | **Fock (a·a†)ⁿ** | | | | | |
 | n=2 | 1.4 μs | 8.3 μs | 6.1× | 21 | 262 |
 | n=4 | 9.2 μs | 56.2 μs | 6.1× | 73 | 1110 |
@@ -108,7 +108,7 @@ The headline: **after the v0.6–v0.8 coefficient and hashing work, SQA leads ac
 The fairness contract uses QA's *eager* product workflow. Its *default* lazy workflow has a sharp footgun on high powers, building the full product before canonicalizing:
 
 | `JC H⁴` | time | allocations |
-|----|----:|----:|
+|---|---:|---:|
 | QA lazy (`normal_form(H^4)`) | 107.6 ms | 2,199,379 |
 | QA eager (`normal_form` per `*`) | 3.16 ms | 83,970 |
 
