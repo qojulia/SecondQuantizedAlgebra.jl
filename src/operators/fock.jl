@@ -19,7 +19,7 @@ julia> a * a'
 
 See also [`Create`](@ref), [`FockSpace`](@ref), [`@qnumbers`](@ref).
 """
-Destroy(name::Symbol, si::Int, idx::Index) = Op(OP_DESTROY, name, si, idx, 0, 0, 0, 0)
+Destroy(name::Symbol, si::Int, idx::Index) = Op(OP_DESTROY, _name_id(name), si, idx, 0, 0, 0, 0)
 Destroy(name::Symbol, si::Int) = Destroy(name, si, NO_INDEX)
 
 """
@@ -31,7 +31,7 @@ constructed directly. Returns an [`Op`](@ref) tagged `OP_CREATE`.
 
 See also [`Destroy`](@ref), [`FockSpace`](@ref).
 """
-Create(name::Symbol, si::Int, idx::Index) = Op(OP_CREATE, name, si, idx, 0, 0, 0, 0)
+Create(name::Symbol, si::Int, idx::Index) = Op(OP_CREATE, _name_id(name), si, idx, 0, 0, 0, 0)
 Create(name::Symbol, si::Int) = Create(name, si, NO_INDEX)
 
 Destroy(h::FockSpace, name::Symbol) = Destroy(name, 1)
@@ -78,4 +78,4 @@ a_i
 See also [`Index`](@ref), [`Σ`](@ref), [`change_index`](@ref).
 """
 function IndexedOperator end
-IndexedOperator(op::Op, i::Index) = Op(op.kind, op.name, op.space_index, i, op.l1, op.l2, op.g, op.nlev)
+IndexedOperator(op::Op, i::Index) = Op(op.kind, op.name_id, op.space_index, i, op.l1, op.l2, op.g, op.nlev)

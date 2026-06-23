@@ -32,7 +32,7 @@ using Test
         h = PauliSpace(:p)
         @qnumbers σx::Pauli(h, 1)
         @test is_pauli(σx)
-        @test σx.name == :σx
+        @test operator_name(σx) == :σx
         @test σx.l1 == 1
     end
 

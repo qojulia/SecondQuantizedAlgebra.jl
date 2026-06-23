@@ -19,6 +19,16 @@ using ExplicitImports
         @test check_no_self_qualified_accesses(SecondQuantizedAlgebra) === nothing
     end
 
+    @testset "isbits Op/Index" begin
+        # The whole point of the interned-id encoding (#137): Op/Index are isbits,
+        # so Vector{Op} stores inline with no GC scanning. Guard the layout.
+        @test isbitstype(SecondQuantizedAlgebra.Index)
+        @test isbitstype(SecondQuantizedAlgebra.Op)
+        @test Base.allocatedinline(SecondQuantizedAlgebra.Op)
+        # Pinned to the documented 44 bytes so a layout regression can't slip through.
+        @test sizeof(SecondQuantizedAlgebra.Op) == 44
+    end
+
     @testset "CheckConcreteStructs" begin
         for name in names(SecondQuantizedAlgebra; all = true)
             isdefined(SecondQuantizedAlgebra, name) || continue

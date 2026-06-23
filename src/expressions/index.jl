@@ -24,7 +24,7 @@ function IndexedVariable(name::Symbol, i::Index)
         type = SymbolicUtils.FnType{Tuple{Int}, Real, Nothing},
         shape = UnitRange{Int}[]
     )
-    return Num(f(SymbolicUtils.unwrap(i.sym)))
+    return Num(f(SymbolicUtils.unwrap(index_sym(i))))
 end
 
 """Metadata key: marks a `DoubleIndexedVariable` node where equal indices must give zero."""
@@ -68,7 +68,7 @@ function DoubleIndexedVariable(
         type = SymbolicUtils.FnType{Tuple{Int, Int}, Real, Nothing},
         shape = UnitRange{Int}[]
     )
-    node = f(SymbolicUtils.unwrap(i.sym), SymbolicUtils.unwrap(j.sym))
+    node = f(SymbolicUtils.unwrap(index_sym(i)), SymbolicUtils.unwrap(index_sym(j)))
     if !identical
         node = SymbolicUtils.setmetadata(node, NotIdentical, true)
     end
@@ -105,10 +105,10 @@ See also [`get_indices`](@ref).
 change_index(x::Number, ::Index, ::Index) = x
 function change_index(x::Num, from::Index, to::Index)
     raw = SymbolicUtils.unwrap(x)
-    isym = SymbolicUtils.unwrap(from.sym)
+    isym = SymbolicUtils.unwrap(index_sym(from))
     vars = Symbolics.get_variables(raw)
     any(v -> isequal(v, isym), vars) || return x
-    result = Symbolics.substitute(raw, Dict(isym => SymbolicUtils.unwrap(to.sym)))
+    result = Symbolics.substitute(raw, Dict(isym => SymbolicUtils.unwrap(index_sym(to))))
     return _check_not_identical(result)
 end
 function change_index(x::CNum, from::Index, to::Index)
@@ -172,7 +172,7 @@ function change_index(x::Num, pairs::AbstractDict{Index, Index})
     raw = SymbolicUtils.unwrap(x)
     sub = Dict{SymbolicUtils.BasicSymbolic, SymbolicUtils.BasicSymbolic}()
     for (from, to) in pairs
-        sub[SymbolicUtils.unwrap(from.sym)] = SymbolicUtils.unwrap(to.sym)
+        sub[SymbolicUtils.unwrap(index_sym(from))] = SymbolicUtils.unwrap(index_sym(to))
     end
     vars = Symbolics.get_variables(raw)
     any(v -> any(s -> isequal(v, s), keys(sub)), vars) || return x
@@ -293,7 +293,7 @@ function _depends_on_index_term(c::CNum, ops::Vector{Op}, idx::Index)
         op.index == idx && return true
     end
     _is_native(c) && return false
-    isym = SymbolicUtils.unwrap(idx.sym)
+    isym = SymbolicUtils.unwrap(index_sym(idx))
     # A `Poly` coefficient carries its parameters as opaque atoms; scan them directly
     # instead of materializing the whole coefficient to a `Complex{Num}` first.
     if c.tail isa Poly
@@ -353,8 +353,9 @@ julia> Σ(IndexedOperator(a', i) * IndexedOperator(a, i), i)
 See also [`Index`](@ref), [`IndexedOperator`](@ref), [`constraint_pairs`](@ref).
 """
 function Σ(expr::QAdd, i::Index, non_equal::Vector{Index} = Index[])
+    i.range_id == 0 && throw(ArgumentError("Σ: index $(index_name(i)) has no summation range"))
     if !_any_depends_on_index(expr, i)
-        return expr * i.range
+        return expr * index_range(i)
     end
 
     off_diag = QTermDict()
@@ -397,7 +398,7 @@ function Σ(expr::QAdd, i::Index, non_equal::Vector{Index} = Index[])
         else
             _canonicalize!(
                 off_diag, copy(term.ops),
-                _mul_cnum(c, _to_cnum(i.range)), full_ne,
+                _mul_cnum(c, _to_cnum(index_range(i))), full_ne,
             )
         end
 

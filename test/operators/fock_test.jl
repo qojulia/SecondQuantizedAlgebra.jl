@@ -18,7 +18,7 @@ using Test
 
     @testset "Adjoint" begin
         @test is_create(ad)
-        @test ad.name == :a
+        @test operator_name(ad) == :a
         @test ad.space_index == 1
         @test ad' == a
         @test a'' == a

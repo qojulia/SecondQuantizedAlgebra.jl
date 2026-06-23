@@ -177,7 +177,7 @@ function sorted_arguments(q::QAdd)
 end
 
 _term_sort_key(ops::Vector{Op}) = (length(ops), map(_full_op_key, ops)...)
-_full_op_key(op::QSym) = (_sort_key(op)..., _type_order(op), op.name)
+_full_op_key(op::QSym) = (_sort_key(op)..., _type_order(op), _name_rank(op.name_id))
 
 """
     term_order_key(t::QTerm) -> Tuple

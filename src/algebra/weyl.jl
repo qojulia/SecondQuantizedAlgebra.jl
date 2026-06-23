@@ -130,11 +130,11 @@ function _count_fock_sites(ops::Vector{Op})
     counts = Dict{Tuple{Int, Symbol, Symbol}, Tuple{Int, Int}}()
     for op in ops
         if is_create(op)
-            k = (op.space_index, op.index.name, op.name)
+            k = (Int(op.space_index), index_name(op.index), operator_name(op))
             m, n = get(counts, k, (0, 0))
             counts[k] = (m + 1, n)
         elseif is_destroy(op)
-            k = (op.space_index, op.index.name, op.name)
+            k = (Int(op.space_index), index_name(op.index), operator_name(op))
             m, n = get(counts, k, (0, 0))
             counts[k] = (m, n + 1)
         end
@@ -150,11 +150,11 @@ function _count_phase_sites(ops::Vector{Op})
     counts = Dict{Tuple{Int, Symbol}, Tuple{Int, Int}}()
     for op in ops
         if is_position(op)
-            k = (op.space_index, op.index.name)
+            k = (Int(op.space_index), index_name(op.index))
             m, n = get(counts, k, (0, 0))
             counts[k] = (m + 1, n)
         elseif is_momentum(op)
-            k = (op.space_index, op.index.name)
+            k = (Int(op.space_index), index_name(op.index))
             m, n = get(counts, k, (0, 0))
             counts[k] = (m, n + 1)
         end
@@ -212,7 +212,7 @@ function _remove_fock_at!(
     while i <= length(ops) && creates < k
         op = ops[i]
         if is_create(op) && op.space_index == si &&
-                op.index.name == idxname && op.name == name
+                index_name(op.index) == idxname && operator_name(op) == name
             deleteat!(ops, i)
             creates += 1
         else
@@ -224,7 +224,7 @@ function _remove_fock_at!(
     while i <= length(ops) && destroys < k
         op = ops[i]
         if is_destroy(op) && op.space_index == si &&
-                op.index.name == idxname && op.name == name
+                index_name(op.index) == idxname && operator_name(op) == name
             deleteat!(ops, i)
             destroys += 1
         else
@@ -241,7 +241,7 @@ function _remove_phase_at!(
     i = 1
     while i <= length(ops) && positions < k
         op = ops[i]
-        if is_position(op) && op.space_index == si && op.index.name == idxname
+        if is_position(op) && op.space_index == si && index_name(op.index) == idxname
             deleteat!(ops, i)
             positions += 1
         else
@@ -252,7 +252,7 @@ function _remove_phase_at!(
     i = 1
     while i <= length(ops) && momenta < k
         op = ops[i]
-        if is_momentum(op) && op.space_index == si && op.index.name == idxname
+        if is_momentum(op) && op.space_index == si && index_name(op.index) == idxname
             deleteat!(ops, i)
             momenta += 1
         else

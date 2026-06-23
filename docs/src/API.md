@@ -109,6 +109,10 @@ OpKind
 ```
 
 ```@docs
+operator_name
+```
+
+```@docs
 optype
 is_destroy
 is_create
@@ -291,6 +295,18 @@ has_index
 
 ```@docs
 index_slot
+```
+
+```@docs
+index_name
+```
+
+```@docs
+index_range
+```
+
+```@docs
+index_sym
 ```
 
 ```@docs

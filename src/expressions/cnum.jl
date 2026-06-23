@@ -488,4 +488,4 @@ end
     end
 end
 
-_sort_key(op::QSym) = (op.space_index, op.index.name)
+_sort_key(op::QSym) = (op.space_index, _name_rank(op.index.name_id))

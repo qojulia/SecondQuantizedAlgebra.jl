@@ -41,7 +41,7 @@ julia> p * x
 
 See also [`Momentum`](@ref), [`PhaseSpace`](@ref).
 """
-Position(name::Symbol, si::Int, idx::Index) = Op(OP_POSITION, name, si, idx, 0, 0, 0, 0)
+Position(name::Symbol, si::Int, idx::Index) = Op(OP_POSITION, _name_id(name), si, idx, 0, 0, 0, 0)
 Position(name::Symbol, si::Int) = Position(name, si, NO_INDEX)
 
 """
@@ -54,7 +54,7 @@ Momentum (quadrature) operator ``p`` on a [`PhaseSpace`](@ref). Hermitian
 
 See also [`Position`](@ref), [`PhaseSpace`](@ref).
 """
-Momentum(name::Symbol, si::Int, idx::Index) = Op(OP_MOMENTUM, name, si, idx, 0, 0, 0, 0)
+Momentum(name::Symbol, si::Int, idx::Index) = Op(OP_MOMENTUM, _name_id(name), si, idx, 0, 0, 0, 0)
 Momentum(name::Symbol, si::Int) = Momentum(name, si, NO_INDEX)
 
 Position(h::PhaseSpace, name::Symbol) = Position(name, 1)

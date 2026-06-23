@@ -26,13 +26,13 @@ See also [`has_index`](@ref), [`IndexedOperator`](@ref), [`Σ`](@ref),
 [`change_index`](@ref).
 """
 struct Index
-    name::Symbol
-    range::Num
-    space_index::Int
-    sym::Num
+    name_id::Int32       # interned name (see intern.jl); 0 == anonymous concrete site / NO_INDEX
+    range_id::Int32      # interned range Num; 0 == no range
+    space_index::Int32
+    slot::Int32          # 0 == abstract; k>0 == concrete site k
 end
 
-const NO_INDEX = Index(:_, Num(0), 0, Num(0))
+const NO_INDEX = Index(Int32(0), Int32(0), Int32(0), Int32(0))
 
 """
 Metadata key carrying the concrete slot integer on a per-slot index sym minted by
@@ -59,26 +59,29 @@ const NonEqualPair = Tuple{Index, Index}
 const _EMPTY_NE = NonEqualPair[]
 const _EMPTY_INDICES = Index[]
 
+# Equality compares the interned ids (pure integers). `slot` is excluded, exactly
+# as the old equality excluded the per-slot `sym`: concrete sites are distinguished
+# out-of-band (numeric reads `slot` via `index_slot`), never via `Index ==`.
 function Base.:(==)(a::Index, b::Index)
     a === b && return true
-    return a.name == b.name && a.space_index == b.space_index && isequal(a.range, b.range)
+    return a.name_id == b.name_id && a.space_index == b.space_index && a.range_id == b.range_id
 end
 function Base.hash(a::Index, h::UInt)
-    return hash(:Index, hash(a.name, hash(a.space_index, h)))
+    return hash(:Index, hash(a.name_id, hash(a.space_index, h)))
 end
-Base.isless(a::Index, b::Index) = (a.space_index, a.name) < (b.space_index, b.name)
+# Order by lexicographic name rank (not raw id, which is insertion-order), so
+# canonical form stays alphabetical and deterministic across sessions.
+Base.isless(a::Index, b::Index) = (a.space_index, _name_rank(a.name_id)) < (b.space_index, _name_rank(b.name_id))
 
-# Ordering key for an index; mirrors isless's (space_index, name) (range excluded).
-_index_key(idx::Index) = (idx.space_index, idx.name)
+# Ordering key for an index; mirrors isless's (space_index, name rank) (range excluded).
+_index_key(idx::Index) = (idx.space_index, _name_rank(idx.name_id))
 
 function Index(h::HilbertSpace, name::Symbol, range::Union{Int, Num}, space::HilbertSpace)
     si = _find_space_index(h, space)
-    sym_var = SymbolicUtils.Sym{SymbolicUtils.SymReal}(name; type = Int)
-    return Index(name, Num(range), si, Num(sym_var))
+    return Index(_intern_name(name), _intern_range(range), Int32(si), Int32(0))
 end
 function Index(h::HilbertSpace, name::Symbol, range::Union{Int, Num}, si::Int)
-    sym_var = SymbolicUtils.Sym{SymbolicUtils.SymReal}(name; type = Int)
-    return Index(name, Num(range), si, Num(sym_var))
+    return Index(_intern_name(name), _intern_range(range), Int32(si), Int32(0))
 end
 
 """
@@ -93,20 +96,53 @@ internally so the resulting operators dedup-equal `evaluate`'s output. Naming
 seeds from `i.name`, so the user's vocabulary is preserved (SQA's naming policy).
 """
 function (i::Index)(k::Integer)
-    name = Symbol(i.name, "_", k)
-    sym_var = SymbolicUtils.Sym{SymbolicUtils.SymReal}(name; type = Int)
-    sym_var = SymbolicUtils.setmetadata(sym_var, IndexSlot, k)
-    return Index(name, i.range, i.space_index, Num(sym_var))
+    name = Symbol(_name_from_id(i.name_id), "_", k)
+    return Index(_intern_name(name), i.range_id, i.space_index, Int32(k))
 end
 
 """
     index_slot(x) -> Union{Int, Nothing}
+    index_slot(idx::Index) -> Union{Int, Nothing}
 
-Concrete slot integer of a per-slot index sym minted by an [`Index`](@ref) call `(i::Index)(k)`,
-or `nothing` for any other symbol. Lets consumers recover the position `k` without
-parsing the symbol's name.
+Concrete slot integer of a per-slot index, or `nothing` for an abstract index.
+On an [`Index`](@ref) reads the `slot` field directly; on a symbol reads the
+`IndexSlot` metadata minted by `(i::Index)(k)`, so consumers can recover the
+position `k` without parsing the symbol's name.
 """
+index_slot(idx::Index)::Union{Int, Nothing} = idx.slot == 0 ? nothing : Int(idx.slot)
 index_slot(x) = SymbolicUtils.getmetadata(SymbolicUtils.unwrap(x), IndexSlot, nothing)
+
+"""
+    index_range(idx::Index) -> Num
+
+The summation range of `idx` (the user's `Num`, recovered from the intern table).
+Returns `Num(0)` for the sentinel `NO_INDEX`.
+"""
+index_range(idx::Index)::Num = _range_from_id(idx.range_id)
+
+"""
+    index_name(idx::Index) -> Symbol
+
+The display name of `idx` (recovered from the intern table).
+"""
+index_name(idx::Index)::Symbol = _name_from_id(idx.name_id)
+
+"""
+    index_sym(idx::Index) -> Num
+
+The symbolic variable for `idx`, reconstructed from its interned name (plus the
+`IndexSlot` metadata for a per-slot index). SymbolicUtils hashconsing makes the
+reconstruction identical (`===`) to the originally minted symbol, so substitution
+and `get_variables` are unaffected. An anonymous concrete site (`name_id == 0`,
+`slot == k`) reconstructs to the integer `Num(k)`, matching `to_numeric`'s
+resolved-site convention.
+"""
+function index_sym(idx::Index)::Num
+    idx.name_id == 0 && return Num(Int(idx.slot))
+    base = _base_sym_from_id(idx.name_id)            # cached name-only Sym (hot path: cached read)
+    idx.slot == 0 && return base
+    return Num(SymbolicUtils.setmetadata(SymbolicUtils.unwrap(base), IndexSlot, Int(idx.slot)))
+end
 
 _find_space_index(::HilbertSpace, ::HilbertSpace) = 1
 function _find_space_index(h::ProductSpace, space::HilbertSpace)

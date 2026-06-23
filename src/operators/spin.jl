@@ -45,7 +45,7 @@ See also [`SpinSpace`](@ref), [`Pauli`](@ref).
 """
 function Spin(name::Symbol, axis::Int, si::Int, idx::Index)
     1 <= axis <= 3 || throw(ArgumentError("Spin axis must be 1, 2, or 3, got $axis"))
-    return Op(OP_SPIN, name, si, idx, axis, 0, 0, 0)
+    return Op(OP_SPIN, _name_id(name), si, idx, axis, 0, 0, 0)
 end
 Spin(name::Symbol, axis::Int, si::Int) = Spin(name, axis, si, NO_INDEX)
 

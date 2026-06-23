@@ -57,7 +57,8 @@ function to_numeric(op::Op, b::QuantumOpticsBase.SpinBasis)
     throw(ArgumentError("Op kind $(op.kind) does not act on a SpinBasis"))
 end
 function to_numeric(op::Op, b::QuantumOpticsBase.CompositeBasis)
-    return QuantumOpticsBase.LazyTensor(b, [op.space_index], (to_numeric(op, b.bases[op.space_index]),))
+    si = Int(op.space_index)
+    return QuantumOpticsBase.LazyTensor(b, [si], (to_numeric(op, b.bases[si]),))
 end
 
 function to_numeric(op::Op, b::QuantumOpticsBase.Basis, d::AbstractDict{<:QSym})
@@ -143,23 +144,29 @@ function _accumulate_indexed_term!(
         c_resolved = _apply_scalar_subs(c, sub_re, sub_im, has_imag)
         return acc + _emit_indexed_combo(term.ops, c_resolved, b, sites, d)
     end
-    lens = Int[length(sites[idx.space_index]) for idx in dep_indices]
+    lens = Int[length(sites[Int(idx.space_index)]) for idx in dep_indices]
     total = prod(lens)
-    sub = Dict{Index, Index}()
+    sub_op = Dict{Index, Index}()
+    sub_coef = Dict{Index, Index}()
     for combo in 1:total
-        empty!(sub)
+        empty!(sub_op)
+        empty!(sub_coef)
         rem = combo - 1
         for k in 1:length(dep_indices)
             kpos = (rem % lens[k]) + 1
             rem ÷= lens[k]
             idx = dep_indices[k]
-            sub[idx] = Index(idx.name, idx.range, idx.space_index, Num(kpos))
+            # Operators keep the index name (slot kpos drives routing / ne checks and
+            # lets a resolved op still match a user `d` key); coefficients use the
+            # anonymous name_id-0 form so `index_sym` is Num(kpos), resolving g(i)→g(k).
+            sub_op[idx] = Index(idx.name_id, idx.range_id, idx.space_index, Int32(kpos))
+            sub_coef[idx] = Index(Int32(0), idx.range_id, idx.space_index, Int32(kpos))
         end
-        if _violates_ne(term.ne, sub)
+        if _violates_ne(term.ne, sub_op)
             continue
         end
-        new_ops = Op[change_index(op, sub) for op in term.ops]
-        new_c = change_index(c, sub)
+        new_ops = Op[change_index(op, sub_op) for op in term.ops]
+        new_c = change_index(c, sub_coef)
         new_c = _apply_scalar_subs(new_c, sub_re, sub_im, has_imag)
         acc = acc + _emit_indexed_combo(new_ops, new_c, b, sites, d)
     end
@@ -209,10 +216,10 @@ function _violates_ne(ne::Vector{NonEqualPair}, sub::Dict{Index, Index})
     for (a, b) in ne
         ra = get(sub, a, a)
         rb = get(sub, b, b)
-        va = Symbolics.value(ra.sym)
-        vb = Symbolics.value(rb.sym)
-        va isa Int || continue
-        vb isa Int || continue
+        va = index_slot(ra)
+        vb = index_slot(rb)
+        va === nothing && continue
+        vb === nothing && continue
         ra.space_index == rb.space_index || continue
         va == vb && return true
     end
@@ -246,14 +253,14 @@ function _site_routed_op(
 end
 
 function _resolve_slot(op::QSym, sites::AbstractDict{Int, Vector{Int}})
-    si = op.space_index
+    si = Int(op.space_index)
     slots = get(sites, si, Int[])
     if isempty(slots)
         return si
     end
     if has_index(op.index)
-        v = Symbolics.value(op.index.sym)
-        if v isa Int && 1 <= v <= length(slots)
+        v = index_slot(op.index)
+        if v !== nothing && 1 <= v <= length(slots)
             return slots[v]
         end
     end

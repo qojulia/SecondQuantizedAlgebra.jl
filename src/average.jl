@@ -166,7 +166,7 @@ function _avg_var_name(op::QAdd)
             print(io, '_', o.space_index, o)
         end
         for (p, q) in term.ne
-            print(io, "_ne", p.name, q.name)
+            print(io, "_ne", index_name(p), index_name(q))
         end
     end
     return Symbol(String(take!(io)))

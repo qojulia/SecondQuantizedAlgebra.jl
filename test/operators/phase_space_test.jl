@@ -177,9 +177,9 @@ import SecondQuantizedAlgebra: simplify, QAdd, QSym, HilbertSpace
         @qnumbers x::Position(h)
         @qnumbers p::Momentum(h)
         @test is_position(x)
-        @test x.name == :x
+        @test operator_name(x) == :x
         @test is_momentum(p)
-        @test p.name == :p
+        @test operator_name(p) == :p
     end
 
     @testset "Type stability" begin

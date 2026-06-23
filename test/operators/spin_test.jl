@@ -32,7 +32,7 @@ using Test
         h = SpinSpace(:s)
         @qnumbers Sx::Spin(h, 1)
         @test is_spin(Sx)
-        @test Sx.name == :Sx
+        @test operator_name(Sx) == :Sx
         @test Sx.l1 == 1
     end
 

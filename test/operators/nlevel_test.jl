@@ -36,7 +36,7 @@ using Test
         h = NLevelSpace(:atom, 2, 1)
         @qnumbers σ::Transition(h, 1, 2)
         @test is_transition(σ)
-        @test σ.name == :σ
+        @test operator_name(σ) == :σ
     end
 
     @testset "Ground state projector" begin

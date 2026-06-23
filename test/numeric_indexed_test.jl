@@ -114,3 +114,30 @@ end
         end
     end
 end
+
+@testset "Indexed numeric: d-override and resolved-site naming" begin
+    hc = FockSpace(:cavity)
+    ha = NLevelSpace(:atom, 2)
+    h = hc ⊗ ha
+    a = Destroy(h, :a, 1)
+    sig(α, β, k) = IndexedOperator(Transition(h, :σ, α, β, 2), k)
+    i = Index(h, :i, 2, ha)
+    H = Σ(a' * sig(1, 2, i) + a * sig(2, 1, i), i)
+
+    bc = FockBasis(2)
+    bn = NLevelBasis(2)
+    b = bc ⊗ bn ⊗ bn
+    sites = Dict{Int, Vector{Int}}(1 => [1], 2 => [2, 3])
+
+    # A resolved per-site index keeps its real name (not the `:_` sentinel).
+    resolved = Index(i.name_id, i.range_id, i.space_index, Int32(2))
+    @test index_name(resolved) === :i
+    @test has_index(resolved)
+
+    # A `d` override keyed by the abstract indexed op now applies on the sites
+    # path; it was silently ignored when resolved ops carried name_id 0.
+    M_plain = to_numeric(H, b, sites, Dict{S.QSym, Any}())
+    custom = embed(b, 2, transition(bn, 1, 2))
+    M_over = to_numeric(H, b, sites, Dict{S.QSym, Any}(sig(1, 2, i) => custom))
+    @test sparse(M_plain).data != sparse(M_over).data
+end

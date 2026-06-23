@@ -22,8 +22,8 @@ import SecondQuantizedAlgebra: simplify, QAdd, QSym, CNum, _to_cnum, NO_INDEX,
     # ========== Index construction ==========
     @testset "Index basics" begin
         i = Index(hf, :i, 10, hf)
-        @test i.name == :i
-        @test i.range == 10
+        @test index_name(i) == :i
+        @test index_range(i) == 10
         @test i.space_index == 1
         @test has_index(i)
         @test !has_index(NO_INDEX)
@@ -172,8 +172,8 @@ import SecondQuantizedAlgebra: simplify, QAdd, QSym, CNum, _to_cnum, NO_INDEX,
         i = Index(hf, :i, 10, hf)
         i3 = i(3)
         @test i3 isa Index
-        @test i3.name === :i_3
-        @test isequal(i3.range, i.range)
+        @test index_name(i3) === :i_3
+        @test isequal(index_range(i3), index_range(i))
         @test i3.space_index == i.space_index
         # Two calls produce equal Index values
         @test i(3) == i(3)
@@ -1460,4 +1460,24 @@ end
     # Empty pairs is a no-op.
     @test change_index(two_atom, Dict{Index, Index}()) === two_atom
     @test change_index(σ(1, 2, k), Dict{Index, Index}()) === σ(1, 2, k)
+end
+
+@testset "Σ requires a summation range" begin
+    h = FockSpace(:f)
+    a = Destroy(h, :a)
+    # NO_INDEX has no range; summing over it would silently zero the expression,
+    # so it must throw instead.
+    @test_throws ArgumentError Σ(a + a', NO_INDEX)
+end
+
+@testset "index_sym reconstruction is hashcons-identical" begin
+    h = FockSpace(:f)
+    i = Index(h, :i, 5, h)
+    fresh = SymbolicUtils.Sym{SymbolicUtils.SymReal}(:i; type = Int)
+    # change_index/get_variables rely on the rebuilt sym being the SAME object
+    # SymbolicUtils hashconses, so the `===` guarantee is load-bearing.
+    @test SymbolicUtils.unwrap(index_sym(i)) === fresh
+    # Per-slot stamping must not poison the cached base for later abstract reads.
+    _ = index_sym(i(3))
+    @test SymbolicUtils.unwrap(index_sym(i)) === fresh
 end
