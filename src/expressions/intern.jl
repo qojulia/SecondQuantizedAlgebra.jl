@@ -34,7 +34,7 @@ function _recompute_name_ranks!()
 end
 
 function _intern_name(s::Symbol)::Int32
-    lock(_INTERN_LOCK) do
+    return lock(_INTERN_LOCK) do
         id = get(_NAME_TO_ID, s, Int32(0))
         id != 0 && return id
         push!(_NAME_BY_ID, s)
@@ -57,7 +57,7 @@ const _RANGE_TO_ID = Dict{Num, Int32}()  # Num -> id (dedup by isequal)
 _range_from_id(id::Int32)::Num = id == 0 ? Num(0) : @inbounds _RANGE_BY_ID[id]
 
 function _intern_range(r::Num)::Int32
-    lock(_INTERN_LOCK) do
+    return lock(_INTERN_LOCK) do
         id = get(_RANGE_TO_ID, r, Int32(0))
         id != 0 && return id
         push!(_RANGE_BY_ID, r)
