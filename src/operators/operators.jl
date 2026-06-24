@@ -202,6 +202,11 @@ function qadjoint(v::SymbolicUtils.BasicSymbolic)
     v === Symbolics.IM && return -Symbolics.IM
     if SymbolicUtils.iscall(v)
         f = SymbolicUtils.operation(v)
+        # adjoint of a scalar `conj(x)` is `x`; fold rather than nesting into
+        # `conj(conj(x))`, which does not simplify and survives downstream (e.g.
+        # leaving dead time-dependent terms after a coupling is substituted to 0).
+        # Mirrors the `f === conj` case already handled in `inner_adjoint`.
+        f === conj && return SymbolicUtils.arguments(v)[1]
         args = map(qadjoint, SymbolicUtils.arguments(v))
         return TermInterface.maketerm(typeof(v), f, args, TermInterface.metadata(v))
     else
