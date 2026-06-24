@@ -377,6 +377,18 @@ end
 function commutator(a::QAdd, b::QSym)
     sb = b.space_index
     d = QTermDict()
+    if isempty(a.indices)
+        for (ta, ca) in a.arguments
+            sb in acts_on(ta) || continue
+            _emit_product!(
+                d, ta.ops, ca, ta.ne, Op[b], _CNUM_ONE, _EMPTY_NE, _EMPTY_INDICES, false,
+            )
+            _emit_product!(
+                d, Op[b], _CNUM_NEG1, _EMPTY_NE, ta.ops, ca, ta.ne, _EMPTY_INDICES, false,
+            )
+        end
+        return QAdd(d, _EMPTY_INDICES)
+    end
     indices = _EMPTY_INDICES
     for (ta, ca) in a.arguments
         sb in acts_on(ta) || continue
@@ -391,6 +403,21 @@ function commutator(a::QAdd, b::QAdd)
     isequal(a, b) && return _zero_qadd()
     bside = [(tb, cb, acts_on(tb)) for (tb, cb) in b.arguments]
     d = QTermDict()
+    if isempty(a.indices) && isempty(b.indices)
+        for (ta, ca) in a.arguments
+            aon_a = acts_on(ta)
+            for (tb, cb, aon_b) in bside
+                isdisjoint(aon_a, aon_b) && continue
+                _emit_product!(
+                    d, ta.ops, ca, ta.ne, tb.ops, cb, tb.ne, _EMPTY_INDICES, false,
+                )
+                _emit_product!(
+                    d, tb.ops, _neg_cnum(cb), tb.ne, ta.ops, ca, ta.ne, _EMPTY_INDICES, false,
+                )
+            end
+        end
+        return QAdd(d, _EMPTY_INDICES)
+    end
     indices = _EMPTY_INDICES
     for (ta, ca) in a.arguments
         aon_a = acts_on(ta)

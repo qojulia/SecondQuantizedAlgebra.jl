@@ -5,6 +5,12 @@ All notable changes to [`SecondQuantizedAlgebra.jl`](https://github.com/qojulia/
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v0.8.2]
+
+### Changed
+
+- `commutator(::QAdd, ::QSym)` and `commutator(::QAdd, ::QAdd)` on operators without summation indices now stream each term-pair contribution straight into one shared result dict instead of materializing intermediates. The previous code wrapped every term of the left operand in a temporary single-term `QAdd` and built `a*b`, `b*a`, and their difference as separate `QAdd`s before merging into the accumulator, so a commutator over an n-term operand allocated O(n) throwaway dicts (O(n·m) for two n- and m-term sums). The fast path emits `+tₐ·t_b` and `−t_b·tₐ` directly through `_emit_product!`, which already runs the eager canonicalization, and lets the dict collect like terms. Operators that carry summation indices keep the existing path, where the per-term `_absorb_pinned_sums` index-scope bookkeeping must run. Results are byte-identical to `a*b - b*a`. Measured on the many-mode operator `Σ_{i,j} g aᵢ† aⱼ`: `QAdd×QSym` about 1.9× to 2.2× faster with about 5× less memory, and `QAdd×QAdd` about 2.2× faster with about 5× less memory at M=4/8/12.
+
 ## [v0.8.1]
 
 ### Added
@@ -223,4 +229,5 @@ These names keep their meaning across the migration. Code that only uses them sh
 [v0.7.2]: https://github.com/qojulia/SecondQuantizedAlgebra.jl/releases/tag/v0.7.2
 [v0.8.0]: https://github.com/qojulia/SecondQuantizedAlgebra.jl/releases/tag/v0.8.0
 [v0.8.1]: https://github.com/qojulia/SecondQuantizedAlgebra.jl/releases/tag/v0.8.1
+[v0.8.2]: https://github.com/qojulia/SecondQuantizedAlgebra.jl/releases/tag/v0.8.2
 [#156]: https://github.com/qojulia/SecondQuantizedAlgebra.jl/issues/156
