@@ -37,6 +37,17 @@ import SecondQuantizedAlgebra: substitute, QAdd, QSym, CNum, _CNUM_ONE, _to_cnum
         @test isequal(substitute(x * (a + a'), Dict(x => y)), y * (a + a'))
     end
 
+    @testset "conj coefficient folds on substitution (regression #7cc3ad7)" begin
+        # Adjoint of a complex-coupled term carries a `conj(gc)` coefficient.
+        # Substituting the coupling to a constant must let that `conj` fold:
+        # `conj(gc => 0)` collapses the term to zero (no dead surviving term),
+        # `conj(gc => 2)` reaches the value rather than nesting an unfoldable conj.
+        @variables gc::Number
+        expr = (gc * a)'                       # conj(gc) * a'
+        @test iszero(substitute(expr, Dict(gc => 0)))
+        @test isequal(substitute(expr, Dict(gc => 2)), 2 * a')
+    end
+
     @testset "Composite space" begin
         hf2 = FockSpace(:c2)
         h = hf ⊗ hf2
