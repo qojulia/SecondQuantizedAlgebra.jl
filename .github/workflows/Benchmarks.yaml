@@ -48,7 +48,7 @@ jobs:
       - name: Run benchmarks
         run: |
           cd benchmark
-          julia --project --threads=2 --color=yes -e '
+          julia --project --threads=1 --gcthreads=1 --color=yes -e '
             using Pkg;
             Pkg.develop(PackageSpec(path=joinpath(pwd(), "..")));
             Pkg.instantiate();
@@ -65,6 +65,7 @@ jobs:
           alert-threshold: "130%"
           fail-threshold: "170%"
           comment-on-alert: true
+          comment-always: true
           fail-on-alert: true
           benchmark-data-dir-path: benchmark
           max-items-in-chart: 100
