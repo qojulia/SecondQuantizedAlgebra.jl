@@ -202,18 +202,12 @@ average(x::SymbolicUtils.BasicSymbolic) = x
 average(x::Num) = average(SymbolicUtils.unwrap(x))
 
 function average(op::QAdd)
-    # Accumulate into a `Num` (or `BasicSymbolic{SymReal}` after the first
-    # multiplication-by-`avg`). Never let `result` become a `Complex{Num}`:
-    # `SymbolicUtils.unwrap(::Complex{<:Num})` would materialise the imaginary
-    # piece as a literal `complex(re, im)` symbolic call, which is opaque to
-    # `simplify` / `expand`. We bring in `im` via `Symbolics.IM`
-    # (the BasicSymbolic{SymReal} sym for `im`) so the chain stays symbolic.
     BS = SymbolicUtils.BasicSymbolic{SymbolicUtils.SymReal}
-    result::BS = SymbolicUtils.unwrap(Num(0))
     shared = isempty(op.indices) ? Index[] : op.indices
     GroupKey = Tuple{Vector{Index}, Vector{NonEqualPair}}
+    flat_bodies = BS[]                   # ungrouped contributions
     group_keys = GroupKey[]
-    group_bodies = BS[]
+    group_bodies = Vector{BS}[]          # one buffer per summation scope
     group_slot = Dict{GroupKey, Int}()   # scope -> index into group_bodies (O(1) lookup)
     for (term, c) in op.arguments
         r, i = _realimag(c)
@@ -231,23 +225,24 @@ function average(op::QAdd)
         end
         body = SymbolicUtils.unwrap(contrib)
         if isempty(used)
-            result += body
+            push!(flat_bodies, body)
         else
             key = (used, term.ne)
             slot = get(group_slot, key, 0)
             if slot == 0
                 push!(group_keys, (used, _copy_ne(term.ne)))
-                push!(group_bodies, body)
+                push!(group_bodies, BS[body])
                 group_slot[key] = length(group_bodies)
             else
-                group_bodies[slot] += body
+                push!(group_bodies[slot], body)
             end
         end
     end
-    for (gk, body) in zip(group_keys, group_bodies)
-        result += _indexed_sum(body, gk[1], gk[2])
+    for (gk, bodies) in zip(group_keys, group_bodies)
+        push!(flat_bodies, _indexed_sum(add_worker(SymbolicUtils.SymReal, bodies), gk[1], gk[2]))
     end
-    return result
+    isempty(flat_bodies) && return SymbolicUtils.unwrap(Num(0))
+    return add_worker(SymbolicUtils.SymReal, flat_bodies)::BS
 end
 
 # Uniform-return wrappers (all return QAdd).
