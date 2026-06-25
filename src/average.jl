@@ -264,6 +264,10 @@ function _rebuild_indexed_sum(inner::QAdd, indices::Vector{Index}, ne::Vector{No
     return QAdd(new_args, indices)
 end
 
+# The `+` fold is O(n²) by repeated `Base.:+` (each copies the growing dict); the
+# in-place accumulator behind `sum` makes it O(n) and is byte-identical. The `*`
+# fold stays as repeated `*` (the product path has no in-place win; see devdocs).
+_fold_qadds(::typeof(+), args::Vector{QAdd}, empty::QAdd) = isempty(args) ? empty : sum(args)
 function _fold_qadds(op::F, args::Vector{QAdd}, empty::QAdd) where {F}
     isempty(args) && return empty
     result = first(args)

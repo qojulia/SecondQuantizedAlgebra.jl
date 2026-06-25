@@ -43,8 +43,20 @@ end
 # GC scanning. hash/isequal compare the interned ids as pure integers. The custom
 # methods are kept for explicit field ordering and the `Index` `===` short-circuit
 # (NO_INDEX is a shared const).
-Base.hash(o::Op, h::UInt) =
-    hash(o.index, hash(o.nlev, hash(o.g, hash(o.l2, hash(o.l1, hash(o.space_index, hash(o.name_id, hash(o.kind, h))))))))
+# Hashing the shared `NO_INDEX` const recurses through its `Num` fields on every
+# call; non-indexed operators are the common case, so fold it to a precomputed
+# sentinel and only hash a real `Index` when one is present (~5% off products).
+const _NOIDX_H = hash(NO_INDEX, zero(UInt))
+function Base.hash(o::Op, h::UInt)
+    h = hash(o.kind, h)
+    h = hash(o.name_id, h)
+    h = hash(o.space_index, h)
+    h = hash(o.l1, h)
+    h = hash(o.l2, h)
+    h = hash(o.g, h)
+    h = hash(o.nlev, h)
+    return o.index === NO_INDEX ? hash(_NOIDX_H, h) : hash(o.index, h)
+end
 Base.isequal(a::Op, b::Op) =
     a.kind === b.kind && a.name_id == b.name_id && a.space_index == b.space_index &&
     a.l1 == b.l1 && a.l2 == b.l2 && a.g == b.g && a.nlev == b.nlev && a.index == b.index

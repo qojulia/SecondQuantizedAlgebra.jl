@@ -79,6 +79,9 @@ end
                 ("expand_completeness(σ12*σ21)", () -> expand_completeness(σ12 * σ21)),
                 ("average(a*a')", () -> average(a * ad)),
                 ("undo_average(average(a*a'))", () -> undo_average(average(a * ad))),
+                # MutableArithmetics additive reductions
+                ("sum([a'*a, a*a', a'*a])", () -> sum([ad * a, a * ad, ad * a])),
+                ("reduce(+, [a'*a, a*a', a'*a])", () -> reduce(+, [ad * a, a * ad, ad * a])),
             ]
             rep = JET.@report_call target_modules = (SecondQuantizedAlgebra,) ignore_missing_comparison = true expr()
             @testset "$name" begin

@@ -12,6 +12,7 @@ import QuantumOpticsBase: ⊗, tensor, expect
 using Combinatorics: with_replacement_combinations
 using Latexify: Latexify, latexify, @latexrecipe
 using PrecompileTools: @setup_workload, @compile_workload
+import MutableArithmetics as MA
 
 include("types.jl")
 include("operators/hilbertspace.jl")
@@ -36,6 +37,7 @@ include("algebra/pipelines.jl")
 include("expressions/index.jl")
 
 include("algebra/algebra.jl")
+include("algebra/mutable_arithmetics.jl")
 include("algebra/weyl.jl")
 
 include("average.jl")
