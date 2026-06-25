@@ -4,7 +4,7 @@ on:
     branches:
       - 'main'
     paths:
-      - '.github/workflows/Tests.yml'
+      - '.github/workflows/Downstream.yml'
       - 'src/**'
       - 'ext/**'
       - 'test/**'
@@ -13,7 +13,7 @@ on:
     branches:
       - 'main'
     paths:
-      - '.github/workflows/Tests.yml'
+      - '.github/workflows/Downstream.yml'
       - 'src/**'
       - 'ext/**'
       - 'test/**'
@@ -30,6 +30,9 @@ jobs:
   test:
     name: ${{ matrix.package.repo }}/${{ matrix.julia-version }}
     runs-on: ${{ matrix.os }}
+    permissions: # needed to allow julia-actions/cache to proactively delete old caches that it has created
+      actions: write
+      contents: read
     env:
       GROUP: ${{ matrix.package.group }}
     strategy:
@@ -47,6 +50,7 @@ jobs:
         with:
           version: ${{ matrix.julia-version }}
           arch: x64
+      - uses: julia-actions/cache@v3
       - uses: julia-actions/julia-buildpkg@latest
       - name: Clone Downstream
         uses: actions/checkout@v7
