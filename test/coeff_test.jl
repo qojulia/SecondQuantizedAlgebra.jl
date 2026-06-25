@@ -173,6 +173,19 @@ import SecondQuantizedAlgebra: Coeff, CNum, Monomial, Poly, _to_cnum, _to_comple
             @test isequal(to_num(_conj_cnum(_to_cnum(im * g))), Complex(Num(0), Num(-g)))
         end
 
+        @testset "conjugation involution folds (regression #7cc3ad7)" begin
+            # `conj` is an involution: conjugating twice must return the original
+            # factor, not nest a `conj(conj(x))` that never folds and survives
+            # downstream.
+            c = _to_cnum(gc)
+            @test isequal(_conj_cnum(_conj_cnum(c)), c)
+            @test isequal(to_num(_conj_cnum(_conj_cnum(c))), Complex(Num(gc), Num(0)))
+            @test hash(_conj_cnum(_conj_cnum(c))) == hash(c)
+            # double-conjugating a scaled complex factor also returns the original
+            cs = _to_cnum(g * gc)
+            @test isequal(_conj_cnum(_conj_cnum(cs)), cs)
+        end
+
         @testset "complex parameters and irreducible couplings stay native" begin
             # `@variables _::Complex` is stored as `Complex(real(_), imag(_))`; its
             # real/imag parts are recognized atoms, so the parameter stays on the Poly

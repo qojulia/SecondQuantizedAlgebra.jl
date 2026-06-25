@@ -228,6 +228,10 @@ function _rec(x::SymbolicUtils.BasicSymbolic)::Coeff
     elseif op === getindex
         return _atom_coeff(x)
     elseif op === conj
+        # Fold conj of a constant (e.g. conj(0.0) left by substituting a complex
+        # parameter to a real value) so the coefficient can collapse to zero.
+        inner = _rec(args[1])
+        _is_native(inner) && return _native(conj(inner.z))
         return _is_atom(x) ? _atom_coeff(x) : _sym_leaf(x)
     elseif op === (/)
         length(args) == 2 || return _sym_leaf(x)
@@ -332,12 +336,25 @@ end
 Base.:/(a::Coeff, b::Number) = a / _to_cnum(b)
 Base.:/(a::Number, b::Coeff) = _to_cnum(a) / b
 
-_sym_conj(x::Num) = SymbolicUtils.symtype(x) <: Real ? x : Num(conj(SymbolicUtils.unwrap(x)))
+# `conj(conj(x)) == x`, so unwrap an existing `conj(...)` rather than nesting a
+# second one (which never folds and survives downstream).
+_is_conj_call(x) =
+    SymbolicUtils.iscall(x) && SymbolicUtils.operation(x) === conj
+function _sym_conj(x::Num)
+    SymbolicUtils.symtype(x) <: Real && return x
+    u = SymbolicUtils.unwrap(x)
+    _is_conj_call(u) && return Num(SymbolicUtils.arguments(u)[1])
+    return Num(conj(u))
+end
 
-# Conjugate an atom factor: real-symtype atoms are self-conjugate, else wrap in
-# `conj(...)` (still an atom to `_is_atom`).
-@inline _conj_atom(s::SymbolicUtils.BasicSymbolic) =
-    SymbolicUtils.symtype(s) <: Real ? s : SymbolicUtils.unwrap(conj(s))
+# Conjugate an atom factor: real-symtype atoms are self-conjugate, an existing
+# `conj(...)` unwraps (involution), else wrap in `conj(...)` (still an atom to
+# `_is_atom`).
+@inline function _conj_atom(s::SymbolicUtils.BasicSymbolic)
+    SymbolicUtils.symtype(s) <: Real && return s
+    _is_conj_call(s) && return SymbolicUtils.arguments(s)[1]
+    return SymbolicUtils.unwrap(conj(s))
+end
 
 # Native conjugation of a Poly: conjugate each scalar and atom, re-sort the rekeyed
 # factors by `objectid`, re-canonicalize. Avoids the `to_num` round-trip per term.
