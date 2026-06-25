@@ -11,6 +11,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - `commutator(::QAdd, ::QSym)` and `commutator(::QAdd, ::QAdd)` on operators without summation indices now stream each term-pair contribution straight into one shared result dict instead of materializing intermediates. The previous code wrapped every term of the left operand in a temporary single-term `QAdd` and built `a*b`, `b*a`, and their difference as separate `QAdd`s before merging into the accumulator, so a commutator over an n-term operand allocated O(n) throwaway dicts (O(n·m) for two n- and m-term sums). The fast path emits `+tₐ·t_b` and `−t_b·tₐ` directly through `_emit_product!`, which already runs the eager canonicalization, and lets the dict collect like terms. Operators that carry summation indices keep the existing path, where the per-term `_absorb_pinned_sums` index-scope bookkeeping must run. Results are byte-identical to `a*b - b*a`. Measured on the many-mode operator `Σ_{i,j} g aᵢ† aⱼ`: `QAdd×QSym` about 1.9× to 2.2× faster with about 5× less memory, and `QAdd×QAdd` about 2.2× faster with about 5× less memory at M=4/8/12.
 
+### Fixed
+
+- `conj` now folds as an involution in the coefficient algebra and in `qadjoint`. Conjugating a complex factor twice (or taking the adjoint of a scalar `conj(x)`) returned a nested `conj(conj(x))` that never simplified and survived downstream, leaving dead terms (e.g. a `conj(0.0)` that failed to collapse to zero after a complex coupling was substituted to a real value). Double conjugation now returns the original factor, and `conj` of an expression that reduces to a constant folds to a native coefficient.
+
 ## [v0.8.1]
 
 ### Added
@@ -22,10 +26,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `hash(::Op)` short-circuits the common non-indexed case. A profile of the product path found that about a third of the time goes to hashing `QTerm` dict keys, and `hash(::Op)` was recursing through the shared `NO_INDEX` constant's `Num` fields on every call even though most operators carry no index. The hash now folds `NO_INDEX` to a precomputed sentinel and only hashes a real `Index` when one is present. The per-operator hash is about 31% faster and term-building operations (products, powers, commutators, `substitute`) are about 5% to 6% faster end-to-end; for example `(a + a†)^12` drops from about 379 µs to 344 µs. Hash values are internal dict keys only (never persisted) and `isequal` is unchanged, so canonical results are identical.
 
 ## [v0.8.0]
-
-### Fixed
-
-- `conj` now folds as an involution in the coefficient algebra and in `qadjoint`. Conjugating a complex factor twice (or taking the adjoint of a scalar `conj(x)`) returned a nested `conj(conj(x))` that never simplified and survived downstream, leaving dead terms (e.g. a `conj(0.0)` that failed to collapse to zero after a complex coupling was substituted to a real value). Double conjugation now returns the original factor, and `conj` of an expression that reduces to a constant folds to a native coefficient.
 
 ### Changed
 
