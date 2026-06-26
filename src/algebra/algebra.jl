@@ -461,13 +461,19 @@ See also [`commutator`](@ref).
 anticommutator(a, b) = a * b + b * a
 
 """
-    substitute(expr, d::Dict)
+    substitute(expr::QField, rules::AbstractDict; replace_adjoint=true)
 
-Substitute symbolic parameters and/or operators in `expr` using dictionary `d`.
+Substitute symbolic parameters and/or operators in `expr` using `rules`.
 
-Supports both symbolic coefficient replacement (for example `x => 2`) and
-operator replacement. The result is re-canonicalized and returned as a
-[`QAdd`](@ref).
+Scalar keys (anything other than a [`QSym`](@ref)) are substituted in
+coefficients using SymbolicUtils. Operator keys are applied simultaneously to
+the original operator leaves: replacement expressions are not searched again for
+operator keys. This makes mode transformations such as `a => g*a + h*b`
+well-defined even when the replacement contains the original operator.
+
+When `replace_adjoint=true`, missing adjoint operator rules are added
+automatically, e.g. `a => b` also implies `a' => b'` unless `a'` is already
+specified explicitly.
 
 # Examples
 
@@ -484,16 +490,101 @@ julia> substitute(x * a' * a, Dict(x => 2))
 
 See also [`change_index`](@ref).
 """
-function SymbolicUtils.substitute(op::QSym, d::Dict)
-    return SymbolicUtils.substitute(_single_qadd(_CNUM_ONE, Op[op]), d)
+function SymbolicUtils.substitute(op::QSym, rules::AbstractDict; replace_adjoint = true)
+    return SymbolicUtils.substitute(
+        _single_qadd(_CNUM_ONE, Op[op]), rules; replace_adjoint = replace_adjoint
+    )
 end
 
-function SymbolicUtils.substitute(q::QAdd, d::Dict)
+function SymbolicUtils.substitute(q::QAdd, rules::AbstractDict; replace_adjoint = true)
+    iszero(q) && return q
+    op_rules, scalar_rules = _split_substitution_rules(rules, replace_adjoint)
     out = QTermDict()
+    indices = copy(q.indices)
     for (t, c) in q
-        _substitute_ops(copy(t.ops), c, d) do ops1, c1
-            _stream!(out, ops1, c1, t.ne)
+        replacement_indices = _stream_substitution_once!(
+            out, t.ops, c, t.ne, op_rules, scalar_rules,
+        )
+        indices = _merge_unique(indices, replacement_indices)
+    end
+    return QAdd(out, _drop_unused_indices(out, indices))
+end
+
+function _split_substitution_rules(rules::AbstractDict, replace_adjoint)
+    op_rules = Dict{Any, Any}()
+    scalar_rules = Dict{Any, Any}()
+    for (k, v) in rules
+        if k isa QSym
+            op_rules[k] = v
+        else
+            scalar_rules[k] = v
         end
     end
-    return QAdd(out, copy(q.indices))
+    replace_adjoint && _add_adjoint_rules!(op_rules)
+    return op_rules, scalar_rules
 end
+
+function _add_adjoint_rules!(op_rules::Dict{Any, Any})
+    for (k, v) in collect(op_rules)
+        k_adj = Base.adjoint(k)
+        haskey(op_rules, k_adj) || (op_rules[k_adj] = _adjoint_replacement(v))
+    end
+    return op_rules
+end
+
+function _has_operator_rule(ops::Vector{Op}, dict::AbstractDict)
+    for op in ops
+        haskey(dict, op) && return true
+    end
+    return false
+end
+
+function _stream_substitution_once!(
+        out::QTermDict, ops::Vector{Op}, c::CNum, ne::Vector{NonEqualPair},
+        op_rules::AbstractDict, scalar_rules::AbstractDict
+    )
+    if !_has_operator_rule(ops, op_rules)
+        new_c = _substitute_cnum(c, scalar_rules)
+        _iszero_cnum(new_c) || _stream!(out, copy(ops), new_c, ne)
+        return _EMPTY_INDICES
+    end
+
+    partials = Tuple{Vector{Op}, CNum, Vector{NonEqualPair}}[(Op[], c, _EMPTY_NE)]
+    indices = _EMPTY_INDICES
+    for op in ops
+        replacement = _replacement_qadd(op, op_rules)
+        indices = _merge_unique(indices, replacement.indices)
+        next_partials = Tuple{Vector{Op}, CNum, Vector{NonEqualPair}}[]
+        for (prefix_ops, prefix_c, prefix_ne) in partials
+            for (rt, rc) in replacement
+                new_ops = copy(prefix_ops)
+                append!(new_ops, rt.ops)
+                push!(
+                    next_partials,
+                    (new_ops, _mul_cnum(prefix_c, rc), _merge_ne(prefix_ne, rt.ne)),
+                )
+            end
+        end
+        partials = next_partials
+    end
+
+    for (new_ops, new_c0, new_ne) in partials
+        new_c = _substitute_cnum(new_c0, scalar_rules)
+        _iszero_cnum(new_c) && continue
+        _canonicalize!(out, new_ops, new_c, _merge_ne(ne, new_ne))
+    end
+    return indices
+end
+
+function _replacement_qadd(op::Op, dict::AbstractDict)
+    haskey(dict, op) || return _single_qadd(_CNUM_ONE, Op[op])
+    val = dict[op]
+    val isa QAdd && return val
+    val isa QSym && return _single_qadd(_CNUM_ONE, Op[val])
+    (val isa Number || val isa SymbolicUtils.BasicSymbolic || val isa Coeff) &&
+        return _single_qadd(_to_cnum(val), Op[])
+    throw(ArgumentError("operator replacement for `$op` has unsupported value `$val`"))
+end
+
+_adjoint_replacement(v::Coeff) = conj(v)
+_adjoint_replacement(v) = qadjoint(v)

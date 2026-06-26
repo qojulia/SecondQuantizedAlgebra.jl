@@ -384,4 +384,38 @@ using Test
         @test to_numeric(substitute(g * a, Dict(g => 2 + 3im)), b) ≈ (2 + 3im) * to_numeric(a, b)
     end
 
+    @testset "Public coefficient lowering" begin
+        h = FockSpace(:c)
+        @qnumbers a::Destroy(h)
+        @variables x::Real
+
+        coeff = first(x * a).second
+        lowered = SecondQuantizedAlgebra.to_num(coeff)
+        @test isequal(real(lowered), x)
+        @test iszero(imag(lowered))
+    end
+
+    @testset "to_numeric keyword translation" begin
+        h = FockSpace(:c)
+        @qnumbers a::Destroy(h)
+        b = FockBasis(4)
+        A = destroy(b)
+        Ad = create(b)
+        @variables x::Real ϕ::Real E::Number
+
+        @test to_numeric(substitute(sqrt(x) * a, Dict(x => 2.0)), b) ≈ sqrt(2.0) * A
+        @test to_numeric(substitute(exp(im * ϕ) * a, Dict(ϕ => 0.5)), b) ≈ exp(0.5im) * A
+
+        @test to_numeric(sqrt(x) * a, b; parameter = Dict(x => 2.0)) ≈ sqrt(2.0) * A
+        @test to_numeric(exp(im * ϕ) * a, b; parameter = Dict(ϕ => 0.5)) ≈ exp(0.5im) * A
+
+        custom = 2 * A
+        @test to_numeric(a', b; operators = Dict(a => custom)) == custom'
+        @test to_numeric(a', b; operators = Dict(a => custom), adjoint_ops = false) == Ad
+        @test to_numeric([a, a'], b; operators = Dict(a => custom)) == [custom, custom']
+
+        f = to_numeric(E * a + conj(E) * a', b; time_parameter = Dict(E => t -> 1 + im * t))
+        @test f(0.5) ≈ (1 + 0.5im) * A + (1 - 0.5im) * Ad
+    end
+
 end

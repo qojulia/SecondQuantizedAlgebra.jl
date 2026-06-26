@@ -339,8 +339,13 @@ Base.imag(c::Coeff) = _is_native(c) ? _num_from_float(imag(c.z)) : imag(to_num(c
     return (real(cn), imag(cn))
 end
 
-# Materialize the full `Complex{Num}`; the only place a coefficient lowers back to
-# Symbolics for symbolic boundaries (substitute / simplify / expand / printing).
+"""
+    to_num(c::Coeff) -> Complex{Num}
+
+Lower a stored [`Coeff`](@ref) to the public Symbolics representation used at
+package boundaries. This is the supported way to read the coefficient returned
+when iterating a [`QAdd`](@ref).
+"""
 function to_num(c::Coeff)
     t = c.tail
     t isa Native && return Complex(_num_from_float(real(c.z)), _num_from_float(imag(c.z)))
