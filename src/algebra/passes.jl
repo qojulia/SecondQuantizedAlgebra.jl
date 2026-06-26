@@ -207,6 +207,7 @@ function _substitute_ops(sink::F, ops::Vector{Op}, c::CNum, d) where {F}
 end
 
 function _substitute_cnum(c::CNum, d)
+    isempty(d) && return c
     _is_native(c) && return c
     rep, imp = real(c), imag(c)
     new_rep = SymbolicUtils.substitute(Symbolics.value(rep), d)

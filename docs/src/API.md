@@ -221,6 +221,10 @@ prefactor
 ```
 
 ```@docs
+to_num
+```
+
+```@docs
 operators
 ```
 
