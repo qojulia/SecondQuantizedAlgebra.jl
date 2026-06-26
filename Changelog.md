@@ -4,6 +4,12 @@ All notable changes to [`SecondQuantizedAlgebra.jl`](https://github.com/qojulia/
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+## [v0.8.3]
+
+### Changed
+
+- `average` of a many-term operator is now O(n) instead of O(n²): a 500-term sum drops from about 31 ms to 9.6 ms.
+- Wide symbolic prefactors (large sums or products of parameters, as high-order perturbation theory generates) build in one pass instead of pairwise, O(n²) → O(n log n): at n=800 about 12.5× faster for a sum, 17× for a product.
 
 ## [v0.8.2]
 
@@ -234,4 +240,5 @@ These names keep their meaning across the migration. Code that only uses them sh
 [v0.8.0]: https://github.com/qojulia/SecondQuantizedAlgebra.jl/releases/tag/v0.8.0
 [v0.8.1]: https://github.com/qojulia/SecondQuantizedAlgebra.jl/releases/tag/v0.8.1
 [v0.8.2]: https://github.com/qojulia/SecondQuantizedAlgebra.jl/releases/tag/v0.8.2
+[v0.8.3]: https://github.com/qojulia/SecondQuantizedAlgebra.jl/releases/tag/v0.8.3
 [#156]: https://github.com/qojulia/SecondQuantizedAlgebra.jl/issues/156

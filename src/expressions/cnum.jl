@@ -188,17 +188,9 @@ function _rec(x::SymbolicUtils.BasicSymbolic)::Coeff
     op = SymbolicUtils.operation(x)
     args = SymbolicUtils.arguments(x)
     if op === (+)
-        c = _CNUM_ZERO
-        for a in args
-            c = _add_cnum(c, _rec(a))
-        end
-        return c
+        return _rec_sum(args)
     elseif op === (*)
-        c = _CNUM_ONE
-        for a in args
-            c = _mul_cnum(c, _rec(a))
-        end
-        return c
+        return _rec_prod(args)
     elseif op === (^)
         length(args) == 2 || return _sym_leaf(x)
         # `isa` guards narrow the `Any` exponent before arithmetic (a helper call on
@@ -261,6 +253,77 @@ function _rec(x::SymbolicUtils.BasicSymbolic)::Coeff
     # Irreducible one-arg call on an atom (`exp`, `sin`, `real`, `imag`, ...): keep it
     # native as an opaque integer-exponent atom. Radicals are handled above instead.
     return _is_atom(x) ? _atom_coeff(x) : _sym_leaf(x)
+end
+
+function _rec_sum(args)::Coeff
+    monos = Monomial[]
+    znative = zero(ComplexF64)
+    sym = _CNUM_ZERO
+    have_sym = false
+    for a in args
+        ca = _rec(a)
+        t = ca.tail
+        if t isa Native
+            znative += ca.z
+        elseif t isa Poly
+            append!(monos, t.terms)
+        else
+            sym = _add_cnum(sym, ca)
+            have_sym = true
+        end
+    end
+    znative == 0 || push!(monos, Monomial(znative, _EMPTY_SYMS, _EMPTY_EXPS))
+    poly = _from_poly(_canonical_terms!(monos))
+    return have_sym ? _add_cnum(poly, sym) : poly
+end
+
+function _merge_factor_list(syms::Vector{SymbolicUtils.BasicSymbolic}, exps::Vector{Rational{Int}})
+    n = length(syms)
+    n <= 1 && return (syms, exps)
+    p = sortperm(syms; by = _fkey)
+    osyms = SymbolicUtils.BasicSymbolic[]
+    oexps = Rational{Int}[]
+    sizehint!(osyms, n); sizehint!(oexps, n)
+    i = 1
+    @inbounds while i <= n
+        s = syms[p[i]]
+        e = exps[p[i]]
+        j = i + 1
+        while j <= n && syms[p[j]] === s
+            e += exps[p[j]]
+            j += 1
+        end
+        e != 0 && (push!(osyms, s); push!(oexps, e))
+        i = j
+    end
+    return (osyms, oexps)
+end
+
+function _rec_prod(args)::Coeff
+    scalar = _ONE_C
+    syms = SymbolicUtils.BasicSymbolic[]
+    exps = Rational{Int}[]
+    other = _CNUM_ONE
+    have_other = false
+    for a in args
+        ca = _rec(a)
+        t = ca.tail
+        if t isa Native
+            scalar *= ca.z
+        elseif t isa Poly && length(t.terms) == 1
+            m = t.terms[1]
+            scalar *= m.scalar
+            append!(syms, m.syms)
+            append!(exps, m.exps)
+        else
+            other = _mul_cnum(other, ca)
+            have_other = true
+        end
+    end
+    iszero(scalar) && return _CNUM_ZERO
+    ms, me = _merge_factor_list(syms, exps)
+    mono = _from_poly(Monomial[Monomial(scalar + complex(0.0, 0.0), ms, me)])
+    return have_other ? _mul_cnum(mono, other) : mono
 end
 
 Base.convert(::Type{Coeff}, x::Coeff) = x
