@@ -1,3 +1,7 @@
+# Zero-size tag marking the native fast path (the value lives inline in `z`).
+struct Native end
+const NATIVE = Native()
+
 """
 Coefficient representation for operator prefactors. A `Coeff` has three forms: a
 native `ComplexF64` (concrete numbers), a [`Poly`](@ref) parameter polynomial
@@ -5,11 +9,6 @@ native `ComplexF64` (concrete numbers), a [`Poly`](@ref) parameter polynomial
 polynomial arithmetic stay off SymbolicUtils, lowering to `Complex{Num}` only at
 the symbolic boundaries (`to_num`).
 """
-
-# Zero-size tag marking the native fast path (the value lives inline in `z`).
-struct Native end
-const NATIVE = Native()
-
 struct Coeff
     z::ComplexF64
     tail::Union{Native, Poly, Complex{Num}}
