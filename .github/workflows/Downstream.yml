@@ -38,7 +38,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        julia-version: ['1.10']
+        julia-version: ['1']
         os: [ubuntu-latest]
         package:
           - {user: qojulia, repo: QuantumCumulants.jl}
