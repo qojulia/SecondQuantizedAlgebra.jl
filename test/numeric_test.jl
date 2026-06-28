@@ -1,7 +1,8 @@
 using SecondQuantizedAlgebra
-import SecondQuantizedAlgebra: QAdd, QSym, _single_qadd, _to_cnum, _to_complex
+import SecondQuantizedAlgebra: QAdd, QSym, _single_qadd, _to_cnum, _to_complex, _fold_const
 using QuantumOpticsBase
 using Symbolics: @variables, substitute
+import SymbolicUtils
 using Test
 
 @testset "numeric conversion" begin
@@ -469,6 +470,85 @@ using Test
         # `conj(v)` is accepted as a time_parameter key.
         f2 = to_numeric(conj(E) * a, b; time_parameter = Dict(conj(E) => t -> 2 + im * t))
         @test f2(1.0) ≈ (2 + 1im) * A
+    end
+
+    @testset "keyword to_numeric, scalar argument" begin
+        b = FockBasis(4)
+        Ib = one(b)
+        @variables x::Real E::Number
+
+        # Plain number scalar routes through the keyword path to a scaled identity.
+        @test to_numeric(3, b; parameter = Dict(x => 1.0)) == 3 * Ib
+        @test to_numeric(2.0 + 0im, b; parameter = Dict{Any, Any}()) == (2.0 + 0im) * Ib
+
+        # A symbolic scalar resolved by `parameter` becomes a constant identity.
+        @test to_numeric(2 * x, b; parameter = Dict(x => 1.5)) ≈ 3.0 * Ib
+
+        # A symbolic scalar with no value cannot be translated.
+        @test_throws ArgumentError to_numeric(x, b)
+
+        # With `time_parameter`, a constant scalar yields a constant-in-time closure.
+        fconst = to_numeric(2.0, b; time_parameter = Dict(E => t -> 1.0 + 0im))
+        @test fconst(0.0) == 2.0 * Ib
+        @test fconst(9.0) == 2.0 * Ib
+
+        # A genuinely time-dependent scalar yields a time-varying closure.
+        ft = to_numeric(E, b; time_parameter = Dict(E => t -> 1 + im * t))
+        @test ft(0.0) ≈ (1 + 0im) * Ib
+        @test ft(2.0) ≈ (1 + 2im) * Ib
+    end
+
+    @testset "keyword to_numeric, state argument" begin
+        h = FockSpace(:c)
+        @qnumbers a::Destroy(h)
+        b = FockBasis(7)
+        α = 0.1 + 0.2im
+        ψ = coherentstate(b, α)
+        @variables Δ::Real
+
+        # The state form derives the basis from the state and forwards keywords.
+        op_state = to_numeric(Δ * a, ψ; parameter = Dict(Δ => 2.0))
+        @test op_state == 2.0 * destroy(b)
+    end
+
+    @testset "constant symbolic coefficient reduction" begin
+        h = FockSpace(:c)
+        @qnumbers a::Destroy(h)
+        b = FockBasis(3)
+        A = destroy(b)
+        @variables z::Number
+
+        # Coefficients that stay symbolic-but-constant (built from `real`/`imag`/`conj`,
+        # which are not folded into the native coefficient tier) are reduced to a
+        # concrete number when lowered for `to_numeric`. Each shape exercises a distinct
+        # arithmetic node in the constant folder.
+        c0 = 1.0 + 2.0im
+        cases = (
+            ("real", real(conj(z)), real(conj(c0))),
+            ("imag", imag(conj(z)), imag(conj(c0))),
+            ("conj", conj(real(z) + im * imag(z)), conj(c0)),
+            ("plus", real(z) + real(conj(z)), real(c0) + real(conj(c0))),
+            ("times", real(z) * real(conj(z)), real(c0) * real(conj(c0))),
+            ("div", real(z) / real(conj(z)), real(c0) / real(conj(c0))),
+            ("pow", real(z)^3, real(c0)^3),
+        )
+        for (label, coeff, expected) in cases
+            op = substitute(coeff * a, Dict(z => c0))
+            @test to_numeric(op, b) ≈ expected * A
+        end
+
+        # An unrecognized constant function (`sin`) is not handled by the folder and
+        # falls back to the compile-based reduction path.
+        op_sin = substitute(sin(z) * a, Dict(z => 0.5))
+        @test to_numeric(op_sin, b) ≈ sin(0.5) * A
+
+        # The folder also handles raw subtraction nodes. Symbolics canonicalizes
+        # subtraction and negation to `+`/`*`, so a literal `-` node never reaches
+        # the folder through normal arithmetic; build it directly to cover both arms.
+        neg_unary = SymbolicUtils.term(-, 5.0 + 0im; type = Number)
+        neg_binary = SymbolicUtils.term(-, 7.0 + 0im, 2.0 + 0im; type = Number)
+        @test _fold_const(neg_unary) == -(5.0 + 0im)
+        @test _fold_const(neg_binary) == (7.0 + 0im) - (2.0 + 0im)
     end
 
     @testset "keyword to_numeric: op_type, vector, complex params, errors" begin
