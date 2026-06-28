@@ -4,6 +4,14 @@ All notable changes to [`SecondQuantizedAlgebra.jl`](https://github.com/qojulia/
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+## [v0.9.0]
+
+### Added
+
+- `substitute` now replaces operators as well as scalar parameters in a single, simultaneous pass. A rule dictionary is split by key: `QSym` keys replace operator leaves, every other key substitutes into coefficients through SymbolicUtils. Operator replacements are applied once to the original leaves and the replacement expression is not searched again for operator keys, so a mode transformation such as `a => g*a + h*b` is well-defined even though its right-hand side contains the key `a`. Missing adjoint rules are generated automatically (`a => b` also implies `a' => b'`); pass `replace_adjoint=false` to match only the keys supplied explicitly.
+- A keyword form of `to_numeric(op, basis; parameter, time_parameter, operators, adjoint_ops, op_type)`. Scalar `parameter`s are substituted first, then the expression is translated with custom numeric `operators` (missing adjoints are added when `adjoint_ops=true`), and each emitted operator is passed through `op_type`. When `time_parameter` is non-empty the result is a closure `t -> op(t)`; its values may be numbers or functions of time, and a key may be a bare variable `v` or `conj(v)`. A vector form `to_numeric(ops::AbstractVector, basis; kwargs...)` forwards the keywords to each element.
+- `to_num(c::Coeff)` is now public and documented as the supported way to read the coefficient returned when iterating a `QAdd`. `Coeff` and `CNum` are now declared public, and the package's public-API declarations use [SciMLPublic.jl](https://github.com/SciML/SciMLPublic.jl) instead of a hand-rolled `@public` macro.
+
 ## [v0.8.3]
 
 ### Changed
@@ -241,4 +249,5 @@ These names keep their meaning across the migration. Code that only uses them sh
 [v0.8.1]: https://github.com/qojulia/SecondQuantizedAlgebra.jl/releases/tag/v0.8.1
 [v0.8.2]: https://github.com/qojulia/SecondQuantizedAlgebra.jl/releases/tag/v0.8.2
 [v0.8.3]: https://github.com/qojulia/SecondQuantizedAlgebra.jl/releases/tag/v0.8.3
+[v0.9.0]: https://github.com/qojulia/SecondQuantizedAlgebra.jl/releases/tag/v0.9.0
 [#156]: https://github.com/qojulia/SecondQuantizedAlgebra.jl/issues/156

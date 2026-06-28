@@ -418,4 +418,84 @@ using Test
         @test f(0.5) ≈ (1 + 0.5im) * A + (1 - 0.5im) * Ad
     end
 
+    @testset "keyword to_numeric on composite basis" begin
+        hf = FockSpace(:c) ⊗ FockSpace(:d)
+        a = Destroy(hf, :a, 1)
+        @variables Δ::Real
+        b = FockBasis(2) ⊗ FockBasis(3)
+        Ia = identityoperator(b)
+        an = to_numeric(a, b)
+
+        # Regression: a scalar/constant term must build the full-system identity, not
+        # the identity of a single subsystem (the `_lazy_one(b)` fix). Before, the
+        # `+ 5` term produced a wrongly-sized identity on a composite basis.
+        H = to_numeric(Δ * a' * a + 5, b; parameter = Dict(Δ => 2.0))
+        @test size(dense(H).data) == (length(b), length(b))
+        @test dense(H).data ≈ dense(2.0 * an' * an + 5 * Ia).data
+
+        # Custom operator on one subsystem; the constant term is still full-sized.
+        custom = 2 * an
+        H2 = to_numeric(a + 3, b; operators = Dict(a => custom))
+        @test dense(H2).data ≈ dense(custom + 3 * Ia).data
+
+        # A term that cancels to zero still yields a full-sized zero operator.
+        z = to_numeric(a - a, b)
+        @test size(dense(z).data) == (length(b), length(b))
+        @test dense(z).data ≈ zeros(length(b), length(b))
+
+        # Missing adjoint rule is auto-added for custom operators.
+        r = to_numeric(a', b; operators = Dict(a => custom))
+        @test dense(r).data ≈ dense(custom').data
+        r2 = to_numeric(a', b; operators = Dict(a => custom), adjoint_ops = false)
+        @test dense(r2).data ≈ dense(to_numeric(a', b)).data
+    end
+
+    @testset "time_parameter variants" begin
+        h = FockSpace(:c)
+        @qnumbers a::Destroy(h)
+        b = FockBasis(4)
+        A = destroy(b)
+        @variables E::Number
+
+        # A plain number value becomes a constant-in-time closure.
+        f0 = to_numeric(E * a, b; time_parameter = Dict(E => 3.0))
+        @test f0(0.0) ≈ 3.0 * A
+        @test f0(10.0) ≈ 3.0 * A
+
+        # A constant-coefficient term still returns a callable when time_parameter is set.
+        f1 = to_numeric(2.0 * a, b; time_parameter = Dict(E => t -> 1.0 + 0im))
+        @test f1(7.0) ≈ 2.0 * A
+
+        # `conj(v)` is accepted as a time_parameter key.
+        f2 = to_numeric(conj(E) * a, b; time_parameter = Dict(conj(E) => t -> 2 + im * t))
+        @test f2(1.0) ≈ (2 + 1im) * A
+    end
+
+    @testset "keyword to_numeric: op_type, vector, complex params, errors" begin
+        h = FockSpace(:c)
+        @qnumbers a::Destroy(h)
+        b = FockBasis(4)
+        A = destroy(b)
+        Ad = create(b)
+        @variables x::Real z::Number E::Number
+
+        # op_type transforms each emitted operator.
+        Hd = to_numeric(2.0 * a' * a, b; op_type = dense)
+        @test Hd isa QuantumOpticsBase.Operator
+        @test Hd ≈ dense(2.0 * Ad * A)
+
+        # Vector form forwards keywords to each element.
+        @test to_numeric([a, a'], b; parameter = Dict(x => 1.0)) == [A, Ad]
+
+        # A complex-valued parameter key is split into real/imaginary substitutions.
+        @test to_numeric(z * a, b; parameter = Dict(z => 2 + 3im)) ≈ (2 + 3im) * A
+
+        # Error paths.
+        @test_throws ArgumentError to_numeric(x * a, b)                         # symbolic, no value
+        @test_throws ArgumentError to_numeric(a, b; operators = Dict(x => A))   # non-QSym key
+        @test_throws ArgumentError to_numeric(
+            x * E * a, b; time_parameter = Dict(E => t -> 1.0 + 0im),
+        )                                                                       # untimed variable
+    end
+
 end

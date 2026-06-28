@@ -1,7 +1,7 @@
 module SecondQuantizedAlgebra
 
 using SymbolicUtils: SymbolicUtils, simplify, substitute, add_worker
-using Symbolics: Symbolics, Num, expand, @variables, build_function
+using Symbolics: Symbolics, Num, expand, @variables, build_function, symbolic_to_float
 using TermInterface: TermInterface
 
 # `CNum` (the coefficient type `Coeff`) is defined in `expressions/cnum.jl`.

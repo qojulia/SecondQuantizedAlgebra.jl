@@ -159,7 +159,7 @@ function _to_numeric_translated(
 
     op_ = substitute(op, parameter)
     if iszero(op_)
-        z = op_type(_to_complex(_CNUM_ZERO) * _numeric_one(b, operators))
+        z = op_type(_to_complex(_CNUM_ZERO) * _lazy_one(b))
         return t -> z
     end
 
@@ -207,7 +207,7 @@ function _to_numeric_translated(
         op_type,
     )
     arg_sub = substitute(arg, parameter)
-    one_b = _numeric_one(b, operators)
+    one_b = _lazy_one(b)
     c = _as_cnum(arg_sub)
 
     if isempty(time_parameter)
@@ -239,7 +239,7 @@ function _to_numeric_static(
         op_type,
     )
     op_ = substitute(op, parameter)
-    iszero(op_) && return op_type(_to_complex(_CNUM_ZERO) * _numeric_one(b, operators))
+    iszero(op_) && return op_type(_to_complex(_CNUM_ZERO) * _lazy_one(b))
 
     result = nothing
     for (term, c_) in op_
@@ -266,20 +266,13 @@ function _numeric_product(
         op_type,
     )
     if isempty(ops)
-        return op_type(_numeric_one(b, operators))
+        return op_type(_lazy_one(b))
     end
     acc = _to_numeric_with_ops(ops[1], b, operators)
     for i in 2:length(ops)
         acc *= _to_numeric_with_ops(ops[i], b, operators)
     end
     return op_type(acc)
-end
-
-function _numeric_one(b::QuantumOpticsBase.Basis, operators::AbstractDict)
-    if isempty(operators)
-        return _lazy_one(b)
-    end
-    return one(QuantumOpticsBase.basis(first(values(operators))))
 end
 
 function _numeric_operator_dict(operators, adjoint_ops::Bool)
@@ -613,11 +606,7 @@ function _reduce_const(n::Num)::ComplexF64
     end
 end
 
-function _compile_const(n::Num)::ComplexF64
-    f = build_function(n; expression = Val(false))
-    g = f isa Tuple ? first(f) : f
-    return ComplexF64(g())
-end
+_compile_const(n::Num)::ComplexF64 = ComplexF64(symbolic_to_float(n))
 
 function _fold_const(x)::ComplexF64
     x isa Number && return x
