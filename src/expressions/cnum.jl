@@ -4,7 +4,7 @@ const NATIVE = Native()
 
 """
 Coefficient representation for operator prefactors. A `Coeff` has three forms: a
-native `ComplexF64` (concrete numbers), a [`Poly`](@ref) parameter polynomial
+native `ComplexF64` (concrete numbers), a `Poly` parameter polynomial
 (products/sums of named parameters), and a `Complex{Num}` fallback. Native and
 polynomial arithmetic stay off SymbolicUtils, lowering to `Complex{Num}` only at
 the symbolic boundaries (`to_num`).
