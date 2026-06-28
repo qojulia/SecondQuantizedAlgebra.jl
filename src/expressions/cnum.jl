@@ -1,15 +1,14 @@
-"""
-Coefficient representation for operator prefactors. A `Coeff` has three forms: a
-native `ComplexF64` (concrete numbers), a [`Poly`](@ref) parameter polynomial
-(products/sums of named parameters), and a `Complex{Num}` fallback. Native and
-polynomial arithmetic stay off SymbolicUtils, lowering to `Complex{Num}` only at
-the symbolic boundaries (`to_num`).
-"""
-
 # Zero-size tag marking the native fast path (the value lives inline in `z`).
 struct Native end
 const NATIVE = Native()
 
+"""
+Coefficient representation for operator prefactors. A `Coeff` has three forms: a
+native `ComplexF64` (concrete numbers), a `Poly` parameter polynomial
+(products/sums of named parameters), and a `Complex{Num}` fallback. Native and
+polynomial arithmetic stay off SymbolicUtils, lowering to `Complex{Num}` only at
+the symbolic boundaries (`to_num`).
+"""
 struct Coeff
     z::ComplexF64
     tail::Union{Native, Poly, Complex{Num}}
@@ -339,8 +338,13 @@ Base.imag(c::Coeff) = _is_native(c) ? _num_from_float(imag(c.z)) : imag(to_num(c
     return (real(cn), imag(cn))
 end
 
-# Materialize the full `Complex{Num}`; the only place a coefficient lowers back to
-# Symbolics for symbolic boundaries (substitute / simplify / expand / printing).
+"""
+    to_num(c::Coeff) -> Complex{Num}
+
+Lower a stored [`Coeff`](@ref) to the public Symbolics representation used at
+package boundaries. This is the supported way to read the coefficient returned
+when iterating a [`QAdd`](@ref).
+"""
 function to_num(c::Coeff)
     t = c.tail
     t isa Native && return Complex(_num_from_float(real(c.z)), _num_from_float(imag(c.z)))

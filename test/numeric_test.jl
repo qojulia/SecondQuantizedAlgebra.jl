@@ -1,7 +1,8 @@
 using SecondQuantizedAlgebra
-import SecondQuantizedAlgebra: QAdd, QSym, _single_qadd, _to_cnum, _to_complex
+import SecondQuantizedAlgebra: QAdd, QSym, _single_qadd, _to_cnum, _to_complex, _fold_const
 using QuantumOpticsBase
 using Symbolics: @variables, substitute
+import SymbolicUtils
 using Test
 
 @testset "numeric conversion" begin
@@ -382,6 +383,199 @@ using Test
 
         # A bare complex coupling carries through (no conj): g·a → value·a.
         @test to_numeric(substitute(g * a, Dict(g => 2 + 3im)), b) ≈ (2 + 3im) * to_numeric(a, b)
+    end
+
+    @testset "Public coefficient lowering" begin
+        h = FockSpace(:c)
+        @qnumbers a::Destroy(h)
+        @variables x::Real
+
+        coeff = first(x * a).second
+        lowered = SecondQuantizedAlgebra.to_num(coeff)
+        @test isequal(real(lowered), x)
+        @test iszero(imag(lowered))
+    end
+
+    @testset "to_numeric keyword translation" begin
+        h = FockSpace(:c)
+        @qnumbers a::Destroy(h)
+        b = FockBasis(4)
+        A = destroy(b)
+        Ad = create(b)
+        @variables x::Real ϕ::Real E::Number
+
+        @test to_numeric(substitute(sqrt(x) * a, Dict(x => 2.0)), b) ≈ sqrt(2.0) * A
+        @test to_numeric(substitute(exp(im * ϕ) * a, Dict(ϕ => 0.5)), b) ≈ exp(0.5im) * A
+
+        @test to_numeric(sqrt(x) * a, b; parameter = Dict(x => 2.0)) ≈ sqrt(2.0) * A
+        @test to_numeric(exp(im * ϕ) * a, b; parameter = Dict(ϕ => 0.5)) ≈ exp(0.5im) * A
+
+        custom = 2 * A
+        @test to_numeric(a', b; operators = Dict(a => custom)) == custom'
+        @test to_numeric(a', b; operators = Dict(a => custom), adjoint_ops = false) == Ad
+        @test to_numeric([a, a'], b; operators = Dict(a => custom)) == [custom, custom']
+
+        f = to_numeric(E * a + conj(E) * a', b; time_parameter = Dict(E => t -> 1 + im * t))
+        @test f(0.5) ≈ (1 + 0.5im) * A + (1 - 0.5im) * Ad
+    end
+
+    @testset "keyword to_numeric on composite basis" begin
+        hf = FockSpace(:c) ⊗ FockSpace(:d)
+        a = Destroy(hf, :a, 1)
+        @variables Δ::Real
+        b = FockBasis(2) ⊗ FockBasis(3)
+        Ia = identityoperator(b)
+        an = to_numeric(a, b)
+
+        # Regression: a scalar/constant term must build the full-system identity, not
+        # the identity of a single subsystem (the `_lazy_one(b)` fix). Before, the
+        # `+ 5` term produced a wrongly-sized identity on a composite basis.
+        H = to_numeric(Δ * a' * a + 5, b; parameter = Dict(Δ => 2.0))
+        @test size(dense(H).data) == (length(b), length(b))
+        @test dense(H).data ≈ dense(2.0 * an' * an + 5 * Ia).data
+
+        # Custom operator on one subsystem; the constant term is still full-sized.
+        custom = 2 * an
+        H2 = to_numeric(a + 3, b; operators = Dict(a => custom))
+        @test dense(H2).data ≈ dense(custom + 3 * Ia).data
+
+        # A term that cancels to zero still yields a full-sized zero operator.
+        z = to_numeric(a - a, b)
+        @test size(dense(z).data) == (length(b), length(b))
+        @test dense(z).data ≈ zeros(length(b), length(b))
+
+        # Missing adjoint rule is auto-added for custom operators.
+        r = to_numeric(a', b; operators = Dict(a => custom))
+        @test dense(r).data ≈ dense(custom').data
+        r2 = to_numeric(a', b; operators = Dict(a => custom), adjoint_ops = false)
+        @test dense(r2).data ≈ dense(to_numeric(a', b)).data
+    end
+
+    @testset "time_parameter variants" begin
+        h = FockSpace(:c)
+        @qnumbers a::Destroy(h)
+        b = FockBasis(4)
+        A = destroy(b)
+        @variables E::Number
+
+        # A plain number value becomes a constant-in-time closure.
+        f0 = to_numeric(E * a, b; time_parameter = Dict(E => 3.0))
+        @test f0(0.0) ≈ 3.0 * A
+        @test f0(10.0) ≈ 3.0 * A
+
+        # A constant-coefficient term still returns a callable when time_parameter is set.
+        f1 = to_numeric(2.0 * a, b; time_parameter = Dict(E => t -> 1.0 + 0im))
+        @test f1(7.0) ≈ 2.0 * A
+
+        # `conj(v)` is accepted as a time_parameter key.
+        f2 = to_numeric(conj(E) * a, b; time_parameter = Dict(conj(E) => t -> 2 + im * t))
+        @test f2(1.0) ≈ (2 + 1im) * A
+    end
+
+    @testset "keyword to_numeric, scalar argument" begin
+        b = FockBasis(4)
+        Ib = one(b)
+        @variables x::Real E::Number
+
+        # Plain number scalar routes through the keyword path to a scaled identity.
+        @test to_numeric(3, b; parameter = Dict(x => 1.0)) == 3 * Ib
+        @test to_numeric(2.0 + 0im, b; parameter = Dict{Any, Any}()) == (2.0 + 0im) * Ib
+
+        # A symbolic scalar resolved by `parameter` becomes a constant identity.
+        @test to_numeric(2 * x, b; parameter = Dict(x => 1.5)) ≈ 3.0 * Ib
+
+        # A symbolic scalar with no value cannot be translated.
+        @test_throws ArgumentError to_numeric(x, b)
+
+        # With `time_parameter`, a constant scalar yields a constant-in-time closure.
+        fconst = to_numeric(2.0, b; time_parameter = Dict(E => t -> 1.0 + 0im))
+        @test fconst(0.0) == 2.0 * Ib
+        @test fconst(9.0) == 2.0 * Ib
+
+        # A genuinely time-dependent scalar yields a time-varying closure.
+        ft = to_numeric(E, b; time_parameter = Dict(E => t -> 1 + im * t))
+        @test ft(0.0) ≈ (1 + 0im) * Ib
+        @test ft(2.0) ≈ (1 + 2im) * Ib
+    end
+
+    @testset "keyword to_numeric, state argument" begin
+        h = FockSpace(:c)
+        @qnumbers a::Destroy(h)
+        b = FockBasis(7)
+        α = 0.1 + 0.2im
+        ψ = coherentstate(b, α)
+        @variables Δ::Real
+
+        # The state form derives the basis from the state and forwards keywords.
+        op_state = to_numeric(Δ * a, ψ; parameter = Dict(Δ => 2.0))
+        @test op_state == 2.0 * destroy(b)
+    end
+
+    @testset "constant symbolic coefficient reduction" begin
+        h = FockSpace(:c)
+        @qnumbers a::Destroy(h)
+        b = FockBasis(3)
+        A = destroy(b)
+        @variables z::Number
+
+        # Coefficients that stay symbolic-but-constant (built from `real`/`imag`/`conj`,
+        # which are not folded into the native coefficient tier) are reduced to a
+        # concrete number when lowered for `to_numeric`. Each shape exercises a distinct
+        # arithmetic node in the constant folder.
+        c0 = 1.0 + 2.0im
+        cases = (
+            ("real", real(conj(z)), real(conj(c0))),
+            ("imag", imag(conj(z)), imag(conj(c0))),
+            ("conj", conj(real(z) + im * imag(z)), conj(c0)),
+            ("plus", real(z) + real(conj(z)), real(c0) + real(conj(c0))),
+            ("times", real(z) * real(conj(z)), real(c0) * real(conj(c0))),
+            ("div", real(z) / real(conj(z)), real(c0) / real(conj(c0))),
+            ("pow", real(z)^3, real(c0)^3),
+        )
+        for (label, coeff, expected) in cases
+            op = substitute(coeff * a, Dict(z => c0))
+            @test to_numeric(op, b) ≈ expected * A
+        end
+
+        # An unrecognized constant function (`sin`) is not handled by the folder and
+        # falls back to the compile-based reduction path.
+        op_sin = substitute(sin(z) * a, Dict(z => 0.5))
+        @test to_numeric(op_sin, b) ≈ sin(0.5) * A
+
+        # The folder also handles raw subtraction nodes. Symbolics canonicalizes
+        # subtraction and negation to `+`/`*`, so a literal `-` node never reaches
+        # the folder through normal arithmetic; build it directly to cover both arms.
+        neg_unary = SymbolicUtils.term(-, 5.0 + 0im; type = Number)
+        neg_binary = SymbolicUtils.term(-, 7.0 + 0im, 2.0 + 0im; type = Number)
+        @test _fold_const(neg_unary) == -(5.0 + 0im)
+        @test _fold_const(neg_binary) == (7.0 + 0im) - (2.0 + 0im)
+    end
+
+    @testset "keyword to_numeric: op_type, vector, complex params, errors" begin
+        h = FockSpace(:c)
+        @qnumbers a::Destroy(h)
+        b = FockBasis(4)
+        A = destroy(b)
+        Ad = create(b)
+        @variables x::Real z::Number E::Number
+
+        # op_type transforms each emitted operator.
+        Hd = to_numeric(2.0 * a' * a, b; op_type = dense)
+        @test Hd isa QuantumOpticsBase.Operator
+        @test Hd ≈ dense(2.0 * Ad * A)
+
+        # Vector form forwards keywords to each element.
+        @test to_numeric([a, a'], b; parameter = Dict(x => 1.0)) == [A, Ad]
+
+        # A complex-valued parameter key is split into real/imaginary substitutions.
+        @test to_numeric(z * a, b; parameter = Dict(z => 2 + 3im)) ≈ (2 + 3im) * A
+
+        # Error paths.
+        @test_throws ArgumentError to_numeric(x * a, b)                         # symbolic, no value
+        @test_throws ArgumentError to_numeric(a, b; operators = Dict(x => A))   # non-QSym key
+        @test_throws ArgumentError to_numeric(
+            x * E * a, b; time_parameter = Dict(E => t -> 1.0 + 0im),
+        )                                                                       # untimed variable
     end
 
 end
