@@ -4,13 +4,10 @@ using SymbolicUtils: SymbolicUtils, simplify, substitute, add_worker
 using Symbolics: Symbolics, Num, expand, @variables, build_function, symbolic_to_float
 using TermInterface: TermInterface
 
-# `CNum` (the coefficient type `Coeff`) is defined in `expressions/cnum.jl`.
-
-using QuantumOpticsBase: QuantumOpticsBase
-import QuantumOpticsBase: ⊗, tensor, expect
+import QuantumInterface: ⊗, tensor, expect, basis
+using QuantumInterface: AbstractOperator, StateVector, Basis
 
 using Combinatorics: with_replacement_combinations
-using FunctionWrappers: FunctionWrapper
 using Latexify: Latexify, latexify, @latexrecipe
 using PrecompileTools: @setup_workload, @compile_workload
 using SciMLPublic: @public
@@ -43,7 +40,12 @@ include("algebra/mutable_arithmetics.jl")
 include("algebra/weyl.jl")
 
 include("average.jl")
-include("numeric.jl")
+
+include("numeric/backend.jl")
+include("numeric/coeff.jl")
+include("numeric/core.jl")
+include("numeric/indexed.jl")
+include("numeric/api.jl")
 
 include("printing/printing.jl")
 include("printing/latexify_recipes.jl")
@@ -107,6 +109,9 @@ export FockSpace, ProductSpace,
     normal_order, normal_to_symmetric, symmetric_to_normal,
     simplify, expand, expand_completeness, assume_distinct_index, commutator, anticommutator,
     to_numeric, numeric_average,
+    QuantumOpticsBackend, QuantumToolboxBackend,
+    numeric_operator, numeric_basis, numeric_subbasis, numeric_embed,
+    numeric_identity, numeric_assemble, numeric_assemble_td, numeric_expect,
     qadjoint, qconj, dagger, inner_adjoint,
     Op, operator_name, is_destroy, is_create, is_transition, is_pauli, is_spin, is_position, is_momentum, optype
 
@@ -114,6 +119,7 @@ export FockSpace, ProductSpace,
 # Public API that is intentionally NOT exported — accessed as
 # `SecondQuantizedAlgebra.symbol`.
 @public HilbertSpace, QField, QSym, OpKind,
+    NumericBackend, NumericContext, expect,
     OP_DESTROY, OP_CREATE, OP_TRANSITION, OP_PAULI, OP_SPIN, OP_POSITION, OP_MOMENTUM,
     QAdd, QTerm, QTermDict, Coeff, CNum,
     has_sum_metadata, get_sum_indices, get_sum_non_equal,

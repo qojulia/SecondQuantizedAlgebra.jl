@@ -4,6 +4,33 @@ All notable changes to [`SecondQuantizedAlgebra.jl`](https://github.com/qojulia/
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+## [v0.10.0]
+
+Numeric conversion (`to_numeric`/`numeric_average`/`expect`) was redesigned to be extensible, type-stable, lazy, and multi-backend. This is a breaking release.
+
+### Added
+
+- A second numeric backend, [QuantumToolbox.jl](https://github.com/qutip/QuantumToolbox.jl), alongside QuantumOpticsBase.jl. Both are wired in through Julia package extensions and selected with the backend singletons `QuantumOpticsBackend()` / `QuantumToolboxBackend()`.
+- A uniform Hilbert-space entry point `to_numeric(op, h::HilbertSpace, dims; backend, parameter, time_parameter, operators, adjoint_ops)`. It builds the backend basis from `dims` (Fock cutoff / spin number) and is the only form that works for both backends. The backend defaults to the single loaded one.
+- Open extension hooks `numeric_operator`, `numeric_basis`, `numeric_subbasis`, `numeric_embed`, `numeric_identity`, `numeric_assemble`, `numeric_assemble_td`, `numeric_expect` are exported. Downstream packages add methods to support custom operator roles or backends without editing this package.
+
+### Changed (breaking)
+
+- `to_numeric` of a `QAdd` (any sum or product) now returns a **lazy** operator: a vector-backed `LazySum` on QuantumOptics, a `QobjEvo` over a vector-backed `VecSum` on QuantumToolbox. The type is one concrete type for any number of terms, so `to_numeric`/`numeric_average` stay `@inferred`-stable. A single operator still returns the bare eager matrix. Materialize a lazy result with `dense`/`sparse` (QuantumOptics) or `QuantumToolbox.sparse`/`SciMLOperators.concretize` (QuantumToolbox). Tests that compared `to_numeric(a'*a, b)` against an eager matrix must materialize first.
+- The time-dependent form (`time_parameter` non-empty) returns the backend's **native** time-dependent operator: a `TimeDependentSum` (QuantumOptics) or a `QobjEvo` (QuantumToolbox), both callable at a time (`H(t)` / `H(p, t)`) and directly consumable by `mesolve`/`master_dynamic`/`sesolve`. It is no longer a `t -> op(t)` closure.
+- `QuantumOpticsBase` moved from a hard dependency to a weak dependency. Using the numeric API now requires loading a backend: add `using QuantumOpticsBase` (or `using QuantumToolbox`) next to `using SecondQuantizedAlgebra`. The lightweight `QuantumInterface.jl` is a new hard dependency (it owns the `⊗`/`tensor`/`expect`/`basis` generics that the algebra extends).
+
+### Removed (breaking)
+
+- The `op_type` keyword of `to_numeric` is gone. The result is lazy by default; call `dense`/`sparse` (or `concretize`) on it instead of passing `op_type=dense`/`sparse`.
+- The per-basis leaf methods `to_numeric(op::Op, b::FockBasis)` (and the `NLevelBasis`/`SpinBasis` variants) are gone. Custom backends implement `numeric_operator` instead.
+- The `FunctionWrappers.jl` dependency was dropped (the time-dependent path no longer wraps closures).
+
+### Notes
+
+- `expect`/`numeric_average` and `sesolve`/`schroedinger` are unaffected by laziness: they apply `H` to the state directly. Only `mesolve` and other superoperator solvers pay a cost, because QuantumToolbox builds the Liouvillian by tensoring `H` with identity, which a lazy `H` makes lazy (the "lazy tensor can hurt performance" warning). For fast `mesolve` on small or medium systems, concretize `H` first (`QuantumToolbox.sparse(H)` / `dense(H)`); keep it lazy only when materializing the Liouvillian is itself the problem.
+- A user doing `using SecondQuantizedAlgebra, QuantumToolbox` has two `⊗`/`tensor`/`expect` in scope (QuantumInterface's and QuantumToolbox's) and must qualify them; importing QuantumToolbox as `import QuantumToolbox as QTB` avoids the clash.
+
 ## [v0.9.0]
 
 ### Added

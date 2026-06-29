@@ -107,7 +107,7 @@ A sixth, defaulted hook supports the reduce pass: `_may_reduce(a, b)::Bool` answ
 
 **Site families inside `_site_compare`.** Cross-role comparison is family-scoped: Fock `{Destroy, Create}` and PhaseSpace `{Position, Momentum}` compare within their family (PhaseSpace ignores the operator name, treating x and p as conjugate variables on one site); the other roles are singleton families. Pairs in different families fall back to the `kind` integer order (`OP_DESTROY=0 < … < OP_MOMENTUM=6`), which is exactly the old `_type_order`.
 
-**Adding an operator role.** Add an `OP_*` enum arm, a constructor function and an `is_*` predicate, then a branch in each of the six hooks plus `adjoint`, `order_key`, `to_numeric`, and the printing/Latexify methods. The hooks are written so a future open-extension escape hatch (an `OP_CUSTOM` arm carrying a payload) could be slotted in without reshaping them; a `Union{Nothing,QSym}` payload field is deliberately *not* added now because it would fail the `CheckConcreteStructs` (`all_concrete`) gate.
+**Adding an operator role.** Add an `OP_*` enum arm, a constructor function and an `is_*` predicate, then a branch in each of the six hooks plus `adjoint`, `order_key`, the `numeric_operator` arm in each backend extension (`ext/`), and the printing/Latexify methods. The hooks are written so a future open-extension escape hatch (an `OP_CUSTOM` arm carrying a payload) could be slotted in without reshaping them; a `Union{Nothing,QSym}` payload field is deliberately *not* added now because it would fail the `CheckConcreteStructs` (`all_concrete`) gate.
 
 
 ## Hilbert spaces
@@ -378,20 +378,73 @@ The scope rides as a `SumScope` *argument* of the `Term`, not as metadata, becau
 
 ## Numeric conversion
 
-`to_numeric` maps symbolic operators to QuantumOpticsBase matrices:
+`to_numeric`/`numeric_average` are a layered, open-via-dispatch, multi-backend design. The
+backend-neutral core lives in `src/numeric/` and never names a concrete numeric type; the
+two backends (QuantumOpticsBase, QuantumToolbox) are Julia package extensions in `ext/`. The
+algebra itself depends only on the lightweight `QuantumInterface.jl` (it owns the
+`⊗`/`tensor`/`expect`/`basis` generics the symbolic side extends), so building Hilbert
+spaces and operators needs no numeric backend loaded.
 
-- **Simple basis:** Direct dispatch — `Destroy → destroy(b)`, `Transition → transition(b, i, j)`, etc.
-- **Composite basis:** Embeds the single-site matrix as a `LazyTensor`:
-  ```julia
-  op_num = to_numeric(op, b.bases[idx])
-  LazyTensor(b, [idx], (op_num,))
-  ```
+**Backends and hooks.** A backend is a zero-field singleton (`QuantumOpticsBackend`,
+`QuantumToolboxBackend`) so dispatch is static. The core talks to a backend only through the
+open generic hooks declared in `src/numeric/backend.jl` and defined per backend in `ext/`:
+`numeric_operator` (operator role to matrix), `numeric_basis` (Hilbert space + user `dims`
+to a backend basis), `numeric_subbasis`, `numeric_embed`, `numeric_identity`,
+`numeric_assemble` (static), `numeric_assemble_td` (time-dependent), and `numeric_expect`.
+`numeric_operator` is a closed `k === OP_*` value-branch on `op.kind` per backend with an
+open `Val(op.kind)` fallthrough (a separate throwing `numeric_operator(be, ::Val{K}, …)`
+method) so a downstream custom role can add a method without editing the package. The hooks
+are exported, which is the supported extension surface.
 
-**`_to_number`** extracts plain Julia numbers from `Num`/`CNum` wrappers for numeric evaluation. Falls back to the symbolic value if it can't be unwrapped (for symbolic prefactors that haven't been substituted yet).
+**One backend-neutral core.** `NumericContext` bundles the backend singleton, the opaque
+basis, the operator/scalar substitution dicts, and the indexed `sites` map, with all fields
+concrete via type parameters. `_to_numeric_static` walks the canonical `QAdd` into a
+backend-neutral term list (`(c::ComplexF64, factors)`) and hands it to `numeric_assemble`;
+the core does no operator arithmetic. The kept coefficient machinery (`_to_complex` and its
+`_reduce_const`/`_fold_const` constant folder, the `_expand_parameter`/`_time_basis`
+splitting) is in `src/numeric/coeff.jl`. The `_to_complex(::Any)::ComplexF64` keystone stays
+exactly two methods (a third trips Julia's union-split budget; a test pins this).
 
-**`_reduce_const`** reduces a fully-substituted coefficient part to a number. `Symbolics.value` handles numeric constants directly, but a part it leaves symbolic (for example `conj` of a complex literal, which SymbolicUtils does not fold) is compiled with `build_function` and evaluated. Because a `Number`-symtype parameter is held opaquely in the real slot, that real part can itself reduce to a `Complex`, so `_to_complex` recombines as `_reduce_const(real(x)) + im * _reduce_const(imag(x))` rather than `Complex(re, im)`.
+**Lazy and type-stable.** A single operator returns the bare eager matrix (so per-leaf uses
+stay simple), but a `QAdd` (any sum or product) returns a lazy operator. The key constraint
+is that a lazy sum's type must not depend on the runtime term count, and must be
+inference-stable so `@inferred(to_numeric(...))` holds. QuantumOptics uses the native
+vector-backed `LazySum`, constructed with the **5-argument** form
+`LazySum(ComplexF64, b, b, coeffs, ops)`: passing the concrete basis pins the basis type
+parameters, which the 2-argument `LazySum(coeffs, ops)` leaves abstract (runtime-`n`-stable
+but not `@inferred`-stable). QuantumToolbox's built-in `AddedOperator` is type-locked to a
+`Tuple`, so the QTB extension defines a small vector-backed `VecSum <:
+SciMLOperators.AbstractSciMLOperator` (abstract-eltype `Vector` fields, exactly like
+`LazySum`'s `Vector{AbstractOperator}`) wrapped in a `QobjEvo`; the result is one concrete
+`QobjEvo{Operator, Dims, VecSum{ComplexF64}}` for any term count and for static or
+time-dependent coefficients. Within a term, QuantumOptics embeds lazily (`LazyTensor`/
+`LazyProduct`) while QuantumToolbox embeds eagerly (a plain concrete `tensor`, because it
+warns on lazy tensors); the laziness lives only at the sum level on both backends.
+Materialize on demand with `dense`/`sparse` (QuantumOptics) or `sparse`/`concretize`
+(QuantumToolbox).
 
-**`_lazy_one`** creates the identity operator. For simple bases it returns `one(b)` (dense identity). For composite bases it returns a `LazyTensor` identity rather than materializing the full Kronecker-product identity matrix.
+**Time-dependent.** When `time_parameter` is non-empty the per-term coefficient becomes a
+`t -> ComplexF64` closure and `numeric_assemble_td` builds the backend's native
+time-dependent operator (`TimeDependentSum` / a `QobjEvo` whose `VecSum` coefficients are
+`ScalarOperator`s carrying the update function). These are callable at a time and feed
+ODE/SciML solvers directly, replacing the old `t -> op(t)` closure return.
+
+**Indexed path.** `src/numeric/indexed.jl` keeps the bound-index unroll (dependent-index
+detection, the `ne` diagonal filter, the `sub_op`/`sub_coef` dual substitution) verbatim,
+but routes each unrolled combination through the same hooks at the resolved site, so it emits
+entries of the same term list the static path assembles and gains the QTB backend for free.
+
+**QuantumObject 0-indexing.** QuantumToolbox is 0-indexed, so `Transition(i, j)` (SQA levels
+are 1-indexed, matching QuantumOptics) maps to `projection(N, i-1, j-1)` in the QTB
+extension.
+
+**Solver cost of laziness.** `expect`/`numeric_average` and `sesolve`/`schroedinger` apply
+`H` to the state directly and are unaffected. Only `mesolve` and other superoperator solvers
+pay a cost: QuantumToolbox builds the Liouvillian by tensoring `H` with identity, which a
+lazy `H` makes lazy (the "lazy tensor can hurt performance" warning). For fast `mesolve` on
+small or medium systems, concretize `H` first; keep it lazy only when materializing the
+Liouvillian is itself the bottleneck. The custom `VecSum` therefore implements `transpose`/
+`adjoint` returning a `VecSum` (not a wrapper), which the Liouvillian construction needs.
 
 
 ## Hermitian conjugation (operators.jl)
