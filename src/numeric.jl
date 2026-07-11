@@ -6,10 +6,18 @@ const _NO_SUBS = Dict{QSym, Union{}}()
 """
     to_numeric(op, basis [, d::AbstractDict{<:QSym}])
     to_numeric(op, state [, d::AbstractDict{<:QSym}])
+    to_numeric(op, basis; parameter=Dict(), time_parameter=Dict(), operators=Dict(),
+               adjoint_ops=true, op_type=identity)
+    to_numeric(ops::AbstractVector, basis; kwargs...)
 
 Convert a symbolic operator expression to a numeric QuantumOpticsBase operator.
 `d` substitutes individual `QSym`s with custom numeric operators. Throws
 `ArgumentError` if any prefactor cannot be reduced to a concrete `ComplexF64`.
+
+The keyword form first substitutes scalar `parameter`s, then translates using
+custom numeric `operators`. Missing adjoint entries are added to `operators`
+when `adjoint_ops=true`. If `time_parameter` is non-empty, values may be numbers
+or functions of time and the result is a closure `t -> op(t)`.
 
 # Examples
 
@@ -29,6 +37,22 @@ true
 See also [`numeric_average`](@ref).
 """
 function to_numeric end
+
+function to_numeric(op::QField, b::QuantumOpticsBase.Basis; kwargs...)
+    return _to_numeric_kw(op, b; kwargs...)
+end
+
+function to_numeric(x::Union{Number, SymbolicUtils.BasicSymbolic}, b::QuantumOpticsBase.Basis; kwargs...)
+    return _to_numeric_kw(x, b; kwargs...)
+end
+
+function to_numeric(op, state::QuantumState; kwargs...)
+    return to_numeric(op, QuantumOpticsBase.basis(state); kwargs...)
+end
+
+function to_numeric(ops::AbstractVector, b::QuantumOpticsBase.Basis; kwargs...)
+    return [to_numeric(op, b; kwargs...) for op in ops]
+end
 
 # Per-basis kind-chain on the single concrete `Op`.
 function to_numeric(op::Op, b::QuantumOpticsBase.FockBasis)
@@ -88,6 +112,297 @@ function _product(ops::Vector{Op}, b::QuantumOpticsBase.Basis, d::AbstractDict{<
         acc *= to_numeric(ops[i], b, d)
     end
     return acc
+end
+
+function _to_numeric_kw(
+        op,
+        b::QuantumOpticsBase.Basis;
+        parameter = Dict(),
+        time_parameter = Dict(),
+        operators = Dict{QSym, Any}(),
+        adjoint_ops = true,
+        op_type = identity,
+    )
+    param = _expand_parameter(parameter)
+    tp = _normalize_time_parameter(time_parameter)
+    ops = _numeric_operator_dict(operators, adjoint_ops)
+    return _to_numeric_translated(
+        op, b; parameter = param, time_parameter = tp, operators = ops, op_type,
+    )
+end
+
+function _to_numeric_translated(
+        op::QSym,
+        b::QuantumOpticsBase.Basis;
+        parameter,
+        time_parameter,
+        operators,
+        op_type,
+    )
+    return _to_numeric_translated(
+        _single_qadd(_CNUM_ONE, Op[op]), b;
+        parameter, time_parameter, operators, op_type,
+    )
+end
+
+function _to_numeric_translated(
+        op::QAdd,
+        b::QuantumOpticsBase.Basis;
+        parameter,
+        time_parameter,
+        operators,
+        op_type,
+    )
+    if isempty(time_parameter)
+        return _to_numeric_static(op, b; parameter, operators, op_type)
+    end
+
+    op_ = substitute(op, parameter)
+    if iszero(op_)
+        z = op_type(_to_complex(_CNUM_ZERO) * _lazy_one(b))
+        return t -> z
+    end
+
+    pairs = collect(op_)
+    if length(pairs) == 1
+        term, c = pairs[1]
+        return _translate_term(
+            term.ops, to_num(c), b, time_parameter, operators, op_type,
+        )
+    end
+
+    # Use a concrete operator representation for every term so the tuple of
+    # wrapped closures has one return type, even for scalar-plus-operator sums.
+    term_op_type = op_type === identity ? QuantumOpticsBase.sparse : op_type
+    first_res = _translate_term(
+        pairs[1].first.ops, to_num(pairs[1].second), b,
+        time_parameter, operators, term_op_type,
+    )
+    OpType = typeof(first_res(0.0))
+    FW = FunctionWrapper{OpType, Tuple{Float64}}
+    wrapped = ntuple(length(pairs)) do k
+        res = k == 1 ? first_res : _translate_term(
+                pairs[k].first.ops, to_num(pairs[k].second), b,
+                time_parameter, operators, term_op_type,
+            )
+        FW(res)
+    end
+
+    return t -> begin
+        tt = Float64(t)
+        result = wrapped[1](tt)
+        for i in 2:length(wrapped)
+            result = result + wrapped[i](tt)
+        end
+        result
+    end
+end
+
+function _to_numeric_translated(
+        arg,
+        b::QuantumOpticsBase.Basis;
+        parameter,
+        time_parameter,
+        operators,
+        op_type,
+    )
+    arg_sub = substitute(arg, parameter)
+    one_b = _lazy_one(b)
+    c = _as_cnum(arg_sub)
+
+    if isempty(time_parameter)
+        _coeff_is_const(c) || throw(
+            ArgumentError(
+                "cannot translate symbolic scalar `$arg_sub` without a value: supply it via " *
+                    "`parameter` or `time_parameter`.",
+            ),
+        )
+        return op_type(_const_coeff(c) * one_b)
+    end
+
+    if _coeff_is_const(c)
+        val = _const_coeff(c)
+        op = op_type(val * one_b)
+        return t -> op
+    end
+    basevars, valuefuncs = _time_basis(time_parameter)
+    _check_time_variables(c, basevars)
+    pref = _compile_coeff(c, basevars...)
+    return t -> op_type(pref(map(f -> f(t), valuefuncs)...) * one_b)
+end
+
+function _to_numeric_static(
+        op::QAdd,
+        b::QuantumOpticsBase.Basis;
+        parameter,
+        operators,
+        op_type,
+    )
+    op_ = substitute(op, parameter)
+    iszero(op_) && return op_type(_to_complex(_CNUM_ZERO) * _lazy_one(b))
+
+    result = nothing
+    for (term, c_) in op_
+        c = to_num(c_)
+        _coeff_is_const(c) || throw(
+            ArgumentError(
+                "cannot translate `$op` to a static operator: coefficient `$c` still " *
+                    "depends on a free variable; supply it via `parameter` or `time_parameter`.",
+            ),
+        )
+        contrib = _const_coeff(c) * _numeric_product(term.ops, b, operators, identity)
+        result = result === nothing ? contrib : result + contrib
+    end
+    return op_type(result)
+end
+
+_to_numeric_with_ops(op, b::QuantumOpticsBase.Basis, operators::AbstractDict{<:QSym}) =
+    isempty(operators) ? to_numeric(op, b) : to_numeric(op, b, operators)
+
+function _numeric_product(
+        ops::Vector{Op},
+        b::QuantumOpticsBase.Basis,
+        operators::AbstractDict{<:QSym},
+        op_type,
+    )
+    if isempty(ops)
+        return op_type(_lazy_one(b))
+    end
+    acc = _to_numeric_with_ops(ops[1], b, operators)
+    for i in 2:length(ops)
+        acc *= _to_numeric_with_ops(ops[i], b, operators)
+    end
+    return op_type(acc)
+end
+
+function _numeric_operator_dict(operators, adjoint_ops::Bool)
+    out = Dict{QSym, Any}()
+    for (k, v) in operators
+        k isa QSym || throw(ArgumentError("operator substitution key `$k` is not a QSym"))
+        out[k] = v
+    end
+    if adjoint_ops
+        for (k, v) in operators
+            k isa QSym || continue
+            k_adj = Base.adjoint(k)
+            haskey(out, k_adj) || (out[k_adj] = Base.adjoint(v))
+        end
+    end
+    return out
+end
+
+function _expand_parameter(parameter)
+    isempty(parameter) && return parameter
+    out = Dict{Any, Any}()
+    for (k, v) in parameter
+        if k isa Complex
+            out[real(k)] = real(v)
+            ik = imag(k)
+            SymbolicUtils.unwrap(ik) isa Number || (out[ik] = imag(v))
+        else
+            out[k] = v
+        end
+    end
+    return out
+end
+
+function _normalize_time_parameter(time_parameter)
+    isempty(time_parameter) && return time_parameter
+    out = Dict{Any, Any}()
+    for (k, v) in time_parameter
+        out[k] = v isa Number ? (t -> v) : v
+    end
+    return out
+end
+
+function _time_basis(time_parameter)
+    basevars = Any[]
+    valuefuncs = Any[]
+    for (k, f) in time_parameter
+        uk = SymbolicUtils.unwrap(k)
+        if SymbolicUtils.issym(uk)
+            push!(basevars, k)
+            push!(valuefuncs, f)
+            continue
+        end
+        vs = collect(Symbolics.get_variables(k))
+        length(vs) == 1 || throw(
+            ArgumentError(
+                "time_parameter key `$k` must depend on exactly one variable, got $(length(vs)).",
+            ),
+        )
+        wv = Symbolics.wrap(vs[1])
+        if isequal(uk, SymbolicUtils.unwrap(conj(wv)))
+            push!(basevars, wv)
+            push!(valuefuncs, t -> conj(f(t)))
+        else
+            throw(
+                ArgumentError(
+                    "unsupported time_parameter key `$k`; only a bare variable `v` or `conj(v)` are supported.",
+                ),
+            )
+        end
+    end
+    return basevars, Tuple(valuefuncs)
+end
+
+_coeff_is_const(c::Complex{Num}) =
+    isempty(Symbolics.get_variables(real(c))) && isempty(Symbolics.get_variables(imag(c)))
+
+_const_coeff(c::Complex{Num}) = _to_complex(c)
+
+_as_cnum(x::Complex) = Complex{Num}(Num(real(x)), Num(imag(x)))
+_as_cnum(x) = Complex{Num}(Num(x), Num(false))
+
+function _coefficient_variables(c::Complex{Num})
+    vars = Any[]
+    append!(vars, Symbolics.get_variables(real(c)))
+    append!(vars, Symbolics.get_variables(imag(c)))
+    unique!(vars)
+    return vars
+end
+
+function _check_time_variables(c::Complex{Num}, basevars)
+    vars = _coefficient_variables(c)
+    base_unwrapped = SymbolicUtils.unwrap.(basevars)
+    missing = Any[]
+    for v in vars
+        any(b -> isequal(v, b), base_unwrapped) || push!(missing, v)
+    end
+    isempty(missing) && return nothing
+    throw(
+        ArgumentError(
+            "time-dependent coefficient `$c` depends on variables without time values: " *
+                join(string.(missing), ", "),
+        ),
+    )
+end
+
+function _compile_coeff(c::Complex{Num}, vars...)
+    f_re = build_function(real(c), vars...; expression = Val(false))
+    f_im = build_function(imag(c), vars...; expression = Val(false))
+    g_re = f_re isa Tuple ? first(f_re) : f_re
+    g_im = f_im isa Tuple ? first(f_im) : f_im
+    return (vals...) -> g_re(vals...) + im * g_im(vals...)
+end
+
+function _translate_term(
+        ops::Vector{Op},
+        c::Complex{Num},
+        b::QuantumOpticsBase.Basis,
+        time_parameter,
+        operators,
+        op_type,
+    )
+    prodop = _numeric_product(ops, b, operators, op_type)
+    if _coeff_is_const(c)
+        op = _const_coeff(c) * prodop
+        return t -> op
+    end
+    basevars, valuefuncs = _time_basis(time_parameter)
+    _check_time_variables(c, basevars)
+    pref = _compile_coeff(c, basevars...)
+    return t -> pref(map(f -> f(t), valuefuncs)...) * prodop
 end
 
 const _NO_SCALAR_SUBS = Dict{Num, Any}()
@@ -280,7 +595,18 @@ to_numeric(x::Number, state::QuantumState) = to_numeric(x, QuantumOpticsBase.bas
 _lazy_one(b::QuantumOpticsBase.Basis) = one(b)
 _lazy_one(b::QuantumOpticsBase.CompositeBasis) = QuantumOpticsBase.LazyTensor(b, collect(1:length(b.bases)), Tuple(one(bi) for bi in b.bases))
 
-_reduce_const(n::Num)::ComplexF64 = _fold_const(Symbolics.value(n))
+function _reduce_const(n::Num)::ComplexF64
+    x = Symbolics.value(n)
+    try
+        return _fold_const(x)
+    catch err
+        err isa ArgumentError || rethrow()
+        isempty(Symbolics.get_variables(n)) || rethrow()
+        return _compile_const(n)
+    end
+end
+
+_compile_const(n::Num)::ComplexF64 = ComplexF64(symbolic_to_float(n))
 
 function _fold_const(x)::ComplexF64
     x isa Number && return x

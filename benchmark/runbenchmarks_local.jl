@@ -18,14 +18,21 @@ const SUITE = BenchmarkGroup()
 include("commutator.jl")
 include("simplify_and_normal_order.jl")
 include("indexing.jl")
+include("accumulation.jl")
 
 benchmark_commutator!(SUITE)
 benchmark_simplify_and_normal_order!(SUITE)
 benchmark_indexing!(SUITE)
+benchmark_accumulation!(SUITE)
+
+# Match the CI tuning so local numbers are comparable: a wide sample pool plus
+# the `minimum` estimator (robust to the one-sided noise that always slows, but
+# never speeds, a measurement).
+BenchmarkTools.DEFAULT_PARAMETERS.samples = 10000
 
 BenchmarkTools.tune!(SUITE)
 results = BenchmarkTools.run(SUITE; verbose = true)
-medians = median(results)
+estimates = minimum(results)
 
 # ── Save results ─────────────────────────────────────────────────────────────
 
@@ -36,7 +43,7 @@ cpu_name = replace(Sys.cpu_info()[1].model, r"[^a-zA-Z0-9]" => "_")
 timestamp = Dates.format(now(), "yyyy-mm-dd_HHMMSS")
 filename = joinpath(datadir, "benchmark_$(cpu_name)_$(timestamp).json")
 
-BenchmarkTools.save(filename, medians)
+BenchmarkTools.save(filename, estimates)
 
 println("\nResults saved to: ", filename)
 

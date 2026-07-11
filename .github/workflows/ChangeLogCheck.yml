@@ -1,5 +1,8 @@
-# Enforces the update of the file Changelog.md on every pull request
-# Can be skipped with the `Skip ChangeLog` label
+# Enforces the update of the file Changelog.md on pull requests that change
+# user-facing code. PRs that only touch CI, docs, tests or benchmarks do not
+# need a changelog entry, so the enforcer is skipped for them (the job still
+# runs and passes, so it stays safe as a required status check).
+# Can also be skipped explicitly with the `Skip ChangeLog` label.
 name: ChangeLog Update Check
 on:
   pull_request:
@@ -10,23 +13,40 @@ jobs:
     runs-on: ubuntu-latest
     if: ${{ !github.event.pull_request.draft }}
     steps:
-      # check whether Changelog.md is updated
+      # Detect what kind of files this PR touches.
+      - uses: dorny/paths-filter@v4
+        id: changes
+        with:
+          filters: |
+            user_facing:
+              - 'src/**'
+              - 'ext/**'
+              - 'Project.toml'
+            changelog:
+              - 'Changelog.md'
+
+      # Require a changelog entry only when user-facing code changed.
       - uses: dangoslen/changelog-enforcer@v3
+        if: ${{ steps.changes.outputs.user_facing == 'true' }}
         with:
           changeLogPath: 'Changelog.md'
           skipLabels: 'Skip ChangeLog'
 
-      # check whether the format of Changelog.md is correct
-      - uses: actions/checkout@v6
+      # Only validate formatting when Changelog.md itself was modified.
+      - uses: actions/checkout@v7
+        if: ${{ steps.changes.outputs.changelog == 'true' }}
       - uses: julia-actions/setup-julia@v3
+        if: ${{ steps.changes.outputs.changelog == 'true' }}
         with:
           version: '1'
       - name: Install and Run Changelog
+        if: ${{ steps.changes.outputs.changelog == 'true' }}
         run: |
           julia -e 'import Pkg; Pkg.add("Changelog")'
           julia -e 'using Changelog; Changelog.generate(Changelog.CommonMark(), "Changelog.md"; repo = "qojulia/SecondQuantizedAlgebra.jl")'
 
       - name: Changelog Format Check
+        if: ${{ steps.changes.outputs.changelog == 'true' }}
         run: |
           julia -e '
             output = Cmd(`git diff --name-only`) |> read |> String

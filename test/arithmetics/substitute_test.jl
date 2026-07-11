@@ -15,7 +15,8 @@ import SecondQuantizedAlgebra: substitute, QAdd, QSym, CNum, _CNUM_ONE, _to_cnum
 
     @testset "QSym substitution" begin
         @test isequal(substitute(a, Dict(a => a')), 1 * a')
-        @test isequal(substitute(a, Dict(a' => a)), 1 * a)  # no match, unchanged
+        @test isequal(substitute(a, Dict(a' => a)), 1 * a')
+        @test isequal(substitute(a, Dict(a' => a); replace_adjoint = false), 1 * a)
     end
 
     @testset "QAdd — symbolic variable substitution" begin
@@ -35,6 +36,17 @@ import SecondQuantizedAlgebra: substitute, QAdd, QSym, CNum, _CNUM_ONE, _to_cnum
 
     @testset "QAdd substitution" begin
         @test isequal(substitute(x * (a + a'), Dict(x => y)), y * (a + a'))
+    end
+
+    @testset "conj coefficient folds on substitution (regression #7cc3ad7)" begin
+        # Adjoint of a complex-coupled term carries a `conj(gc)` coefficient.
+        # Substituting the coupling to a constant must let that `conj` fold:
+        # `conj(gc => 0)` collapses the term to zero (no dead surviving term),
+        # `conj(gc => 2)` reaches the value rather than nesting an unfoldable conj.
+        @variables gc::Number
+        expr = (gc * a)'                       # conj(gc) * a'
+        @test iszero(substitute(expr, Dict(gc => 0)))
+        @test isequal(substitute(expr, Dict(gc => 2)), 2 * a')
     end
 
     @testset "Composite space" begin
@@ -59,5 +71,37 @@ import SecondQuantizedAlgebra: substitute, QAdd, QSym, CNum, _CNUM_ONE, _to_cnum
         result2 = substitute(yop * zop, Dict(yop => xop + zop))
         expected2 = xop * zop + zop * zop
         @test isequal(SecondQuantizedAlgebra.simplify(result2), SecondQuantizedAlgebra.simplify(expected2))
+    end
+
+    @testset "operator substitution is one-level" begin
+        hpf = FockSpace(:p) ⊗ FockSpace(:q) ⊗ FockSpace(:r)
+        a1 = Destroy(hpf, :a, 1)
+        a2 = Destroy(hpf, :a, 2)
+        a3 = Destroy(hpf, :a, 3)
+        @variables g2::Real g3::Real
+
+        replacement = g2 * a1 + g3 * a3
+        @test isequal(
+            simplify(substitute(a1, Dict(a1 => replacement))),
+            simplify(replacement),
+        )
+
+        result = substitute(a1 * a2, Dict(a1 => g2 * a2 + g3 * a3))
+        expected = (g2 * a2 + g3 * a3) * a2
+        @test isequal(simplify(result), simplify(expected))
+
+        @test isequal(
+            simplify(substitute(a1', Dict(a1 => g2 * a2))),
+            simplify(g2 * a2'),
+        )
+        @test isequal(substitute(a1', Dict(a1 => g2 * a2); replace_adjoint = false), 1 * a1')
+
+        mixed = substitute(g2 * a1, Dict(a1 => 1, g2 => 2.0))
+        @test length(mixed) == 1
+        @test isempty(operators(mixed))
+        @test prefactor(mixed) == 2.0
+
+        scalar_in_replacement = substitute(a1, Dict(a1 => g2 * a2, g2 => 2.0))
+        @test isequal(simplify(scalar_in_replacement), simplify(2.0 * a2))
     end
 end

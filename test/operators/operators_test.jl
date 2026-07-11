@@ -296,6 +296,14 @@ import SecondQuantizedAlgebra: QAdd, QSym, QField, AvgFunc, _average, _conj_cnum
         # Number variable gives conj and distributes
         @test isequal(qadjoint(N), conj(N))
         @test isequal(qadjoint(3 * N), 3 * conj(N))
+
+        # regression #7cc3ad7: adjoint of a scalar `conj(x)` folds back to `x`
+        # rather than nesting into `conj(conj(x))`, which never simplifies and
+        # survives downstream (e.g. leaving dead time-dependent terms after a
+        # coupling is substituted to 0). qadjoint is therefore an involution here.
+        @test isequal(qadjoint(conj(N)), N)
+        @test isequal(qadjoint(qadjoint(N)), N)
+        @test isequal(qadjoint(qadjoint(3 * N)), 3 * N)
     end
 
     @testset "qadjoint/inner_adjoint reach BasicSymbolic recursion" begin

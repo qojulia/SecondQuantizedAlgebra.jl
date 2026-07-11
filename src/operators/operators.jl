@@ -202,6 +202,11 @@ function qadjoint(v::SymbolicUtils.BasicSymbolic)
     v === Symbolics.IM && return -Symbolics.IM
     if SymbolicUtils.iscall(v)
         f = SymbolicUtils.operation(v)
+        # adjoint of a scalar `conj(x)` is `x`; fold rather than nesting into
+        # `conj(conj(x))`, which does not simplify and survives downstream (e.g.
+        # leaving dead time-dependent terms after a coupling is substituted to 0).
+        # Mirrors the `f === conj` case already handled in `inner_adjoint`.
+        f === conj && return SymbolicUtils.arguments(v)[1]
         args = map(qadjoint, SymbolicUtils.arguments(v))
         return TermInterface.maketerm(typeof(v), f, args, TermInterface.metadata(v))
     else
@@ -282,11 +287,13 @@ _type_order(o::Op) = Int(o.kind)
     order_key(op::Op) -> Tuple
 
 Total, identity-faithful ordering key: a comparable tuple that orders operators
-reproducibly and ties two exactly when they are `isequal`. The leading `kind`
-value gives the cross-family order; the packed `l1..nlev` fields keep distinct
-levels/axes distinct.
+reproducibly and ties two exactly when they are `isequal`. The leading
+`space_index` groups operators by subspace; `kind` orders across families within
+a subspace; the packed `l1..nlev` fields keep distinct levels/axes distinct.
 """
-order_key(o::Op) = (Int(o.kind), o.space_index, _name_rank(o.name_id), _index_key(o.index), Int(o.l1), Int(o.l2), Int(o.g), Int(o.nlev))
+order_key(o::Op) = (o.space_index, Int(o.kind), _name_rank(o.name_id), _index_key(o.index), Int(o.l1), Int(o.l2), Int(o.g), Int(o.nlev))
+
+Base.isless(a::Op, b::Op) = isless(order_key(a), order_key(b))
 
 """
     ladder(op::Op)
@@ -310,9 +317,9 @@ ladder(o::Op) = (o.kind === OP_DESTROY || o.kind === OP_MOMENTUM) ? 1 : 0
 
 function _site_compare(a::Op, b::Op, ne::Vector{NonEqualPair})
     ka = a.kind; kb = b.kind
+    a.space_index == b.space_index || return a.space_index < b.space_index ? Less : Greater
     fa = _site_family(ka)
     fa === _site_family(kb) || return UInt8(ka) < UInt8(kb) ? Less : Greater
-    a.space_index == b.space_index || return a.space_index < b.space_index ? Less : Greater
     # PhaseSpace x-vs-p ignores name (conjugate variables on one site); every
     # other same-family pair distinguishes by name.
     if !(fa === 0x05 && ka !== kb)

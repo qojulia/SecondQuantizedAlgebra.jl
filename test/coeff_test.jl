@@ -158,6 +158,72 @@ import SecondQuantizedAlgebra: Coeff, CNum, Monomial, Poly, _to_cnum, _to_comple
             @test _is_poly(d) && isequal(to_num(d), Complex(Num(g + κ), Num(0)))
         end
 
+        @testset "wide sums fold in one pass (batched _rec_sum)" begin
+            @variables p[1:6]
+            pv = [SecondQuantizedAlgebra.SymbolicUtils.unwrap(Num(p[k])) for k in 1:6]
+            pairwise(terms) = foldl(
+                (c, a) -> _add_cnum(c, _to_cnum(a)), terms; init = _CNUM_ZERO,
+            )
+
+            # distinct monomials: a 6-term Poly, matching the pairwise fold exactly
+            distinct = [Num(k) * p[k] for k in 1:6]
+            cd = _to_cnum(sum(distinct))
+            @test _is_poly(cd) && length(cd.tail.terms) == 6
+            @test isequal(cd, pairwise(distinct))
+
+            # repeated factor sets coalesce: 1·g + 2·g + 3·g -> 6g (one term)
+            cc = _to_cnum(g + 2g + 3g)
+            @test _is_poly(cc) && length(cc.tail.terms) == 1
+            @test isequal(to_num(cc), Complex(Num(6g), Num(0)))
+
+            # native + poly mixed in one sum: constants collapse to a single term
+            cm = _to_cnum(2 + g + 3 + κ)
+            @test isequal(to_num(cm), Complex(Num(5 + g + κ), Num(0)))
+
+            # full cancellation across many terms -> exact zero
+            @test _iszero_cnum(_to_cnum(g + κ - g - κ))
+
+            # a sym-leaf term (irreducible call) drops to the fallback add and the
+            # polynomial part still coalesces around it
+            cs = _to_cnum(g + sin(ω) + g)
+            @test isequal(to_num(cs), Complex(Num(2g + sin(ω)), Num(0)))
+        end
+
+        @testset "wide products fold in one pass (batched _rec_prod)" begin
+            # A `*`-headed coefficient of single-monomial factors collapses to one
+            # monomial; the factor lists merge in a single pass, not pairwise.
+            # Result must be byte-identical to the pairwise `_mul_cnum` fold.
+            @variables r[1:6]
+            pairwise(fs) = foldl(
+                (c, a) -> _mul_cnum(c, _to_cnum(a)), fs; init = _CNUM_ONE,
+            )
+
+            # distinct atoms: one monomial with 6 factors, matching the pairwise fold
+            facs = [Num(r[k]) for k in 1:6]
+            cp = _to_cnum(prod(facs))
+            @test _is_poly(cp) && length(cp.tail.terms) == 1
+            @test length(cp.tail.terms[1].syms) == 6
+            @test isequal(cp, pairwise(facs))
+
+            # scalars multiply, exponents accumulate across repeated factors
+            ce = _to_cnum(2g * 3g * κ)            # 6 g^2 κ
+            @test isequal(to_num(ce), Complex(Num(6 * g^2 * κ), Num(0)))
+
+            # a single-monomial part times a multi-term factor distributes (intrinsic)
+            cdist = _to_cnum(g * κ * (g + κ))
+            @test isequal(to_num(cdist), Complex(Num(g^2 * κ + g * κ^2), Num(0)))
+
+            # factor cancellation drops the atom entirely
+            @test isequal(to_num(_to_cnum(g * κ / g)), Complex(Num(κ), Num(0)))
+
+            # a zero factor collapses the whole product to native zero
+            @test _iszero_cnum(_to_cnum(g * κ * 0 * ω))
+
+            # a sym-leaf factor drops to the fallback multiply; atoms still merge
+            csl = _to_cnum(g * exp(κ) * g)
+            @test isequal(to_num(csl), Complex(Num(g^2 * exp(κ)), Num(0)))
+        end
+
         @testset "(sum)^n is stored in canonical expanded form" begin
             # the package-wide 'always expand' invariant extends to polynomial coefficients
             c = _to_cnum((g + κ)^2)
@@ -171,6 +237,19 @@ import SecondQuantizedAlgebra: Coeff, CNum, Monomial, Poly, _to_cnum, _to_comple
             # complex-symtype parameter: conj reaches the factor
             @test isequal(to_num(_conj_cnum(_to_cnum(gc))), Complex(Num(conj(gc)), Num(0)))
             @test isequal(to_num(_conj_cnum(_to_cnum(im * g))), Complex(Num(0), Num(-g)))
+        end
+
+        @testset "conjugation involution folds (regression #7cc3ad7)" begin
+            # `conj` is an involution: conjugating twice must return the original
+            # factor, not nest a `conj(conj(x))` that never folds and survives
+            # downstream.
+            c = _to_cnum(gc)
+            @test isequal(_conj_cnum(_conj_cnum(c)), c)
+            @test isequal(to_num(_conj_cnum(_conj_cnum(c))), Complex(Num(gc), Num(0)))
+            @test hash(_conj_cnum(_conj_cnum(c))) == hash(c)
+            # double-conjugating a scaled complex factor also returns the original
+            cs = _to_cnum(g * gc)
+            @test isequal(_conj_cnum(_conj_cnum(cs)), cs)
         end
 
         @testset "complex parameters and irreducible couplings stay native" begin

@@ -1,15 +1,14 @@
-"""
-Coefficient representation for operator prefactors. A `Coeff` has three forms: a
-native `ComplexF64` (concrete numbers), a [`Poly`](@ref) parameter polynomial
-(products/sums of named parameters), and a `Complex{Num}` fallback. Native and
-polynomial arithmetic stay off SymbolicUtils, lowering to `Complex{Num}` only at
-the symbolic boundaries (`to_num`).
-"""
-
 # Zero-size tag marking the native fast path (the value lives inline in `z`).
 struct Native end
 const NATIVE = Native()
 
+"""
+Coefficient representation for operator prefactors. A `Coeff` has three forms: a
+native `ComplexF64` (concrete numbers), a `Poly` parameter polynomial
+(products/sums of named parameters), and a `Complex{Num}` fallback. Native and
+polynomial arithmetic stay off SymbolicUtils, lowering to `Complex{Num}` only at
+the symbolic boundaries (`to_num`).
+"""
 struct Coeff
     z::ComplexF64
     tail::Union{Native, Poly, Complex{Num}}
@@ -188,17 +187,9 @@ function _rec(x::SymbolicUtils.BasicSymbolic)::Coeff
     op = SymbolicUtils.operation(x)
     args = SymbolicUtils.arguments(x)
     if op === (+)
-        c = _CNUM_ZERO
-        for a in args
-            c = _add_cnum(c, _rec(a))
-        end
-        return c
+        return _rec_sum(args)
     elseif op === (*)
-        c = _CNUM_ONE
-        for a in args
-            c = _mul_cnum(c, _rec(a))
-        end
-        return c
+        return _rec_prod(args)
     elseif op === (^)
         length(args) == 2 || return _sym_leaf(x)
         # `isa` guards narrow the `Any` exponent before arithmetic (a helper call on
@@ -228,6 +219,10 @@ function _rec(x::SymbolicUtils.BasicSymbolic)::Coeff
     elseif op === getindex
         return _atom_coeff(x)
     elseif op === conj
+        # Fold conj of a constant (e.g. conj(0.0) left by substituting a complex
+        # parameter to a real value) so the coefficient can collapse to zero.
+        inner = _rec(args[1])
+        _is_native(inner) && return _native(conj(inner.z))
         return _is_atom(x) ? _atom_coeff(x) : _sym_leaf(x)
     elseif op === (/)
         length(args) == 2 || return _sym_leaf(x)
@@ -259,6 +254,77 @@ function _rec(x::SymbolicUtils.BasicSymbolic)::Coeff
     return _is_atom(x) ? _atom_coeff(x) : _sym_leaf(x)
 end
 
+function _rec_sum(args)::Coeff
+    monos = Monomial[]
+    znative = zero(ComplexF64)
+    sym = _CNUM_ZERO
+    have_sym = false
+    for a in args
+        ca = _rec(a)
+        t = ca.tail
+        if t isa Native
+            znative += ca.z
+        elseif t isa Poly
+            append!(monos, t.terms)
+        else
+            sym = _add_cnum(sym, ca)
+            have_sym = true
+        end
+    end
+    znative == 0 || push!(monos, Monomial(znative, _EMPTY_SYMS, _EMPTY_EXPS))
+    poly = _from_poly(_canonical_terms!(monos))
+    return have_sym ? _add_cnum(poly, sym) : poly
+end
+
+function _merge_factor_list(syms::Vector{SymbolicUtils.BasicSymbolic}, exps::Vector{Rational{Int}})
+    n = length(syms)
+    n <= 1 && return (syms, exps)
+    p = sortperm(syms; by = _fkey)
+    osyms = SymbolicUtils.BasicSymbolic[]
+    oexps = Rational{Int}[]
+    sizehint!(osyms, n); sizehint!(oexps, n)
+    i = 1
+    @inbounds while i <= n
+        s = syms[p[i]]
+        e = exps[p[i]]
+        j = i + 1
+        while j <= n && syms[p[j]] === s
+            e += exps[p[j]]
+            j += 1
+        end
+        e != 0 && (push!(osyms, s); push!(oexps, e))
+        i = j
+    end
+    return (osyms, oexps)
+end
+
+function _rec_prod(args)::Coeff
+    scalar = _ONE_C
+    syms = SymbolicUtils.BasicSymbolic[]
+    exps = Rational{Int}[]
+    other = _CNUM_ONE
+    have_other = false
+    for a in args
+        ca = _rec(a)
+        t = ca.tail
+        if t isa Native
+            scalar *= ca.z
+        elseif t isa Poly && length(t.terms) == 1
+            m = t.terms[1]
+            scalar *= m.scalar
+            append!(syms, m.syms)
+            append!(exps, m.exps)
+        else
+            other = _mul_cnum(other, ca)
+            have_other = true
+        end
+    end
+    iszero(scalar) && return _CNUM_ZERO
+    ms, me = _merge_factor_list(syms, exps)
+    mono = _from_poly(Monomial[Monomial(scalar + complex(0.0, 0.0), ms, me)])
+    return have_other ? _mul_cnum(mono, other) : mono
+end
+
 Base.convert(::Type{Coeff}, x::Coeff) = x
 Base.convert(::Type{Coeff}, x::Complex{Num}) = _to_cnum(x)
 Base.convert(::Type{Coeff}, x::Number) = _to_cnum(x)
@@ -272,8 +338,13 @@ Base.imag(c::Coeff) = _is_native(c) ? _num_from_float(imag(c.z)) : imag(to_num(c
     return (real(cn), imag(cn))
 end
 
-# Materialize the full `Complex{Num}`; the only place a coefficient lowers back to
-# Symbolics for symbolic boundaries (substitute / simplify / expand / printing).
+"""
+    to_num(c::Coeff) -> Complex{Num}
+
+Lower a stored [`Coeff`](@ref) to the public Symbolics representation used at
+package boundaries. This is the supported way to read the coefficient returned
+when iterating a [`QAdd`](@ref).
+"""
 function to_num(c::Coeff)
     t = c.tail
     t isa Native && return Complex(_num_from_float(real(c.z)), _num_from_float(imag(c.z)))
@@ -332,12 +403,25 @@ end
 Base.:/(a::Coeff, b::Number) = a / _to_cnum(b)
 Base.:/(a::Number, b::Coeff) = _to_cnum(a) / b
 
-_sym_conj(x::Num) = SymbolicUtils.symtype(x) <: Real ? x : Num(conj(SymbolicUtils.unwrap(x)))
+# `conj(conj(x)) == x`, so unwrap an existing `conj(...)` rather than nesting a
+# second one (which never folds and survives downstream).
+_is_conj_call(x) =
+    SymbolicUtils.iscall(x) && SymbolicUtils.operation(x) === conj
+function _sym_conj(x::Num)
+    SymbolicUtils.symtype(x) <: Real && return x
+    u = SymbolicUtils.unwrap(x)
+    _is_conj_call(u) && return Num(SymbolicUtils.arguments(u)[1])
+    return Num(conj(u))
+end
 
-# Conjugate an atom factor: real-symtype atoms are self-conjugate, else wrap in
-# `conj(...)` (still an atom to `_is_atom`).
-@inline _conj_atom(s::SymbolicUtils.BasicSymbolic) =
-    SymbolicUtils.symtype(s) <: Real ? s : SymbolicUtils.unwrap(conj(s))
+# Conjugate an atom factor: real-symtype atoms are self-conjugate, an existing
+# `conj(...)` unwraps (involution), else wrap in `conj(...)` (still an atom to
+# `_is_atom`).
+@inline function _conj_atom(s::SymbolicUtils.BasicSymbolic)
+    SymbolicUtils.symtype(s) <: Real && return s
+    _is_conj_call(s) && return SymbolicUtils.arguments(s)[1]
+    return SymbolicUtils.unwrap(conj(s))
+end
 
 # Native conjugation of a Poly: conjugate each scalar and atom, re-sort the rekeyed
 # factors by `objectid`, re-canonicalize. Avoids the `to_num` round-trip per term.

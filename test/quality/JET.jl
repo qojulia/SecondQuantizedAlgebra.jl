@@ -79,6 +79,9 @@ end
                 ("expand_completeness(σ12*σ21)", () -> expand_completeness(σ12 * σ21)),
                 ("average(a*a')", () -> average(a * ad)),
                 ("undo_average(average(a*a'))", () -> undo_average(average(a * ad))),
+                # MutableArithmetics additive reductions
+                ("sum([a'*a, a*a', a'*a])", () -> sum([ad * a, a * ad, ad * a])),
+                ("reduce(+, [a'*a, a*a', a'*a])", () -> reduce(+, [ad * a, a * ad, ad * a])),
             ]
             rep = JET.@report_call target_modules = (SecondQuantizedAlgebra,) ignore_missing_comparison = true expr()
             @testset "$name" begin
@@ -175,14 +178,22 @@ end
         #     QuantumOpticsBase (`to_numeric` / `expect` / `_numeric_average`). This
         #     boundary is independent of the operator collapse and was always
         #     allowlisted.
+        # (d) The `_reduce_const` fallback. A variable-free symbolic constant that
+        #     `_fold_const` cannot reduce (e.g. `sqrt(2)`, `exp` of a constant) is
+        #     evaluated through `Symbolics.symbolic_to_float`, whose result is typed
+        #     `Any`, so the final `convert`/`ComplexF64` to a concrete `ComplexF64` is
+        #     dynamic. This is the same `Any → ComplexF64` boundary as the entries
+        #     above, reached through `_compile_const`.
         allowed_numeric_reports = vcat(
             allowed_hotpath_reports, [
                 "SecondQuantizedAlgebra._to_complex(",
                 "SecondQuantizedAlgebra._reduce_const(",
                 "SecondQuantizedAlgebra._fold_const(",
+                "SecondQuantizedAlgebra._compile_const(",
                 "SecondQuantizedAlgebra._numeric_average(",
                 "SecondQuantizedAlgebra.Complex(",
                 "SecondQuantizedAlgebra.convert(",
+                "convert(SecondQuantizedAlgebra.ComplexF64",
                 "to_numeric(",
                 "expect(",
                 "string(",

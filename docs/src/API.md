@@ -123,6 +123,11 @@ is_position
 is_momentum
 ```
 
+### Internal representation
+
+```@docs
+Coeff
+```
 
 ## [Algebra](@id API: Algebra)
 
@@ -218,6 +223,10 @@ fundamental_operators
 
 ```@docs
 prefactor
+```
+
+```@docs
+to_num
 ```
 
 ```@docs

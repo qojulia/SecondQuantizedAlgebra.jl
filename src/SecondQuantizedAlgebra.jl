@@ -1,7 +1,7 @@
 module SecondQuantizedAlgebra
 
-using SymbolicUtils: SymbolicUtils, simplify, substitute
-using Symbolics: Symbolics, Num, expand, @variables
+using SymbolicUtils: SymbolicUtils, simplify, substitute, add_worker
+using Symbolics: Symbolics, Num, expand, @variables, build_function, symbolic_to_float
 using TermInterface: TermInterface
 
 # `CNum` (the coefficient type `Coeff`) is defined in `expressions/cnum.jl`.
@@ -10,8 +10,11 @@ using QuantumOpticsBase: QuantumOpticsBase
 import QuantumOpticsBase: ⊗, tensor, expect
 
 using Combinatorics: with_replacement_combinations
+using FunctionWrappers: FunctionWrapper
 using Latexify: Latexify, latexify, @latexrecipe
 using PrecompileTools: @setup_workload, @compile_workload
+using SciMLPublic: @public
+import MutableArithmetics as MA
 
 include("types.jl")
 include("operators/hilbertspace.jl")
@@ -36,6 +39,7 @@ include("algebra/pipelines.jl")
 include("expressions/index.jl")
 
 include("algebra/algebra.jl")
+include("algebra/mutable_arithmetics.jl")
 include("algebra/weyl.jl")
 
 include("average.jl")
@@ -108,22 +112,13 @@ export FockSpace, ProductSpace,
 
 
 # Public API that is intentionally NOT exported — accessed as
-# `SecondQuantizedAlgebra.symbol`. The `public` keyword is Julia ≥ 1.11; on
-# 1.10 the contract is documented in `docs/src/API.md`.
-macro public(ex)
-    return if VERSION >= v"1.11.0-DEV.469"
-        args = ex isa Symbol ? (ex,) : Base.isexpr(ex, :tuple) ? ex.args : error("something informative")
-        esc(Expr(:public, args...))
-    else
-        nothing
-    end
-end
-
+# `SecondQuantizedAlgebra.symbol`.
 @public HilbertSpace, QField, QSym, OpKind,
     OP_DESTROY, OP_CREATE, OP_TRANSITION, OP_PAULI, OP_SPIN, OP_POSITION, OP_MOMENTUM,
-    QAdd, QTerm, QTermDict, has_sum_metadata, get_sum_indices, get_sum_non_equal,
+    QAdd, QTerm, QTermDict, Coeff, CNum,
+    has_sum_metadata, get_sum_indices, get_sum_non_equal,
     transition_superscript, constraint_pairs,
-    order_key, term_order_key, qadd_order_key
+    to_num, order_key, term_order_key, qadd_order_key
 
 include("precompile.jl")
 

@@ -4,6 +4,44 @@ All notable changes to [`SecondQuantizedAlgebra.jl`](https://github.com/qojulia/
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+## [v0.9.0]
+
+### Added
+
+- `substitute` now replaces operators as well as scalar parameters in a single, simultaneous pass. A rule dictionary is split by key: `QSym` keys replace operator leaves, every other key substitutes into coefficients through SymbolicUtils. Operator replacements are applied once to the original leaves and the replacement expression is not searched again for operator keys, so a mode transformation such as `a => g*a + h*b` is well-defined even though its right-hand side contains the key `a`. Missing adjoint rules are generated automatically (`a => b` also implies `a' => b'`); pass `replace_adjoint=false` to match only the keys supplied explicitly.
+- A keyword form of `to_numeric(op, basis; parameter, time_parameter, operators, adjoint_ops, op_type)`. Scalar `parameter`s are substituted first, then the expression is translated with custom numeric `operators` (missing adjoints are added when `adjoint_ops=true`), and each emitted operator is passed through `op_type`. When `time_parameter` is non-empty the result is a closure `t -> op(t)`; its values may be numbers or functions of time, and a key may be a bare variable `v` or `conj(v)`. A vector form `to_numeric(ops::AbstractVector, basis; kwargs...)` forwards the keywords to each element.
+- `to_num(c::Coeff)` is now public and documented as the supported way to read the coefficient returned when iterating a `QAdd`. `Coeff` and `CNum` are now declared public, and the package's public-API declarations use [SciMLPublic.jl](https://github.com/SciML/SciMLPublic.jl) instead of a hand-rolled `@public` macro.
+
+### Changed
+
+- The ordering of the displayed expressions are now ordered first by Hilbert space and then by operator kind.
+
+## [v0.8.3]
+
+### Changed
+
+- `average` of a many-term operator is now O(n) instead of O(n²): a 500-term sum drops from about 31 ms to 9.6 ms.
+- Wide symbolic prefactors (large sums or products of parameters, as high-order perturbation theory generates) build in one pass instead of pairwise, O(n²) → O(n log n): at n=800 about 12.5× faster for a sum, 17× for a product.
+
+## [v0.8.2]
+
+### Changed
+
+- `commutator(::QAdd, ::QSym)` and `commutator(::QAdd, ::QAdd)` on operators without summation indices now stream each term-pair contribution straight into one shared result dict instead of materializing intermediates. The previous code wrapped every term of the left operand in a temporary single-term `QAdd` and built `a*b`, `b*a`, and their difference as separate `QAdd`s before merging into the accumulator, so a commutator over an n-term operand allocated O(n) throwaway dicts (O(n·m) for two n- and m-term sums). The fast path emits `+tₐ·t_b` and `−t_b·tₐ` directly through `_emit_product!`, which already runs the eager canonicalization, and lets the dict collect like terms. Operators that carry summation indices keep the existing path, where the per-term `_absorb_pinned_sums` index-scope bookkeeping must run. Results are byte-identical to `a*b - b*a`. Measured on the many-mode operator `Σ_{i,j} g aᵢ† aⱼ`: `QAdd×QSym` about 1.9× to 2.2× faster with about 5× less memory, and `QAdd×QAdd` about 2.2× faster with about 5× less memory at M=4/8/12.
+
+### Fixed
+
+- `conj` now folds as an involution in the coefficient algebra and in `qadjoint`. Conjugating a complex factor twice (or taking the adjoint of a scalar `conj(x)`) returned a nested `conj(conj(x))` that never simplified and survived downstream, leaving dead terms (e.g. a `conj(0.0)` that failed to collapse to zero after a complex coupling was substituted to a real value). Double conjugation now returns the original factor, and `conj` of an expression that reduces to a constant folds to a native coefficient.
+
+## [v0.8.1]
+
+### Added
+
+- `sum` and `reduce(+, …)` over a `Vector{QAdd}` now accumulate in place instead of folding with `Base.:+`. Building an n-term `QAdd` by repeated addition is O(n²) because every `+` copies the whole backing dict before inserting; the new `_QAddBuilder` (exposed through the [MutableArithmetics.jl](https://github.com/jump-dev/MutableArithmetics.jl) interface, so `MA.@rewrite` and `operate!!` loops work too) threads one shared dict through the entire reduction and materializes once. Results are byte-identical to the `+`-chain and `Base.:+` value semantics are unchanged. The fast path is the bracketed comprehension `sum([ω[k]*a[k]'*a[k] for k in 1:M])` (a bare generator stays on the generic fold). Measured on the many-mode Hamiltonian `Σ_k ω_k a_k† a_k`: about 3.9×/5.9×/11.8× faster and 5.5×/6.2×/11.4× less memory at M=8/16/24, the win growing with system size. The product path is intentionally left as repeated `*` (a prototype builder showed no win; the intrinsic distributive expansion dominates), see the devdocs.
+
+### Changed
+
+- `hash(::Op)` short-circuits the common non-indexed case. A profile of the product path found that about a third of the time goes to hashing `QTerm` dict keys, and `hash(::Op)` was recursing through the shared `NO_INDEX` constant's `Num` fields on every call even though most operators carry no index. The hash now folds `NO_INDEX` to a precomputed sentinel and only hashes a real `Index` when one is present. The per-operator hash is about 31% faster and term-building operations (products, powers, commutators, `substitute`) are about 5% to 6% faster end-to-end; for example `(a + a†)^12` drops from about 379 µs to 344 µs. Hash values are internal dict keys only (never persisted) and `isequal` is unchanged, so canonical results are identical.
 
 ## [v0.8.0]
 
@@ -212,4 +250,8 @@ These names keep their meaning across the migration. Code that only uses them sh
 [v0.7.1]: https://github.com/qojulia/SecondQuantizedAlgebra.jl/releases/tag/v0.7.1
 [v0.7.2]: https://github.com/qojulia/SecondQuantizedAlgebra.jl/releases/tag/v0.7.2
 [v0.8.0]: https://github.com/qojulia/SecondQuantizedAlgebra.jl/releases/tag/v0.8.0
+[v0.8.1]: https://github.com/qojulia/SecondQuantizedAlgebra.jl/releases/tag/v0.8.1
+[v0.8.2]: https://github.com/qojulia/SecondQuantizedAlgebra.jl/releases/tag/v0.8.2
+[v0.8.3]: https://github.com/qojulia/SecondQuantizedAlgebra.jl/releases/tag/v0.8.3
+[v0.9.0]: https://github.com/qojulia/SecondQuantizedAlgebra.jl/releases/tag/v0.9.0
 [#156]: https://github.com/qojulia/SecondQuantizedAlgebra.jl/issues/156
