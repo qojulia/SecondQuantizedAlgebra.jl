@@ -5,7 +5,7 @@ using Symbolics: Symbolics, @variables
 import SecondQuantizedAlgebra: simplify, QAdd, QSym, QField, CNum, _to_cnum, _single_qadd,
     AvgFunc, sym_average, SumFunc, sym_sum, is_indexed_sum, sorted_arguments,
     has_sum_metadata, get_sum_indices, get_sum_non_equal,
-    QTerm, QTermDict, NonEqualPair
+    QTerm, QTermDict, NonEqualPair, order_key, qadd_order_key
 
 @testset "Average" begin
 
@@ -682,6 +682,24 @@ import SecondQuantizedAlgebra: simplify, QAdd, QSym, QField, CNum, _to_cnum, _si
         # Seals: canaries against a regression that re-introduces an `Any` path.
         @test Base.return_types(SecondQuantizedAlgebra._idx_seal, (Any,))[1] === Vector{Index}
         @test Base.return_types(SecondQuantizedAlgebra._aon_seal, (Any,))[1] === Vector{Int}
+    end
+
+    @testset "Display of summed averages (issue #204)" begin
+        h = FockSpace(:cavity)
+        a = Destroy(h, :a)
+        @variables x::Number
+
+        @test sprint(show, MIME("text/plain"), average(a) + average(a')) == "⟨a⟩ + ⟨a'⟩"
+        @test sprint(show, MIME("text/plain"), x * average(a) + x * average(a')) == "⟨a⟩*x + ⟨a'⟩*x"
+        @test sprint(show, MIME("text/plain"), conj(x) * average(a) + conj(x) * average(a')) ==
+            "⟨a⟩*conj(x) + ⟨a'⟩*conj(x)"
+        @test sprint(show, MIME("text/plain"), average(a' * a) + average(a * a')) == "1 + 2⟨a' * a⟩"
+
+        @test isless(a, a') == isless(order_key(a), order_key(a'))
+        @test !isless(a, a)
+        @test isless(a, a') ⊻ isless(a', a)
+        @test sort([a', a]) == [a, a']
+        @test isless(a' * a, a * a') == isless(qadd_order_key(a' * a), qadd_order_key(a * a'))
     end
 
 end
