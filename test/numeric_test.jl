@@ -44,8 +44,14 @@ using Test
         @qnumbers a1::Destroy(h, 1) a2::Destroy(h, 2)
         b = FockBasis(3) ⊗ FockBasis(3)
 
+        # Default materialises to a concrete sparse operator; the lazy
+        # representation is opt-in via `op_type = identity`.
+        a1_lazy = to_numeric(a1, b; op_type = identity)
+        @test a1_lazy isa LazyTensor
         a1_num = to_numeric(a1, b)
-        @test a1_num isa LazyTensor
+        @test a1_num isa Operator
+        @test a1_num == sparse(a1_lazy)
+        @test to_numeric(a1, b; op_type = dense) == dense(a1_lazy)
     end
 
     @testset "numeric_average" begin
@@ -96,7 +102,8 @@ using Test
         bf = FockBasis(3)
         bn = NLevelBasis(3)
         bc = bf ⊗ bn
-        @test to_numeric(σ12, bc) isa LazyTensor
+        @test to_numeric(σ12, bc; op_type = identity) isa LazyTensor
+        @test to_numeric(σ12, bc) isa Operator
     end
 
     @testset "Type stability" begin
@@ -197,15 +204,19 @@ using Test
             i == j == 1 && continue
             op1 = a * σprod_gap(i, j)
             op2 = a' * σprod_gap(i, j)
-            @test to_numeric(op1, bprod_gap) == LazyTensor(
+            @test to_numeric(op1, bprod_gap; op_type = identity) == LazyTensor(
                 bprod_gap,
                 [1, 3],
                 (destroy(bfock), QuantumOpticsBase.transition(bnlevel, i, j)),
             )
-            @test to_numeric(op2, bprod_gap) == LazyTensor(
+            @test to_numeric(op2, bprod_gap; op_type = identity) == LazyTensor(
                 bprod_gap,
                 [1, 3],
                 (create(bfock), QuantumOpticsBase.transition(bnlevel, i, j)),
+            )
+            # Default returns the same operator, materialised sparse.
+            @test to_numeric(op1, bprod_gap) == sparse(
+                to_numeric(op1, bprod_gap; op_type = identity),
             )
         end
     end
@@ -576,6 +587,30 @@ using Test
         @test_throws ArgumentError to_numeric(
             x * E * a, b; time_parameter = Dict(E => t -> 1.0 + 0im),
         )                                                                       # untimed variable
+    end
+
+    @testset "op_type is shape-independent" begin
+        # A bare operator, a product, and a sum must all return the same
+        # operator type for a given op_type — the representation depends only on
+        # op_type, never on the shape of the expression.
+        h = FockSpace(:a) ⊗ FockSpace(:b)
+        @qnumbers a1::Destroy(h, 1) a2::Destroy(h, 2)
+        b = FockBasis(3) ⊗ FockBasis(3)
+        exprs = (a1, a1' * a1, a1' * a1 + a2' * a2)
+
+        for expr in exprs
+            @test to_numeric(expr, b) isa Operator                     # sparse default
+            @test to_numeric(expr, b) == to_numeric(expr, b; op_type = sparse)
+            @test to_numeric(expr, b; op_type = dense) isa Operator
+        end
+        # The lazy opt-in yields lazy types across every shape.
+        @test to_numeric(exprs[1], b; op_type = identity) isa LazyTensor
+        @test to_numeric(exprs[3], b; op_type = identity) isa LazySum
+        # Values agree across representations.
+        for expr in exprs
+            @test to_numeric(expr, b) == sparse(to_numeric(expr, b; op_type = identity))
+            @test dense(to_numeric(expr, b)) ≈ dense(to_numeric(expr, b; op_type = dense))
+        end
     end
 
 end

@@ -378,14 +378,22 @@ The scope rides as a `SumScope` *argument* of the `Term`, not as metadata, becau
 
 ## Numeric conversion
 
-`to_numeric` maps symbolic operators to QuantumOpticsBase matrices:
+`to_numeric` maps symbolic operators to QuantumOpticsBase matrices. A term is
+assembled in a natural lazy representation and materialized to a concrete
+operator exactly once, at the top, via `op_type` (default `sparse`). This keeps
+the return type independent of the shape of the expression (a bare operator, a
+product, and a sum all return the same `op_type`), while still avoiding
+per-factor conversions during assembly.
 
-- **Simple basis:** Direct dispatch — `Destroy → destroy(b)`, `Transition → transition(b, i, j)`, etc.
-- **Composite basis:** Embeds the single-site matrix as a `LazyTensor`:
+- **Simple basis:** Direct dispatch, e.g. `Destroy → destroy(b)`, `Transition → transition(b, i, j)`.
+- **Composite basis:** The internal `_embed` embeds the single-site matrix as a `LazyTensor`:
   ```julia
-  op_num = to_numeric(op, b.bases[idx])
+  op_num = _embed(op, b.bases[idx])
   LazyTensor(b, [idx], (op_num,))
   ```
+  `_embed` is the composable building block for products and sums. The public
+  `to_numeric` methods wrap the assembled result in `op_type`, so the positional
+  forms return `sparse` and `op_type=identity` returns the lazy form as-is.
 
 **`_to_number`** extracts plain Julia numbers from `Num`/`CNum` wrappers for numeric evaluation. Falls back to the symbolic value if it can't be unwrapped (for symbolic prefactors that haven't been substituted yet).
 

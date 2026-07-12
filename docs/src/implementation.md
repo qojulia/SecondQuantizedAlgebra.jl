@@ -265,7 +265,7 @@ nothing # hide
 
 ### Composite systems
 
-For product spaces, [`to_numeric`](@ref) returns `LazyTensor` operators, which efficiently handle large tensor products:
+For product spaces, [`to_numeric`](@ref) returns a concrete `sparse` operator by default, independent of the shape of the expression. Pass `op_type=identity` to get the `LazyTensor`/`LazySum` representation instead, which avoids materializing the full Kronecker product and is preferable for large tensor products where an operator is local to a few subsystems:
 
 ```@example numeric-composite
 using SecondQuantizedAlgebra, QuantumOpticsBase
@@ -280,7 +280,8 @@ bf = FockBasis(10)
 bn = NLevelBasis(3)
 bc = bf ⊗ bn
 
-a_num = to_numeric(a, bc)
+a_num = to_numeric(a, bc)                      # sparse Operator (default)
+a_lazy = to_numeric(a, bc; op_type = identity) # LazyTensor
 s_num = to_numeric(s(:a, :c), bc)
 nothing # hide
 ```
