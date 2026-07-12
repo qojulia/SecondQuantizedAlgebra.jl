@@ -179,6 +179,22 @@ import SecondQuantizedAlgebra: simplify, QAdd, QSym, _single_qadd, _zero_qadd, _
                 "1 + Σ(i=1:N) ⟨b' * σ_i₁₂⟩"
         end
 
+        @testset "Heterogeneous operator averages sort without error" begin
+            # ⟨b'b⟩ wraps a `QAdd`, ⟨σ⟩/⟨b⟩ wrap a `QSym`. When SymbolicUtils sorts a
+            # sum of such averages for printing it unwraps the operator `Const`s and
+            # falls back to `<ₑ(x, y) = typeof(x) < typeof(y)`, comparing the operator
+            # *types*. Regression guard for that comparison being defined (it used to
+            # throw `MethodError: isless(::Type{QAdd}, ::Type{QSym})`).
+            h2 = FockSpace(:c) ⊗ NLevelSpace(:atom, 2, 1)
+            @qnumbers b::Destroy(h2, 1)
+            σ = Transition(h2, :σ, 2, 2, 2)
+
+            @test isless(typeof(b' * b), typeof(σ)) isa Bool
+            @test isless(typeof(b' * b), typeof(σ)) == !isless(typeof(σ), typeof(b' * b))
+            @test repr(average(b' * b) + average(σ) + average(b)) ==
+                "⟨b⟩ + ⟨σ₂₂⟩ + ⟨b' * b⟩"
+        end
+
         @testset "Lifted (time-dependent) averages" begin
             @variables t N
             hsite = FockSpace(:site)
