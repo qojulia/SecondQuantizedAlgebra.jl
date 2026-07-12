@@ -97,13 +97,7 @@ function to_numeric(op::Op, b::QuantumOpticsBase.SpinBasis)
     end
     throw(ArgumentError("Op kind $(op.kind) does not act on a SpinBasis"))
 end
-# ── Internal lazy embedding ─────────────────────────────────────────────────
-# `_embed` builds the natural lazy representation of a single operator on `b`
-# (a `LazyTensor` on a `CompositeBasis`). It is the composable building block for
-# products and sums; the public `to_numeric` methods materialise the assembled
-# result via `op_type` (sparse by default). Keeping the embedding lazy lets a
-# whole term be assembled as lazy factors and converted to a concrete operator
-# exactly once, at the top.
+# Lazy embedding of a single operator on `b`; building block for products/sums.
 _embed(op::Op, b::QuantumOpticsBase.Basis) = to_numeric(op, b)
 function _embed(op::Op, b::QuantumOpticsBase.CompositeBasis)
     si = Int(op.space_index)
@@ -114,9 +108,7 @@ function _embed(op::Op, b::QuantumOpticsBase.Basis, d::AbstractDict{<:QSym})
     return _embed(op, b)
 end
 
-# Public positional forms return a concrete sparse operator, independent of
-# expression shape. To choose the representation (`dense`, or `identity` for the
-# lazy form) use the keyword form `to_numeric(op, b; op_type=...)`.
+# Positional forms materialise sparse; use the keyword form for other `op_type`.
 to_numeric(op::Op, b::QuantumOpticsBase.CompositeBasis) =
     QuantumOpticsBase.sparse(_embed(op, b))
 to_numeric(op::Op, b::QuantumOpticsBase.Basis, d::AbstractDict{<:QSym}) =
@@ -124,9 +116,7 @@ to_numeric(op::Op, b::QuantumOpticsBase.Basis, d::AbstractDict{<:QSym}) =
 to_numeric(s::QAdd, b::QuantumOpticsBase.Basis, d::AbstractDict{<:QSym} = _NO_SUBS) =
     QuantumOpticsBase.sparse(_assemble(s, b, d))
 
-# Natural (lazy) assembly of an operator sum; the caller materialises it.
-# Scalar-term and operator-product branches return different operator types
-# (Diagonal identity vs SparseMatrixCSC), so the conditional stays in-loop.
+# Lazy assembly of an operator sum; the caller materialises it.
 function _assemble(s::QAdd, b::QuantumOpticsBase.Basis, d::AbstractDict{<:QSym} = _NO_SUBS)
     iter = iterate(s.arguments)
     iter === nothing && return _to_complex(_CNUM_ZERO) * _lazy_one(b)
@@ -149,12 +139,7 @@ function _product(ops::Vector{Op}, b::QuantumOpticsBase.Basis, d::AbstractDict{<
     return acc
 end
 
-# Lazy (un-materialised) numeric form. Used where the consumer contracts the
-# operator with a state immediately and therefore never needs a concrete matrix,
-# e.g. `expect` against a `LazyKet` (which has no `expect` method for a sparse
-# operator, and whose whole purpose is to avoid materialising the Kronecker
-# product). Mirrors the positional `to_numeric(op, b, d)` dispatch, minus the
-# final `sparse`.
+# Lazy form for consumers that contract immediately (e.g. `expect` on a `LazyKet`).
 _to_numeric_lazy(op::Op, b::QuantumOpticsBase.Basis, d::AbstractDict{<:QSym}) = _embed(op, b, d)
 _to_numeric_lazy(s::QAdd, b::QuantumOpticsBase.Basis, d::AbstractDict{<:QSym}) = _assemble(s, b, d)
 

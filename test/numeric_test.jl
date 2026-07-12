@@ -44,8 +44,6 @@ using Test
         @qnumbers a1::Destroy(h, 1) a2::Destroy(h, 2)
         b = FockBasis(3) ⊗ FockBasis(3)
 
-        # Default materialises to a concrete sparse operator; the lazy
-        # representation is opt-in via `op_type = identity`.
         a1_lazy = to_numeric(a1, b; op_type = identity)
         @test a1_lazy isa LazyTensor
         a1_num = to_numeric(a1, b)
@@ -214,7 +212,6 @@ using Test
                 [1, 3],
                 (create(bfock), QuantumOpticsBase.transition(bnlevel, i, j)),
             )
-            # Default returns the same operator, materialised sparse.
             @test to_numeric(op1, bprod_gap) == sparse(
                 to_numeric(op1, bprod_gap; op_type = identity),
             )
@@ -260,9 +257,7 @@ using Test
     end
 
     @testset "numeric_average — LazyKet state" begin
-        # `numeric_average` must contract against a lazy operator here: `expect`
-        # has no method for a sparse operator paired with a `LazyKet`, and a
-        # `LazyKet` exists precisely to avoid materialising the full state.
+        # `expect` has no method for a sparse operator paired with a `LazyKet`.
         hfock = FockSpace(:fock)
         hnlevel = NLevelSpace(:nlevel, (:a, :b, :c))
         hprod = hfock ⊗ hnlevel
@@ -283,7 +278,6 @@ using Test
             op_num = to_numeric(op, bprod)
             @test numeric_average(op, ψ_lazy) ≈ expect(op_num, ψ_dense)
         end
-        # average-expression entry point (undo_average path) on a LazyKet
         @test numeric_average(average(a' * a), ψ_lazy) ≈
             expect(to_numeric(a' * a, bprod), ψ_dense)
     end
@@ -619,23 +613,19 @@ using Test
     end
 
     @testset "op_type is shape-independent" begin
-        # A bare operator, a product, and a sum must all return the same
-        # operator type for a given op_type — the representation depends only on
-        # op_type, never on the shape of the expression.
+        # The return type depends only on op_type, not on the expression shape.
         h = FockSpace(:a) ⊗ FockSpace(:b)
         @qnumbers a1::Destroy(h, 1) a2::Destroy(h, 2)
         b = FockBasis(3) ⊗ FockBasis(3)
         exprs = (a1, a1' * a1, a1' * a1 + a2' * a2)
 
         for expr in exprs
-            @test to_numeric(expr, b) isa Operator                     # sparse default
+            @test to_numeric(expr, b) isa Operator
             @test to_numeric(expr, b) == to_numeric(expr, b; op_type = sparse)
             @test to_numeric(expr, b; op_type = dense) isa Operator
         end
-        # The lazy opt-in yields lazy types across every shape.
         @test to_numeric(exprs[1], b; op_type = identity) isa LazyTensor
         @test to_numeric(exprs[3], b; op_type = identity) isa LazySum
-        # Values agree across representations.
         for expr in exprs
             @test to_numeric(expr, b) == sparse(to_numeric(expr, b; op_type = identity))
             @test dense(to_numeric(expr, b)) ≈ dense(to_numeric(expr, b; op_type = dense))
