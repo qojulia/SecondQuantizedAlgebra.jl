@@ -5,11 +5,11 @@ All notable changes to [`SecondQuantizedAlgebra.jl`](https://github.com/qojulia/
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [v0.10.0]
+## [v0.9.2]
 
 ### Changed
 
-- **Breaking:** `to_numeric` now returns a concrete operator by default, and its representation depends only on `op_type`, not on the shape of the expression. Previously a bare operator translated to a `LazyTensor` and a sum to a `LazySum` (via the positional path), while the keyword path materialized `sparse` only in some branches, so composing subexpressions silently changed the return type and operators handed to solvers were lazy by default. The default `op_type` is now `sparse` (was `identity`), applied uniformly to bare operators, products, and sums. Pass `op_type=dense` for a dense operator, or `op_type=identity` to opt into the natural lazy representation (`LazyTensor`/`LazyProduct`/`LazySum`) for large tensor-product spaces where an operator is local to a few subsystems. The lazy embedding is kept internal, so a term is still assembled from lazy factors and materialized exactly once. Code relying on the previous lazy default must now pass `op_type=identity`.
+- `to_numeric` now returns a concrete operator by default, and its representation depends only on `op_type`, not on the shape of the expression. Previously a bare operator translated to a `LazyTensor` and a sum to a `LazySum` (via the positional path), while the keyword path materialized `sparse` only in some branches, so composing subexpressions silently changed the return type and operators handed to solvers were lazy by default. The default `op_type` is now `sparse` (was `identity`), applied uniformly to bare operators, products, and sums. Pass `op_type=dense` for a dense operator, or `op_type=identity` to opt into the natural lazy representation (`LazyTensor`/`LazyProduct`/`LazySum`) for large tensor-product spaces where an operator is local to a few subsystems. The lazy embedding is kept internal, so a term is still assembled from lazy factors and materialized exactly once. Code relying on the previous lazy default must now pass `op_type=identity`.
 
 ## [v0.9.1]
 
@@ -268,4 +268,5 @@ These names keep their meaning across the migration. Code that only uses them sh
 [v0.8.3]: https://github.com/qojulia/SecondQuantizedAlgebra.jl/releases/tag/v0.8.3
 [v0.9.0]: https://github.com/qojulia/SecondQuantizedAlgebra.jl/releases/tag/v0.9.0
 [v0.9.1]: https://github.com/qojulia/SecondQuantizedAlgebra.jl/releases/tag/v0.9.1
+[v0.9.2]: https://github.com/qojulia/SecondQuantizedAlgebra.jl/releases/tag/v0.9.2
 [#156]: https://github.com/qojulia/SecondQuantizedAlgebra.jl/issues/156
