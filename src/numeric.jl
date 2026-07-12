@@ -7,7 +7,7 @@ const _NO_SUBS = Dict{QSym, Union{}}()
     to_numeric(op, basis [, d::AbstractDict{<:QSym}])
     to_numeric(op, state [, d::AbstractDict{<:QSym}])
     to_numeric(op, basis; parameter=Dict(), time_parameter=Dict(), operators=Dict(),
-               adjoint_ops=true, op_type=identity)
+               adjoint_ops=true, op_type=sparse)
     to_numeric(ops::AbstractVector, basis; kwargs...)
 
 Convert a symbolic operator expression to a numeric QuantumOpticsBase operator.
@@ -18,6 +18,23 @@ The keyword form first substitutes scalar `parameter`s, then translates using
 custom numeric `operators`. Missing adjoint entries are added to `operators`
 when `adjoint_ops=true`. If `time_parameter` is non-empty, values may be numbers
 or functions of time and the result is a closure `t -> op(t)`.
+
+The result representation is controlled by `op_type` and does not depend on the
+shape of the expression: a bare operator, a product, and a sum all return the
+same operator type. `op_type` is applied once to the assembled operator:
+
+  - `op_type=sparse` (default): a sparse `Operator`. A good general default: it
+    is memory-scalable, type-stable, and the form the QuantumOptics solvers
+    consume most efficiently.
+  - `op_type=dense`: a dense `Operator`. Prefer for small Hilbert spaces.
+  - `op_type=identity`: the natural lazy representation (`LazyTensor` /
+    `LazyProduct` / `LazySum`). Opt in for large tensor-product spaces where an
+    operator is local to a few subsystems, so the full Kronecker product is
+    never materialised. (In the time-dependent path with more than one term,
+    terms are still materialised to keep the returned closure type-stable.)
+
+The positional forms `to_numeric(op, basis[, d])` always return `sparse`; use
+the keyword form to select `dense` or `identity`.
 
 # Examples
 
@@ -80,19 +97,27 @@ function to_numeric(op::Op, b::QuantumOpticsBase.SpinBasis)
     end
     throw(ArgumentError("Op kind $(op.kind) does not act on a SpinBasis"))
 end
-function to_numeric(op::Op, b::QuantumOpticsBase.CompositeBasis)
+# Lazy embedding of a single operator on `b`; building block for products/sums.
+_embed(op::Op, b::QuantumOpticsBase.Basis) = to_numeric(op, b)
+function _embed(op::Op, b::QuantumOpticsBase.CompositeBasis)
     si = Int(op.space_index)
-    return QuantumOpticsBase.LazyTensor(b, [si], (to_numeric(op, b.bases[si]),))
+    return QuantumOpticsBase.LazyTensor(b, [si], (_embed(op, b.bases[si]),))
 end
-
-function to_numeric(op::Op, b::QuantumOpticsBase.Basis, d::AbstractDict{<:QSym})
+function _embed(op::Op, b::QuantumOpticsBase.Basis, d::AbstractDict{<:QSym})
     haskey(d, op) && return d[op]
-    return to_numeric(op, b)
+    return _embed(op, b)
 end
 
-# Scalar-term and operator-product branches return different operator types
-# (Diagonal identity vs SparseMatrixCSC), so the conditional stays in-loop.
-function to_numeric(s::QAdd, b::QuantumOpticsBase.Basis, d::AbstractDict{<:QSym} = _NO_SUBS)
+# Positional forms materialise sparse; use the keyword form for other `op_type`.
+to_numeric(op::Op, b::QuantumOpticsBase.CompositeBasis) =
+    QuantumOpticsBase.sparse(_embed(op, b))
+to_numeric(op::Op, b::QuantumOpticsBase.Basis, d::AbstractDict{<:QSym}) =
+    QuantumOpticsBase.sparse(_embed(op, b, d))
+to_numeric(s::QAdd, b::QuantumOpticsBase.Basis, d::AbstractDict{<:QSym} = _NO_SUBS) =
+    QuantumOpticsBase.sparse(_assemble(s, b, d))
+
+# Lazy assembly of an operator sum; the caller materialises it.
+function _assemble(s::QAdd, b::QuantumOpticsBase.Basis, d::AbstractDict{<:QSym} = _NO_SUBS)
     iter = iterate(s.arguments)
     iter === nothing && return _to_complex(_CNUM_ZERO) * _lazy_one(b)
     (term, c), st = iter
@@ -107,12 +132,16 @@ function to_numeric(s::QAdd, b::QuantumOpticsBase.Basis, d::AbstractDict{<:QSym}
 end
 
 function _product(ops::Vector{Op}, b::QuantumOpticsBase.Basis, d::AbstractDict{<:QSym} = _NO_SUBS)
-    acc = to_numeric(first(ops), b, d)
+    acc = _embed(first(ops), b, d)
     for i in 2:length(ops)
-        acc *= to_numeric(ops[i], b, d)
+        acc *= _embed(ops[i], b, d)
     end
     return acc
 end
+
+# Lazy form for consumers that contract immediately (e.g. `expect` on a `LazyKet`).
+_to_numeric_lazy(op::Op, b::QuantumOpticsBase.Basis, d::AbstractDict{<:QSym}) = _embed(op, b, d)
+_to_numeric_lazy(s::QAdd, b::QuantumOpticsBase.Basis, d::AbstractDict{<:QSym}) = _assemble(s, b, d)
 
 function _to_numeric_kw(
         op,
@@ -121,7 +150,7 @@ function _to_numeric_kw(
         time_parameter = Dict(),
         operators = Dict{QSym, Any}(),
         adjoint_ops = true,
-        op_type = identity,
+        op_type = QuantumOpticsBase.sparse,
     )
     param = _expand_parameter(parameter)
     tp = _normalize_time_parameter(time_parameter)
@@ -257,7 +286,7 @@ function _to_numeric_static(
 end
 
 _to_numeric_with_ops(op, b::QuantumOpticsBase.Basis, operators::AbstractDict{<:QSym}) =
-    isempty(operators) ? to_numeric(op, b) : to_numeric(op, b, operators)
+    isempty(operators) ? _embed(op, b) : _embed(op, b, operators)
 
 function _numeric_product(
         ops::Vector{Op},
@@ -444,7 +473,7 @@ function to_numeric(
             result, term, c, q.indices, b, sites, d, sub_re, sub_im, has_imag,
         )
     end
-    return result
+    return QuantumOpticsBase.sparse(result)
 end
 
 function _accumulate_indexed_term!(
@@ -588,7 +617,7 @@ function _resolve_slot(op::QSym, sites::AbstractDict{Int, Vector{Int}})
     )
 end
 
-to_numeric(x::Number, b::QuantumOpticsBase.Basis, ::AbstractDict{<:QSym} = _NO_SUBS) = _to_complex(x) * _lazy_one(b)
+to_numeric(x::Number, b::QuantumOpticsBase.Basis, ::AbstractDict{<:QSym} = _NO_SUBS) = QuantumOpticsBase.sparse(_to_complex(x) * _lazy_one(b))
 to_numeric(op::QField, state::QuantumState, d::AbstractDict{<:QSym} = _NO_SUBS) = to_numeric(op, QuantumOpticsBase.basis(state), d)
 to_numeric(x::Number, state::QuantumState) = to_numeric(x, QuantumOpticsBase.basis(state))
 
@@ -697,7 +726,7 @@ function numeric_average(op, states::AbstractVector, d::AbstractDict{<:QSym} = _
     return _numeric_average_vec(op, states, d)
 end
 
-_numeric_average(op::QField, state::QuantumState, d::AbstractDict{<:QSym}) = ComplexF64(QuantumOpticsBase.expect(to_numeric(op, state, d), state))
+_numeric_average(op::QField, state::QuantumState, d::AbstractDict{<:QSym}) = ComplexF64(QuantumOpticsBase.expect(_to_numeric_lazy(op, QuantumOpticsBase.basis(state), d), state))
 _numeric_average(x::Number, ::QuantumState, ::AbstractDict{<:QSym}) = _to_complex(x)
 _numeric_average(x::Num, state::QuantumState, d::AbstractDict{<:QSym}) = _numeric_average(SymbolicUtils.unwrap(x), state, d)
 

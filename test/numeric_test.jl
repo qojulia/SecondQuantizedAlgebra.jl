@@ -44,8 +44,12 @@ using Test
         @qnumbers a1::Destroy(h, 1) a2::Destroy(h, 2)
         b = FockBasis(3) ⊗ FockBasis(3)
 
+        a1_lazy = to_numeric(a1, b; op_type = identity)
+        @test a1_lazy isa LazyTensor
         a1_num = to_numeric(a1, b)
-        @test a1_num isa LazyTensor
+        @test a1_num isa Operator
+        @test a1_num == sparse(a1_lazy)
+        @test to_numeric(a1, b; op_type = dense) == dense(a1_lazy)
     end
 
     @testset "numeric_average" begin
@@ -96,7 +100,8 @@ using Test
         bf = FockBasis(3)
         bn = NLevelBasis(3)
         bc = bf ⊗ bn
-        @test to_numeric(σ12, bc) isa LazyTensor
+        @test to_numeric(σ12, bc; op_type = identity) isa LazyTensor
+        @test to_numeric(σ12, bc) isa Operator
     end
 
     @testset "Type stability" begin
@@ -197,15 +202,18 @@ using Test
             i == j == 1 && continue
             op1 = a * σprod_gap(i, j)
             op2 = a' * σprod_gap(i, j)
-            @test to_numeric(op1, bprod_gap) == LazyTensor(
+            @test to_numeric(op1, bprod_gap; op_type = identity) == LazyTensor(
                 bprod_gap,
                 [1, 3],
                 (destroy(bfock), QuantumOpticsBase.transition(bnlevel, i, j)),
             )
-            @test to_numeric(op2, bprod_gap) == LazyTensor(
+            @test to_numeric(op2, bprod_gap; op_type = identity) == LazyTensor(
                 bprod_gap,
                 [1, 3],
                 (create(bfock), QuantumOpticsBase.transition(bnlevel, i, j)),
+            )
+            @test to_numeric(op1, bprod_gap) == sparse(
+                to_numeric(op1, bprod_gap; op_type = identity),
             )
         end
     end
@@ -246,6 +254,32 @@ using Test
             op_num = idfock ⊗ QuantumOpticsBase.transition(bnlevel, i, j)
             @test numeric_average(op, ψprod) ≈ expect(op_num, ψprod)
         end
+    end
+
+    @testset "numeric_average — LazyKet state" begin
+        # `expect` has no method for a sparse operator paired with a `LazyKet`.
+        hfock = FockSpace(:fock)
+        hnlevel = NLevelSpace(:nlevel, (:a, :b, :c))
+        hprod = hfock ⊗ hnlevel
+        bfock = FockBasis(10)
+        bnlevel = NLevelBasis(3)
+        bprod = bfock ⊗ bnlevel
+
+        @qnumbers a::Destroy(hprod, 1)
+        σ(i, j) = Transition(hprod, :σ, i, j, 2)
+
+        α = 0.3 + 0.0im
+        ket_fock = coherentstate(bfock, α)
+        ket_nlevel = (nlevelstate(bnlevel, 1) + nlevelstate(bnlevel, 3)) / sqrt(2)
+        ψ_lazy = LazyKet(bprod, (ket_fock, ket_nlevel))
+        ψ_dense = ket_fock ⊗ ket_nlevel
+
+        for op in (a, a' * σ(:a, :c), a + a' * σ(:a, :c))
+            op_num = to_numeric(op, bprod)
+            @test numeric_average(op, ψ_lazy) ≈ expect(op_num, ψ_dense)
+        end
+        @test numeric_average(average(a' * a), ψ_lazy) ≈
+            expect(to_numeric(a' * a, bprod), ψ_dense)
     end
 
     @testset "numeric_average — comprehensive expressions" begin
@@ -576,6 +610,26 @@ using Test
         @test_throws ArgumentError to_numeric(
             x * E * a, b; time_parameter = Dict(E => t -> 1.0 + 0im),
         )                                                                       # untimed variable
+    end
+
+    @testset "op_type is shape-independent" begin
+        # The return type depends only on op_type, not on the expression shape.
+        h = FockSpace(:a) ⊗ FockSpace(:b)
+        @qnumbers a1::Destroy(h, 1) a2::Destroy(h, 2)
+        b = FockBasis(3) ⊗ FockBasis(3)
+        exprs = (a1, a1' * a1, a1' * a1 + a2' * a2)
+
+        for expr in exprs
+            @test to_numeric(expr, b) isa Operator
+            @test to_numeric(expr, b) == to_numeric(expr, b; op_type = sparse)
+            @test to_numeric(expr, b; op_type = dense) isa Operator
+        end
+        @test to_numeric(exprs[1], b; op_type = identity) isa LazyTensor
+        @test to_numeric(exprs[3], b; op_type = identity) isa LazySum
+        for expr in exprs
+            @test to_numeric(expr, b) == sparse(to_numeric(expr, b; op_type = identity))
+            @test dense(to_numeric(expr, b)) ≈ dense(to_numeric(expr, b; op_type = dense))
+        end
     end
 
 end
