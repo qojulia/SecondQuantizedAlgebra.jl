@@ -4,6 +4,13 @@ All notable changes to [`SecondQuantizedAlgebra.jl`](https://github.com/qojulia/
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+
+## [v0.9.1]
+
+### Fixed
+
+- Printing a sum of averages whose operators have different concrete types (for example `⟨a'a⟩`, which wraps a `QAdd`, alongside `⟨σ⟩`, which wraps a `QSym`) no longer errors. When SymbolicUtils sorts such a sum for display it unwraps the operator constants and falls back to comparing the operator *types*, which previously threw `MethodError: no method matching isless(::Type{QAdd}, ::Type{...})`. `QField` types now compare by name, so heterogeneous operator sums render as before.
+
 ## [v0.9.0]
 
 ### Added
@@ -254,4 +261,5 @@ These names keep their meaning across the migration. Code that only uses them sh
 [v0.8.2]: https://github.com/qojulia/SecondQuantizedAlgebra.jl/releases/tag/v0.8.2
 [v0.8.3]: https://github.com/qojulia/SecondQuantizedAlgebra.jl/releases/tag/v0.8.3
 [v0.9.0]: https://github.com/qojulia/SecondQuantizedAlgebra.jl/releases/tag/v0.9.0
+[v0.9.1]: https://github.com/qojulia/SecondQuantizedAlgebra.jl/releases/tag/v0.9.1
 [#156]: https://github.com/qojulia/SecondQuantizedAlgebra.jl/issues/156
