@@ -149,6 +149,15 @@ function _product(ops::Vector{Op}, b::QuantumOpticsBase.Basis, d::AbstractDict{<
     return acc
 end
 
+# Lazy (un-materialised) numeric form. Used where the consumer contracts the
+# operator with a state immediately and therefore never needs a concrete matrix,
+# e.g. `expect` against a `LazyKet` (which has no `expect` method for a sparse
+# operator, and whose whole purpose is to avoid materialising the Kronecker
+# product). Mirrors the positional `to_numeric(op, b, d)` dispatch, minus the
+# final `sparse`.
+_to_numeric_lazy(op::Op, b::QuantumOpticsBase.Basis, d::AbstractDict{<:QSym}) = _embed(op, b, d)
+_to_numeric_lazy(s::QAdd, b::QuantumOpticsBase.Basis, d::AbstractDict{<:QSym}) = _assemble(s, b, d)
+
 function _to_numeric_kw(
         op,
         b::QuantumOpticsBase.Basis;
@@ -732,7 +741,7 @@ function numeric_average(op, states::AbstractVector, d::AbstractDict{<:QSym} = _
     return _numeric_average_vec(op, states, d)
 end
 
-_numeric_average(op::QField, state::QuantumState, d::AbstractDict{<:QSym}) = ComplexF64(QuantumOpticsBase.expect(to_numeric(op, state, d), state))
+_numeric_average(op::QField, state::QuantumState, d::AbstractDict{<:QSym}) = ComplexF64(QuantumOpticsBase.expect(_to_numeric_lazy(op, QuantumOpticsBase.basis(state), d), state))
 _numeric_average(x::Number, ::QuantumState, ::AbstractDict{<:QSym}) = _to_complex(x)
 _numeric_average(x::Num, state::QuantumState, d::AbstractDict{<:QSym}) = _numeric_average(SymbolicUtils.unwrap(x), state, d)
 

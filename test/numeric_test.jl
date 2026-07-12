@@ -259,6 +259,35 @@ using Test
         end
     end
 
+    @testset "numeric_average — LazyKet state" begin
+        # `numeric_average` must contract against a lazy operator here: `expect`
+        # has no method for a sparse operator paired with a `LazyKet`, and a
+        # `LazyKet` exists precisely to avoid materialising the full state.
+        hfock = FockSpace(:fock)
+        hnlevel = NLevelSpace(:nlevel, (:a, :b, :c))
+        hprod = hfock ⊗ hnlevel
+        bfock = FockBasis(10)
+        bnlevel = NLevelBasis(3)
+        bprod = bfock ⊗ bnlevel
+
+        @qnumbers a::Destroy(hprod, 1)
+        σ(i, j) = Transition(hprod, :σ, i, j, 2)
+
+        α = 0.3 + 0.0im
+        ket_fock = coherentstate(bfock, α)
+        ket_nlevel = (nlevelstate(bnlevel, 1) + nlevelstate(bnlevel, 3)) / sqrt(2)
+        ψ_lazy = LazyKet(bprod, (ket_fock, ket_nlevel))
+        ψ_dense = ket_fock ⊗ ket_nlevel
+
+        for op in (a, a' * σ(:a, :c), a + a' * σ(:a, :c))
+            op_num = to_numeric(op, bprod)
+            @test numeric_average(op, ψ_lazy) ≈ expect(op_num, ψ_dense)
+        end
+        # average-expression entry point (undo_average path) on a LazyKet
+        @test numeric_average(average(a' * a), ψ_lazy) ≈
+            expect(to_numeric(a' * a, bprod), ψ_dense)
+    end
+
     @testset "numeric_average — comprehensive expressions" begin
         h = FockSpace(:fock)
         @qnumbers a::Destroy(h)
