@@ -11,6 +11,7 @@ pages = [
         "Cavity Optomechanics" => "examples/optomechanics.md",
         "Two-Atom Dipole-Dipole" => "examples/two_atom.md",
         "Parametric Oscillator" => "examples/parametric_oscillator.md",
+        "Superradiant Decay" => "examples/dicke_superradiance.md",
     ],
     "API" => "API.md",
     "Changelog" => "changelog.md",
