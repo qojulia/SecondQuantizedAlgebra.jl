@@ -5,6 +5,22 @@ All notable changes to [`SecondQuantizedAlgebra.jl`](https://github.com/qojulia/
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v0.9.4]
+
+### Added
+
+- `CollectiveNLevelSpace` and `CollectiveTransition` provide an exact collective description of ``N`` identical multilevel systems in the permutation-symmetric subspace. A collective transition represents ``S^{ij} = \sum_k |i\rangle_k\langle j|`` and obeys the closed ``\mathfrak{su}(n)`` algebra ``[S^{ij}, S^{kl}] = \delta_{jk}S^{il} - \delta_{li}S^{kj}``, including the two-term case ``[S^{12}, S^{21}] = S^{11} - S^{22}``. Integer and symbolic levels, simple and product-space constructors, adjoints, fundamental-operator generation, Unicode/LaTeX printing, and the `is_collective_transition` predicate are supported. Collective transitions deliberately cannot be site-indexed and do not use the single-site completeness expansion: ``\sum_i S^{ii} = N I``, rather than ``I``.
+- `to_numeric` converts a `CollectiveTransition` on a `QuantumOpticsBase.ManyBodyBasis` with an `NLevelBasis` one-body basis through `manybodyoperator`. This gives exact finite-``N`` dynamics in a symmetric space of dimension ``\binom{N+n-1}{n-1}`` and works unchanged inside composite bases. For two levels it reproduces the spin-``N/2`` representation, with ``S^{12}=S_+``, ``S^{21}=S_-``, and ``(S^{11}-S^{22})/2=S_z`` in the QuantumOpticsBase convention.
+- `OP_COLLECTIVE_TRANSITION` extends the public `OpKind` tags with value `7`. It is appended after `OP_MOMENTUM`, preserving the values `0:6` and structural ordering keys of every existing operator role.
+
+### Changed
+
+- The internal `_commute_pair` hook now carries up to two residual terms. Fock, phase-space, and spin operators continue to use one residual slot; collective transitions use both when both Kronecker deltas contribute. The eager commute pass and the leaf `commutator` fast path retain and combine both branches.
+
+### Documentation
+
+- Added a guide comparing indexed sums with exact collective symmetric-subspace operators, developer documentation for the two-residual commute contract and the collective-transition/spin relationship, and a finite-``N`` Tavis–Cummings example using `ManyBodyBasis`.
+
 ## [v0.9.3]
 
 ### Fixed
@@ -276,4 +292,5 @@ These names keep their meaning across the migration. Code that only uses them sh
 [v0.9.1]: https://github.com/qojulia/SecondQuantizedAlgebra.jl/releases/tag/v0.9.1
 [v0.9.2]: https://github.com/qojulia/SecondQuantizedAlgebra.jl/releases/tag/v0.9.2
 [v0.9.3]: https://github.com/qojulia/SecondQuantizedAlgebra.jl/releases/tag/v0.9.3
+[v0.9.4]: https://github.com/qojulia/SecondQuantizedAlgebra.jl/releases/tag/v0.9.4
 [#156]: https://github.com/qojulia/SecondQuantizedAlgebra.jl/issues/156
