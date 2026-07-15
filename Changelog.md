@@ -5,6 +5,12 @@ All notable changes to [`SecondQuantizedAlgebra.jl`](https://github.com/qojulia/
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v0.9.3]
+
+### Fixed
+
+- The diagonal split in `_accumulate_with_diag!` no longer leaks the diagonal coefficient into the off-diagonal body when a summation index appears only in a term's coefficient. Multiplying a sum such as `Σ_k u(l,k)·σ_l` by an operator peels off the diagonal `k = l` slice, but the substitution dropped the split's `k ≠ l` constraint instead of rewriting it onto the collapsed index. A sibling scope then re-admitted `k = l`, so the off-diagonal body's coefficient became `u(l,k) + u(l,l)` and the diagonal was over-counted (for example `commutator(σ_l^{22}, Σ_{j,k} u(j,k)(σ_j^{21}+σ_j^{12}))` gained a spurious `u(l,l)` in every `Σ_k` term). The diagonal contribution now rewrites each `sum_idx ≠ β` constraint onto `ext_idx`, exactly as the `Σ` diagonal split already does, so the off-diagonal body keeps its bare coefficient and the diagonal is emitted once. This is the SecondQuantizedAlgebra half of QuantumCumulants issue [#198](https://github.com/qojulia/QuantumCumulants.jl/issues/198).
+
 ## [v0.9.2]
 
 ### Changed
@@ -269,4 +275,5 @@ These names keep their meaning across the migration. Code that only uses them sh
 [v0.9.0]: https://github.com/qojulia/SecondQuantizedAlgebra.jl/releases/tag/v0.9.0
 [v0.9.1]: https://github.com/qojulia/SecondQuantizedAlgebra.jl/releases/tag/v0.9.1
 [v0.9.2]: https://github.com/qojulia/SecondQuantizedAlgebra.jl/releases/tag/v0.9.2
+[v0.9.3]: https://github.com/qojulia/SecondQuantizedAlgebra.jl/releases/tag/v0.9.3
 [#156]: https://github.com/qojulia/SecondQuantizedAlgebra.jl/issues/156
