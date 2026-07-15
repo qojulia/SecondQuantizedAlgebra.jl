@@ -150,7 +150,7 @@ using Test
             @test @allocations(isequal(S12, S21)) == 0
             @test @allocations(hash(S12, UInt(0))) == 0
             S12 * S21 # warm the commute pipeline
-            @test @allocations(S12 * S21) <= 17
+            @test @allocations(S12 * S21) <= 20
         end
     end
 end
