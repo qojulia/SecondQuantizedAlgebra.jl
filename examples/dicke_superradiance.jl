@@ -24,8 +24,12 @@ See = CollectiveTransition(h, :S, :e, :e, 2)
 H = ωc * a' * a + ωa * See + g * (a' * Sge + a * Seg)
 
 # The symbolic algebra knows the collective su(2) commutator exactly.
-@assert iszero(simplify(commutator(Sge, Seg) -
-    CollectiveTransition(h, :S, :g, :g, 2) + See))
+@assert iszero(
+    simplify(
+        commutator(Sge, Seg) -
+            CollectiveTransition(h, :S, :g, :g, 2) + See
+    )
+)
 
 # Fixing total atomic occupation to N constructs the symmetric sector.
 bc = FockBasis(nphotons)

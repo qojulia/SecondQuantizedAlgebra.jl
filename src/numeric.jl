@@ -88,10 +88,10 @@ function to_numeric(op::Op, b::QuantumOpticsBase.ManyBodyBasis)
     onebody = b.onebodybasis
     onebody isa QuantumOpticsBase.NLevelBasis ||
         throw(
-            ArgumentError(
-                "CollectiveTransition requires a ManyBodyBasis with NLevelBasis one-body basis; got $(typeof(onebody))",
-            ),
-        )
+        ArgumentError(
+            "CollectiveTransition requires a ManyBodyBasis with NLevelBasis one-body basis; got $(typeof(onebody))",
+        ),
+    )
     onebody_op = QuantumOpticsBase.transition(onebody, Int(op.l1), Int(op.l2))
     return QuantumOpticsBase.manybodyoperator(b, onebody_op)
 end
