@@ -27,7 +27,7 @@ All operators are one concrete struct with a runtime `kind` tag; the level/axis
 fields are shared storage interpreted per `kind`:
 
 ```julia
-@enum OpKind::UInt8 OP_DESTROY OP_CREATE OP_TRANSITION OP_COLLECTIVE_TRANSITION OP_PAULI OP_SPIN OP_POSITION OP_MOMENTUM
+@enum OpKind::UInt8 OP_DESTROY OP_CREATE OP_TRANSITION OP_PAULI OP_SPIN OP_POSITION OP_MOMENTUM OP_COLLECTIVE_TRANSITION
 
 struct Op <: QSym
     kind::OpKind        # which physical role this operator plays
@@ -114,7 +114,7 @@ terms. Fock, PhaseSpace, and Spin populate only the first slot. The commute pass
 forks an independent branch for each nonzero residual, and the `commutator`
 leaf fast path sums both slots.
 
-**Site families inside `_site_compare`.** The comparator first orders by `space_index`, so operators are grouped by the subspace they act on before anything else is consulted (operators on different subspaces commute, so this reordering is always safe and gives the more natural per-subspace canonical form). Within a subspace, cross-role comparison is family-scoped: Fock `{Destroy, Create}` and PhaseSpace `{Position, Momentum}` compare within their family (PhaseSpace ignores the operator name, treating x and p as conjugate variables on one site); the other roles are singleton families. A subspace carries a single Hilbert-space type, so same-`space_index` operators always share a family; the `kind` integer fallback (`OP_DESTROY=0 < … < OP_MOMENTUM=7`, the old `_type_order`) only distinguishes the pathological case of two operators sharing a `space_index` across unrelated simple spaces.
+**Site families inside `_site_compare`.** The comparator first orders by `space_index`, so operators are grouped by the subspace they act on before anything else is consulted (operators on different subspaces commute, so this reordering is always safe and gives the more natural per-subspace canonical form). Within a subspace, cross-role comparison is family-scoped: Fock `{Destroy, Create}` and PhaseSpace `{Position, Momentum}` compare within their family (PhaseSpace ignores the operator name, treating x and p as conjugate variables on one site); the other roles are singleton families. A subspace carries a single Hilbert-space type, so same-`space_index` operators always share a family; the `kind` integer fallback preserves the existing values `OP_DESTROY=0 < … < OP_MOMENTUM=6` and appends `OP_COLLECTIVE_TRANSITION=7`. It only distinguishes the pathological case of two operators sharing a `space_index` across unrelated simple spaces.
 
 **Adding an operator role.** Add an `OP_*` enum arm, a constructor function and an `is_*` predicate, then add any non-default branches required in the six hooks plus `adjoint`, `order_key`, `to_numeric`, and the printing/Latexify methods. The hooks are written so a future open-extension escape hatch (an `OP_CUSTOM` arm carrying a payload) could be slotted in without reshaping them; a `Union{Nothing,QSym}` payload field is deliberately *not* added now because it would fail the `CheckConcreteStructs` (`all_concrete`) gate.
 
@@ -441,6 +441,6 @@ SQA carries three orderings that must not be conflated, because each answers a d
 
 **Terminal printing** uses Unicode: `†` for dagger, subscript digits (`₀`-`₉`) for Transition and CollectiveTransition levels, `σx`/`σy`/`σz` for Pauli axes. Summations render as `Σ(i=1:N)`.
 
-**`sorted_arguments`** ensures deterministic output order. The sort key is `(length(ops), full_op_keys...)` where `_full_op_key(op) = (_sort_key(op)..., _type_order(op), op.name)`. This gives: shorter terms first, then by site, then by type (Destroy < Create < Transition < Pauli < Spin < Position < Momentum), then by name.
+**`sorted_arguments`** ensures deterministic output order. The sort key is `(length(ops), full_op_keys...)` where `_full_op_key(op) = (_sort_key(op)..., _type_order(op), op.name)`. This gives: shorter terms first, then by site, then by type (Destroy < Create < Transition < Pauli < Spin < Position < Momentum < CollectiveTransition), then by name.
 
 **LaTeX** uses Latexify.jl's `@latexrecipe` macro. `transition_superscript(::Bool)` toggles the global `transition_idx_script` `Ref` between `:^` and `:_`, controlling whether Transition and CollectiveTransition level indices render as superscripts (`{name}^{{ij}}`) or subscripts (`{name}_{{ij}}`).

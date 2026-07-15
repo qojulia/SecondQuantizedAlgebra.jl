@@ -5,6 +5,17 @@ import SecondQuantizedAlgebra: QAdd, QSym, QField, AvgFunc, _average, _conj_cnum
 
 @testset "Operators" begin
 
+    @testset "OpKind values remain backward compatible" begin
+        @test Int(SecondQuantizedAlgebra.OP_DESTROY) == 0
+        @test Int(SecondQuantizedAlgebra.OP_CREATE) == 1
+        @test Int(SecondQuantizedAlgebra.OP_TRANSITION) == 2
+        @test Int(SecondQuantizedAlgebra.OP_PAULI) == 3
+        @test Int(SecondQuantizedAlgebra.OP_SPIN) == 4
+        @test Int(SecondQuantizedAlgebra.OP_POSITION) == 5
+        @test Int(SecondQuantizedAlgebra.OP_MOMENTUM) == 6
+        @test Int(SecondQuantizedAlgebra.OP_COLLECTIVE_TRANSITION) == 7
+    end
+
     @testset "fundamental_operators — FockSpace" begin
         h = FockSpace(:c)
         ops = fundamental_operators(h)

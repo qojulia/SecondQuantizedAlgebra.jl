@@ -116,7 +116,8 @@ export FockSpace, ProductSpace,
 # Public API that is intentionally NOT exported — accessed as
 # `SecondQuantizedAlgebra.symbol`.
 @public HilbertSpace, QField, QSym, OpKind,
-    OP_DESTROY, OP_CREATE, OP_TRANSITION, OP_COLLECTIVE_TRANSITION, OP_PAULI, OP_SPIN, OP_POSITION, OP_MOMENTUM,
+    OP_DESTROY, OP_CREATE, OP_TRANSITION, OP_PAULI, OP_SPIN, OP_POSITION, OP_MOMENTUM,
+    OP_COLLECTIVE_TRANSITION,
     QAdd, QTerm, QTermDict, Coeff, CNum,
     has_sum_metadata, get_sum_indices, get_sum_non_equal,
     transition_superscript, constraint_pairs,

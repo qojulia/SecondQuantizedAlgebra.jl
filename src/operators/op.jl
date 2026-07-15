@@ -5,7 +5,7 @@ Runtime tag distinguishing the eight operator roles carried by the single
 concrete leaf type [`Op`](@ref). The integer values double as the cross-family
 sort order (see `_type_order`/`order_key`).
 """
-@enum OpKind::UInt8 OP_DESTROY OP_CREATE OP_TRANSITION OP_COLLECTIVE_TRANSITION OP_PAULI OP_SPIN OP_POSITION OP_MOMENTUM
+@enum OpKind::UInt8 OP_DESTROY OP_CREATE OP_TRANSITION OP_PAULI OP_SPIN OP_POSITION OP_MOMENTUM OP_COLLECTIVE_TRANSITION
 
 """
     Op <: QSym
