@@ -127,17 +127,6 @@ function _substitute_ne(ne::Vector{NonEqualPair}, pairs::AbstractDict{Index, Ind
     return isempty(out) ? _EMPTY_NE : out
 end
 
-function _drop_ne_with(ne::Vector{NonEqualPair}, idx::Index)
-    isempty(ne) && return _EMPTY_NE
-    out = NonEqualPair[]
-    for (α, β) in ne
-        α == idx && continue
-        β == idx && continue
-        _push_ne_unique!(out, (α, β))
-    end
-    return isempty(out) ? _EMPTY_NE : out
-end
-
 function _copy_key(term::QTerm)
     return QTerm(copy(term.ops), _copy_ne(term.ne), term.hash)
 end

@@ -85,7 +85,8 @@ end
 When summing over indices that may coincide with another operator's index, emit
 both the off-diagonal contribution (under `ne ∪ {(sum_idx, ext_idx)}` enforcing
 the indices differ) and each diagonal contribution (substituting
-`sum_idx -> ext_idx`, under `ne` with any constraint on `sum_idx` dropped).
+`sum_idx -> ext_idx`, with each constraint on `sum_idx` rewritten onto
+`ext_idx`, mirroring the diagonal split in [`Σ`](@ref)).
 """
 function _accumulate_with_diag!(
         out::QTermDict, ops::Vector{Op}, c::CNum,
@@ -131,7 +132,13 @@ function _accumulate_with_diag!(
     for (sum_idx, ext_idx) in diag_pairs
         sub_ops = Op[change_index(o, sum_idx, ext_idx) for o in ops]
         sub_c = change_index(c, sum_idx, ext_idx)
-        sub_ne = _drop_ne_with(ne, sum_idx)
+        # Rewrite (not drop) the collapsed index in the constraints: a
+        # `sum_idx ≠ β` becomes `ext_idx ≠ β` on the diagonal, exactly as the
+        # `Σ` diagonal split does. Dropping it lets a sibling sum index re-admit
+        # the excluded value: a coefficient-only-index term `Σ_k u(l,k)·σ_l`
+        # (constraint k≠l from the off-diagonal split) would otherwise merge
+        # with a genuine diagonal `u(l,l)·σ_l` under the same key and over-count.
+        sub_ne = _substitute_ne(ne, sum_idx, ext_idx)
         # Sibling diagonal slices for the same sum must be mutually exclusive;
         # without ext_idx ≠ other_ext, the i=j and i=k branches both contain
         # i=j=k and the canonical sort cannot collapse same-index operators

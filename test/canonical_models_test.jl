@@ -93,6 +93,34 @@ import SecondQuantizedAlgebra: QAdd, Index, simplify
         end
     end
 
+    @testset "coefficient-only summation index: no diagonal leak into off-diagonal body" begin
+        # A per-site drive Ω_l = Σ_k u(l,k) built from a DoubleIndexedVariable carries the
+        # summation index `k` ONLY in the coefficient; no operator carries it. Multiplying
+        # such a sum by an operator triggers the diagonal split, which must keep the
+        # off-diagonal body's coefficient bare (`u(l,k)`) and emit the diagonal `k=l`
+        # contribution as a SEPARATE `u(l,l)` term. Pen-and-paper: only j=l survives
+        # [σ_l^{22}, Σ_{j,k} u(j,k)(σ_j^{21}+σ_j^{12})], splitting the inner sum as
+        # Σ_k u(l,k) = u(l,l) + Σ_{k≠l} u(l,k).
+        k = Index(h, :k, N, ha)
+        l = Index(h, :l, N, ha)
+        u(α, β) = DoubleIndexedVariable(:u, α, β)
+        Hdrive = Σ(Σ(u(j, k) * (σ(2, 1, j) + σ(1, 2, j)), j), k)
+        expected = u(l, l) * σ(2, 1, l) - u(l, l) * σ(1, 2, l) +
+            Σ(u(l, k) * σ(2, 1, l) - u(l, k) * σ(1, 2, l), k, Index[l])
+        @test commutator(σ(2, 2, l), Hdrive) == expected
+
+        # Structural regression for the leak: no term may carry a `k`-dependent coefficient
+        # without the `k≠l` constraint. Before the fix the diagonal substitution dropped
+        # `k≠l`, so a sibling scope re-admitted `k=l` and the off-diagonal body's coefficient
+        # became `u(l,k)+u(l,l)`, over-counting the diagonal.
+        comm = commutator(σ(2, 2, l), Hdrive)
+        for (term, c) in comm.arguments
+            if SecondQuantizedAlgebra._depends_on_index_term(c, term.ops, k)
+                @test SecondQuantizedAlgebra._ne_contains(term.ne, k, l)
+            end
+        end
+    end
+
 end
 
 @testset "Dicke model commutators" begin
