@@ -29,8 +29,8 @@ julia> h = CollectiveNLevelSpace(:atoms, (:g, :e));
 
 julia> S(i, j) = CollectiveTransition(h, :S, i, j);
 
-julia> commutator(S(:g, :e), S(:e, :g))
-S₁₁ - S₂₂
+julia> iszero(simplify(commutator(S(:g, :e), S(:e, :g)) - S(:g, :g) + S(:e, :e)))
+true
 ```
 
 Unlike a single-site [`Transition`](@ref), a product such as ``S^{ge}S^{eg}``
