@@ -83,6 +83,18 @@ function to_numeric(op::Op, b::QuantumOpticsBase.NLevelBasis)
     is_transition(op) && return QuantumOpticsBase.transition(b, Int(op.l1), Int(op.l2))
     throw(ArgumentError("Op kind $(op.kind) does not act on an NLevelBasis"))
 end
+function to_numeric(op::Op, b::QuantumOpticsBase.ManyBodyBasis)
+    is_collective_transition(op) || throw(ArgumentError("Op kind $(op.kind) does not act on a ManyBodyBasis"))
+    onebody = b.onebodybasis
+    onebody isa QuantumOpticsBase.NLevelBasis ||
+        throw(
+            ArgumentError(
+                "CollectiveTransition requires a ManyBodyBasis with NLevelBasis one-body basis; got $(typeof(onebody))",
+            ),
+        )
+    onebody_op = QuantumOpticsBase.transition(onebody, Int(op.l1), Int(op.l2))
+    return QuantumOpticsBase.manybodyoperator(b, onebody_op)
+end
 function to_numeric(op::Op, b::QuantumOpticsBase.SpinBasis)
     if is_pauli(op)
         b.spinnumber == 1 // 2 || throw(ArgumentError("Pauli operators require SpinBasis(1//2), got SpinBasis($(b.spinnumber))"))

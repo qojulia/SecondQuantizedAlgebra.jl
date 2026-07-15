@@ -1,17 +1,18 @@
 """
     OpKind
 
-Runtime tag distinguishing the seven operator roles carried by the single
+Runtime tag distinguishing the eight operator roles carried by the single
 concrete leaf type [`Op`](@ref). The integer values double as the cross-family
 sort order (see `_type_order`/`order_key`).
 """
-@enum OpKind::UInt8 OP_DESTROY OP_CREATE OP_TRANSITION OP_PAULI OP_SPIN OP_POSITION OP_MOMENTUM
+@enum OpKind::UInt8 OP_DESTROY OP_CREATE OP_TRANSITION OP_COLLECTIVE_TRANSITION OP_PAULI OP_SPIN OP_POSITION OP_MOMENTUM
 
 """
     Op <: QSym
 
 The single concrete leaf operator. A `kind::OpKind` tag selects the physical
-role (annihilation, creation, transition, Pauli, spin, position, momentum); the
+role (annihilation, creation, transition, collective transition, Pauli, spin,
+position, momentum); the
 remaining fields are shared storage interpreted per `kind`:
 
 - `name::Symbol`: display name
@@ -22,8 +23,9 @@ remaining fields are shared storage interpreted per `kind`:
   Fock/PhaseSpace leave them zero.
 
 Construct via the role-named functions [`Destroy`](@ref), [`Create`](@ref),
-[`Transition`](@ref), [`Pauli`](@ref), [`Spin`](@ref), [`Position`](@ref),
-[`Momentum`](@ref); test the role via [`is_destroy`](@ref) and siblings, or read
+[`Transition`](@ref), [`CollectiveTransition`](@ref), [`Pauli`](@ref),
+[`Spin`](@ref), [`Position`](@ref), [`Momentum`](@ref); test the role via
+[`is_destroy`](@ref) and siblings, or read
 it with [`optype`](@ref). Collapsing the former per-type hierarchy into one
 concrete struct makes the operator vector concrete-eltype, so the per-operator
 hooks dispatch statically. See `docs/src/devdocs.md`.
@@ -92,6 +94,13 @@ is_create(o::Op) = o.kind === OP_CREATE
 True iff `o` is a [`Transition`](@ref) operator. See [`is_destroy`](@ref).
 """
 is_transition(o::Op) = o.kind === OP_TRANSITION
+
+"""
+    is_collective_transition(o::Op) -> Bool
+
+True iff `o` is a [`CollectiveTransition`](@ref) operator. See [`is_destroy`](@ref).
+"""
+is_collective_transition(o::Op) = o.kind === OP_COLLECTIVE_TRANSITION
 
 """
     is_pauli(o::Op) -> Bool

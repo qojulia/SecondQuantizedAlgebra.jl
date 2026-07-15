@@ -59,6 +59,41 @@ Base.:(==)(a::NLevelSpace, b::NLevelSpace) = a.name == b.name && a.n == b.n && a
 Base.hash(a::NLevelSpace, h::UInt) = hash(:NLevelSpace, hash(a.name, hash(a.n, hash(a.ground_state, hash(a.levels, h)))))
 
 """
+    CollectiveNLevelSpace(name::Symbol, n::Int)
+    CollectiveNLevelSpace(name::Symbol, levels::Tuple{Vararg{Symbol}})
+
+Hilbert space for collective transitions of identical N-level systems. It hosts
+[`CollectiveTransition`](@ref) operators and deliberately carries no ground-state
+projector convention: collectively, the diagonal sum is the particle-number
+operator rather than the identity.
+"""
+struct CollectiveNLevelSpace <: HilbertSpace
+    name::Symbol
+    n::Int
+    levels::Vector{Symbol}
+    function CollectiveNLevelSpace(name::Symbol, n::Int, levels::Vector{Symbol})
+        n >= 1 || throw(ArgumentError("Number of levels must be positive, got $n"))
+        isempty(levels) || length(levels) == n || throw(ArgumentError("levels length $(length(levels)) != n=$n"))
+        return new(name, n, levels)
+    end
+end
+CollectiveNLevelSpace(name::Symbol, n::Int) = CollectiveNLevelSpace(name, n, _EMPTY_LEVELS)
+CollectiveNLevelSpace(name::Symbol, levels::Tuple{Vararg{Symbol}}) =
+    CollectiveNLevelSpace(name, length(levels), collect(Symbol, levels))
+
+Base.:(==)(a::CollectiveNLevelSpace, b::CollectiveNLevelSpace) =
+    a.name == b.name && a.n == b.n && a.levels == b.levels
+Base.hash(a::CollectiveNLevelSpace, h::UInt) =
+    hash(:CollectiveNLevelSpace, hash(a.name, hash(a.n, hash(a.levels, h))))
+
+function _level_index(h::CollectiveNLevelSpace, s::Symbol)
+    isempty(h.levels) && throw(ArgumentError("CollectiveNLevelSpace $(h.name) has no symbolic levels"))
+    idx = findfirst(==(s), h.levels)
+    idx === nothing && throw(ArgumentError("Level :$s not found in $(h.levels)"))
+    return idx
+end
+
+"""
     Transition(h::NLevelSpace, name::Symbol, i, j) -> Op
 
 Transition operator ``|i\\rangle\\langle j|`` on an [`NLevelSpace`](@ref).
@@ -120,3 +155,41 @@ Transition(h::ProductSpace, name::Symbol, i::Int, j::Int) =
     Transition(h, name, i, j, _unique_subspace_index(h, NLevelSpace))
 Transition(h::ProductSpace, name::Symbol, i::Symbol, j::Symbol) =
     Transition(h, name, i, j, _unique_subspace_index(h, NLevelSpace))
+
+"""
+    CollectiveTransition(h::CollectiveNLevelSpace, name::Symbol, i, j) -> Op
+
+Collective transition ``S^{ij} = \\sum_k |i\\rangle_k\\langle j|``. These operators
+obey ``[S^{ij},S^{kl}] = \\delta_{jk}S^{il}-\\delta_{li}S^{kj}`` and do not compose
+like single-site [`Transition`](@ref) operators.
+"""
+CollectiveTransition(name::Symbol, i::Integer, j::Integer, si::Integer) =
+    Op(OP_COLLECTIVE_TRANSITION, _name_id(name), si, NO_INDEX, i, j, 0, 0)
+
+function CollectiveTransition(h::CollectiveNLevelSpace, name::Symbol, i::Int, j::Int)
+    1 <= i <= h.n || throw(ArgumentError("Level i=$i out of range 1:$(h.n)"))
+    1 <= j <= h.n || throw(ArgumentError("Level j=$j out of range 1:$(h.n)"))
+    return CollectiveTransition(name, i, j, 1)
+end
+CollectiveTransition(h::CollectiveNLevelSpace, name::Symbol, i::Symbol, j::Symbol) =
+    CollectiveTransition(name, _level_index(h, i), _level_index(h, j), 1)
+
+function CollectiveTransition(h::ProductSpace, name::Symbol, i::Int, j::Int, idx::Int)
+    1 <= idx <= length(h.spaces) || throw(ArgumentError("Index $idx out of range"))
+    space = h.spaces[idx]
+    space isa CollectiveNLevelSpace || throw(ArgumentError("Space at index $idx is not a CollectiveNLevelSpace"))
+    1 <= i <= space.n || throw(ArgumentError("Level i=$i out of range 1:$(space.n)"))
+    1 <= j <= space.n || throw(ArgumentError("Level j=$j out of range 1:$(space.n)"))
+    return CollectiveTransition(name, i, j, idx)
+end
+function CollectiveTransition(h::ProductSpace, name::Symbol, i::Symbol, j::Symbol, idx::Int)
+    1 <= idx <= length(h.spaces) || throw(ArgumentError("Index $idx out of range"))
+    space = h.spaces[idx]
+    space isa CollectiveNLevelSpace || throw(ArgumentError("Space at index $idx is not a CollectiveNLevelSpace"))
+    return CollectiveTransition(name, _level_index(space, i), _level_index(space, j), idx)
+end
+
+CollectiveTransition(h::ProductSpace, name::Symbol, i::Int, j::Int) =
+    CollectiveTransition(h, name, i, j, _unique_subspace_index(h, CollectiveNLevelSpace))
+CollectiveTransition(h::ProductSpace, name::Symbol, i::Symbol, j::Symbol) =
+    CollectiveTransition(h, name, i, j, _unique_subspace_index(h, CollectiveNLevelSpace))

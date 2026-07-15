@@ -29,6 +29,10 @@ NLevelSpace
 ```
 
 ```@docs
+CollectiveNLevelSpace
+```
+
+```@docs
 PauliSpace
 ```
 
@@ -88,6 +92,10 @@ Transition
 ```
 
 ```@docs
+CollectiveTransition
+```
+
+```@docs
 Pauli
 ```
 
@@ -117,6 +125,7 @@ optype
 is_destroy
 is_create
 is_transition
+is_collective_transition
 is_pauli
 is_spin
 is_position

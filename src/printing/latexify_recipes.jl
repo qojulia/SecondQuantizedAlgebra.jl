@@ -3,8 +3,9 @@ const transition_idx_script = Ref(:^)
 """
     transition_superscript(x::Bool) -> Bool
 
-Set whether [`Transition`](@ref) level indices are rendered as superscripts (`true`, default)
-or subscripts (`false`) in LaTeX output via Latexify.jl.
+Set whether [`Transition`](@ref) and [`CollectiveTransition`](@ref) level indices
+are rendered as superscripts (`true`, default) or subscripts (`false`) in LaTeX
+output via Latexify.jl.
 
 - `true`: ``{\\sigma}^{{ij}}``
 - `false`: ``{\\sigma}_{{ij}}``
@@ -50,7 +51,7 @@ end
         "$(name)$(suffix)"
     elseif k === OP_CREATE
         "$(name)$(suffix)^{\\dagger}"
-    elseif k === OP_TRANSITION
+    elseif k === OP_TRANSITION || k === OP_COLLECTIVE_TRANSITION
         "{$(name)}$(suffix)$(transition_idx_script[]){{$(Int(x.l1))$(Int(x.l2))}}"
     elseif k === OP_PAULI || k === OP_SPIN
         "{$(name)}$(suffix)_{{$(_xyz_sym[x.l1])}}"

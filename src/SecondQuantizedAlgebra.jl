@@ -65,7 +65,8 @@ julia> @qnumbers a::Destroy(h)
 (a,)
 ```
 
-See also [`Destroy`](@ref), [`Transition`](@ref), [`Pauli`](@ref), [`Spin`](@ref).
+See also [`Destroy`](@ref), [`Transition`](@ref), [`CollectiveTransition`](@ref),
+[`Pauli`](@ref), [`Spin`](@ref).
 """
 macro qnumbers(qs...)
     ex = Expr(:block)
@@ -90,7 +91,7 @@ end
 
 
 export FockSpace, ProductSpace,
-    NLevelSpace, Transition,
+    NLevelSpace, Transition, CollectiveNLevelSpace, CollectiveTransition,
     PauliSpace, Pauli,
     SpinSpace, Spin,
     PhaseSpace, Position, Momentum,
@@ -108,13 +109,14 @@ export FockSpace, ProductSpace,
     simplify, expand, expand_completeness, assume_distinct_index, commutator, anticommutator,
     to_numeric, numeric_average,
     qadjoint, qconj, dagger, inner_adjoint,
-    Op, operator_name, is_destroy, is_create, is_transition, is_pauli, is_spin, is_position, is_momentum, optype
+    Op, operator_name, is_destroy, is_create, is_transition, is_collective_transition,
+    is_pauli, is_spin, is_position, is_momentum, optype
 
 
 # Public API that is intentionally NOT exported — accessed as
 # `SecondQuantizedAlgebra.symbol`.
 @public HilbertSpace, QField, QSym, OpKind,
-    OP_DESTROY, OP_CREATE, OP_TRANSITION, OP_PAULI, OP_SPIN, OP_POSITION, OP_MOMENTUM,
+    OP_DESTROY, OP_CREATE, OP_TRANSITION, OP_COLLECTIVE_TRANSITION, OP_PAULI, OP_SPIN, OP_POSITION, OP_MOMENTUM,
     QAdd, QTerm, QTermDict, Coeff, CNum,
     has_sum_metadata, get_sum_indices, get_sum_non_equal,
     transition_superscript, constraint_pairs,

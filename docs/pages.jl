@@ -2,6 +2,7 @@ pages = [
     "Home" => "index.md",
     "Implementation" => "implementation.md",
     "Symbolic Sums and Indices" => "symbolic_sums.md",
+    "Collective N-Level Systems" => "collective.md",
     "Building Large Sums Efficiently" => "accumulation.md",
     "Examples" => [
         "Schrieffer-Wolff Transformation" => "examples/schrieffer_wolff.md",
