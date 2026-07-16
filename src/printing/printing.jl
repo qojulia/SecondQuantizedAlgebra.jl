@@ -13,6 +13,7 @@ function Base.show(io::IO, h::ProductSpace)
 end
 
 Base.show(io::IO, h::NLevelSpace) = (write(io, "ℋ("); print(io, h.name); write(io, ")"))
+Base.show(io::IO, h::CollectiveNLevelSpace) = (write(io, "ℋ("); print(io, h.name); write(io, ")"))
 Base.show(io::IO, h::PauliSpace) = (write(io, "ℋ("); print(io, h.name); write(io, ")"))
 Base.show(io::IO, h::SpinSpace) = (write(io, "ℋ("); print(io, h.name); write(io, ")"))
 Base.show(io::IO, h::PhaseSpace) = (write(io, "ℋ("); print(io, h.name); write(io, ")"))
@@ -46,7 +47,7 @@ function Base.show(io::IO, x::Op)
     k = x.kind
     if k === OP_CREATE
         write(io, "'")
-    elseif k === OP_TRANSITION
+    elseif k === OP_TRANSITION || k === OP_COLLECTIVE_TRANSITION
         _write_subscript(io, Int(x.l1))
         _write_subscript(io, Int(x.l2))
     elseif k === OP_PAULI || k === OP_SPIN

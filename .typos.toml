@@ -5,3 +5,4 @@ extend-exclude = ["CLAUDE.md"]
 commutating = "commutating"
 alph = "alph"
 Ket = "Ket"
+ba = "ba"

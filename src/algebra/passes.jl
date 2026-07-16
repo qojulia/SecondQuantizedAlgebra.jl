@@ -83,9 +83,9 @@ end
     _commute_ops(sink, ops, c)
 
 Apply commutation swaps for adjacent same-site pairs whose `_can_commute` is
-false. May fork: emits the swapped branch through the sink, plus a residual
-branch where the pair is replaced by `residual_ops` (empty for identity-residual
-operators like Fock/PhaseSpace; one operator for Spin commutators).
+false. May fork: emits the swapped branch through the sink, plus up to two
+residual branches where the pair is replaced by residual operators (empty for
+identity residuals, one operator for Spin/CollectiveTransition commutators).
 
 Pre-condition: pairs that reduce locally (Transition, Pauli) should have been
 folded by `_reduce_ops` first. The residual branch mutates `ops` in place; the
@@ -102,14 +102,26 @@ function _commute_ops_at(sink::F, ops::Vector{Op}, c::CNum, start::Int) where {F
         a, b = ops[i], ops[i + 1]
         cmp = _site_compare(a, b, _EMPTY_NE)
         if cmp === Equal && !_can_commute(a, b)
-            sw_b, sw_a, residual_coeff, residual_ops = _commute_pair(a, b)
+            sw_b, sw_a, residual_coeff, residual_ops, residual2_coeff, residual2_ops =
+                _commute_pair(a, b)
             # Swap branch: stepping back to i-1 because ops[i-1] may now form
             # a new non-canonical pair with sw_b.
             swapped = copy(ops)
             swapped[i] = sw_b
             swapped[i + 1] = sw_a
             _commute_ops_at(sink, swapped, c, max(i - 1, 1))
-            # Residual branch: replace pair with residual_ops (empty or one op).
+            # Second residual gets an independent branch before the first
+            # residual continues in-place.
+            new_c2 = _mul_cnum(c, residual2_coeff)
+            if !_iszero_cnum(new_c2)
+                residual2 = copy(ops)
+                deleteat!(residual2, i:(i + 1))
+                for (k, op) in enumerate(residual2_ops)
+                    insert!(residual2, i + k - 1, op)
+                end
+                _iszero_cnum(residual2_coeff) || _commute_ops_at(sink, residual2, new_c2, max(i - 1, 1))
+            end
+            # First residual branch: replace pair in-place (empty or one op).
             new_c = _mul_cnum(c, residual_coeff)
             _iszero_cnum(new_c) && return
             deleteat!(ops, i:(i + 1))

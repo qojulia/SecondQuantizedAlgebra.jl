@@ -81,4 +81,8 @@ a_i
 See also [`Index`](@ref), [`Σ`](@ref), [`change_index`](@ref).
 """
 function IndexedOperator end
-IndexedOperator(op::Op, i::Index) = Op(op.kind, op.name_id, op.space_index, i, op.l1, op.l2, op.g, op.nlev)
+function IndexedOperator(op::Op, i::Index)
+    is_collective_transition(op) && has_index(i) &&
+        throw(ArgumentError("CollectiveTransition is already collective and cannot be indexed"))
+    return Op(op.kind, op.name_id, op.space_index, i, op.l1, op.l2, op.g, op.nlev)
+end

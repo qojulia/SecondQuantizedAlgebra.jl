@@ -2,7 +2,7 @@
     HilbertSpace
 
 Abstract supertype for Hilbert spaces. Concrete subtypes:
-[`FockSpace`](@ref), [`NLevelSpace`](@ref), [`PauliSpace`](@ref),
+[`FockSpace`](@ref), [`NLevelSpace`](@ref), [`CollectiveNLevelSpace`](@ref), [`PauliSpace`](@ref),
 [`SpinSpace`](@ref), [`PhaseSpace`](@ref), and [`ProductSpace`](@ref) for
 tensor products. Compose with [`⊗`](@ref) or [`tensor`](@ref).
 """
