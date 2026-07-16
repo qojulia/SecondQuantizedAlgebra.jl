@@ -109,7 +109,7 @@ export FockSpace, ProductSpace,
     simplify, expand, expand_completeness, assume_distinct_index, commutator, anticommutator,
     to_numeric, numeric_average,
     qadjoint, qconj, dagger, inner_adjoint,
-    Op, operator_name, is_destroy, is_create, is_transition, is_collective_transition,
+    Op, operator_name, operator_index, is_destroy, is_create, is_transition, is_collective_transition,
     is_pauli, is_spin, is_position, is_momentum, optype
 
 
@@ -119,7 +119,8 @@ export FockSpace, ProductSpace,
     OP_DESTROY, OP_CREATE, OP_TRANSITION, OP_PAULI, OP_SPIN, OP_POSITION, OP_MOMENTUM,
     OP_COLLECTIVE_TRANSITION,
     QAdd, QTerm, QTermDict, Coeff, CNum,
-    has_sum_metadata, get_sum_indices, get_sum_non_equal,
+    has_sum_metadata, get_sum_indices, get_sum_non_equal, get_sum_body, indexed_sum,
+    set_acts_on, rename,
     transition_superscript, constraint_pairs,
     to_num, order_key, term_order_key, qadd_order_key
 

@@ -137,5 +137,38 @@ Return the [`OpKind`](@ref) tag of `o`.
 """
 optype(o::Op) = o.kind
 
+"""
+    operator_index(o::Op) -> Index
+
+The site [`Index`](@ref) attached to `o`, or the sentinel `NO_INDEX` when `o`
+carries no index (test with [`has_index`](@ref)). Public accessor for the
+`index` field; pairs with [`operator_name`](@ref) and [`acts_on`](@ref).
+"""
+operator_index(o::Op) = o.index
+
+"""
+    set_acts_on(o::Op, aon::Integer) -> Op
+
+Rebind `o` to subspace `aon`, returning a copy with its `space_index` set to
+`aon` and every other field (role, name, index, levels) preserved. Use it to
+embed a single-site operator into a different factor of a [`ProductSpace`](@ref).
+The site index, if any, is left untouched; rename it separately with
+[`rename`](@ref) when the new subspace needs a matching index.
+
+See also [`acts_on`](@ref), [`operator_index`](@ref).
+"""
+set_acts_on(o::Op, aon::Integer) =
+    Op(o.kind, o.name_id, Int32(aon), o.index, o.l1, o.l2, o.g, o.nlev)
+
+"""
+    rename(o::Op, name::Symbol) -> Op
+
+Return a copy of `o` with its display name replaced by `name`, preserving role,
+subspace, index, and levels. The `Op` method of [`rename`](@ref rename(::Index, ::Symbol)).
+"""
+rename(o::Op, name::Symbol) =
+    Op(o.kind, _intern_name(name), o.space_index, o.index, o.l1, o.l2, o.g, o.nlev)
+rename(o::Op, name::AbstractString) = _name_must_be_symbol(name)
+
 # Shared sentinel for empty operator vectors on hot paths. Never mutated.
 const _EMPTY_OPS = Op[]
