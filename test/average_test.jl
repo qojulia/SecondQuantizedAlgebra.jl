@@ -4,7 +4,7 @@ using SymbolicUtils: SymbolicUtils, SymReal, symtype
 using Symbolics: Symbolics, @variables
 import SecondQuantizedAlgebra: simplify, QAdd, QSym, QField, CNum, _to_cnum, _single_qadd,
     AvgFunc, sym_average, SumFunc, sym_sum, is_indexed_sum, sorted_arguments,
-    has_sum_metadata, get_sum_indices, get_sum_non_equal,
+    has_sum_metadata, get_sum_indices, get_sum_non_equal, get_sum_body, indexed_sum,
     QTerm, QTermDict, NonEqualPair, order_key, qadd_order_key
 
 @testset "Average" begin
@@ -362,6 +362,43 @@ import SecondQuantizedAlgebra: simplify, QAdd, QSym, QField, CNum, _to_cnum, _si
         # Fallback for non-BasicSymbolic types
         @test !has_sum_metadata(3)
         @test !has_sum_metadata(a)
+    end
+
+    @testset "indexed_sum / get_sum_body (issue #209)" begin
+        h = FockSpace(:f)
+        ha = NLevelSpace(:atom, 2)
+        h = h ⊗ ha
+        a = Destroy(h, :a, 1)
+        @variables N
+        i = Index(h, :i, N, ha)
+        j = Index(h, :j, N, ha)
+        σ12 = IndexedOperator(Transition(h, :σ, 1, 2, 2), i)
+
+        s = Σ(a' * σ12, i)
+        avg_s = average(s)
+
+        # get_sum_body round-trips against a directly-averaged body
+        body = get_sum_body(avg_s)
+        @test isequal(body, average(a' * σ12))
+        @test get_sum_body(Symbolics.wrap(avg_s)) === body
+
+        # indexed_sum reconstructs the exact node average built
+        @test isequal(indexed_sum(body, [i]), avg_s)
+        @test is_indexed_sum(indexed_sum(body, [i]))
+        @test get_sum_indices(indexed_sum(body, [i])) == [i]
+        @test isempty(get_sum_non_equal(indexed_sum(body, [i])))
+
+        # accessors invert the constructor
+        rebuilt = indexed_sum(body, [i]; non_equal = [(i, j)])
+        @test isequal(get_sum_body(rebuilt), body)
+        @test get_sum_indices(rebuilt) == [i]
+        @test get_sum_non_equal(rebuilt) == [(i, j)]
+
+        # a Num body is unwrapped so the tree stays consistent
+        @test isequal(indexed_sum(Symbolics.wrap(body), [i]), avg_s)
+
+        # scope is respected: differently-scoped sums are distinct nodes
+        @test !isequal(indexed_sum(body, [i]), indexed_sum(body, [i]; non_equal = [(i, j)]))
     end
 
     @testset "acts_on" begin
