@@ -16,10 +16,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - The internal `_commute_pair` hook now carries up to two residual terms. Fock, phase-space, and spin operators continue to use one residual slot; collective transitions use both when both Kronecker deltas contribute. The eager commute pass and the leaf `commutator` fast path retain and combine both branches.
+- Passing a `String` where a name `Symbol` is expected now throws a clear `ArgumentError` telling the user to use a `Symbol` (`:x`), instead of a cryptic `MethodError`. This covers Hilbert-space constructors (`FockSpace`, `NLevelSpace`, `PauliSpace`, `SpinSpace`, `PhaseSpace`), operator constructors (`Destroy`, `Create`, `Transition`, `Pauli`, `Spin`, `Position`, `Momentum`), and the index-related constructors `Index`, `IndexedVariable`, and `DoubleIndexedVariable`. Names remain `Symbol`s by design: a single canonical name type keeps name comparison and interning type-stable, so strings are rejected rather than silently converted.
 
 ### Documentation
 
-- Added a guide comparing indexed sums with exact collective symmetric-subspace operators, developer documentation for the two-residual commute contract and the collective-transition/spin relationship, and a finite-``N`` Tavis–Cummings example using `ManyBodyBasis`.
+- Added a guide comparing indexed sums with exact collective symmetric-subspace operators, developer documentation for the two-residual commute contract and the collective-transition/spin relationship, and a finite-``N`` Tavis–Cummings example using `ManyBodyBasis`
 
 ## [v0.9.3]
 
