@@ -17,6 +17,7 @@ See also [`Position`](@ref), [`Momentum`](@ref), [`FockSpace`](@ref).
 struct PhaseSpace <: HilbertSpace
     name::Symbol
 end
+PhaseSpace(name::AbstractString) = _name_must_be_symbol(name)
 Base.:(==)(a::PhaseSpace, b::PhaseSpace) = a.name == b.name
 Base.hash(a::PhaseSpace, h::UInt) = hash(:PhaseSpace, hash(a.name, h))
 
@@ -74,3 +75,6 @@ end
 # Auto-detect subspace when the ProductSpace contains exactly one PhaseSpace.
 Position(h::ProductSpace, name::Symbol) = Position(h, name, _unique_subspace_index(h, PhaseSpace))
 Momentum(h::ProductSpace, name::Symbol) = Momentum(h, name, _unique_subspace_index(h, PhaseSpace))
+
+Position(::HilbertSpace, name::AbstractString, args...) = _name_must_be_symbol(name)
+Momentum(::HilbertSpace, name::AbstractString, args...) = _name_must_be_symbol(name)

@@ -26,6 +26,7 @@ function IndexedVariable(name::Symbol, i::Index)
     )
     return Num(f(SymbolicUtils.unwrap(index_sym(i))))
 end
+IndexedVariable(name::AbstractString, args...) = _name_must_be_symbol(name)
 
 """Metadata key: marks a `DoubleIndexedVariable` node where equal indices must give zero."""
 struct NotIdentical end
@@ -74,6 +75,7 @@ function DoubleIndexedVariable(
     end
     return Num(node)
 end
+DoubleIndexedVariable(name::AbstractString, args...; kwargs...) = _name_must_be_symbol(name)
 
 """
     change_index(expr, from::Index, to::Index)

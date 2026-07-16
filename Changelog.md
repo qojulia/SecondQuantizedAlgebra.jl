@@ -5,6 +5,12 @@ All notable changes to [`SecondQuantizedAlgebra.jl`](https://github.com/qojulia/
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v0.9.4]
+
+### Changed
+
+- Passing a `String` where a name `Symbol` is expected now throws a clear `ArgumentError` telling the user to use a `Symbol` (`:x`), instead of a cryptic `MethodError`. This covers Hilbert-space constructors (`FockSpace`, `NLevelSpace`, `PauliSpace`, `SpinSpace`, `PhaseSpace`), operator constructors (`Destroy`, `Create`, `Transition`, `Pauli`, `Spin`, `Position`, `Momentum`), and the index-related constructors `Index`, `IndexedVariable`, and `DoubleIndexedVariable`. Names remain `Symbol`s by design: a single canonical name type keeps name comparison and interning type-stable, so strings are rejected rather than silently converted.
+
 ## [v0.9.3]
 
 ### Fixed
@@ -276,4 +282,5 @@ These names keep their meaning across the migration. Code that only uses them sh
 [v0.9.1]: https://github.com/qojulia/SecondQuantizedAlgebra.jl/releases/tag/v0.9.1
 [v0.9.2]: https://github.com/qojulia/SecondQuantizedAlgebra.jl/releases/tag/v0.9.2
 [v0.9.3]: https://github.com/qojulia/SecondQuantizedAlgebra.jl/releases/tag/v0.9.3
+[v0.9.4]: https://github.com/qojulia/SecondQuantizedAlgebra.jl/releases/tag/v0.9.4
 [#156]: https://github.com/qojulia/SecondQuantizedAlgebra.jl/issues/156

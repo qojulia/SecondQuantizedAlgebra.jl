@@ -52,6 +52,9 @@ end
 Destroy(h::ProductSpace, name::Symbol) = Destroy(h, name, _unique_subspace_index(h, FockSpace))
 Create(h::ProductSpace, name::Symbol) = Create(h, name, _unique_subspace_index(h, FockSpace))
 
+Destroy(::HilbertSpace, name::AbstractString, args...) = _name_must_be_symbol(name)
+Create(::HilbertSpace, name::AbstractString, args...) = _name_must_be_symbol(name)
+
 """
     IndexedOperator(op::Op, i::Index) -> Op
 
