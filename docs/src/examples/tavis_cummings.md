@@ -1,5 +1,5 @@
 ```@meta
-EditURL = "../../../examples/dicke_superradiance.jl"
+EditURL = "../../../examples/tavis_cummings.jl"
 ```
 
 # Exact finite-N Tavis–Cummings model in the symmetric subspace
@@ -9,7 +9,7 @@ number while retaining exact finite-N dynamics. For two-level atoms the
 symmetric sector has dimension `N + 1`, instead of `2^N` for the full product
 space.
 
-````@example dicke_superradiance
+````@example tavis_cummings
 using SecondQuantizedAlgebra
 using QuantumOpticsBase
 
@@ -24,25 +24,21 @@ h = hc ⊗ ha
 Sge = CollectiveTransition(h, :S, :g, :e, 2)
 Seg = Sge'
 See = CollectiveTransition(h, :S, :e, :e, 2)
+Sgg = CollectiveTransition(h, :S, :g, :g, 2)
 
 @variables ωc ωa g
 H = ωc * a' * a + ωa * See + g * (a' * Sge + a * Seg)
 ````
 
-The symbolic algebra knows the collective su(2) commutator exactly.
+The symbolic algebra applies the collective SU(2) commutator.
 
-````@example dicke_superradiance
-@assert iszero(
-    simplify(
-        commutator(Sge, Seg) -
-            CollectiveTransition(h, :S, :g, :g, 2) + See
-    )
-)
+````@example tavis_cummings
+iszero(simplify(commutator(Sge, Seg) - Sgg + See))
 ````
 
 Fixing total atomic occupation to N constructs the symmetric sector.
 
-````@example dicke_superradiance
+````@example tavis_cummings
 bc = FockBasis(nphotons)
 b1 = NLevelBasis(2)
 ba = ManyBodyBasis(b1, bosonstates(b1, N))
@@ -51,7 +47,7 @@ b = bc ⊗ ba
 
 Substitute physical parameters and materialize the exact sparse Hamiltonian.
 
-````@example dicke_superradiance
+````@example tavis_cummings
 Hnum = to_numeric(H, b; parameter = Dict(ωc => 1.0, ωa => 1.0, g => 0.1))
 
 @assert length(ba) == N + 1
@@ -60,8 +56,7 @@ Hnum = to_numeric(H, b; parameter = Dict(ωc => 1.0, ωa => 1.0, g => 0.1))
 
 Diagonal collective populations sum to N, not one.
 
-````@example dicke_superradiance
-Sgg = CollectiveTransition(h, :S, :g, :g, 2)
+````@example tavis_cummings
 number_identity = to_numeric(Sgg + See, b)
 @assert number_identity ≈ N * one(b)
 ````
