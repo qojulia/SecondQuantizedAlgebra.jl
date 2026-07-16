@@ -2,6 +2,7 @@ using SecondQuantizedAlgebra
 using Test
 using SymbolicUtils: SymbolicUtils, SymReal, symtype
 using Symbolics: Symbolics, @variables
+using TermInterface: TermInterface
 import SecondQuantizedAlgebra: simplify, QAdd, QSym, QField, CNum, _to_cnum, _single_qadd,
     AvgFunc, sym_average, SumFunc, sym_sum, is_indexed_sum, sorted_arguments,
     has_sum_metadata, get_sum_indices, get_sum_non_equal, get_sum_body, indexed_sum,
@@ -737,6 +738,103 @@ import SecondQuantizedAlgebra: simplify, QAdd, QSym, QField, CNum, _to_cnum, _si
         @test isless(a, a') ⊻ isless(a', a)
         @test sort([a', a]) == [a, a']
         @test isless(a' * a, a * a') == isless(qadd_order_key(a' * a), qadd_order_key(a * a'))
+    end
+
+    @testset "Hermitian averages typed Real (issue #171)" begin
+        h = FockSpace(:c)
+        a = Destroy(h, :a)
+
+        @testset "detection per operator family" begin
+            # Fock: number operator and higher symmetric moments are Hermitian.
+            @test symtype(average(a' * a)) === Real
+            @test symtype(average(a' * a' * a * a)) === Real
+            # non-Hermitian Fock moments stay Number.
+            @test symtype(average(a)) === Number
+            @test symtype(average(a')) === Number
+            @test symtype(average(a' * a * a)) === Number
+
+            # NLevel: diagonal projector is Hermitian, off-diagonal is not.
+            hn = NLevelSpace(:n, 3)
+            @test symtype(average(Transition(hn, :σ, 2, 2))) === Real
+            @test symtype(average(Transition(hn, :σ, 1, 2))) === Number
+
+            # Pauli / Spin / quadrature atoms are Hermitian.
+            hp = PauliSpace(:p)
+            @test symtype(average(Pauli(hp, :σ, 1))) === Real
+            hs = SpinSpace(:s)
+            @test symtype(average(Spin(hs, :S, 1))) === Real
+            hx = PhaseSpace(:x)
+            @test symtype(average(Position(hx, :x))) === Real
+            @test symtype(average(Momentum(hx, :p))) === Real
+        end
+
+        @testset "distributed sums are not recognized at the leaf" begin
+            # average distributes: a + a' becomes ⟨a⟩ + ⟨a'⟩, both Number leaves.
+            @test symtype(average(a + a')) === Number
+            # an all-Real-leaf combination promotes to Real.
+            @test symtype(average(2 * a' * a + 5 * a' * a' * a * a)) === Real
+            # a combination containing a Number leaf stays Number.
+            @test symtype(average(2 * a' * a + 3im * a)) === Number
+        end
+
+        @testset "type stability" begin
+            @test (@inferred SecondQuantizedAlgebra._average(a)) isa
+                SymbolicUtils.BasicSymbolic{SymReal}
+            @test (@inferred SecondQuantizedAlgebra._average(a' * a)) isa
+                SymbolicUtils.BasicSymbolic{SymReal}
+        end
+
+        @testset "symtype is sticky through substitute and maketerm" begin
+            @variables g::Real
+            herm = SymbolicUtils.unwrap(average(a' * a))   # Real
+            nonh = SymbolicUtils.unwrap(average(a))        # Number
+            expr = g * herm + g * nonh
+            sub = Symbolics.substitute(expr, Dict(nonh => SymbolicUtils.unwrap(g)))
+            # locate the surviving ⟨a'a⟩ leaf and check it is still Real.
+            function _find_avg_symtype(x)
+                x isa SymbolicUtils.BasicSymbolic || return nothing
+                (SymbolicUtils.iscall(x) && SymbolicUtils.operation(x) isa AvgFunc) &&
+                    return symtype(x)
+                SymbolicUtils.iscall(x) || return nothing
+                for arg in SymbolicUtils.arguments(x)
+                    r = _find_avg_symtype(arg)
+                    r === nothing || return r
+                end
+                return nothing
+            end
+            @test _find_avg_symtype(sub) === Real
+
+            rebuilt = TermInterface.maketerm(
+                typeof(herm), sym_average, SymbolicUtils.arguments(herm), nothing
+            )
+            @test symtype(rebuilt) === Real
+        end
+
+        @testset "conjugation self-folds for Hermitian moments" begin
+            @test isequal(conj(average(a' * a)), average(a' * a))
+            # non-Hermitian moment stays a conj(...) wrapper.
+            cj = conj(average(a))
+            @test !isequal(cj, average(a))
+            @test SymbolicUtils.operation(SymbolicUtils.unwrap(cj)) === conj
+        end
+
+        @testset "indexed sums inherit Real from their body" begin
+            i = Index(h, :i, 3, h)
+            summ = average(Σ(IndexedOperator(a', i) * IndexedOperator(a, i), i))
+            @test is_indexed_sum(summ)
+            @test symtype(summ) === Real
+            summ_n = average(Σ(IndexedOperator(a, i), i))
+            @test symtype(summ_n) === Number
+        end
+
+        @testset "lifted time-dependent variables carry the symtype" begin
+            @variables t
+            iv = SymbolicUtils.unwrap(t)
+            lifted_h = make_time_dependent(average(a' * a), iv)
+            lifted_n = make_time_dependent(average(a), iv)
+            @test symtype(SymbolicUtils.unwrap(lifted_h)) === Real
+            @test symtype(SymbolicUtils.unwrap(lifted_n)) === Number
+        end
     end
 
 end
