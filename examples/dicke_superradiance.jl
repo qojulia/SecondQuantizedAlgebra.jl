@@ -19,17 +19,13 @@ h = hc ⊗ ha
 Sge = CollectiveTransition(h, :S, :g, :e, 2)
 Seg = Sge'
 See = CollectiveTransition(h, :S, :e, :e, 2)
+Sgg = CollectiveTransition(h, :S, :g, :g, 2)
 
 @variables ωc ωa g
 H = ωc * a' * a + ωa * See + g * (a' * Sge + a * Seg)
 
-# The symbolic algebra knows the collective su(2) commutator exactly.
-@assert iszero(
-    simplify(
-        commutator(Sge, Seg) -
-            CollectiveTransition(h, :S, :g, :g, 2) + See
-    )
-)
+# The symbolic algebra applies the collective SU(2) commutator.
+iszero(simplify(commutator(Sge, Seg) - Sgg + See))
 
 # Fixing total atomic occupation to N constructs the symmetric sector.
 bc = FockBasis(nphotons)
@@ -44,6 +40,5 @@ Hnum = to_numeric(H, b; parameter = Dict(ωc => 1.0, ωa => 1.0, g => 0.1))
 @assert size(Hnum.data) == (length(b), length(b))
 
 # Diagonal collective populations sum to N, not one.
-Sgg = CollectiveTransition(h, :S, :g, :g, 2)
 number_identity = to_numeric(Sgg + See, b)
 @assert number_identity ≈ N * one(b)
