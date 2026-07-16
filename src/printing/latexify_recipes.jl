@@ -23,9 +23,13 @@ function transition_superscript(x::Bool)
     return x
 end
 
+# Join accumulated per-slot suffixes into one comma subscript (`i_2_1` -> `i_{2,1}`);
+# a bare `_{i_2_1}` is a double subscript that MathJax rejects.
 function _latex_index_suffix(idx::Index)
     has_index(idx) || return ""
-    return "_{$(index_name(idx))}"
+    parts = split(string(index_name(idx)), '_')
+    name = length(parts) == 1 ? parts[1] : string(parts[1], "_{", join(parts[2:end], ","), "}")
+    return "_{$(name)}"
 end
 
 # Render an operator name for LaTeX. A bare name (`:a`) passes through, but a
