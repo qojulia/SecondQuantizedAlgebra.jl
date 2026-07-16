@@ -119,7 +119,7 @@ function _commute_ops_at(sink::F, ops::Vector{Op}, c::CNum, start::Int) where {F
                 for (k, op) in enumerate(residual2_ops)
                     insert!(residual2, i + k - 1, op)
                 end
-                _commute_ops_at(sink, residual2, new_c2, max(i - 1, 1))
+                _iszero_cnum(residual2_coeff) || _commute_ops_at(sink, residual2, new_c2, max(i - 1, 1))
             end
             # First residual branch: replace pair in-place (empty or one op).
             new_c = _mul_cnum(c, residual_coeff)
