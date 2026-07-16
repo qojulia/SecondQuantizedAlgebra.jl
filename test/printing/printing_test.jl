@@ -351,6 +351,23 @@ import SecondQuantizedAlgebra: simplify, QAdd, QSym, _single_qadd, _zero_qadd, _
             end
         end
 
+        @testset "Index slot suffixes render as comma subscript" begin
+            # `i_2_1` (accumulated slot suffixes) must render as `i_{2,1}`, not the
+            # invalid double subscript `_{i_2_1}`; bare names are unchanged.
+            @variables N
+            h2 = FockSpace(:c) ⊗ NLevelSpace(:atom, 2, 1)
+            i = Index(h2, :i, N, NLevelSpace(:atom, 2, 1))
+            iu = Index(h2, Symbol("i_2_1"), N, NLevelSpace(:atom, 2, 1))
+
+            cases = [
+                (IndexedOperator(Transition(h2, :σ, 1, 2, 2), i), L"{\sigma}_{i}^{{12}}"),
+                (IndexedOperator(Transition(h2, :σ, 1, 2, 2), iu), L"{\sigma}_{i_{2,1}}^{{12}}"),
+            ]
+            for (input, out) in cases
+                @test latexify(input) == out
+            end
+        end
+
         @testset "Transition superscript toggle" begin
             hn = NLevelSpace(:atom, 3, 1)
             σ12 = Transition(hn, :σ, 1, 2)
