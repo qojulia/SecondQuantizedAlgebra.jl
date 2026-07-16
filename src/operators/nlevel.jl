@@ -42,6 +42,7 @@ NLevelSpace(name::Symbol, n::Int) = NLevelSpace(name, n, 1, _EMPTY_LEVELS)
 function NLevelSpace(name::Symbol, levels::Tuple{Vararg{Symbol}})
     return NLevelSpace(name, length(levels), 1, collect(Symbol, levels))
 end
+NLevelSpace(name::AbstractString, args...) = _name_must_be_symbol(name)
 
 """
     _level_index(h::NLevelSpace, s::Symbol) -> Int
@@ -120,3 +121,5 @@ Transition(h::ProductSpace, name::Symbol, i::Int, j::Int) =
     Transition(h, name, i, j, _unique_subspace_index(h, NLevelSpace))
 Transition(h::ProductSpace, name::Symbol, i::Symbol, j::Symbol) =
     Transition(h, name, i, j, _unique_subspace_index(h, NLevelSpace))
+
+Transition(::HilbertSpace, name::AbstractString, args...) = _name_must_be_symbol(name)

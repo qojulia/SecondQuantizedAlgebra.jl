@@ -83,6 +83,7 @@ end
 function Index(h::HilbertSpace, name::Symbol, range::Union{Int, Num}, si::Int)
     return Index(_intern_name(name), _intern_range(range), Int32(si), Int32(0))
 end
+Index(h::HilbertSpace, name::AbstractString, args...) = _name_must_be_symbol(name)
 
 """
     (i::Index)(k::Integer) -> Index
