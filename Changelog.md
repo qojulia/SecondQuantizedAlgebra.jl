@@ -5,11 +5,13 @@ All notable changes to [`SecondQuantizedAlgebra.jl`](https://github.com/qojulia/
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+
+## [v0.9.4]
+
 ### Fixed
 
 - LaTeX rendering of an index whose name carries numeric per-slot suffixes no longer produces an invalid double subscript. As the pipeline transforms an index it accumulates suffixes through `(i::Index)(k)` (for example an index reaches `i_2_1` when a second distinct atom `i(2)` is later collapsed to its position-1 representative), and `_latex_index_suffix` emitted the name verbatim as `_{i_2_1}`. The unbraced `_2_1` is a double subscript that MathJax rejects with "Double subscripts: use braces to clarify", so the whole equation was left unrendered in Documenter pages and notebooks. The slot numbers are now joined into a single comma subscript (`i_2_1` renders as `i_{2,1}`); bare index names are unchanged.
 
-## [v0.9.4]
 
 ### Added
 
