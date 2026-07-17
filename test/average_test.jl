@@ -4,8 +4,8 @@ using SymbolicUtils: SymbolicUtils, SymReal, symtype
 using Symbolics: Symbolics, @variables
 import SecondQuantizedAlgebra: simplify, QAdd, QSym, QField, CNum, _to_cnum, _single_qadd,
     AvgFunc, sym_average, SumFunc, sym_sum, is_indexed_sum, sorted_arguments,
-    has_sum_metadata, get_sum_indices, get_sum_non_equal,
-    QTerm, QTermDict, NonEqualPair
+    has_sum_metadata, get_sum_indices, get_sum_non_equal, get_sum_body, indexed_sum,
+    QTerm, QTermDict, NonEqualPair, order_key, qadd_order_key
 
 @testset "Average" begin
 
@@ -364,6 +364,43 @@ import SecondQuantizedAlgebra: simplify, QAdd, QSym, QField, CNum, _to_cnum, _si
         @test !has_sum_metadata(a)
     end
 
+    @testset "indexed_sum / get_sum_body (issue #209)" begin
+        h = FockSpace(:f)
+        ha = NLevelSpace(:atom, 2)
+        h = h ⊗ ha
+        a = Destroy(h, :a, 1)
+        @variables N
+        i = Index(h, :i, N, ha)
+        j = Index(h, :j, N, ha)
+        σ12 = IndexedOperator(Transition(h, :σ, 1, 2, 2), i)
+
+        s = Σ(a' * σ12, i)
+        avg_s = average(s)
+
+        # get_sum_body round-trips against a directly-averaged body
+        body = get_sum_body(avg_s)
+        @test isequal(body, average(a' * σ12))
+        @test get_sum_body(Symbolics.wrap(avg_s)) === body
+
+        # indexed_sum reconstructs the exact node average built
+        @test isequal(indexed_sum(body, [i]), avg_s)
+        @test is_indexed_sum(indexed_sum(body, [i]))
+        @test get_sum_indices(indexed_sum(body, [i])) == [i]
+        @test isempty(get_sum_non_equal(indexed_sum(body, [i])))
+
+        # accessors invert the constructor
+        rebuilt = indexed_sum(body, [i]; non_equal = [(i, j)])
+        @test isequal(get_sum_body(rebuilt), body)
+        @test get_sum_indices(rebuilt) == [i]
+        @test get_sum_non_equal(rebuilt) == [(i, j)]
+
+        # a Num body is unwrapped so the tree stays consistent
+        @test isequal(indexed_sum(Symbolics.wrap(body), [i]), avg_s)
+
+        # scope is respected: differently-scoped sums are distinct nodes
+        @test !isequal(indexed_sum(body, [i]), indexed_sum(body, [i]; non_equal = [(i, j)]))
+    end
+
     @testset "acts_on" begin
         hf = FockSpace(:f)
         hn = NLevelSpace(:n, 2, 1)
@@ -682,6 +719,24 @@ import SecondQuantizedAlgebra: simplify, QAdd, QSym, QField, CNum, _to_cnum, _si
         # Seals: canaries against a regression that re-introduces an `Any` path.
         @test Base.return_types(SecondQuantizedAlgebra._idx_seal, (Any,))[1] === Vector{Index}
         @test Base.return_types(SecondQuantizedAlgebra._aon_seal, (Any,))[1] === Vector{Int}
+    end
+
+    @testset "Display of summed averages (issue #204)" begin
+        h = FockSpace(:cavity)
+        a = Destroy(h, :a)
+        @variables x::Number
+
+        @test sprint(show, MIME("text/plain"), average(a) + average(a')) == "⟨a⟩ + ⟨a'⟩"
+        @test sprint(show, MIME("text/plain"), x * average(a) + x * average(a')) == "⟨a⟩*x + ⟨a'⟩*x"
+        @test sprint(show, MIME("text/plain"), conj(x) * average(a) + conj(x) * average(a')) ==
+            "⟨a⟩*conj(x) + ⟨a'⟩*conj(x)"
+        @test sprint(show, MIME("text/plain"), average(a' * a) + average(a * a')) == "1 + 2⟨a' * a⟩"
+
+        @test isless(a, a') == isless(order_key(a), order_key(a'))
+        @test !isless(a, a)
+        @test isless(a, a') ⊻ isless(a', a)
+        @test sort([a', a]) == [a, a']
+        @test isless(a' * a, a * a') == isless(qadd_order_key(a' * a), qadd_order_key(a * a'))
     end
 
 end

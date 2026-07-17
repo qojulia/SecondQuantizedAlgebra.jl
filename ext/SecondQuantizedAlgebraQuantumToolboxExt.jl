@@ -10,9 +10,10 @@ import SecondQuantizedAlgebra as SQA
 using SecondQuantizedAlgebra: QuantumToolboxBackend, Op
 import QuantumToolbox as QTB
 import SciMLOperators as SO
-# `mul!` is reached through SciMLOperators (`SO.mul! === LinearAlgebra.mul!`) and
-# `transpose`/`adjoint` through Base, so the extension needs no direct LinearAlgebra dep.
-import SciMLOperators: mul!
+import SymbolicUtils: BasicSymbolic
+# `mul!` is imported from its owner `LinearAlgebra` (a weakdep trigger of this extension);
+# `transpose`/`adjoint` come through Base.
+import LinearAlgebra: mul!
 
 # QuantumToolbox represents a "basis" as integer dims: an `Int` for a simple space, a
 # `Vector{Int}` for a composite one.
@@ -190,6 +191,18 @@ function _fuse(be::QuantumToolboxBackend, basis, factors)
 end
 
 # =======================================================================================
+# materialization (op_type applied once at the top of `to_numeric`)
+# =======================================================================================
+
+# The default (`nothing`) keeps the vector-backed `QobjEvo`/`VecSum`: it is already the
+# shape-independent, solver-friendly form (a `SciMLOperator` consumed directly by
+# `sesolve`/`mesolve`), so no top-level materialization is needed. An explicit `op_type`
+# (`SciMLOperators.concretize`, `QuantumToolbox.sparse`/`dense`, `identity`) is applied as a
+# plain callable for callers that want an eager `QuantumObject`.
+SQA.numeric_materialize(::QuantumToolboxBackend, op, ::Nothing) = op
+SQA.numeric_materialize(::QuantumToolboxBackend, op, op_type) = op_type(op)
+
+# =======================================================================================
 # expectation + backend resolution + state/dims convenience
 # =======================================================================================
 
@@ -216,16 +229,16 @@ SQA.to_numeric(x::Number, dims::QTBDims, ::AbstractDict{<:SQA.QSym} = SQA._NO_SU
 function SQA.to_numeric(
         op::SQA.QField, dims::QTBDims;
         parameter = Dict(), time_parameter = Dict(),
-        operators = Dict{SQA.QSym, Any}(), adjoint_ops = true,
+        operators = Dict{SQA.QSym, Any}(), adjoint_ops = true, op_type = nothing,
     )
-    return SQA._to_numeric_kw(QuantumToolboxBackend(), op, dims; parameter, time_parameter, operators, adjoint_ops)
+    return SQA._to_numeric_kw(QuantumToolboxBackend(), op, dims; parameter, time_parameter, operators, adjoint_ops, op_type)
 end
 function SQA.to_numeric(
-        x::Union{Number, SQA.SymbolicUtils.BasicSymbolic}, dims::QTBDims;
+        x::Union{Number, BasicSymbolic}, dims::QTBDims;
         parameter = Dict(), time_parameter = Dict(),
-        operators = Dict{SQA.QSym, Any}(), adjoint_ops = true,
+        operators = Dict{SQA.QSym, Any}(), adjoint_ops = true, op_type = nothing,
     )
-    return SQA._to_numeric_kw(QuantumToolboxBackend(), x, dims; parameter, time_parameter, operators, adjoint_ops)
+    return SQA._to_numeric_kw(QuantumToolboxBackend(), x, dims; parameter, time_parameter, operators, adjoint_ops, op_type)
 end
 
 # State convenience (dims derived from the state).

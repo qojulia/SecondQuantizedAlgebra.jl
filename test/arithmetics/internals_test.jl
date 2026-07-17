@@ -341,7 +341,7 @@ end
         @test @inferred(_site_compare(a, ad, _EMPTY_NE)) isa SiteCmp
         @test @inferred(_can_commute(a, ad)) isa Bool
         @test @inferred(_can_commute(ad, a)) isa Bool
-        @test @inferred(_commute_pair(a, ad)) isa Tuple{Op, Op, CNum, Vector{Op}}
+        @test @inferred(_commute_pair(a, ad)) isa Tuple{Op, Op, CNum, Vector{Op}, CNum, Vector{Op}}
 
         ha = NLevelSpace(:atom, 3)
         σ12 = Transition(ha, :σ, 1, 2)
@@ -357,13 +357,19 @@ end
         hs = SpinSpace(:s)
         sx = Spin(hs, :S, 1)
         sy = Spin(hs, :S, 2)
-        @test @inferred(_commute_pair(sy, sx)) isa Tuple{Op, Op, CNum, Vector{Op}}
+        @test @inferred(_commute_pair(sy, sx)) isa Tuple{Op, Op, CNum, Vector{Op}, CNum, Vector{Op}}
+
+        hc = CollectiveNLevelSpace(:collective, 2)
+        S12 = CollectiveTransition(hc, :S, 1, 2)
+        S21 = CollectiveTransition(hc, :S, 2, 1)
+        @test @inferred(_commute_pair(S12, S21)) isa Tuple{Op, Op, CNum, Vector{Op}, CNum, Vector{Op}}
 
         # _may_reduce: true iff the same-type pair's _reduce_pair can fire
         @test @inferred(_may_reduce(σ12, σ21)) === true
         @test @inferred(_may_reduce(px, py)) === true
         @test _may_reduce(a, ad) === false
         @test _may_reduce(sx, sy) === false
+        @test _may_reduce(S12, S21) === false
         @test _may_reduce(a, σ12) === false
     end
 

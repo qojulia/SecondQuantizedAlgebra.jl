@@ -29,6 +29,23 @@ end
 SQA.numeric_operator(::QuantumOpticsBackend, ::Val{K}, op::Op, b::QOB.Basis) where {K} =
     throw(ArgumentError("no QuantumOpticsBase numeric_operator for role $K on $(typeof(b))"))
 
+# CollectiveTransition lives on a `ManyBodyBasis` over an `NLevelBasis`: the single-body
+# transition is promoted to the symmetric many-body operator via `manybodyoperator`. This
+# method wins over the generic `op::Op, b::QOB.Basis` ladder for a `ManyBodyBasis`, so a
+# non-collective role on such a basis (or a collective role elsewhere) throws cleanly.
+function SQA.numeric_operator(::QuantumOpticsBackend, op::Op, b::QOB.ManyBodyBasis)
+    SQA.is_collective_transition(op) ||
+        throw(ArgumentError("Op kind $(op.kind) does not act on a ManyBodyBasis"))
+    onebody = b.onebodybasis
+    onebody isa QOB.NLevelBasis || throw(
+        ArgumentError(
+            "CollectiveTransition requires a ManyBodyBasis with an NLevelBasis one-body basis; got $(typeof(onebody))",
+        ),
+    )
+    onebody_op = QOB.transition(onebody, Int(op.l1), Int(op.l2))
+    return QOB.manybodyoperator(b, onebody_op)
+end
+
 function _pauli_matrix(op::Op, b::QOB.SpinBasis)
     b.spinnumber == 1 // 2 ||
         throw(ArgumentError("Pauli operators require SpinBasis(1//2), got SpinBasis($(b.spinnumber))"))
@@ -87,7 +104,9 @@ function SQA.numeric_assemble(be::QuantumOpticsBackend, b, terms)
     return QOB.LazySum(ComplexF64, b, b, coeffs, ops)
 end
 
-# Time-dependent: native TimeDependentSum, vector-backed (same n-stability story).
+# Time-dependent: native TimeDependentSum, vector-backed (same n-stability story). The
+# per-term operators are materialised `sparse` so the TD operator is solver-friendly in the
+# hot ODE loop (the lazy form is kept only for the static `op_type = identity` opt-in).
 function SQA.numeric_assemble_td(be::QuantumOpticsBackend, b, td_terms)
     coeffs = Function[]
     ops = QOB.AbstractOperator[]
@@ -99,18 +118,27 @@ function SQA.numeric_assemble_td(be::QuantumOpticsBackend, b, td_terms)
                 end
                 )
         )
-        push!(ops, _fuse(be, b, factors))
+        push!(ops, QOB.sparse(_fuse(be, b, factors)))
     end
     return QOB.TimeDependentSum(ComplexF64, b, b, coeffs, ops)
 end
 
-# Per-term operator: identity for an empty product, the bare leaf for one factor, a lazy
-# product otherwise.
+# Per-term operator: identity for an empty product, the bare leaf for one factor, else the
+# product of the embedded factors. `*` combines disjoint-slot `LazyTensor`s into a single
+# `LazyTensor` (rather than a `LazyProduct`), which keeps the lazy form usable with a
+# `LazyKet` state and matches the eager product of the same operators.
 function _fuse(be::QuantumOpticsBackend, b, factors)
     isempty(factors) && return SQA.numeric_identity(be, b)
     length(factors) == 1 && return factors[1]
-    return QOB.LazyProduct(factors...)
+    return foldl(*, factors)
 end
+
+# --- materialization (op_type applied once at the top of `to_numeric`) ------------------
+
+# Default (`nothing`) materialises `sparse`; any explicit `op_type` (`sparse`, `dense`,
+# `identity`) is applied as a plain callable.
+SQA.numeric_materialize(::QuantumOpticsBackend, op, ::Nothing) = QOB.sparse(op)
+SQA.numeric_materialize(::QuantumOpticsBackend, op, op_type) = op_type(op)
 
 # --- expectation -----------------------------------------------------------------------
 

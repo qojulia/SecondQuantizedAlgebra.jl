@@ -364,11 +364,13 @@ function commutator(a::QSym, b::QSym)
     forward = _can_commute(a, b)
     reverse = _can_commute(b, a)
     if !forward && reverse
-        _, _, c, ops = _commute_pair(a, b)
-        return _single_qadd(c, isempty(ops) ? _EMPTY_OPS : copy(ops))
+        _, _, c1, ops1, c2, ops2 = _commute_pair(a, b)
+        return _single_qadd(c1, isempty(ops1) ? _EMPTY_OPS : copy(ops1)) +
+            _single_qadd(c2, isempty(ops2) ? _EMPTY_OPS : copy(ops2))
     elseif forward && !reverse
-        _, _, c, ops = _commute_pair(b, a)
-        return _single_qadd(_neg_cnum(c), isempty(ops) ? _EMPTY_OPS : copy(ops))
+        _, _, c1, ops1, c2, ops2 = _commute_pair(b, a)
+        return _single_qadd(_neg_cnum(c1), isempty(ops1) ? _EMPTY_OPS : copy(ops1)) +
+            _single_qadd(_neg_cnum(c2), isempty(ops2) ? _EMPTY_OPS : copy(ops2))
     end
     return a * b - b * a
 end

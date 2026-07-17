@@ -396,6 +396,67 @@ See also [`get_sum_indices`](@ref), [`has_sum_metadata`](@ref).
 get_sum_non_equal(x::SymbolicUtils.BasicSymbolic) = _sum_ne(x)
 get_sum_non_equal(x::Num) = get_sum_non_equal(SymbolicUtils.unwrap(x))
 
+"""
+    get_sum_body(x::BasicSymbolic)
+
+Summed body carried by the indexed-sum node `x`: the averaged expression that the
+node sums over its [`get_sum_indices`](@ref) (an index-dependent coefficient stays
+*inside* this body). Only valid when [`has_sum_metadata(x)`](@ref has_sum_metadata)
+is `true`. The inverse of [`indexed_sum`](@ref).
+
+```jldoctest
+julia> h = FockSpace(:site);
+
+julia> @qnumbers a::Destroy(h);
+
+julia> i = Index(h, :i, 3, h);
+
+julia> x = average(Σ(IndexedOperator(a', i) * IndexedOperator(a, i), i));
+
+julia> isequal(SecondQuantizedAlgebra.get_sum_body(x), average(IndexedOperator(a', i) * IndexedOperator(a, i)))
+true
+```
+
+See also [`indexed_sum`](@ref), [`get_sum_indices`](@ref), [`get_sum_non_equal`](@ref).
+"""
+get_sum_body(x::SymbolicUtils.BasicSymbolic) = _sum_body(x)
+get_sum_body(x::Num) = get_sum_body(SymbolicUtils.unwrap(x))
+
+"""
+    indexed_sum(body, indices::Vector{Index}; non_equal = NonEqualPair[])
+
+Construct a moment-layer indexed-sum node `∑_indices body` (see
+[`is_indexed_sum`](@ref)), the same node [`average`](@ref) builds for a summed
+[`QAdd`](@ref). `body` is an averaged scalar expression (a `Num` is unwrapped);
+`non_equal` supplies pairwise index-inequality constraints (each `(α, β)` means
+`α ≠ β`). The public constructor counterpart to the accessors
+[`get_sum_body`](@ref), [`get_sum_indices`](@ref), and [`get_sum_non_equal`](@ref).
+
+Use it to re-wrap a body in a sum node when a downstream rewrite (for example
+cumulant expansion factorizing a summed moment into a product form) must preserve
+its summation scope.
+
+```jldoctest
+julia> h = FockSpace(:site);
+
+julia> @qnumbers a::Destroy(h);
+
+julia> i = Index(h, :i, 3, h);
+
+julia> x = average(Σ(IndexedOperator(a', i) * IndexedOperator(a, i), i));
+
+julia> body = SecondQuantizedAlgebra.get_sum_body(x);
+
+julia> isequal(SecondQuantizedAlgebra.indexed_sum(body, [i]), x)
+true
+```
+
+See also [`get_sum_body`](@ref), [`is_indexed_sum`](@ref).
+"""
+function indexed_sum(body, indices::Vector{Index}; non_equal::Vector{NonEqualPair} = NonEqualPair[])
+    return _indexed_sum(SymbolicUtils.unwrap(body), indices, non_equal)
+end
+
 # Seals: recursive calls go through `Any`-typed inputs; isa-narrow restores
 # the typed accumulator without a return annotation.
 _idx_seal(v) = v isa Vector{Index} ? v : Index[]
@@ -440,6 +501,16 @@ function acts_on end
 acts_on(op::QSym) = Int[op.space_index]
 acts_on(::Number) = Int[]
 acts_on(x::Num) = acts_on(SymbolicUtils.unwrap(x))
+
+"""
+    acts_on(idx::Index) -> Vector{Int}
+
+The subspace `idx` ranges over, as a one-element `Vector{Int}` holding its
+`space_index`. Returns a vector (not a bare `Int`) so the return type matches the
+operator method [`acts_on(::QSym)`](@ref). Pairs with [`operator_index`](@ref)
+and [`set_acts_on`](@ref).
+"""
+acts_on(idx::Index) = Int[idx.space_index]
 
 function acts_on(t::QTerm)
     aon = Int[x.space_index for x in t.ops]

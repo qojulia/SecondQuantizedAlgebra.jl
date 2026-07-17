@@ -5,7 +5,9 @@ Return the minimal generating set of operators for Hilbert space `h`.
 
 Returns one [`Destroy`](@ref) per [`FockSpace`](@ref); `n(n+1)/2 - 1`
 [`Transition`](@ref) operators per [`NLevelSpace`](@ref) (upper-triangular plus
-diagonals, excluding the ground-state projector); three [`Pauli`](@ref) or
+diagonals, excluding the ground-state projector); all `n²`
+[`CollectiveTransition`](@ref) operators per [`CollectiveNLevelSpace`](@ref);
+three [`Pauli`](@ref) or
 [`Spin`](@ref) operators per [`PauliSpace`](@ref)/[`SpinSpace`](@ref); one
 [`Position`](@ref) and one [`Momentum`](@ref) per [`PhaseSpace`](@ref); and the
 concatenation of the above for a [`ProductSpace`](@ref). Pass `names` to override
@@ -37,6 +39,11 @@ function fundamental_operators(h::NLevelSpace, si::Int = 1; names::Union{Nothing
         end
     end
     return ops
+end
+
+function fundamental_operators(h::CollectiveNLevelSpace, si::Int = 1; names::Union{Nothing, AbstractVector} = nothing)
+    name = names === nothing ? :S : names[si]
+    return Op[CollectiveTransition(name, i, j, si) for i in 1:h.n for j in 1:h.n]
 end
 
 function fundamental_operators(h::PauliSpace, si::Int = 1; names::Union{Nothing, AbstractVector} = nothing)
@@ -272,9 +279,9 @@ function Base.adjoint(o::Op)
         return Op(OP_CREATE, o.name_id, o.space_index, o.index, o.l1, o.l2, o.g, o.nlev)
     elseif k === OP_CREATE
         return Op(OP_DESTROY, o.name_id, o.space_index, o.index, o.l1, o.l2, o.g, o.nlev)
-    elseif k === OP_TRANSITION
+    elseif k === OP_TRANSITION || k === OP_COLLECTIVE_TRANSITION
         # |i⟩⟨j|† = |j⟩⟨i|: swap the packed levels.
-        return Op(OP_TRANSITION, o.name_id, o.space_index, o.index, o.l2, o.l1, o.g, o.nlev)
+        return Op(k, o.name_id, o.space_index, o.index, o.l2, o.l1, o.g, o.nlev)
     else
         return o   # Pauli, Spin, Position, Momentum are Hermitian
     end
@@ -287,11 +294,13 @@ _type_order(o::Op) = Int(o.kind)
     order_key(op::Op) -> Tuple
 
 Total, identity-faithful ordering key: a comparable tuple that orders operators
-reproducibly and ties two exactly when they are `isequal`. The leading `kind`
-value gives the cross-family order; the packed `l1..nlev` fields keep distinct
-levels/axes distinct.
+reproducibly and ties two exactly when they are `isequal`. The leading
+`space_index` groups operators by subspace; `kind` orders across families within
+a subspace; the packed `l1..nlev` fields keep distinct levels/axes distinct.
 """
-order_key(o::Op) = (Int(o.kind), o.space_index, _name_rank(o.name_id), _index_key(o.index), Int(o.l1), Int(o.l2), Int(o.g), Int(o.nlev))
+order_key(o::Op) = (o.space_index, Int(o.kind), _name_rank(o.name_id), _index_key(o.index), Int(o.l1), Int(o.l2), Int(o.g), Int(o.nlev))
+
+Base.isless(a::Op, b::Op) = isless(order_key(a), order_key(b))
 
 """
     ladder(op::Op)
@@ -315,9 +324,9 @@ ladder(o::Op) = (o.kind === OP_DESTROY || o.kind === OP_MOMENTUM) ? 1 : 0
 
 function _site_compare(a::Op, b::Op, ne::Vector{NonEqualPair})
     ka = a.kind; kb = b.kind
+    a.space_index == b.space_index || return a.space_index < b.space_index ? Less : Greater
     fa = _site_family(ka)
     fa === _site_family(kb) || return UInt8(ka) < UInt8(kb) ? Less : Greater
-    a.space_index == b.space_index || return a.space_index < b.space_index ? Less : Greater
     # PhaseSpace x-vs-p ignores name (conjugate variables on one site); every
     # other same-family pair distinguishes by name.
     if !(fa === 0x05 && ka !== kb)
@@ -340,6 +349,9 @@ function _can_commute(a::Op, b::Op)
         return false                 # always compose
     elseif ka === OP_SPIN && kb === OP_SPIN
         return a.l1 <= b.l1          # commute only in ascending axis order
+    elseif ka === OP_COLLECTIVE_TRANSITION && kb === OP_COLLECTIVE_TRANSITION
+        a.name_id == b.name_id || return true
+        return a.l1 > b.l1 || (a.l1 == b.l1 && a.l2 >= b.l2)
     elseif ka === OP_MOMENTUM && kb === OP_POSITION
         return false                 # P·X = X·P - i
     else
@@ -347,20 +359,28 @@ function _can_commute(a::Op, b::Op)
     end
 end
 
-# `_commute_pair` returns (swap_b, swap_a, residual_coeff, residual_ops).
+# `_commute_pair` returns the swapped pair followed by two residual
+# `(coefficient, operators)` slots. Existing roles use only the first slot.
 function _commute_pair(a::Op, b::Op)
     ka = a.kind; kb = b.kind
     if ka === OP_DESTROY && kb === OP_CREATE
-        return (b, a, _CNUM_ONE, _EMPTY_OPS)             # aa† = a†a + 1
+        return (b, a, _CNUM_ONE, _EMPTY_OPS, _CNUM_ZERO, _EMPTY_OPS) # aa† = a†a + 1
     elseif ka === OP_MOMENTUM && kb === OP_POSITION
-        return (b, a, _to_cnum(-im), _EMPTY_OPS)         # P·X = X·P - i·I
+        return (b, a, _to_cnum(-im), _EMPTY_OPS, _CNUM_ZERO, _EMPTY_OPS) # P·X = X·P - i·I
     elseif ka === OP_SPIN && kb === OP_SPIN
         # [Sj, Sk] = iϵⱼₖₗSl; the residual is the contracted spin on the third axis.
         eps = _levi_civita[a.l1][b.l1]
         contracted = Op(OP_SPIN, a.name_id, a.space_index, a.index, 6 - a.l1 - b.l1, 0, 0, 0)
-        return (b, a, _mul_cnum(_to_cnum(im * eps), _CNUM_ONE), Op[contracted])
+        return (b, a, _mul_cnum(_to_cnum(im * eps), _CNUM_ONE), Op[contracted], _CNUM_ZERO, _EMPTY_OPS)
+    elseif ka === OP_COLLECTIVE_TRANSITION && kb === OP_COLLECTIVE_TRANSITION
+        # [Sⁱʲ,Sᵏˡ] = δⱼₖSⁱˡ - δₗᵢSᵏʲ.
+        c1 = a.l2 == b.l1 ? _CNUM_ONE : _CNUM_ZERO
+        c2 = b.l2 == a.l1 ? _CNUM_NEG1 : _CNUM_ZERO
+        r1 = _iszero_cnum(c1) ? _EMPTY_OPS : Op[Op(ka, a.name_id, a.space_index, NO_INDEX, a.l1, b.l2, 0, 0)]
+        r2 = _iszero_cnum(c2) ? _EMPTY_OPS : Op[Op(ka, a.name_id, a.space_index, NO_INDEX, b.l1, a.l2, 0, 0)]
+        return (b, a, c1, r1, c2, r2)
     else
-        return (b, a, _CNUM_ZERO, _EMPTY_OPS)
+        return (b, a, _CNUM_ZERO, _EMPTY_OPS, _CNUM_ZERO, _EMPTY_OPS)
     end
 end
 

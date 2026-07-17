@@ -1,14 +1,16 @@
 using SecondQuantizedAlgebra
-import SecondQuantizedAlgebra: QAdd, QSym, _single_qadd, _to_cnum, _to_complex, _fold_const
+import SecondQuantizedAlgebra: QAdd, QSym, _single_qadd, _to_cnum, _to_complex, _fold_const,
+    _to_numeric_static, NumericContext
 using QuantumOpticsBase
 using Symbolics: @variables, substitute
 import SymbolicUtils
 using Test
 
-# `to_numeric` now returns a lazy operator for any `QAdd` (sum/product); materialise with
-# `dense`/`sparse` to compare matrices. A bare single operator stays eager. The
-# time-dependent form returns a native `TimeDependentSum`, evaluated via `H(t)` and compared
-# through `expect`.
+# `to_numeric` materialises via `op_type` (default `sparse`), so the return type depends only
+# on `op_type`, never on the shape of the expression: a bare operator, a product, and a sum
+# all return a concrete `Operator`. `op_type = identity` opts into the natural lazy form
+# (`LazyTensor`/`LazyProduct`/`LazySum`). The time-dependent form returns a native
+# `TimeDependentSum`, evaluated via `H(t)` and compared through `expect`.
 _dat(x) = dense(x).data
 
 @testset "numeric conversion" begin
@@ -26,7 +28,8 @@ _dat(x) = dense(x).data
         @qnumbers a::Destroy(h)
         b = FockBasis(7)
 
-        @test to_numeric(a' * a, b) isa LazySum
+        @test to_numeric(a' * a, b) isa Operator
+        @test to_numeric(a' * a, b; op_type = identity) isa LazySum
         @test _dat(to_numeric(a' * a, b)) == _dat(create(b) * destroy(b))
         @test _dat(to_numeric(2 * a, b)) == _dat(2 * destroy(b))
     end
@@ -37,7 +40,8 @@ _dat(x) = dense(x).data
         b = FockBasis(7)
 
         result = to_numeric(a + a', b)
-        @test result isa LazySum
+        @test result isa Operator
+        @test to_numeric(a + a', b; op_type = identity) isa LazySum
         @test _dat(result) == _dat(destroy(b) + create(b))
     end
 
@@ -52,7 +56,9 @@ _dat(x) = dense(x).data
         b = FockBasis(3) ⊗ FockBasis(3)
 
         a1_num = to_numeric(a1, b)
-        @test a1_num isa LazyTensor
+        @test a1_num isa Operator
+        # The lazy form is the vector-backed LazySum for every shape (single op included).
+        @test to_numeric(a1, b; op_type = identity) isa LazySum
     end
 
     @testset "numeric_average" begin
@@ -103,7 +109,8 @@ _dat(x) = dense(x).data
         bf = FockBasis(3)
         bn = NLevelBasis(3)
         bc = bf ⊗ bn
-        @test to_numeric(σ12, bc) isa LazyTensor
+        @test to_numeric(σ12, bc) isa Operator
+        @test to_numeric(σ12, bc; op_type = identity) isa LazySum
     end
 
     @testset "Type stability" begin
@@ -112,16 +119,20 @@ _dat(x) = dense(x).data
         b = FockBasis(7)
         ψ = fockstate(b, 2)
 
-        # to_numeric: leaf + QAdd + dict-substitution paths
-        @test @inferred(to_numeric(a, b)) isa AbstractOperator
-        @test @inferred(to_numeric(a' * a, b)) isa AbstractOperator
-        @test @inferred(to_numeric(2 * a + 3 * a' + 5, b)) isa AbstractOperator
-        @test @inferred(to_numeric(a, b, Dict{QSym, Union{}}())) isa AbstractOperator
+        # The lazy assembly is inference-stable and one concrete type for any term count: the
+        # property the 5-arg vector-backed `LazySum` constructor buys. `sparse` materialization
+        # (the default) is a top-level convenience and NOT on the `@inferred` contract, since
+        # `sparse` of the abstract-eltype `LazySum` widens.
+        ctx = NumericContext(QuantumOpticsBackend(), b, Dict{QSym, Union{}}())
+        @test @inferred(_to_numeric_static(a' * a, ctx)) isa AbstractOperator
+        @test @inferred(_to_numeric_static(2 * a + 3 * a' + 5, ctx)) isa AbstractOperator
+        @test typeof(_to_numeric_static(a + a', ctx)) === typeof(_to_numeric_static(a + a' + a' * a, ctx))
 
-        # The vector-backed lazy sum is ONE concrete type for any term count: the property
-        # the 5-arg `LazySum` constructor buys (the 2-arg vector form is not inference-stable).
-        # A regression to it would break `@inferred` and this check.
-        @test typeof(to_numeric(a + a', b)) === typeof(to_numeric(a + a' + a' * a, b))
+        # to_numeric: leaf + QAdd + dict-substitution paths materialise a concrete operator.
+        @test to_numeric(a, b) isa AbstractOperator
+        @test to_numeric(a' * a, b) isa Operator
+        @test to_numeric(2 * a + 3 * a' + 5, b) isa Operator
+        @test to_numeric(a, b, Dict{QSym, Union{}}()) isa AbstractOperator
 
         # numeric_average: every BasicSymbolic branch infers to ComplexF64
         @test @inferred(numeric_average(a' * a, ψ)) isa ComplexF64
@@ -138,15 +149,18 @@ _dat(x) = dense(x).data
         @test length(methods(_to_complex)) == 2
     end
 
-    @testset "Laziness" begin
+    @testset "op_type materialization" begin
         h = FockSpace(:fock)
         @qnumbers a::Destroy(h)
         b = FockBasis(7)
-        # A QAdd stays lazy until materialised; a bare operator is eager.
-        @test to_numeric(a' * a, b) isa LazySum
-        @test to_numeric(2 * a + 3 * a', b) isa LazySum
+        # The default materialises `sparse`; `op_type = identity` keeps the lazy assembly.
+        @test to_numeric(a' * a, b) isa Operator
+        @test to_numeric(2 * a + 3 * a', b) isa Operator
         @test to_numeric(a, b) isa Operator
-        @test dense(to_numeric(a' * a, b)) isa Operator
+        @test to_numeric(a' * a, b; op_type = identity) isa LazySum
+        @test to_numeric(2 * a + 3 * a', b; op_type = identity) isa LazySum
+        @test to_numeric(a, b) == sparse(to_numeric(a, b; op_type = identity))
+        @test _dat(to_numeric(a' * a, b; op_type = dense)) == _dat(to_numeric(a' * a, b))
     end
 
     @testset "numeric_average: Average expressions" begin
@@ -553,10 +567,11 @@ _dat(x) = dense(x).data
         Ad = create(b)
         @variables x::Real z::Number E::Number
 
-        # Materialise a lazy result with `dense`/`sparse` (no `op_type` knob anymore).
-        Hd = dense(to_numeric(2.0 * a' * a, b))
+        # `op_type` selects the materialization; `dense`/`sparse` on the default result work too.
+        Hd = to_numeric(2.0 * a' * a, b; op_type = dense)
         @test Hd isa QuantumOpticsBase.Operator
         @test Hd ≈ dense(2.0 * Ad * A)
+        @test dense(to_numeric(2.0 * a' * a, b)) ≈ Hd
 
         # Vector form forwards keywords to each element.
         @test [_dat(x) for x in to_numeric([a, a'], b; parameter = Dict(x => 1.0))] == [_dat(A), _dat(Ad)]
@@ -588,6 +603,52 @@ _dat(x) = dense(x).data
         σp = Transition(hp, :σ, 1, 2, 2)
         bp = FockBasis(4) ⊗ NLevelBasis(3)
         @test _dat(to_numeric(ap' * σp, hp, (4, 3))) == _dat(to_numeric(ap' * σp, bp))
+    end
+
+    @testset "op_type is shape-independent" begin
+        # The return type depends only on op_type, not on the expression shape.
+        h = FockSpace(:a) ⊗ FockSpace(:b)
+        @qnumbers a1::Destroy(h, 1) a2::Destroy(h, 2)
+        b = FockBasis(3) ⊗ FockBasis(3)
+        exprs = (a1, a1' * a1, a1' * a1 + a2' * a2)
+
+        for expr in exprs
+            @test to_numeric(expr, b) isa Operator
+            @test to_numeric(expr, b) == to_numeric(expr, b; op_type = sparse)
+            @test to_numeric(expr, b; op_type = dense) isa Operator
+        end
+        @test to_numeric(exprs[1], b; op_type = identity) isa LazySum
+        @test to_numeric(exprs[3], b; op_type = identity) isa LazySum
+        for expr in exprs
+            @test to_numeric(expr, b) == sparse(to_numeric(expr, b; op_type = identity))
+            @test dense(to_numeric(expr, b)) ≈ dense(to_numeric(expr, b; op_type = dense))
+        end
+    end
+
+    @testset "numeric_average — LazyKet state" begin
+        # `expect` of a sparse operator has no method for a `LazyKet`; numeric_average
+        # assembles the lazy form, so a `LazyKet` state works without materializing.
+        hfock = FockSpace(:fock)
+        hnlevel = NLevelSpace(:nlevel, (:a, :b, :c))
+        hprod = hfock ⊗ hnlevel
+        bfock = FockBasis(10)
+        bnlevel = NLevelBasis(3)
+        bprod = bfock ⊗ bnlevel
+
+        @qnumbers a::Destroy(hprod, 1)
+        σ(i, j) = Transition(hprod, :σ, i, j, 2)
+
+        α = 0.3 + 0.0im
+        ket_fock = coherentstate(bfock, α)
+        ket_nlevel = (nlevelstate(bnlevel, 1) + nlevelstate(bnlevel, 3)) / sqrt(2)
+        ψ_lazy = LazyKet(bprod, (ket_fock, ket_nlevel))
+        ψ_dense = ket_fock ⊗ ket_nlevel
+
+        for op in (a, a' * σ(:a, :c), a + a' * σ(:a, :c))
+            @test numeric_average(op, ψ_lazy) ≈ expect(to_numeric(op, bprod), ψ_dense)
+        end
+        @test numeric_average(average(a' * a), ψ_lazy) ≈
+            expect(to_numeric(a' * a, bprod), ψ_dense)
     end
 
 end

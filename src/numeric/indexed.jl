@@ -36,7 +36,7 @@ function to_numeric(
     for (term, c) in q.arguments
         _accumulate_indexed_term!(terms, term, c, q.indices, ctx, sub_re, sub_im, has_imag)
     end
-    return numeric_assemble(be, b, terms)
+    return numeric_materialize(be, numeric_assemble(be, b, terms), nothing)
 end
 
 function _numeric_leaf_indexed(op::Op, ctx::NumericContext)

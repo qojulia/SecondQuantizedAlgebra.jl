@@ -67,7 +67,8 @@ julia> @qnumbers a::Destroy(h)
 (a,)
 ```
 
-See also [`Destroy`](@ref), [`Transition`](@ref), [`Pauli`](@ref), [`Spin`](@ref).
+See also [`Destroy`](@ref), [`Transition`](@ref), [`CollectiveTransition`](@ref),
+[`Pauli`](@ref), [`Spin`](@ref).
 """
 macro qnumbers(qs...)
     ex = Expr(:block)
@@ -92,7 +93,7 @@ end
 
 
 export FockSpace, ProductSpace,
-    NLevelSpace, Transition,
+    NLevelSpace, Transition, CollectiveNLevelSpace, CollectiveTransition,
     PauliSpace, Pauli,
     SpinSpace, Spin,
     PhaseSpace, Position, Momentum,
@@ -111,9 +112,10 @@ export FockSpace, ProductSpace,
     to_numeric, numeric_average,
     QuantumOpticsBackend, QuantumToolboxBackend,
     numeric_operator, numeric_basis, numeric_subbasis, numeric_embed,
-    numeric_identity, numeric_assemble, numeric_assemble_td, numeric_expect,
+    numeric_identity, numeric_assemble, numeric_assemble_td, numeric_materialize, numeric_expect,
     qadjoint, qconj, dagger, inner_adjoint,
-    Op, operator_name, is_destroy, is_create, is_transition, is_pauli, is_spin, is_position, is_momentum, optype
+    Op, operator_name, operator_index, is_destroy, is_create, is_transition, is_collective_transition,
+    is_pauli, is_spin, is_position, is_momentum, optype
 
 
 # Public API that is intentionally NOT exported — accessed as
@@ -121,8 +123,10 @@ export FockSpace, ProductSpace,
 @public HilbertSpace, QField, QSym, OpKind,
     NumericBackend, NumericContext, expect,
     OP_DESTROY, OP_CREATE, OP_TRANSITION, OP_PAULI, OP_SPIN, OP_POSITION, OP_MOMENTUM,
+    OP_COLLECTIVE_TRANSITION,
     QAdd, QTerm, QTermDict, Coeff, CNum,
-    has_sum_metadata, get_sum_indices, get_sum_non_equal,
+    has_sum_metadata, get_sum_indices, get_sum_non_equal, get_sum_body, indexed_sum,
+    set_acts_on, rename,
     transition_superscript, constraint_pairs,
     to_num, order_key, term_order_key, qadd_order_key
 

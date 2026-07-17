@@ -104,3 +104,18 @@ end
         @test SecondQuantizedAlgebra.term_order_key(t1) < SecondQuantizedAlgebra.term_order_key(t2)
     end
 end
+
+@testset "orders by space_index before kind (issue #205)" begin
+    h = NLevelSpace(:atom, 2) ⊗ FockSpace(:cavity)   # atom=subspace 1, cavity=subspace 2
+    σ = Transition(h, :σ, 1, 2, 1)                    # subspace 1, higher kind
+    a = Destroy(h, :a, 2)                             # subspace 2, lower kind
+
+    @test order_key(σ) < order_key(a)
+    @test isless(σ, a)
+    @test !isless(a, σ)
+    @test sort([a, σ]) == [σ, a]
+
+    @test isequal(σ * a, a * σ)
+    @test first(keys((σ * a).arguments)).ops == [σ, a]
+    @test first(keys((a * σ).arguments)).ops == [σ, a]
+end

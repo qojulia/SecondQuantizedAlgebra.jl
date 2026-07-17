@@ -1,17 +1,18 @@
 """
     OpKind
 
-Runtime tag distinguishing the seven operator roles carried by the single
+Runtime tag distinguishing the eight operator roles carried by the single
 concrete leaf type [`Op`](@ref). The integer values double as the cross-family
 sort order (see `_type_order`/`order_key`).
 """
-@enum OpKind::UInt8 OP_DESTROY OP_CREATE OP_TRANSITION OP_PAULI OP_SPIN OP_POSITION OP_MOMENTUM
+@enum OpKind::UInt8 OP_DESTROY OP_CREATE OP_TRANSITION OP_PAULI OP_SPIN OP_POSITION OP_MOMENTUM OP_COLLECTIVE_TRANSITION
 
 """
     Op <: QSym
 
 The single concrete leaf operator. A `kind::OpKind` tag selects the physical
-role (annihilation, creation, transition, Pauli, spin, position, momentum); the
+role (annihilation, creation, transition, collective transition, Pauli, spin,
+position, momentum); the
 remaining fields are shared storage interpreted per `kind`:
 
 - `name::Symbol`: display name
@@ -22,8 +23,9 @@ remaining fields are shared storage interpreted per `kind`:
   Fock/PhaseSpace leave them zero.
 
 Construct via the role-named functions [`Destroy`](@ref), [`Create`](@ref),
-[`Transition`](@ref), [`Pauli`](@ref), [`Spin`](@ref), [`Position`](@ref),
-[`Momentum`](@ref); test the role via [`is_destroy`](@ref) and siblings, or read
+[`Transition`](@ref), [`CollectiveTransition`](@ref), [`Pauli`](@ref),
+[`Spin`](@ref), [`Position`](@ref), [`Momentum`](@ref); test the role via
+[`is_destroy`](@ref) and siblings, or read
 it with [`optype`](@ref). Collapsing the former per-type hierarchy into one
 concrete struct makes the operator vector concrete-eltype, so the per-operator
 hooks dispatch statically. See `docs/src/devdocs.md`.
@@ -94,6 +96,13 @@ True iff `o` is a [`Transition`](@ref) operator. See [`is_destroy`](@ref).
 is_transition(o::Op) = o.kind === OP_TRANSITION
 
 """
+    is_collective_transition(o::Op) -> Bool
+
+True iff `o` is a [`CollectiveTransition`](@ref) operator. See [`is_destroy`](@ref).
+"""
+is_collective_transition(o::Op) = o.kind === OP_COLLECTIVE_TRANSITION
+
+"""
     is_pauli(o::Op) -> Bool
 
 True iff `o` is a [`Pauli`](@ref) operator. See [`is_destroy`](@ref).
@@ -127,6 +136,39 @@ is_momentum(o::Op) = o.kind === OP_MOMENTUM
 Return the [`OpKind`](@ref) tag of `o`.
 """
 optype(o::Op) = o.kind
+
+"""
+    operator_index(o::Op) -> Index
+
+The site [`Index`](@ref) attached to `o`, or the sentinel `NO_INDEX` when `o`
+carries no index (test with [`has_index`](@ref)). Public accessor for the
+`index` field; pairs with [`operator_name`](@ref) and [`acts_on`](@ref).
+"""
+operator_index(o::Op) = o.index
+
+"""
+    set_acts_on(o::Op, aon::Integer) -> Op
+
+Rebind `o` to subspace `aon`, returning a copy with its `space_index` set to
+`aon` and every other field (role, name, index, levels) preserved. Use it to
+embed a single-site operator into a different factor of a [`ProductSpace`](@ref).
+The site index, if any, is left untouched; rename it separately with
+[`rename`](@ref) when the new subspace needs a matching index.
+
+See also [`acts_on`](@ref), [`operator_index`](@ref).
+"""
+set_acts_on(o::Op, aon::Integer) =
+    Op(o.kind, o.name_id, Int32(aon), o.index, o.l1, o.l2, o.g, o.nlev)
+
+"""
+    rename(o::Op, name::Symbol) -> Op
+
+Return a copy of `o` with its display name replaced by `name`, preserving role,
+subspace, index, and levels. The `Op` method of [`rename`](@ref rename(::Index, ::Symbol)).
+"""
+rename(o::Op, name::Symbol) =
+    Op(o.kind, _intern_name(name), o.space_index, o.index, o.l1, o.l2, o.g, o.nlev)
+rename(o::Op, name::AbstractString) = _name_must_be_symbol(name)
 
 # Shared sentinel for empty operator vectors on hot paths. Never mutated.
 const _EMPTY_OPS = Op[]

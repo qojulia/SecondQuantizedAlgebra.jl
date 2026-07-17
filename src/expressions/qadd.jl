@@ -200,6 +200,9 @@ function qadd_order_key(q::QAdd)
     return pairs
 end
 
+Base.isless(a::QAdd, b::QAdd) = isless(qadd_order_key(a), qadd_order_key(b))
+Base.isless(a::Type{<:QField}, b::Type{<:QField}) = isless(nameof(a), nameof(b))
+
 _coeff_key(c::CNum) = (string(real(c)), string(imag(c)))
 
 """

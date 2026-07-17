@@ -60,6 +60,11 @@ function _to_numeric_static(q::QAdd, ctx::NumericContext)
     return numeric_assemble(ctx.backend, ctx.basis, terms)
 end
 
+# Lazy builders used by `numeric_average`/`expect`: assemble but never materialize, so a
+# `LazyKet` state works and no concrete matrix is built just to take an expectation value.
+_to_numeric_lazy(op::Op, ctx::NumericContext) = _numeric_leaf(op, ctx)
+_to_numeric_lazy(q::QAdd, ctx::NumericContext) = _to_numeric_static(q, ctx)
+
 # --- time-dependent assembly -----------------------------------------------------------
 
 # Each coefficient becomes a `ComplexF64` (constant term) or a `t -> ComplexF64` closure
@@ -108,26 +113,28 @@ function _numeric_operator_dict(operators, adjoint_ops::Bool)
     return out
 end
 
-function _to_numeric_kw(be::NumericBackend, op, b; parameter, time_parameter, operators, adjoint_ops)
+function _to_numeric_kw(be::NumericBackend, op, b; parameter, time_parameter, operators, adjoint_ops, op_type)
     param = _expand_parameter(parameter)
     tp = _normalize_time_parameter(time_parameter)
     ops = _numeric_operator_dict(operators, adjoint_ops)
     ctx = NumericContext(be, b, ops)
-    return _to_numeric_translated(op, ctx, param, tp)
+    return _to_numeric_translated(op, ctx, param, tp, op_type)
 end
 
 # QSym: wrap as a one-term QAdd and reuse the QAdd path.
-_to_numeric_translated(op::QSym, ctx::NumericContext, parameter, time_parameter) =
-    _to_numeric_translated(_single_qadd(_CNUM_ONE, Op[op]), ctx, parameter, time_parameter)
+_to_numeric_translated(op::QSym, ctx::NumericContext, parameter, time_parameter, op_type) =
+    _to_numeric_translated(_single_qadd(_CNUM_ONE, Op[op]), ctx, parameter, time_parameter, op_type)
 
-function _to_numeric_translated(op::QAdd, ctx::NumericContext, parameter, time_parameter)
+# Static path materializes via `op_type` (default `nothing` -> backend sparse); the
+# time-dependent path returns the backend's native TD operator (sparse sub-operators).
+function _to_numeric_translated(op::QAdd, ctx::NumericContext, parameter, time_parameter, op_type)
     op_ = substitute(op, parameter)
-    isempty(time_parameter) && return _to_numeric_static(op_, ctx)
+    isempty(time_parameter) && return numeric_materialize(ctx.backend, _to_numeric_static(op_, ctx), op_type)
     return _to_numeric_td(op_, ctx, time_parameter)
 end
 
 # Bare scalar: static -> scaled identity; time-dependent -> native TD over identity.
-function _to_numeric_translated(arg, ctx::NumericContext, parameter, time_parameter)
+function _to_numeric_translated(arg, ctx::NumericContext, parameter, time_parameter, op_type)
     arg_sub = substitute(arg, parameter)
     c = _as_cnum(arg_sub)
     if isempty(time_parameter)
@@ -137,7 +144,7 @@ function _to_numeric_translated(arg, ctx::NumericContext, parameter, time_parame
                     "`parameter` or `time_parameter`.",
             ),
         )
-        return _const_coeff(c) * numeric_identity(ctx.backend, ctx.basis)
+        return numeric_materialize(ctx.backend, _const_coeff(c) * numeric_identity(ctx.backend, ctx.basis), op_type)
     end
     basevars, valuefuncs = _time_basis(time_parameter)
     coef = _td_coeff(c, basevars, valuefuncs)

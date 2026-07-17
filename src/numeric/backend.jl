@@ -102,6 +102,19 @@ operator.
 function numeric_assemble_td end
 
 """
+    numeric_materialize(be, op, op_type)
+
+Materialize the lazily assembled operator `op` according to `op_type`, applied exactly once
+at the top of `to_numeric` so the return type depends only on `op_type`, never on the shape
+of the expression. The default `op_type === nothing` applies the backend's `sparse`; any
+other `op_type` is applied as a plain callable (`dense`, `identity`, or a
+`QuantumToolbox`/`SciMLOperators` materializer), so `op_type = identity` returns the lazy
+form unchanged. `numeric_average`/`expect` bypass this hook and consume the lazy form
+directly.
+"""
+function numeric_materialize end
+
+"""
     numeric_expect(be, numop, state)
 
 Expectation value `⟨state| numop |state⟩` (a `ComplexF64`), or a `Vector{ComplexF64}` when
