@@ -68,7 +68,7 @@ Base.show(io::IO, ::SumFunc) = print(io, "sum")
 SymbolicUtils.promote_symtype(::SumFunc, Ts...) = Number
 
 _indexed_sum(body, indices::Vector{Index}, ne::Vector{NonEqualPair}) =
-    SymbolicUtils.Term{SymbolicUtils.SymReal}(sym_sum, Any[body, SumScope(indices, ne)]; type = Number)
+    SymbolicUtils.Term{SymbolicUtils.SymReal}(sym_sum, Any[body, SumScope(indices, ne)]; type = _sum_symtype(body))
 
 _scope_of(s::SumScope) = s
 _scope_of(s::SymbolicUtils.BasicSymbolic) = s.val::SumScope
@@ -110,13 +110,37 @@ function is_average(x::SymbolicUtils.BasicSymbolic)
 end
 is_average(x::Num) = is_average(SymbolicUtils.unwrap(x))
 
-_average(op::QField) = SymbolicUtils.Term{SymbolicUtils.SymReal}(sym_average, QField[op]; type = Number)
+_avg_symtype(op::QField) = isequal(adjoint(op), op) ? Real : Number
+
+_sum_symtype(body) = SymbolicUtils.symtype(body) <: Real ? Real : Number
+
+function _avg_symtype_from_arg(arg)
+    op = SymbolicUtils.isconst(arg) ? arg.val : arg
+    op isa QField || return Number
+    return _avg_symtype(op)
+end
+
+_average(op::QField) = SymbolicUtils.Term{SymbolicUtils.SymReal}(sym_average, QField[op]; type = _avg_symtype(op))
+
+function TermInterface.maketerm(
+        ::Type{SymbolicUtils.BasicSymbolic{SymbolicUtils.SymReal}}, f::AvgFunc, args, metadata;
+        type = _avg_symtype_from_arg(args[1])
+    )
+    return SymbolicUtils.Term{SymbolicUtils.SymReal}(f, collect(args); type = type, metadata = metadata)
+end
+function TermInterface.maketerm(
+        ::Type{SymbolicUtils.BasicSymbolic{SymbolicUtils.SymReal}}, f::SumFunc, args, metadata;
+        type = _sum_symtype(args[1])
+    )
+    return SymbolicUtils.Term{SymbolicUtils.SymReal}(f, collect(args); type = type, metadata = metadata)
+end
 
 """
     make_time_dependent(expr, iv) -> expr
 
-Lift every iv-free average leaf in `expr` into a time-dependent `Number` variable
-`name(iv)` carrying the operator in `AverageOperator` metadata (and the
+Lift every iv-free average leaf in `expr` into a time-dependent variable
+`name(iv)` (typed `Real` when the operator is Hermitian, else `Number`) carrying
+the operator in `AverageOperator` metadata (and the
 `VariableSource` set by `@variables`, so it reads as a ModelingToolkit unknown).
 Non-average structure is rebuilt only where a child changed. The lifted node is a
 leaf: the walk does not descend into `iv`. The default `name` is uniqueness-only;
@@ -148,7 +172,11 @@ function _lift_average(leaf, iv)
     op = undo_average(leaf)
     nm = _avg_var_name(op)
     ivw = iv isa SymbolicUtils.BasicSymbolic ? Symbolics.wrap(iv) : iv
-    v = SymbolicUtils.unwrap(first(@variables ($nm(ivw))::Number))
+    v = SymbolicUtils.unwrap(
+        _avg_symtype(op) === Real ?
+            first(@variables ($nm(ivw))::Real) :
+            first(@variables ($nm(ivw))::Number)
+    )
     return SymbolicUtils.setmetadata(v, AverageOperator, op)
 end
 

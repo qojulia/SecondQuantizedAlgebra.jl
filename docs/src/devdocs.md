@@ -367,12 +367,14 @@ end
 struct AvgFunc end                        # singleton callable, the "operation"
 const sym_average = AvgFunc()
 
-_average(op) = SymbolicUtils.Term{SymbolicUtils.SymReal}(sym_average, [op]; type = AvgSym)
+_average(op) = SymbolicUtils.Term{SymbolicUtils.SymReal}(sym_average, [op]; type = _avg_symtype(op))
 ```
 
 **Why a custom `AvgFunc` instead of a `Sym`?** Using a custom struct lets us define `SymbolicUtils.show_call` for `⟨...⟩` display without type piracy on SymbolicUtils symbols.
 
-**`AvgSym <: Number`** is the `symtype` marker. It ensures averaged expressions participate in Symbolics arithmetic (`+`, `*`, `simplify`) while remaining distinguishable from plain numbers.
+**Hermitian averages are `Real`, everything else is `Number`.** A moment `⟨A⟩` is real iff `A` is Hermitian, so `_avg_symtype(op) = isequal(adjoint(op), op) ? Real : Number` is a structural test (both sides are canonical). The `Real` upgrade buys a faster `simplify` (its rewrite rules take the cheaper real path) and self-conjugation through `_conj_atom` (`conj(⟨A⟩) == ⟨A⟩`, versus a `Number` leaf that stays wrapped and relies on `inner_adjoint`). The `+`/`*` path is unaffected (it dispatches on the vartype `SymReal`, already used). Typing is per-leaf, so a distributed sum like `a + a'` → `⟨a⟩ + ⟨a'⟩` stays `Number`; `sym_sum` nodes inherit `Real` from a real body, and `make_time_dependent` lifts a Hermitian average to a `Real` unknown.
+
+Because `substitute`/rewriting rebuild through `TermInterface.maketerm`, whose default `type` comes from `promote_symtype` (which cannot see Hermiticity behind the opaque operator symtype), the average and sum nodes define `maketerm` overrides that re-derive the symtype from the operator/body *value*; without them a `substitute` would silently revert a `Real` leaf to `Number`. `_avg_symtype_from_arg` falls back to `Number` when the argument is not a bare `QField` (e.g. a `conj`-wrapped operator from `qadjoint`).
 
 ### Why `average` returns `BasicSymbolic`, not `Num`
 
