@@ -150,7 +150,10 @@ end
         # (a) Coefficient materialization. Constructing an operator builds its
         #     `Coeff`; the recognizer (`_rec`) and the numeric fold read a
         #     heterogeneous Symbolics expression whose `BasicSymbolic.val` is `::Any`,
-        #     so the reduction (`+`/`*`/`==`/`ComplexF64`/`convert`) is dynamic.
+        #     so the reduction (`+`/`*`/`==`/`ComplexF64`/`convert`) is dynamic. The
+        #     Hermitian-symtype probe (`_avg_symtype`) reaches the same boundary from
+        #     the other side: `adjoint` conjugates each coefficient via `_conj_atom`,
+        #     which reads that same `::Any` symbolic tail.
         allowed_coeff_reports = [
             "SecondQuantizedAlgebra._rec(",
             "SecondQuantizedAlgebra.ComplexF64(",
@@ -158,6 +161,7 @@ end
             "SecondQuantizedAlgebra.:*",
             "SecondQuantizedAlgebra.:+",
             "SecondQuantizedAlgebra.:(==)",
+            "SecondQuantizedAlgebra._conj_atom(",
             ".val::Any",
         ]
         # (b) `undo_average` rebuilds a QAdd from a Symbolics `average` node, reading
