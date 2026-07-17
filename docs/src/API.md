@@ -280,6 +280,22 @@ to_numeric
 numeric_average
 ```
 
+### Numeric backends
+
+```@docs
+QuantumOpticsBackend
+QuantumToolboxBackend
+numeric_operator
+numeric_basis
+numeric_subbasis
+numeric_embed
+numeric_identity
+numeric_assemble
+numeric_assemble_td
+numeric_materialize
+numeric_expect
+```
+
 
 ## [Symbolic Summations](@id API: Sums)
 

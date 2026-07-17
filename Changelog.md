@@ -19,6 +19,10 @@ Numeric conversion (`to_numeric`/`numeric_average`/`expect`) was redesigned to b
 - `QuantumOpticsBase` moved from a hard dependency to a weak dependency. Using the numeric API now requires loading a backend: add `using QuantumOpticsBase` (or `using QuantumToolbox`) next to `using SecondQuantizedAlgebra`. The lightweight `QuantumInterface.jl` is a new hard dependency (it owns the `⊗`/`tensor`/`expect`/`basis` generics that the algebra extends).
 - The time-dependent form (`time_parameter` non-empty) returns the backend's **native** time-dependent operator: a `TimeDependentSum` (QuantumOptics) or a `QobjEvo` (QuantumToolbox), both directly consumable by `mesolve`/`master_dynamic`/`sesolve`. It is no longer a `t -> op(t)` closure.
 
+### Changed
+
+- Averages of provably Hermitian operators (`adjoint(A) == A`) now carry `symtype === Real` instead of `Number`. This gives a faster `simplify` path and makes `conj(⟨a'a⟩)` fold to `⟨a'a⟩` rather than an inert `conj(...)` wrapper; indexed sums and lifted time-dependent variables inherit the typing, which survives `substitute`. Resolves [#171](https://github.com/qojulia/SecondQuantizedAlgebra.jl/issues/171).
+
 ### Notes
 
 - The `op_type` contract from v0.9.2 is unchanged and is now backend-neutral: `to_numeric` assembles the operator lazily and materializes it once via `op_type` (default `sparse`), so the return type depends only on `op_type`, not on the expression shape. `op_type=identity` opts into the natural lazy representation (`LazyTensor`/`LazyProduct`/`LazySum` / `VecSum`), `op_type=dense` into a dense operator. The lazy form is the internal assembly primitive and is what `numeric_average`/`expect` consume directly, so `LazyKet` states work without materializing.
@@ -321,4 +325,5 @@ These names keep their meaning across the migration. Code that only uses them sh
 [v0.9.2]: https://github.com/qojulia/SecondQuantizedAlgebra.jl/releases/tag/v0.9.2
 [v0.9.3]: https://github.com/qojulia/SecondQuantizedAlgebra.jl/releases/tag/v0.9.3
 [v0.9.4]: https://github.com/qojulia/SecondQuantizedAlgebra.jl/releases/tag/v0.9.4
+[v0.10.0]: https://github.com/qojulia/SecondQuantizedAlgebra.jl/releases/tag/v0.10.0
 [#156]: https://github.com/qojulia/SecondQuantizedAlgebra.jl/issues/156
