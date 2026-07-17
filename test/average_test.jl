@@ -827,6 +827,22 @@ import SecondQuantizedAlgebra: simplify, QAdd, QSym, QField, CNum, _to_cnum, _si
             @test symtype(summ_n) === Number
         end
 
+        @testset "rebuilt sum nodes keep the body symtype" begin
+            # Substituting into the summed body forces SymbolicUtils to rebuild the
+            # sum node through `maketerm(::SumFunc, …)`, which must re-derive the
+            # symtype from the (possibly rewritten) body rather than default to Number.
+            i = Index(h, :i, 3, h)
+            @variables g
+            summ_h = average(Σ(g * IndexedOperator(a', i) * IndexedOperator(a, i), i))
+            rebuilt_h = Symbolics.substitute(summ_h, Dict(g => 2g))
+            @test is_indexed_sum(rebuilt_h)
+            @test symtype(rebuilt_h) === Real
+            summ_n = average(Σ(g * IndexedOperator(a, i), i))
+            rebuilt_n = Symbolics.substitute(summ_n, Dict(g => 2g))
+            @test is_indexed_sum(rebuilt_n)
+            @test symtype(rebuilt_n) === Number
+        end
+
         @testset "lifted time-dependent variables carry the symtype" begin
             @variables t
             iv = SymbolicUtils.unwrap(t)
