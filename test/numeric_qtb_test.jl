@@ -244,6 +244,11 @@ const QTBB = QuantumToolboxBackend()
         # a symbolic Fock cutoff.
         @test size(to_numeric(a, 5).data) == (5, 5)
         @test size(to_numeric(a, h, 5; backend = QTBB).data) == (6, 6)
+
+        # Bare QAdd on raw QTB dimensions (positional QAdd-on-dims form).
+        qadd_raw = to_numeric(a' + a, 5)
+        @test size(qadd_raw.data) == (5, 5)
+        @test Matrix(qadd_raw.data) ≈ Matrix((to_numeric(a', 5) + to_numeric(a, 5)).data)
     end
 
     @testset "explicit op_type materializes eager" begin
@@ -296,5 +301,12 @@ const QTBB = QuantumToolboxBackend()
         a = Destroy(h, :a, 1)
         @test_throws ArgumentError to_numeric(a, h, [2]; backend = QTBB)
         @test_throws ArgumentError to_numeric(a, h, [2, 3, 99]; backend = QTBB)
+        # dims that are not an indexable collection are rejected up front.
+        @test_throws ArgumentError to_numeric(a, h, nothing; backend = QTBB)
+
+        # A valid ProductSpace HilbertSpace conversion builds per-subspace dims (Fock
+        # cutoffs 2 and 3 give dimensions 3 and 4, so the composite is 12×12).
+        Mp = to_numeric(a, h, [2, 3]; backend = QTBB)
+        @test size(Mp.data) == (12, 12)
     end
 end
