@@ -651,4 +651,38 @@ _dat(x) = dense(x).data
             expect(to_numeric(a' * a, bprod), ψ_dense)
     end
 
+    @testset "numeric_average — unsupported symbolic operation" begin
+        # A symbolic average expression whose top operation is neither `+`, `*`, nor `^`
+        # (here `sqrt`) is not reducible to an expectation value and must error.
+        h = FockSpace(:fock)
+        @qnumbers a::Destroy(h)
+        b = FockBasis(5)
+        ψ = fockstate(b, 2)
+        @test_throws ArgumentError numeric_average(sqrt(average(a' * a)), ψ)
+        @test_throws ArgumentError numeric_average(average(a' * a) / (1 + average(a)), ψ)
+    end
+
+    @testset "complex parameter key" begin
+        # A `Complex` parameter key `κ` splits into real/imag substitutions, so both `κ`
+        # and `conj(κ)` in the expression resolve from a single complex value.
+        h = FockSpace(:fock)
+        @qnumbers a::Destroy(h)
+        b = FockBasis(6)
+        @variables κ::Complex
+        H = κ * a + conj(κ) * a'
+        M = to_numeric(H, b; parameter = Dict(κ => 1.0 + 2.0im))
+        Mref = to_numeric((1.0 + 2.0im) * a + (1.0 - 2.0im) * a', b)
+        @test _dat(M) ≈ _dat(Mref)
+    end
+
+    @testset "time_parameter — unsupported key" begin
+        # A single-variable `time_parameter` key that is neither a bare variable nor
+        # `conj(v)` (here `2*E`) is rejected.
+        h = FockSpace(:fock)
+        @qnumbers a::Destroy(h)
+        b = FockBasis(6)
+        @variables E::Number
+        @test_throws ArgumentError to_numeric(E * a, b; time_parameter = Dict(2 * E => t -> 1.0 + 0im))
+    end
+
 end

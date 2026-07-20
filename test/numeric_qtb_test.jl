@@ -147,4 +147,45 @@ const QTBB = QuantumToolboxBackend()
         M = SO.concretize(H.data)
         @test M ≈ QTB.create(4).data * QTB.destroy(4).data
     end
+
+    @testset "empty QAdd assembles to zero" begin
+        # A `QAdd` that cancels to zero terms still assembles to a valid zero operator on
+        # the full space (the empty-terms branch of `numeric_assemble`).
+        h = FockSpace(:f)
+        @qnumbers a::Destroy(h)
+        z = 1 * a - 1 * a
+        M = to_numeric(z, h, 5; backend = QTBB)
+        @test SO.concretize(M.data) ≈ zeros(ComplexF64, 5, 5)
+    end
+
+    @testset "time-dependent with constant term" begin
+        # A TD assembly mixing a constant term (`Δ*a'a`) with a genuinely time-dependent
+        # term (`f*a`) exercises both `_td_scalar` branches.
+        h = FockSpace(:f)
+        @qnumbers a::Destroy(h)
+        @variables Δ f
+        H = to_numeric(
+            Δ * a' * a + f * a, h, 5;
+            backend = QTBB, parameter = Dict(Δ => 1.0), time_parameter = Dict(f => t -> 2.0 + 0im),
+        )
+        M = H(nothing, 0.0).data
+        Href = QTB.create(5).data * QTB.destroy(5).data + 2.0 * QTB.destroy(5).data
+        @test M ≈ Href
+    end
+
+    @testset "unsupported operator role errors" begin
+        # A collective transition has no QuantumToolbox realisation: the closed operator
+        # ladder falls through to the throwing `Val` extension point.
+        hc = CollectiveNLevelSpace(:atom, 3)
+        S12 = CollectiveTransition(hc, :S, 1, 2)
+        @test_throws ArgumentError to_numeric(S12, 3)
+    end
+
+    @testset "default backend errors when both are loaded" begin
+        # With QuantumOpticsBase and QuantumToolbox both loaded, the `HilbertSpace` form
+        # cannot pick a backend and must ask for an explicit `backend =`.
+        h = FockSpace(:f)
+        @qnumbers a::Destroy(h)
+        @test_throws ArgumentError to_numeric(a' * a, h, 5)
+    end
 end

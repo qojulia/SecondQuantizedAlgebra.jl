@@ -141,3 +141,90 @@ end
     M_over = to_numeric(H, b, sites, Dict{S.QSym, Any}(sig(1, 2, i) => custom))
     @test sparse(M_plain).data != sparse(M_over).data
 end
+
+@testset "Indexed numeric: ne-constrained double sum" begin
+    # A double sum `Σ_{i,j} σ⁺_i σ⁻_j` splits into a diagonal part (`i == j`) and an
+    # off-diagonal part carrying an `ne = (i, j)` constraint that `_violates_ne` uses to
+    # skip the `i == j` combinations during the unroll. The result must equal the full
+    # explicit sum over all site pairs.
+    ha = NLevelSpace(:atom, 2)
+    σ(α, β, k) = IndexedOperator(Transition(ha, :σ, α, β), k)
+    i = Index(ha, :i, 2, ha)
+    j = Index(ha, :j, 2, ha)
+    H = Σ(σ(1, 2, i) * σ(2, 1, j), i, j)
+
+    bn = NLevelBasis(2)
+    b = bn ⊗ bn
+    sites = Dict{Int, Vector{Int}}(1 => [1, 2])
+    M = to_numeric(H, b, sites, Dict{S.QSym, Any}())
+
+    he = NLevelSpace(:a1, 2) ⊗ NLevelSpace(:a2, 2)
+    t(α, β, k) = Transition(he, Symbol(:s, k), α, β, k)
+    Hex = t(1, 2, 1) * t(2, 1, 1) + t(1, 2, 1) * t(2, 1, 2) +
+        t(1, 2, 2) * t(2, 1, 1) + t(1, 2, 2) * t(2, 1, 2)
+    Mex = to_numeric(Hex, b)
+    @test _matnorm(sparse(M).data, sparse(Mex).data) < 1.0e-10
+end
+
+@testset "Indexed numeric: real-valued scalar_subs" begin
+    # Real (non-`Complex`-typed) `scalar_subs` values exercise the real-only substitution
+    # legs of `_split_scalar_subs`/`_apply_scalar_subs` (the `has_imag == false` path).
+    hc = FockSpace(:cavity)
+    ha = NLevelSpace(:atom, 2)
+    h = hc ⊗ ha
+    a = Destroy(h, :a, 1)
+    σ(α, β, k) = IndexedOperator(Transition(h, :σ, α, β, 2), k)
+    gv(k) = IndexedVariable(:g, k)
+    i = Index(h, :i, 2, ha)
+    H = Σ(gv(i) * (a' * σ(1, 2, i) + a * σ(2, 1, i)), i)
+
+    bc = FockBasis(2)
+    bn = NLevelBasis(2)
+    b = bc ⊗ bn ⊗ bn
+    sites = Dict{Int, Vector{Int}}(1 => [1], 2 => [2, 3])
+
+    ks_sym = SymbolicUtils.Sym{SymbolicUtils.SymReal}(
+        :g;
+        type = SymbolicUtils.FnType{Tuple{Int}, Real, Nothing},
+        shape = UnitRange{Int}[],
+    )
+    scalar_subs = Dict{Num, Float64}(Num(ks_sym(1)) => 0.3, Num(ks_sym(2)) => 0.7)
+    M = to_numeric(H, b, sites, Dict{S.QSym, Any}(), scalar_subs)
+
+    # Explicit reference on the same layout.
+    he = FockSpace(:c) ⊗ NLevelSpace(:a1, 2) ⊗ NLevelSpace(:a2, 2)
+    ae = Destroy(he, :a, 1)
+    te(α, β, k) = Transition(he, Symbol(:s, k), α, β, k + 1)
+    Hex = 0.3 * (ae' * te(1, 2, 1) + ae * te(2, 1, 1)) +
+        0.7 * (ae' * te(1, 2, 2) + ae * te(2, 1, 2))
+    Mex = to_numeric(Hex, b)
+    @test _matnorm(sparse(M).data, sparse(Mex).data) < 1.0e-10
+end
+
+@testset "Indexed numeric: slot resolution edge cases" begin
+    hc = FockSpace(:cavity)
+    ha = NLevelSpace(:atom, 2)
+    h = hc ⊗ ha
+    a = Destroy(h, :a, 1)
+    σ(α, β, k) = IndexedOperator(Transition(h, :σ, α, β, 2), k)
+    i = Index(h, :i, 2, ha)
+    H = Σ(a' * σ(1, 2, i) + a * σ(2, 1, i), i)
+
+    bc = FockBasis(2)
+    bn = NLevelBasis(2)
+    b = bc ⊗ bn ⊗ bn
+    sites = Dict{Int, Vector{Int}}(1 => [1], 2 => [2, 3])
+
+    # A non-indexed subspace (the cavity) may be omitted from `sites`: its operator falls
+    # back to its own `space_index` slot, so the result is unchanged.
+    sites_no_cavity = Dict{Int, Vector{Int}}(2 => [2, 3])
+    M_full = to_numeric(H, b, sites, Dict{S.QSym, Any}())
+    M_omit = to_numeric(H, b, sites_no_cavity, Dict{S.QSym, Any}())
+    @test _matnorm(sparse(M_full).data, sparse(M_omit).data) < 1.0e-10
+
+    # An operator carrying an unresolved (non-integer) index on a multi-slot subspace is
+    # ambiguous and must error. `σ_j` never binds to the summed index `i`.
+    j = Index(h, :j, 2, ha)
+    Hbad = Σ(σ(1, 2, i) * σ(1, 2, j), i)
+    @test_throws ArgumentError to_numeric(Hbad, b, sites, Dict{S.QSym, Any}())
+end

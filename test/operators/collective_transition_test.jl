@@ -115,6 +115,10 @@ using Test
         @test_throws ArgumentError to_numeric(S(1, 2), wrong)
         @test_throws ArgumentError to_numeric(Destroy(FockSpace(:f), :a), b)
 
+        # A collective transition has no realisation on a plain (non-ManyBody) basis: the
+        # closed operator ladder falls through to the throwing `Val` extension point.
+        @test_throws ArgumentError to_numeric(S(1, 2), b1)
+
         # su(2) collective transitions reproduce spin-N/2 generators.
         h2 = CollectiveNLevelSpace(:twolevel, 2)
         C(i, j) = CollectiveTransition(h2, :S, i, j)
