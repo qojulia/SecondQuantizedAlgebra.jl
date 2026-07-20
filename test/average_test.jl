@@ -851,6 +851,38 @@ import SecondQuantizedAlgebra: simplify, QAdd, QSym, QField, CNum, _to_cnum, _si
             @test symtype(SymbolicUtils.unwrap(lifted_h)) === Real
             @test symtype(SymbolicUtils.unwrap(lifted_n)) === Number
         end
+
+        @testset "lifted QAdd variable name encodes NE constraints" begin
+            # A QAdd term carrying an index-inequality pair must contribute an `_ne…`
+            # token to the auto-generated time-dependent variable name, so two terms
+            # differing only in their NE scope lift to distinct unknowns.
+            ha = NLevelSpace(:atom, 2, 1)
+            hf = FockSpace(:f)
+            hp = hf ⊗ ha
+            @variables Nsites t
+            iv = SymbolicUtils.unwrap(t)
+            i = Index(hp, :i, Nsites, ha)
+            j = Index(hp, :j, Nsites, ha)
+            σ_i = IndexedOperator(Transition(hp, :σ, 2, 2, 2), i)
+            σ_j = IndexedOperator(Transition(hp, :σ, 2, 2, 2), j)
+
+            with_ne = QAdd(
+                QTermDict(QTerm(Op[σ_i, σ_j], NonEqualPair[(i, j)]) => _to_cnum(1)),
+                Index[],
+            )
+            without_ne = QAdd(
+                QTermDict(QTerm(Op[σ_i, σ_j], NonEqualPair[]) => _to_cnum(1)),
+                Index[],
+            )
+
+            lifted_ne = make_time_dependent(average(with_ne), iv)
+            lifted_plain = make_time_dependent(average(without_ne), iv)
+            name_ne = string(SymbolicUtils.operation(SymbolicUtils.unwrap(lifted_ne)))
+            name_plain = string(SymbolicUtils.operation(SymbolicUtils.unwrap(lifted_plain)))
+            @test occursin("_ne", name_ne)
+            @test !occursin("_ne", name_plain)
+            @test name_ne != name_plain
+        end
     end
 
 end

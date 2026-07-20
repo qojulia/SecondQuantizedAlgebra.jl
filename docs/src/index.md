@@ -15,7 +15,7 @@ The package provides:
 - Eager canonical-form arithmetic: every `*` applies (anti-)commutation, local algebraic identities, and `NLevelSpace` completeness in one pass, so the return type is always a canonical `QAdd`.
 - Explicit pipeline functions when you want piecewise control: `normal_order`, `simplify`, `commutator`, `anticommutator`, `expand`, `expand_completeness`.
 - Symbolic summations via `Index` and `Σ` for indexed families, with automatic diagonal splitting and `assume_distinct_index` for free-index constraints.
-- Averaging to symbolic scalars via `average` / `undo_average`, and numeric conversion to QuantumOpticsBase matrices via `to_numeric` / `numeric_average`.
+- Averaging to symbolic scalars via `average` / `undo_average`, and extensible numeric conversion via QuantumOpticsBase or QuantumToolbox with `to_numeric` / `numeric_average`.
 - Hermitian conjugation across mixed operator + symbolic expressions via `qadjoint` (aliased as `qconj`, `dagger`) and the average-aware `inner_adjoint`.
 - Extensible for custom operator types via five small hooks — see the developer docs.
 

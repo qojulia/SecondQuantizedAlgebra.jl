@@ -14,8 +14,16 @@ A Julia package for symbolic manipulation of second-quantized operators used in 
 src/SecondQuantizedAlgebra.jl       # Main module, exports, imports
 src/types.jl                        # QField, QSym abstract hierarchy
 src/precompile.jl                   # PrecompileTools workload
-src/average.jl                      # AvgFunc, average(), undo_average(), Hermitian-Real symtype
-src/numeric.jl                      # to_numeric(), numeric_average() via QuantumOpticsBase
+src/average.jl                      # AvgFunc/AvgSym, average(), undo_average(), Hermitian-Real symtype
+
+src/numeric/backend.jl              # NumericBackend + singletons; open hooks; _default_backend
+src/numeric/coeff.jl                # _to_complex family, constant folder, parameter/time splitting
+src/numeric/core.jl                 # NumericContext, _numeric_leaf, _to_numeric_static/_td
+src/numeric/indexed.jl              # backend-neutral indexed unroll (sites, ne, sub_op/sub_coef)
+src/numeric/api.jl                  # public to_numeric / numeric_average / expect (QI types)
+
+ext/SecondQuantizedAlgebraQuantumOpticsBaseExt.jl  # QuantumOpticsBase backend (vector LazySum)
+ext/SecondQuantizedAlgebraQuantumToolboxExt.jl     # QuantumToolbox backend (VecSum over QobjEvo)
 
 src/expressions/cnum.jl             # CNum = Complex{Num} arithmetic, fast paths, constants
 src/expressions/qterm.jl            # QTerm struct (ops, ne) — dict key for QAdd
@@ -72,7 +80,7 @@ HilbertSpace (abstract)
 - **Dict-based term storage**: `QAdd` stores `Dict{QTerm, CNum}` where `QTerm` bundles `ops::Vector{QSym}` with `ne::Vector{NonEqualPair}` index-inequality scope, plus a cached `hash::UInt` (computed once at construction; the key is hashed repeatedly per dict insert/probe/rehash). Like terms are collected on construction.
 - **CNum prefactors**: prefactors are `Complex{Num}` (from Symbolics.jl), not parameterized. Dedicated fast paths in `cnum.jl` short-circuit for numeric (non-symbolic) cases.
 - **Site-indexed operators**: each `Op` carries `space_index` and `index::Index`. Operators interact only if `_same_site(a, b)`.
-- **Five operator hooks**: `_site_compare`, `_can_commute`, `_commute_pair`, `_reduce_pair`, `_ground_state_expand` are each a single `(::Op, ::Op)` method (in `operators.jl`) that branches on `kind`. The algebra talks to operators exclusively through these. A sixth, defaulted hook `_may_reduce(a, b)::Bool` gates the reduce pass (`true` only for `Transition`/`Pauli` pairs). Adding a new operator role means adding an `OP_*` enum arm, a constructor, an `is_*` predicate, and a `kind` branch in each hook plus `adjoint`/`order_key`/`to_numeric`/printing. With the concrete `Op` eltype the hooks now infer concrete return types (`_commute_pair`/`_reduce_pair` return `Tuple{Op, …}`), so `_may_reduce`'s original boxing-avoidance role is moot; it remains as a cheap same-site skip.
+- **Five operator hooks**: `_site_compare`, `_can_commute`, `_commute_pair`, `_reduce_pair`, `_ground_state_expand` are each a single `(::Op, ::Op)` method (in `operators.jl`) that branches on `kind`. The algebra talks to operators exclusively through these. A sixth, defaulted hook `_may_reduce(a, b)::Bool` gates the reduce pass (`true` only for `Transition`/`Pauli` pairs). Adding a new operator role means adding an `OP_*` enum arm, a constructor, an `is_*` predicate, and a `kind` branch in each hook plus `adjoint`/`order_key`/`numeric_operator` (per backend extension)/printing. With the concrete `Op` eltype the hooks now infer concrete return types (`_commute_pair`/`_reduce_pair` return `Tuple{Op, …}`), so `_may_reduce`'s original boxing-avoidance role is moot; it remains as a cheap same-site skip.
 - **Concrete struct fields**: all struct fields are concretely typed (enforced by CheckConcreteStructs in tests).
 - **Index tracking**: `QAdd` carries `indices::Vector{Index}` for summation scope; per-term inequality constraints live on `QTerm.ne`, not on `QAdd`.
 
@@ -160,11 +168,13 @@ Before merging any PR:
 | Package | Purpose |
 |---------|---------|
 | Combinatorics | Product enumeration for operator generation |
-| QuantumOpticsBase | Numeric basis types (FockBasis, NLevelBasis, SpinBasis), `⊗`, LazyTensor |
+| QuantumInterface | Lightweight owner of `⊗`/`tensor`/`expect`/`basis` and `Basis`/`AbstractOperator`/`StateVector` types (hard dep) |
 | SymbolicUtils | Symbolic tree traversal interface |
 | Symbolics | Symbolic variables (`@variables`), `Num` type for CNum prefactors |
 | TermInterface | `iscall`, `operation`, `arguments` protocol |
 | Latexify | LaTeX rendering recipes |
 | PrecompileTools | `@setup_workload`/`@compile_workload` in `precompile.jl` |
 
-**Test dependencies:** Aqua, JET, CheckConcreteStructs, ExplicitImports, LaTeXStrings
+**Weak dependencies (numeric extensions):** `QuantumOpticsBase` (FockBasis/NLevelBasis/SpinBasis, vector `LazySum`/`TimeDependentSum`), `QuantumToolbox` + `SciMLOperators` (QuantumObject builders, the `VecSum` over `QobjEvo`). The numeric API errors until one backend is loaded.
+
+**Test dependencies:** Aqua, JET, CheckConcreteStructs, ExplicitImports, LaTeXStrings, QuantumOpticsBase, QuantumToolbox, SciMLOperators, LinearAlgebra

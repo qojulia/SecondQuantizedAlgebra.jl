@@ -116,7 +116,7 @@ leaf fast path sums both slots.
 
 **Site families inside `_site_compare`.** The comparator first orders by `space_index`, so operators are grouped by the subspace they act on before anything else is consulted (operators on different subspaces commute, so this reordering is always safe and gives the more natural per-subspace canonical form). Within a subspace, cross-role comparison is family-scoped: Fock `{Destroy, Create}` and PhaseSpace `{Position, Momentum}` compare within their family (PhaseSpace ignores the operator name, treating x and p as conjugate variables on one site); the other roles are singleton families. A subspace carries a single Hilbert-space type, so same-`space_index` operators always share a family; the `kind` integer fallback preserves the existing values `OP_DESTROY=0 < … < OP_MOMENTUM=6` and appends `OP_COLLECTIVE_TRANSITION=7`. It only distinguishes the pathological case of two operators sharing a `space_index` across unrelated simple spaces.
 
-**Adding an operator role.** Add an `OP_*` enum arm, a constructor function and an `is_*` predicate, then add any non-default branches required in the six hooks plus `adjoint`, `order_key`, `to_numeric`, and the printing/Latexify methods. The hooks are written so a future open-extension escape hatch (an `OP_CUSTOM` arm carrying a payload) could be slotted in without reshaping them; a `Union{Nothing,QSym}` payload field is deliberately *not* added now because it would fail the `CheckConcreteStructs` (`all_concrete`) gate.
+**Adding an operator role.** Add an `OP_*` enum arm, a constructor function and an `is_*` predicate, then add any non-default branches required in the six hooks plus `adjoint`, `order_key`, the `numeric_operator` arm in each backend extension (`ext/`), and the printing/Latexify methods. The hooks are written so a future open-extension escape hatch (an `OP_CUSTOM` arm carrying a payload) could be slotted in without reshaping them; a `Union{Nothing,QSym}` payload field is deliberately *not* added now because it would fail the `CheckConcreteStructs` (`all_concrete`) gate.
 
 
 ## Hilbert spaces
@@ -395,28 +395,89 @@ The scope rides as a `SumScope` *argument* of the `Term`, not as metadata, becau
 
 ## Numeric conversion
 
-`to_numeric` maps symbolic operators to QuantumOpticsBase matrices. A term is
-assembled in a natural lazy representation and materialized to a concrete
-operator exactly once, at the top, via `op_type` (default `sparse`). This keeps
-the return type independent of the shape of the expression (a bare operator, a
-product, and a sum all return the same `op_type`), while still avoiding
-per-factor conversions during assembly.
+The backend-neutral core in `src/numeric/` never names a concrete numeric type.
+QuantumOpticsBase and QuantumToolbox support lives in package extensions under `ext/`, so
+the symbolic algebra can be loaded without either package.
 
-- **Simple basis:** Direct dispatch, e.g. `Destroy → destroy(b)`, `Transition → transition(b, i, j)`.
-- **Composite basis:** The internal `_embed` embeds the single-site matrix as a `LazyTensor`:
-  ```julia
-  op_num = _embed(op, b.bases[idx])
-  LazyTensor(b, [idx], (op_num,))
-  ```
-  `_embed` is the composable building block for products and sums. The public
-  `to_numeric` methods wrap the assembled result in `op_type`, so the positional
-  forms return `sparse` and `op_type=identity` returns the lazy form as-is.
+### [Adding a numeric backend](@id numeric-backend-interface)
 
-**`_to_number`** extracts plain Julia numbers from `Num`/`CNum` wrappers for numeric evaluation. Falls back to the symbolic value if it can't be unwrapped (for symbolic prefactors that haven't been substituted yet).
+Define a concrete singleton subtype of `NumericBackend` and extend the exported hooks. A
+static-only backend needs the following methods:
 
-**`_reduce_const`** reduces a fully-substituted coefficient part to a number. `Symbolics.value` handles numeric constants directly, but a part it leaves symbolic (for example `conj` of a complex literal, which SymbolicUtils does not fold) is compiled with `build_function` and evaluated. Because a `Number`-symtype parameter is held opaquely in the real slot, that real part can itself reduce to a `Complex`, so `_to_complex` recombines as `_reduce_const(real(x)) + im * _reduce_const(imag(x))` rather than `Complex(re, im)`.
+| Hook | Responsibility |
+|:--|:--|
+| `numeric_basis(be, h, dims)` | Build the full backend basis or dimension descriptor. |
+| `numeric_num_subsystems(be, basis)` | Return the number of tensor factors. |
+| `numeric_subbasis(be, basis, slot)` | Select one tensor factor. |
+| `numeric_operator(be, op, subbasis)` | Convert a symbolic leaf. |
+| `numeric_embed(be, basis, slot, leaf)` | Place a leaf in the full space. |
+| `numeric_identity(be, basis)` | Build the full-space identity. |
+| `numeric_assemble(be, basis, terms)` | Combine `(ComplexF64, factors)` terms. |
+| `numeric_materialize(be, assembled, op_type)` | Select the public representation. |
 
-**`_lazy_one`** creates the identity operator. For simple bases it returns `one(b)` (dense identity). For composite bases it returns a `LazyTensor` identity rather than materializing the full Kronecker-product identity matrix.
+`numeric_assemble` may return a lazy object. `numeric_materialize` must give `op_type` these
+backend-neutral meanings:
+
+- `nothing`: return the backend's ordinary eager operator;
+- `identity`: return `assembled` unchanged;
+- any other callable: a backend-defined explicit conversion.
+
+The ordinary eager type need not be sparse; that is only the choice made by both bundled
+backends. Materialization happens once, after the whole expression is assembled, so a leaf,
+product, and sum have the same representation for a given `op_type`.
+
+A minimal static backend looks like this:
+
+```julia
+import SecondQuantizedAlgebra as SQA
+
+struct MyBackend <: SQA.NumericBackend end
+
+SQA.numeric_basis(::MyBackend, h::SQA.HilbertSpace, dims) = error("build the basis")
+SQA.numeric_num_subsystems(::MyBackend, basis) = error("count subsystems")
+SQA.numeric_subbasis(::MyBackend, basis, slot::Int) = error("select a subsystem")
+SQA.numeric_operator(::MyBackend, op::SQA.Op, subbasis) = error("construct a leaf")
+SQA.numeric_embed(::MyBackend, basis, slot::Int, leaf) = error("embed a leaf")
+SQA.numeric_identity(::MyBackend, basis) = error("construct the identity")
+SQA.numeric_assemble(::MyBackend, basis, terms) = error("assemble terms")
+SQA.numeric_materialize(::MyBackend, assembled, ::Nothing) =
+    error("make an eager operator")
+SQA.numeric_materialize(::MyBackend, assembled, ::typeof(identity)) = assembled
+```
+
+Optional capabilities add three small groups of methods:
+
+| Capability | Additional hooks |
+|:--|:--|
+| time-dependent conversion | `numeric_assemble_td` |
+| conversion from backend states | `numeric_backend(state)`, `numeric_basis(state)` |
+| `numeric_average` / `expect` | the state hooks plus `numeric_expect` |
+
+Third-party backends are passed explicitly as `backend=MyBackend()`; automatic discovery is
+limited to the bundled extensions. `numeric_operator` covers the existing closed `OpKind`
+roles. Packages can support a new backend/basis combination, but cannot currently define a
+new symbolic operator role through this interface.
+
+### Implementation notes
+
+- `NumericContext` holds the concrete backend singleton, opaque basis, substitutions, and
+  indexed-site map. The core emits `(ComplexF64, factors)` terms and performs no backend
+  operator arithmetic.
+- The internal assembled type must not depend on the number of terms. QuantumOptics uses
+  the five-argument, vector-backed `LazySum`; QuantumToolbox uses the extension's
+  vector-backed `VecSum` inside `QobjEvo`. Tests enforce inference stability.
+- `numeric_average` calls `numeric_expect` on the lazy assembly directly. It therefore does
+  not build an eager matrix merely to compute an expectation value.
+- A non-empty `time_parameter` uses `numeric_assemble_td` and returns the native
+  `TimeDependentSum` or `QobjEvo`. Only `op_type=nothing` and `identity` are accepted because
+  a time-varying operator cannot be materialized once during conversion.
+- Indexed conversion validates sites, unrolls sums, and emits the same term format as the
+  non-indexed path. A site must be unique and within the backend basis.
+- QuantumToolbox levels are zero-based internally, so symbolic `Transition(i, j)` maps to
+  `projection(N, i-1, j-1)`.
+- Lazy Hamiltonians are useful when materializing a large tensor product is prohibitive,
+  but can slow superoperator construction. Prefer the eager default for small and medium
+  solver problems; request `op_type=identity` deliberately.
 
 
 ## Hermitian conjugation (operators.jl)

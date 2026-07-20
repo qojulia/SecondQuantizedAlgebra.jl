@@ -280,6 +280,29 @@ to_numeric
 numeric_average
 ```
 
+### Numeric backends
+
+Use `to_numeric(op, h, dims; backend=...)` for backend-portable code. The complete extension
+contract and a minimal implementation are in [Adding a numeric backend](@ref
+numeric-backend-interface).
+
+```@docs
+NumericBackend
+QuantumOpticsBackend
+QuantumToolboxBackend
+numeric_operator
+numeric_basis
+numeric_subbasis
+numeric_embed
+numeric_identity
+numeric_num_subsystems
+numeric_assemble
+numeric_assemble_td
+numeric_materialize
+numeric_expect
+numeric_backend
+```
+
 
 ## [Symbolic Summations](@id API: Sums)
 

@@ -4,13 +4,32 @@ All notable changes to [`SecondQuantizedAlgebra.jl`](https://github.com/qojulia/
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
-
-
 ## [v0.10.0]
+
+Numeric conversion (`to_numeric`/`numeric_average`/`expect`) was redesigned to be extensible, type-stable, and multi-backend. This is a breaking release.
+
+### Added
+
+- A second numeric backend, [QuantumToolbox.jl](https://github.com/qutip/QuantumToolbox.jl), alongside QuantumOpticsBase.jl. Both are wired in through Julia package extensions and selected with the backend singletons `QuantumOpticsBackend()` / `QuantumToolboxBackend()`.
+- A uniform Hilbert-space entry point `to_numeric(op, h::HilbertSpace, dims; backend, parameter, time_parameter, operators, adjoint_ops, op_type)`. It builds the backend basis from `dims` (Fock cutoff / spin number) and is the only form that works for both backends. The backend defaults to the single loaded one.
+- Open backend hooks `numeric_operator`, `numeric_basis`, `numeric_subbasis`, `numeric_embed`, `numeric_identity`, `numeric_num_subsystems`, `numeric_assemble`, `numeric_assemble_td`, `numeric_materialize`, `numeric_expect`, and `numeric_backend` are exported. Downstream packages can implement another backend and add numeric support for existing operator roles; `OpKind` remains a closed symbolic-role set.
+
+### Changed (breaking)
+
+- `QuantumOpticsBase` moved from a hard dependency to a weak dependency. Using the numeric API now requires loading a backend: add `using QuantumOpticsBase` (or `using QuantumToolbox`) next to `using SecondQuantizedAlgebra`. The lightweight `QuantumInterface.jl` is a new hard dependency (it owns the `⊗`/`tensor`/`expect`/`basis` generics that the algebra extends).
+- The time-dependent form (`time_parameter` non-empty) returns the backend's **native** time-dependent operator: a `TimeDependentSum` (QuantumOptics) or a `QobjEvo` (QuantumToolbox), both directly consumable by `mesolve`/`master_dynamic`/`sesolve`. It is no longer a `t -> op(t)` closure.
+- Time-dependent conversion accepts only `op_type=nothing` or `identity`; eager `op_type` materializers are rejected because a time-varying operator cannot be materialized once during conversion.
+- Product-space `dims` must have exactly one entry per symbolic subspace. Indexed numeric layouts validate that every physical slot is unique and in range instead of silently collapsing multiple sites onto a simple basis.
 
 ### Changed
 
 - Averages of provably Hermitian operators (`adjoint(A) == A`) now carry `symtype === Real` instead of `Number`. This gives a faster `simplify` path and makes `conj(⟨a'a⟩)` fold to `⟨a'a⟩` rather than an inert `conj(...)` wrapper; indexed sums and lifted time-dependent variables inherit the typing, which survives `substitute`. Resolves [#171](https://github.com/qojulia/SecondQuantizedAlgebra.jl/issues/171).
+
+### Notes
+
+- For static conversion, the `op_type` contract from v0.9.2 is now backend-neutral: `to_numeric` assembles the operator lazily and materializes it once via `op_type`, so the return type depends only on `op_type`, not on the expression shape. The default consistently returns an eager backend operator (sparse on both bundled backends). Pass an explicit `op_type` for another eager representation (`dense` on QuantumOptics; `QuantumToolbox.to_sparse`/`to_dense` or `SciMLOperators.concretize` on QuantumToolbox), or `op_type=identity` for the natural lazy representation (`LazyTensor`/`LazyProduct`/`LazySum` / `QobjEvo` over `VecSum`). The lazy form is the internal assembly primitive and is what `numeric_average`/`expect` consume directly, so `LazyKet` states work without materializing.
+- A user doing `using SecondQuantizedAlgebra, QuantumToolbox` has two `⊗`/`tensor`/`expect` in scope (QuantumInterface's and QuantumToolbox's) and must qualify them; importing QuantumToolbox as `import QuantumToolbox as QTB` avoids the clash.
+
 
 ## [v0.9.4]
 
