@@ -14,7 +14,7 @@ A Julia package for symbolic manipulation of second-quantized operators used in 
 src/SecondQuantizedAlgebra.jl       # Main module, exports, imports
 src/types.jl                        # QField, QSym abstract hierarchy
 src/precompile.jl                   # PrecompileTools workload
-src/average.jl                      # AvgFunc/AvgSym, average(), undo_average()
+src/average.jl                      # AvgFunc, average(), undo_average(), Hermitian-Real symtype
 src/numeric.jl                      # to_numeric(), numeric_average() via QuantumOpticsBase
 
 src/expressions/cnum.jl             # CNum = Complex{Num} arithmetic, fast paths, constants

@@ -2,11 +2,17 @@
     HilbertSpace
 
 Abstract supertype for Hilbert spaces. Concrete subtypes:
-[`FockSpace`](@ref), [`NLevelSpace`](@ref), [`PauliSpace`](@ref),
+[`FockSpace`](@ref), [`NLevelSpace`](@ref), [`CollectiveNLevelSpace`](@ref), [`PauliSpace`](@ref),
 [`SpinSpace`](@ref), [`PhaseSpace`](@ref), and [`ProductSpace`](@ref) for
 tensor products. Compose with [`⊗`](@ref) or [`tensor`](@ref).
 """
 abstract type HilbertSpace end
+
+# Hilbert-space and operator names are `Symbol`s by design (a single canonical
+# name type keeps comparisons and interning type-stable). Passing a `String`
+# would otherwise surface a cryptic `MethodError`; guide the user to `:name`.
+@noinline _name_must_be_symbol(name::AbstractString) =
+    throw(ArgumentError("name must be a `Symbol`, not a `String`; use `:$name` instead of `\"$name\"`"))
 
 """
     FockSpace(name::Symbol) <: HilbertSpace
@@ -26,6 +32,7 @@ See also [`Destroy`](@ref), [`Create`](@ref), [`⊗`](@ref).
 struct FockSpace <: HilbertSpace
     name::Symbol
 end
+FockSpace(name::AbstractString) = _name_must_be_symbol(name)
 Base.:(==)(a::FockSpace, b::FockSpace) = a.name == b.name
 Base.hash(a::FockSpace, h::UInt) = hash(:FockSpace, hash(a.name, h))
 

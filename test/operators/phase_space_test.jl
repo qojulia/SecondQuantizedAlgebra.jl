@@ -142,7 +142,8 @@ import SecondQuantizedAlgebra: simplify, QAdd, QSym, HilbertSpace
         bf = FockBasis(3)
         bq = FockBasis(5)
         bc = bf ⊗ bq
-        @test to_numeric(x, bc) isa LazyTensor
+        @test to_numeric(x, bc; op_type = identity) isa LazyTensor
+        @test to_numeric(x, bc) isa Operator
     end
 
     @testset "Printing" begin

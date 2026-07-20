@@ -83,6 +83,7 @@ end
 function Index(h::HilbertSpace, name::Symbol, range::Union{Int, Num}, si::Int)
     return Index(_intern_name(name), _intern_range(range), Int32(si), Int32(0))
 end
+Index(h::HilbertSpace, name::AbstractString, args...) = _name_must_be_symbol(name)
 
 """
     (i::Index)(k::Integer) -> Index
@@ -111,6 +112,31 @@ position `k` without parsing the symbol's name.
 """
 index_slot(idx::Index)::Union{Int, Nothing} = idx.slot == 0 ? nothing : Int(idx.slot)
 index_slot(x) = SymbolicUtils.getmetadata(SymbolicUtils.unwrap(x), IndexSlot, nothing)
+
+"""
+    rename(idx::Index, name::Symbol) -> Index
+
+Return a copy of `idx` with its display name replaced by `name`, preserving its
+range, subspace (`space_index`), and slot. Use it to mint a fresh index that
+shares another index's range and subspace but carries a different name (for
+example a partner index in a two-body rate), without reaching for the internal
+`Index` constructor.
+
+```jldoctest
+julia> h = FockSpace(:site);
+
+julia> i = Index(h, :i, 10, h);
+
+julia> j = SecondQuantizedAlgebra.rename(i, :j);
+
+julia> index_name(j), isequal(index_range(j), index_range(i)), SecondQuantizedAlgebra.acts_on(j) == SecondQuantizedAlgebra.acts_on(i)
+(:j, true, true)
+```
+
+See also [`index_name`](@ref), [`index_range`](@ref), [`acts_on`](@ref).
+"""
+rename(idx::Index, name::Symbol) = Index(_intern_name(name), idx.range_id, idx.space_index, idx.slot)
+rename(idx::Index, name::AbstractString) = _name_must_be_symbol(name)
 
 """
     index_range(idx::Index) -> Num

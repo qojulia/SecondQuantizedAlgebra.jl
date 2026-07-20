@@ -29,6 +29,10 @@ NLevelSpace
 ```
 
 ```@docs
+CollectiveNLevelSpace
+```
+
+```@docs
 PauliSpace
 ```
 
@@ -88,6 +92,10 @@ Transition
 ```
 
 ```@docs
+CollectiveTransition
+```
+
+```@docs
 Pauli
 ```
 
@@ -113,10 +121,19 @@ operator_name
 ```
 
 ```@docs
+operator_index
+```
+
+```@docs
+set_acts_on
+```
+
+```@docs
 optype
 is_destroy
 is_create
 is_transition
+is_collective_transition
 is_pauli
 is_spin
 is_position
@@ -319,6 +336,10 @@ index_sym
 ```
 
 ```@docs
+rename
+```
+
+```@docs
 has_sum_metadata
 ```
 
@@ -328,4 +349,12 @@ get_sum_indices
 
 ```@docs
 get_sum_non_equal
+```
+
+```@docs
+get_sum_body
+```
+
+```@docs
+indexed_sum
 ```

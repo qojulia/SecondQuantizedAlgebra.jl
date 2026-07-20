@@ -1,9 +1,21 @@
 using SecondQuantizedAlgebra
 using Test
 using Symbolics: @variables, Num
-import SecondQuantizedAlgebra: QAdd, QSym, QField, AvgFunc, _average, _conj_cnum, _to_cnum
+import SecondQuantizedAlgebra: QAdd, QSym, QField, AvgFunc, _average, _conj_cnum, _to_cnum,
+    set_acts_on, rename, Index, NO_INDEX
 
 @testset "Operators" begin
+
+    @testset "OpKind values remain backward compatible" begin
+        @test Int(SecondQuantizedAlgebra.OP_DESTROY) == 0
+        @test Int(SecondQuantizedAlgebra.OP_CREATE) == 1
+        @test Int(SecondQuantizedAlgebra.OP_TRANSITION) == 2
+        @test Int(SecondQuantizedAlgebra.OP_PAULI) == 3
+        @test Int(SecondQuantizedAlgebra.OP_SPIN) == 4
+        @test Int(SecondQuantizedAlgebra.OP_POSITION) == 5
+        @test Int(SecondQuantizedAlgebra.OP_MOMENTUM) == 6
+        @test Int(SecondQuantizedAlgebra.OP_COLLECTIVE_TRANSITION) == 7
+    end
 
     @testset "fundamental_operators — FockSpace" begin
         h = FockSpace(:c)
@@ -364,6 +376,59 @@ import SecondQuantizedAlgebra: QAdd, QSym, QField, AvgFunc, _average, _conj_cnum
         h_no_fock = NLevelSpace(:a, 2) ⊗ NLevelSpace(:b, 2)
         @test_throws ArgumentError Destroy(h_no_fock, :a)
         @test_throws ArgumentError Pauli(h_no_fock, :p, 1)
+    end
+
+    @testset "Public Op/Index accessors (QC issue #300)" begin
+        h = FockSpace(:a) ⊗ NLevelSpace(:b, 2)
+        a = Destroy(h, :a, 1)
+        σ = Transition(h, :σ, 1, 2, 2)  # subspace 2
+        i = Index(h, :i, 3, 2)
+
+        # operator_index
+        @test operator_index(a) === NO_INDEX
+        @test !has_index(operator_index(a))
+        ai = IndexedOperator(a, i)
+        @test operator_index(ai) == i
+        @test has_index(operator_index(ai))
+
+        # acts_on(::Index) — same Vector{Int} return type as acts_on(::QSym)
+        @test acts_on(i) == [2]
+        @test acts_on(i) == acts_on(σ)
+
+        # set_acts_on rebinds only the subspace, preserving everything else
+        a2 = set_acts_on(a, 2)
+        @test acts_on(a2) == [2]
+        @test is_destroy(a2)
+        @test operator_name(a2) == :a
+        @test operator_index(a2) === operator_index(a)
+        @test set_acts_on(a, 1) == a
+
+        # rename(::Op) preserves role, subspace, index, levels
+        b = rename(a, :b)
+        @test operator_name(b) == :b
+        @test acts_on(b) == acts_on(a)
+        @test is_destroy(b)
+        σ2 = rename(σ, :τ)
+        @test operator_name(σ2) == :τ
+        @test optype(σ2) == optype(σ)
+        @test rename(a, :a) == a
+
+        # rename(::Index) preserves range, subspace, slot
+        j = rename(i, :j)
+        @test index_name(j) == :j
+        @test isequal(index_range(j), index_range(i))
+        @test acts_on(j) == acts_on(i)
+
+        # String names are rejected, matching the constructor policy
+        @test_throws ArgumentError rename(a, "b")
+        @test_throws ArgumentError rename(i, "j")
+
+        # Type stability
+        @test @inferred(operator_index(ai)) isa Index
+        @test @inferred(acts_on(i)) isa Vector{Int}
+        @test @inferred(set_acts_on(a, 2)) isa Op
+        @test @inferred(rename(a, :b)) isa Op
+        @test @inferred(rename(i, :j)) isa Index
     end
 
 end

@@ -4,6 +4,56 @@ All notable changes to [`SecondQuantizedAlgebra.jl`](https://github.com/qojulia/
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+
+
+## [v0.10.0]
+
+### Changed
+
+- Averages of provably Hermitian operators (`adjoint(A) == A`) now carry `symtype === Real` instead of `Number`. This gives a faster `simplify` path and makes `conj(⟨a'a⟩)` fold to `⟨a'a⟩` rather than an inert `conj(...)` wrapper; indexed sums and lifted time-dependent variables inherit the typing, which survives `substitute`. Resolves [#171](https://github.com/qojulia/SecondQuantizedAlgebra.jl/issues/171).
+
+## [v0.9.4]
+
+### Fixed
+
+- LaTeX rendering of an index whose name carries numeric per-slot suffixes no longer produces an invalid double subscript. As the pipeline transforms an index it accumulates suffixes through `(i::Index)(k)` (for example an index reaches `i_2_1` when a second distinct atom `i(2)` is later collapsed to its position-1 representative), and `_latex_index_suffix` emitted the name verbatim as `_{i_2_1}`. The unbraced `_2_1` is a double subscript that MathJax rejects with "Double subscripts: use braces to clarify", so the whole equation was left unrendered in Documenter pages and notebooks. The slot numbers are now joined into a single comma subscript (`i_2_1` renders as `i_{2,1}`); bare index names are unchanged.
+
+
+### Added
+
+- `CollectiveNLevelSpace` and `CollectiveTransition` provide an exact collective description of ``N`` identical multilevel systems in the permutation-symmetric subspace. A collective transition represents ``S^{ij} = \sum_k |i\rangle_k\langle j|`` and obeys the closed ``\mathfrak{su}(n)`` algebra ``[S^{ij}, S^{kl}] = \delta_{jk}S^{il} - \delta_{li}S^{kj}``, including the two-term case ``[S^{12}, S^{21}] = S^{11} - S^{22}``. Integer and symbolic levels, simple and product-space constructors, adjoints, fundamental-operator generation, Unicode/LaTeX printing, and the `is_collective_transition` predicate are supported. Collective transitions deliberately cannot be site-indexed and do not use the single-site completeness expansion: ``\sum_i S^{ii} = N I``, rather than ``I``.
+- `to_numeric` converts a `CollectiveTransition` on a `QuantumOpticsBase.ManyBodyBasis` with an `NLevelBasis` one-body basis through `manybodyoperator`. This gives exact finite-``N`` dynamics in a symmetric space of dimension ``\binom{N+n-1}{n-1}`` and works unchanged inside composite bases. For two levels it reproduces the spin-``N/2`` representation, with ``S^{12}=S_+``, ``S^{21}=S_-``, and ``(S^{11}-S^{22})/2=S_z`` in the QuantumOpticsBase convention.
+- `OP_COLLECTIVE_TRANSITION` extends the public `OpKind` tags with value `7`. It is appended after `OP_MOMENTUM`, preserving the values `0:6` and structural ordering keys of every existing operator role.
+- A public constructor and body accessor for the moment-layer indexed-sum node, completing the read/write API alongside the existing `is_indexed_sum`, `has_sum_metadata`, `get_sum_indices`, and `get_sum_non_equal`. `SecondQuantizedAlgebra.indexed_sum(body, indices; non_equal = NonEqualPair[])` wraps an averaged `body` in a sum node over `indices` (mirroring what `average` builds for a summed `QAdd`), and `SecondQuantizedAlgebra.get_sum_body(x)` reads the summed body back out. This lets downstream code (for example cumulant expansion factorizing a summed moment into a product form) re-wrap a body while preserving its summation scope. Resolves [#209](https://github.com/qojulia/SecondQuantizedAlgebra.jl/issues/209).
+- Public accessors and rebuilders for `Op`/`Index` internals, so downstream packages no longer reach into struct fields or the private constructors. `operator_index(op)` reads an operator's site `Index`; `acts_on(idx::Index)` returns an index's subspace as a one-element `Vector{Int}` (matching the return type of `acts_on(::QSym)`); `set_acts_on(op, aon)` rebinds an operator to a new subspace; and `SecondQuantizedAlgebra.rename(x, name)` renames an `Op` or an `Index` in place of the internal `Op`/`Index` constructor (preserving every other field). This is the SecondQuantizedAlgebra half of QuantumCumulants issue [#300](https://github.com/qojulia/QuantumCumulants.jl/issues/300).
+
+### Changed
+
+- The internal `_commute_pair` hook now carries up to two residual terms. Fock, phase-space, and spin operators continue to use one residual slot; collective transitions use both when both Kronecker deltas contribute. The eager commute pass and the leaf `commutator` fast path retain and combine both branches.
+- Passing a `String` where a name `Symbol` is expected now throws a clear `ArgumentError` telling the user to use a `Symbol` (`:x`), instead of a cryptic `MethodError`. This covers Hilbert-space constructors (`FockSpace`, `NLevelSpace`, `PauliSpace`, `SpinSpace`, `PhaseSpace`), operator constructors (`Destroy`, `Create`, `Transition`, `Pauli`, `Spin`, `Position`, `Momentum`), and the index-related constructors `Index`, `IndexedVariable`, and `DoubleIndexedVariable`. Names remain `Symbol`s by design: a single canonical name type keeps name comparison and interning type-stable, so strings are rejected rather than silently converted.
+
+### Documentation
+
+- Added a guide comparing indexed sums with exact collective symmetric-subspace operators, developer documentation for the two-residual commute contract and the collective-transition/spin relationship, and a finite-``N`` Tavis–Cummings example using `ManyBodyBasis`
+
+## [v0.9.3]
+
+### Fixed
+
+- The diagonal split in `_accumulate_with_diag!` no longer leaks the diagonal coefficient into the off-diagonal body when a summation index appears only in a term's coefficient. Multiplying a sum such as `Σ_k u(l,k)·σ_l` by an operator peels off the diagonal `k = l` slice, but the substitution dropped the split's `k ≠ l` constraint instead of rewriting it onto the collapsed index. A sibling scope then re-admitted `k = l`, so the off-diagonal body's coefficient became `u(l,k) + u(l,l)` and the diagonal was over-counted (for example `commutator(σ_l^{22}, Σ_{j,k} u(j,k)(σ_j^{21}+σ_j^{12}))` gained a spurious `u(l,l)` in every `Σ_k` term). The diagonal contribution now rewrites each `sum_idx ≠ β` constraint onto `ext_idx`, exactly as the `Σ` diagonal split already does, so the off-diagonal body keeps its bare coefficient and the diagonal is emitted once. This is the SecondQuantizedAlgebra half of QuantumCumulants issue [#198](https://github.com/qojulia/QuantumCumulants.jl/issues/198).
+
+## [v0.9.2]
+
+### Changed
+
+- `to_numeric` now returns a concrete operator by default, and its representation depends only on `op_type`, not on the shape of the expression. Previously a bare operator translated to a `LazyTensor` and a sum to a `LazySum` (via the positional path), while the keyword path materialized `sparse` only in some branches, so composing subexpressions silently changed the return type and operators handed to solvers were lazy by default. The default `op_type` is now `sparse` (was `identity`), applied uniformly to bare operators, products, and sums. Pass `op_type=dense` for a dense operator, or `op_type=identity` to opt into the natural lazy representation (`LazyTensor`/`LazyProduct`/`LazySum`) for large tensor-product spaces where an operator is local to a few subsystems. The lazy embedding is kept internal, so a term is still assembled from lazy factors and materialized exactly once. Code relying on the previous lazy default must now pass `op_type=identity`.
+
+## [v0.9.1]
+
+### Fixed
+
+- Printing a sum of averages whose operators have different concrete types (for example `⟨a'a⟩`, which wraps a `QAdd`, alongside `⟨σ⟩`, which wraps a `QSym`) no longer errors. When SymbolicUtils sorts such a sum for display it unwraps the operator constants and falls back to comparing the operator *types*, which previously threw `MethodError: no method matching isless(::Type{QAdd}, ::Type{...})`. `QField` types now compare by name, so heterogeneous operator sums render as before.
+
 ## [v0.9.0]
 
 ### Added
@@ -254,4 +304,9 @@ These names keep their meaning across the migration. Code that only uses them sh
 [v0.8.2]: https://github.com/qojulia/SecondQuantizedAlgebra.jl/releases/tag/v0.8.2
 [v0.8.3]: https://github.com/qojulia/SecondQuantizedAlgebra.jl/releases/tag/v0.8.3
 [v0.9.0]: https://github.com/qojulia/SecondQuantizedAlgebra.jl/releases/tag/v0.9.0
+[v0.9.1]: https://github.com/qojulia/SecondQuantizedAlgebra.jl/releases/tag/v0.9.1
+[v0.9.2]: https://github.com/qojulia/SecondQuantizedAlgebra.jl/releases/tag/v0.9.2
+[v0.9.3]: https://github.com/qojulia/SecondQuantizedAlgebra.jl/releases/tag/v0.9.3
+[v0.9.4]: https://github.com/qojulia/SecondQuantizedAlgebra.jl/releases/tag/v0.9.4
+[v0.10.0]: https://github.com/qojulia/SecondQuantizedAlgebra.jl/releases/tag/v0.10.0
 [#156]: https://github.com/qojulia/SecondQuantizedAlgebra.jl/issues/156

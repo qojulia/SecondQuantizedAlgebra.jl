@@ -3,8 +3,9 @@ const transition_idx_script = Ref(:^)
 """
     transition_superscript(x::Bool) -> Bool
 
-Set whether [`Transition`](@ref) level indices are rendered as superscripts (`true`, default)
-or subscripts (`false`) in LaTeX output via Latexify.jl.
+Set whether [`Transition`](@ref) and [`CollectiveTransition`](@ref) level indices
+are rendered as superscripts (`true`, default) or subscripts (`false`) in LaTeX
+output via Latexify.jl.
 
 - `true`: ``{\\sigma}^{{ij}}``
 - `false`: ``{\\sigma}_{{ij}}``
@@ -23,9 +24,13 @@ function transition_superscript(x::Bool)
     return x
 end
 
+# Join accumulated per-slot suffixes into one comma subscript (`i_2_1` -> `i_{2,1}`);
+# a bare `_{i_2_1}` is a double subscript that MathJax rejects.
 function _latex_index_suffix(idx::Index)
     has_index(idx) || return ""
-    return "_{$(index_name(idx))}"
+    parts = split(string(index_name(idx)), '_')
+    name = length(parts) == 1 ? parts[1] : string(parts[1], "_{", join(parts[2:end], ","), "}")
+    return "_{$(name)}"
 end
 
 # Render an operator name for LaTeX. A bare name (`:a`) passes through, but a
@@ -50,7 +55,7 @@ end
         "$(name)$(suffix)"
     elseif k === OP_CREATE
         "$(name)$(suffix)^{\\dagger}"
-    elseif k === OP_TRANSITION
+    elseif k === OP_TRANSITION || k === OP_COLLECTIVE_TRANSITION
         "{$(name)}$(suffix)$(transition_idx_script[]){{$(Int(x.l1))$(Int(x.l2))}}"
     elseif k === OP_PAULI || k === OP_SPIN
         "{$(name)}$(suffix)_{{$(_xyz_sym[x.l1])}}"

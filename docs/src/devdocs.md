@@ -9,13 +9,14 @@ QField (abstract)
 ├── QSym (abstract): atomic operators (leaves)
 │   └── Op: the single concrete leaf; a `kind::OpKind` tag picks the role
 │           Destroy / Create (FockSpace), Transition (NLevelSpace),
+│           CollectiveTransition (CollectiveNLevelSpace),
 │           Pauli (PauliSpace), Spin (SpinSpace), Position / Momentum (PhaseSpace)
 └── QAdd: sum of QTerm products (the only compound type)
 ```
 
 `QTerm` is the per-entry storage key (operator product + non-equal constraints) used as the dict key inside `QAdd`. There is no abstract `QTerm` supertype; `QAdd` is a `QField` directly.
 
-`QSym` stays abstract with `Op` as its sole subtype so external `::QSym` signatures keep resolving, while the operator *vector* `QTerm.ops` is `Vector{Op}` with a concrete element type. That concrete eltype is the point of the collapse: the per-operator hooks below dispatch and inline statically, where the former seven-subtype hierarchy forced a dynamic dispatch (and a boxed result) on every per-operator call.
+`QSym` stays abstract with `Op` as its sole subtype so external `::QSym` signatures keep resolving, while the operator *vector* `QTerm.ops` is `Vector{Op}` with a concrete element type. That concrete eltype is the point of the collapse: the per-operator hooks below dispatch and inline statically, where the former subtype hierarchy forced a dynamic dispatch (and a boxed result) on every per-operator call.
 
 **Why `QAdd` is the only compound type.** Earlier versions of the package had both `QMul` (products) and `QAdd` (sums). This created a two-level expression tree where dispatch needed to handle `QSym`, `QMul`, and `QAdd` at every level, and the return type of `*` was unpredictable (`QSym`, `QMul`, or `QAdd` depending on simplification). The redesign collapses this into a single `QAdd` whose internal dictionary is keyed by the full term identity `(ops, ne)` and stores only the prefactor as the value. Every multiplication immediately produces a `QAdd`, giving a uniform return type. This type stability is critical for performance — the Julia compiler can infer return types through chains of arithmetic, avoiding dynamic dispatch and heap-allocated boxes at every intermediate step. The exact-key representation also keeps like-term collection honest: only terms with the same operator string *and* the same scoped constraints are merged.
 
@@ -26,22 +27,23 @@ All operators are one concrete struct with a runtime `kind` tag; the level/axis
 fields are shared storage interpreted per `kind`:
 
 ```julia
-@enum OpKind::UInt8 OP_DESTROY OP_CREATE OP_TRANSITION OP_PAULI OP_SPIN OP_POSITION OP_MOMENTUM
+@enum OpKind::UInt8 OP_DESTROY OP_CREATE OP_TRANSITION OP_PAULI OP_SPIN OP_POSITION OP_MOMENTUM OP_COLLECTIVE_TRANSITION
 
 struct Op <: QSym
     kind::OpKind        # which physical role this operator plays
     name_id::Int32      # interned display name (intern.jl); resolve via operator_name(op)
     space_index::Int32  # which subspace in a ProductSpace (always 1 for simple spaces)
     index::Index        # symbolic summation index (NO_INDEX when absent)
-    l1::Int32           # Transition i  | Pauli/Spin axis
-    l2::Int32           # Transition j
+    l1::Int32           # Transition/CollectiveTransition i | Pauli/Spin axis
+    l2::Int32           # Transition/CollectiveTransition j
     g::Int32            # Transition ground state
     nlev::Int32         # Transition number of levels
 end
 ```
 
-The role names `Destroy`, `Create`, `Transition`, `Pauli`, `Spin`, `Position`,
-`Momentum` are constructor functions returning an `Op` with the matching `kind`;
+The role names `Destroy`, `Create`, `Transition`, `CollectiveTransition`,
+`Pauli`, `Spin`, `Position`, `Momentum` are constructor functions returning an
+`Op` with the matching `kind`;
 `is_destroy`/`is_create`/… (and `optype`) are the exported predicates that
 replace `isa`. Fock/Position/Momentum leave `l1..nlev` zero, and
 create-vs-destroy lives in `kind` (the old `ladder` field is gone, though
@@ -84,8 +86,9 @@ though the ids themselves are not.
 
 **Per-role field meaning.** `Transition` reads the bra/ket levels from `l1`/`l2`
 and the ground state and level count from `g`/`nlev`; `Pauli` and `Spin` read the
-axis (1=x, 2=y, 3=z) from `l1`. Fock and PhaseSpace operators ignore the packed
-fields entirely.
+axis (1=x, 2=y, 3=z) from `l1`. `CollectiveTransition` also reads `l1`/`l2`,
+but leaves `g`/`nlev` zero because it has no completeness expansion. Fock and
+PhaseSpace operators ignore the packed fields entirely.
 
 **The five operator hooks.** The whole algebra talks to operators through five
 methods. After the collapse each is a single `(::Op, ::Op)` method that branches
@@ -97,7 +100,7 @@ builds on them.
 |---|---|---|
 | `_site_compare(a, b, ne)` | `SiteCmp` | three-way site comparison driving the sort |
 | `_can_commute(a, b)` | `Bool` | true iff swapping needs no commutator residual (called only on provably-same-site pairs) |
-| `_commute_pair(a, b)` | `(swap_b, swap_a, residual_coeff, residual_ops)` | swap and residual for same-site non-commuting pairs |
+| `_commute_pair(a, b)` | `(swap_b, swap_a, c1, ops1, c2, ops2)` | swap and up to two residuals for same-site non-commuting pairs |
 | `_reduce_pair(a, b)` | `(ReduceKind, Op, CNum)` | local algebraic identity (Transition composition, Pauli product, …) |
 | `_ground_state_expand(op)` | `(is_gs, g, n_levels, site)` | only `Transition` (a `σᵍᵍ`) returns non-trivially |
 
@@ -105,9 +108,15 @@ Because `Op` is concrete, these hooks now infer concrete return types: `_commute
 
 A sixth, defaulted hook supports the reduce pass: `_may_reduce(a, b)::Bool` answers whether `_reduce_pair(a, b)` could return anything other than `NoReduction`. It is `true` only for `Transition×Transition` and `Pauli×Pauli`. With the concrete `Op` eltype its original boxing-avoidance motivation is moot, but it still cheaply skips the same-site field checks for the common non-reducing pair.
 
-**Site families inside `_site_compare`.** The comparator first orders by `space_index`, so operators are grouped by the subspace they act on before anything else is consulted (operators on different subspaces commute, so this reordering is always safe and gives the more natural per-subspace canonical form). Within a subspace, cross-role comparison is family-scoped: Fock `{Destroy, Create}` and PhaseSpace `{Position, Momentum}` compare within their family (PhaseSpace ignores the operator name, treating x and p as conjugate variables on one site); the other roles are singleton families. A subspace carries a single Hilbert-space type, so same-`space_index` operators always share a family; the `kind` integer fallback (`OP_DESTROY=0 < … < OP_MOMENTUM=6`, the old `_type_order`) only distinguishes the pathological case of two operators sharing a `space_index` across unrelated simple spaces.
+`CollectiveTransition` is the reason `_commute_pair` has two residual slots:
+``[S^{ij},S^{kl}] = \delta_{jk}S^{il} - \delta_{li}S^{kj}`` can produce two
+terms. Fock, PhaseSpace, and Spin populate only the first slot. The commute pass
+forks an independent branch for each nonzero residual, and the `commutator`
+leaf fast path sums both slots.
 
-**Adding an operator role.** Add an `OP_*` enum arm, a constructor function and an `is_*` predicate, then a branch in each of the six hooks plus `adjoint`, `order_key`, `to_numeric`, and the printing/Latexify methods. The hooks are written so a future open-extension escape hatch (an `OP_CUSTOM` arm carrying a payload) could be slotted in without reshaping them; a `Union{Nothing,QSym}` payload field is deliberately *not* added now because it would fail the `CheckConcreteStructs` (`all_concrete`) gate.
+**Site families inside `_site_compare`.** The comparator first orders by `space_index`, so operators are grouped by the subspace they act on before anything else is consulted (operators on different subspaces commute, so this reordering is always safe and gives the more natural per-subspace canonical form). Within a subspace, cross-role comparison is family-scoped: Fock `{Destroy, Create}` and PhaseSpace `{Position, Momentum}` compare within their family (PhaseSpace ignores the operator name, treating x and p as conjugate variables on one site); the other roles are singleton families. A subspace carries a single Hilbert-space type, so same-`space_index` operators always share a family; the `kind` integer fallback preserves the existing values `OP_DESTROY=0 < … < OP_MOMENTUM=6` and appends `OP_COLLECTIVE_TRANSITION=7`. It only distinguishes the pathological case of two operators sharing a `space_index` across unrelated simple spaces.
+
+**Adding an operator role.** Add an `OP_*` enum arm, a constructor function and an `is_*` predicate, then add any non-default branches required in the six hooks plus `adjoint`, `order_key`, `to_numeric`, and the printing/Latexify methods. The hooks are written so a future open-extension escape hatch (an `OP_CUSTOM` arm carrying a payload) could be slotted in without reshaping them; a `Union{Nothing,QSym}` payload field is deliberately *not* added now because it would fail the `CheckConcreteStructs` (`all_concrete`) gate.
 
 
 ## Hilbert spaces
@@ -120,7 +129,13 @@ struct ProductSpace{T <: Tuple{Vararg{HilbertSpace}}} <: HilbertSpace
 end
 ```
 
-This gives full type stability — `ProductSpace{Tuple{FockSpace, NLevelSpace}}` is a concrete type. The `⊗` operator flattens nested `ProductSpace`s during construction. Indexed families of identical subsystems are represented through the [`Index`](@ref) and [`Σ`](@ref) machinery rather than as a dedicated Hilbert-space type.
+This gives full type stability — `ProductSpace{Tuple{FockSpace, NLevelSpace}}` is a concrete type. The `⊗` operator flattens nested `ProductSpace`s during construction. Indexed families of identical subsystems are represented through the [`Index`](@ref) and [`Σ`](@ref) machinery. `CollectiveNLevelSpace` is deliberately separate: it represents the permutation-symmetric collective role and converts numerically through `ManyBodyBasis`.
+
+For two levels, `CollectiveTransition` is the transition-basis form of the
+existing collective `Spin` algebra: `S^{12}=S_+`, `S^{21}=S_-`, and
+`(S^{11}-S^{22})/2=S_z` in the QuantumOpticsBase convention. They remain
+separate roles because they use different basis conventions and numeric paths
+(`ManyBodyBasis` versus `SpinBasis`).
 
 
 ## The `CNum` prefactor type
@@ -247,7 +262,7 @@ The four passes have one job each:
 | Pass | Behaviour |
 |---|---|
 | `_reduce_ops` | folds adjacent provably-same-site pairs via `_reduce_pair`; one output per input |
-| `_commute_ops` | applies swaps for adjacent same-site pairs whose `_can_commute` is false; emits both swap branch and residual branch |
+| `_commute_ops` | applies swaps for adjacent same-site pairs whose `_can_commute` is false; emits the swap plus up to two residual branches |
 | `_expand_gs_ops` | applies `σᵍᵍ → 1 - Σ_{k≠g} σᵏᵏ` to every ground-state projector; opt-in, not part of the default pipeline |
 | `_substitute_ops` | walks `ops` applying a substitution dict; forks when a value is a multi-term `QAdd` |
 
@@ -264,7 +279,7 @@ The package exposes four entry points that combine the pipeline above in differe
 
 `normal_order(expr)` re-streams each term through `_stream!`. Eager `*` already produces canonical form, so on the output of `*` it is idempotent; it earns its keep as a finalizer for hand-constructed expressions and as the second half of `simplify`. `simplify(expr)` runs `normal_order` and then walks the resulting terms once more, applying `Symbolics.simplify` to each coefficient and dropping summation indices that no surviving term depends on. The expensive per-coefficient simplification deliberately lives in this outer pass rather than inside the streaming pipeline: it runs once per surviving term, not on every dict insertion. `expand(expr)` distributes symbolic prefactors only — `(a + b)² → a² + 2ab + b²` — and leaves the operator structure untouched. `expand_completeness(expr)` applies the ground-state identity, described below.
 
-`commutator(a, b)` is `a*b - b*a` in the general case, with a fast path on `QSym × QSym`: when exactly one direction of the pair is non-canonical, the commutator equals the swap residual returned by `_commute_pair`, so the call short-circuits to a single-term `QAdd` without running the full pipeline twice and a subtraction.
+`commutator(a, b)` is `a*b - b*a` in the general case, with a fast path on `QSym × QSym`: when exactly one direction of the pair is non-canonical, the commutator equals the residuals returned by `_commute_pair`, so the call short-circuits without running the full pipeline twice and a subtraction.
 
 **Why `σᵍᵍ` stays atomic in canonical form.** Ground-state projectors are legitimate atoms in the canonical basis. The completeness identity `σᵍᵍ = 1 - Σ_{k≠g} σᵏᵏ` is mathematically exact, but applying it eagerly multiplies every product containing a `σᵍᵍ` by `n_levels`. A product with `k` ground-state factors balloons to `n_levels^k` terms before the surrounding context has a chance to cancel anything, and like-term collection across operations cannot recover the original compactness once the explosion has happened. Keeping `σᵍᵍ` atomic also serves downstream consumers: in mean-field expansions, `⟨σᵍᵍ⟩` is a single moment that solvers carry through their equations directly, while `1 - Σ ⟨σᵏᵏ⟩` is a sum of `n_levels - 1` moments tied together by an identity constraint that meanfield code would otherwise have to recognize and dedupe.
 
@@ -352,12 +367,14 @@ end
 struct AvgFunc end                        # singleton callable, the "operation"
 const sym_average = AvgFunc()
 
-_average(op) = SymbolicUtils.Term{SymbolicUtils.SymReal}(sym_average, [op]; type = AvgSym)
+_average(op) = SymbolicUtils.Term{SymbolicUtils.SymReal}(sym_average, [op]; type = _avg_symtype(op))
 ```
 
 **Why a custom `AvgFunc` instead of a `Sym`?** Using a custom struct lets us define `SymbolicUtils.show_call` for `⟨...⟩` display without type piracy on SymbolicUtils symbols.
 
-**`AvgSym <: Number`** is the `symtype` marker. It ensures averaged expressions participate in Symbolics arithmetic (`+`, `*`, `simplify`) while remaining distinguishable from plain numbers.
+**Hermitian averages are `Real`, everything else is `Number`.** A moment `⟨A⟩` is real iff `A` is Hermitian, so `_avg_symtype(op) = isequal(adjoint(op), op) ? Real : Number` is a structural test (both sides are canonical). The `Real` upgrade buys a faster `simplify` (its rewrite rules take the cheaper real path) and self-conjugation through `_conj_atom` (`conj(⟨A⟩) == ⟨A⟩`, versus a `Number` leaf that stays wrapped and relies on `inner_adjoint`). The `+`/`*` path is unaffected (it dispatches on the vartype `SymReal`, already used). Typing is per-leaf, so a distributed sum like `a + a'` → `⟨a⟩ + ⟨a'⟩` stays `Number`; `sym_sum` nodes inherit `Real` from a real body, and `make_time_dependent` lifts a Hermitian average to a `Real` unknown.
+
+Because `substitute`/rewriting rebuild through `TermInterface.maketerm`, whose default `type` comes from `promote_symtype` (which cannot see Hermiticity behind the opaque operator symtype), the average and sum nodes define `maketerm` overrides that re-derive the symtype from the operator/body *value*; without them a `substitute` would silently revert a `Real` leaf to `Number`. `_avg_symtype_from_arg` falls back to `Number` when the argument is not a bare `QField` (e.g. a `conj`-wrapped operator from `qadjoint`).
 
 ### Why `average` returns `BasicSymbolic`, not `Num`
 
@@ -378,14 +395,22 @@ The scope rides as a `SumScope` *argument* of the `Term`, not as metadata, becau
 
 ## Numeric conversion
 
-`to_numeric` maps symbolic operators to QuantumOpticsBase matrices:
+`to_numeric` maps symbolic operators to QuantumOpticsBase matrices. A term is
+assembled in a natural lazy representation and materialized to a concrete
+operator exactly once, at the top, via `op_type` (default `sparse`). This keeps
+the return type independent of the shape of the expression (a bare operator, a
+product, and a sum all return the same `op_type`), while still avoiding
+per-factor conversions during assembly.
 
-- **Simple basis:** Direct dispatch — `Destroy → destroy(b)`, `Transition → transition(b, i, j)`, etc.
-- **Composite basis:** Embeds the single-site matrix as a `LazyTensor`:
+- **Simple basis:** Direct dispatch, e.g. `Destroy → destroy(b)`, `Transition → transition(b, i, j)`.
+- **Composite basis:** The internal `_embed` embeds the single-site matrix as a `LazyTensor`:
   ```julia
-  op_num = to_numeric(op, b.bases[idx])
+  op_num = _embed(op, b.bases[idx])
   LazyTensor(b, [idx], (op_num,))
   ```
+  `_embed` is the composable building block for products and sums. The public
+  `to_numeric` methods wrap the assembled result in `op_type`, so the positional
+  forms return `sparse` and `op_type=identity` returns the lazy form as-is.
 
 **`_to_number`** extracts plain Julia numbers from `Num`/`CNum` wrappers for numeric evaluation. Falls back to the symbolic value if it can't be unwrapped (for symbolic prefactors that haven't been substituted yet).
 
@@ -408,7 +433,7 @@ These cannot be wired directly to `Base.conj`/`Base.adjoint` on `SymbolicUtils.B
 
 SQA carries three orderings that must not be conflated, because each answers a different question.
 
-**`_site_compare` (partial, commutation).** The `SiteCmp` three-way comparator drives `_partial_sort!` during normal ordering. It is deliberately *not* identity-faithful: it returns `Equal` for operators that differ only in `axis` (Pauli/Spin) or levels `i,j` (Transition), because it encodes which adjacent factors may be reordered, not whether two operators are the same. It is also partial (`Undetermined` for free indices with no resolving `ne`).
+**`_site_compare` (partial, commutation).** The `SiteCmp` three-way comparator drives `_partial_sort!` during normal ordering. It is deliberately *not* identity-faithful: it returns `Equal` for operators that differ only in `axis` (Pauli/Spin) or levels `i,j` (Transition/CollectiveTransition), because it encodes which adjacent factors may be reordered, not whether two operators are the same. It is also partial (`Undetermined` for free indices with no resolving `ne`).
 
 **`_full_op_key`/`_sort_key` (display sort).** Used by `sorted_arguments` for deterministic *display* order only. Also not identity-faithful: it omits axis and levels, so two distinct operators can share a display key. Fine for printing, wrong for keying.
 
@@ -416,8 +441,8 @@ SQA carries three orderings that must not be conflated, because each answers a d
 
 ## Printing and LaTeX
 
-**Terminal printing** uses Unicode: `†` for dagger, subscript digits (`₀`-`₉`) for Transition levels, `σx`/`σy`/`σz` for Pauli axes. Summations render as `Σ(i=1:N)`.
+**Terminal printing** uses Unicode: `†` for dagger, subscript digits (`₀`-`₉`) for Transition and CollectiveTransition levels, `σx`/`σy`/`σz` for Pauli axes. Summations render as `Σ(i=1:N)`.
 
-**`sorted_arguments`** ensures deterministic output order. The sort key is `(length(ops), full_op_keys...)` where `_full_op_key(op) = (_sort_key(op)..., _type_order(op), op.name)`. This gives: shorter terms first, then by site, then by type (Destroy < Create < Transition < Pauli < Spin < Position < Momentum), then by name.
+**`sorted_arguments`** ensures deterministic output order. The sort key is `(length(ops), full_op_keys...)` where `_full_op_key(op) = (_sort_key(op)..., _type_order(op), op.name)`. This gives: shorter terms first, then by site, then by type (Destroy < Create < Transition < Pauli < Spin < Position < Momentum < CollectiveTransition), then by name.
 
-**LaTeX** uses Latexify.jl's `@latexrecipe` macro. `transition_superscript(::Bool)` toggles the global `transition_idx_script` `Ref` between `:^` and `:_`, controlling whether Transition level indices render as superscripts (`{name}^{{ij}}`) or subscripts (`{name}_{{ij}}`).
+**LaTeX** uses Latexify.jl's `@latexrecipe` macro. `transition_superscript(::Bool)` toggles the global `transition_idx_script` `Ref` between `:^` and `:_`, controlling whether Transition and CollectiveTransition level indices render as superscripts (`{name}^{{ij}}`) or subscripts (`{name}_{{ij}}`).
