@@ -13,7 +13,47 @@ using Test
 # `TimeDependentSum`, evaluated via `H(t)` and compared through `expect`.
 _dat(x) = dense(x).data
 
+# Tiny backend used as a conformance test for the documented third-party static interface.
+struct MockNumericBackend <: SecondQuantizedAlgebra.NumericBackend end
+struct MockEagerOperator
+    data::Matrix{ComplexF64}
+end
+_mock_identity(n) = ComplexF64[i == j for i in 1:n, j in 1:n]
+SecondQuantizedAlgebra.numeric_basis(::MockNumericBackend, ::FockSpace, cutoff) = Int(cutoff) + 1
+SecondQuantizedAlgebra.numeric_num_subsystems(::MockNumericBackend, ::Int) = 1
+SecondQuantizedAlgebra.numeric_subbasis(::MockNumericBackend, n::Int, slot::Int) =
+    slot == 1 ? n : throw(ArgumentError("mock basis has no subsystem slot $slot"))
+SecondQuantizedAlgebra.numeric_operator(
+    ::MockNumericBackend, ::SecondQuantizedAlgebra.Op, n::Int,
+) = _mock_identity(n)
+SecondQuantizedAlgebra.numeric_embed(::MockNumericBackend, ::Int, ::Int, leaf) = leaf
+SecondQuantizedAlgebra.numeric_identity(::MockNumericBackend, n::Int) = _mock_identity(n)
+function SecondQuantizedAlgebra.numeric_assemble(::MockNumericBackend, n::Int, terms)
+    result = zeros(ComplexF64, n, n)
+    for (coefficient, factors) in terms
+        term = isempty(factors) ? _mock_identity(n) : foldl(*, factors)
+        result .+= coefficient .* term
+    end
+    return result
+end
+SecondQuantizedAlgebra.numeric_materialize(::MockNumericBackend, assembled, ::Nothing) =
+    MockEagerOperator(assembled)
+SecondQuantizedAlgebra.numeric_materialize(
+    ::MockNumericBackend, assembled, ::typeof(identity),
+) = assembled
+
 @testset "numeric conversion" begin
+    @testset "third-party static backend contract" begin
+        h = FockSpace(:mock)
+        @qnumbers a::Destroy(h)
+
+        eager = to_numeric(2 * a, h, 3; backend = MockNumericBackend())
+        lazy = to_numeric(2 * a, h, 3; backend = MockNumericBackend(), op_type = identity)
+        @test eager isa MockEagerOperator
+        @test eager.data == 2 .* _mock_identity(4)
+        @test lazy == eager.data
+    end
+
     @testset "Single space basic" begin
         h = FockSpace(:fock)
         @qnumbers a::Destroy(h)
@@ -491,6 +531,22 @@ _dat(x) = dense(x).data
         # `conj(v)` is accepted as a time_parameter key.
         f2 = to_numeric(conj(E) * a, b; time_parameter = Dict(conj(E) => t -> 2 + im * t))
         @test expect(f2(1.0), ψ) ≈ expect((2 + 1im) * A, ψ)
+
+        @test to_numeric(E * a, b; time_parameter = Dict(E => t -> 1), op_type = identity) isa TimeDependentSum
+        @test_throws ArgumentError to_numeric(E * a, b; time_parameter = Dict(E => t -> 1), op_type = dense)
+    end
+
+    @testset "public backend hooks and product dims validation" begin
+        b = FockBasis(3)
+        ψ = fockstate(b, 0)
+        @test numeric_backend(ψ) isa QuantumOpticsBackend
+        @test numeric_basis(ψ) == b
+        @test SecondQuantizedAlgebra.numeric_num_subsystems(QuantumOpticsBackend(), b) == 1
+
+        h = FockSpace(:a) ⊗ FockSpace(:b)
+        a = Destroy(h, :a, 1)
+        @test_throws ArgumentError to_numeric(a, h, [2]; backend = QuantumOpticsBackend())
+        @test_throws ArgumentError to_numeric(a, h, [2, 3, 99]; backend = QuantumOpticsBackend())
     end
 
     @testset "keyword to_numeric, scalar argument" begin

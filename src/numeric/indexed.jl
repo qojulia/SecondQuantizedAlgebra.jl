@@ -28,15 +28,48 @@ function to_numeric(
         d::AbstractDict{<:QSym} = _NO_SUBS,
         scalar_subs::AbstractDict = _NO_SCALAR_SUBS,
     )
-    isempty(q.indices) && return to_numeric(q, b, d)
-    be = QuantumOpticsBackend()
-    ctx = NumericContext(be, b, d, scalar_subs, Dict{Int, Vector{Int}}(sites))
+    return _to_numeric_indexed(QuantumOpticsBackend(), b, q, sites, d, scalar_subs)
+end
+
+# Backend-neutral indexed conversion. Every place that would name a numeric type goes
+# through the hooks, so this drives both backends; the `Basis`/QTB-dims entry points only
+# pick the backend singleton and hand off here.
+function _to_numeric_indexed(
+        be::NumericBackend, basis, q::QAdd,
+        sites::AbstractDict{Int, Vector{Int}},
+        d::AbstractDict{<:QSym}, scalar_subs::AbstractDict,
+    )
+    isempty(q.indices) && return to_numeric(q, basis, d)
+    _validate_sites(be, basis, sites)
+    ctx = NumericContext(be, basis, d, scalar_subs, Dict{Int, Vector{Int}}(sites))
     sub_re, sub_im, has_imag = _split_scalar_subs(scalar_subs)
     terms = Tuple{ComplexF64, Vector{Any}}[]
     for (term, c) in q.arguments
         _accumulate_indexed_term!(terms, term, c, q.indices, ctx, sub_re, sub_im, has_imag)
     end
-    return numeric_materialize(be, numeric_assemble(be, b, terms), nothing)
+    return numeric_materialize(be, numeric_assemble(be, basis, terms), nothing)
+end
+
+function _validate_sites(be::NumericBackend, basis, sites)
+    nsubsystems = numeric_num_subsystems(be, basis)
+    seen = Set{Int}()
+    for (space, slots) in sites
+        for slot in slots
+            1 <= slot <= nsubsystems || throw(
+                ArgumentError(
+                    "sites[$space] contains slot $slot, but the numeric basis has " *
+                        "$nsubsystems subsystem$(nsubsystems == 1 ? "" : "s")",
+                ),
+            )
+            slot in seen && throw(
+                ArgumentError(
+                    "numeric subsystem slot $slot occurs more than once in the sites layout",
+                ),
+            )
+            push!(seen, slot)
+        end
+    end
+    return nothing
 end
 
 function _numeric_leaf_indexed(op::Op, ctx::NumericContext)

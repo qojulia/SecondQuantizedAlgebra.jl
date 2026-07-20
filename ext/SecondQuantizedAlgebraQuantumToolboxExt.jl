@@ -125,16 +125,31 @@ _axis(op::Op) = op.l1 == 1 ? :x : op.l1 == 2 ? :y : :z
 # basis (integer dims) / subsystem / embedding / identity
 # =======================================================================================
 
-SQA.numeric_basis(::QuantumToolboxBackend, ::SQA.FockSpace, N) = Int(N)
+SQA.numeric_basis(::QuantumToolboxBackend, ::SQA.FockSpace, N) = Int(N) + 1
 SQA.numeric_basis(::QuantumToolboxBackend, h::SQA.NLevelSpace, _) = Int(h.n)
 SQA.numeric_basis(::QuantumToolboxBackend, ::SQA.PauliSpace, _) = 2
 SQA.numeric_basis(::QuantumToolboxBackend, ::SQA.SpinSpace, s) = Int(2s + 1)
-SQA.numeric_basis(::QuantumToolboxBackend, ::SQA.PhaseSpace, N) = Int(N)
-SQA.numeric_basis(be::QuantumToolboxBackend, h::SQA.ProductSpace, dims) =
-    Int[SQA.numeric_basis(be, h.spaces[i], dims[i]) for i in eachindex(h.spaces)]
+SQA.numeric_basis(::QuantumToolboxBackend, ::SQA.PhaseSpace, N) = Int(N) + 1
+function SQA.numeric_basis(be::QuantumToolboxBackend, h::SQA.ProductSpace, dims)
+    SQA._check_product_dims(h, dims)
+    return Int[SQA.numeric_basis(be, h.spaces[i], dims[i]) for i in eachindex(h.spaces)]
+end
 
-SQA.numeric_subbasis(::QuantumToolboxBackend, N::Integer, slot::Int) = N
-SQA.numeric_subbasis(::QuantumToolboxBackend, ds::AbstractVector, slot::Int) = ds[slot]
+function SQA.numeric_subbasis(::QuantumToolboxBackend, N::Integer, slot::Int)
+    slot == 1 || throw(ArgumentError("simple QuantumToolbox dimension has no subsystem slot $slot"))
+    return N
+end
+function SQA.numeric_subbasis(::QuantumToolboxBackend, ds::AbstractVector, slot::Int)
+    1 <= slot <= length(ds) || throw(
+        ArgumentError(
+            "QuantumToolbox dimensions have $(length(ds)) subsystems, not slot $slot",
+        ),
+    )
+    return ds[slot]
+end
+
+SQA.numeric_num_subsystems(::QuantumToolboxBackend, ::Integer) = 1
+SQA.numeric_num_subsystems(::QuantumToolboxBackend, ds::AbstractVector) = length(ds)
 
 # Within-term embedding is EAGER concrete (QuantumToolbox warns on lazy tensor); the lazy sum
 # is the only lazy layer.
@@ -194,13 +209,22 @@ end
 # materialization (op_type applied once at the top of `to_numeric`)
 # =======================================================================================
 
-# The default (`nothing`) keeps the vector-backed `QobjEvo`/`VecSum`: it is already the
-# shape-independent, solver-friendly form (a `SciMLOperator` consumed directly by
-# `sesolve`/`mesolve`), so no top-level materialization is needed. An explicit `op_type`
-# (`SciMLOperators.concretize`, `QuantumToolbox.sparse`/`dense`, `identity`) is applied as a
-# plain callable for callers that want an eager `QuantumObject`.
-SQA.numeric_materialize(::QuantumToolboxBackend, op, ::Nothing) = op
-SQA.numeric_materialize(::QuantumToolboxBackend, op, op_type) = op_type(op)
+# The default (`nothing`) has the same semantics as QuantumOptics: return an eager sparse
+# backend operator. `op_type = identity` is the explicit opt-in to the lazily assembled
+# `QobjEvo`/`VecSum`. Other callables are applied to an eager `QuantumObject`;
+# `SciMLOperators.concretize` is special-cased to return its raw matrix as advertised.
+SQA.numeric_materialize(::QuantumToolboxBackend, op, ::Nothing) = QTB.to_sparse(_qtb_eager(op))
+function SQA.numeric_materialize(::QuantumToolboxBackend, op, op_type)
+    op_type === identity && return op
+    eager = _qtb_eager(op)
+    op_type === SO.concretize && return eager.data
+    return op_type(eager)
+end
+
+# Reduce the assembled object to an eager `QuantumObject`: concretize the lazy `VecSum`
+# behind a `QobjEvo`; a bare scalar path is already an eager `QuantumObject`.
+_qtb_eager(op::QTB.QuantumObjectEvolution) = QTB.Qobj(SO.concretize(op.data); dims = op.dimensions)
+_qtb_eager(op::QTB.QuantumObject) = op
 
 # =======================================================================================
 # expectation + backend resolution + state/dims convenience
@@ -211,19 +235,42 @@ SQA.numeric_expect(::QuantumToolboxBackend, numop, state::QTB.QuantumObject) =
 SQA.numeric_expect(::QuantumToolboxBackend, numop, states::AbstractVector) =
     ComplexF64[ComplexF64(QTB.expect(numop, s)) for s in states]
 
-SQA._backend_of(::QTB.AbstractQuantumObject) = QuantumToolboxBackend()
-function SQA._basis_of(o::QTB.AbstractQuantumObject)
+SQA.numeric_backend(::QTB.AbstractQuantumObject) = QuantumToolboxBackend()
+function SQA.numeric_basis(o::QTB.AbstractQuantumObject)
     ds = collect(Int, o.dims[1])
     return length(ds) == 1 ? ds[1] : ds
 end
 
 # Positional dims form (the QuantumToolbox analog of `to_numeric(op, basis, d)`).
 SQA.to_numeric(op::Op, dims::QTBDims, d::AbstractDict{<:SQA.QSym} = SQA._NO_SUBS) =
-    SQA._numeric_leaf(op, SQA.NumericContext(QuantumToolboxBackend(), dims, d))
+    SQA.numeric_materialize(
+    QuantumToolboxBackend(),
+    SQA._to_numeric_static(
+        SQA._single_qadd(SQA._CNUM_ONE, Op[op]),
+        SQA.NumericContext(QuantumToolboxBackend(), dims, d),
+    ),
+    nothing,
+)
 SQA.to_numeric(q::SQA.QAdd, dims::QTBDims, d::AbstractDict{<:SQA.QSym} = SQA._NO_SUBS) =
-    SQA._to_numeric_static(q, SQA.NumericContext(QuantumToolboxBackend(), dims, d))
+    SQA.numeric_materialize(
+    QuantumToolboxBackend(),
+    SQA._to_numeric_static(q, SQA.NumericContext(QuantumToolboxBackend(), dims, d)),
+    nothing,
+)
 SQA.to_numeric(x::Number, dims::QTBDims, ::AbstractDict{<:SQA.QSym} = SQA._NO_SUBS) =
-    SQA._to_complex(x) * SQA.numeric_identity(QuantumToolboxBackend(), dims)
+    SQA.numeric_materialize(
+    QuantumToolboxBackend(),
+    SQA._to_complex(x) * SQA.numeric_identity(QuantumToolboxBackend(), dims),
+    nothing,
+)
+
+# Indexed positional dims form (the QTB analog of `to_numeric(q, basis, sites, …)`).
+SQA.to_numeric(
+    q::SQA.QAdd, dims::QTBDims,
+    sites::AbstractDict{Int, Vector{Int}},
+    d::AbstractDict{<:SQA.QSym} = SQA._NO_SUBS,
+    scalar_subs::AbstractDict = SQA._NO_SCALAR_SUBS,
+) = SQA._to_numeric_indexed(QuantumToolboxBackend(), dims, q, sites, d, scalar_subs)
 
 # Keyword dims form.
 function SQA.to_numeric(
@@ -241,11 +288,15 @@ function SQA.to_numeric(
     return SQA._to_numeric_kw(QuantumToolboxBackend(), x, dims; parameter, time_parameter, operators, adjoint_ops, op_type)
 end
 
+# Vector of operators on the direct QTB-dims form (mirrors the `Basis` method in api.jl).
+SQA.to_numeric(ops::AbstractVector, dims::QTBDims; kwargs...) =
+    [SQA.to_numeric(op, dims; kwargs...) for op in ops]
+
 # State convenience (dims derived from the state).
-SQA.to_numeric(op, state::QTB.QuantumObject; kwargs...) = SQA.to_numeric(op, SQA._basis_of(state); kwargs...)
+SQA.to_numeric(op, state::QTB.QuantumObject; kwargs...) = SQA.to_numeric(op, SQA.numeric_basis(state); kwargs...)
 SQA.to_numeric(op::SQA.QField, state::QTB.QuantumObject, d::AbstractDict{<:SQA.QSym} = SQA._NO_SUBS) =
-    SQA.to_numeric(op, SQA._basis_of(state), d)
-SQA.to_numeric(x::Number, state::QTB.QuantumObject) = SQA.to_numeric(x, SQA._basis_of(state))
+    SQA.to_numeric(op, SQA.numeric_basis(state), d)
+SQA.to_numeric(x::Number, state::QTB.QuantumObject) = SQA.to_numeric(x, SQA.numeric_basis(state))
 
 SQA.numeric_average(op, state::QTB.QuantumObject, d::AbstractDict{<:SQA.QSym} = SQA._NO_SUBS) =
     SQA._numeric_average(op, state, d)

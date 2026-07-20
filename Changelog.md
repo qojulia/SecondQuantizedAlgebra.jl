@@ -12,12 +12,14 @@ Numeric conversion (`to_numeric`/`numeric_average`/`expect`) was redesigned to b
 
 - A second numeric backend, [QuantumToolbox.jl](https://github.com/qutip/QuantumToolbox.jl), alongside QuantumOpticsBase.jl. Both are wired in through Julia package extensions and selected with the backend singletons `QuantumOpticsBackend()` / `QuantumToolboxBackend()`.
 - A uniform Hilbert-space entry point `to_numeric(op, h::HilbertSpace, dims; backend, parameter, time_parameter, operators, adjoint_ops, op_type)`. It builds the backend basis from `dims` (Fock cutoff / spin number) and is the only form that works for both backends. The backend defaults to the single loaded one.
-- Open extension hooks `numeric_operator`, `numeric_basis`, `numeric_subbasis`, `numeric_embed`, `numeric_identity`, `numeric_assemble`, `numeric_assemble_td`, `numeric_materialize`, `numeric_expect` are exported. Downstream packages add methods to support custom operator roles or backends without editing this package.
+- Open backend hooks `numeric_operator`, `numeric_basis`, `numeric_subbasis`, `numeric_embed`, `numeric_identity`, `numeric_num_subsystems`, `numeric_assemble`, `numeric_assemble_td`, `numeric_materialize`, `numeric_expect`, and `numeric_backend` are exported. Downstream packages can implement another backend and add numeric support for existing operator roles; `OpKind` remains a closed symbolic-role set.
 
 ### Changed (breaking)
 
 - `QuantumOpticsBase` moved from a hard dependency to a weak dependency. Using the numeric API now requires loading a backend: add `using QuantumOpticsBase` (or `using QuantumToolbox`) next to `using SecondQuantizedAlgebra`. The lightweight `QuantumInterface.jl` is a new hard dependency (it owns the `⊗`/`tensor`/`expect`/`basis` generics that the algebra extends).
 - The time-dependent form (`time_parameter` non-empty) returns the backend's **native** time-dependent operator: a `TimeDependentSum` (QuantumOptics) or a `QobjEvo` (QuantumToolbox), both directly consumable by `mesolve`/`master_dynamic`/`sesolve`. It is no longer a `t -> op(t)` closure.
+- Time-dependent conversion accepts only `op_type=nothing` or `identity`; eager `op_type` materializers are rejected because a time-varying operator cannot be materialized once during conversion.
+- Product-space `dims` must have exactly one entry per symbolic subspace. Indexed numeric layouts validate that every physical slot is unique and in range instead of silently collapsing multiple sites onto a simple basis.
 
 ### Changed
 
@@ -25,7 +27,7 @@ Numeric conversion (`to_numeric`/`numeric_average`/`expect`) was redesigned to b
 
 ### Notes
 
-- The `op_type` contract from v0.9.2 is unchanged and is now backend-neutral: `to_numeric` assembles the operator lazily and materializes it once via `op_type` (default `sparse`), so the return type depends only on `op_type`, not on the expression shape. `op_type=identity` opts into the natural lazy representation (`LazyTensor`/`LazyProduct`/`LazySum` / `VecSum`), `op_type=dense` into a dense operator. The lazy form is the internal assembly primitive and is what `numeric_average`/`expect` consume directly, so `LazyKet` states work without materializing.
+- For static conversion, the `op_type` contract from v0.9.2 is now backend-neutral: `to_numeric` assembles the operator lazily and materializes it once via `op_type`, so the return type depends only on `op_type`, not on the expression shape. The default consistently returns an eager backend operator (sparse on both bundled backends). Pass an explicit `op_type` for another eager representation (`dense` on QuantumOptics; `QuantumToolbox.to_sparse`/`to_dense` or `SciMLOperators.concretize` on QuantumToolbox), or `op_type=identity` for the natural lazy representation (`LazyTensor`/`LazyProduct`/`LazySum` / `QobjEvo` over `VecSum`). The lazy form is the internal assembly primitive and is what `numeric_average`/`expect` consume directly, so `LazyKet` states work without materializing.
 - A user doing `using SecondQuantizedAlgebra, QuantumToolbox` has two `⊗`/`tensor`/`expect` in scope (QuantumInterface's and QuantumToolbox's) and must qualify them; importing QuantumToolbox as `import QuantumToolbox as QTB` avoids the clash.
 
 

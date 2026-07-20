@@ -11,17 +11,17 @@ import QuantumToolbox as QTB
 import QuantumOpticsBase as QOB
 import SciMLOperators as SO
 using Symbolics: @variables
-import LinearAlgebra: tr, norm
+import LinearAlgebra: tr, norm, diag
 using Test
 
 const QTBB = QuantumToolboxBackend()
 
 @testset "QuantumToolbox backend" begin
-    @testset "lazy + n-stable + static==td" begin
+    @testset "eager default; lazy assembly is n-stable" begin
         h = FockSpace(:f)
         @qnumbers a::Destroy(h)
-        H2 = to_numeric(a' * a, h, 5; backend = QTBB)
-        H3 = to_numeric(a' * a + a + a', h, 5; backend = QTBB)
+        H2 = to_numeric(a' * a, h, 5; backend = QTBB, op_type = identity)
+        H3 = to_numeric(a' * a + a + a', h, 5; backend = QTBB, op_type = identity)
         @variables E::Number
         Htd = to_numeric(E * a + conj(E) * a', h, 5; backend = QTBB, time_parameter = Dict(E => t -> 1 + im * t))
 
@@ -31,10 +31,13 @@ const QTBB = QuantumToolboxBackend()
         @test H2 isa QTB.QuantumObjectEvolution
         @test typeof(H2) === typeof(H3)
         @test typeof(H2) === typeof(Htd)
-        # The positional dims form of a single operator is the bare eager QuantumObject
-        # (the HilbertSpace / keyword form always wraps in a one-term lazy QobjEvo).
+        # Static defaults are eager and sparse on both direct and uniform forms; lazy is
+        # an explicit representation choice.
         @test to_numeric(a, 5) isa QTB.QuantumObject
-        @test to_numeric(a' * a, h, 5; backend = QTBB) isa QTB.QuantumObjectEvolution
+        @test typeof(to_numeric(a, 5).data) === typeof(QTB.destroy(5).data)
+        @test to_numeric(a' * a, h, 5; backend = QTBB) isa QTB.QuantumObject
+        @test typeof(to_numeric(a' * a, h, 5; backend = QTBB).data) ===
+            typeof(QTB.destroy(6).data)
     end
 
     @testset "Fock parity vs QuantumOptics" begin
@@ -101,26 +104,38 @@ const QTBB = QuantumToolboxBackend()
         N = 6
         f = to_numeric(E * a + conj(E) * a', h, N; backend = QTBB, time_parameter = Dict(E => t -> 1 + im * t))
         @test f isa QTB.QuantumObjectEvolution
-        ψt = QTB.coherent(N, 0.3 - 0.1im)
-        aT = QTB.destroy(N)
+        ψt = QTB.coherent(N + 1, 0.3 - 0.1im)
+        aT = QTB.destroy(N + 1)
         @test QTB.expect(f(nothing, 0.5), ψt) ≈ QTB.expect((1 + 0.5im) * aT + (1 - 0.5im) * aT', ψt) atol = 1.0e-8
+
+        @test to_numeric(
+            E * a, h, N;
+            backend = QTBB, time_parameter = Dict(E => t -> 1), op_type = identity,
+        ) isa QTB.QuantumObjectEvolution
+        @test_throws ArgumentError to_numeric(
+            E * a, h, N;
+            backend = QTBB, time_parameter = Dict(E => t -> 1), op_type = QTB.to_dense,
+        )
     end
 
     @testset "sesolve / mesolve consume the lazy VecSum" begin
         h = FockSpace(:f)
         @qnumbers a::Destroy(h)
         N = 6
-        H = to_numeric(2.0 * a' * a + 0.5 * (a + a'), h, N; backend = QTBB)
-        Hc = QTB.Qobj(SO.concretize(H.data); dims = N)   # eager reference
-        ψ = QTB.coherent(N, 0.3 + 0.1im)
+        H = to_numeric(
+            2.0 * a' * a + 0.5 * (a + a'), h, N;
+            backend = QTBB, op_type = identity,
+        )
+        Hc = QTB.Qobj(SO.concretize(H.data); dims = N + 1)   # eager reference
+        ψ = QTB.coherent(N + 1, 0.3 + 0.1im)
         tl = collect(range(0, 1.0, length = 11))
-        eop = QTB.create(N) * QTB.destroy(N)
+        eop = QTB.create(N + 1) * QTB.destroy(N + 1)
 
         rs = QTB.sesolve(H, ψ, tl; e_ops = [eop], progress_bar = Val(false))
         rsc = QTB.sesolve(Hc, ψ, tl; e_ops = [eop], progress_bar = Val(false))
         @test maximum(abs, rs.expect[1, :] .- rsc.expect[1, :]) < 1.0e-6
 
-        c_ops = [QTB.destroy(N)]
+        c_ops = [QTB.destroy(N + 1)]
         rm = QTB.mesolve(H, ψ, tl, c_ops; e_ops = [eop], progress_bar = Val(false))
         rmc = QTB.mesolve(Hc, ψ, tl, c_ops; e_ops = [eop], progress_bar = Val(false))
         @test maximum(abs, rm.expect[1, :] .- rmc.expect[1, :]) < 1.0e-6
@@ -143,9 +158,9 @@ const QTBB = QuantumToolboxBackend()
     @testset "materialize on demand" begin
         h = FockSpace(:f)
         @qnumbers a::Destroy(h)
-        H = to_numeric(a' * a, h, 4; backend = QTBB)
+        H = to_numeric(a' * a, h, 4; backend = QTBB, op_type = identity)
         M = SO.concretize(H.data)
-        @test M ≈ QTB.create(4).data * QTB.destroy(4).data
+        @test M ≈ QTB.create(5).data * QTB.destroy(5).data
     end
 
     @testset "empty QAdd assembles to zero" begin
@@ -154,8 +169,8 @@ const QTBB = QuantumToolboxBackend()
         h = FockSpace(:f)
         @qnumbers a::Destroy(h)
         z = 1 * a - 1 * a
-        M = to_numeric(z, h, 5; backend = QTBB)
-        @test SO.concretize(M.data) ≈ zeros(ComplexF64, 5, 5)
+        M = to_numeric(z, h, 5; backend = QTBB, op_type = identity)
+        @test SO.concretize(M.data) ≈ zeros(ComplexF64, 6, 6)
     end
 
     @testset "time-dependent with constant term" begin
@@ -169,7 +184,7 @@ const QTBB = QuantumToolboxBackend()
             backend = QTBB, parameter = Dict(Δ => 1.0), time_parameter = Dict(f => t -> 2.0 + 0im),
         )
         M = H(nothing, 0.0).data
-        Href = QTB.create(5).data * QTB.destroy(5).data + 2.0 * QTB.destroy(5).data
+        Href = QTB.create(6).data * QTB.destroy(6).data + 2.0 * QTB.destroy(6).data
         @test M ≈ Href
     end
 
@@ -187,5 +202,99 @@ const QTBB = QuantumToolboxBackend()
         h = FockSpace(:f)
         @qnumbers a::Destroy(h)
         @test_throws ArgumentError to_numeric(a' * a, h, 5)
+    end
+
+    @testset "Indexed path works for QuantumToolbox" begin
+        # Sum of excited-state projectors over two atoms is the excited-atom-count operator.
+        ha = NLevelSpace(:atom, 2)
+        i = Index(ha, :i, 2, ha)
+        σ(a, b, k) = IndexedOperator(Transition(ha, :σ, a, b), k)
+        H = Σ(σ(2, 2, i), i)
+        sites = Dict{Int, Vector{Int}}(1 => [1, 2])
+
+        Mt = to_numeric(H, [2, 2], sites)               # QTB (Vector{Int} dims)
+        @test Mt isa QTB.QuantumObject
+
+        P = QTB.projection(2, 1, 1)                     # |1><1|, 0-indexed excited level
+        ref = QTB.tensor(P, QTB.qeye(2)) + QTB.tensor(QTB.qeye(2), P)
+        @test Mt.data ≈ ref.data
+
+        # Cross-check the eager expectation via a scalar (matrices differ by kron convention
+        # across backends, so compare scalars, not raw matrices).
+        ψt = QTB.tensor(QTB.basis(2, 1), QTB.basis(2, 1))   # both excited -> eigenvalue 2
+        @test real(QTB.expect(Mt, ψt)) ≈ 2 atol = 1.0e-10
+
+        @test_throws ArgumentError to_numeric(H, 2, sites)
+        @test_throws ArgumentError to_numeric(H, [2, 2], Dict(1 => [1, 1]))
+    end
+
+    @testset "Fock/PhaseSpace dims match QuantumOptics" begin
+        h = FockSpace(:f)
+        @qnumbers a::Destroy(h)
+        # cutoff 5 gives dimension 6 (occupations 0:5) on BOTH backends.
+        @test SecondQuantizedAlgebra.numeric_basis(QuantumToolboxBackend(), FockSpace(:f), 5) == 6
+        @test SecondQuantizedAlgebra.numeric_basis(QuantumToolboxBackend(), PhaseSpace(:x), 5) == 6
+
+        Ht = to_numeric(a' * a, h, 5; backend = QuantumToolboxBackend())
+        @test size(Ht.data) == (6, 6)
+        # highest occupation is 5 (would be 4 under the old off-by-one convention).
+        @test maximum(real, diag(Matrix(Ht.data))) ≈ 5
+
+        # Direct QTB dimensions are raw matrix dimensions; the HilbertSpace form receives
+        # a symbolic Fock cutoff.
+        @test size(to_numeric(a, 5).data) == (5, 5)
+        @test size(to_numeric(a, h, 5; backend = QTBB).data) == (6, 6)
+    end
+
+    @testset "explicit op_type materializes eager" begin
+        h = FockSpace(:f)
+        @qnumbers a::Destroy(h)
+        ref = QTB.create(6).data * QTB.destroy(6).data     # cutoff 5 gives dim 6
+
+        sp = to_numeric(a' * a, h, 5; backend = QTBB, op_type = QTB.to_sparse)
+        @test sp isa QTB.QuantumObject
+        @test sp.data ≈ ref
+
+        de = to_numeric(a' * a, h, 5; backend = QTBB, op_type = QTB.to_dense)
+        @test de isa QTB.QuantumObject
+        @test de.data ≈ ref
+
+        co = to_numeric(a' * a, h, 5; backend = QTBB, op_type = SO.concretize)
+        @test co isa AbstractMatrix
+        @test co ≈ ref
+
+        # identity keeps the lazy assembly.
+        lz = to_numeric(a' * a, h, 5; backend = QTBB, op_type = identity)
+        @test lz isa QTB.QuantumObjectEvolution
+    end
+
+    @testset "vector API for QuantumToolbox" begin
+        h = FockSpace(:f)
+        @qnumbers a::Destroy(h)
+
+        # HilbertSpace form (backend-neutral entry point).
+        vhs = to_numeric([a, a'], h, 5; backend = QTBB)
+        @test vhs isa AbstractVector
+        @test length(vhs) == 2
+        @test all(x -> x isa QTB.QuantumObject, vhs)
+
+        # Direct QTB-dims form.
+        vd = to_numeric([a, a'], 5)
+        @test vd isa AbstractVector
+        @test length(vd) == 2
+        @test all(x -> x isa QTB.QuantumObject, vd)
+    end
+
+    @testset "public backend hooks and product dims validation" begin
+        ψ = QTB.basis(3, 0)
+        @test numeric_backend(ψ) isa QuantumToolboxBackend
+        @test numeric_basis(ψ) == 3
+        @test SecondQuantizedAlgebra.numeric_num_subsystems(QTBB, 3) == 1
+        @test SecondQuantizedAlgebra.numeric_num_subsystems(QTBB, [2, 3]) == 2
+
+        h = FockSpace(:a) ⊗ FockSpace(:b)
+        a = Destroy(h, :a, 1)
+        @test_throws ArgumentError to_numeric(a, h, [2]; backend = QTBB)
+        @test_throws ArgumentError to_numeric(a, h, [2, 3, 99]; backend = QTBB)
     end
 end

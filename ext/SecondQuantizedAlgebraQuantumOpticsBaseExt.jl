@@ -68,14 +68,28 @@ SQA.numeric_basis(::QuantumOpticsBackend, ::SQA.PauliSpace, _) = QOB.SpinBasis(1
 SQA.numeric_basis(::QuantumOpticsBackend, ::SQA.SpinSpace, s) = QOB.SpinBasis(s)
 SQA.numeric_basis(::QuantumOpticsBackend, ::SQA.PhaseSpace, N) = QOB.FockBasis(Int(N))
 function SQA.numeric_basis(be::QuantumOpticsBackend, h::SQA.ProductSpace, dims)
+    SQA._check_product_dims(h, dims)
     subs = h.spaces
     return QOB.tensor(ntuple(i -> SQA.numeric_basis(be, subs[i], dims[i]), length(subs))...)
 end
 
 # --- subsystem basis / embedding / identity --------------------------------------------
 
-SQA.numeric_subbasis(::QuantumOpticsBackend, b::QOB.Basis, slot::Int) = b
-SQA.numeric_subbasis(::QuantumOpticsBackend, b::QOB.CompositeBasis, slot::Int) = b.bases[slot]
+function SQA.numeric_subbasis(::QuantumOpticsBackend, b::QOB.Basis, slot::Int)
+    slot == 1 || throw(ArgumentError("simple QuantumOptics basis has no subsystem slot $slot"))
+    return b
+end
+function SQA.numeric_subbasis(::QuantumOpticsBackend, b::QOB.CompositeBasis, slot::Int)
+    1 <= slot <= length(b.bases) || throw(
+        ArgumentError(
+            "QuantumOptics composite basis has $(length(b.bases)) subsystems, not slot $slot",
+        ),
+    )
+    return b.bases[slot]
+end
+
+SQA.numeric_num_subsystems(::QuantumOpticsBackend, ::QOB.Basis) = 1
+SQA.numeric_num_subsystems(::QuantumOpticsBackend, b::QOB.CompositeBasis) = length(b.bases)
 
 SQA.numeric_embed(::QuantumOpticsBackend, b::QOB.Basis, slot::Int, m) = m
 SQA.numeric_embed(::QuantumOpticsBackend, b::QOB.CompositeBasis, slot::Int, m) =

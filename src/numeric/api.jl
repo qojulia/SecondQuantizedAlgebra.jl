@@ -19,16 +19,25 @@ A backend is selected by loading `QuantumOpticsBase` (`QuantumOpticsBackend`) or
 `QSym`s with custom numeric operators (missing adjoints are added when `adjoint_ops=true`).
 The keyword form first substitutes scalar `parameter`s. If `time_parameter` is non-empty,
 values may be numbers or functions of time and the result is the backend's **native**
-time-dependent operator (`TimeDependentSum` / `QobjEvo`).
+time-dependent operator (`TimeDependentSum` / `QobjEvo`). In that path `op_type` must be
+`nothing` or `identity`; eager materialization is time-dependent and therefore cannot be
+applied once during conversion.
 
 The term is assembled from lazy per-site factors and materialised **once** at the top via
 `op_type`, so the return type depends only on `op_type`, not on the shape of the expression
-(a bare operator, a product, and a sum all return the same type). The default (`nothing`,
-and every positional form) materialises `sparse`; pass `op_type = dense` for a dense
-operator, `op_type = identity` for the natural lazy form (`LazyTensor`/`LazyProduct`/
-`LazySum` / `VecSum`), or any backend materialiser (`QuantumToolbox.sparse`,
-`SciMLOperators.concretize`). Throws `ArgumentError` if any prefactor cannot be reduced to a
-concrete `ComplexF64`.
+(a bare operator, a product, and a sum all return the same type). By default, including in
+positional forms, conversion returns an eager backend operator; both bundled backends use a
+sparse representation. Pass an explicit `op_type` to select another eager representation
+(`dense` on QuantumOptics; `QuantumToolbox.to_sparse` / `QuantumToolbox.to_dense` or
+`SciMLOperators.concretize` on QuantumToolbox), or `op_type = identity` for the natural lazy
+form (`LazyTensor`/`LazyProduct`/`LazySum` / `QobjEvo` over `VecSum`). Throws `ArgumentError`
+if any prefactor cannot be reduced to a concrete `ComplexF64`.
+
+For QuantumToolbox, the direct `to_numeric(op, dims)` form takes raw matrix dimensions
+(`5` means a `5×5` single-space operator). The uniform `to_numeric(op, h, dims; backend=…)`
+form instead follows each symbolic space's convention (`5` is a Fock cutoff and therefore
+produces dimension `6`). Prefer the uniform form when constructing a basis from symbolic
+Hilbert-space metadata.
 
 # Examples
 
@@ -91,12 +100,16 @@ function to_numeric(
     return _to_numeric_kw(backend, op, b; parameter, time_parameter, operators, adjoint_ops, op_type)
 end
 
+# Vector of operators on the uniform HilbertSpace form (both backends).
+to_numeric(ops::AbstractVector, h::HilbertSpace, dims; backend::NumericBackend = _default_backend(), kwargs...) =
+    [to_numeric(op, h, dims; backend, kwargs...) for op in ops]
+
 # --- state convenience (basis derived from the state) ----------------------------------
 
-to_numeric(op, state::QuantumState; kwargs...) = to_numeric(op, _basis_of(state); kwargs...)
+to_numeric(op, state::QuantumState; kwargs...) = to_numeric(op, numeric_basis(state); kwargs...)
 to_numeric(op::QField, state::QuantumState, d::AbstractDict{<:QSym} = _NO_SUBS) =
-    to_numeric(op, _basis_of(state), d)
-to_numeric(x::Number, state::QuantumState) = to_numeric(x, _basis_of(state))
+    to_numeric(op, numeric_basis(state), d)
+to_numeric(x::Number, state::QuantumState) = to_numeric(x, numeric_basis(state))
 
 # --- vector of operators ---------------------------------------------------------------
 
@@ -142,7 +155,7 @@ end
 # Leaf: assemble the lazy numeric operator on the state's basis (never materialized, so a
 # `LazyKet` state works) and take the backend expectation.
 _numeric_average(op::QField, state, d::AbstractDict{<:QSym}) =
-    numeric_expect(_backend_of(state), _to_numeric_lazy(op, NumericContext(_backend_of(state), _basis_of(state), d)), state)
+    numeric_expect(numeric_backend(state), _to_numeric_lazy(op, NumericContext(numeric_backend(state), numeric_basis(state), d)), state)
 _numeric_average(x::Number, ::Any, ::AbstractDict{<:QSym}) = _to_complex(x)
 _numeric_average(x::Num, state, d::AbstractDict{<:QSym}) =
     _numeric_average(SymbolicUtils.unwrap(x), state, d)
@@ -182,7 +195,7 @@ end
 # Operator expressions assemble lazily once and expect over all states (the vector
 # `numeric_expect` materialises internally); symbolic averages map.
 _numeric_average_vec(op::QField, states, d::AbstractDict{<:QSym}) =
-    numeric_expect(_backend_of(first(states)), _to_numeric_lazy(op, NumericContext(_backend_of(first(states)), _basis_of(first(states)), d)), states)
+    numeric_expect(numeric_backend(first(states)), _to_numeric_lazy(op, NumericContext(numeric_backend(first(states)), numeric_basis(first(states)), d)), states)
 _numeric_average_vec(op, states, d::AbstractDict{<:QSym}) =
     [_numeric_average(op, ψ, d) for ψ in states]
 

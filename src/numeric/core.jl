@@ -29,11 +29,8 @@ NumericContext(be::NumericBackend, basis, op_subs::AbstractDict = _NO_SUBS) =
 
 # --- backend resolution for QuantumOptics states (QI types, so it lives here) -----------
 # A `Basis` is inherently QuantumOptics, so the Basis-form `to_numeric` hardcodes
-# `QuantumOpticsBackend()` rather than going through `_backend_of` (keeping `_backend_of`
-# strictly a *state* query: a `Basis` is never a state, so it must not appear as one). The
-# QuantumToolbox extension adds the `QuantumObject` state methods.
-_backend_of(::Union{StateVector, AbstractOperator}) = QuantumOpticsBackend()
-_basis_of(s::Union{StateVector, AbstractOperator}) = basis(s)
+# `QuantumOpticsBackend()`. The QuantumToolbox extension adds its state method.
+numeric_backend(::Union{StateVector, AbstractOperator}) = QuantumOpticsBackend()
 
 # --- leaf / term construction ----------------------------------------------------------
 
@@ -125,11 +122,12 @@ end
 _to_numeric_translated(op::QSym, ctx::NumericContext, parameter, time_parameter, op_type) =
     _to_numeric_translated(_single_qadd(_CNUM_ONE, Op[op]), ctx, parameter, time_parameter, op_type)
 
-# Static path materializes via `op_type` (default `nothing` -> backend sparse); the
-# time-dependent path returns the backend's native TD operator (sparse sub-operators).
+# Static path materializes via `op_type` (`nothing` requests the backend's ordinary eager
+# operator); the time-dependent path returns the backend's native TD operator.
 function _to_numeric_translated(op::QAdd, ctx::NumericContext, parameter, time_parameter, op_type)
     op_ = substitute(op, parameter)
     isempty(time_parameter) && return numeric_materialize(ctx.backend, _to_numeric_static(op_, ctx), op_type)
+    _check_td_op_type(op_type)
     return _to_numeric_td(op_, ctx, time_parameter)
 end
 
@@ -146,7 +144,18 @@ function _to_numeric_translated(arg, ctx::NumericContext, parameter, time_parame
         )
         return numeric_materialize(ctx.backend, _const_coeff(c) * numeric_identity(ctx.backend, ctx.basis), op_type)
     end
+    _check_td_op_type(op_type)
     basevars, valuefuncs = _time_basis(time_parameter)
     coef = _td_coeff(c, basevars, valuefuncs)
     return numeric_assemble_td(ctx.backend, ctx.basis, _TDTerm[(coef, Any[])])
+end
+
+function _check_td_op_type(op_type)
+    (op_type === nothing || op_type === identity) && return nothing
+    throw(
+        ArgumentError(
+            "op_type is not supported when time_parameter is non-empty; native " *
+                "time-dependent operators cannot be materialized once at conversion time",
+        ),
+    )
 end

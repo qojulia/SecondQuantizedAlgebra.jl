@@ -47,7 +47,7 @@ struct QuantumToolboxBackend <: NumericBackend end
 Map a single-site operator `op` to its numeric matrix on `subbasis` (the subsystem basis
 for `op`'s slot). The main extension method is a closed `k === OP_*` value-branch on
 `op.kind`; the separate extension point `numeric_operator(be, ::Val{kind}, op, subbasis)`
-is the open fallthrough for custom roles and throws by default.
+is the fallthrough for adding backend support for an existing role and throws by default.
 """
 function numeric_operator end
 
@@ -84,6 +84,14 @@ The identity operator on `basis` (lazy on a composite basis).
 function numeric_identity end
 
 """
+    numeric_num_subsystems(be, basis) -> Int
+
+Number of tensor-product subsystems represented by `basis`. Backends use this hook to
+validate indexed-site layouts before emitting any numeric operators.
+"""
+function numeric_num_subsystems end
+
+"""
     numeric_assemble(be, basis, terms)
 
 Assemble a static lazy operator from a backend-neutral `terms` list. Each entry is
@@ -104,13 +112,19 @@ function numeric_assemble_td end
 """
     numeric_materialize(be, op, op_type)
 
-Materialize the lazily assembled operator `op` according to `op_type`, applied exactly once
-at the top of `to_numeric` so the return type depends only on `op_type`, never on the shape
-of the expression. The default `op_type === nothing` applies the backend's `sparse`; any
-other `op_type` is applied as a plain callable (`dense`, `identity`, or a
-`QuantumToolbox`/`SciMLOperators` materializer), so `op_type = identity` returns the lazy
-form unchanged. `numeric_average`/`expect` bypass this hook and consume the lazy form
-directly.
+Materialize a static lazily assembled operator `op` according to `op_type`, applied exactly
+once at the top of `to_numeric` so the return type depends only on `op_type`, never on the
+shape of the expression. `op_type === nothing` is the uniform default request for an eager,
+backend-native operator (sparse on both bundled backends). `op_type = identity` returns the
+lazy assembly unchanged. Other callables request an explicit representation (`dense` on
+QuantumOptics; `QuantumToolbox.to_sparse`/`to_dense` or `SciMLOperators.concretize` on
+QuantumToolbox). Time-dependent conversion accepts only `nothing` or `identity` and returns
+the backend's native TD operator.
+`numeric_average`/`expect` bypass this hook and consume the lazy form directly.
+
+A backend implementation must define the `::Nothing` method even if it has no sparse type;
+in that case it should return its ordinary eager operator. This gives `nothing` a semantic
+contract without forcing different libraries to share a storage format.
 """
 function numeric_materialize end
 
@@ -122,9 +136,42 @@ Expectation value `⟨state| numop |state⟩` (a `ComplexF64`), or a `Vector{Com
 """
 function numeric_expect end
 
-# Backend resolution from a numeric object (basis/state/operator). Methods in ext/.
-function _backend_of end
-function _basis_of end
+"""
+    numeric_backend(state) -> NumericBackend
+
+Return the numeric backend owning `state`. Third-party backends must implement this hook
+for their state types to support [`numeric_average`](@ref) and state-based [`to_numeric`](@ref).
+"""
+function numeric_backend end
+
+# The one-argument `numeric_basis(state)` is the public state-to-basis counterpart of the
+# three-argument Hilbert-space builder declared above.
+"""
+    numeric_basis(state)
+
+Return the backend basis/dimensions carried by `state`. Third-party backends must implement
+this together with [`numeric_backend`](@ref) for state-based numeric conversion.
+"""
+numeric_basis(s::Union{StateVector, AbstractOperator}) = basis(s)
+
+function _check_product_dims(h::ProductSpace, dims)
+    nspaces = length(h.spaces)
+    ndims = try
+        length(dims)
+    catch
+        throw(
+            ArgumentError(
+                "dims for a ProductSpace must be an indexable collection with $nspaces entries",
+            ),
+        )
+    end
+    ndims == nspaces || throw(
+        ArgumentError(
+            "dims has $ndims entries, but the ProductSpace has $nspaces subspaces",
+        ),
+    )
+    return dims
+end
 
 """
     _default_backend()

@@ -228,3 +228,15 @@ end
     Hbad = Σ(σ(1, 2, i) * σ(1, 2, j), i)
     @test_throws ArgumentError to_numeric(Hbad, b, sites, Dict{S.QSym, Any}())
 end
+
+@testset "Indexed numeric: invalid site layouts are rejected" begin
+    h = FockSpace(:site)
+    a = Destroy(h, :a)
+    i = Index(h, :i, 2, h)
+    H = Σ(IndexedOperator(a, i), i)
+
+    @test_throws ArgumentError to_numeric(H, FockBasis(2), Dict(1 => [1, 2]))
+    b = FockBasis(2) ⊗ FockBasis(2)
+    @test_throws ArgumentError to_numeric(H, b, Dict(1 => [1, 1]))
+    @test_throws ArgumentError to_numeric(H, b, Dict(1 => [1, 3]))
+end
