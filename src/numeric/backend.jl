@@ -10,29 +10,28 @@
 """
     NumericBackend
 
-Abstract supertype of the numeric-conversion backends. Concrete singletons
-[`QuantumOpticsBackend`](@ref) and [`QuantumToolboxBackend`](@ref) select which numeric
-library `to_numeric`/`numeric_average` target. The methods that realise a backend live in
-the corresponding package extension and are only available once that backend package is
-loaded (`using QuantumOpticsBase` / `using QuantumToolbox`).
+Abstract supertype for numeric-conversion backends. A backend is normally a concrete
+singleton whose methods implement the exported numeric hooks. See [Adding a numeric
+backend](@ref numeric-backend-interface) for the interface.
+
+Bundled implementations are selected with [`QuantumOpticsBackend`](@ref) or
+[`QuantumToolboxBackend`](@ref) after loading the corresponding package.
 """
 abstract type NumericBackend end
 
 """
     QuantumOpticsBackend()
 
-Target [QuantumOpticsBase.jl](https://github.com/qojulia/QuantumOpticsBase.jl). Numeric
-operators are `QuantumOpticsBase` operators (`destroy`, `transition`, …) and a `QAdd`
-assembles into a vector-backed `LazySum`. Active once `QuantumOpticsBase` is loaded.
+Select [QuantumOpticsBase.jl](https://github.com/qojulia/QuantumOpticsBase.jl). Active after
+`using QuantumOpticsBase`.
 """
 struct QuantumOpticsBackend <: NumericBackend end
 
 """
     QuantumToolboxBackend()
 
-Target [QuantumToolbox.jl](https://github.com/qutip/QuantumToolbox.jl). Numeric operators
-are `QuantumObject`s and a `QAdd` assembles into a `QobjEvo` over a vector-backed
-`VecSum`. Active once `QuantumToolbox` is loaded.
+Select [QuantumToolbox.jl](https://github.com/qutip/QuantumToolbox.jl). Active after
+`using QuantumToolbox`.
 """
 struct QuantumToolboxBackend <: NumericBackend end
 
@@ -113,18 +112,13 @@ function numeric_assemble_td end
     numeric_materialize(be, op, op_type)
 
 Materialize a static lazily assembled operator `op` according to `op_type`, applied exactly
-once at the top of `to_numeric` so the return type depends only on `op_type`, never on the
-shape of the expression. `op_type === nothing` is the uniform default request for an eager,
-backend-native operator (sparse on both bundled backends). `op_type = identity` returns the
-lazy assembly unchanged. Other callables request an explicit representation (`dense` on
-QuantumOptics; `QuantumToolbox.to_sparse`/`to_dense` or `SciMLOperators.concretize` on
-QuantumToolbox). Time-dependent conversion accepts only `nothing` or `identity` and returns
-the backend's native TD operator.
-`numeric_average`/`expect` bypass this hook and consume the lazy form directly.
+once at the public boundary. Implementations must treat `nothing` as a request for their
+ordinary eager operator and `identity` as a request for `op` unchanged. Other callables are
+backend-defined. The eager representation need not be sparse, although both bundled
+backends choose sparse storage.
 
-A backend implementation must define the `::Nothing` method even if it has no sparse type;
-in that case it should return its ordinary eager operator. This gives `nothing` a semantic
-contract without forcing different libraries to share a storage format.
+This hook is not used by [`numeric_average`](@ref), which consumes the lazy assembly, or by
+time-dependent conversion, which returns the backend's native time-dependent operator.
 """
 function numeric_materialize end
 

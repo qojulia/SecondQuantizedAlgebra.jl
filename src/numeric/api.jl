@@ -5,39 +5,47 @@
 const QuantumState = Union{StateVector, AbstractOperator}
 
 """
-    to_numeric(op, basis [, d::AbstractDict{<:QSym}])
-    to_numeric(op, state [, d::AbstractDict{<:QSym}])
-    to_numeric(op, h::HilbertSpace, dims; backend, parameter, time_parameter, operators, adjoint_ops, op_type)
-    to_numeric(op, basis; parameter=Dict(), time_parameter=Dict(), operators=Dict(), adjoint_ops=true, op_type=nothing)
-    to_numeric(ops::AbstractVector, basis; kwargs...)
+    to_numeric(op, h::HilbertSpace, dims; backend, kwargs...)
+    to_numeric(op, basis [, d]; kwargs...)
+    to_numeric(op, state [, d]; kwargs...)
+    to_numeric(ops::AbstractVector, ...; kwargs...)
 
 Convert a symbolic operator expression to a numeric operator on the chosen backend.
 
-A backend is selected by loading `QuantumOpticsBase` (`QuantumOpticsBackend`) or
-`QuantumToolbox` (`QuantumToolboxBackend`); the `HilbertSpace` form takes an explicit
-`backend = …` (default: the single loaded backend). `d`/`operators` substitute individual
-`QSym`s with custom numeric operators (missing adjoints are added when `adjoint_ops=true`).
-The keyword form first substitutes scalar `parameter`s. If `time_parameter` is non-empty,
-values may be numbers or functions of time and the result is the backend's **native**
-time-dependent operator (`TimeDependentSum` / `QobjEvo`). In that path `op_type` must be
-`nothing` or `identity`; eager materialization is time-dependent and therefore cannot be
-applied once during conversion.
+The first form is backend-neutral and is recommended for portable code. Load
+`QuantumOpticsBase` or `QuantumToolbox` and pass `QuantumOpticsBackend()` or
+`QuantumToolboxBackend()`; `backend` may be omitted when exactly one bundled backend is
+loaded. Backend-native basis, state, and dimension forms are convenience overloads.
 
-The term is assembled from lazy per-site factors and materialised **once** at the top via
-`op_type`, so the return type depends only on `op_type`, not on the shape of the expression
-(a bare operator, a product, and a sum all return the same type). By default, including in
-positional forms, conversion returns an eager backend operator; both bundled backends use a
-sparse representation. Pass an explicit `op_type` to select another eager representation
-(`dense` on QuantumOptics; `QuantumToolbox.to_sparse` / `QuantumToolbox.to_dense` or
-`SciMLOperators.concretize` on QuantumToolbox), or `op_type = identity` for the natural lazy
-form (`LazyTensor`/`LazyProduct`/`LazySum` / `QobjEvo` over `VecSum`). Throws `ArgumentError`
-if any prefactor cannot be reduced to a concrete `ComplexF64`.
+The representation contract is independent of the expression shape:
 
-For QuantumToolbox, the direct `to_numeric(op, dims)` form takes raw matrix dimensions
-(`5` means a `5×5` single-space operator). The uniform `to_numeric(op, h, dims; backend=…)`
-form instead follows each symbolic space's convention (`5` is a Fock cutoff and therefore
-produces dimension `6`). Prefer the uniform form when constructing a basis from symbolic
-Hilbert-space metadata.
+| Input | `op_type` | Result |
+|:--|:--|:--|
+| static | `nothing` (default) | ordinary eager backend operator |
+| static | `identity` | backend's lazy assembly |
+| static | another callable | backend-defined representation |
+| time-dependent | `nothing` or `identity` | native time-dependent operator |
+
+Both bundled backends use sparse storage for the default static result. Examples of explicit
+conversions are `dense` for QuantumOptics and `QuantumToolbox.to_dense` for QuantumToolbox.
+Other backends may choose a different eager representation. Time-dependent conversion
+cannot apply a one-time materializer, so other `op_type` values are rejected.
+
+Keyword arguments:
+
+- `parameter=Dict()`: substitutions for scalar symbolic coefficients.
+- `time_parameter=Dict()`: scalar values or functions of time. A non-empty mapping selects
+  time-dependent conversion (`TimeDependentSum` for QuantumOptics, `QobjEvo` for
+  QuantumToolbox).
+- `operators=Dict()`: replacements for individual symbolic operators. Missing adjoints are
+  inferred when `adjoint_ops=true` (the default). Positional `d` supplies exact replacements
+  without this inference.
+- `op_type=nothing`: representation selection as described above.
+
+`dims` follows the symbolic space convention: a Fock value is a cutoff, so `5` creates a
+six-dimensional space. In contrast, QuantumToolbox's native `to_numeric(op, dims)`
+convenience form accepts raw matrix dimensions. Conversion throws `ArgumentError` when a
+coefficient cannot be reduced to `ComplexF64`.
 
 # Examples
 

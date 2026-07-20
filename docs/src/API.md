@@ -282,12 +282,9 @@ numeric_average
 
 ### Numeric backends
 
-`to_numeric(op, h, dims; backend=...)` is the backend-neutral entry point. Static
-conversion returns an eager operator by default (sparse for both bundled backends);
-`op_type=identity` requests the backend's lazy assembly. New backends subtype
-`NumericBackend` and implement the hooks below. The required static interface, optional
-time-dependent and state hooks, and a minimal implementation skeleton are documented in
-the [backend contract](@ref numeric-backend-interface).
+Use `to_numeric(op, h, dims; backend=...)` for backend-portable code. The complete extension
+contract and a minimal implementation are in [Adding a numeric backend](@ref
+numeric-backend-interface).
 
 ```@docs
 NumericBackend

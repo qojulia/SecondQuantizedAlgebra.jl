@@ -395,38 +395,38 @@ The scope rides as a `SumScope` *argument* of the `Term`, not as metadata, becau
 
 ## Numeric conversion
 
-`to_numeric`/`numeric_average` are a layered, open-via-dispatch, multi-backend design. The
-backend-neutral core lives in `src/numeric/` and never names a concrete numeric type; the
-two backends (QuantumOpticsBase, QuantumToolbox) are Julia package extensions in `ext/`. The
-algebra itself depends only on the lightweight `QuantumInterface.jl` (it owns the
-`⊗`/`tensor`/`expect`/`basis` generics the symbolic side extends), so building Hilbert
-spaces and operators needs no numeric backend loaded.
+The backend-neutral core in `src/numeric/` never names a concrete numeric type.
+QuantumOpticsBase and QuantumToolbox support lives in package extensions under `ext/`, so
+the symbolic algebra can be loaded without either package.
 
-### [Backend contract](@id numeric-backend-interface)
+### [Adding a numeric backend](@id numeric-backend-interface)
 
-A backend is normally an immutable singleton subtype of
-`NumericBackend`; using a concrete singleton keeps dispatch static. The required interface
-for static `to_numeric(op, h, dims; backend=be)` is:
+Define a concrete singleton subtype of `NumericBackend` and extend the exported hooks. A
+static-only backend needs the following methods:
 
-1. `numeric_basis(be, h, dims)` builds the backend's full basis or dimension descriptor.
-2. `numeric_num_subsystems`, `numeric_subbasis`, `numeric_operator`, `numeric_embed`, and
-   `numeric_identity` describe single-site construction and placement.
-3. `numeric_assemble(be, basis, terms)` combines the emitted terms into one internal
-   operator. Its result may be lazy; `terms` contains `(ComplexF64, factors)` pairs whose
-   factors have already been embedded.
-4. `numeric_materialize(be, assembled, op_type)` defines the public representation boundary.
-   For `op_type === nothing` it must return the backend's ordinary **eager** operator;
-   `op_type === identity` must return `assembled` unchanged. Other supported callables are
-   backend-defined.
+| Hook | Responsibility |
+|:--|:--|
+| `numeric_basis(be, h, dims)` | Build the full backend basis or dimension descriptor. |
+| `numeric_num_subsystems(be, basis)` | Return the number of tensor factors. |
+| `numeric_subbasis(be, basis, slot)` | Select one tensor factor. |
+| `numeric_operator(be, op, subbasis)` | Convert a symbolic leaf. |
+| `numeric_embed(be, basis, slot, leaf)` | Place a leaf in the full space. |
+| `numeric_identity(be, basis)` | Build the full-space identity. |
+| `numeric_assemble(be, basis, terms)` | Combine `(ComplexF64, factors)` terms. |
+| `numeric_materialize(be, assembled, op_type)` | Select the public representation. |
 
-Time-dependent conversion additionally requires `numeric_assemble_td`. State-based
-`to_numeric` and `numeric_average` additionally require `numeric_backend(state)`,
-`numeric_basis(state)`, and `numeric_expect`. A backend that only needs static conversion
-does not need to implement those optional hooks. The core never inspects a backend basis or
-operator value.
+`numeric_assemble` may return a lazy object. `numeric_materialize` must give `op_type` these
+backend-neutral meanings:
 
-The two bundled implementations live in `ext/` and are useful templates. A third-party
-package starts with a type and adds methods to the exported generics:
+- `nothing`: return the backend's ordinary eager operator;
+- `identity`: return `assembled` unchanged;
+- any other callable: a backend-defined explicit conversion.
+
+The ordinary eager type need not be sparse; that is only the choice made by both bundled
+backends. Materialization happens once, after the whole expression is assembled, so a leaf,
+product, and sum have the same representation for a given `op_type`.
+
+A minimal static backend looks like this:
 
 ```julia
 import SecondQuantizedAlgebra as SQA
@@ -445,79 +445,39 @@ SQA.numeric_materialize(::MyBackend, assembled, ::Nothing) =
 SQA.numeric_materialize(::MyBackend, assembled, ::typeof(identity)) = assembled
 ```
 
-`numeric_operator` maps the existing closed `OpKind` roles. A package may add support for an
-existing role/basis combination, but defining new symbolic roles is not currently part of
-the extension surface. Automatic default-backend discovery covers only the two bundled
-extensions; third-party backends are selected explicitly with `backend=MyBackend()`.
+Optional capabilities add three small groups of methods:
 
-**Assemble lazily, materialize once (`op_type`).** A term is assembled from lazy per-site
-factors (`numeric_embed`) into a lazy sum (`numeric_assemble`) and materialized exactly once,
-at the top, via `op_type`, carried over from the v0.9.2 design. This keeps the return type
-dependent only on `op_type`, not on the shape of the expression (a bare operator, a product,
-and a sum all return the same `op_type`), while avoiding per-factor conversions during
-assembly. `numeric_materialize(be, op, op_type)` is the backend hook. The default
-(`op_type === nothing`) has one backend-neutral meaning: return the ordinary eager operator.
-Both bundled backends choose sparse storage. `op_type = identity` returns the lazy assembly
-as-is; other callables request a backend-specific eager representation (`dense` on
-QuantumOptics; `QuantumToolbox.to_sparse`/`to_dense` or `SciMLOperators.concretize` on
-QuantumToolbox). `numeric_average`/`expect` consume the lazy form directly (never
-materialized), so `LazyKet` states work and no sparse matrix is built just to take an
-expectation value. This contract applies to static operators. When `time_parameter` is
-non-empty, only `op_type = nothing` or `identity` is accepted because the returned native
-time-dependent operator cannot be materialized once at conversion time.
+| Capability | Additional hooks |
+|:--|:--|
+| time-dependent conversion | `numeric_assemble_td` |
+| conversion from backend states | `numeric_backend(state)`, `numeric_basis(state)` |
+| `numeric_average` / `expect` | the state hooks plus `numeric_expect` |
 
-**One backend-neutral core.** `NumericContext` bundles the backend singleton, the opaque
-basis, the operator/scalar substitution dicts, and the indexed `sites` map, with all fields
-concrete via type parameters. `_to_numeric_static` walks the canonical `QAdd` into a
-backend-neutral term list (`(c::ComplexF64, factors)`) and hands it to `numeric_assemble`;
-the core does no operator arithmetic. The kept coefficient machinery (`_to_complex` and its
-`_reduce_const`/`_fold_const` constant folder, the `_expand_parameter`/`_time_basis`
-splitting) is in `src/numeric/coeff.jl`. The `_to_complex(::Any)::ComplexF64` keystone stays
-exactly two methods (a third trips Julia's union-split budget; a test pins this).
+Third-party backends are passed explicitly as `backend=MyBackend()`; automatic discovery is
+limited to the bundled extensions. `numeric_operator` covers the existing closed `OpKind`
+roles. Packages can support a new backend/basis combination, but cannot currently define a
+new symbolic operator role through this interface.
 
-**Lazy and type-stable internally.** Every expression shape first assembles to a lazy sum;
-the default then converts that sum to an eager sparse operator. The internal lazy sum's type
-must not depend on the runtime term count and must be inference-stable so
-`@inferred(to_numeric(...))` holds. QuantumOptics uses the native
-vector-backed `LazySum`, constructed with the **5-argument** form
-`LazySum(ComplexF64, b, b, coeffs, ops)`: passing the concrete basis pins the basis type
-parameters, which the 2-argument `LazySum(coeffs, ops)` leaves abstract (runtime-`n`-stable
-but not `@inferred`-stable). QuantumToolbox's built-in `AddedOperator` is type-locked to a
-`Tuple`, so the QTB extension defines a small vector-backed `VecSum <:
-SciMLOperators.AbstractSciMLOperator` (abstract-eltype `Vector` fields, exactly like
-`LazySum`'s `Vector{AbstractOperator}`) wrapped in a `QobjEvo`; the lazy representation is
-one concrete `QobjEvo{Operator, Dims, VecSum{ComplexF64}}` for any term count and for static
-or time-dependent coefficients. Within a term, QuantumOptics embeds lazily (`LazyTensor`/
-`LazyProduct`) while QuantumToolbox embeds eagerly (a plain concrete `tensor`, because it
-warns on lazy tensors); the laziness lives only at the sum level on both backends.
-Materialize on demand with `dense`/`sparse` (QuantumOptics) or
-`to_sparse`/`to_dense`/`concretize`
-(QuantumToolbox).
+### Implementation notes
 
-**Time-dependent.** When `time_parameter` is non-empty the per-term coefficient becomes a
-`t -> ComplexF64` closure and `numeric_assemble_td` builds the backend's native
-time-dependent operator (`TimeDependentSum` / a `QobjEvo` whose `VecSum` coefficients are
-`ScalarOperator`s carrying the update function). These are callable at a time and feed
-ODE/SciML solvers directly, replacing the old `t -> op(t)` closure return.
-
-**Indexed path.** `src/numeric/indexed.jl` keeps the bound-index unroll (dependent-index
-detection, the `ne` diagonal filter, the `sub_op`/`sub_coef` dual substitution) verbatim,
-but routes each unrolled combination through the same hooks at the resolved site, so it emits
-entries of the same term list the static path assembles and gains the QTB backend for free.
-Before unrolling, the core checks that every site is unique and lies within the backend basis;
-a simple basis therefore rejects a layout containing more than its sole subsystem.
-
-**QuantumObject 0-indexing.** QuantumToolbox is 0-indexed, so `Transition(i, j)` (SQA levels
-are 1-indexed, matching QuantumOptics) maps to `projection(N, i-1, j-1)` in the QTB
-extension.
-
-**Solver cost of laziness.** `expect`/`numeric_average` and `sesolve`/`schroedinger` apply
-`H` to the state directly and are unaffected. Only `mesolve` and other superoperator solvers
-pay a cost: QuantumToolbox builds the Liouvillian by tensoring `H` with identity, which a
-lazy `H` makes lazy (the "lazy tensor can hurt performance" warning). For fast `mesolve` on
-small or medium systems, concretize `H` first; keep it lazy only when materializing the
-Liouvillian is itself the bottleneck. The custom `VecSum` therefore implements `transpose`/
-`adjoint` returning a `VecSum` (not a wrapper), which the Liouvillian construction needs.
+- `NumericContext` holds the concrete backend singleton, opaque basis, substitutions, and
+  indexed-site map. The core emits `(ComplexF64, factors)` terms and performs no backend
+  operator arithmetic.
+- The internal assembled type must not depend on the number of terms. QuantumOptics uses
+  the five-argument, vector-backed `LazySum`; QuantumToolbox uses the extension's
+  vector-backed `VecSum` inside `QobjEvo`. Tests enforce inference stability.
+- `numeric_average` calls `numeric_expect` on the lazy assembly directly. It therefore does
+  not build an eager matrix merely to compute an expectation value.
+- A non-empty `time_parameter` uses `numeric_assemble_td` and returns the native
+  `TimeDependentSum` or `QobjEvo`. Only `op_type=nothing` and `identity` are accepted because
+  a time-varying operator cannot be materialized once during conversion.
+- Indexed conversion validates sites, unrolls sums, and emits the same term format as the
+  non-indexed path. A site must be unique and within the backend basis.
+- QuantumToolbox levels are zero-based internally, so symbolic `Transition(i, j)` maps to
+  `projection(N, i-1, j-1)`.
+- Lazy Hamiltonians are useful when materializing a large tensor product is prohibitive,
+  but can slow superoperator construction. Prefer the eager default for small and medium
+  solver problems; request `op_type=identity` deliberately.
 
 
 ## Hermitian conjugation (operators.jl)

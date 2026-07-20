@@ -202,7 +202,17 @@ Averaged expressions also preserve summation metadata when working with indexed 
 
 ## Numeric conversion
 
-Operators can be converted to numeric representations using [QuantumOpticsBase.jl](https://github.com/qojulia/QuantumOpticsBase.jl).
+Numeric conversion supports [QuantumOpticsBase.jl](https://github.com/qojulia/QuantumOpticsBase.jl)
+and [QuantumToolbox.jl](https://github.com/qutip/QuantumToolbox.jl). With one bundled backend
+loaded it is inferred; if both are loaded, select one explicitly:
+
+```julia
+to_numeric(op, h, dims; backend = QuantumOpticsBackend())
+to_numeric(op, h, dims; backend = QuantumToolboxBackend())
+```
+
+This Hilbert-space form is the portable API. Backend-native basis or dimension forms remain
+available as conveniences.
 
 ### Direct conversion
 
@@ -230,8 +240,9 @@ H_num = to_numeric(H, b; parameter = Dict(Δ => 2.0))
 nothing # hide
 ```
 
-For time-dependent parameters, pass numbers or functions in `time_parameter`.
-The result is a callable `t -> op(t)`.
+For time-dependent parameters, pass numbers or functions in `time_parameter`. The result is
+the backend's native time-dependent operator (`TimeDependentSum` or `QobjEvo`), ready for
+that backend's solvers.
 
 ### Numeric averages
 
@@ -265,7 +276,10 @@ nothing # hide
 
 ### Composite systems
 
-For product spaces, [`to_numeric`](@ref) returns a concrete `sparse` operator by default, independent of the shape of the expression. Pass `op_type=identity` to get the `LazyTensor`/`LazySum` representation instead, which avoids materializing the full Kronecker product and is preferable for large tensor products where an operator is local to a few subsystems:
+For static expressions, [`to_numeric`](@ref) returns an eager backend operator by default;
+both bundled backends use sparse storage. This is independent of whether the expression is
+a single operator, product, or sum. Pass `op_type=identity` to retain the backend's lazy
+assembly, which can avoid a large materialized tensor product:
 
 ```@example numeric-composite
 using SecondQuantizedAlgebra, QuantumOpticsBase
@@ -280,8 +294,8 @@ bf = FockBasis(10)
 bn = NLevelBasis(3)
 bc = bf ⊗ bn
 
-a_num = to_numeric(a, bc)                      # sparse Operator (default)
-a_lazy = to_numeric(a, bc; op_type = identity) # LazyTensor
+a_num = to_numeric(a, bc)                      # eager sparse Operator
+a_lazy = to_numeric(a, bc; op_type = identity) # lazy assembly
 s_num = to_numeric(s(:a, :c), bc)
 nothing # hide
 ```

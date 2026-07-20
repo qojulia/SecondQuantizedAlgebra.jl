@@ -15,7 +15,7 @@ The package provides:
 - Automatic commutation relations and canonical-form arithmetic
 - Normal ordering, simplification, and completeness expansion
 - Symbolic summations with automatic diagonal splitting
-- Averaging and numeric conversion via QuantumOpticsBase
+- Averaging and extensible numeric conversion via [QuantumOptics.jl](https://github.com/qojulia/QuantumOptics.jl) or [QuantumToolbox.jl](https://github.com/qutip/QuantumToolbox.jl)
 - Extensible for custom operator types
 
 The code was refactored out of [QuantumCumulants.jl](https://github.com/qojulia/QuantumCumulants.jl).
