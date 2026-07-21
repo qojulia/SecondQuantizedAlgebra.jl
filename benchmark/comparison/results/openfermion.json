@@ -1,0 +1,51 @@
+{
+  "meta": {
+    "package": "OpenFermion",
+    "version": "1.8.1",
+    "language": "Python",
+    "runtime_version": "3.14.6",
+    "date": "2026-07-21"
+  },
+  "results": {
+    "fock_reorder_n2": {
+      "time_ns": 47936.676025983616
+    },
+    "fock_reorder_n4": {
+      "time_ns": 188194.44335349544
+    },
+    "fock_reorder_n6": {
+      "time_ns": 517439.4138975913
+    },
+    "fock_reorder_n8": {
+      "time_ns": 1173749.3282453215
+    },
+    "fock_reorder_n10": {
+      "time_ns": 2458271.2812843965
+    },
+    "fock_reorder_n12": {
+      "time_ns": 5058908.905994031
+    },
+    "fock_reorder_n14": {
+      "time_ns": 10381674.503150862
+    },
+    "bh_chain_M2": {
+      "time_ns": 32282.204827538408
+    },
+    "bh_chain_M4": {
+      "time_ns": 69338.19383903028
+    },
+    "bh_chain_M16": {
+      "time_ns": 301909.6112666375
+    },
+    "bh_chain_M32": {
+      "time_ns": 623055.3319710452
+    },
+    "bose_hubbard_build": {
+      "time_ns": 145807.23922108518
+    },
+    "bose_hubbard_H2": {
+      "time_ns": 3608606.593843433
+    }
+  },
+  "capped": {}
+}

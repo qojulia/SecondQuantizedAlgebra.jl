@@ -13,6 +13,7 @@ pages = [
         "Parametric Oscillator" => "examples/parametric_oscillator.md",
         "Tavis–Cummings Model" => "examples/tavis_cummings.md",
     ],
+    "Comparison with other packages" => "comparison.md",
     "API" => "API.md",
     "Changelog" => "changelog.md",
     "Developer Documentation" => "devdocs.md",

@@ -1,0 +1,140 @@
+{
+  "capped": {},
+  "meta": {
+    "date": "2026-07-21",
+    "language": "Julia",
+    "package": "SecondQuantizedAlgebra.jl",
+    "runtime_version": "1.12.6",
+    "version": "0.10.0"
+  },
+  "results": {
+    "bh_chain_M16": {
+      "allocs": 2849,
+      "time_ns": 67730.0
+    },
+    "bh_chain_M2": {
+      "allocs": 288,
+      "time_ns": 11010.0
+    },
+    "bh_chain_M32": {
+      "allocs": 7703,
+      "time_ns": 180231.0
+    },
+    "bh_chain_M4": {
+      "allocs": 557,
+      "time_ns": 17100.0
+    },
+    "bose_hubbard_H2": {
+      "allocs": 11123,
+      "time_ns": 436901.0
+    },
+    "bose_hubbard_build": {
+      "allocs": 1191,
+      "time_ns": 30240.0
+    },
+    "fock_reorder_n10": {
+      "allocs": 586,
+      "time_ns": 82890.0
+    },
+    "fock_reorder_n12": {
+      "allocs": 932,
+      "time_ns": 151140.0
+    },
+    "fock_reorder_n14": {
+      "allocs": 1390,
+      "time_ns": 254411.0
+    },
+    "fock_reorder_n2": {
+      "allocs": 23,
+      "time_ns": 930.0
+    },
+    "fock_reorder_n4": {
+      "allocs": 75,
+      "time_ns": 5020.0
+    },
+    "fock_reorder_n6": {
+      "allocs": 175,
+      "time_ns": 16420.0
+    },
+    "fock_reorder_n8": {
+      "allocs": 339,
+      "time_ns": 40350.0
+    },
+    "jc_H2": {
+      "allocs": 208,
+      "time_ns": 5140.0
+    },
+    "jc_build": {
+      "allocs": 104,
+      "time_ns": 1500.0
+    },
+    "jc_heisenberg": {
+      "allocs": 72,
+      "time_ns": 1710.0
+    },
+    "jc_nested_d1": {
+      "allocs": 71,
+      "time_ns": 920.0
+    },
+    "jc_nested_d2": {
+      "allocs": 391,
+      "time_ns": 7700.0
+    },
+    "jc_nested_d3": {
+      "allocs": 1080,
+      "time_ns": 26460.0
+    },
+    "jc_nested_d4": {
+      "allocs": 2244,
+      "time_ns": 61240.0
+    },
+    "jc_nested_d5": {
+      "allocs": 4146,
+      "time_ns": 128071.0
+    },
+    "jc_nested_d6": {
+      "allocs": 6857,
+      "time_ns": 232321.0
+    },
+    "jc_nested_d7": {
+      "allocs": 10837,
+      "time_ns": 397062.0
+    },
+    "jc_pow_n2": {
+      "allocs": 210,
+      "time_ns": 5130.0
+    },
+    "jc_pow_n3": {
+      "allocs": 818,
+      "time_ns": 24770.0
+    },
+    "jc_pow_n4": {
+      "allocs": 2039,
+      "time_ns": 69600.0
+    },
+    "jc_pow_n5": {
+      "allocs": 4137,
+      "time_ns": 156971.0
+    },
+    "jc_pow_n6": {
+      "allocs": 7424,
+      "time_ns": 310801.0
+    },
+    "jc_pow_n7": {
+      "allocs": 12280,
+      "time_ns": 551742.0
+    },
+    "meanfield_average": {
+      "allocs": 446,
+      "time_ns": 39241.0
+    },
+    "tavis_cummings_build": {
+      "allocs": 84,
+      "time_ns": 1400.0
+    },
+    "tavis_cummings_comm": {
+      "allocs": 577,
+      "time_ns": 30000.0
+    }
+  }
+}
