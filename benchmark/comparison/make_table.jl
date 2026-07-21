@@ -120,12 +120,12 @@ end
 
 function scaling_figure(data, path)
     panels = [
-        ("Nested commutator [H, [H, … σ⁻]]", "depth", [(d, "jc_nested_d$d") for d in 1:6]),
-        ("Operator power Hⁿ (Jaynes–Cummings)", "n", [(p, "jc_pow_n$p") for p in 2:6]),
-        ("Normal ordering (a·a†)ⁿ", "n", [(n, "fock_reorder_n$n") for n in 2:2:10]),
+        ("Nested commutator [H, [H, … σ⁻]]", "depth", [(d, "jc_nested_d$d") for d in 1:7]),
+        ("Operator power Hⁿ (Jaynes–Cummings)", "n", [(p, "jc_pow_n$p") for p in 2:7]),
+        ("Normal ordering (a·a†)ⁿ", "n", [(n, "fock_reorder_n$n") for n in 2:2:14]),
         (
             "Bose–Hubbard chain: build H (M modes)", "M",
-            [(2, "bh_chain_M2"), (4, "bh_chain_M4"), (8, "bose_hubbard_build"), (16, "bh_chain_M16")],
+            [(2, "bh_chain_M2"), (4, "bh_chain_M4"), (8, "bose_hubbard_build"), (16, "bh_chain_M16"), (32, "bh_chain_M32")],
         ),
     ]
     fig = Makie.Figure(; size = (1150, 800), backgroundcolor = :white)

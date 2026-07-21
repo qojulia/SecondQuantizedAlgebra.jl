@@ -1,7 +1,7 @@
 {
   "capped": {},
   "meta": {
-    "date": "2026-07-17",
+    "date": "2026-07-21",
     "language": "Julia",
     "package": "QuantumAlgebra.jl",
     "runtime_version": "1.12.6",
@@ -10,111 +10,131 @@
   "results": {
     "bh_chain_M16": {
       "allocs": 8098,
-      "time_ns": 188851.0
+      "time_ns": 181111.0
     },
     "bh_chain_M2": {
       "allocs": 812,
-      "time_ns": 32770.0
+      "time_ns": 14090.0
+    },
+    "bh_chain_M32": {
+      "allocs": 16432,
+      "time_ns": 397751.0
     },
     "bh_chain_M4": {
       "allocs": 1854,
-      "time_ns": 41671.0
+      "time_ns": 36341.0
     },
     "bose_hubbard_H2": {
       "allocs": 54714,
-      "time_ns": 1.570487e6
+      "time_ns": 1.428355e6
     },
     "bose_hubbard_build": {
       "allocs": 3928,
-      "time_ns": 82465.5
+      "time_ns": 78550.0
     },
     "fock_reorder_n10": {
       "allocs": 8508,
-      "time_ns": 262751.0
+      "time_ns": 263051.0
+    },
+    "fock_reorder_n12": {
+      "allocs": 13181,
+      "time_ns": 442752.0
+    },
+    "fock_reorder_n14": {
+      "allocs": 19182,
+      "time_ns": 610852.0
     },
     "fock_reorder_n2": {
       "allocs": 262,
-      "time_ns": 7060.0
+      "time_ns": 5900.0
     },
     "fock_reorder_n4": {
       "allocs": 1110,
-      "time_ns": 45045.5
+      "time_ns": 29221.0
     },
     "fock_reorder_n6": {
       "allocs": 2642,
-      "time_ns": 85075.5
+      "time_ns": 75001.0
     },
     "fock_reorder_n8": {
       "allocs": 5050,
-      "time_ns": 149180.5
+      "time_ns": 163951.0
     },
     "jc_H2": {
       "allocs": 8831,
-      "time_ns": 240141.0
+      "time_ns": 220801.0
     },
     "jc_build": {
       "allocs": 921,
-      "time_ns": 22915.5
+      "time_ns": 19040.0
     },
     "jc_heisenberg": {
       "allocs": 856,
-      "time_ns": 22980.0
+      "time_ns": 20900.0
     },
     "jc_nested_d1": {
       "allocs": 1785,
-      "time_ns": 50715.0
+      "time_ns": 42470.0
     },
     "jc_nested_d2": {
       "allocs": 4959,
-      "time_ns": 138911.0
+      "time_ns": 126820.0
     },
     "jc_nested_d3": {
       "allocs": 17197,
-      "time_ns": 530522.0
+      "time_ns": 465801.0
     },
     "jc_nested_d4": {
       "allocs": 40315,
-      "time_ns": 1.304681e6
+      "time_ns": 1.166284e6
     },
     "jc_nested_d5": {
       "allocs": 94849,
-      "time_ns": 3.3499795e6
+      "time_ns": 2.834861e6
     },
     "jc_nested_d6": {
       "allocs": 177964,
-      "time_ns": 6.339927e6
+      "time_ns": 5.690481e6
+    },
+    "jc_nested_d7": {
+      "allocs": 335052,
+      "time_ns": 1.077233e7
     },
     "jc_pow_n2": {
       "allocs": 8832,
-      "time_ns": 246591.0
+      "time_ns": 216960.0
     },
     "jc_pow_n3": {
       "allocs": 28850,
-      "time_ns": 884554.0
+      "time_ns": 765983.0
     },
     "jc_pow_n4": {
       "allocs": 83970,
-      "time_ns": 2.738727e6
+      "time_ns": 2.384479e6
     },
     "jc_pow_n5": {
       "allocs": 196808,
-      "time_ns": 6.74801e6
+      "time_ns": 6.373504e6
     },
     "jc_pow_n6": {
       "allocs": 408062,
-      "time_ns": 1.44274525e7
+      "time_ns": 1.3804451e7
+    },
+    "jc_pow_n7": {
+      "allocs": 758090,
+      "time_ns": 2.7402032e7
     },
     "meanfield_average": {
       "allocs": 81,
-      "time_ns": 1530.0
+      "time_ns": 1360.0
     },
     "tavis_cummings_build": {
       "allocs": 679,
-      "time_ns": 12390.0
+      "time_ns": 11070.0
     },
     "tavis_cummings_comm": {
       "allocs": 9264,
-      "time_ns": 376002.0
+      "time_ns": 354721.0
     }
   }
 }

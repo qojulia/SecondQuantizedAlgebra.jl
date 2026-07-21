@@ -17,7 +17,7 @@ using Symbolics: @variables
 import JSON
 using Dates: today
 
-const CAP_SECONDS = 3.0
+const CAP_SECONDS = 30.0
 const RESULTS_DIR = joinpath(@__DIR__, "results")
 
 # Eager fold for QA products of n > 2 factors (fairness contract, rule 2).
@@ -91,7 +91,7 @@ function build_scenarios()
 
     nested_s(H, op, n) = n == 0 ? op : commutator(H, nested_s(H, op, n - 1))
     nested_q(H, op, n) = n == 0 ? op : QA.normal_form(QA.comm(H, nested_q(H, op, n - 1)))
-    for d in 1:6
+    for d in 1:7
         push!(
             scenarios,
             (
@@ -102,7 +102,7 @@ function build_scenarios()
         )
     end
 
-    for p in 2:6
+    for p in 2:7
         push!(
             scenarios,
             (
@@ -116,7 +116,7 @@ function build_scenarios()
     # 2. Bosonic normal ordering (a·a†)ⁿ.
     hf = FockSpace(:f)
     c = Destroy(hf, :c)
-    for n in (2, 4, 6, 8, 10)
+    for n in (2, 4, 6, 8, 10, 12, 14)
         push!(
             scenarios,
             (
@@ -146,7 +146,7 @@ function build_scenarios()
         sum(Jq * (QA.a'(k) * QA.a(k + 1) + QA.a'(k + 1) * QA.a(k)) for k in 1:(M - 1)) +
         sum(Uq / 2 * QA.a'(k) * QA.a'(k) * QA.a(k) * QA.a(k) for k in 1:M)
 
-    for M in (2, 4, 16)
+    for M in (2, 4, 16, 32)
         as = bh_ops_sqa(M)
         push!(
             scenarios,
@@ -219,8 +219,11 @@ function run_side!(results, capped, key, thunk)
         return nothing
     end
     b = @benchmarkable $thunk()
-    trial = run(b; seconds = 2)
-    m = median(trial)
+    # Up to a 10 s wall-clock budget, but stop early once enough samples are
+    # collected (BenchmarkTools' default sample cap): fast scenarios finish in a
+    # fraction of a second, expensive ones use the full budget for a tighter min.
+    trial = run(b; seconds = 10, samples = 10_000)
+    m = minimum(trial)
     results[key] = Dict("time_ns" => time(m), "allocs" => Int(allocs(m)))
     println(stderr, "  $key: $(BenchmarkTools.prettytime(time(m))) ($(allocs(m)) allocs)")
     return nothing

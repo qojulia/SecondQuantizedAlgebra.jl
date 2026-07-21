@@ -18,7 +18,7 @@
 
 Needs["sneg`sneg`"];
 
-capSeconds = 3.0;
+capSeconds = 30.0;
 
 snegbosonoperators[b];
 snegfermionoperators[f];
@@ -68,24 +68,53 @@ scenarios = {
     {"jc_nested_d4", Function[{}, nested[Hjc, f[AN], 4]]},
     {"jc_nested_d5", Function[{}, nested[Hjc, f[AN], 5]]},
     {"jc_nested_d6", Function[{}, nested[Hjc, f[AN], 6]]},
+    {"jc_nested_d7", Function[{}, nested[Hjc, f[AN], 7]]},
     {"jc_pow_n2", Function[{}, jcPow[2]]},
     {"jc_pow_n3", Function[{}, jcPow[3]]},
     {"jc_pow_n4", Function[{}, jcPow[4]]},
     {"jc_pow_n5", Function[{}, jcPow[5]]},
     {"jc_pow_n6", Function[{}, jcPow[6]]},
+    {"jc_pow_n7", Function[{}, jcPow[7]]},
     {"fock_reorder_n2", Function[{}, fockReorder[2]]},
     {"fock_reorder_n4", Function[{}, fockReorder[4]]},
     {"fock_reorder_n6", Function[{}, fockReorder[6]]},
     {"fock_reorder_n8", Function[{}, fockReorder[8]]},
     {"fock_reorder_n10", Function[{}, fockReorder[10]]},
+    {"fock_reorder_n12", Function[{}, fockReorder[12]]},
+    {"fock_reorder_n14", Function[{}, fockReorder[14]]},
     {"bh_chain_M2", Function[{}, bhBuildM[2]]},
     {"bh_chain_M4", Function[{}, bhBuildM[4]]},
     {"bh_chain_M16", Function[{}, bhBuildM[16]]},
+    {"bh_chain_M32", Function[{}, bhBuildM[32]]},
     {"bose_hubbard_build", Function[{}, bhBuildM[8]]},
     {"bose_hubbard_H2", Function[{}, Expand[nc[Hbh, Hbh]]]}
 };
 
 (* -- Timing ----------------------------------------------------------------- *)
+(* Minimum per-call time under a fixed wall-clock budget, matching the Julia
+   and Python harnesses: calibrate a loop count so one batch runs at least
+   batchTarget seconds (amortizing timer resolution), then keep timing batches
+   until `budget` seconds have elapsed (or maxBatches batches collected) and
+   report the fastest per-call time. maxBatches is the early-stop sample cap:
+   fast scenarios stop after ~maxBatches x batchTarget seconds instead of
+   burning the full budget, matching the Julia/Python harnesses. Same statistic
+   (minimum) and same per-scenario effort as the other packages, rather than
+   RepeatedTiming's mean. *)
+minTiming[thunk_] := Module[
+    {loops = 1, batchTarget = 0.1, budget = 10.0, maxBatches = 50,
+     best = Infinity, elapsed = 0., batches = 0, dt},
+    While[First[AbsoluteTiming[Do[thunk[], {loops}]]] < batchTarget && loops < 10^8,
+        loops *= 2
+    ];
+    While[elapsed < budget && batches < maxBatches,
+        dt = First[AbsoluteTiming[Do[thunk[], {loops}]]];
+        best = Min[best, dt / loops];
+        elapsed += dt;
+        batches += 1
+    ];
+    best
+];
+
 results = <||>;
 capped = <||>;
 Do[
@@ -95,7 +124,7 @@ Do[
     If[trial > capSeconds,
         capped[key] = trial;
         Print["  ", key, ": capped (", NumberForm[trial, {4, 1}], " s/op)"],
-        t = First[RepeatedTiming[thunk[]]];
+        t = minTiming[thunk];
         results[key] = <|"time_ns" -> t 10.^9|>;
         Print["  ", key, ": ", NumberForm[t 10.^3, {6, 3}], " ms"]
     ],

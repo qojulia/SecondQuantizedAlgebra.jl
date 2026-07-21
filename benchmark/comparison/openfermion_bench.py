@@ -9,8 +9,12 @@ symbols. BosonOperator cannot be mixed with qubit/spin operators, so the
 Jaynes–Cummings family, indexed sums, and symbolic expectation values are not
 expressible; only the purely bosonic scenarios run.
 
+Timing uses pyperf (a proper microbenchmark harness: per-process calibration,
+warm-ups, and multiple worker processes); the reported figure is the minimum
+per-call time over all samples, matching the other packages.
+
 Usage:
-    python openfermion_bench.py      # needs `pip install openfermion`
+    python openfermion_bench.py      # needs `pip install openfermion pyperf`
 """
 
 import datetime
@@ -18,13 +22,14 @@ import json
 import os
 import platform
 import sys
+import tempfile
 import time
-import timeit
 
+import pyperf
 import openfermion
 from openfermion import BosonOperator, normal_ordered
 
-CAP_SECONDS = 3.0
+CAP_SECONDS = 30.0
 OMEGA, J, U = 1.0, 0.5, 0.25
 
 
@@ -62,7 +67,7 @@ def build_scenarios():
             acc = normal_ordered(acc * (a * ad))
         return acc
 
-    for n in (2, 4, 6, 8, 10):
+    for n in (2, 4, 6, 8, 10, 12, 14):
         scenarios.append((f"fock_reorder_n{n}", lambda n=n: fock_reorder(n)))
 
     # 3. Bose–Hubbard chain. Build-cost sweep over the chain length M feeds the
@@ -79,7 +84,7 @@ def build_scenarios():
             H += BosonOperator(f"{k}^ {k}^ {k} {k}", U / 2)
         return normal_ordered(H)
 
-    for M in (2, 4, 16):
+    for M in (2, 4, 16, 32):
         scenarios.append((f"bh_chain_M{M}", lambda M=M: bh_build_M(M)))
 
     Hbh = bh_build_M(8)
@@ -89,33 +94,91 @@ def build_scenarios():
     return scenarios
 
 
-def time_scenario(thunk):
+# Fair comparison: every harness gives each scenario the same ~10 s wall-clock
+# budget and reports the minimum per-call time, in a single process. pyperf has
+# no native time budget, so we size the number of values per scenario from a
+# quick pre-timing so that (values x batch) ~ BUDGET_SECONDS, mirroring the Julia
+# side's `run(b; seconds = 10)`. MAX_VALUES caps the sample count so fast
+# scenarios stop early (~MAX_VALUES x MIN_TIME) instead of burning the full
+# budget; only scenarios slower than BUDGET_SECONDS / MAX_VALUES per call use it
+# all.
+BUDGET_SECONDS = 10.0
+MIN_TIME = 0.1  # pyperf per-value batch floor (seconds)
+MAX_VALUES = 50  # early-stop sample cap for fast scenarios (~pyperf's default total)
+
+
+def _values_for(op_time):
+    return max(1, min(MAX_VALUES, round(BUDGET_SECONDS / max(op_time, MIN_TIME))))
+
+
+def _single_trial(thunk):
     thunk()  # warm-up
     t0 = time.perf_counter()
     thunk()
-    trial = time.perf_counter() - t0
-    if trial > CAP_SECONDS:
-        return None, trial
-    timer = timeit.Timer(thunk)
-    loops, _ = timer.autorange()
-    best = min(timer.repeat(repeat=5, number=loops)) / loops
-    return best * 1e9, None
+    return time.perf_counter() - t0
+
+
+def _capfile():
+    return os.path.join(tempfile.gettempdir(), "sqa_capped_openfermion.json")
 
 
 def main():
-    print("Known-answer equivalence checks:", file=sys.stderr)
-    if not validate_equivalence():
-        raise SystemExit("equivalence checks failed; aborting")
+    runner = pyperf.Runner(processes=1, warmups=1, min_time=MIN_TIME)
+    runner.parse_args()
+    is_worker = bool(runner.args.worker)
 
-    results, capped = {}, {}
-    for key, thunk in build_scenarios():
-        time_ns, cap = time_scenario(thunk)
-        if time_ns is None:
-            capped[key] = cap
-            print(f"  {key}: capped ({cap:.1f} s/op)", file=sys.stderr)
-        else:
-            results[key] = {"time_ns": time_ns}
-            print(f"  {key}: {time_ns / 1e6:.3f} ms", file=sys.stderr)
+    scenarios = build_scenarios()
+
+    # The manager decides the >30 s cap and the per-scenario value count (both
+    # from one quick timed call per scenario) and hands the capped set to
+    # pyperf's worker subprocess through a temp file, so manager and worker
+    # register the identical benchmark set. The value count reaches the worker
+    # through pyperf's own `--values` argument, set per scenario below.
+    if not is_worker:
+        print("Known-answer equivalence checks:", file=sys.stderr)
+        if not validate_equivalence():
+            raise SystemExit("equivalence checks failed; aborting")
+        capped, nvalues = {}, {}
+        for key, thunk in scenarios:
+            trial = _single_trial(thunk)
+            if trial > CAP_SECONDS:
+                capped[key] = trial
+            else:
+                nvalues[key] = _values_for(trial)
+        with open(_capfile(), "w") as f:
+            json.dump(list(capped), f)
+    else:
+        try:
+            with open(_capfile()) as f:
+                capped = {key: None for key in json.load(f)}
+        except FileNotFoundError:
+            capped = {}
+        nvalues = {}
+
+    results = {}
+    for key, thunk in scenarios:
+        if key in capped:
+            continue
+        if not is_worker:
+            runner.args.values = nvalues[key]
+        bench = runner.bench_func(key, thunk)
+        if not is_worker and bench is not None:
+            values = bench.get_values()
+            if values:
+                results[key] = {"time_ns": min(values) * 1e9}
+
+    if is_worker:
+        return
+
+    try:
+        os.remove(_capfile())
+    except FileNotFoundError:
+        pass
+
+    for key in results:
+        print(f"  {key}: {results[key]['time_ns'] / 1e6:.3f} ms", file=sys.stderr)
+    for key, cap in capped.items():
+        print(f"  {key}: capped ({cap:.1f} s/op)", file=sys.stderr)
 
     out = {
         "meta": {

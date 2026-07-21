@@ -11,8 +11,8 @@ per-package JSON files on them.
 |---|---|---|---|
 | SecondQuantizedAlgebra.jl (SQA) | Julia | `julia_bench.jl` | `julia --project=benchmark benchmark/comparison/julia_bench.jl` |
 | QuantumAlgebra.jl | Julia | `julia_bench.jl` (same run) | see above |
-| SymPy (`sympy.physics.quantum`) | Python | `sympy_bench.py` | `python sympy_bench.py` (needs `pip install sympy`) |
-| OpenFermion | Python | `openfermion_bench.py` | `python openfermion_bench.py` (needs `pip install openfermion`) |
+| SymPy (`sympy.physics.quantum`) | Python | `sympy_bench.py` | `python sympy_bench.py` (needs `pip install sympy pyperf`) |
+| OpenFermion | Python | `openfermion_bench.py` | `python openfermion_bench.py` (needs `pip install openfermion pyperf`) |
 | sneg | Mathematica | `sneg_bench.wls` | `wolframscript -f sneg_bench.wls` (needs [sneg](http://auger.ijs.si/sneg/)) |
 
 Each script writes `results/<package>.json`:
@@ -47,8 +47,10 @@ Each script writes `results/<package>.json`:
    package: `a a† = 1 + a†a`, `a a a† = a†a a + 2a`, and the two-level
    completeness `σ⁻σ⁺ + σ⁺σ⁻ = 1` (in the package's own spin encoding, where
    spins are supported). A failing check aborts the run.
-4. **Cap.** Any scenario whose single trial evaluation exceeds **3 s** is
-   reported in `capped` instead of being timed.
+4. **Cap.** Any scenario whose single trial evaluation exceeds **30 s** is
+   reported in `capped` instead of being timed. Scenarios whose single call
+   sits between the budget and the cap are timed with a single sample (the
+   budget bounds how many samples fit, not how long one call may take).
 5. **Disclosed helpers.** SymPy's `normal_ordered_form` does not know that
    boson and Pauli operators act on different Hilbert spaces (and hence
    commute), so `sympy_bench.py` includes a small reordering helper that sorts
@@ -60,12 +62,17 @@ Each script writes `results/<package>.json`:
 
 | Language | Harness | Statistic |
 |---|---|---|
-| Julia | BenchmarkTools `@benchmarkable`, 2 s budget | median time, allocations |
-| Python | `timeit.Timer.autorange` + `repeat(5)` | minimum per-call time |
-| Mathematica | `RepeatedTiming` | trimmed mean |
+| Julia | BenchmarkTools `@benchmarkable`, up to 10 s budget | minimum time, allocations |
+| Python | pyperf (single worker), samples sized to a 10 s budget | minimum per-call time |
+| Mathematica | calibrated loop, timed to a 10 s budget | minimum per-call time |
 
-Cross-language ratios are order-of-magnitude indicators, not decimal-precise:
-harnesses, statistics, and runtime warm-up behavior differ.
+Every harness gives each scenario the same wall-clock budget (up to ~10 s), in a
+single process, and reports the minimum per-call time. Fast scenarios stop early
+once ~50 samples are collected rather than burning the full budget; only
+scenarios slower than a few hundred ms per call actually run the full 10 s,
+where the extra samples tighten the minimum. Cross-language ratios are still
+order-of-magnitude indicators, not decimal-precise: harness overhead and
+runtime warm-up behavior differ.
 
 ## Scenarios
 
@@ -90,7 +97,7 @@ two-level system on distinct Hilbert spaces.
 
 | Key | Operation |
 |---|---|
-| `fock_reorder_n2`, `fock_reorder_n4`, …, `fock_reorder_n10` | canonical form of `(a·a†)ⁿ` for n = 2, 4, 6, 8, 10, built as an eager left fold of n factors `a·a†`. The docs table shows n = 4/8; all five points feed the scaling figure |
+| `fock_reorder_n2`, `fock_reorder_n4`, …, `fock_reorder_n14` | canonical form of `(a·a†)ⁿ` for n = 2, 4, 6, 8, 10, 12, 14, built as an eager left fold of n factors `a·a†`. The docs table shows n = 4/8; all seven points feed the scaling figure |
 
 ### 3. Bose–Hubbard chain (`bose_hubbard_*`, `bh_chain_*`)
 
@@ -101,7 +108,7 @@ Open chain of M modes:
 |---|---|
 | `bose_hubbard_build` | canonical form of `H_BH` built from scratch at M = 8 |
 | `bose_hubbard_H2` | canonical form of `H_BH · H_BH` at M = 8 |
-| `bh_chain_M2`, `bh_chain_M4`, `bh_chain_M16` | build-cost of `H_BH` at chain length M = 2, 4, 16. Together with `bose_hubbard_build` (M = 8) these form a system-size sweep M = 2, 4, 8, 16 that feeds the scaling figure; only the M = 8 build and H² appear in the docs table |
+| `bh_chain_M2`, `bh_chain_M4`, `bh_chain_M16`, `bh_chain_M32` | build-cost of `H_BH` at chain length M = 2, 4, 16, 32. Together with `bose_hubbard_build` (M = 8) these form a system-size sweep M = 2, 4, 8, 16, 32 that feeds the scaling figure; only the M = 8 build and H² appear in the docs table |
 
 ### 4. Tavis–Cummings symbolic sum (`tavis_cummings_*`)
 
