@@ -16,6 +16,8 @@ Numeric conversion (`to_numeric`/`numeric_average`/`expect`) was redesigned to b
 - A uniform Hilbert-space entry point `to_numeric(op, h::HilbertSpace, dims; backend, parameter, time_parameter, operators, adjoint_ops, op_type)`. It builds the backend basis from `dims` (Fock cutoff / spin number) and is the only form that works for both backends. The backend defaults to the single loaded one.
 - Open backend hooks `numeric_operator`, `numeric_basis`, `numeric_subbasis`, `numeric_embed`, `numeric_identity`, `numeric_num_subsystems`, `numeric_assemble`, `numeric_assemble_td`, `numeric_materialize`, `numeric_expect`, and `numeric_backend` are exported. Downstream packages can implement another backend and add numeric support for existing operator roles; `OpKind` remains a closed symbolic-role set.
 
+- Some TTFX motivated changes and more complicated precompile workload. [#223](https://github.com/qojulia/SecondQuantizedAlgebra.jl/issues/223)
+
 ### Changed (breaking)
 
 - `QuantumOpticsBase` moved from a hard dependency to a weak dependency. Using the numeric API now requires loading a backend: add `using QuantumOpticsBase` (or `using QuantumToolbox`) next to `using SecondQuantizedAlgebra`. The lightweight `QuantumInterface.jl` is a new hard dependency (it owns the `⊗`/`tensor`/`expect`/`basis` generics that the algebra extends).
@@ -30,11 +32,6 @@ Numeric conversion (`to_numeric`/`numeric_average`/`expect`) was redesigned to b
 ### Fixed
 
 - An elementary function of a literal zero left unevaluated by Symbolics (e.g. the `exp(0)` factor produced when `exp(im*ω*t)` is Euler-expanded to `cos(ω t)*exp(0) + exp(0)*im*sin(ω t)`) is now folded to its exact value in the coefficient algebra, so it no longer leaks into printed equations. Only exact identities at argument `0` fold (`exp/cos/cosh → 1`, `sin/tan/sinh/tanh → 0`); non-zero or non-constant arguments (`exp(2)`, `sin(π)`) stay symbolic.
-
-### Notes
-
-- For static conversion, the `op_type` contract from v0.9.2 is now backend-neutral: `to_numeric` assembles the operator lazily and materializes it once via `op_type`, so the return type depends only on `op_type`, not on the expression shape. The default consistently returns an eager backend operator (sparse on both bundled backends). Pass an explicit `op_type` for another eager representation (`dense` on QuantumOptics; `QuantumToolbox.to_sparse`/`to_dense` or `SciMLOperators.concretize` on QuantumToolbox), or `op_type=identity` for the natural lazy representation (`LazyTensor`/`LazyProduct`/`LazySum` / `QobjEvo` over `VecSum`). The lazy form is the internal assembly primitive and is what `numeric_average`/`expect` consume directly, so `LazyKet` states work without materializing.
-- A user doing `using SecondQuantizedAlgebra, QuantumToolbox` has two `⊗`/`tensor`/`expect` in scope (QuantumInterface's and QuantumToolbox's) and must qualify them; importing QuantumToolbox as `import QuantumToolbox as QTB` avoids the clash.
 
 
 ## [v0.9.4]

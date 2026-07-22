@@ -60,7 +60,7 @@ function _canonical_ne(ne::Vector{NonEqualPair})
     for p in ne
         _push_ne_unique!(out, p)
     end
-    sort!(out)
+    _insertion_sort!(out, isless)
     return isempty(out) ? _EMPTY_NE : out
 end
 
