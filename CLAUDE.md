@@ -163,6 +163,14 @@ Before merging any PR:
 - **No `using X` without explicit imports.** Use `using X: func1, func2` or `import X`. ExplicitImports.jl enforces this.
 - **Format with Runic.** Run `make format` before committing.
 
+## Performance terminology
+
+Three distinct axes; keep them separate when reporting numbers.
+
+- **Precompilation time**: compiling package code into the on-disk cache. Paid once per version/dependency change, not per session; where `precompile.jl`'s `@compile_workload` runs.
+- **TTFX**: cold-process latency to the *first* call: `using` load time plus any JIT not cached during precompilation. A bigger `@compile_workload` trades more precompilation time for less TTFX.
+- **Runtime**: steady-state cost of every call after the first, no compilation. What `@btime`/`benchmark/` measure after warmup; target of the zero-allocation passes.
+
 ## Dependencies
 
 | Package | Purpose |

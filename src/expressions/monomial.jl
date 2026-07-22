@@ -76,10 +76,26 @@ function _term_mul(a::Monomial, b::Monomial)
     return Monomial(a.scalar * b.scalar, se[1], se[2])
 end
 
+# Insertion sort by a strict-less predicate. The polynomial passes sort very short
+# vectors; this keeps the whole `Base.Sort` machinery (ScratchQuickSort, partition!,
+# issorted, ...) out of inference, which is a large chunk of first-call latency.
+function _insertion_sort!(v::AbstractVector, lt::F) where {F}
+    @inbounds for i in 2:length(v)
+        x = v[i]
+        j = i - 1
+        while j >= 1 && lt(x, v[j])
+            v[j + 1] = v[j]
+            j -= 1
+        end
+        v[j + 1] = x
+    end
+    return v
+end
+
 # Sort terms into canonical order, merge like-factor terms, drop zero scalars.
 function _canonical_terms!(terms::Vector{Monomial})
     isempty(terms) && return terms
-    sort!(terms; lt = _term_less)
+    _insertion_sort!(terms, _term_less)
     w = 0
     @inbounds for r in eachindex(terms)
         t = terms[r]

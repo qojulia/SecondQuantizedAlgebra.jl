@@ -90,21 +90,31 @@ end
 _is_neg_unit(c::Number) = isequal(c, -1)
 
 function _is_real_negative(c::CNum)
-    if _iszero_num(imag(c))
-        r = Symbolics.value(SymbolicUtils.unwrap(real(c)))
-        return r isa Real && r < 0
-    end
-    return false
+    _is_native(c) && return imag(c.z) == 0 && real(c.z) < 0
+    return _is_real_negative_sym(c)
+end
+# Cold path: a non-native coefficient is a real negative only for symbolic constants
+# that don't round-trip to `ComplexF64` (irrationals like `-π`, exact rationals).
+# Isolated so the hot native branch stays concrete. `::Bool` pins the result: `<` on
+# the abstract-typed `r` is unprovably `Bool` to inference (the Symbolics boundary),
+# and leaving it `Any` would poison the `_show_terms` caller.
+@noinline function _is_real_negative_sym(c::CNum)::Bool
+    _iszero_num(imag(c)) || return false
+    r = Symbolics.value(SymbolicUtils.unwrap(real(c)))
+    return r isa Real && r < 0
 end
 _is_real_negative(::Number) = false
 
 # Check if a symbolic prefactor needs parentheses when followed by operators.
+# A native (plain-number) coefficient never needs them; only a symbolic `/` or `+`
+# head does. Unwrapping to a typed `BasicSymbolic` keeps `operation` a static call.
 function _needs_pf_parens(c::CNum)
+    _is_native(c) && return false
     iszero(imag(c)) || return false
-    r = Symbolics.value(SymbolicUtils.unwrap(real(c)))
-    r isa Number && return false
-    SymbolicUtils.iscall(r) || return false
-    op = SymbolicUtils.operation(r)
+    u = SymbolicUtils.unwrap(real(c))
+    u isa SymbolicUtils.BasicSymbolic || return false
+    SymbolicUtils.iscall(u) || return false
+    op = SymbolicUtils.operation(u)
     return op === (/) || op === (+)
 end
 

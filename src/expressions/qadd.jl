@@ -38,7 +38,7 @@ function _prune_dead_ne(args::QTermDict, indices::Vector{Index})
         for p in term.ne
             _pair_referenced(p, term.ops, c, indices) && _push_ne_unique!(kept, p)
         end
-        kept_ne = isempty(kept) ? _EMPTY_NE : sort!(kept)
+        kept_ne = isempty(kept) ? _EMPTY_NE : _insertion_sort!(kept, isless)
         _addto_key!(out, QTerm(copy(term.ops), kept_ne), c)
     end
     return out
@@ -150,6 +150,29 @@ Base.eltype(::Type{QAdd}) = Pair{QTerm, CNum}
 
 _ne_sort_key(ne::Vector{NonEqualPair}) = Tuple(ne)
 
+# Type-stable display order. Compares operator sequences field-by-field (each
+# `_full_op_key` is a fixed-length concrete tuple), then the constraint set. This
+# replaces `isless` on the variable-length `Vararg` tuples the `_*_sort_key`
+# helpers build, which inference cannot resolve concretely (a print-path cost).
+function _ne_less(a::Vector{NonEqualPair}, b::Vector{NonEqualPair})
+    la, lb = length(a), length(b)
+    @inbounds for i in 1:min(la, lb)
+        a[i] != b[i] && return isless(a[i], b[i])
+    end
+    return la < lb
+end
+
+function _sorted_args_less(x::Pair{QTerm, CNum}, y::Pair{QTerm, CNum})
+    xo, yo = x.first.ops, y.first.ops
+    lx, ly = length(xo), length(yo)
+    lx != ly && return lx < ly
+    @inbounds for i in 1:lx
+        kx, ky = _full_op_key(xo[i]), _full_op_key(yo[i])
+        kx != ky && return isless(kx, ky)
+    end
+    return _ne_less(x.first.ne, y.first.ne)
+end
+
 """
     sorted_arguments(q::QAdd) -> Vector{QAdd}
 
@@ -169,14 +192,11 @@ julia> length(SecondQuantizedAlgebra.sorted_arguments(a + a'))
 """
 function sorted_arguments(q::QAdd)
     isempty(q.arguments) && return QAdd[]
-    pairs = sort!(
-        collect(q.arguments);
-        by = p -> (_term_sort_key(p.first.ops), _ne_sort_key(p.first.ne)),
-    )
+    pairs = collect(q.arguments)
+    _insertion_sort!(pairs, _sorted_args_less)
     return QAdd[_single_qadd(c, term.ops, term.ne) for (term, c) in pairs]
 end
 
-_term_sort_key(ops::Vector{Op}) = (length(ops), map(_full_op_key, ops)...)
 _full_op_key(op::QSym) = (_sort_key(op)..., _type_order(op), _name_rank(op.name_id))
 
 """
@@ -196,7 +216,7 @@ coefficient contributes its printed form (a reproducible tiebreak, not a numeric
 """
 function qadd_order_key(q::QAdd)
     pairs = [(term_order_key(t), _coeff_key(c)) for (t, c) in q.arguments]
-    sort!(pairs)
+    _insertion_sort!(pairs, isless)
     return pairs
 end
 

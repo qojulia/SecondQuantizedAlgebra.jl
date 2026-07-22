@@ -79,15 +79,24 @@ _to_cnum(x::SymbolicUtils.BasicSymbolic) = _recognize(x)
 _cnum(re::Num, im::Num) =
     _add_cnum(_recognize(SymbolicUtils.unwrap(re)), _mul_cnum(_CNUM_IM, _recognize(SymbolicUtils.unwrap(im))))
 
+# Function barrier: `_numeric_value` yields an abstract `Number`, so folding here
+# (rather than inline in `_cnum_sym`) specializes the round-trip on the concrete
+# type and replaces four boxed `Number` dispatches with one. Returns `nothing` when
+# the value does not round-trip through `ComplexF64` losslessly.
+@noinline function _native_fold(rv::Number, iv::Number)
+    w = rv + Complex(false, true) * iv
+    z = ComplexF64(w)
+    return z == w ? z : nothing
+end
+
 # Rebuild after a materialized symbolic arithmetic step: folds a numeric constant
 # back to native, else stays symbolic. Must NOT re-enter `_recognize` (would recurse).
 function _cnum_sym(re::Num, im::Num)
     rv = _numeric_value(re)
     iv = _numeric_value(im)
     if rv isa Number && iv isa Number
-        w = rv + Complex(false, true) * iv
-        z = ComplexF64(w)
-        z == w && return _native(z)
+        z = _native_fold(rv, iv)
+        z !== nothing && return _native(z)
     end
     return _symbolic(Complex(re, im))
 end
@@ -293,20 +302,36 @@ function _recognize_sum(args)::Coeff
     return have_sym ? _add_cnum(poly, sym) : poly
 end
 
+# Insertion-sort a factor list (syms + matching exps) in place by objectid key.
+# Avoids Base's `sortperm` machinery for the abstract `BasicSymbolic` eltype, whose
+# inference is a nontrivial slice of first-call latency; these lists are tiny.
+function _sort_factors!(syms::Vector{SymbolicUtils.BasicSymbolic}, exps::Vector{Rational{Int}})
+    @inbounds for i in 2:length(syms)
+        s = syms[i]; e = exps[i]; k = _fkey(s)
+        j = i - 1
+        while j >= 1 && _fkey(syms[j]) > k
+            syms[j + 1] = syms[j]; exps[j + 1] = exps[j]
+            j -= 1
+        end
+        syms[j + 1] = s; exps[j + 1] = e
+    end
+    return nothing
+end
+
 function _merge_factor_list(syms::Vector{SymbolicUtils.BasicSymbolic}, exps::Vector{Rational{Int}})
     n = length(syms)
     n <= 1 && return (syms, exps)
-    p = sortperm(syms; by = _fkey)
+    _sort_factors!(syms, exps)
     osyms = SymbolicUtils.BasicSymbolic[]
     oexps = Rational{Int}[]
     sizehint!(osyms, n); sizehint!(oexps, n)
     i = 1
     @inbounds while i <= n
-        s = syms[p[i]]
-        e = exps[p[i]]
+        s = syms[i]
+        e = exps[i]
         j = i + 1
-        while j <= n && syms[p[j]] === s
-            e += exps[p[j]]
+        while j <= n && syms[j] === s
+            e += exps[j]
             j += 1
         end
         e != 0 && (push!(osyms, s); push!(oexps, e))
@@ -455,8 +480,9 @@ function _conj_poly(p::Poly)
         for i in 1:n
             nsyms[i] = _conj_atom(m.syms[i])
         end
-        perm = sortperm(nsyms; by = _fkey)
-        terms[k] = Monomial(conj(m.scalar), nsyms[perm], m.exps[perm])
+        nexps = copy(m.exps)
+        _sort_factors!(nsyms, nexps)
+        terms[k] = Monomial(conj(m.scalar), nsyms, nexps)
     end
     return _from_poly(_canonical_terms!(terms))
 end
