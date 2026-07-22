@@ -331,5 +331,25 @@ import SecondQuantizedAlgebra: Coeff, CNum, Monomial, Poly, _to_cnum, _to_comple
             sub = substitute(expr, Dict(ω => 2, g => 3))
             @test isequal(prefactor(sub), Complex(Num(6), Num(0)))
         end
+
+        @testset "elementary functions of a literal zero fold to their exact value" begin
+            @variables ω t
+            # Euler-expanding exp(im*ω*t) leaves exp(0) factors; they must fold away.
+            c = _to_cnum(Complex{Num}(exp(1.0im * ω * t)))
+            @test !occursin("exp(0)", repr(to_num(c)))
+            @test isequal(to_num(c), Complex(Num(cos(t * ω)), Num(sin(t * ω))))
+            # exact identities at 0 fold to native
+            @test _is_native(_to_cnum(Num(exp(Num(0)))))
+            @test _to_complex(_to_cnum(Num(exp(Num(0))))) ≈ 1
+            @test _to_complex(_to_cnum(Num(cos(Num(0))))) ≈ 1
+            @test _to_complex(_to_cnum(Num(sin(Num(0))))) ≈ 0
+            # symbol / non-zero-constant / irrational args stay symbolic (exactness gate)
+            @test !_is_native(_to_cnum(Num(exp(ω))))
+            @test !_is_native(_to_cnum(Num(exp(Num(2)))))
+            @test !_is_native(_to_cnum(Num(exp(Num(0.1)))))
+            @test !_is_native(_to_cnum(Num(cos(Num(1)))))
+            @test !_is_native(_to_cnum(cos(Num(π))))
+            @test !_is_native(_to_cnum(sin(Num(π))))
+        end
     end
 end

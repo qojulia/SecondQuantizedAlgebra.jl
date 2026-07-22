@@ -4,6 +4,8 @@ All notable changes to [`SecondQuantizedAlgebra.jl`](https://github.com/qojulia/
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+
+
 ## [v0.10.0]
 
 Numeric conversion (`to_numeric`/`numeric_average`/`expect`) was redesigned to be extensible, type-stable, and multi-backend. This is a breaking release.
@@ -24,6 +26,10 @@ Numeric conversion (`to_numeric`/`numeric_average`/`expect`) was redesigned to b
 ### Changed
 
 - Averages of provably Hermitian operators (`adjoint(A) == A`) now carry `symtype === Real` instead of `Number`. This gives a faster `simplify` path and makes `conj(⟨a'a⟩)` fold to `⟨a'a⟩` rather than an inert `conj(...)` wrapper; indexed sums and lifted time-dependent variables inherit the typing, which survives `substitute`. Resolves [#171](https://github.com/qojulia/SecondQuantizedAlgebra.jl/issues/171).
+
+### Fixed
+
+- An elementary function of a literal zero left unevaluated by Symbolics (e.g. the `exp(0)` factor produced when `exp(im*ω*t)` is Euler-expanded to `cos(ω t)*exp(0) + exp(0)*im*sin(ω t)`) is now folded to its exact value in the coefficient algebra, so it no longer leaks into printed equations. Only exact identities at argument `0` fold (`exp/cos/cosh → 1`, `sin/tan/sinh/tanh → 0`); non-zero or non-constant arguments (`exp(2)`, `sin(π)`) stay symbolic.
 
 ### Notes
 
