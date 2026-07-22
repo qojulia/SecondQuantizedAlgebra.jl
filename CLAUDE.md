@@ -163,6 +163,11 @@ Before merging any PR:
 - **No `using X` without explicit imports.** Use `using X: func1, func2` or `import X`. ExplicitImports.jl enforces this.
 - **Format with Runic.** Run `make format` before committing.
 
+### Documentation and comments
+
+- **Comments: compact, why not what.** Default to no comment; add one only for a non-obvious *why*. Keep it to a couple of lines.
+- **Changelog entries: short.** One to two sentences per entry. State what changed and where it matters, not the mechanism.
+- **Devdocs: rationale, not private-function tours.** Explain the design decision and its reason. Do not enumerate the private functions that implement it.
 ## Performance terminology
 
 Three distinct axes; keep them separate when reporting numbers.

@@ -471,6 +471,20 @@ new symbolic operator role through this interface.
 - A non-empty `time_parameter` uses `numeric_assemble_td` and returns the native
   `TimeDependentSum` or `QobjEvo`. Only `op_type=nothing` and `identity` are accepted because
   a time-varying operator cannot be materialized once during conversion.
+- **p-aware coefficients (differentiable control).** A `time_parameter` value may be a
+  two-argument function `(p, t) -> value` of the solver parameter vector `p`. Detection is by
+  arity: if any value function reads `p`, the conversion is p-aware and all value functions are
+  lifted to `(p, t)` form. `p` stays opaque to the symbolic layer (a symbol maps to a value
+  function; whether it consults `p` is that function's business), so the symbolic prefactor
+  machinery is untouched. The QuantumToolbox backend threads `p` into the coefficient, giving a
+  `QobjEvo` differentiable with respect to `p` (SciMLSensitivity with Enzyme/Mooncake, not
+  Zygote). QuantumOptics has no solver `p` and rejects the form; the asymmetry is inherent to
+  the backends.
+- **`mesolve` superoperator path.** QuantumToolbox's superoperator builders fall back to a
+  generic lazy tensor for operator types they do not recognize, which is not AD-traversable and
+  emits a warning whose `try/catch` breaks Mooncake. The QuantumToolbox extension therefore
+  teaches the `VecSum` to participate directly, so `liouvillian` builds a `VecSum` superoperator
+  of concrete matrices that stays differentiation-friendly.
 - Indexed conversion validates sites, unrolls sums, and emits the same term format as the
   non-indexed path. A site must be unique and within the backend basis.
 - QuantumToolbox levels are zero-based internally, so symbolic `Transition(i, j)` maps to

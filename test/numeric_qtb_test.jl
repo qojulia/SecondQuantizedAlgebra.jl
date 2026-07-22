@@ -309,4 +309,93 @@ const QTBB = QuantumToolboxBackend()
         Mp = to_numeric(a, h, [2, 3]; backend = QTBB)
         @test size(Mp.data) == (12, 12)
     end
+
+    @testset "p-aware time_parameter (differentiable control)" begin
+        h = FockSpace(:c)
+        @qnumbers a::Destroy(h)
+        @variables Δ ε κ
+        N = 5
+        nop = to_numeric(a' * a, h, N; backend = QTBB)
+        ψ0 = QTB.fock(N + 1, 0)
+        tl = collect(range(0, 2.0, length = 21))
+
+        # A two-argument (p, t) value function makes the QobjEvo p-aware.
+        H = to_numeric(
+            Δ * a' * a + ε * (a' + a), h, N;
+            backend = QTBB,
+            time_parameter = Dict(Δ => (p, t) -> p[1], ε => (p, t) -> p[2] * cos(t)),
+        )
+        @test H isa QTB.QuantumObjectEvolution
+
+        finaln(pv) = real(QTB.expect(nop, QTB.sesolve(H, ψ0, tl; params = pv, progress_bar = Val(false)).states[end]))
+        n1 = finaln([1.0, 0.5])
+        n2 = finaln([1.0, 0.6])
+        # p actually flows to the coefficient (forward finite-difference sanity, no AD dep).
+        @test !isapprox(n1, n2; atol = 1.0e-8)
+
+        # Equivalence with a hand-assembled (p, t) QobjEvo.
+        adaga = to_numeric(a' * a, h, N; backend = QTBB)
+        xop = to_numeric(a' + a, h, N; backend = QTBB)
+        Hhand = QTB.QobjEvo(((adaga, (p, t) -> p[1]), (xop, (p, t) -> p[2] * cos(t))))
+        nhand = real(QTB.expect(nop, QTB.sesolve(Hhand, ψ0, tl; params = [1.0, 0.5], progress_bar = Val(false)).states[end]))
+        @test n1 ≈ nhand atol = 1.0e-8
+
+        # Mixed arity: one t-only and one (p, t) symbol; the t-only symbol is lifted.
+        Hmix = to_numeric(
+            Δ * a' * a + ε * (a' + a), h, N;
+            backend = QTBB,
+            time_parameter = Dict(Δ => t -> 1.0, ε => (p, t) -> p[1] * cos(t)),
+        )
+        @test Hmix.data isa SO.AbstractSciMLOperator
+        smix = QTB.sesolve(Hmix, ψ0, tl; params = [0.5], progress_bar = Val(false))
+        @test real(QTB.expect(nop, smix.states[end])) isa Float64
+
+        # mesolve superoperator path with a p-aware collapse operator: no lazy-tensor warning,
+        # a VecSum superoperator, and κ (from p) flows into the dissipation.
+        c1 = to_numeric(sqrt(κ) * a, h, N; backend = QTBB, time_parameter = Dict(κ => (p, t) -> p[1]))
+        @test c1.data isa SO.AbstractSciMLOperator
+        L = QTB.liouvillian(to_numeric(2.0 * a' * a, h, N; backend = QTBB), [c1])
+        ρ0 = QTB.ket2dm(QTB.fock(N + 1, 2))
+        tl2 = collect(range(0, 1.5, length = 16))
+        fme(pv) = real(QTB.expect(nop, QTB.mesolve(L, ρ0, tl2; params = pv, progress_bar = Val(false)).states[end]))
+        @test !isapprox(fme([0.3]), fme([0.6]); atol = 1.0e-8)
+
+        # QuantumToolbox p-aware collapse decays faster with a larger rate.
+        @test fme([0.6]) < fme([0.3])
+
+        # Value-function arity is validated with actionable errors, not silently misdetected:
+        # variadic, conflicting-arity, and out-of-range (0 or 3+) functions are rejected.
+        bad_va(args...) = args[1]
+        bad_multi(t) = t
+        bad_multi(p, t) = p[1]
+        bad_zero() = 1.0
+        bad_three(x, y, z) = x
+        for badf in (bad_va, bad_multi, bad_zero, bad_three)
+            @test_throws ArgumentError to_numeric(ε * a, h, N; backend = QTBB, time_parameter = Dict(ε => badf))
+        end
+    end
+
+    @testset "VecSum superoperator algebra (mesolve path)" begin
+        h = FockSpace(:c)
+        @qnumbers a::Destroy(h)
+        N = 5
+        V = to_numeric(a' * a, h, N; backend = QTBB, op_type = identity).data
+        Vd = Matrix(V)
+
+        # _spre/_spost/* stay a single concrete VecSum and agree with the dense operations.
+        @test occursin("VecSum", string(typeof(V)))
+        @test isapprox(Matrix(QTB._spre(V)), Matrix(QTB._spre(SO.MatrixOperator(Vd))))
+        @test isapprox(Matrix(QTB._spost(V)), Matrix(QTB._spost(SO.MatrixOperator(Vd))))
+
+        prod = V * V
+        @test isapprox(Matrix(prod), Vd * Vd)
+        # A product of two constant coefficients stays constant (static concretize is correct
+        # and the solver treats the superoperator as time-independent).
+        @test SO.isconstant(prod)
+
+        # Type stability: all three return the single concrete VecSum type.
+        @test only(Base.return_types(QTB._spre, (typeof(V),))) === typeof(V)
+        @test only(Base.return_types(QTB._spost, (typeof(V),))) === typeof(V)
+        @test only(Base.return_types(*, (typeof(V), typeof(V)))) === typeof(V)
+    end
 end

@@ -36,7 +36,12 @@ Keyword arguments:
 - `parameter=Dict()`: substitutions for scalar symbolic coefficients.
 - `time_parameter=Dict()`: scalar values or functions of time. A non-empty mapping selects
   time-dependent conversion (`TimeDependentSum` for QuantumOptics, `QobjEvo` for
-  QuantumToolbox).
+  QuantumToolbox). A value may also be a two-argument function `(p, t) -> value` of the solver
+  parameter vector `p` and time `t`; the resulting `QobjEvo` is then differentiable with
+  respect to `p` (for `sesolve`/`mesolve` optimal control). This `(p, t)` form is
+  QuantumToolbox-only; QuantumOptics has no solver parameter and raises an `ArgumentError`. If
+  any value function reads `p`, one-argument entries `t -> f(t)` and scalars are lifted to
+  `(p, t)` form automatically.
 - `operators=Dict()`: replacements for individual symbolic operators. Missing adjoints are
   inferred when `adjoint_ops=true` (the default). Positional `d` supplies exact replacements
   without this inference.

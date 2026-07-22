@@ -12,6 +12,7 @@ pages = [
         "Two-Atom Dipole-Dipole" => "examples/two_atom.md",
         "Parametric Oscillator" => "examples/parametric_oscillator.md",
         "Tavis–Cummings Model" => "examples/tavis_cummings.md",
+        "Differentiable Quantum Control" => "examples/differentiable_control.md",
     ],
     "Comparison with other packages" => "comparison.md",
     "API" => "API.md",

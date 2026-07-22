@@ -68,24 +68,29 @@ _to_numeric_lazy(q::QAdd, ctx::NumericContext) = _to_numeric_static(q, ctx)
 # (genuinely time-dependent), reusing the kept coefficient machinery. Factors are stored
 # behind `Vector{Any}` because the TD path is not on the `@inferred` contract and the
 # backend assembler only needs to iterate them.
-const _TDTerm = Tuple{Union{ComplexF64, Function}, Vector{Any}}
+const _TDTerm = Tuple{Union{ComplexF64, Function, PControlCoeff}, Vector{Any}}
 
-function _td_coeff(c::Complex{Num}, basevars, valuefuncs)
+function _td_coeff(c::Complex{Num}, basevars, valuefuncs, p_aware::Bool)
     if _coeff_is_const(c)
         return _const_coeff(c)
     end
     _check_time_variables(c, basevars)
     pref = _compile_coeff(c, basevars...)
+    p_aware && return PControlCoeff(
+        let pref = pref, valuefuncs = valuefuncs
+            (p, t) -> pref(map(f -> f(p, t), valuefuncs)...)
+        end
+    )
     return let pref = pref, valuefuncs = valuefuncs
         t -> pref(map(f -> f(t), valuefuncs)...)
     end
 end
 
 function _to_numeric_td(q::QAdd, ctx::NumericContext, time_parameter)
-    basevars, valuefuncs = _time_basis(time_parameter)
+    basevars, valuefuncs, p_aware = _time_basis(time_parameter)
     td_terms = _TDTerm[]
     for (term, c_) in q.arguments
-        coef = _td_coeff(to_num(c_), basevars, valuefuncs)
+        coef = _td_coeff(to_num(c_), basevars, valuefuncs, p_aware)
         push!(td_terms, (coef, collect(Any, _term_factors(term.ops, ctx))))
     end
     isempty(td_terms) && push!(td_terms, (0.0im, Any[]))
@@ -145,8 +150,8 @@ function _to_numeric_translated(arg, ctx::NumericContext, parameter, time_parame
         return numeric_materialize(ctx.backend, _const_coeff(c) * numeric_identity(ctx.backend, ctx.basis), op_type)
     end
     _check_td_op_type(op_type)
-    basevars, valuefuncs = _time_basis(time_parameter)
-    coef = _td_coeff(c, basevars, valuefuncs)
+    basevars, valuefuncs, p_aware = _time_basis(time_parameter)
+    coef = _td_coeff(c, basevars, valuefuncs, p_aware)
     return numeric_assemble_td(ctx.backend, ctx.basis, _TDTerm[(coef, Any[])])
 end
 
