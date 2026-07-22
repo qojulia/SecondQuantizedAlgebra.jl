@@ -148,14 +148,14 @@ end
         # independent of the operator type:
         #
         # (a) Coefficient materialization. Constructing an operator builds its
-        #     `Coeff`; the recognizer (`_rec`) and the numeric fold read a
+        #     `Coeff`; the recognizer (`_recognize`) and the numeric fold read a
         #     heterogeneous Symbolics expression whose `BasicSymbolic.val` is `::Any`,
         #     so the reduction (`+`/`*`/`==`/`ComplexF64`/`convert`) is dynamic. The
         #     Hermitian-symtype probe (`_avg_symtype`) reaches the same boundary from
         #     the other side: `adjoint` conjugates each coefficient via `_conj_atom`,
         #     which reads that same `::Any` symbolic tail.
         allowed_coeff_reports = [
-            "SecondQuantizedAlgebra._rec(",
+            "SecondQuantizedAlgebra._recognize(",
             "SecondQuantizedAlgebra.ComplexF64(",
             "convert(SecondQuantizedAlgebra.Coeff",
             "SecondQuantizedAlgebra.:*",
