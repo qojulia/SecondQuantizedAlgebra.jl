@@ -472,24 +472,19 @@ new symbolic operator role through this interface.
   `TimeDependentSum` or `QobjEvo`. Only `op_type=nothing` and `identity` are accepted because
   a time-varying operator cannot be materialized once during conversion.
 - **p-aware coefficients (differentiable control).** A `time_parameter` value may be a
-  two-argument function `(p, t) -> value` of the solver parameter vector `p`. `_time_basis`
-  detects this by arity (`_tp_nargs`); if any value function reads `p`, the whole conversion is
-  p-aware and every value function is lifted to `(p, t)` form. `_td_coeff` then wraps the
-  combined prefactor in a `PControlCoeff` marker. `p` is entirely opaque to the symbolic layer:
-  a symbol maps to a value function, and whether that function consults `p` is the function's
-  business, so `_check_time_variables` and the prefactor compilation are unchanged. The
-  QuantumToolbox backend's `_td_scalar(::PControlCoeff)` threads `p` into the `ScalarOperator`
-  update function, yielding a `QobjEvo` differentiable wrt `p` (via SciMLSensitivity with
-  Enzyme/Mooncake; not Zygote). QuantumOptics has no solver `p` and rejects a `PControlCoeff`
-  with an `ArgumentError`. This backend asymmetry is inherent to the backends, not the design.
-- **`mesolve` superoperator path.** QuantumToolbox's `_spre`/`_spost` distribute over
-  recognized operator types but fall back to a generic lazy tensor (with a `try/catch` `@warn`
-  that breaks Mooncake) for any other `AbstractSciMLOperator`. The QuantumToolbox extension
-  therefore defines `QTB._spre`/`QTB._spost` and `Base.:*` on `VecSum`, so `liouvillian` builds
-  a `VecSum` superoperator of concrete `MatrixOperator`s (AD-traversable, warning-free). All
-  three return the single concrete `VecSum{T}`; the coefficient product is a plain closure-based
-  `ScalarOperator` (SciMLOperators' `ScalarOperator * ScalarOperator` returns a
-  `ComposedScalarOperator` that would not fit the `coeffs::Vector{ScalarOperator}` field).
+  two-argument function `(p, t) -> value` of the solver parameter vector `p`. Detection is by
+  arity: if any value function reads `p`, the conversion is p-aware and all value functions are
+  lifted to `(p, t)` form. `p` stays opaque to the symbolic layer (a symbol maps to a value
+  function; whether it consults `p` is that function's business), so the symbolic prefactor
+  machinery is untouched. The QuantumToolbox backend threads `p` into the coefficient, giving a
+  `QobjEvo` differentiable with respect to `p` (SciMLSensitivity with Enzyme/Mooncake, not
+  Zygote). QuantumOptics has no solver `p` and rejects the form; the asymmetry is inherent to
+  the backends.
+- **`mesolve` superoperator path.** QuantumToolbox's superoperator builders fall back to a
+  generic lazy tensor for operator types they do not recognize, which is not AD-traversable and
+  emits a warning whose `try/catch` breaks Mooncake. The QuantumToolbox extension therefore
+  teaches the `VecSum` to participate directly, so `liouvillian` builds a `VecSum` superoperator
+  of concrete matrices that stays differentiation-friendly.
 - Indexed conversion validates sites, unrolls sums, and emits the same term format as the
   non-indexed path. A site must be unique and within the backend basis.
 - QuantumToolbox levels are zero-based internally, so symbolic `Transition(i, j)` maps to

@@ -363,7 +363,7 @@ const QTBB = QuantumToolboxBackend()
         # QuantumToolbox p-aware collapse decays faster with a larger rate.
         @test fme([0.6]) < fme([0.3])
 
-        # Value-function arity is validated with actionable errors, not silently mis-detected:
+        # Value-function arity is validated with actionable errors, not silently misdetected:
         # variadic, conflicting-arity, and out-of-range (0 or 3+) functions are rejected.
         bad_va(args...) = args[1]
         bad_multi(t) = t
