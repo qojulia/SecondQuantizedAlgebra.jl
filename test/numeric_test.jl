@@ -534,6 +534,10 @@ SecondQuantizedAlgebra.numeric_materialize(
 
         @test to_numeric(E * a, b; time_parameter = Dict(E => t -> 1), op_type = identity) isa TimeDependentSum
         @test_throws ArgumentError to_numeric(E * a, b; time_parameter = Dict(E => t -> 1), op_type = dense)
+
+        # A solver-parameter (p, t) coefficient is QuantumToolbox-only; QuantumOptics has no
+        # solver parameter vector and rejects it with a clear error.
+        @test_throws ArgumentError to_numeric(E * a, b; time_parameter = Dict(E => (p, t) -> p[1]))
     end
 
     @testset "public backend hooks and product dims validation" begin

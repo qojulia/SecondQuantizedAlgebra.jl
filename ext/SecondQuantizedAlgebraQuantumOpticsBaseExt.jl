@@ -125,6 +125,12 @@ function SQA.numeric_assemble_td(be::QuantumOpticsBackend, b, td_terms)
     coeffs = Function[]
     ops = QOB.AbstractOperator[]
     for (c, factors) in td_terms
+        c isa SQA.PControlCoeff && throw(
+            ArgumentError(
+                "solver-parameter (p, t) coefficients require the QuantumToolbox backend; " *
+                    "QuantumOptics time-dependent coefficients are functions of t only",
+            ),
+        )
         push!(
             coeffs, c isa Function ? c : (
                     let c = c

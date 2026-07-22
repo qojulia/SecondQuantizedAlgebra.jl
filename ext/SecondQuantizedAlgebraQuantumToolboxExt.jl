@@ -22,14 +22,10 @@ const QTBDims = Union{Integer, AbstractVector{<:Integer}}
 # =======================================================================================
 # Vector-backed lazy sum
 #
-# SciMLOperators' built-in `AddedOperator` is type-locked to a `Tuple`, so a lazy sum built
-# from it is type-unstable for a runtime term count. `VecSum` stores the per-term coefficient
-# operators and operators in `Vector`s instead, so `VecSum{ComplexF64}` is ONE concrete type
-# for any term count (the heterogeneous elements live behind the abstract `Vector` eltype,
-# one dynamic dispatch per term in the apply loop, exactly like QuantumOptics' own
-# `Vector{AbstractOperator}`-backed `LazySum`). The field eltypes are abstract on purpose: a
-# `ScalarOperator`'s full type encodes its update function, so constant and each distinct
-# time-dependent coefficient are different concrete types.
+# SciMLOperators' `AddedOperator` is `Tuple`-locked (type-unstable for a runtime term count).
+# `VecSum` uses `Vector`s instead, so `VecSum{ComplexF64}` is ONE concrete type for any term
+# count (one dynamic dispatch per term, like QuantumOptics' `LazySum`). Abstract field eltypes
+# are deliberate: a `ScalarOperator`'s type encodes its update function.
 # =======================================================================================
 
 struct VecSum{T} <: SO.AbstractSciMLOperator{T}
@@ -91,6 +87,48 @@ Base.adjoint(L::VecSum{T}) where {T} =
     SO.AbstractSciMLOperator[adjoint(c) for c in L.coeffs],
     SO.AbstractSciMLOperator[adjoint(o) for o in L.ops],
 )
+
+# --- superoperator construction (mesolve / liouvillian path) ---------------------------
+#
+# Without these, QuantumToolbox's `_spre`/`_spost` wrap a `VecSum` in a generic lazy tensor
+# (a `try/catch` `@warn` that breaks Mooncake, and untraversable by AD). Distributing over the
+# terms instead keeps the superoperator a `VecSum` of concrete `MatrixOperator`s: AD-traversable
+# and warning-free. `_spre`/`_spost` are linear (coefficients pass through); the dissipator's
+# `O'O`/sandwich terms need `VecSum * VecSum`. All three return the single concrete `VecSum{T}`.
+QTB._spre(A::VecSum{T}) where {T} =
+    VecSum{T}(A.coeffs, SO.AbstractSciMLOperator[QTB._spre(o) for o in A.ops])
+QTB._spost(B::VecSum{T}) where {T} =
+    VecSum{T}(B.coeffs, SO.AbstractSciMLOperator[QTB._spost(o) for o in B.ops])
+
+# Coefficient product as a PLAIN ScalarOperator (SciMLOperators' `*` returns a
+# ComposedScalarOperator that does not fit `coeffs::Vector{ScalarOperator}`). Two constants
+# multiply eagerly to stay constant (correct `isconstant`/static `concretize`); otherwise a
+# closure defers to update time. The non-mutating `update_coefficients` is AD-safe.
+function _scalprod(c1::SO.ScalarOperator, c2::SO.ScalarOperator)
+    (SO.isconstant(c1) && SO.isconstant(c2)) && return SO.ScalarOperator(_cv(c1) * _cv(c2))
+    return SO.ScalarOperator(
+        0.0im,
+        (a, u, p, t) -> _cv(SO.update_coefficients(c1, u, p, t)) * _cv(SO.update_coefficients(c2, u, p, t)),
+    )
+end
+
+# Operator product: materialized MatrixOperator fast path (the lazy `*` fallback does not
+# arise after `_spre`/`_spost`, which yield MatrixOperators).
+_opprod(x::SO.MatrixOperator, y::SO.MatrixOperator) = SO.MatrixOperator(x.A * y.A)
+_opprod(x, y) = x * y
+
+function Base.:*(A::VecSum{T}, B::VecSum{T}) where {T}
+    n = length(A.ops) * length(B.ops)
+    coeffs = Vector{SO.ScalarOperator}(undef, n)
+    ops = Vector{SO.AbstractSciMLOperator}(undef, n)
+    k = 1
+    for i in eachindex(A.ops), j in eachindex(B.ops)
+        coeffs[k] = _scalprod(A.coeffs[i], B.coeffs[j])
+        ops[k] = _opprod(A.ops[i], B.ops[j])
+        k += 1
+    end
+    return VecSum{T}(coeffs, ops)
+end
 
 # =======================================================================================
 # operator -> QuantumObject (closed value-branch ladder + open Val fallthrough)
@@ -198,6 +236,8 @@ end
 # SciML update signature is the four-arg `(a, u, p, t) -> c`, not the two-arg `(p, t)`.
 _td_scalar(c::Function) = SO.ScalarOperator(0.0im, (a, u, p, t) -> ComplexF64(c(t)))
 _td_scalar(c) = SO.ScalarOperator(ComplexF64(c))
+# p-aware: thread `p` into the update function so the QobjEvo is differentiable wrt `p`.
+_td_scalar(c::SQA.PControlCoeff) = SO.ScalarOperator(0.0im, (a, u, p, t) -> ComplexF64(c.f(p, t)))
 
 function _fuse(be::QuantumToolboxBackend, basis, factors)
     isempty(factors) && return SQA.numeric_identity(be, basis)

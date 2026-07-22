@@ -4,6 +4,13 @@
 
 const _NO_SCALAR_SUBS = Dict{Num, Any}()
 
+# A p-aware coefficient closure `(p, t) -> Complex`: backends dispatch on it (QuantumToolbox
+# threads `p` into the `ScalarOperator`, QuantumOptics rejects it). Parametric field for
+# concreteness.
+struct PControlCoeff{F}
+    f::F
+end
+
 # --- parameter / time-parameter normalisation -----------------------------------------
 
 function _expand_parameter(parameter)
@@ -30,14 +37,55 @@ function _normalize_time_parameter(time_parameter)
     return out
 end
 
+# Does a value function read `p`? Arity 2 (`(p, t)`) yes, arity 1 (`t`) no. Checks every
+# method (`nargs - 1` drops the function/self slot, so closures, typed functions, and functors
+# all work) rather than the first, and rejects variadic/conflicting/out-of-range arities.
+function _tp_reads_p(f)::Bool
+    arities = Set{Int}()
+    for m in methods(f)
+        m.isva && throw(
+            ArgumentError(
+                "time_parameter value `$f` is variadic; write it as an explicit " *
+                    "`t -> value` or `(p, t) -> value` closure.",
+            ),
+        )
+        push!(arities, Int(m.nargs) - 1)
+    end
+    length(arities) == 1 || throw(
+        ArgumentError(
+            "time_parameter value `$f` has methods of conflicting arity $(sort!(collect(arities))); " *
+                "write it as an explicit `t -> value` or `(p, t) -> value` closure.",
+        ),
+    )
+    n = only(arities)
+    n == 1 && return false
+    n == 2 && return true
+    throw(
+        ArgumentError(
+            "time_parameter value `$f` must take one argument (`t -> value`) or two arguments " *
+                "(`(p, t) -> value`), but takes $n.",
+        ),
+    )
+end
+
+# In p-aware mode lift a t-only value function to `(p, t)` arity; a `(p, t)` function is kept.
+_lift_pt(f) = _tp_reads_p(f) ? f : ((p, t) -> f(t))
+
+# conj wrapper preserving arity (the value function is already lifted in p-aware mode).
+_conj_vf(f, p_aware::Bool) = p_aware ? ((p, t) -> conj(f(p, t))) : (t -> conj(f(t)))
+
+# p-aware iff any value function reads `p`; then all are lifted to `(p, t)` arity so `_td_coeff`
+# maps over them with one signature.
 function _time_basis(time_parameter)
+    p_aware = any(_tp_reads_p, values(time_parameter))
     basevars = Any[]
     valuefuncs = Any[]
     for (k, f) in time_parameter
+        g = p_aware ? _lift_pt(f) : f
         uk = SymbolicUtils.unwrap(k)
         if SymbolicUtils.issym(uk)
             push!(basevars, k)
-            push!(valuefuncs, f)
+            push!(valuefuncs, g)
             continue
         end
         vs = collect(Symbolics.get_variables(k))
@@ -49,7 +97,7 @@ function _time_basis(time_parameter)
         wv = Symbolics.wrap(vs[1])
         if isequal(uk, SymbolicUtils.unwrap(conj(wv)))
             push!(basevars, wv)
-            push!(valuefuncs, t -> conj(f(t)))
+            push!(valuefuncs, _conj_vf(g, p_aware))
         else
             throw(
                 ArgumentError(
@@ -58,7 +106,7 @@ function _time_basis(time_parameter)
             )
         end
     end
-    return basevars, Tuple(valuefuncs)
+    return basevars, Tuple(valuefuncs), p_aware
 end
 
 _coeff_is_const(c::Complex{Num}) =
