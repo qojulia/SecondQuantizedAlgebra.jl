@@ -168,6 +168,13 @@ Before merging any PR:
 - **Comments: compact, why not what.** Default to no comment; add one only for a non-obvious *why*. Keep it to a couple of lines.
 - **Changelog entries: short.** One to two sentences per entry. State what changed and where it matters, not the mechanism.
 - **Devdocs: rationale, not private-function tours.** Explain the design decision and its reason. Do not enumerate the private functions that implement it.
+## Performance terminology
+
+Three distinct axes; keep them separate when reporting numbers.
+
+- **Precompilation time**: compiling package code into the on-disk cache. Paid once per version/dependency change, not per session; where `precompile.jl`'s `@compile_workload` runs.
+- **TTFX**: cold-process latency to the *first* call: `using` load time plus any JIT not cached during precompilation. A bigger `@compile_workload` trades more precompilation time for less TTFX.
+- **Runtime**: steady-state cost of every call after the first, no compilation. What `@btime`/`benchmark/` measure after warmup; target of the zero-allocation passes.
 
 ## Dependencies
 

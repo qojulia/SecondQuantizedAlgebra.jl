@@ -35,6 +35,15 @@ const _CNUM_NEG1 = _native(-one(ComplexF64))
 const _CNUM_IM = _native(ComplexF64(0, 1))
 const _CNUM_NEG_IM = _native(ComplexF64(0, -1))
 
+# Exact value of an elementary function at argument `0`, or `nothing`. Folds the `exp(0)`
+# Symbolics leaves after Euler-expanding `exp(im*ω*t)`. Spelled as `===` (not `in` a tuple)
+# to stay statically resolved; user-registered functions (`pulse(t)`) return `nothing`.
+@inline function _unary_at_zero(op)::Union{ComplexF64, Nothing}
+    (op === exp || op === cos || op === cosh) && return _ONE_C
+    (op === sin || op === tan || op === sinh || op === tanh) && return zero(ComplexF64)
+    return nothing
+end
+
 # Concrete numeric content of an (unwrapped) symbolic value, else `nothing`
 # (`BasicSymbolic` constants from substitute/simplify count, keeping them native).
 @inline function _const_value(v)
@@ -51,7 +60,7 @@ end
 end
 
 _to_cnum(x::Coeff) = x
-_to_cnum(x::Num) = _rec(SymbolicUtils.unwrap(x))
+_to_cnum(x::Num) = _recognize(SymbolicUtils.unwrap(x))
 # Native only when the value round-trips through ComplexF64 with no loss, so exact
 # rationals / bignums stay symbolic instead of silently truncating.
 function _to_cnum(x::Real)
@@ -63,15 +72,15 @@ function _to_cnum(x::Complex)
     return z == x ? _native(z) : _symbolic(Complex(Num(real(x)), Num(imag(x))))
 end
 _to_cnum(x::Complex{Num}) = _cnum(real(x), imag(x))
-_to_cnum(x::SymbolicUtils.BasicSymbolic) = _rec(x)
+_to_cnum(x::SymbolicUtils.BasicSymbolic) = _recognize(x)
 
 # Canonicalizing constructor from real/imag `Num` parts (`re + im*i`), used by the
 # symbolic boundaries (substitute / conj / change_index) that may yield a polynomial.
 _cnum(re::Num, im::Num) =
-    _add_cnum(_rec(SymbolicUtils.unwrap(re)), _mul_cnum(_CNUM_IM, _rec(SymbolicUtils.unwrap(im))))
+    _add_cnum(_recognize(SymbolicUtils.unwrap(re)), _mul_cnum(_CNUM_IM, _recognize(SymbolicUtils.unwrap(im))))
 
 # Rebuild after a materialized symbolic arithmetic step: folds a numeric constant
-# back to native, else stays symbolic. Must NOT re-enter `_rec` (would recurse).
+# back to native, else stays symbolic. Must NOT re-enter `_recognize` (would recurse).
 function _cnum_sym(re::Num, im::Num)
     rv = _numeric_value(re)
     iv = _numeric_value(im)
@@ -139,7 +148,7 @@ end
 # An "atom" is an irreducible scalar the polynomial tier treats as one opaque
 # variable: a symbol, an array index (`ω[i]`), or a non-algebraic one-arg call on an
 # atom (`real(g)`, `imag(g)`, `sqrt`, `exp`, `conj`, ...). Algebraic ops (`+ * ^ /`,
-# `complex`) are decomposed by `_rec` instead, keeping their structure native.
+# `complex`) are decomposed by `_recognize` instead, keeping their structure native.
 @inline function _is_atom(b)
     b isa SymbolicUtils.BasicSymbolic || return false
     SymbolicUtils.issym(b) && return true
@@ -162,7 +171,7 @@ end
 # unit-scalar monomial (giving that atom a rational exponent); any other base would
 # need to distribute the radical (unsound), so it becomes a symbolic leaf.
 function _rational_power(basearg, r::Rational{Int}, x)
-    base = _rec(basearg)
+    base = _recognize(basearg)
     _is_native(base) && return _native(base.z^r)
     if base.tail isa Poly && length(base.tail.terms) == 1
         m = base.tail.terms[1]
@@ -177,19 +186,19 @@ end
 # Numbers/atoms map to native/Poly; `+ * ^(int) /` compose through the coefficient
 # arithmetic; radicals fold to rational exponents; everything else is a symbolic
 # leaf. Always returns a `Coeff` (no `nothing` sentinel).
-_rec(x::Number)::Coeff = _to_cnum(x)
-_rec(x::Num)::Coeff = _rec(SymbolicUtils.unwrap(x))
-_rec(x)::Coeff = _to_cnum(x)
-function _rec(x::SymbolicUtils.BasicSymbolic)::Coeff
-    SymbolicUtils.isconst(x) && return _rec(x.val)
+_recognize(x::Number)::Coeff = _to_cnum(x)
+_recognize(x::Num)::Coeff = _recognize(SymbolicUtils.unwrap(x))
+_recognize(x)::Coeff = _to_cnum(x)
+function _recognize(x::SymbolicUtils.BasicSymbolic)::Coeff
+    SymbolicUtils.isconst(x) && return _recognize(x.val)
     SymbolicUtils.issym(x) && return _atom_coeff(x)
     SymbolicUtils.iscall(x) || return _sym_leaf(x)
     op = SymbolicUtils.operation(x)
     args = SymbolicUtils.arguments(x)
     if op === (+)
-        return _rec_sum(args)
+        return _recognize_sum(args)
     elseif op === (*)
-        return _rec_prod(args)
+        return _recognize_prod(args)
     elseif op === (^)
         length(args) == 2 || return _sym_leaf(x)
         # `isa` guards narrow the `Any` exponent before arithmetic (a helper call on
@@ -197,7 +206,7 @@ function _rec(x::SymbolicUtils.BasicSymbolic)::Coeff
         pv = _const_value(args[2])
         if pv isa Integer
             n = Int(pv)
-            base = _rec(args[1])
+            base = _recognize(args[1])
             if n >= 0
                 c = _CNUM_ONE
                 for _ in 1:n
@@ -221,20 +230,20 @@ function _rec(x::SymbolicUtils.BasicSymbolic)::Coeff
     elseif op === conj
         # Fold conj of a constant (e.g. conj(0.0) left by substituting a complex
         # parameter to a real value) so the coefficient can collapse to zero.
-        inner = _rec(args[1])
+        inner = _recognize(args[1])
         _is_native(inner) && return _native(conj(inner.z))
         return _is_atom(x) ? _atom_coeff(x) : _sym_leaf(x)
     elseif op === (/)
         length(args) == 2 || return _sym_leaf(x)
-        den = _rec(args[2])
+        den = _recognize(args[2])
         if _is_native(den)
-            return _mul_cnum(_rec(args[1]), _native(inv(den.z)))
+            return _mul_cnum(_recognize(args[1]), _native(inv(den.z)))
         elseif den.tail isa Poly && length(den.tail.terms) == 1
             m = den.tail.terms[1]
             s = inv(m.scalar)
             s * m.scalar == _ONE_C &&
                 return _mul_cnum(
-                _rec(args[1]),
+                _recognize(args[1]),
                 _poly_coeff(Poly(Monomial[Monomial(s, m.syms, Rational{Int}[-e for e in m.exps])]))
             )
         end
@@ -249,18 +258,26 @@ function _rec(x::SymbolicUtils.BasicSymbolic)::Coeff
         length(args) == 1 && return _rational_power(only(args), 1 // 3, x)
         return _sym_leaf(x)
     end
+    # Fold an elementary function of a literal zero (`exp(0) -> 1`, `sin(0) -> 0`, ...).
+    if length(args) == 1
+        v = _unary_at_zero(op)
+        if v !== nothing
+            a1 = _recognize(only(args))
+            (_is_native(a1) && iszero(a1.z)) && return _native(v)
+        end
+    end
     # Irreducible one-arg call on an atom (`exp`, `sin`, `real`, `imag`, ...): keep it
     # native as an opaque integer-exponent atom. Radicals are handled above instead.
     return _is_atom(x) ? _atom_coeff(x) : _sym_leaf(x)
 end
 
-function _rec_sum(args)::Coeff
+function _recognize_sum(args)::Coeff
     monos = Monomial[]
     znative = zero(ComplexF64)
     sym = _CNUM_ZERO
     have_sym = false
     for a in args
-        ca = _rec(a)
+        ca = _recognize(a)
         t = ca.tail
         if t isa Native
             znative += ca.z
@@ -276,20 +293,36 @@ function _rec_sum(args)::Coeff
     return have_sym ? _add_cnum(poly, sym) : poly
 end
 
+# Insertion-sort a factor list (syms + matching exps) in place by objectid key.
+# Avoids Base's `sortperm` machinery for the abstract `BasicSymbolic` eltype, whose
+# inference is a nontrivial slice of first-call latency; these lists are tiny.
+function _sort_factors!(syms::Vector{SymbolicUtils.BasicSymbolic}, exps::Vector{Rational{Int}})
+    @inbounds for i in 2:length(syms)
+        s = syms[i]; e = exps[i]; k = _fkey(s)
+        j = i - 1
+        while j >= 1 && _fkey(syms[j]) > k
+            syms[j + 1] = syms[j]; exps[j + 1] = exps[j]
+            j -= 1
+        end
+        syms[j + 1] = s; exps[j + 1] = e
+    end
+    return nothing
+end
+
 function _merge_factor_list(syms::Vector{SymbolicUtils.BasicSymbolic}, exps::Vector{Rational{Int}})
     n = length(syms)
     n <= 1 && return (syms, exps)
-    p = sortperm(syms; by = _fkey)
+    _sort_factors!(syms, exps)
     osyms = SymbolicUtils.BasicSymbolic[]
     oexps = Rational{Int}[]
     sizehint!(osyms, n); sizehint!(oexps, n)
     i = 1
     @inbounds while i <= n
-        s = syms[p[i]]
-        e = exps[p[i]]
+        s = syms[i]
+        e = exps[i]
         j = i + 1
-        while j <= n && syms[p[j]] === s
-            e += exps[p[j]]
+        while j <= n && syms[j] === s
+            e += exps[j]
             j += 1
         end
         e != 0 && (push!(osyms, s); push!(oexps, e))
@@ -298,14 +331,14 @@ function _merge_factor_list(syms::Vector{SymbolicUtils.BasicSymbolic}, exps::Vec
     return (osyms, oexps)
 end
 
-function _rec_prod(args)::Coeff
+function _recognize_prod(args)::Coeff
     scalar = _ONE_C
     syms = SymbolicUtils.BasicSymbolic[]
     exps = Rational{Int}[]
     other = _CNUM_ONE
     have_other = false
     for a in args
-        ca = _rec(a)
+        ca = _recognize(a)
         t = ca.tail
         if t isa Native
             scalar *= ca.z
@@ -438,8 +471,9 @@ function _conj_poly(p::Poly)
         for i in 1:n
             nsyms[i] = _conj_atom(m.syms[i])
         end
-        perm = sortperm(nsyms; by = _fkey)
-        terms[k] = Monomial(conj(m.scalar), nsyms[perm], m.exps[perm])
+        nexps = copy(m.exps)
+        _sort_factors!(nsyms, nexps)
+        terms[k] = Monomial(conj(m.scalar), nsyms, nexps)
     end
     return _from_poly(_canonical_terms!(terms))
 end
@@ -542,7 +576,7 @@ end
 
 @inline function _add_cnum(a::Coeff, b::Coeff)
     (_is_native(a) && _is_native(b)) && return _native(a.z + b.z)
-    # Skip add-by-zero: `_rec` folds every sum from `_CNUM_ZERO`, so without this each
+    # Skip add-by-zero: `_recognize` folds every sum from `_CNUM_ZERO`, so without this each
     # fold would splice a throwaway zero `Monomial` into the Poly and merge it away.
     _is_native(a) && iszero(a.z) && return b
     _is_native(b) && iszero(b.z) && return a
