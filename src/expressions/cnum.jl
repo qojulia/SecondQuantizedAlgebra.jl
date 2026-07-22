@@ -79,24 +79,15 @@ _to_cnum(x::SymbolicUtils.BasicSymbolic) = _recognize(x)
 _cnum(re::Num, im::Num) =
     _add_cnum(_recognize(SymbolicUtils.unwrap(re)), _mul_cnum(_CNUM_IM, _recognize(SymbolicUtils.unwrap(im))))
 
-# Function barrier: `_numeric_value` yields an abstract `Number`, so folding here
-# (rather than inline in `_cnum_sym`) specializes the round-trip on the concrete
-# type and replaces four boxed `Number` dispatches with one. Returns `nothing` when
-# the value does not round-trip through `ComplexF64` losslessly.
-@noinline function _native_fold(rv::Number, iv::Number)
-    w = rv + Complex(false, true) * iv
-    z = ComplexF64(w)
-    return z == w ? z : nothing
-end
-
 # Rebuild after a materialized symbolic arithmetic step: folds a numeric constant
 # back to native, else stays symbolic. Must NOT re-enter `_recognize` (would recurse).
 function _cnum_sym(re::Num, im::Num)
     rv = _numeric_value(re)
     iv = _numeric_value(im)
     if rv isa Number && iv isa Number
-        z = _native_fold(rv, iv)
-        z !== nothing && return _native(z)
+        w = rv + Complex(false, true) * iv
+        z = ComplexF64(w)
+        z == w && return _native(z)
     end
     return _symbolic(Complex(re, im))
 end
