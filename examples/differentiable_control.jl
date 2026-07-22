@@ -1,4 +1,4 @@
-# # Differentiable Quantum Optimal Control (QuantumToolbox + Mooncake)
+# # Differentiable Quantum Optimal Control
 #
 # Gradient-based quantum optimal control means shaping a control pulse, evolving the state,
 # measuring how far the final state is from a target, and descending the gradient of that error
@@ -95,7 +95,7 @@ end
 #
 # With no dissipation the state stays pure. The cost is the infidelity
 # ``1 - |\langle 1 | \psi(T) \rangle|^2``, one minus the population in ``|1\rangle`` at the
-# final time. `sesolve` receives `params = p` and the adjoint chosen for correct gradients here,
+# final time. `sesolve` receives `params` and the adjoint chosen for correct gradients here,
 # `BacksolveAdjoint` with the Mooncake vector-Jacobian product; Enzyme works too, while Zygote
 # returns silently wrong gradients for time evolution.
 
