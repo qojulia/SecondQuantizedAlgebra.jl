@@ -41,7 +41,6 @@ import Mooncake                       # loads the Mooncake reverse-mode backend
 import DifferentiationInterface as DI
 using DifferentiationInterface: AutoMooncake
 using Optimization, OptimizationOptimJL
-using Optimization, OptimizationOptimisers
 
 h = FockSpace(:c)
 @qnumbers a::Destroy(h)
