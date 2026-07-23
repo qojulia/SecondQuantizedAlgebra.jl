@@ -200,7 +200,8 @@ On a `SymbolicUtils.BasicSymbolic` tree, recurses into arguments so coefficients
 distribute (e.g. `qadjoint(2im * a)` becomes `-2im * a'`) rather than producing
 an opaque `conj(...)` wrapper.
 
-Aliased as `qconj` and `dagger`.
+Aliased as `qconj`. See also [`dagger`](@ref), which extends
+`QuantumInterface.dagger` for `QField` and forwards here.
 """
 function qadjoint(v::SymbolicUtils.BasicSymbolic)
     # TODO `Symbolics.IM` (used by `average(::QAdd)` to avoid `Complex{Num}`)
@@ -225,7 +226,16 @@ qadjoint(x::Num) = qadjoint(SymbolicUtils.unwrap(x))
 qadjoint(x::QField) = adjoint(x)
 
 const qconj = qadjoint
-const dagger = qadjoint
+
+"""
+    dagger(x::QField)
+
+Hermitian conjugate of an operator expression. Method added to
+`QuantumInterface.dagger` (the adjoint verb shared with the QuantumOptics
+ecosystem) so it resolves without qualification when both are loaded. Forwards
+to [`qadjoint`](@ref); use `qadjoint`/`qconj` for bare scalar/symbolic adjoints.
+"""
+dagger(x::QField) = qadjoint(x)
 
 """
     inner_adjoint(x)

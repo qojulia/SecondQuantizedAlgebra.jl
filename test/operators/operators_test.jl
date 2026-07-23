@@ -249,9 +249,11 @@ import SecondQuantizedAlgebra: QAdd, QSym, QField, AvgFunc, _average, _conj_cnum
         a = Destroy(h, :a)
         @test qadjoint(a) == a'
 
-        # aliases are the same function object
+        # qconj is a plain alias; dagger extends QuantumInterface.dagger for QField
         @test qconj === qadjoint
-        @test dagger === qadjoint
+        @test nameof(parentmodule(dagger)) === :QuantumInterface
+        @test dagger(a) == qadjoint(a)
+        @test dagger(2im * a') == qadjoint(2im * a')
     end
 
     @testset "inner_adjoint" begin
