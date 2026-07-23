@@ -34,10 +34,7 @@
 #
 # > rewrite the Heisenberg drift in symmetric order, take the [`average`](@ref),
 # > factorize into a product of first moments.
-#
-# We never substitute ``a \to \alpha`` by hand. The stochastic variables *are*
-# the averages ``\langle a_j\rangle``, and the only difference between the
-# mean-field and the TWA drift is the single call to `normal_to_symmetric`.
+
 
 # ## Setup
 
