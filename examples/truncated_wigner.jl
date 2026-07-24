@@ -108,7 +108,7 @@ twa_drift(a)
 # Subtracting the two confirms the surplus is exactly the Wigner shift
 # ``+iU\langle a\rangle``:
 
-Symbolics.simplify(twa_drift(a) - meanfield_drift(a))
+Symbolics.expand(twa_drift(a) - meanfield_drift(a))
 
 # ## Porting to a ModelingToolkit system
 #
