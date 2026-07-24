@@ -1,5 +1,12 @@
 CI = get(ENV, "CI", nothing) == "true" || get(ENV, "GITHUB_TOKEN", nothing) !== nothing
 
+# On CI, turn on Documenter/Literate debug logging so each example page logs an
+# "Expanding markdown page" line as it is built. Combined with the timestamps in
+# the CI job log, this shows how long each example takes to build.
+if CI
+    ENV["JULIA_DEBUG"] = "Documenter,Literate"
+end
+
 using SecondQuantizedAlgebra
 using Documenter
 
