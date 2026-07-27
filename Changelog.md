@@ -19,6 +19,12 @@ Numeric conversion (`to_numeric`/`numeric_average`/`expect`) was redesigned to b
 
 - Some TTFX motivated changes and more complicated precompile workload. [#223](https://github.com/qojulia/SecondQuantizedAlgebra.jl/issues/223)
 
+- `expect(op, Vacuum())` returns the exact vacuum expectation value ``\langle 0|op|0\rangle`` as a `Complex{Num}`, with no basis cutoff and no numeric backend. `Vacuum()` is each subspace's own lowest state: the Fock vacuum, an `NLevelSpace`'s declared `ground_state`, the `PhaseSpace` oscillator ground state, the ``\sigma_z = +1`` / top weight ``|m=S\rangle`` for `PauliSpace` / `SpinSpace`, and all ``N`` particles in level 1 for `CollectiveNLevelSpace`. Two subspaces carry a size the algebra does not, so pass `spin` for a `SpinSpace` and `particles` for a `CollectiveNLevelSpace`. Since any state built from the vacuum is ``|\psi\rangle = O|0\rangle``, this one call also gives matrix elements, overlaps, norms, and zero-point energies. `expect` is now exported. Resolves [#143](https://github.com/qojulia/SecondQuantizedAlgebra.jl/issues/143).
+
+- A `Σ` whose summand does not reduce to a range factor keeps its scope symbolically instead of failing: ``\sum_i \Delta_i \sigma_i^{gg}`` evaluates to the indexed-sum node ``\sum_i \Delta_i``, and a `≠`-constrained scope is preserved rather than miscounted as the full range.
+
+- `kronecker_delta(i, j)` and `is_kronecker_delta(x)` add a symmetric Kronecker delta over summation indices. It folds to `1` on equal indices, both at construction and under `Symbolics.substitute` / `change_index`, and prints as `δ(i, j)` (`\delta_{i,j}` in LaTeX). `expect(op, Vacuum())` emits it when an expectation value genuinely depends on whether two free indices denote the same site: both readings are evaluated, the common value is returned when they agree, and the exact ``\delta_{ij} A + (1-\delta_{ij}) B`` split otherwise.
+
 ### Changed (breaking)
 
 - `QuantumOpticsBase` moved from a hard dependency to a weak dependency. Using the numeric API now requires loading a backend: add `using QuantumOpticsBase` (or `using QuantumToolbox`) next to `using SecondQuantizedAlgebra`. The lightweight `QuantumInterface.jl` is a new hard dependency (it owns the `⊗`/`tensor`/`expect`/`basis` generics that the algebra extends).
