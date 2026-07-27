@@ -11,6 +11,7 @@ pages = [
         "Cavity Optomechanics" => "examples/optomechanics.md",
         "Two-Atom Dipole-Dipole" => "examples/two_atom.md",
         "Parametric Oscillator" => "examples/parametric_oscillator.md",
+        "Truncated Wigner (Bose-Hubbard Dimer)" => "examples/truncated_wigner.md",
         "Tavis–Cummings Model" => "examples/tavis_cummings.md",
         "Differentiable Quantum Control" => "examples/differentiable_control.md",
     ],
