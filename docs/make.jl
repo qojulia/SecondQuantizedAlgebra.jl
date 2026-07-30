@@ -49,6 +49,13 @@ makedocs(;
     pages = pages,
     clean = true,
     linkcheck = true,
+    # GitHub throttles the burst of HEAD requests from the changelog's PR/issue
+    # links, so those curl calls time out and used to fail the whole build.
+    linkcheck_ignore = [
+        r"^https://github\.com/qojulia/SecondQuantizedAlgebra\.jl/(pull|issues)/\d+$",
+    ],
+    linkcheck_timeout = 30,
+    warnonly = [:linkcheck],
     # warnonly = :missing_docs,
     draft = false, #,(!CI),
     doctest = true,
