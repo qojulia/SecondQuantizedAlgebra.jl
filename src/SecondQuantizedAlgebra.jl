@@ -4,7 +4,7 @@ using SymbolicUtils: SymbolicUtils, simplify, substitute, add_worker
 using Symbolics: Symbolics, Num, expand, @variables, build_function, symbolic_to_float
 using TermInterface: TermInterface
 
-import QuantumInterface: ⊗, tensor, expect, basis
+import QuantumInterface: ⊗, tensor, expect, basis, dagger
 using QuantumInterface: AbstractOperator, StateVector, Basis
 
 using Combinatorics: with_replacement_combinations
