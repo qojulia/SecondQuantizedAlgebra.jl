@@ -57,6 +57,7 @@ tlist = collect(range(0, T, 61))
 M = 6                        # number of control parameters
 
 pulse(p, t) = sum(p[k] * sinpi(k * t / T) for k in eachindex(p))
+nothing # hide
 
 # ## The differentiable control Hamiltonian
 #
@@ -76,6 +77,7 @@ Hc = to_numeric(
 ψ0 = fock(N + 1, 0)
 proj1 = fock(N + 1, 1) * fock(N + 1, 1)'
 sensealg = BacksolveAdjoint(autojacvec = SciMLSensitivity.MooncakeVJP())
+nothing # hide
 
 # `Optimization.jl` is the idiomatic SciML interface: wrap the cost in an `OptimizationFunction`
 # carrying the AD backend, build an `OptimizationProblem`, and `solve`. For a smooth,
@@ -90,6 +92,7 @@ function optimize_pulse(cost)
     res = solve(prob, OptimizationOptimJL.LBFGS(); maxiters = 100, callback = (s, l) -> (push!(losses, l); false))
     return res.u, losses
 end
+nothing # hide
 
 # ## Closed system (`sesolve`)
 #
@@ -138,6 +141,7 @@ fig_closed
 # collapse operator is assembled the same way as the Hamiltonian, from `sqrt(κ) * a`.
 
 c_op = to_numeric(sqrt(κ) * a, h, N; backend = QuantumToolboxBackend(), parameter = Dict(κ => κ0))
+nothing # hide
 
 # The loss rate is a control too: writing `time_parameter = Dict(κ => (p, t) -> ...)` would make
 # ``\kappa`` a differentiable coefficient as well, so a tunable dissipation could be optimized
