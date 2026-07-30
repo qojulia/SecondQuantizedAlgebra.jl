@@ -182,6 +182,11 @@ function Symbolics._toexpr_op(::AvgFunc, args; kwargs...)
     return _latex_avg_expr(only(args))
 end
 
+function Symbolics._toexpr_op(::DeltaFunc, args; kwargs...)
+    parts = [strip(String(latexify(a; env = :inline)), '$') for a in args]
+    return string("\\delta_{", parts[1], ",", parts[2], "}")
+end
+
 function Symbolics._toexpr_op(::SumFunc, args; kwargs...)
     scope = _scope_of(args[2])
     body = args[1]

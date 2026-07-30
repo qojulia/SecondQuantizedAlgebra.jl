@@ -41,6 +41,8 @@ include("algebra/weyl.jl")
 
 include("average.jl")
 
+include("algebra/vacuum.jl")
+
 include("numeric/backend.jl")
 include("numeric/coeff.jl")
 include("numeric/core.jl")
@@ -98,7 +100,7 @@ export FockSpace, ProductSpace,
     SpinSpace, Spin,
     PhaseSpace, Position, Momentum,
     Index, has_index, index_slot, index_range, index_name, index_sym, IndexedOperator,
-    IndexedVariable, DoubleIndexedVariable,
+    IndexedVariable, DoubleIndexedVariable, kronecker_delta, is_kronecker_delta,
     Σ, ∑, change_index, get_indices,
     ⊗, tensor, Destroy, Create,
     @qnumbers, @variables,
@@ -108,6 +110,7 @@ export FockSpace, ProductSpace,
     prefactor, operators,
     substitute,
     normal_order, normal_to_symmetric, symmetric_to_normal,
+    Vacuum, expect,
     simplify, expand, expand_completeness, assume_distinct_index, commutator, anticommutator,
     to_numeric, numeric_average,
     NumericBackend, QuantumOpticsBackend, QuantumToolboxBackend,
@@ -123,7 +126,7 @@ export FockSpace, ProductSpace,
 # Public API that is intentionally NOT exported — accessed as
 # `SecondQuantizedAlgebra.symbol`.
 @public HilbertSpace, QField, QSym, OpKind,
-    NumericContext, expect,
+    NumericContext,
     OP_DESTROY, OP_CREATE, OP_TRANSITION, OP_PAULI, OP_SPIN, OP_POSITION, OP_MOMENTUM,
     OP_COLLECTIVE_TRANSITION,
     QAdd, QTerm, QTermDict, Coeff, CNum,

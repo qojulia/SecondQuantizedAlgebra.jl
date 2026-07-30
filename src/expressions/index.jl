@@ -78,6 +78,96 @@ end
 DoubleIndexedVariable(name::AbstractString, args...; kwargs...) = _name_must_be_symbol(name)
 
 """
+    DeltaFunc
+
+Singleton callable used as the `operation` of Kronecker-delta `Term` nodes;
+defining `show_call` on it gives the `δ(i, j)` display without type piracy.
+Mirrors the `AvgFunc` / `SumFunc` nodes of the moment layer.
+"""
+struct DeltaFunc end
+const sym_delta = DeltaFunc()
+
+Base.nameof(::DeltaFunc) = :δ
+Base.show(io::IO, ::DeltaFunc) = print(io, "δ")
+SymbolicUtils.promote_symtype(::DeltaFunc, Ts...) = Real
+
+# Symmetric in its arguments, so order them by printed name to keep one canonical
+# node per unordered pair (`δ(i,j)` and `δ(j,i)` must collect as like terms).
+# Equal arguments fold to a *symbolic* one: the substituter type-asserts that a
+# `maketerm` result is a `BasicSymbolic`, so a bare `1` cannot be returned there.
+function _delta_node(a, b)
+    isequal(a, b) && return convert(SymbolicUtils.BasicSymbolic{SymbolicUtils.SymReal}, 1)
+    x, y = string(a) <= string(b) ? (a, b) : (b, a)
+    return SymbolicUtils.Term{SymbolicUtils.SymReal}(sym_delta, Any[x, y]; type = Real)
+end
+
+function TermInterface.maketerm(
+        ::Type{SymbolicUtils.BasicSymbolic{SymbolicUtils.SymReal}}, ::DeltaFunc, args, metadata;
+        type = Real
+    )
+    return _delta_node(args[1], args[2])
+end
+
+"""
+    kronecker_delta(i::Index, j::Index) -> Num
+
+The Kronecker delta ``\\delta_{ij}`` over two summation indices: `1` when the two
+sites coincide, `0` otherwise.
+
+Equal indices fold to `1` on construction, and substituting one index for the
+other collapses an existing node the same way, so the identity survives
+`Symbolics.substitute` and [`change_index`](@ref).
+
+This is what [`expect`](@ref expect(::QAdd, ::Vacuum)) emits when an expectation
+value genuinely depends on whether two free indices denote the same site.
+
+# Examples
+
+```jldoctest
+julia> h = NLevelSpace(:atom, 2);
+
+julia> i = Index(h, :i, 5, h); j = Index(h, :j, 5, h);
+
+julia> kronecker_delta(i, j)
+δ(i, j)
+
+julia> kronecker_delta(i, i)
+1
+```
+
+See also [`is_kronecker_delta`](@ref), [`assume_distinct_index`](@ref).
+"""
+function kronecker_delta(i::Index, j::Index)
+    i == j && return _NUM_ONE
+    return Num(
+        _delta_node(
+            SymbolicUtils.unwrap(index_sym(i)), SymbolicUtils.unwrap(index_sym(j))
+        )
+    )
+end
+
+"""
+    is_kronecker_delta(x) -> Bool
+
+Whether `x` is a Kronecker-delta node built by [`kronecker_delta`](@ref).
+
+# Examples
+
+```jldoctest
+julia> h = NLevelSpace(:atom, 2);
+
+julia> i = Index(h, :i, 5, h); j = Index(h, :j, 5, h);
+
+julia> is_kronecker_delta(kronecker_delta(i, j))
+true
+```
+"""
+is_kronecker_delta(::Any) = false
+is_kronecker_delta(x::SymbolicUtils.BasicSymbolic) =
+    SymbolicUtils.iscall(x) && SymbolicUtils.operation(x) isa DeltaFunc
+is_kronecker_delta(x::Num) = is_kronecker_delta(SymbolicUtils.unwrap(x))
+
+"""
     change_index(expr, from::Index, to::Index)
 
 Rename an index in an expression by replacing `from` with `to` everywhere.

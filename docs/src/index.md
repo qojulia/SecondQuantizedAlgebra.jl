@@ -16,6 +16,7 @@ The package provides:
 - Explicit pipeline functions when you want piecewise control: `normal_order`, `simplify`, `commutator`, `anticommutator`, `expand`, `expand_completeness`.
 - Symbolic summations via `Index` and `Σ` for indexed families, with automatic diagonal splitting and `assume_distinct_index` for free-index constraints.
 - Averaging to symbolic scalars via `average` / `undo_average`, and extensible numeric conversion via QuantumOpticsBase or QuantumToolbox with `to_numeric` / `numeric_average`.
+- Exact vacuum expectation values with `expect(op, Vacuum())`, giving matrix elements, overlaps, norms, and zero-point energies with no cutoff and no numeric backend.
 - Hermitian conjugation across mixed operator + symbolic expressions via `qadjoint` (aliased as `qconj`, `dagger`) and the average-aware `inner_adjoint`.
 - Extensible for custom operator types via five small hooks — see the developer docs.
 
