@@ -34,6 +34,8 @@ Numeric conversion (`to_numeric`/`numeric_average`/`expect`) was redesigned to b
 
 - An elementary function of a literal zero left unevaluated by Symbolics (e.g. the `exp(0)` factor produced when `exp(im*ω*t)` is Euler-expanded to `cos(ω t)*exp(0) + exp(0)*im*sin(ω t)`) is now folded to its exact value in the coefficient algebra, so it no longer leaks into printed equations. Only exact identities at argument `0` fold (`exp/cos/cosh → 1`, `sin/tan/sinh/tanh → 0`); non-zero or non-constant arguments (`exp(2)`, `sin(π)`) stay symbolic.
 
+- `commutator` on two operator leaves no longer disagrees with `*`. Its fast path gated on a same-site test that ignored the operator name, so two distinct modes sharing one `FockSpace` (`a` and `b` from `Destroy(h, :a)`, `Destroy(h, :b)`) returned the `[a,a†] = 1` residual while `a*b' - b'*a` correctly gave `0`. The gate is now the `Equal` site comparison the per-operator hooks are documented to require.
+
 
 ## [v0.9.4]
 
