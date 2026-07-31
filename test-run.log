@@ -1,0 +1,298 @@
+     Testing SecondQuantizedAlgebra
+┌ Warning: Entry in manifest at "/var/home/oameye/Documents/SecondQuantizedAlgebra.jl/test" for package "SciMLPublic" differs from that in "/var/home/oameye/Documents/SecondQuantizedAlgebra.jl/Manifest.toml"
+└ @ Pkg.Operations /var/home/oameye/.julia/juliaup/julia-1.12.6+0.x64.linux.gnu/share/julia/stdlib/v1.12/Pkg/src/Operations.jl:2262
+┌ Warning: Entry in manifest at "/var/home/oameye/Documents/SecondQuantizedAlgebra.jl/test" for package "ADTypes" differs from that in "/var/home/oameye/Documents/SecondQuantizedAlgebra.jl/Manifest.toml"
+└ @ Pkg.Operations /var/home/oameye/.julia/juliaup/julia-1.12.6+0.x64.linux.gnu/share/julia/stdlib/v1.12/Pkg/src/Operations.jl:2262
+┌ Warning: Entry in manifest at "/var/home/oameye/Documents/SecondQuantizedAlgebra.jl/test" for package "Symbolics" differs from that in "/var/home/oameye/Documents/SecondQuantizedAlgebra.jl/Manifest.toml"
+└ @ Pkg.Operations /var/home/oameye/.julia/juliaup/julia-1.12.6+0.x64.linux.gnu/share/julia/stdlib/v1.12/Pkg/src/Operations.jl:2262
+┌ Warning: Entry in manifest at "/var/home/oameye/Documents/SecondQuantizedAlgebra.jl/test" for package "DataStructures" differs from that in "/var/home/oameye/Documents/SecondQuantizedAlgebra.jl/Manifest.toml"
+└ @ Pkg.Operations /var/home/oameye/.julia/juliaup/julia-1.12.6+0.x64.linux.gnu/share/julia/stdlib/v1.12/Pkg/src/Operations.jl:2262
+┌ Warning: Entry in manifest at "/var/home/oameye/Documents/SecondQuantizedAlgebra.jl/test" for package "CommonWorldInvalidations" differs from that in "/var/home/oameye/Documents/SecondQuantizedAlgebra.jl/Manifest.toml"
+└ @ Pkg.Operations /var/home/oameye/.julia/juliaup/julia-1.12.6+0.x64.linux.gnu/share/julia/stdlib/v1.12/Pkg/src/Operations.jl:2262
+┌ Warning: Entry in manifest at "/var/home/oameye/Documents/SecondQuantizedAlgebra.jl/test" for package "SymbolicLimits" differs from that in "/var/home/oameye/Documents/SecondQuantizedAlgebra.jl/Manifest.toml"
+└ @ Pkg.Operations /var/home/oameye/.julia/juliaup/julia-1.12.6+0.x64.linux.gnu/share/julia/stdlib/v1.12/Pkg/src/Operations.jl:2262
+┌ Warning: Entry in manifest at "/var/home/oameye/Documents/SecondQuantizedAlgebra.jl/test" for package "Latexify" differs from that in "/var/home/oameye/Documents/SecondQuantizedAlgebra.jl/Manifest.toml"
+└ @ Pkg.Operations /var/home/oameye/.julia/juliaup/julia-1.12.6+0.x64.linux.gnu/share/julia/stdlib/v1.12/Pkg/src/Operations.jl:2262
+┌ Warning: Entry in manifest at "/var/home/oameye/Documents/SecondQuantizedAlgebra.jl/test" for package "Moshi" differs from that in "/var/home/oameye/Documents/SecondQuantizedAlgebra.jl/Manifest.toml"
+└ @ Pkg.Operations /var/home/oameye/.julia/juliaup/julia-1.12.6+0.x64.linux.gnu/share/julia/stdlib/v1.12/Pkg/src/Operations.jl:2262
+┌ Warning: Entry in manifest at "/var/home/oameye/Documents/SecondQuantizedAlgebra.jl/test" for package "RuntimeGeneratedFunctions" differs from that in "/var/home/oameye/Documents/SecondQuantizedAlgebra.jl/Manifest.toml"
+└ @ Pkg.Operations /var/home/oameye/.julia/juliaup/julia-1.12.6+0.x64.linux.gnu/share/julia/stdlib/v1.12/Pkg/src/Operations.jl:2262
+┌ Warning: Entry in manifest at "/var/home/oameye/Documents/SecondQuantizedAlgebra.jl/test" for package "SymbolicUtils" differs from that in "/var/home/oameye/Documents/SecondQuantizedAlgebra.jl/Manifest.toml"
+└ @ Pkg.Operations /var/home/oameye/.julia/juliaup/julia-1.12.6+0.x64.linux.gnu/share/julia/stdlib/v1.12/Pkg/src/Operations.jl:2262
+┌ Warning: Entry in manifest at "/var/home/oameye/Documents/SecondQuantizedAlgebra.jl/test" for package "SymbolicIndexingInterface" differs from that in "/var/home/oameye/Documents/SecondQuantizedAlgebra.jl/Manifest.toml"
+└ @ Pkg.Operations /var/home/oameye/.julia/juliaup/julia-1.12.6+0.x64.linux.gnu/share/julia/stdlib/v1.12/Pkg/src/Operations.jl:2262
+      Status `/tmp/jl_RwMqfY/Project.toml`
+  [4c88cf16] Aqua v0.8.16
+  [73c92db5] CheckConcreteStructs v0.1.0
+  [7d51a73a] ExplicitImports v1.15.0
+⌅ [c3a54625] JET v0.11.6
+  [b964fa9f] LaTeXStrings v1.4.0
+⌃ [23fbe1c1] Latexify v0.16.10
+  [d8a4904e] MutableArithmetics v1.8.0
+⌃ [d3525ed8] ParallelTestRunner v2.6.3
+  [4f57444f] QuantumOpticsBase v0.5.10
+⌃ [6c2fb7c5] QuantumToolbox v0.47.2
+⌃ [c0aeaf25] SciMLOperators v1.24.4
+  [f7aa4685] SecondQuantizedAlgebra v0.10.0 `/var/home/oameye/Documents/SecondQuantizedAlgebra.jl`
+⌃ [d1185830] SymbolicUtils v4.39.0
+⌃ [0c5d862f] Symbolics v7.31.0
+  [8ea1fca8] TermInterface v2.0.0
+  [37e2e46d] LinearAlgebra v1.12.0
+  [9a3f8284] Random v1.11.0
+  [8dfed614] Test v1.11.0
+      Status `/tmp/jl_RwMqfY/Manifest.toml`
+⌃ [47edcb42] ADTypes v1.22.1
+  [14f7f29c] AMD v0.5.3
+  [621f4979] AbstractFFTs v1.5.0
+  [6e696c72] AbstractPlutoDingetjes v1.4.0
+  [1520ce14] AbstractTrees v0.4.5
+  [7d9f7c33] Accessors v0.1.45
+  [79e6a3ab] Adapt v4.7.0
+  [66dad0bd] AliasTables v1.1.3
+  [4c88cf16] Aqua v0.8.16
+  [ec485272] ArnoldiMethod v0.4.0
+⌃ [4fba245c] ArrayInterface v7.27.0
+  [e2ed5e7c] Bijections v0.2.2
+⌃ [b2a6c25c] BinaryHeaps v1.0.3
+⌃ [70df07ce] BracketingNonlinearSolve v1.12.3
+  [73c92db5] CheckConcreteStructs v0.1.0
+  [da1fd8a2] CodeTracking v3.0.2
+⌅ [861a8166] Combinatorics v1.0.2
+⌃ [38540f10] CommonSolve v0.2.11
+  [bbf7d656] CommonSubexpressions v0.3.1
+⌃ [f70d9fcc] CommonWorldInvalidations v1.1.0
+  [34da2185] Compat v4.18.1
+  [807dbc54] Compiler v0.1.1
+  [b152e2b5] CompositeTypes v0.1.4
+  [a33af91c] CompositionsBase v0.1.2
+⌃ [2569d6c7] ConcreteStructs v0.2.6
+  [187b0558] ConstructionBase v1.6.0
+  [9a962f9c] DataAPI v1.16.0
+⌃ [864edb3b] DataStructures v0.19.5
+⌃ [2b5f629d] DiffEqBase v7.6.2
+⌃ [459566f4] DiffEqCallbacks v4.18.3
+  [77a26b50] DiffEqNoiseProcess v5.33.2
+  [163ba53b] DiffResults v1.1.0
+  [b552c78f] DiffRules v1.16.0
+  [a0c0ee7d] DifferentiationInterface v0.7.20
+⌃ [31c24e10] Distributions v0.25.129
+  [ffbed154] DocStringExtensions v0.9.5
+  [5b8099bc] DomainSets v0.8.1
+  [7c1d4256] DynamicPolynomials v0.6.6
+  [4e289a0a] EnumX v1.0.7
+  [f151be2c] EnzymeCore v0.8.21
+  [7d51a73a] ExplicitImports v1.15.0
+⌃ [e2ba6199] ExprTools v0.1.10
+  [55351af7] ExproniconLite v0.10.14
+  [7a1cc6ca] FFTW v1.10.0
+⌃ [7034ab61] FastBroadcast v1.3.4
+  [9aa1b823] FastClosures v0.3.2
+  [7868e603] FastExpm v1.1.0
+  [442a2c76] FastGaussQuadrature v1.3.0
+⌃ [a4df4552] FastPower v1.3.4
+  [1a297f60] FillArrays v1.17.0
+⌃ [64ca27bc] FindFirstFunctions v3.2.0
+  [6a86dc24] FiniteDiff v2.32.0
+  [1fa38f19] Format v1.3.7
+⌃ [f6369f11] ForwardDiff v1.4.1
+  [a85aefff] FunctionMaps v0.1.2
+  [069b7b12] FunctionWrappers v1.1.3
+⌃ [77dc65aa] FunctionWrappersWrappers v1.10.1
+  [46192b85] GPUArraysCore v0.2.0
+  [a0844989] Gamma v1.1.0
+  [86223c79] Graphs v1.14.0
+⌃ [34004b35] HypergeometricFunctions v0.3.29
+  [b5f81e59] IOCapture v1.0.0
+  [40713840] IncompleteLU v0.2.1
+  [d25df0c9] Inflate v0.1.5
+⌃ [18e54dd8] IntegerMathUtils v0.1.3
+  [8197267c] IntervalSets v0.7.14
+  [3587e190] InverseFunctions v0.1.17
+  [92d709cd] IrrationalConstants v0.2.6
+  [82899510] IteratorInterfaceExtensions v1.0.0
+⌅ [c3a54625] JET v0.11.6
+  [692b3bcd] JLLWrappers v1.8.0
+  [ae98c720] Jieko v0.2.1
+  [aa1ae85d] JuliaInterpreter v0.11.4
+  [70703baa] JuliaSyntax v1.0.2
+  [ccbc3e58] JumpProcesses v9.29.2
+  [ba0b0d4f] Krylov v0.10.8
+  [8ac3fa9e] LRUCache v1.6.2
+  [b964fa9f] LaTeXStrings v1.4.0
+⌃ [23fbe1c1] Latexify v0.16.10
+  [87fe0de2] LineSearch v0.1.12
+⌅ [7ed4a6bd] LinearSolve v3.87.0
+  [2ab3a3ac] LogExpFunctions v1.0.1
+  [e6f89c97] LoggingExtras v1.2.0
+  [6f1432cf] LoweredCodeUtils v3.8.0
+  [1914dd2f] MacroTools v0.5.16
+  [36869731] Malt v1.4.1
+⌃ [bb5d69b7] MaybeInplace v0.1.6
+  [e1d29d7a] Missings v1.2.0
+⌃ [2e0e35c7] Moshi v0.3.8
+⌃ [46d2c3a1] MuladdMacro v0.2.6
+  [102ac46a] MultivariatePolynomials v0.5.19
+  [d8a4904e] MutableArithmetics v1.8.0
+  [77ba4419] NaNMath v1.1.4
+⌃ [be0214bd] NonlinearSolveBase v2.33.0
+⌅ [bac558e1] OrderedCollections v1.8.2
+⌃ [bbf590c4] OrdinaryDiffEqCore v4.8.0
+  [1344f307] OrdinaryDiffEqLowOrderRK v2.2.1
+⌃ [79d7bb75] OrdinaryDiffEqVerner v2.2.0
+⌃ [90014a1f] PDMats v0.11.40
+⌃ [d3525ed8] ParallelTestRunner v2.6.3
+⌃ [e409e4f3] PoissonRandom v0.4.12
+⌃ [d236fae5] PreallocationTools v1.3.0
+  [aea7be01] PrecompileTools v1.3.4
+  [21216c6a] Preferences v1.5.2
+  [27ebfcd6] Primes v0.5.7
+  [92933f4c] ProgressMeter v1.11.0
+  [43287f4e] PtrArrays v1.4.0
+⌃ [0c0d3e7f] PureKLU v1.1.1
+  [1fd47b50] QuadGK v2.11.3
+  [5717a53b] QuantumInterface v0.4.2
+  [4f57444f] QuantumOpticsBase v0.5.10
+⌃ [6c2fb7c5] QuantumToolbox v0.47.2
+  [988b38a3] ReadOnlyArrays v0.2.0
+  [3cdcf5f2] RecipesBase v1.3.4
+⌃ [731186ca] RecursiveArrayTools v4.3.4
+  [189a3867] Reexport v1.2.2
+  [05181044] RelocatableFolders v1.0.1
+  [ae029012] Requires v1.3.1
+⌃ [ae5879a3] ResettableStacks v1.2.3
+⌃ [295af30f] Revise v3.16.1
+  [79098fc4] Rmath v0.9.0
+  [f2b01f46] Roots v3.0.6
+⌃ [7e49a35a] RuntimeGeneratedFunctions v0.5.21
+⌅ [0bca4576] SciMLBase v3.36.1
+  [19f34311] SciMLJacobianOperators v0.1.16
+  [a6db7da4] SciMLLogging v2.0.3
+⌃ [c0aeaf25] SciMLOperators v1.24.4
+⌃ [431bcebd] SciMLPublic v1.2.1
+⌃ [53ae85a6] SciMLStructures v1.10.3
+  [6c6a2e73] Scratch v1.3.0
+  [f7aa4685] SecondQuantizedAlgebra v0.10.0 `/var/home/oameye/Documents/SecondQuantizedAlgebra.jl`
+  [efcf1570] Setfield v1.1.2
+⌃ [727e6d20] SimpleNonlinearSolve v2.13.0
+  [699a6c99] SimpleTraits v0.9.6
+  [a2af1166] SortingAlgorithms v1.2.3
+⌃ [a57abbd0] SparseColumnPivotedQR v2.1.4
+  [276daf66] SpecialFunctions v2.8.0
+  [0c0c59c1] StarAlgebras v0.3.0
+  [90137ffa] StaticArrays v1.9.18
+  [1e83bf80] StaticArraysCore v1.4.4
+  [10745b16] Statistics v1.11.1
+  [82ae8749] StatsAPI v1.8.0
+  [2913bbd2] StatsBase v0.34.12
+⌃ [4c63d2b9] StatsFuns v2.2.0
+  [19c5a474] StochasticDiffEqCore v2.0.3
+  [0520c28c] StochasticDiffEqHighOrder v2.1.2
+  [90dbc90e] StochasticDiffEqLevyArea v2.0.2
+⌃ [5e0ebb24] Strided v2.6.3
+  [4db3bf67] StridedViews v0.5.2
+⌃ [2efcf032] SymbolicIndexingInterface v0.3.49
+⌃ [19f23fe9] SymbolicLimits v1.1.1
+⌃ [d1185830] SymbolicUtils v4.39.0
+⌃ [0c5d862f] Symbolics v7.31.0
+  [ed4db957] TaskLocalValues v0.1.3
+  [8ea1fca8] TermInterface v2.0.0
+⌅ [a759f4b9] TimerOutputs v0.5.29
+  [781d530d] TruncatedStacktraces v1.4.0
+  [9d95972d] TupleTools v1.6.0
+  [c4a57d5a] UnsafeArrays v1.0.9
+  [d30d5f5c] WeakCacheSets v0.1.0
+  [f5851436] FFTW_jll v3.3.12+0
+  [61579ee1] Ghostscript_jll v9.55.1+0
+  [1d5cc7b8] IntelOpenMP_jll v2025.2.0+0
+  [aacddb02] JpegTurbo_jll v3.2.0+0
+  [856f044c] MKL_jll v2025.2.0+0
+  [efe28fd5] OpenSpecFun_jll v0.5.6+0
+  [f50d1b31] Rmath_jll v0.5.1+0
+  [1317d2d5] oneTBB_jll v2022.3.0+0
+  [0dad84c5] ArgTools v1.1.2
+  [56f22d72] Artifacts v1.11.0
+  [2a0f44e3] Base64 v1.11.0
+  [8bf52ea8] CRC32c v1.11.0
+  [ade2ca70] Dates v1.11.0
+  [8ba89e20] Distributed v1.11.0
+  [f43a241f] Downloads v1.7.0
+  [7b1f6079] FileWatching v1.11.0
+  [9fa8497b] Future v1.11.0
+  [b77e0a4c] InteractiveUtils v1.11.0
+  [ac6e5ff7] JuliaSyntaxHighlighting v1.12.0
+  [4af54fe1] LazyArtifacts v1.11.0
+  [b27032c2] LibCURL v0.6.4
+  [76f85450] LibGit2 v1.11.0
+  [8f399da3] Libdl v1.11.0
+  [37e2e46d] LinearAlgebra v1.12.0
+  [56ddb016] Logging v1.11.0
+  [d6f4376e] Markdown v1.11.0
+  [ca575930] NetworkOptions v1.3.0
+  [44cfe95a] Pkg v1.12.1
+  [de0858da] Printf v1.11.0
+  [3fa0cd96] REPL v1.11.0
+  [9a3f8284] Random v1.11.0
+  [ea8e919c] SHA v0.7.0
+  [9e88b42a] Serialization v1.11.0
+  [6462fe0b] Sockets v1.11.0
+  [2f01184e] SparseArrays v1.12.0
+  [f489334b] StyledStrings v1.11.0
+  [4607b0f0] SuiteSparse
+  [fa267f1f] TOML v1.0.3
+  [a4e569a6] Tar v1.10.0
+  [8dfed614] Test v1.11.0
+  [cf7118a7] UUIDs v1.11.0
+  [4ec0a83e] Unicode v1.11.0
+  [e66e0078] CompilerSupportLibraries_jll v1.3.0+1
+  [deac9b47] LibCURL_jll v8.15.0+0
+  [e37daf67] LibGit2_jll v1.9.0+0
+  [29816b5a] LibSSH2_jll v1.11.3+1
+  [14a3606d] MozillaCACerts_jll v2025.11.4
+  [4536629a] OpenBLAS_jll v0.3.29+0
+  [05823500] OpenLibm_jll v0.8.7+0
+  [458c3c95] OpenSSL_jll v3.5.4+0
+  [bea87d4a] SuiteSparse_jll v7.8.3+2
+  [83775a58] Zlib_jll v1.3.1+2
+  [8e850b90] libblastrampoline_jll v5.15.0+0
+  [8e850ede] nghttp2_jll v1.64.0+1
+  [3f19e933] p7zip_jll v17.7.0+0
+        Info Packages marked with ⌃ and ⌅ have new versions available. Those with ⌃ may be upgradable, but those with ⌅ are restricted by compatibility constraints from upgrading.
+     Testing Running tests...
+Running 30 tests using 7 parallel jobs. If this is too many concurrent jobs, specify the `--jobs=N` argument to the tests, or set the `JULIA_CPU_THREADS` environment variable.
+                                           │   Test   │ ──────────────── CPU ──────────────── │
+Test                              (Worker) │ time (s) │ GC (s) │ GC % │ Alloc (MB) │ RSS (MB) │
+average_test                           (4) │    18.72 │   1.10 │  5.9 │    1535.05 │   702.18 │
+arithmetics/simplify_test              (7) │    24.64 │   0.42 │  1.7 │     319.39 │  1626.25 │
+operators/phase_space_test             (6) │    27.11 │   2.02 │  7.5 │    2449.01 │  1004.58 │
+numeric_indexed_test                   (3) │    31.62 │   1.28 │  4.0 │    1975.13 │   787.54 │
+expressions/algebra_test               (4) │    16.55 │   0.00 │  0.0 │     159.09 │  1464.06 │
+operators/collective_transition_test   (6) │     9.13 │   0.00 │  0.0 │     364.20 │  1112.14 │
+arithmetics/normal_order_test          (3) │     4.90 │   0.00 │  0.0 │     263.16 │   787.54 │
+arithmetics/internals_test             (3) │     2.82 │   0.00 │  0.0 │      83.90 │   803.62 │
+arithmetics/commutator_test            (7) │    18.13 │   0.10 │  0.6 │     372.39 │  1626.25 │
+coeff_test                             (6) │     8.02 │   0.07 │  0.9 │     489.60 │  1112.14 │
+printing/printing_test                 (4) │    10.28 │   0.33 │  3.2 │     532.81 │  1464.06 │
+quality/quality_test                   (1) │    49.27 │   2.83 │  5.7 │    3474.39 │  1074.07 │
+expressions/indexing_test              (7) │     5.04 │   0.03 │  0.5 │     172.90 │  1626.25 │
+operators/operators_test               (3) │     7.01 │   0.05 │  0.7 │     536.27 │   837.29 │
+operators/nlevel_test                  (4) │     3.83 │   0.00 │  0.0 │      14.41 │  1464.06 │
+arithmetics/mutable_arithmetics_test   (6) │     5.11 │   0.00 │  0.0 │     105.04 │  1112.14 │
+invariants_test                        (3) │     2.75 │   0.00 │  0.0 │     178.29 │   837.29 │
+lift_test                              (7) │     3.47 │   0.10 │  2.8 │     498.33 │  1626.25 │
+operators/spin_test                    (1) │     5.18 │   0.00 │  0.0 │      90.86 │  1285.70 │
+expressions/index_cancellation_test    (3) │     1.79 │   0.00 │  0.0 │      61.69 │   837.29 │
+operators/fock_test                    (4) │     3.47 │   0.00 │  0.0 │       4.18 │  1464.06 │
+arithmetics/substitute_test            (6) │     2.66 │   0.00 │  0.0 │     300.68 │  1112.14 │
+order_key_test                         (7) │     2.62 │   0.03 │  1.0 │     174.53 │  1626.25 │
+expressions/macros_test                (6) │     0.01 │   0.00 │  0.0 │       0.19 │  1112.14 │
+operators/string_names_test            (7) │     0.10 │   0.00 │  0.0 │       1.75 │  1626.25 │
+canonical_models_test                  (4) │     0.99 │   0.00 │  0.0 │      52.99 │  1464.06 │
+operators/pauli_test                   (1) │     2.19 │   0.00 │  0.0 │       2.23 │  1285.70 │
+operators/hilbertspace_test            (3) │     1.37 │   0.00 │  0.0 │      44.53 │   837.29 │
+numeric_test                           (2) │    96.22 │   2.50 │  2.6 │    4765.70 │  1874.68 │
+numeric_qtb_test                       (5) │   103.09 │   4.91 │  4.8 │    9522.53 │  1335.07 │
+
+Test Summary: | Pass  Total     Time
+  Overall     | 3399   3399  1m49.3s
+    SUCCESS
+     Testing SecondQuantizedAlgebra tests passed 
