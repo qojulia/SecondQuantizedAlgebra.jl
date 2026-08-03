@@ -28,7 +28,7 @@ function _accumulate!(b::_QAddBuilder, x::QAdd)
     return b
 end
 _accumulate!(b::_QAddBuilder, x::QSym) = (_addto!(b.args, Op[x], _CNUM_ONE); b)
-function _accumulate!(b::_QAddBuilder, x::_ScalarLike)
+function _accumulate!(b::_QAddBuilder, x::_CoeffLike)
     x isa Number && iszero(x) && return b
     _addto!(b.args, _EMPTY_OPS, _to_cnum(x))
     return b

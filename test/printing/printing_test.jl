@@ -304,6 +304,32 @@ import SecondQuantizedAlgebra: simplify, QAdd, QSym, _single_qadd, _zero_qadd, _
         @test occursin("im", s_mixed)
     end
 
+    @testset "_show_prefactor braces composite parts" begin
+        # A composite part must be parenthesized, or the `im` suffix binds to its last
+        # factor only: `x + yim * a` reads as `x + y*im*a`. Anchored patterns, so the
+        # summand order Symbolics picks does not matter.
+        h = FockSpace(:f)
+        a = Destroy(h, :a)
+        @variables x y g
+
+        @test occursin(r"^\(.+\)im \* a$", string((im * (x + y)) * a))
+        @test occursin(r"^\(.+\)im \* a$", string((im * (x / y)) * a))
+        # The `im` suffix is juxtaposition, so every call has to be braced, not just the
+        # loose heads: `x^2im` reads as `x^(2im)`, `x*yim` merges into an identifier, and
+        # `sqrt(x)im` is a syntax error.
+        @test string((im * x^2) * a) == "(x^2)im * a"
+        @test occursin(r"^\(.+\)im \* a$", string((im * x * y) * a))
+        @test occursin(r"^\(.+\)im \* a$", string((im * sqrt(x)) * a))
+        @test occursin(r"^\(g \+ \(x\^2\)im\) \* a$", string((g + im * x^2) * a))
+        @test occursin(r"^\(\(.+\) \+ gim\) \* a$", string(((x + y) + im * g) * a))
+        @test occursin(r"^\(g \+ \(.+\)im\) \* a$", string((g + im * (x + y)) * a))
+        @test occursin(r"^\(\(.+\) \+ \(.+\)im\) \* a$", string(((x + y) + im * (x - y)) * a))
+        @test string((im * x) * a) == "xim * a"
+        @test occursin(r"^\(.+\) \* a$", string((x + y) * a))
+        @test occursin(r"^\(.+\) \* a$", string((x / y) * a))
+        @test string(_single_qadd(_to_cnum(x + y), SecondQuantizedAlgebra.Op[])) == string(x + y)
+    end
+
     @testset "LaTeX (latexify)" begin
         @testset "Operators" begin
             hn = NLevelSpace(:atom, 3, 1)

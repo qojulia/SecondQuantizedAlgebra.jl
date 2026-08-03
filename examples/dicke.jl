@@ -20,9 +20,9 @@
 # This example walks through every step that turns the operator Hamiltonian
 # into the textbook result: built-in SU(2) algebra, Heisenberg equations of
 # motion, Holstein-Primakoff bosonisation in the normal phase, the resulting
-# polariton spectrum from a symbolic Bogoliubov-de-Gennes determinant, the
-# critical coupling from gap closing, and a numerical comparison at finite
-# ``S``.
+# polariton spectrum from a symbolic Bogoliubov-de-Gennes determinant and again
+# from a beamsplitter frame change, the critical coupling from gap closing, and a
+# numerical comparison at finite ``S``.
 
 # ## Setup
 #
@@ -179,6 +179,37 @@ simplify(det(M - x * I))
 # \Bigr].
 # ```
 
+# ## The same dispersion from a beamsplitter
+#
+# On resonance, ``\omega_a = \omega_0``, the two-mode problem factorises, and the
+# transformation that factorises it is a beamsplitter: [`Rotation`](@ref) of two
+# Fock modes acts as ``a \mapsto \cos\theta\,a + \sin\theta\,b``.
+
+@variables θ
+H_res = substitute(H_pol, Dict(ωₐ => ω₀))
+
+conjugate(H_res, Rotation(a_pol, b_pol, θ))
+
+# The cross-mode coefficient is ``\lambda(\cos^2\theta - \sin^2\theta) =
+# \lambda\cos 2\theta``, which vanishes at ``\theta = \pi/4``.  There the normal
+# modes ``c_\mp = (a \mp b)/\sqrt{2}`` decouple into two single-mode squeezing
+# Hamiltonians
+#
+# ```math
+# H_\mp = (\omega_0 \mp \lambda)\,c_\mp^\dagger c_\mp
+#   \mp \tfrac{\lambda}{2}\,\bigl(c_\mp^2 + c_\mp^{\dagger 2}\bigr),
+# ```
+#
+# each diagonalised by a single-mode [`Squeeze`](@ref) (see the
+# [optomechanics example](optomechanics.md)) at
+#
+# ```math
+# \varepsilon_\mp = \sqrt{(\omega_0 \mp \lambda)^2 - \lambda^2}
+#   = \sqrt{\omega_0^2 \mp 2\lambda\omega_0},
+# ```
+#
+# which is the resonant limit of the dispersion above.
+
 # ## Critical coupling from gap closing
 #
 # Demanding ``\varepsilon_- = 0`` reduces to
@@ -287,4 +318,5 @@ fig
 # as ``S \to \infty``) and ``E_2 - E_0`` reveals the re-opened polariton
 # excitation around the displaced fixed point.  The entire story (SU(2)
 # algebra, Heisenberg dynamics, polariton dispersion, and critical coupling)
-# came out of a handful of `commutator` calls and a single `det`.
+# came out of a handful of `commutator` calls, a single `det`, and one
+# beamsplitter.

@@ -236,6 +236,8 @@ function _fold_const(x)::ComplexF64
             elseif op === (-)
                 return length(args) == 1 ? -_fold_const(first(args)) :
                     _fold_const(first(args)) - _fold_const(last(args))
+            elseif op === expim
+                return exp(im * _fold_const(only(args)))
             end
         elseif SymbolicUtils.isconst(x)
             return x.val

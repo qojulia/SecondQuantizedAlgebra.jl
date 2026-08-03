@@ -209,13 +209,18 @@ function qadjoint(v::SymbolicUtils.BasicSymbolic)
     v === Symbolics.IM && return -Symbolics.IM
     if SymbolicUtils.iscall(v)
         f = SymbolicUtils.operation(v)
+        args = SymbolicUtils.arguments(v)
         # adjoint of a scalar `conj(x)` is `x`; fold rather than nesting into
         # `conj(conj(x))`, which does not simplify and survives downstream (e.g.
         # leaving dead time-dependent terms after a coupling is substituted to 0).
         # Mirrors the `f === conj` case already handled in `inner_adjoint`.
-        f === conj && return SymbolicUtils.arguments(v)[1]
-        args = map(qadjoint, SymbolicUtils.arguments(v))
-        return TermInterface.maketerm(typeof(v), f, args, TermInterface.metadata(v))
+        f === conj && return args[1]
+        # A phase conjugates by negating its argument, not by conjugating it, so the generic
+        # rebuild below would produce `expim(conj(x))` and lose the cancellation.
+        f === expim && return _expim(-only(args))
+        return TermInterface.maketerm(
+            typeof(v), f, map(qadjoint, args), TermInterface.metadata(v),
+        )
     else
         return conj(v)
     end
@@ -252,15 +257,20 @@ function inner_adjoint(v::SymbolicUtils.BasicSymbolic)
     end
     if SymbolicUtils.iscall(v)
         f = SymbolicUtils.operation(v)
+        args = SymbolicUtils.arguments(v)
         if f isa AvgFunc
-            arg = SymbolicUtils.arguments(v)[1]
+            arg = args[1]
             inner = SymbolicUtils.isconst(arg) ? arg.val : arg
             return _average(adjoint(inner))
         elseif f === conj
-            return inner_adjoint(SymbolicUtils.arguments(v)[1])
+            return inner_adjoint(args[1])
+        elseif f === expim
+            # See `qadjoint`: negate the argument, do not conjugate it.
+            return _expim(-only(args))
         else
-            args = map(inner_adjoint, SymbolicUtils.arguments(v))
-            return TermInterface.maketerm(typeof(v), f, args, TermInterface.metadata(v))
+            return TermInterface.maketerm(
+                typeof(v), f, map(inner_adjoint, args), TermInterface.metadata(v),
+            )
         end
     else
         return conj(v)
@@ -313,6 +323,11 @@ ladder(o::Op) = (o.kind === OP_DESTROY || o.kind === OP_MOMENTUM) ? 1 : 0
 
 
 # Operator hooks (single concrete methods branching on `kind`)
+
+# Kept next to `_site_compare` so the two cannot drift: that function skips the name
+# comparison for a `Position`/`Momentum` cross-role pair, so this drops the name there too.
+site_key(o::Op) =
+    (o.space_index, o.index, (is_position(o) || is_momentum(o)) ? Int32(0) : o.name_id)
 
 # Site family: Fock {Destroy,Create} and PhaseSpace {Position,Momentum} compare
 # cross-role within the family; the others are singleton families. Distinct

@@ -56,8 +56,126 @@ function Base.show(io::IO, x::Op)
     return
 end
 
-function _show_prefactor(io::IO, c::CNum)
+# The `im` suffix is juxtaposition, so every call has to be braced, not just the loose heads:
+# `x^2` reads as `x^(2im)`, `x*y` merges into the identifier `yim`, `sqrt(x)im` is a syntax
+# error.
+function _needs_im_parens(v::Num)
+    u = SymbolicUtils.unwrap(v)
+    return u isa SymbolicUtils.BasicSymbolic && SymbolicUtils.iscall(u)
+end
+
+# A `/` or `+` head has looser precedence than the ` * ops` that follows a prefactor, so
+# such a part has to be parenthesized.
+function _is_loose_head(v::Num)
+    _needs_im_parens(v) || return false
+    op = SymbolicUtils.operation(SymbolicUtils.unwrap(v))
+    return op === (/) || op === (+)
+end
+
+function _show_part(io::IO, v::Num, brace::Bool)
+    brace && write(io, "(")
+    print(io, v)
+    brace && write(io, ")")
+    return
+end
+
+# The lone phase factor of a monomial as `(position, argument, exponent)`, or `nothing`
+# when it does not have exactly one.
+function _sole_phase(m::Monomial)
+    pos = 0
+    @inbounds for i in eachindex(m.syms)
+        if _is_phase(m.syms[i])
+            pos != 0 && return nothing
+            pos = i
+        end
+    end
+    pos == 0 && return nothing
+    e = m.exps[pos]
+    denominator(e) == 1 || return nothing
+    return (pos, only(SymbolicUtils.arguments(m.syms[pos])), numerator(e))
+end
+
+# Same monomial with the phase exponent negated: the partner that folds back to a real
+# trigonometric form.
+function _is_conj_partner(m::Monomial, n::Monomial, pos::Int)
+    length(n.syms) == length(m.syms) || return false
+    @inbounds for i in eachindex(m.syms)
+        m.syms[i] === n.syms[i] || return false
+        want = i == pos ? -m.exps[i] : m.exps[i]
+        n.exps[i] == want || return false
+    end
+    return true
+end
+
+# The monomial with its phase factor dropped, as a `Num` (its non-phase part).
+function _without_phase(m::Monomial, pos::Int)
+    n = length(m.syms) - 1
+    syms = Vector{SymbolicUtils.BasicSymbolic}(undef, n)
+    exps = Vector{Rational{Int}}(undef, n)
+    k = 0
+    @inbounds for i in eachindex(m.syms)
+        i == pos && continue
+        k += 1
+        syms[k] = m.syms[i]
+        exps[k] = m.exps[i]
+    end
+    return real(_term_to_num(Monomial(_ONE_C, syms, exps)))
+end
+
+# Display lowering. A conjugate pair `c₊p^n + c₋p^-n` is exactly
+# `(c₊+c₋)cos(n*x) + im*(c₊-c₋)sin(n*x)`, so folding it keeps a rotation reading as a
+# rotation instead of a sum of exponentials. Everything else lowers as usual, and nothing
+# here feeds `_recognize`: the polynomial stays the representation.
+function _display_num(p::Poly)
+    n = length(p.terms)
+    acc = Complex(_NUM_ZERO, _NUM_ZERO)
+    used = falses(n)
+    @inbounds for i in 1:n
+        used[i] && continue
+        m = p.terms[i]
+        sp = _sole_phase(m)
+        partner = 0
+        if sp !== nothing
+            for j in (i + 1):n
+                (!used[j] && _is_conj_partner(m, p.terms[j], sp[1])) && (partner = j; break)
+            end
+        end
+        if partner == 0
+            acc += _term_to_num(m)
+            used[i] = true
+            continue
+        end
+        pos, arg, e = sp
+        cp, cm = m.scalar, p.terms[partner].scalar
+        rest = _without_phase(m, pos)
+        θ = expand(Num(e) * Num(arg))
+        # `cos` is even and `sin` odd, so a negative argument folds onto the sine's scalar
+        # and `cos(-ω*t)` never reaches the page.
+        d = cp - cm
+        if _leading_sign(θ) < 0
+            θ = expand(-θ)
+            d = -d
+        end
+        acc += (
+            Complex(_num_from_float(real(cp + cm)), _num_from_float(imag(cp + cm))) * cos(θ) +
+                im * Complex(_num_from_float(real(d)), _num_from_float(imag(d))) * sin(θ)
+        ) * rest
+        used[i] = used[partner] = true
+    end
+    return acc
+end
+
+# `to_num` for display: identical except that phase pairs fold back to `cos`/`sin`.
+_display_coeff(c::Coeff) =
+    c.tail isa Poly ? Complex(_num_from_float(real(c.z)), _num_from_float(imag(c.z))) +
+    _display_num(c.tail) : to_num(c)
+
+_show_prefactor(io::IO, c::CNum) = _show_display(io, _display_coeff(c))
+
+function _show_display(io::IO, c::Complex{Num})
     return if iszero(imag(c))
+        # A loose head here is parenthesized by `_needs_pf_parens` at the call site,
+        # which also lets a standalone constant term print without parentheses.
         print(io, real(c))
     elseif iszero(real(c))
         i = imag(c)
@@ -66,14 +184,15 @@ function _show_prefactor(io::IO, c::CNum)
         elseif isequal(i, Num(-1))
             write(io, "-im")
         else
-            print(io, i)
+            _show_part(io, i, _needs_im_parens(i))
             write(io, "im")
         end
     else
+        re, i = real(c), imag(c)
         write(io, "(")
-        print(io, real(c))
+        _show_part(io, re, _is_loose_head(re))   # followed by ` + `, not by the suffix
         write(io, " + ")
-        print(io, imag(c))
+        _show_part(io, i, _needs_im_parens(i))
         write(io, "im)")
     end
 end
@@ -91,6 +210,10 @@ _is_neg_unit(c::Number) = isequal(c, -1)
 
 function _is_real_negative(c::CNum)
     _is_native(c) && return imag(c.z) == 0 && real(c.z) < 0
+    t = c.tail
+    # A polynomial coefficient with every scalar real and negative factors out as ` - `,
+    # which is most of what a rotation or a squeeze produces.
+    t isa Poly && return all(m -> imag(m.scalar) == 0 && real(m.scalar) < 0, t.terms)
     return _is_real_negative_sym(c)
 end
 # Cold path: a non-native coefficient is a real negative only for symbolic constants
@@ -105,18 +228,11 @@ end
 end
 _is_real_negative(::Number) = false
 
-# Check if a symbolic prefactor needs parentheses when followed by operators.
-# A native (plain-number) coefficient never needs them; only a symbolic `/` or `+`
-# head does. Unwrapping to a typed `BasicSymbolic` keeps `operation` a static call.
-function _needs_pf_parens(c::CNum)
-    _is_native(c) && return false
-    iszero(imag(c)) || return false
-    u = SymbolicUtils.unwrap(real(c))
-    u isa SymbolicUtils.BasicSymbolic || return false
-    SymbolicUtils.iscall(u) || return false
-    op = SymbolicUtils.operation(u)
-    return op === (/) || op === (+)
-end
+# Only `_show_prefactor`'s real-only branch can leave a loose head exposed at top level;
+# the pure-imaginary and mixed branches brace their own parts.
+# Judged on the displayed form, not the stored one: a folded phase pair prints as a bare
+# `cos(...)` even though the polynomial behind it is a sum.
+_needs_pf_parens(c::Complex{Num}) = iszero(imag(c)) && _is_loose_head(real(c))
 
 function _show_term(io::IO, c::CNum, ops::Vector{Op})
     if isempty(ops)
@@ -126,13 +242,13 @@ function _show_term(io::IO, c::CNum, ops::Vector{Op})
     if _is_neg_unit(c)
         write(io, "-")
     elseif !_is_unit(c)
-        if _needs_pf_parens(c)
-            write(io, "(")
-            _show_prefactor(io, c)
-            write(io, ")")
-        else
-            _show_prefactor(io, c)
-        end
+        # Lowered once: `_display_num`'s conjugate-pair pairing is O(n^2) and lowers every
+        # monomial, so asking the parenthesis question and printing must share one result.
+        d = _display_coeff(c)
+        brace = !_is_native(c) && _needs_pf_parens(d)
+        brace && write(io, "(")
+        _show_display(io, d)
+        brace && write(io, ")")
         write(io, " * ")
     end
     show(io, ops[1])
@@ -223,6 +339,23 @@ function _show_sum_group(io::IO, terms::Vector{QAdd}, indices::Vector{Index}, ne
     return nothing
 end
 
+# `expim(x)` reads as `exp(im*x)`, with a leading minus pulled onto the `im` so an inverse
+# phase shows as `exp(-im*ω*t)` rather than `exp(im*(-ω*t))`.
+function SymbolicUtils.show_call(io::IO, ::typeof(expim), x::SymbolicUtils.BasicSymbolic; kw...)
+    arg = only(SymbolicUtils.arguments(x))
+    neg = _leading_sign(arg) < 0
+    write(io, neg ? "exp(-im*" : "exp(im*")
+    # Negate on the `BasicSymbolic` itself: wrapping in `Num` first is a method error for a
+    # non-`SymReal` vartype, which is what the argument of a phase can be.
+    body = neg ? SymbolicUtils.unwrap(expand(-arg)) : arg
+    paren = SymbolicUtils.iscall(body) && SymbolicUtils.operation(body) === (+)
+    paren && write(io, "(")
+    print(io, body)
+    paren && write(io, ")")
+    write(io, ")")
+    return nothing
+end
+
 function SymbolicUtils.show_call(io::IO, ::SumFunc, x::SymbolicUtils.BasicSymbolic; kw...)
     _show_sum_prefix(io, _sum_indices(x), _sum_ne(x))
     write(io, " ")
@@ -280,4 +413,27 @@ function Base.show(io::IO, x::QAdd)
         _show_terms(io, st)
     end
     return
+end
+
+# An N-level transform on 5 levels holds 25 rules of up to 25 terms each, so the full form is
+# unreadable at a REPL prompt. `:limit` is what the REPL sets and a file write does not.
+const _SHOW_RULE_LIMIT = 4
+
+function Base.show(io::IO, U::UnitaryTransform)
+    gs = generators(U)
+    n = length(gs)
+    shown = get(io, :limit, false) ? min(n, _SHOW_RULE_LIMIT) : n
+    write(io, "UnitaryTransform(")
+    for k in 1:shown
+        k > 1 && write(io, ", ")
+        show(io, gs[k])
+        write(io, " → ")
+        show(io, U.rules[gs[k]])
+    end
+    shown < n && write(io, ", … ($(n - shown) more)")
+    if !iszero(U.gauge)
+        write(io, "; gauge = ")
+        show(io, U.gauge)
+    end
+    return write(io, ")")
 end

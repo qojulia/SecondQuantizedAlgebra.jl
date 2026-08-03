@@ -34,6 +34,100 @@ const _CNUM_ONE = _native(one(ComplexF64))
 const _CNUM_NEG1 = _native(-one(ComplexF64))
 const _CNUM_IM = _native(ComplexF64(0, 1))
 const _CNUM_NEG_IM = _native(ComplexF64(0, -1))
+const _CNUM_HALF = _native(ComplexF64(0.5))
+
+"""
+    expim(x)
+
+The unit phase `exp(im*x)`, as a coefficient a symbolic argument keeps intact.
+
+The polynomial tier holds this as one indivisible factor, so phases multiply by adding
+exponents and conjugate by negating them, and `expim(x)*expim(-x)` cancels to `1` on its
+own. Splitting a phase into `cos`/`sin` instead leaves two unrelated factors whose
+relationship has to be supplied separately, which is why rotating frames are built from
+`expim` and why a time-dependent coefficient written this way composes with them.
+
+Displays as `exp(im*x)`, and a conjugate pair folds back to `cos`/`sin` for display.
+
+Returns a coefficient, not a `Num`: `conj` and multiplication by a complex scalar have to
+act on the phase as one factor, and a `Num` is declared real, so both would silently split
+it into unrelated `real`/`imag` halves.
+
+```jldoctest
+julia> using SecondQuantizedAlgebra: expim
+
+julia> @variables ω t;
+
+julia> h = FockSpace(:f); a = Destroy(h, :a);
+
+julia> expim(ω * t) * expim(-ω * t) * a
+a
+
+julia> conj(expim(ω * t)) * expim(ω * t)
+1
+```
+"""
+expim(x::Number) = exp(im * x)
+expim(x::Num) = _phase_coeff(x)
+expim(x::SymbolicUtils.BasicSymbolic) = _phase_coeff(x)
+
+@inline _is_phase(b) =
+    b isa SymbolicUtils.BasicSymbolic &&
+    SymbolicUtils.iscall(b) &&
+    SymbolicUtils.operation(b) === expim
+
+# The explicit scalar `shape` matters: without it the term is shaped `Unknown` and every
+# later `Complex{Num}` addition it takes part in fails on a shape mismatch.
+const _SCALAR_SHAPE = UnitRange{Int}[]
+_expim_expanded(x) = SymbolicUtils.term(
+    expim, SymbolicUtils.unwrap(x); type = Complex{Real}, shape = _SCALAR_SHAPE,
+)
+# `expand` first: `(ω + 2J)*t` and `ω*t + 2J*t` are one phase and must intern to one atom.
+_expim(x) = _expim_expanded(expand(x))
+
+# `type` and `shape` take part in hash-consing, so without these every `maketerm` rebuild
+# (each `substitute`, each `Postwalk`) recomputes them from the generic fallbacks and mints
+# a *different* atom, one whose symtype is `Real` and whose `conj` is therefore the identity.
+SymbolicUtils.promote_symtype(::typeof(expim), ::SymbolicUtils.TypeT) = Complex{Real}
+SymbolicUtils.promote_shape(::typeof(expim), ::SymbolicUtils.ShapeT) =
+    SymbolicUtils.ShapeVecT()
+
+# Without a rule `expand_derivatives` hits the global `nothing` fallback and leaves an inert
+# `Differential` node. The body must yield a bare `BasicSymbolic`, hence `_expim`.
+Symbolics.@register_derivative expim(x) 1 im * _expim(x)
+
+function _leading_sign(v)
+    u = SymbolicUtils.unwrap(v)
+    if u isa SymbolicUtils.BasicSymbolic && SymbolicUtils.iscall(u)
+        op = SymbolicUtils.operation(u)
+        args = SymbolicUtils.arguments(u)
+        (op === (+) && !isempty(args)) && return _leading_sign(args[1])
+        if op === (*)
+            for f in args
+                n = _const_value(SymbolicUtils.unwrap(f))
+                n isa Real && !iszero(n) && return sign(n)
+            end
+            return 0.0
+        end
+    end
+    n = _const_value(u)
+    return n isa Real ? sign(n) : 0.0
+end
+
+# Never route this through `Symbolics.wrap`: `Num` cannot hold a complex symtype, so wrapping
+# splits the phase into `real`/`imag` halves and loses the single factor everything below
+# depends on. The argument is oriented so `expim(-x)` interns as `expim(x)` at exponent `-1`;
+# without that, two modes rotating at opposite rates carry unrelated atoms and never cancel.
+function _phase_coeff(x)
+    a = expand(x)
+    v = _const_value(SymbolicUtils.unwrap(a))
+    # A phase over a literal is its value. Interning it instead would keep every coefficient
+    # it touches off the native tier, so numerically cancelling terms would never fold.
+    v isa Number && return _native(ComplexF64(exp(im * v)))
+    neg = _leading_sign(a) < 0
+    c = _atom_coeff(_expim_expanded(neg ? expand(-a) : a))
+    return neg ? _conj_cnum(c) : c
+end
 
 # Exact value of an elementary function at argument `0`, or `nothing`. Folds the `exp(0)`
 # Symbolics leaves after Euler-expanding `exp(im*ω*t)`. Spelled as `===` (not `in` a tuple)
@@ -109,8 +203,16 @@ end
 function _term_to_num(m::Monomial)
     prod = _NUM_ONE
     @inbounds for i in eachindex(m.syms)
-        base = Num(m.syms[i])
+        s = m.syms[i]
         e = m.exps[i]
+        # `exp(-im*x)` rather than `1 / exp(im*x)`: same value, and it keeps an inverse
+        # phase readable. Re-recognising it lands back on this atom, since `_recognize`
+        # re-orients every `expim`.
+        if e < 0 && _is_phase(s)
+            s = _expim(-only(SymbolicUtils.arguments(s)))
+            e = -e
+        end
+        base = Num(s)
         q = div(numerator(e), denominator(e))   # integer part, toward zero
         if q >= 0
             for _ in 1:q
@@ -130,9 +232,12 @@ function _term_to_num(m::Monomial)
             prod = prod * (base^f)::Num   # `::Num`: `Num ^ Rational` infers `Any`
         end
     end
-    sr = _num_from_float(real(m.scalar))
-    si = _num_from_float(imag(m.scalar))
-    return Complex(sr * prod, si * prod)
+    # Guard the zero halves: `0 * x` does not always fold for a complex-symtype factor,
+    # and an unfolded `0*expim(...)` would survive all the way to display.
+    rz, iz = real(m.scalar), imag(m.scalar)
+    re = iszero(rz) ? _NUM_ZERO : _num_from_float(rz) * prod
+    imag_ = iszero(iz) ? _NUM_ZERO : _num_from_float(iz) * prod
+    return Complex(re, imag_)
 end
 
 # Sum the terms; the only place a polynomial lowers to SymbolicUtils.
@@ -155,6 +260,10 @@ end
     SymbolicUtils.iscall(b) || return false
     op = SymbolicUtils.operation(b)
     op === getindex && return true
+    # Atomic whatever its argument. The "argument must itself be an atom" rule below keeps
+    # `cos(ω*t)` on the symbolic tail where the CAS can fold it; an `expim` has nothing for
+    # the CAS to fold, and holding it off the polynomial tier breaks phase cancellation.
+    op === expim && return true
     (op === (+) || op === (*) || op === (^) || op === (/) || op === complex) &&
         return false
     args = SymbolicUtils.arguments(b)
@@ -227,11 +336,20 @@ function _recognize(x::SymbolicUtils.BasicSymbolic)::Coeff
         return _sym_leaf(x)
     elseif op === getindex
         return _atom_coeff(x)
+    elseif op === expim
+        # Through `_phase_coeff`, not `_atom_coeff`: a phase recovered from a lowered
+        # expression has to orient the same way as one built directly, or the two spellings
+        # become unrelated atoms and stop cancelling.
+        length(args) == 1 && return _phase_coeff(only(args))
+        return _sym_leaf(x)
     elseif op === conj
         # Fold conj of a constant (e.g. conj(0.0) left by substituting a complex
         # parameter to a real value) so the coefficient can collapse to zero.
         inner = _recognize(args[1])
         _is_native(inner) && return _native(conj(inner.z))
+        # Without this, `conj(expim(x))` interns as a fresh atom that never cancels against
+        # the phase it came from.
+        _is_phase(args[1]) && return _conj_cnum(inner)
         return _is_atom(x) ? _atom_coeff(x) : _sym_leaf(x)
     elseif op === (/)
         length(args) == 2 || return _sym_leaf(x)
@@ -444,6 +562,18 @@ function _sym_conj(x::Num)
     SymbolicUtils.symtype(x) <: Real && return x
     u = SymbolicUtils.unwrap(x)
     _is_conj_call(u) && return Num(SymbolicUtils.arguments(u)[1])
+    # Distribute over sums and products, so a real factor (a radical, a real-symtype
+    # parameter) is left alone and a phase flips on its own. Wrapping the whole expression
+    # leaves a `conj(...)` that never folds, and the residual built from it cannot cancel.
+    if SymbolicUtils.iscall(u)
+        op = SymbolicUtils.operation(u)
+        args = SymbolicUtils.arguments(u)
+        if op === (+)
+            return sum(_sym_conj(Num(a)) for a in args)
+        elseif op === (*)
+            return prod(_sym_conj(Num(a)) for a in args)
+        end
+    end
     return Num(conj(u))
 end
 
@@ -468,10 +598,18 @@ function _conj_poly(p::Poly)
             continue
         end
         nsyms = Vector{SymbolicUtils.BasicSymbolic}(undef, n)
-        for i in 1:n
-            nsyms[i] = _conj_atom(m.syms[i])
-        end
         nexps = copy(m.exps)
+        for i in 1:n
+            s = m.syms[i]
+            # Unimodular: conjugation flips the exponent and keeps the atom, which is what
+            # lets `p * conj(p)` cancel instead of growing a second unrelated factor.
+            if _is_phase(s)
+                nsyms[i] = s
+                nexps[i] = -nexps[i]
+            else
+                nsyms[i] = _conj_atom(s)
+            end
+        end
         _sort_factors!(nsyms, nexps)
         terms[k] = Monomial(conj(m.scalar), nsyms, nexps)
     end

@@ -1,9 +1,14 @@
 const _ScalarLike = Union{Number, SymbolicUtils.BasicSymbolic}
 
-Base.:*(a::QSym, b::_ScalarLike) = _single_qadd(_to_cnum(b), Op[a])
-Base.:*(b::_ScalarLike, a::QSym) = a * b
+# Operands of operator arithmetic. `_ScalarLike` is the narrower thing a constructor taking
+# an angle or amplitude accepts: a `Coeff` composes with operators but is not a `Number`, and
+# `cos`/`cosh`/`exp` of one is undefined.
+const _CoeffLike = Union{_ScalarLike, Coeff}
 
-function Base.:*(a::QAdd, b::_ScalarLike)
+Base.:*(a::QSym, b::_CoeffLike) = _single_qadd(_to_cnum(b), Op[a])
+Base.:*(b::_CoeffLike, a::QSym) = a * b
+
+function Base.:*(a::QAdd, b::_CoeffLike)
     b isa Number && isone(b) && return a
     cb = _to_cnum(b)
     d = QTermDict()
@@ -14,7 +19,7 @@ function Base.:*(a::QAdd, b::_ScalarLike)
     end
     return QAdd(d, copy(a.indices))
 end
-Base.:*(a::_ScalarLike, b::QAdd) = b * a
+Base.:*(a::_CoeffLike, b::QAdd) = b * a
 
 function Base.:+(a::QSym, b::QSym)
     d = QTermDict()
@@ -38,21 +43,22 @@ function Base.:+(a::QAdd, b::QAdd)
     return QAdd(d, _drop_unused_indices(d, _merge_unique(a.indices, b.indices)))
 end
 
-function Base.:+(a::QSym, b::Number)
+function Base.:+(a::QSym, b::_CoeffLike)
     d = QTermDict()
     _addto!(d, Op[a], _CNUM_ONE)
     _addto!(d, _EMPTY_OPS, _to_cnum(b))
     return QAdd(d, _EMPTY_INDICES)
 end
-Base.:+(a::Number, b::QSym) = b + a
+Base.:+(a::_CoeffLike, b::QSym) = b + a
 
-function Base.:+(a::QAdd, b::Number)
-    iszero(b) && return a
+function Base.:+(a::QAdd, b::_CoeffLike)
+    # `iszero` on a `BasicSymbolic` is itself symbolic, so guard the shortcut on `Number`.
+    b isa Number && iszero(b) && return a
     d = _copy_args(a.arguments)
     _addto!(d, _EMPTY_OPS, _to_cnum(b))
     return QAdd(d, copy(a.indices))
 end
-Base.:+(a::Number, b::QAdd) = b + a
+Base.:+(a::_CoeffLike, b::QAdd) = b + a
 
 Base.zero(::Type{QAdd}) = _zero_qadd()
 Base.zero(::QAdd) = _zero_qadd()
@@ -68,8 +74,8 @@ function Base.:-(a::QAdd)
 end
 
 Base.:-(a::QField, b::QField) = a + (-b)
-Base.:-(a::QField, b::Number) = a + (-b)
-Base.:-(a::Number, b::QField) = a + (-b)
+Base.:-(a::QField, b::_CoeffLike) = a + (-b)
+Base.:-(a::_CoeffLike, b::QField) = a + (-b)
 
 Base.:/(a::QSym, b::Number) = a * inv(b)
 Base.:/(a::QAdd, b::Number) = a * inv(b)
@@ -137,7 +143,8 @@ function normal_order(q::QAdd)
 end
 
 function _simplify_prefactor(x::CNum)
-    (_is_native(x) || _is_poly(x)) && return x   # already simplest product form
+    _is_native(x) && return x                    # already simplest product form
+    _is_poly(x) && return _reduce_trig(x)        # the CAS is not reached on this tier
     (_numeric_value(real(x)) !== nothing && _numeric_value(imag(x)) !== nothing) &&
         return _cnum(real(x), imag(x))
     re = Num(SymbolicUtils.simplify(SymbolicUtils.unwrap(Symbolics.expand(real(x)))))
@@ -195,15 +202,19 @@ See also [`normal_order`](@ref), [`expand`](@ref), [`expand_completeness`](@ref)
 """
 SymbolicUtils.simplify(op::QSym; kwargs...) = _single_qadd(_CNUM_ONE, Op[op])
 
-function SymbolicUtils.simplify(q::QAdd; kwargs...)
-    nq = normal_order(q)
+SymbolicUtils.simplify(q::QAdd; kwargs...) =
+    _map_coefficients(_simplify_prefactor, normal_order(q))
+
+# Restoring the `QAdd` contract (no zero entries, every advertised index has a live carrier)
+# after a coefficient rewrite, once here rather than at each caller.
+function _map_coefficients(f::F, q::QAdd) where {F}
     out = QTermDict()
-    for (term, c) in nq.arguments
-        new_c = _simplify_prefactor(c)
+    for (term, c) in q.arguments
+        new_c = f(c)
         _iszero_cnum(new_c) && continue
         _addto_key!(out, _copy_key(term), new_c)
     end
-    return QAdd(out, _drop_unused_indices(out, nq.indices))
+    return QAdd(out, _drop_unused_indices(out, q.indices))
 end
 
 """
@@ -499,6 +510,18 @@ end
 function SymbolicUtils.substitute(q::QAdd, rules::AbstractDict; replace_adjoint = true)
     iszero(q) && return q
     op_rules, scalar_rules = _split_substitution_rules(rules, replace_adjoint)
+    return _substitute_split(q, op_rules, scalar_rules)
+end
+
+# Never mutated: `_substitute_cnum` early-returns on an empty dict and nothing else writes.
+const _EMPTY_SCALAR_RULES = Dict{Any, Any}()
+
+# For a rule set already known to be all-operator. The public `substitute` has to copy an
+# `AbstractDict` into two fresh `Dict{Any, Any}`, boxing every key and value, to find that out.
+_substitute_op_rules(q::QAdd, op_rules::Dict{Op, QAdd}) =
+    iszero(q) ? q : _substitute_split(q, op_rules, _EMPTY_SCALAR_RULES)
+
+function _substitute_split(q::QAdd, op_rules::AbstractDict, scalar_rules::AbstractDict)
     out = QTermDict()
     indices = copy(q.indices)
     for (t, c) in q

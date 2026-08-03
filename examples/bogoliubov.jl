@@ -19,9 +19,9 @@
 #
 # brings ``H`` into diagonal form when ``u`` and ``v`` are chosen correctly.
 # In this example we use SecondQuantizedAlgebra.jl to drive this story end to
-# end without ever resorting to a pen-and-paper expansion: symbolic
-# commutators, Heisenberg dynamics, vacuum expectation values, EPR squeezing,
-# and Weyl (Wigner) symbol.
+# end without ever resorting to a pen-and-paper expansion: the transformation
+# itself as a [`Bogoliubov`](@ref) transform, symbolic commutators, Heisenberg
+# dynamics, vacuum expectation values, EPR squeezing, and Weyl (Wigner) symbol.
 
 # ## Setup
 
@@ -40,23 +40,39 @@ H = ω * (a' * a + b' * b) + κ * (a' * b' + a * b)
 
 # ## Canonical commutator and dispersion
 #
-# Define the Bogoliubov modes and verify the commutator:
+# The transformation is a [`Bogoliubov`](@ref) object rather than a pair of
+# hand-written expressions, so it can be applied, inverted and composed, and it
+# carries the constraint that makes it unitary:
 
-c = u * a + v * b'
-d = u * b + v * a'
+U = Bogoliubov(a, b, u, v)
+
+c = conjugate(a, U)
+d = conjugate(b, U)
 
 commutator(c, c')
 
 # So ``[c, c^\dagger] = u^2 - v^2``: a proper bosonic mode requires
-# ``u^2 - v^2 = 1``.  The two new modes commute among themselves:
+# ``u^2 - v^2 = 1``, which is exactly what the transform reports and what
+# [`is_canonical`](@ref) uses to certify it.
+
+constraints(U), is_canonical(U)
+
+# [`Squeeze`](@ref) is the same transformation in the hyperbolic parametrisation
+# ``u = \cosh r``, ``v = \sinh r``, which is unitary by construction and so
+# carries no constraint:
+
+@variables r
+conjugate(a, Squeeze(a, b, r)), constraints(Squeeze(a, b, r))
+
+# The two new modes commute among themselves:
 
 commutator(c, d), commutator(c, d')
 
 # Try the ansatz ``H = \varepsilon\,(c^\dagger c + d^\dagger d) + \text{const}``.
-# The package canonicalises ``c^\dagger c + d^\dagger d`` eagerly, returning a
-# polynomial in the original ``a, b``:
+# Conjugating the free part maps it back to a polynomial in the original
+# ``a, b``:
 
-c' * c + d' * d
+conjugate(a' * a + b' * b, U)
 
 # Matching coefficients with ``H``:
 #
@@ -110,32 +126,24 @@ tr(M), simplify(det(M))
 #
 # A different trick (also handled fully symbolically) gives the vacuum
 # correlation functions of the Bogoliubov ground state without diagonalising
-# anything numerically.  Treat the Bogoliubov modes as the fundamental Fock
-# operators, and rebuild the *physical* operators on top of them via the
-# inverse transformation ``a = u c - v d^\dagger``, ``b = u d - v c^\dagger``.
-# Then the package's eager normal ordering does all of the work: any
-# remaining c-number term in the canonical form is automatically the BdG
-# vacuum expectation value.
+# anything numerically.  Read the physical operators in the Bogoliubov frame,
+# i.e. apply the inverse transformation ``a \mapsto u a - v b^\dagger``.  Eager
+# normal ordering then does all of the work: any remaining c-number term is
+# automatically the BdG vacuum expectation value.
 
-hc = FockSpace(:c)
-hd = FockSpace(:d)
-h_cd = hc ⊗ hd
+Ui = inv(U)
 
-@qnumbers c_bog::Destroy(h_cd, 1)
-@qnumbers d_bog::Destroy(h_cd, 2)
-
-a_phys = u * c_bog - v * d_bog'
-b_phys = u * d_bog - v * c_bog'
+conjugate(a, Ui)
 
 # Photon number in mode ``a``:
 
-a_phys' * a_phys
+conjugate(a' * a, Ui)
 
 # The constant term ``v^2`` is ``\langle a^\dagger a\rangle`` in the BdG
 # vacuum.  Squeezing populates the physical modes with ``v^2 = \sinh^2 r``
 # photons per mode even though the Bogoliubov vacuum is empty.
 
-a_phys * b_phys
+conjugate(a * b, Ui)
 
 # The constant ``-uv`` is the **pair correlation**
 # ``\langle a\,b \rangle = -u v = -\tfrac{1}{2}\sinh(2 r)``, the hallmark of
@@ -149,22 +157,19 @@ a_phys * b_phys
 # ``Q_\pm = (q_a \pm q_b)/\sqrt{2}`` and ``P_\pm = (p_a \pm p_b)/\sqrt{2}``.
 # We omit the ``1/\sqrt{2}`` in code and reinstate it in the final reading.
 
-q_a = a_phys + a_phys'
-q_b = b_phys + b_phys'
-p_a = -1im * (a_phys - a_phys')
-p_b = -1im * (b_phys - b_phys')
+Q_plus = (a + a') + (b + b')
+P_plus = -1im * (a - a') + -1im * (b - b')
 
-Q_plus = q_a + q_b
-P_plus = p_a + p_b
-
-Q_plus * Q_plus
+conjugate(Q_plus * Q_plus, Ui)
 
 #-
 
-P_plus * P_plus
+conjugate(P_plus * P_plus, Ui)
 
-# The constant term of ``Q_+^2`` is ``2(u-v)^2`` and of ``P_+^2`` is
-# ``2(u+v)^2``.  Dividing by the omitted normalisation factor ``2``:
+# The constants read ``2 - 4uv + 4v^2`` and ``2 + 4uv + 4v^2``: the coefficient
+# reduction has already spent the unitarity constraint ``u^2 = 1 + v^2`` on
+# them, so they are ``2(u-v)^2`` and ``2(u+v)^2``.  Dividing by the omitted
+# normalisation factor ``2``:
 #
 # ```math
 # \mathrm{Var}(Q_+) = (u - v)^2 = e^{-2 r},
@@ -207,7 +212,7 @@ normal_to_symmetric(H)
 # d^\dagger d) - 2\varepsilon v^2``:
 
 @variables ε
-H_diag = ε * (c_bog' * c_bog + d_bog' * d_bog) - 2 * ε * v^2
+H_diag = ε * (a' * a + b' * b) - 2 * ε * v^2
 normal_to_symmetric(H_diag)
 
 # Using the matching condition ``\varepsilon(u^2 + v^2) = \omega`` together

@@ -197,7 +197,12 @@ function sorted_arguments(q::QAdd)
     return QAdd[_single_qadd(c, term.ops, term.ne) for (term, c) in pairs]
 end
 
-_full_op_key(op::QSym) = (_sort_key(op)..., _type_order(op), _name_rank(op.name_id))
+# Total: without the packed level/axis fields two axes of one spin triple (or two levels of
+# one transition set) tie, and the display order falls back to dict iteration order.
+_full_op_key(op::QSym) = (
+    _sort_key(op)..., _type_order(op), _name_rank(op.name_id),
+    Int(op.l1), Int(op.l2), Int(op.g), Int(op.nlev),
+)
 
 """
     term_order_key(t::QTerm) -> Tuple

@@ -2,6 +2,8 @@ using SecondQuantizedAlgebra
 import SecondQuantizedAlgebra: QAdd, QSym, _single_qadd, _to_cnum, _to_complex, _fold_const,
     _to_numeric_static, NumericContext
 using QuantumOpticsBase
+using LinearAlgebra: diag, norm
+using Random: MersenneTwister
 using Symbolics: @variables, substitute
 import SymbolicUtils
 using Test
@@ -743,6 +745,70 @@ SecondQuantizedAlgebra.numeric_materialize(
         b = FockBasis(6)
         @variables E::Number
         @test_throws ArgumentError to_numeric(E * a, b; time_parameter = Dict(2 * E => t -> 1.0 + 0im))
+    end
+
+    # `to_numeric` is a representation of the algebra, so it must be a homomorphism: the
+    # matrix of a product is the product of the matrices, for expressions nobody chose.
+    # This is the only place the canonicalization pipeline is checked against an independent
+    # implementation of the same operators rather than against itself.
+    #
+    # Comparisons are read on the block where no word reaches the Fock truncation. `a*a'` and
+    # `a'*a + 1` differ at the top level of any finite basis, so an unrestricted comparison
+    # would measure the cutoff instead of the algebra.
+    @testset "random expressions against the representation" begin
+        randword(rng, pool, len) = prod(rand(rng, pool, len))
+        randexpr(rng, pool, nterms, maxlen) =
+            sum(randword(rng, pool, rand(rng, 1:maxlen)) for _ in 1:nterms)
+
+        @testset "Fock + NLevel + Spin" begin
+            h = FockSpace(:cL) ⊗ NLevelSpace(:aL, 4) ⊗ SpinSpace(:SL)
+            lc = Destroy(h, :cL, 1)
+            pool = vcat(
+                [lc, lc'],
+                [Transition(h, :τL, i, j, 2) for i in 1:4 for j in 1:4],
+                [Spin(h, :SL, k, 3) for k in 1:3],
+            )
+            b = FockBasis(24) ⊗ NLevelBasis(4) ⊗ SpinBasis(1 // 1)
+            M(q) = Matrix(to_numeric(q, b).data)
+            # A word is at most four ladder steps, so eight above a kept state stays inside.
+            nc = real.(diag(M(lc' * lc)))
+            kp = findall(<=(10.5), nc)
+            rng = MersenneTwister(23)
+            nontrivial = 0
+            for _ in 1:80
+                A = randexpr(rng, pool, 4, 4)
+                B = randexpr(rng, pool, 4, 4)
+                (iszero(A) || iszero(B)) || (nontrivial += 1)
+                MA, MB = M(A), M(B)
+                @test norm((M(A * B) - MA * MB)[kp, kp]) < 1.0e-10
+                @test norm((M(adjoint(A)) - MA')[kp, kp]) < 1.0e-10
+                @test norm((M(normal_order(A * B)) - M(A * B))[kp, kp]) < 1.0e-10
+                # `σᵍᵍ = 1 - Σ_{k≠g} σᵏᵏ` is an identity, so expanding it rewrites every
+                # term and must leave the matrix where it was.
+                @test norm((M(expand_completeness(A * B)) - M(A * B))[kp, kp]) < 1.0e-10
+            end
+            # Random matrix units multiply to zero often enough that this needs saying.
+            @test nontrivial > 60
+        end
+
+        @testset "PhaseSpace + Pauli" begin
+            h = PhaseSpace(:xp) ⊗ PauliSpace(:qb)
+            px, pp = Position(h, :x, 1), Momentum(h, :p, 1)
+            pool = vcat([px, pp], [Pauli(h, :σ, k, 2) for k in 1:3])
+            b = FockBasis(30) ⊗ SpinBasis(1 // 2)
+            M(q) = Matrix(to_numeric(q, b).data)
+            # `x` and `p` are not ladder operators, so the kept block is cut on the
+            # oscillator energy rather than on a photon number.
+            nE = real.(diag(M(px * px + pp * pp)))
+            kp = findall(<=(25.0), nE)
+            rng = MersenneTwister(31)
+            for _ in 1:80
+                A = randexpr(rng, pool, 3, 3)
+                B = randexpr(rng, pool, 3, 3)
+                @test norm((M(A * B) - M(A) * M(B))[kp, kp]) < 1.0e-10
+                @test norm((M(adjoint(A)) - M(A)')[kp, kp]) < 1.0e-10
+            end
+        end
     end
 
 end

@@ -1,6 +1,7 @@
 using SecondQuantizedAlgebra
 using Symbolics: @variables
 using Test
+import SymbolicUtils
 import SecondQuantizedAlgebra: QAdd, QSym, QField, sorted_arguments, CNum,
     _CNUM_ONE, _single_qadd, _to_cnum, simplify
 
@@ -55,6 +56,28 @@ import SecondQuantizedAlgebra: QAdd, QSym, QField, sorted_arguments, CNum,
             @test s3 isa QAdd
             @test length(s3) == 3
             @test 3 + (a + ad) isa QAdd
+        end
+
+        @testset "QField ± scalar BasicSymbolic" begin
+            # `Num <: Real` cannot wrap a complex symtype, so `@variables α::Number`
+            # reaches arithmetic unwrapped. `*` already accepted that; `+`/`-` did not.
+            @variables α::Number
+            u = SymbolicUtils.unwrap(α)
+            @test u isa SymbolicUtils.BasicSymbolic
+            @test (a + u) isa QAdd
+            @test length(a + u) == 2
+            @test isequal(a + u, u + a)
+            @test isequal(a - u, a + (-u))
+            @test isequal(u - a, -(a - u))
+            q = ad * a
+            @test (q + u) isa QAdd
+            @test length(q + u) == 2
+            @test isequal(q + u, u + q)
+            @test isequal(q - u, q + (-u))
+            @test isequal(u - q, -(q - u))
+            @test (q + 0) === q
+            @test @inferred(a + u) isa QAdd
+            @test @inferred(q + u) isa QAdd
         end
 
         @testset "Subtraction" begin

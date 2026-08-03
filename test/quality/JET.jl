@@ -5,12 +5,17 @@ using QuantumOpticsBase: FockBasis, NLevelBasis, SpinBasis, basisstate
 
 _report_text(report) = sprint(show, MIME("text/plain"), report)
 
+# Collected rather than asserted one by one so the failure can name the offender: a bare
+# `@test any(occursin, allowed)` prints only the predicate.
+_unmatched(report, allowed::Vector{String}) = filter(
+    text -> !any(needle -> occursin(needle, text), allowed),
+    map(_report_text, JET.get_reports(report)),
+)
+
 function _test_allowed_only(report, allowed::Vector{String})
-    reports = JET.get_reports(report)
-    for rep in reports
-        text = _report_text(rep)
-        @test any(needle -> occursin(needle, text), allowed)
-    end
+    left = _unmatched(report, allowed)
+    isempty(left) || @info "unmatched JET reports" left
+    @test isempty(left)
     return
 end
 
@@ -28,7 +33,22 @@ end
             target_modules = (SecondQuantizedAlgebra,),
             ignore_missing_comparison = true,
         )
-        @test isempty(JET.get_reports(result))
+        # `Symbolics` defines `Num` only for the `SymReal` variant, so every
+        # `Num(x::BasicSymbolic)` reads as a possible `MethodError` on the `TreeReal` arm.
+        # Nothing here produces one: `unwrap(r)`, `unwrap(cosh(r))` and `unwrap(ω*t)` are all
+        # `SymReal`. Narrowing the callees only relocates the report, since the widening
+        # starts at `_recognize(::BasicSymbolic)`, and `Symbolics.wrap` infers `Any`. Spelled
+        # out in full so a SymbolicUtils rename re-fires the gate — both renderings, since
+        # JET qualifies the type parameter only when the running session lacks the binding.
+        _test_allowed_only(
+            result,
+            [
+                "Num(::SymbolicUtils.BasicSymbolicImpl.var\"typeof(BasicSymbolicImpl)\"" *
+                    "{SymbolicUtils.TreeReal})",
+                "Num(::SymbolicUtils.BasicSymbolicImpl.var\"typeof(BasicSymbolicImpl)\"" *
+                    "{TreeReal})",
+            ],
+        )
     end
 
     @testset "JET report_call on entry points (no errors)" begin
@@ -164,11 +184,34 @@ end
             "SecondQuantizedAlgebra._conj_atom(",
             ".val::Any",
         ]
+        # (a2) The same `::Any` boundary further downstream. `BasicSymbolic` is a UnionAll, so
+        #     `operation`/`arguments` on one return `Any` and every call after that inherits
+        #     it. Two cold walks reach it: `qadjoint(::Num)` unwraps to the field before its
+        #     phase and sign arms run, and the trig discovery in `reduce.jl` iterates
+        #     `Monomial.syms`, whose eltype is that same UnionAll. Neither is fixable here:
+        #     the type is already lost at the caller, and the eltype is SymbolicUtils' choice.
+        allowed_symbolic_walk_reports = [
+            "BasicSymbolicImpl)\"{T} where T)",
+            "operation(",   # the two SymbolicUtils accessors that start the widening
+            "arguments(",
+            "SecondQuantizedAlgebra._strip_conj(",
+            "SecondQuantizedAlgebra.only(",
+            "SecondQuantizedAlgebra._expim(",
+            "SecondQuantizedAlgebra.sign(",
+            "SecondQuantizedAlgebra.exp(",
+            "SecondQuantizedAlgebra.:!(",
+            "SecondQuantizedAlgebra.:<",
+            "SecondQuantizedAlgebra.:-(",
+            "SecondQuantizedAlgebra._unary_arg(",
+            "SecondQuantizedAlgebra._find_partner(",
+            "SecondQuantizedAlgebra.Num(",
+            "SecondQuantizedAlgebra.ParamRelation(",
+        ]
         # (b) `undo_average` rebuilds a QAdd from a Symbolics `average` node, reading
         #     its `Any`-typed arguments/metadata (`_average`, `_to_qadd`) and folding
         #     the rebuilt terms through generic iteration.
         allowed_hotpath_reports = vcat(
-            allowed_coeff_reports, [
+            allowed_coeff_reports, allowed_symbolic_walk_reports, [
                 "SecondQuantizedAlgebra._average(",
                 "SecondQuantizedAlgebra._to_qadd(",
                 "SecondQuantizedAlgebra.iszero(",

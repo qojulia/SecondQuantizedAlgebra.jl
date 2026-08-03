@@ -19,10 +19,10 @@
 # below ``\tfrac{1}{2}`` while the other grows above it, with the product
 # saturating the Heisenberg bound.
 #
-# This example showcases the [`PhaseSpace`](@ref) hilbert space and the
-# canonical-commutator engine: every step uses
-# [`Position`](@ref) and [`Momentum`](@ref) directly, without ever invoking
-# Fock ladder operators.
+# This example showcases the [`PhaseSpace`](@ref) hilbert space, the
+# canonical-commutator engine, and the squeeze transformation of a quadrature
+# pair: every step uses [`Position`](@ref) and [`Momentum`](@ref) directly,
+# without ever invoking Fock ladder operators.
 
 # ## Setup
 
@@ -60,11 +60,40 @@ H = (δ - κ) / 2 * x^2 + (δ + κ) / 2 * p^2
 # ``\kappa = \delta``.  Above threshold the system runs away exponentially,
 # and the squeezing parameter diverges.
 
-# ## Squeezed-state variances
+# ## Squeezed-state variances from a squeeze transformation
 #
-# Below threshold, the ground state is a single-mode squeezed vacuum.
-# Mapping to ladder operators ``a = (x + i p)/\sqrt{2}`` and applying a
-# Bogoliubov rotation gives, after a short calculation,
+# Below threshold, the ground state is a single-mode squeezed vacuum.  Rather
+# than mapping to ladder operators and quoting the Bogoliubov result, we can
+# build the squeeze that diagonalises ``H`` directly on the canonical pair:
+# [`Squeeze`](@ref) on a `(Position, Momentum)` pair is
+# ``e^{-i r (x p + p x)/2}``, which stretches one quadrature and shrinks the
+# other.
+
+@variables r
+
+U = Squeeze(x, p, r)
+
+conjugate(x, U), conjugate(p, U)
+
+# The map is certified against the canonical commutator and the Hermiticity of
+# both quadratures, without any matrix representation:
+
+is_canonical(U)
+
+# Conjugating ``H`` rescales the two coefficients in opposite directions:
+
+conjugate(H, U)
+
+# The two agree when ``e^{4r} = (\delta + \kappa)/(\delta - \kappa)``, leaving a
+# bare oscillator ``\tfrac{\varepsilon}{2}(x^2 + p^2)`` at the normal-mode
+# frequency ``\varepsilon = \sqrt{\delta^2 - \kappa^2}`` found above.  Its ground
+# state is the vacuum, so the ground state of ``H`` is ``U|0\rangle`` and the
+# variances follow from conjugating the observables:
+
+conjugate(x * x, U), conjugate(p * p, U)
+
+# With ``\langle x^2\rangle_\mathrm{vac} = \langle p^2\rangle_\mathrm{vac} =
+# \tfrac{1}{2}`` and ``e^{2r} = \sqrt{(\delta + \kappa)/(\delta - \kappa)}``:
 #
 # ```math
 # \langle x^2 \rangle_0
@@ -78,7 +107,7 @@ H = (δ - κ) / 2 * x^2 + (δ + κ) / 2 * p^2
 # The first variance grows without bound as ``\kappa \to \delta^-``
 # (anti-squeezed quadrature), the second shrinks to zero (squeezed
 # quadrature), and the product stays pinned at the Heisenberg-uncertainty
-# minimum.
+# minimum because the squeeze is canonical.
 
 # ## Numerical verification
 #
@@ -231,5 +260,5 @@ fig2
 # hyperbolic sectors; the orbits run off to infinity along the unstable
 # manifold.  Everything in this figure (the threshold condition, the
 # variances, the Wigner shape) came out of a canonical
-# [`Position`](@ref)/[`Momentum`](@ref) pair and the built-in commutator
-# engine, with no manual translation to ladder operators required.
+# [`Position`](@ref)/[`Momentum`](@ref) pair, the built-in commutator engine and
+# one [`Squeeze`](@ref), with no manual translation to ladder operators required.
