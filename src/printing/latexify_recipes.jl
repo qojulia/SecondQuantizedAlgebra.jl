@@ -65,10 +65,12 @@ end
     return Expr(:latexifymerge, body)
 end
 
-# Extract a plain Julia number from CNum for LaTeX rendering
+# Lowered through `_display_coeff`, the same entry point `show` uses, so the two renderers
+# cannot disagree on how a conjugate phase pair folds back to `cos`/`sin`.
 function _latex_prefactor(c::CNum)
-    r_unwrap = SymbolicUtils.unwrap(real(c))
-    i_unwrap = SymbolicUtils.unwrap(imag(c))
+    d = _display_coeff(c)
+    r_unwrap = SymbolicUtils.unwrap(real(d))
+    i_unwrap = SymbolicUtils.unwrap(imag(d))
     r_val = Symbolics.value(r_unwrap)
     i_val = Symbolics.value(i_unwrap)
     # `iszero` on a BasicSymbolic returns a symbolic expression, not Bool, which
@@ -84,11 +86,11 @@ function _latex_prefactor(c::CNum)
         if i_val isa Real
             return complex(false, i_val)
         end
-        return to_num(c)
+        return d
     elseif r_val isa Real && i_val isa Real
         return complex(r_val, i_val)
     else
-        return to_num(c)
+        return d
     end
 end
 _latex_prefactor(c::Number) = c
@@ -180,6 +182,15 @@ end
 
 function Symbolics._toexpr_op(::AvgFunc, args; kwargs...)
     return _latex_avg_expr(only(args))
+end
+
+# The LaTeX twin of the `show_call(::typeof(expim))` override, so an unpaired phase renders
+# as an exponential rather than as the raw head name.
+function Symbolics._toexpr_op(::typeof(expim), args; kwargs...)
+    arg = only(args)
+    neg = _leading_sign(arg) < 0
+    body = neg ? SymbolicUtils.unwrap(expand(-arg)) : arg
+    return "e^{$(neg ? "-" : "")i $(strip(String(latexify(body; env = :inline)), '$'))}"
 end
 
 function Symbolics._toexpr_op(::SumFunc, args; kwargs...)

@@ -1,9 +1,11 @@
 using Test
 using SecondQuantizedAlgebra
-using Symbolics: @variables, Num
+using Symbolics: Symbolics, @variables, Num
+using SymbolicUtils: SymbolicUtils
 import SecondQuantizedAlgebra: Coeff, CNum, Monomial, Poly, _to_cnum, _to_complex, to_num,
     _is_native, _is_poly, _is_symbolic_cnum, _conj_cnum, _mul_cnum, _add_cnum, _neg_cnum,
-    _iszero_cnum, _CNUM_ONE, _CNUM_ZERO, _CNUM_NEG1, _CNUM_IM, _NUM_ZERO
+    _iszero_cnum, _CNUM_ONE, _CNUM_ZERO, _CNUM_NEG1, _CNUM_IM, _NUM_ZERO, expim,
+    _phase_coeff, _is_phase, _phase_poly_bound
 
 # Coefficients carry a native `ComplexF64` fast path and a `Complex{Num}` symbolic
 # fallback. These tests pin the invariants the rest of the package relies on:
@@ -351,5 +353,79 @@ import SecondQuantizedAlgebra: Coeff, CNum, Monomial, Poly, _to_cnum, _to_comple
             @test !_is_native(_to_cnum(cos(Num(π))))
             @test !_is_native(_to_cnum(sin(Num(π))))
         end
+    end
+
+    @testset "unit phases" begin
+        @variables ω J t θ
+        p = _phase_coeff(ω * t)
+        @test _is_poly(p)
+        @test _is_phase(p.tail.terms[1].syms[1])
+        # conjugation is exponent negation, so a phase cancels against its own conjugate
+        @test _mul_cnum(p, _conj_cnum(p)) == _CNUM_ONE
+        pp = _mul_cnum(p, p)
+        @test _mul_cnum(pp, _conj_cnum(pp)) == _CNUM_ONE
+        # `expim(0)` is 1, not an atom
+        @test _phase_coeff(0) == _CNUM_ONE
+        @test _to_cnum(expim(Num(0))) == _CNUM_ONE
+        # one atom per frequency however the argument is spelled, and whatever its sign
+        @test isequal(_phase_coeff((ω + 2J) * t), _phase_coeff(ω * t + 2 * J * t))
+        @test _mul_cnum(_phase_coeff(-ω * t), _phase_coeff(ω * t)) == _CNUM_ONE
+        # commensurate frequencies are exponent arithmetic, not an angle-addition identity
+        @variables E1 E2 E3
+        ph(i, j) = _mul_cnum(_phase_coeff(i * t), _conj_cnum(_phase_coeff(j * t)))
+        @test _iszero_cnum(
+            _add_cnum(_mul_cnum(ph(E1, E2), ph(E2, E3)), _neg_cnum(ph(E1, E3)))
+        )
+        # a phase polynomial is bounded by its scalars; an ordinary parameter is not
+        @test _phase_poly_bound(_add_cnum(p, _conj_cnum(p)).tail) == 2.0
+        @test _phase_poly_bound(_to_cnum(ω).tail) === nothing
+        # lowering round-trips back onto the same atom
+        @test isequal(p, _to_cnum(to_num(p)))
+        @test isequal(_conj_cnum(p), _to_cnum(to_num(_conj_cnum(p))))
+        # a numeric argument still evaluates
+        @test expim(0.5) ≈ exp(0.5im)
+    end
+
+    # The public `expim` used to return a `Num`. `Base.conj(::Num)` is the identity and
+    # `Complex * Num` splits into real/imag halves, so every law below silently failed.
+    @testset "public expim is a coefficient" begin
+        @variables ω t
+        h = FockSpace(:f)
+        a = Destroy(h, :a)
+        p = expim(ω * t)
+        @test p isa Coeff
+
+        @test conj(p) * p == _CNUM_ONE
+        @test !isequal(conj(p), p)
+        @test (im * p) * conj(p) == _CNUM_IM
+        @test _is_poly(im * p)
+        @test isequal(expim(ω * t) * expim(-ω * t) * a, 1 * a)
+        @test isequal(p * a, expim(ω * t) * a)
+
+        # a phase over a literal is its value, so numerically cancelling terms fold
+        @test _is_native(expim(Num(1.0)))
+        @test iszero(expim(Num(1.0)) * a - exp(im * 1.0) * a)
+
+        # `type`/`shape` take part in hash-consing, so an unregistered head would come back
+        # from any rebuild as a different atom whose `conj` is the identity
+        b = SecondQuantizedAlgebra._expim(SymbolicUtils.unwrap(ω * t))
+        rebuilt = SymbolicUtils.maketerm(
+            typeof(b), SymbolicUtils.operation(b), SymbolicUtils.arguments(b),
+            SymbolicUtils.metadata(b),
+        )
+        @test rebuilt === b
+        @test SymbolicUtils.symtype(b) === Complex{Real}
+        @test Symbolics.substitute(b, Dict(SymbolicUtils.unwrap(ω) => 2.0)) ===
+            SecondQuantizedAlgebra._expim(SymbolicUtils.unwrap(2.0 * t))
+
+        # conjugation negates the argument rather than conjugating it
+        @test isequal(
+            SecondQuantizedAlgebra.qadjoint(Num(b)),
+            SecondQuantizedAlgebra._expim(SymbolicUtils.unwrap(-ω * t)),
+        )
+
+        # a registered derivative, not an inert `Differential` node
+        d = Symbolics.expand_derivatives(Symbolics.Differential(t)(Num(b)))
+        @test isequal(_to_cnum(d), _mul_cnum(_mul_cnum(_CNUM_IM, _to_cnum(ω)), p))
     end
 end

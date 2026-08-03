@@ -1,7 +1,8 @@
 module SecondQuantizedAlgebra
 
 using SymbolicUtils: SymbolicUtils, simplify, substitute, add_worker
-using Symbolics: Symbolics, Num, expand, @variables, build_function, symbolic_to_float
+using Symbolics: Symbolics, Num, expand, @variables, build_function, symbolic_to_float, ssqrt,
+    simplify_fractions
 using TermInterface: TermInterface
 
 import QuantumInterface: ⊗, tensor, expect, basis
@@ -9,6 +10,7 @@ using QuantumInterface: AbstractOperator, StateVector, Basis
 
 using Combinatorics: with_replacement_combinations
 using Latexify: Latexify, latexify, @latexrecipe
+using LinearAlgebra: Hermitian, eigen
 using PrecompileTools: @setup_workload, @compile_workload
 using SciMLPublic: @public
 import MutableArithmetics as MA
@@ -27,6 +29,7 @@ include("operators/phase_space.jl")
 include("operators/operators.jl")
 include("expressions/monomial.jl")
 include("expressions/cnum.jl")
+include("expressions/reduce.jl")
 include("expressions/qterm.jl")
 include("expressions/qadd.jl")
 
@@ -38,6 +41,7 @@ include("expressions/index.jl")
 include("algebra/algebra.jl")
 include("algebra/mutable_arithmetics.jl")
 include("algebra/weyl.jl")
+include("algebra/unitary.jl")
 
 include("average.jl")
 
@@ -108,6 +112,8 @@ export FockSpace, ProductSpace,
     prefactor, operators,
     substitute,
     normal_order, normal_to_symmetric, symmetric_to_normal,
+    UnitaryTransform, Displace, Rotation, Squeeze, Bogoliubov, RotatingFrame, DressedFrame,
+    transform, conjugate, gauge_term, constraints, generators, is_canonical,
     simplify, expand, expand_completeness, assume_distinct_index, commutator, anticommutator,
     to_numeric, numeric_average,
     NumericBackend, QuantumOpticsBackend, QuantumToolboxBackend,
@@ -130,7 +136,17 @@ export FockSpace, ProductSpace,
     has_sum_metadata, get_sum_indices, get_sum_non_equal, get_sum_body, indexed_sum,
     set_acts_on, rename,
     transition_superscript, constraint_pairs,
-    to_num, order_key, term_order_key, qadd_order_key
+    to_num, order_key, term_order_key, qadd_order_key,
+    canonicality_residuals, expim
+
+function __init__()
+    resize!(_TRANSIENT_SYMS, 0)
+    sizehint!(_TRANSIENT_SYMS, _N_TRANSIENT)
+    for k in 1:_N_TRANSIENT
+        push!(_TRANSIENT_SYMS, _new_transient_sym(k))
+    end
+    return nothing
+end
 
 include("precompile.jl")
 

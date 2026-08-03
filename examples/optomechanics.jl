@@ -24,9 +24,9 @@
 #
 # Because ``a^\dagger a`` commutes with the displacement generator,
 # ``U^\dagger b U = b - (g/\omega_m)\,a^\dagger a`` is exact, since the Hadamard
-# series truncates at first order.  We exploit that by simply *substituting*
-# the displaced operators into ``H`` and letting the package's eager
-# normal-ordering do the bookkeeping.
+# series truncates at first order.  The displacement amplitude is an operator,
+# but a conserved one, so [`Displace`](@ref) reproduces the transformation
+# photon-number sector by photon-number sector.
 
 # ## Setup
 
@@ -66,55 +66,75 @@ H = ω₀ * a' * a + ωₘ * b' * b + g * a' * a * (b + b')
 # ``a^\dagger a = n``, the mechanical mode oscillates around a shifted origin
 # ``\langle b\rangle_\text{eq} = -(g/\omega_m)\,n``.
 
-# ## Polaron transformation by operator substitution
+# ## Polaron transformation
 #
-# A unitary transformation acts on operators by conjugation: ``\tilde O =
-# U^\dagger O U``.  Here that means
+# A unitary transformation acts on operators by conjugation, ``\tilde O =
+# U^\dagger O U``.  The polaron unitary displaces the mechanical mode by an
+# amount that is itself an operator, the conserved cavity occupation:
 #
 # ```math
-# \tilde a = a, \qquad
-# \tilde b = b - \tfrac{g}{\omega_m}\,a^\dagger a,
-# \qquad
-# \tilde b^\dagger = b^\dagger - \tfrac{g}{\omega_m}\,a^\dagger a,
+# \tilde b = b - \tfrac{g}{\omega_m}\,a^\dagger a .
 # ```
 #
-# where the first identity holds because ``a^\dagger a`` is the generator
-# of the transformation and commutes with ``a`` up to scalars that cancel
-# (cf. the Hadamard series).  Substitute these into ``H`` and the package
-# canonicalises the result:
+# [`Displace`](@ref) takes that amplitude directly.  It must commute with the
+# mode it displaces and with its own adjoint, which ``a^\dagger a`` does, and
+# then the Hadamard series truncates at first order exactly as it would for a
+# number.
 
-α = g / ωₘ
-b_tilde = b - α * a' * a
-bd_tilde = b' - α * a' * a
+U_pol = Displace(b, (-g / ωₘ) * (a' * a))
 
-H_pol = ω₀ * a' * a + ωₘ * bd_tilde * b_tilde + g * a' * a * (b_tilde + bd_tilde)
+conjugate(b, U_pol)
+
+# [`is_canonical`](@ref) certifies it against the canonical commutator of the
+# site it acts on, with no matrix representation of ``U`` involved:
+
+is_canonical(U_pol)
 
 # ## Effective Kerr Hamiltonian
 #
-# Combining the canonical form of ``H_\mathrm{pol}`` with the identity
-# ``(a^\dagger a)^2 = a^\dagger{}^2 a^2 + a^\dagger a`` gives
-#
+# Conjugating ``H`` eliminates the coupling outright:
+
+H_pol = conjugate(H, U_pol)
+
 # ```math
 # \boxed{\;
 #   H_\mathrm{pol}
 #   = \omega_0\, a^\dagger a + \omega_m\, b^\dagger b
-#   - \frac{g^2}{\omega_m}\,(a^\dagger a)^2.
+#   - \frac{g^2}{\omega_m}\,(a^\dagger a)^2,
 # \;}
 # ```
 #
-# The optomechanical coupling has been **eliminated entirely** in favour of
-# a Kerr nonlinearity of strength ``K = g^2/\omega_m`` on the cavity mode.
-# Photons attract each other with energy ``-K\,n(n-1)``, a self-Kerr
-# anharmonicity that is now routinely measured in superconducting and
-# membrane-in-the-middle optomechanical experiments.  The mechanical mode,
-# in the polaron frame, has decoupled completely from the optics.
+# written above with ``(a^\dagger a)^2 = a^\dagger{}^2 a^2 + a^\dagger a``, which
+# is the normal-ordered form the algebra returns.  The optomechanical coupling
+# has been **eliminated entirely** in favour of a Kerr nonlinearity of strength
+# ``K = g^2/\omega_m`` on the cavity mode.  Photons attract each other with
+# energy ``-K\,n(n-1)``, a self-Kerr anharmonicity that is now routinely
+# measured in superconducting and membrane-in-the-middle optomechanical
+# experiments.  The mechanical mode, in the polaron frame, has decoupled
+# completely from the optics.
+#
+# The cavity is a different matter.  ``a`` does not commute with the amplitude,
+# so ``U^\dagger a U`` is ``a`` times a displacement operator, which is not a
+# polynomial in the generators at all.  Rather than return it untransformed,
+# `conjugate` refuses:
+
+try
+    conjugate(a, U_pol)
+catch err
+    err
+end
+
+# Everything commuting with ``a^\dagger a`` does pass through, which is why the
+# conjugation of ``H`` above went through untouched on the cavity side.
+
+conjugate(a' * a, U_pol)
 
 # ## Numerical verification
 #
-# We diagonalise both the original ``H`` and the Kerr-only effective
-# Hamiltonian
-# ``H_\mathrm{Kerr} = \omega_0\,a^\dagger a + \omega_m\,b^\dagger b - (g^2/\omega_m)\,(a^\dagger a)^2``
-# and check that they share the same spectrum.
+# We diagonalise both the original ``H`` and the polaron-frame ``H_\mathrm{pol}``
+# computed above, and check that they share the same spectrum.  A frame change is
+# a similarity transformation, so agreement here is a check on the truncation as
+# much as on the algebra.
 
 using QuantumOpticsBase, LinearAlgebra, CairoMakie
 
@@ -124,15 +144,13 @@ b_cav = FockBasis(n_max_c)
 b_mech = FockBasis(n_max_m)
 b_total = b_cav ⊗ b_mech
 
-H_Kerr = ω₀ * a' * a + ωₘ * b' * b - (g^2 / ωₘ) * a' * a * a' * a
-
 gs = range(0.0, 0.6 * ωm_val, length = 16)
 E_full = Vector{Float64}[]
 E_eff = Vector{Float64}[]
 for g_val in gs
     subs = Dict(ω₀ => ω₀_val, ωₘ => ωm_val, g => g_val)
     Hf = dense(to_numeric(substitute(H, subs), b_total))
-    He = dense(to_numeric(substitute(H_Kerr, subs), b_total))
+    He = dense(to_numeric(substitute(H_pol, subs), b_total))
     push!(E_full, sort(real.(eigvals(Hermitian(Hf.data))))[1:8])
     push!(E_eff, sort(real.(eigvals(Hermitian(He.data))))[1:8])
 end
@@ -145,11 +163,11 @@ ax = Axis(
     title = "Optomechanics: lowest 8 levels",
 )
 colors = Makie.wong_colors()
-for n in 2:8
-    full = [E_full[i][n] - E_full[i][1] for i in eachindex(gs)]
-    eff = [E_eff[i][n] - E_eff[i][1] for i in eachindex(gs)]
-    scatter!(ax, collect(gs) ./ ωm_val, full; color = colors[n - 1], marker = :circle)
-    lines!(ax, collect(gs) ./ ωm_val, eff; color = colors[n - 1], linestyle = :dash)
+for k in 2:8
+    full = [E_full[i][k] - E_full[i][1] for i in eachindex(gs)]
+    eff = [E_eff[i][k] - E_eff[i][1] for i in eachindex(gs)]
+    scatter!(ax, collect(gs) ./ ωm_val, full; color = colors[k - 1], marker = :circle)
+    lines!(ax, collect(gs) ./ ωm_val, eff; color = colors[k - 1], linestyle = :dash)
 end
 fig
 
@@ -159,9 +177,8 @@ fig
 # each Kerr-shifted cavity level.
 # Markers: exact diagonalisation of the full radiation-pressure
 # Hamiltonian.  They agree to truncation error across the whole coupling
-# range, since the polaron substitution is exact and the package's eager
-# canonicalisation reproduced the textbook derivation in three operator
-# substitutions.
+# range: the polaron transformation is exact, and one `conjugate` call
+# reproduced the textbook derivation.
 
 # ## Membrane-in-the-middle: quadratic coupling
 #
@@ -194,21 +211,30 @@ H_mim = ω₀ * a' * a + ωₘ * b' * b + g₂ * a' * a * (b + b')^2
 #   + g_2 n\,(b^2 + b^{\dagger 2}) + (\omega_0 + g_2)\,n
 # ```
 #
-# This is precisely the single-mode squeezing Hamiltonian solved in the
-# [Bogoliubov example](bogoliubov.md), with effective oscillator frequency
+# which is the single-mode squeezing Hamiltonian, of oscillator frequency
 # ``\omega(n) = \omega_m + 2 g_2 n`` and parametric drive
-# ``\kappa(n) = 2 g_2 n``.  The Bogoliubov dispersion gives a
-# **photon-number-conditional mechanical frequency**
+# ``\kappa(n) = 2 g_2 n``.  Its two-mode cousin is the subject of the
+# [Bogoliubov example](bogoliubov.md); here a single-mode [`Squeeze`](@ref)
+# diagonalises it.  Written in a generic frequency ``\Omega`` and drive ``\kappa``:
+
+@variables Ω κ r
+conjugate(Ω * b' * b + κ / 2 * (b * b + b' * b'), Squeeze(b, r))
+
+# The ``b^2`` coefficient is ``\tfrac{1}{2}(\Omega\sinh 2r + \kappa\cosh 2r)``
+# and vanishes at ``\tanh 2r = -\kappa/\Omega``.  There the ``b^\dagger b``
+# coefficient ``\Omega\cosh 2r + \kappa\sinh 2r`` collapses to
+# ``\sqrt{\Omega^2 - \kappa^2}``, giving a **photon-number-conditional
+# mechanical frequency**
 #
 # ```math
 # \varepsilon(n) = \sqrt{\omega(n)^2 - \kappa(n)^2}
-#   = \omega_m\,\sqrt{1 + 4\,g_2\,n / \omega_m}\,.
+#   = \omega_m\,\sqrt{1 + 4\,g_2\,n / \omega_m}\,,
 # ```
 #
-# The mechanical ground state in each cavity sector is a **squeezed vacuum**
-# whose squeezing parameter grows monotonically with the cavity photon
-# number.  Including the squeezing-induced zero-point shift, the full
-# spectrum reads
+# and the leftover constant ``\tfrac{1}{2}[\varepsilon(n) - \omega(n)]`` is the
+# zero-point shift of the squeezed vacuum.  The mechanical ground state in each
+# cavity sector is therefore a **squeezed vacuum** whose squeezing parameter
+# grows monotonically with the cavity photon number, and the full spectrum reads
 #
 # ```math
 # E(n, m) = (\omega_0 + g_2)\,n + \varepsilon(n)\,m + \tfrac{1}{2}\bigl[\varepsilon(n) - \omega_m - 2 g_2 n\bigr].
@@ -235,10 +261,10 @@ preds = sort(
     by = t -> t[3],
 )[1:12]
 for k in 1:12
-    n, m, eth = preds[k]
+    nk, mk, eth = preds[k]
     enum = F_mim.values[k]
     println(
-        "  (n=$n, m=$m)  E_th = $(round(eth; digits = 4))",
+        "  (n=$nk, m=$mk)  E_th = $(round(eth; digits = 4))",
         "   E_num = $(round(enum; digits = 4))",
         "   |Δ| = $(round(abs(eth - enum); digits = 8))"
     )
