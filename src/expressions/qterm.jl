@@ -205,15 +205,12 @@ function _constraint_pairs(args::QTermDict)
     return out
 end
 
-# `eq` defaults to `∈`, which lowers to `==`. A `Num` element needs `isequal` instead, since
-# `==` on one is itself symbolic. The empty-side returns alias their argument, so a returned
-# vector is read-only for the caller.
-function _merge_unique(a::Vector{T}, b::Vector{T}, eq::F = (x, ys) -> x ∈ ys) where {T, F}
+function _merge_unique(a::Vector{T}, b::Vector{T}) where {T}
     isempty(a) && return b
     isempty(b) && return a
     result = copy(a)
     for x in b
-        eq(x, result) || push!(result, x)
+        x ∉ result && push!(result, x)
     end
     return result
 end

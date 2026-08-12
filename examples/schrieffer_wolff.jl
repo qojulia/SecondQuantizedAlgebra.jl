@@ -26,18 +26,14 @@
 # In this example we carry out the transformation symbolically with
 # SecondQuantizedAlgebra.jl, deriving both the **dispersive shift** ``\chi``
 # (second order) and the **Kerr nonlinearity** ``K`` (fourth order).
-#
-# ``S`` mixes the cavity with the atom, so its adjoint action does not close on
-# the generators of either site: this is a transformation outside the class that
-# [`UnitaryTransform`](@ref) represents exactly, and the BCH series has to be
-# carried out order by order with `commutator`.  The frame change that sets the
-# problem up, on the other hand, is exactly solvable, and we build it with
-# [`RotatingFrame`](@ref).
 
 # ## Setup
 #
 # We consider a single cavity mode coupled to a two-level atom
-# (Jaynes-Cummings model).
+# (Jaynes-Cummings model).  Working in the **interaction picture** with respect
+# to the cavity frequency ``\omega_0``, the only energy scale in ``H_0`` is the
+# detuning ``\Delta = \omega_a - \omega_0``.  This eliminates ``\omega_0`` from
+# all intermediate expressions and keeps the algebra clean.
 
 using SecondQuantizedAlgebra
 
@@ -51,39 +47,11 @@ h = hc ⊗ ha
 σeg = Transition(h, :σ, 2, 1, 2)   # |e⟩⟨g|  (raising)
 σee = Transition(h, :σ, 2, 2, 2)   # |e⟩⟨e|  (excited-state projector)
 
-@variables g Δ ω₀ ωₐ t
+@variables g Δ
 
-# ## Into the interaction picture
+# ## Jaynes-Cummings Hamiltonian (interaction picture)
 #
-# In the rotating-wave approximation the lab-frame Jaynes-Cummings Hamiltonian is
-#
-# ```math
-# H_\mathrm{lab} = \omega_0\, a^\dagger a + \omega_a\, |e\rangle\!\langle e|
-#   + g\bigl(a^\dagger |g\rangle\!\langle e| + a\, |e\rangle\!\langle g|\bigr).
-# ```
-#
-# The perturbative expansion below wants it in the **interaction picture** with
-# respect to the cavity frequency, where the only energy scale left is the
-# detuning ``\Delta = \omega_a - \omega_0``.  The frame is
-# ``U = e^{-i\omega_0 (a^\dagger a + |e\rangle\!\langle e|)\,t}``, and
-# [`RotatingFrame`](@ref) builds it from the adjoint action of its argument
-# rather than from a table of term shapes:
-
-H_lab = ω₀ * a' * a + ωₐ * σee + g * (a' * σge + a * σeg)
-U_rot = RotatingFrame(ω₀ * (a' * a + σee), t)
-
-# [`transform`](@ref) conjugates and adds the gauge term
-# ``i(\partial_t U^\dagger)U``, which for a static generator is minus that
-# generator and is what keeps the result the generator of motion in the new
-# frame.  The two co-rotating phases of the coupling cancel against each other,
-# so no time dependence survives:
-
-H_int = SecondQuantizedAlgebra.transform(H_lab, U_rot)
-
-# `transform` is qualified here because QuantumOpticsBase, loaded further down
-# for the numerics, exports a `transform` of its own.
-#
-# ## Splitting off the perturbation
+# In the rotating-wave approximation the Hamiltonian splits into:
 #
 # ```math
 # H_0 = \Delta\, |e\rangle\!\langle e|, \qquad
@@ -92,10 +60,6 @@ H_int = SecondQuantizedAlgebra.transform(H_lab, U_rot)
 
 H0 = Δ * σee
 V = g * (a' * σge + a * σeg)
-
-# That is exactly ``H_\mathrm{int}`` once the detuning is named:
-
-iszero(simplify(substitute(H_int, Dict(ωₐ => ω₀ + Δ)) - (H0 + V)))
 
 # ## Second order: dispersive shift
 #

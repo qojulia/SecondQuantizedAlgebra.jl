@@ -10,6 +10,8 @@ Usage:
 
 using BenchmarkTools
 using SecondQuantizedAlgebra
+using Latexify: latexify
+using Symbolics: @variables
 import Dates
 using Dates: now, DateTime, @dateformat_str
 
@@ -19,11 +21,13 @@ include("commutator.jl")
 include("simplify_and_normal_order.jl")
 include("indexing.jl")
 include("accumulation.jl")
+include("unitary.jl")
 
 benchmark_commutator!(SUITE)
 benchmark_simplify_and_normal_order!(SUITE)
 benchmark_indexing!(SUITE)
 benchmark_accumulation!(SUITE)
+benchmark_unitary!(SUITE)
 
 # Match the CI tuning so local numbers are comparable: a wide sample pool plus
 # the `minimum` estimator (robust to the one-sided noise that always slows, but

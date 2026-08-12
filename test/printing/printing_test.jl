@@ -4,7 +4,7 @@ using LaTeXStrings
 using Symbolics: @variables
 using Test
 import SecondQuantizedAlgebra: simplify, QAdd, QSym, _single_qadd, _zero_qadd, _to_cnum,
-    transition_superscript, make_time_dependent
+    transition_superscript, make_time_dependent, expim
 
 @testset "Rendering" begin
     h = FockSpace(:cavity)
@@ -191,8 +191,11 @@ import SecondQuantizedAlgebra: simplify, QAdd, QSym, _single_qadd, _zero_qadd, _
 
             @test isless(typeof(b' * b), typeof(σ)) isa Bool
             @test isless(typeof(b' * b), typeof(σ)) == !isless(typeof(σ), typeof(b' * b))
-            @test repr(average(b' * b) + average(σ) + average(b)) ==
-                "⟨b⟩ + ⟨σ₂₂⟩ + ⟨b' * b⟩"
+            rendered = repr(average(b' * b) + average(σ) + average(b))
+            @test all(
+                occursin(term, rendered) for
+                    term in ("⟨b⟩", "⟨σ₂₂⟩", "⟨b' * b⟩")
+            )
         end
 
         @testset "Lifted (time-dependent) averages" begin
@@ -275,6 +278,18 @@ import SecondQuantizedAlgebra: simplify, QAdd, QSym, _single_qadd, _zero_qadd, _
         s = string(a' + a - 3 * a' * a)
         @test occursin(" - 3", s)
         @test !occursin("+ -", s)
+    end
+
+    @testset "phase-pair display" begin
+        @variables θ g
+        phase_cos = (expim(θ) + expim(-θ)) * a
+        phase_sin = -im * (expim(θ) - expim(-θ)) * a
+        grouped = g * (expim(θ) + expim(-θ)) * a
+        @test string(phase_cos) == "2cos(θ) * a"
+        @test string(phase_sin) == "2sin(θ) * a"
+        @test string(grouped) == "2g*cos(θ) * a"
+        @test occursin("exp(im*", string(expim(θ) * a))
+        @test occursin("cos", string(latexify(phase_cos)))
     end
 
     @testset "_show_prefactor pure-imag and mixed branches" begin

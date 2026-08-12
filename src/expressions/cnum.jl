@@ -39,22 +39,17 @@ const _CNUM_HALF = _native(ComplexF64(0.5))
 """
     expim(x)
 
-The unit phase `exp(im*x)`, as a coefficient a symbolic argument keeps intact.
+Return the unit phase `exp(im*x)` for a provably real argument `x`.
 
-The polynomial tier holds this as one indivisible factor, so phases multiply by adding
-exponents and conjugate by negating them, and `expim(x)*expim(-x)` cancels to `1` on its
-own. Splitting a phase into `cos`/`sin` instead leaves two unrelated factors whose
-relationship has to be supplied separately, which is why rotating frames are built from
-`expim` and why a time-dependent coefficient written this way composes with them.
-
-Displays as `exp(im*x)`, and a conjugate pair folds back to `cos`/`sin` for display.
-
-Returns a coefficient, not a `Num`: `conj` and multiplication by a complex scalar have to
-act on the phase as one factor, and a `Num` is declared real, so both would silently split
-it into unrelated `real`/`imag` halves.
+Symbolic phases remain compact under multiplication, conjugation, substitution,
+differentiation, and numerical evaluation. In particular, opposite phases cancel exactly:
+`expim(x) * expim(-x) == 1`. Phases display as exponentials, while suitable conjugate pairs
+are shown as `cos(x)` or `sin(x)`.
 
 ```jldoctest
-julia> using SecondQuantizedAlgebra: expim
+julia> using SecondQuantizedAlgebra
+
+julia> import SecondQuantizedAlgebra: expim
 
 julia> @variables ω t;
 
@@ -67,9 +62,18 @@ julia> conj(expim(ω * t)) * expim(ω * t)
 1
 ```
 """
-expim(x::Number) = exp(im * x)
+expim(x::Real) = exp(im * x)
 expim(x::Num) = _phase_coeff(x)
 expim(x::SymbolicUtils.BasicSymbolic) = _phase_coeff(x)
+
+@noinline function _nonreal_phase_argument(x)
+    throw(ArgumentError("`expim` requires a provably real argument; got `$x`"))
+end
+
+# A complex number is never accepted merely because its current imaginary part happens to
+# be zero. The atom promises unit modulus structurally, so its domain has to be real by type,
+# not by a value-dependent test.
+expim(x::Number) = _nonreal_phase_argument(x)
 
 @inline _is_phase(b) =
     b isa SymbolicUtils.BasicSymbolic &&
@@ -120,10 +124,14 @@ end
 # without that, two modes rotating at opposite rates carry unrelated atoms and never cancel.
 function _phase_coeff(x)
     a = expand(x)
-    v = _const_value(SymbolicUtils.unwrap(a))
+    u = SymbolicUtils.unwrap(a)
+    v = _const_value(u)
     # A phase over a literal is its value. Interning it instead would keep every coefficient
     # it touches off the native tier, so numerically cancelling terms would never fold.
-    v isa Number && return _native(ComplexF64(exp(im * v)))
+    v isa Real && return _native(ComplexF64(exp(im * v)))
+    v isa Number && return _nonreal_phase_argument(a)
+    (u isa SymbolicUtils.BasicSymbolic && SymbolicUtils.symtype(u) <: Real) ||
+        return _nonreal_phase_argument(a)
     neg = _leading_sign(a) < 0
     c = _atom_coeff(_expim_expanded(neg ? expand(-a) : a))
     return neg ? _conj_cnum(c) : c
@@ -234,9 +242,9 @@ function _term_to_num(m::Monomial)
     end
     # Guard the zero halves: `0 * x` does not always fold for a complex-symtype factor,
     # and an unfolded `0*expim(...)` would survive all the way to display.
-    rz, iz = real(m.scalar), imag(m.scalar)
-    re = iszero(rz) ? _NUM_ZERO : _num_from_float(rz) * prod
-    imag_ = iszero(iz) ? _NUM_ZERO : _num_from_float(iz) * prod
+    real_scalar, imag_scalar = real(m.scalar), imag(m.scalar)
+    re = iszero(real_scalar) ? _NUM_ZERO : _num_from_float(real_scalar) * prod
+    imag_ = iszero(imag_scalar) ? _NUM_ZERO : _num_from_float(imag_scalar) * prod
     return Complex(re, imag_)
 end
 

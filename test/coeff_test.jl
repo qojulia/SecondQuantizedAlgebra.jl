@@ -5,7 +5,7 @@ using SymbolicUtils: SymbolicUtils
 import SecondQuantizedAlgebra: Coeff, CNum, Monomial, Poly, _to_cnum, _to_complex, to_num,
     _is_native, _is_poly, _is_symbolic_cnum, _conj_cnum, _mul_cnum, _add_cnum, _neg_cnum,
     _iszero_cnum, _CNUM_ONE, _CNUM_ZERO, _CNUM_NEG1, _CNUM_IM, _NUM_ZERO, expim,
-    _phase_coeff, _is_phase, _phase_poly_bound
+    _phase_coeff, _is_phase
 
 # Coefficients carry a native `ComplexF64` fast path and a `Complex{Num}` symbolic
 # fallback. These tests pin the invariants the rest of the package relies on:
@@ -376,14 +376,17 @@ import SecondQuantizedAlgebra: Coeff, CNum, Monomial, Poly, _to_cnum, _to_comple
         @test _iszero_cnum(
             _add_cnum(_mul_cnum(ph(E1, E2), ph(E2, E3)), _neg_cnum(ph(E1, E3)))
         )
-        # a phase polynomial is bounded by its scalars; an ordinary parameter is not
-        @test _phase_poly_bound(_add_cnum(p, _conj_cnum(p)).tail) == 2.0
-        @test _phase_poly_bound(_to_cnum(ω).tail) === nothing
         # lowering round-trips back onto the same atom
         @test isequal(p, _to_cnum(to_num(p)))
         @test isequal(_conj_cnum(p), _to_cnum(to_num(_conj_cnum(p))))
         # a numeric argument still evaluates
-        @test expim(0.5) ≈ exp(0.5im)
+        @test (@inferred expim(0.5)) ≈ exp(0.5im)
+        @test (@inferred expim(ω * t)) isa Coeff
+        @test_throws ArgumentError expim(1 + 0im)
+        @test_throws ArgumentError expim(1 + 2im)
+        @variables z::Complex
+        @test_throws ArgumentError expim(z)
+        @test_throws ArgumentError expim(SymbolicUtils.unwrap(z))
     end
 
     # The public `expim` used to return a `Num`. `Base.conj(::Num)` is the identity and

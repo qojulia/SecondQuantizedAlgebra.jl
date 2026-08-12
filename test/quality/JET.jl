@@ -68,6 +68,9 @@ end
 
         hjc = FockSpace(:f) ⊗ NLevelSpace(:atom, 2)
         ajc = Destroy(hjc, :a, 1); σjc = Transition(hjc, :σ, 1, 2, 2); σjc_p = Transition(hjc, :σ, 2, 1, 2)
+        @variables θ::Real ω::Real t::Real
+        U = Rotation(a, θ)
+        Ut = Rotation(a, ω * t, t)
 
         for (name, expr) in [
                 # Per-family binary products
@@ -102,6 +105,12 @@ end
                 # MutableArithmetics additive reductions
                 ("sum([a'*a, a*a', a'*a])", () -> sum([ad * a, a * ad, ad * a])),
                 ("reduce(+, [a'*a, a*a', a'*a])", () -> reduce(+, [ad * a, a * ad, ad * a])),
+                # Exact unitary-transform public entry points.
+                ("Rotation(a, θ)", () -> Rotation(a, θ)),
+                ("conjugate(a, U)", () -> conjugate(a, U)),
+                ("transform(a'*a, Ut)", () -> transform(ad * a, Ut)),
+                ("inv(U)", () -> inv(U)),
+                ("U * Ut", () -> U * Ut),
             ]
             rep = JET.@report_call target_modules = (SecondQuantizedAlgebra,) ignore_missing_comparison = true expr()
             @testset "$name" begin
@@ -204,6 +213,13 @@ end
             "SecondQuantizedAlgebra.:-(",
             "SecondQuantizedAlgebra._unary_arg(",
             "SecondQuantizedAlgebra._find_partner(",
+            "SecondQuantizedAlgebra._TrigHead(",
+            "SecondQuantizedAlgebra.length(",
+            "SecondQuantizedAlgebra.isequal(",
+            "Dict{SecondQuantizedAlgebra._TrigKey",
+            "Dict{Symbolics.Num, Symbolics.Num}",
+            "unwrap(",
+            ")[1]::Any",
             "SecondQuantizedAlgebra.Num(",
             "SecondQuantizedAlgebra.ParamRelation(",
         ]

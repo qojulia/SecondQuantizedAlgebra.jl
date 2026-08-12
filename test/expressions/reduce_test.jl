@@ -86,6 +86,24 @@ relations(ex) = _trig_relations(_to_cnum(ex).tail.terms)
         # A coefficient with no reducible power comes back unchanged.
         prod = _to_cnum(cos(ω * t) * sin(ω * t))
         @test isequal(realpart(_reduce_cnum(prod, [rel], true)), realpart(prod))
+
+        # The automatic reducer follows the same route, including above degree two.
+        @test isequal(realpart(_reduce_trig(deg4)), Num(1))
+
+        # A user parameter with the old implementation's fixed scratch name must remain a
+        # user parameter. Fresh stand-ins are checked against symbols already in the input.
+        collision = Symbolics.variable(:__sqa_rel_1)
+        with_collision = _to_cnum(
+            collision * (cos(ω * t)^2 + sin(ω * t)^2),
+        )
+        @test isequal(realpart(_reduce_trig(with_collision)), collision)
+    end
+
+    @testset "guarded high-power refusal" begin
+        original = _to_cnum(cos(θ)^140 + sin(θ)^140)
+        # The exact binomial coefficients no longer fit in `Int`; refusing the rewrite is
+        # safer than overflowing a coefficient or partially rewriting the expression.
+        @test isequal(_reduce_trig(original), original)
     end
 
     @testset "zero is dropped, not stored" begin

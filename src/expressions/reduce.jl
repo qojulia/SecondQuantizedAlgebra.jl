@@ -53,14 +53,23 @@ end
 @inline _reducible_power(m::Monomial, i::Int) =
     i != 0 && denominator(m.exps[i]) == 1 && numerator(m.exps[i]) >= 2
 
+# A malformed or simply enormous symbolic power must not turn simplification into an
+# accidental expansion bomb. This is a work bound, not a mathematical approximation: on
+# refusal the original coefficient is returned byte-for-byte unchanged.
+const _MAX_RELATION_TERMS = 4096
+
 # Expanded rather than reached by `k` rounds of `_poly_mul`, which is quadratic: each round
-# canonicalizes, so the accumulator grows by a term and is multiplied out again.
+# canonicalizes, so the accumulator grows by a term and is multiplied out again. `nothing`
+# means that an integer binomial coefficient overflowed and the caller must abandon the
+# whole rewrite.
 function _binomial_power(lo, sign::Int8, k::Int)
     out = Vector{Monomial}(undef, k + 1)
     out[1] = Monomial(_ONE_C, _EMPTY_SYMS, _EMPTY_EXPS)
     c = 1
     for j in 1:k
-        c = c * (k - j + 1) ÷ j   # exact: the running binomial coefficient stays integral
+        factor = k - j + 1
+        c > typemax(Int) ÷ factor && return nothing
+        c = c * factor ÷ j   # exact: the running binomial coefficient stays integral
         s = (sign < 0 && isodd(j)) ? -c : c
         out[j + 1] = Monomial(
             complex(Float64(s)), SymbolicUtils.BasicSymbolic[lo], Rational{Int}[2j],
@@ -69,10 +78,36 @@ function _binomial_power(lo, sign::Int8, k::Int)
     return out
 end
 
+# Project the raw number of terms before allocating a binomial. Canonicalization can make
+# this much shorter (and often reduces it to one), so the projection is only a safety gate;
+# the `gated` length decision is made on the canonical result afterwards.
+function _projected_relation_terms(terms::Vector{Monomial}, hi)
+    projected = 0
+    for m in terms
+        i = _find_factor(m, hi)
+        add = if _reducible_power(m, i)
+            numerator(m.exps[i]) ÷ 2 + 1
+        else
+            1
+        end
+        add > _MAX_RELATION_TERMS - projected && return nothing
+        projected += add
+    end
+    return projected
+end
+
 # `hi^e -> (1 + sign*lo^2)^(e ÷ 2) * hi^(e % 2)`, term by term. Only integer exponents
 # split; a radical of `hi` carries no such identity.
 function _reduce_pythagorean(terms::Vector{Monomial}, hi, lo, sign::Int8)
-    any(m -> _reducible_power(m, _find_factor(m, hi)), terms) || return (terms, false)
+    reducible = false
+    for m in terms
+        if _reducible_power(m, _find_factor(m, hi))
+            reducible = true
+            break
+        end
+    end
+    reducible || return (terms, false)
+    _projected_relation_terms(terms, hi) === nothing && return (terms, false)
     out = Monomial[]
     pow = Monomial[]
     last_k = -1   # terms of one expression almost always share an exponent
@@ -85,11 +120,15 @@ function _reduce_pythagorean(terms::Vector{Monomial}, hi, lo, sign::Int8)
         n = numerator(m.exps[i])
         k = n ÷ 2
         if k != last_k
-            pow = _binomial_power(lo, sign, k)
+            newpow = _binomial_power(lo, sign, k)
+            newpow === nothing && return (terms, false)
+            pow = newpow
             last_k = k
         end
-        base = Monomial[_replace_exps(m, i, Rational{Int}(n % 2), 0, 0 // 1)]
-        append!(out, _poly_mul(base, pow))
+        base = _replace_exps(m, i, Rational{Int}(n % 2), 0, 0 // 1)
+        for p in pow
+            push!(out, _term_mul(base, p))
+        end
     end
     return (_canonical_terms!(out), true)
 end
@@ -138,26 +177,21 @@ end
     return args[1]
 end
 
-# The stored `sin`/`sinh` factor over the same argument and with the same `conj` wrapping.
-# Matching a stored factor rather than building one keeps the `===` factor identity the
-# reduction relies on. Stays a scan: it returns on the first match, so discovery measures
-# linear, and an index would cost more than it saves at one or two pairs.
-function _find_partner(terms::Vector{Monomial}, op, arg, wrapped::Bool)
-    for m in terms, s in m.syms
-        core, w = _strip_conj(s)
-        w == wrapped || continue
-        a = _unary_arg(core)
-        (a === nothing || !(a === arg)) && continue
-        SymbolicUtils.operation(core) === op || continue
-        return s
-    end
-    return nothing
+struct _TrigKey
+    arg_id::UInt
+    wrapped::Bool
+    family::UInt8
 end
 
-# The Pythagorean partner of a head, with the sign of its relation. One table: the polynomial
-# and symbolic discovery paths differ in how they match factors, not in which heads pair up.
-_trig_partner(op) = op === cos ? (sin, Int8(-1)) :
-    (op === cosh ? (sinh, Int8(1)) : nothing)
+Base.isequal(a::_TrigKey, b::_TrigKey) =
+    a.arg_id == b.arg_id && a.wrapped == b.wrapped && a.family == b.family
+Base.hash(k::_TrigKey, h::UInt) = hash(k.family, hash(k.wrapped, hash(k.arg_id, h)))
+
+struct _TrigHead{F}
+    factor::F
+    key::_TrigKey
+    sign::Int8
+end
 
 # `cos^2 + sin^2 = 1` and `cosh^2 - sinh^2 = 1` hold unconditionally, so the pairs come
 # from the coefficient's own factors. Both members must carry the same `conj` wrapping:
@@ -168,17 +202,35 @@ _trig_relations(terms::Vector{Monomial}) = _trig_relations!(ParamRelation[], ter
 # `hi` is already there would only be applied twice for the same fixpoint.
 function _trig_relations!(rels::Vector{ParamRelation}, terms::Vector{Monomial})
     from = length(rels) + 1
+    lows = Dict{_TrigKey, SymbolicUtils.BasicSymbolic}()
+    heads = _TrigHead[]
     for m in terms, s in m.syms
         core, wrapped = _strip_conj(s)
         arg = _unary_arg(core)
-        arg === nothing && continue
-        partner = _trig_partner(SymbolicUtils.operation(core))
-        partner === nothing && continue
-        lop, sign = partner
-        any(q -> SymbolicUtils.unwrap(q.hi) === s, rels) && continue
-        lo = _find_partner(terms, lop, arg, wrapped)
+        arg isa SymbolicUtils.BasicSymbolic || continue
+        op = SymbolicUtils.operation(core)
+        family = (op === cos || op === sin) ? UInt8(1) :
+            ((op === cosh || op === sinh) ? UInt8(2) : UInt8(0))
+        iszero(family) && continue
+        key = _TrigKey(objectid(arg), wrapped, family)
+        if op === sin || op === sinh
+            lows[key] = s
+        else
+            push!(heads, _TrigHead(s, key, family == 1 ? Int8(-1) : Int8(1)))
+        end
+    end
+    for head in heads
+        duplicate = false
+        for q in rels
+            if SymbolicUtils.unwrap(q.hi) === head.factor
+                duplicate = true
+                break
+            end
+        end
+        duplicate && continue
+        lo = get(lows, head.key, nothing)
         lo === nothing && continue
-        push!(rels, ParamRelation(Num(s), Num(lo), sign))
+        push!(rels, ParamRelation(Num(head.factor), Num(lo), head.sign))
     end
     # `_fkey` is `objectid`, so factor order within a monomial is address-derived. Sort by
     # the structural hash instead, keeping the result independent of allocation order. Only
@@ -188,10 +240,16 @@ function _trig_relations!(rels::Vector{ParamRelation}, terms::Vector{Monomial})
 end
 
 function _sort_rels!(rels::Vector{ParamRelation}, from::Int)
-    length(rels) - from >= 1 && _insertion_sort!(
-        view(rels, from:length(rels)),
-        (a, b) -> hash(SymbolicUtils.unwrap(a.hi)) < hash(SymbolicUtils.unwrap(b.hi)),
-    )
+    @inbounds for i in (from + 1):length(rels)
+        r = rels[i]
+        key = hash(SymbolicUtils.unwrap(r.hi))
+        j = i - 1
+        while j >= from && hash(SymbolicUtils.unwrap(rels[j].hi)) > key
+            rels[j + 1] = rels[j]
+            j -= 1
+        end
+        rels[j + 1] = r
+    end
     return nothing
 end
 
@@ -204,35 +262,66 @@ end
 # Fold `cos^2 + sin^2` and `cosh^2 - sinh^2` factors of a coefficient.
 function _reduce_trig(c::Coeff)
     t = c.tail
-    t isa Poly || return c
-    _has_trig_factor(t.terms) || return c   # `simplify`'s common path allocates nothing
-    rels = _trig_relations(t.terms)
+    t isa Native && return c
+    if t isa Poly
+        _has_trig_factor(t.terms) || return c   # common path allocates nothing
+        rels = _trig_relations(t.terms)
+        isempty(rels) && return c
+        return _reduce_tail(t, rels, true)
+    end
+    re, im = _realimag(c)
+    (
+        _has_symbolic_trig(SymbolicUtils.unwrap(re)) ||
+            _has_symbolic_trig(SymbolicUtils.unwrap(im))
+    ) || return c
+    rels = ParamRelation[]
+    _sym_trig_relations!(rels, c)
     isempty(rels) && return c
-    return _reduce_tail(t, rels, true)
+    return _reduce_via_transient(c, rels, true)
 end
 
 function _has_trig_factor(terms::Vector{Monomial})
-    for m in terms, s in m.syms
-        core, _ = _strip_conj(s)
-        _unary_arg(core) === nothing && continue
-        op = SymbolicUtils.operation(core)
-        (op === cos || op === cosh) && return true
+    @inbounds for mi in eachindex(terms)
+        syms = terms[mi].syms
+        for si in eachindex(syms)
+            s = syms[si]
+            SymbolicUtils.iscall(s) || continue
+            core = s
+            if SymbolicUtils.operation(core) === conj
+                args = SymbolicUtils.arguments(core)
+                length(args) == 1 || continue
+                inner = args[1]
+                inner isa SymbolicUtils.BasicSymbolic || continue
+                SymbolicUtils.iscall(inner) || continue
+                core = inner
+            end
+            op = SymbolicUtils.operation(core)
+            (op === cos || op === cosh) && return true
+        end
     end
     return false
 end
 
-# Stand-ins for the transient swap below; the name makes a clash with a user parameter a
-# non-concern. Cached because `Symbolics.variable` costs ~1.6 µs a call even though it
-# returns the same interned object. Filled in `__init__` rather than at load: a symbol minted
-# during precompilation is absent from the runtime intern table, so a later rebuild would
-# mint a second one under a different `_fkey`.
-const _N_TRANSIENT = 8
-const _TRANSIENT_SYMS = Num[]
-
-_new_transient_sym(k::Int) = Symbolics.variable(Symbol("__sqa_rel_", k))
-
-_transient_sym(k::Int) =
-    k <= length(_TRANSIENT_SYMS) ? @inbounds(_TRANSIENT_SYMS[k]) : _new_transient_sym(k)
+# Create a genuinely fresh stand-in and check it against every symbol already present in
+# the coefficient. The explicit check is intentional: these atoms participate in global
+# SymbolicUtils interning, so relying on a human-chosen prefix is never sound.
+function _fresh_transient!(occupied::Vector{SymbolicUtils.BasicSymbolic})
+    while true
+        candidate = Symbolics.variable(gensym(:sqa_rel))
+        raw = SymbolicUtils.unwrap(candidate)
+        collision = false
+        for s in occupied
+            if isequal(s, raw)
+                collision = true
+                break
+            end
+        end
+        collision && continue
+        push!(occupied, raw)
+        return candidate
+    end
+    return
+end
 
 # A relation on a composite argument (`cos(ω*t)`) is not an atom, so its coefficient sits
 # on the `Complex{Num}` tail, where the CAS folds degree 2 and nothing above it. Swap both
@@ -242,18 +331,20 @@ function _reduce_via_transient(c::Coeff, rels::Vector{ParamRelation}, gated::Boo
     fwd = Dict{Num, Num}()
     back = Dict{Num, Num}()
     trels = ParamRelation[]
+    re, im = _realimag(c)
+    occupied = SymbolicUtils.BasicSymbolic[]
+    append!(occupied, Symbolics.get_variables(re))
+    append!(occupied, Symbolics.get_variables(im))
     for r in rels
         haskey(fwd, r.hi) && continue   # a declared pair the discovery found again
-        k = 2 * length(trels)
-        th = _transient_sym(k + 1)
-        tl = _transient_sym(k + 2)
+        th = _fresh_transient!(occupied)
+        tl = _fresh_transient!(occupied)
         fwd[r.hi] = th
         fwd[r.lo] = tl
         back[th] = r.hi
         back[tl] = r.lo
         push!(trels, ParamRelation(th, tl, r.sign))
     end
-    re, im = _realimag(c)
     sub = _cnum(Symbolics.substitute(re, fwd), Symbolics.substitute(im, fwd))
     st = sub.tail
     st isa Poly || return c
@@ -275,34 +366,35 @@ end
 # On the polynomial tier the factors of a coefficient are explicit; on the `Complex{Num}`
 # tail they are buried in a SymbolicUtils tree, so walk it for the same pairs. Only the
 # transform layer pays for this, never `simplify`.
+function _has_symbolic_trig(x)
+    x isa SymbolicUtils.BasicSymbolic || return false
+    SymbolicUtils.iscall(x) || return false
+    op = SymbolicUtils.operation(x)
+    (op === cos || op === sin || op === cosh || op === sinh) && return true
+    for arg in SymbolicUtils.arguments(x)
+        _has_symbolic_trig(arg) && return true
+    end
+    return false
+end
+
 function _collect_trig!(store::Vector{SymbolicUtils.BasicSymbolic}, x)
     x isa SymbolicUtils.BasicSymbolic || return nothing
     SymbolicUtils.iscall(x) || return nothing
     args = SymbolicUtils.arguments(x)
     op = SymbolicUtils.operation(x)
     if length(args) == 1 && (op === cos || op === sin || op === cosh || op === sinh)
-        any(y -> y === x, store) || push!(store, x)
+        duplicate = false
+        for y in store
+            if y === x
+                duplicate = true
+                break
+            end
+        end
+        duplicate || push!(store, x)
         return nothing
     end
     for arg in args
         _collect_trig!(store, arg)
-    end
-    return nothing
-end
-
-function _pair_trig!(
-        rels::Vector{ParamRelation}, store::Vector{SymbolicUtils.BasicSymbolic},
-        hop::Function, lop::Function, sign::Int8,
-    )
-    for hi in store
-        SymbolicUtils.operation(hi) === hop || continue
-        harg = SymbolicUtils.arguments(hi)[1]
-        for lo in store
-            SymbolicUtils.operation(lo) === lop || continue
-            isequal(SymbolicUtils.arguments(lo)[1], harg) || continue
-            push!(rels, ParamRelation(Num(hi), Num(lo), sign))
-            break
-        end
     end
     return nothing
 end
@@ -312,8 +404,24 @@ function _sym_trig_relations!(rels::Vector{ParamRelation}, c::Coeff)
     _collect_trig!(store, SymbolicUtils.unwrap(real(c)))
     _collect_trig!(store, SymbolicUtils.unwrap(imag(c)))
     isempty(store) && return rels
-    for (hop, (lop, sign)) in ((cos, _trig_partner(cos)), (cosh, _trig_partner(cosh)))
-        _pair_trig!(rels, store, hop, lop, sign)
+    lows = Dict{_TrigKey, SymbolicUtils.BasicSymbolic}()
+    heads = _TrigHead[]
+    for factor in store
+        op = SymbolicUtils.operation(factor)
+        family = (op === cos || op === sin) ? UInt8(1) : UInt8(2)
+        arg = only(SymbolicUtils.arguments(factor))
+        arg isa SymbolicUtils.BasicSymbolic || continue
+        key = _TrigKey(objectid(arg), false, family)
+        if op === sin || op === sinh
+            lows[key] = factor
+        else
+            push!(heads, _TrigHead(factor, key, family == 1 ? Int8(-1) : Int8(1)))
+        end
+    end
+    for head in heads
+        lo = get(lows, head.key, nothing)
+        lo === nothing && continue
+        push!(rels, ParamRelation(Num(head.factor), Num(lo), head.sign))
     end
     return rels
 end

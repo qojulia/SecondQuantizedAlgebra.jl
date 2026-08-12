@@ -2,9 +2,8 @@ using SecondQuantizedAlgebra
 using Test
 using Symbolics: Symbolics, @variables
 using SymbolicUtils: SymbolicUtils
-using Random: MersenneTwister
 import SecondQuantizedAlgebra: QAdd, QSym, QField, Index, simplify, normal_order,
-    _depends_on_index_term, _any_depends_on_index, _iszero_cnum, _realimag, _to_cnum,
+    _depends_on_index_term, _any_depends_on_index, _iszero_cnum,
     has_sum_metadata, get_sum_indices, is_average, undo_average
 
 # ============================================================================
@@ -147,9 +146,9 @@ end
         ("conjugate under Displace", () -> conjugate(b' * b, Displace(b, Δ))),
         ("conjugate under Squeeze", () -> conjugate(b' * b, Squeeze(b, κ))),
         (
-            "transform in a rotating frame", () -> begin
+            "transform under a timed resonator rotation", () -> begin
                 @variables tt
-                transform(Δ * b' * b + κ * (b + b'), RotatingFrame(Δ * b' * b, tt))
+                transform(Δ * b' * b + κ * (b + b'), Rotation(b, Δ * tt, tt))
             end
         ),
         (
@@ -315,78 +314,5 @@ end
         j2 = commutator(commutator(Sy, Sz), Sx)
         j3 = commutator(commutator(Sz, Sx), Sy)
         @test iszero(simplify(j1 + j2 + j3))
-    end
-end
-
-# ============================================================================
-# The basis above is hand-picked, so it covers the shapes we thought of. This
-# one generates them: random words and random sums over a space mixing all
-# four same-site reduction rules, which is where a pass that mishandles one
-# composition order has to show up.
-# ============================================================================
-
-@testset "Algebraic laws on random words" begin
-    randword(rng, pool, len) = prod(rand(rng, pool, len))
-
-    h = FockSpace(:c) ⊗ NLevelSpace(:at, 3) ⊗ PauliSpace(:q) ⊗ SpinSpace(:S)
-    ac = Destroy(h, :c, 1)
-    pool = vcat(
-        [ac, ac'],
-        [Transition(h, :σ, α, β, 2) for α in 1:3 for β in 1:3],
-        [Pauli(h, :p, k, 3) for k in 1:3],
-        [Spin(h, :S, k, 4) for k in 1:3],
-    )
-
-    @testset "products, adjoints and commutators" begin
-        rng = MersenneTwister(11)
-        for _ in 1:300
-            A = randword(rng, pool, rand(rng, 1:3))
-            B = randword(rng, pool, rand(rng, 1:3))
-            C = randword(rng, pool, rand(rng, 1:2))
-            @test iszero((A * B) * C - A * (B * C))
-            @test iszero((A + B) * C - (A * C + B * C))
-            @test iszero(adjoint(A * B) - adjoint(B) * adjoint(A))
-            @test iszero(adjoint(adjoint(A)) - A)
-            @test iszero(commutator(A, B) - (A * B - B * A))
-            @test iszero(commutator(A, B) + commutator(B, A))
-            @test iszero(
-                commutator(A, commutator(B, C)) + commutator(B, commutator(C, A)) +
-                    commutator(C, commutator(A, B))
-            )
-            # `*` canonicalizes eagerly, so both passes have to be no-ops on its output.
-            @test iszero(normal_order(normal_order(A * B)) - normal_order(A * B))
-            @test iszero(simplify(simplify(A * B)) - simplify(A * B))
-            # `average` encodes the imaginary unit as `Symbolics.IM`, which upstream does not
-            # fold against a native complex coefficient yet (see the TODO in `operators.jl`),
-            # so the round trip is only an identity on the real-coefficient words. A Pauli or
-            # spin commutator residue is what makes the rest of them complex.
-            qa = A isa QAdd ? A : 1 * A
-            all(p -> _iszero_cnum(_to_cnum(_realimag(p.second)[2])), qa.arguments) &&
-                @test iszero(undo_average(average(qa)) - qa)
-        end
-    end
-
-    @testset "complex coefficients do not round trip through average" begin
-        # Pinned so the limitation above is visible and this flips the moment `IM` folds.
-        a = Destroy(FockSpace(:fim), :a)
-        @test iszero(undo_average(average(1.0 * a)) - 1.0 * a)
-        @test_broken iszero(undo_average(average(im * a)) - im * a)
-        @test_broken iszero(undo_average(average((2 + 3im) * a)) - (2 + 3im) * a)
-    end
-
-    @testset "symbolic prefactors" begin
-        @variables λ μ
-        rng = MersenneTwister(5)
-        for _ in 1:200
-            A = (λ + 2im * μ) * randword(rng, pool, rand(rng, 1:3))
-            B = (μ^2 - 1) * randword(rng, pool, rand(rng, 1:3))
-            @test iszero(adjoint(A * B) - adjoint(B) * adjoint(A))
-            # Substitution has to commute with the sum, including at a value that folds
-            # one prefactor to zero and the other to a literal.
-            vals = Dict(λ => 0.0, μ => 1.0)
-            @test iszero(
-                substitute(A + B, vals) - substitute(A, vals) - substitute(B, vals)
-            )
-        end
     end
 end

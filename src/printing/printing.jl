@@ -79,9 +79,50 @@ function _show_part(io::IO, v::Num, brace::Bool)
     return
 end
 
-# The lone phase factor of a monomial as `(position, argument, exponent)`, or `nothing`
-# when it does not have exactly one.
-function _sole_phase(m::Monomial)
+# A display-pair key deliberately excludes the phase sign and scalar. Two monomials match
+# when they contain the same phase atom at opposite nonzero integer powers and otherwise
+# have identical factors. The lookup is display-only; none of these lowered forms are ever
+# fed back into coefficient recognition.
+struct _PhaseDisplayKey
+    phase_id::UInt
+    power::Int
+    factor_ids::Vector{UInt}
+    exps::Vector{Rational{Int}}
+end
+
+function Base.isequal(a::_PhaseDisplayKey, b::_PhaseDisplayKey)
+    a.phase_id == b.phase_id || return false
+    a.power == b.power || return false
+    length(a.factor_ids) == length(b.factor_ids) || return false
+    @inbounds for i in eachindex(a.factor_ids)
+        a.factor_ids[i] == b.factor_ids[i] || return false
+        a.exps[i] == b.exps[i] || return false
+    end
+    return true
+end
+
+function Base.hash(k::_PhaseDisplayKey, h::UInt)
+    h = hash(k.power, hash(k.phase_id, h))
+    @inbounds for i in eachindex(k.factor_ids)
+        h = hash(k.exps[i], hash(k.factor_ids[i], h))
+    end
+    return h
+end
+
+struct _PhaseDisplayTerm{A, F}
+    key::_PhaseDisplayKey
+    positive::Bool
+    argument::A
+    factors::F
+end
+
+struct _PhasePending
+    index::Int
+    positive::Bool
+end
+
+# Describe a monomial with exactly one phase factor, or return `nothing`.
+function _phase_display_term(m::Monomial)
     pos = 0
     @inbounds for i in eachindex(m.syms)
         if _is_phase(m.syms[i])
@@ -92,34 +133,50 @@ function _sole_phase(m::Monomial)
     pos == 0 && return nothing
     e = m.exps[pos]
     denominator(e) == 1 || return nothing
-    return (pos, only(SymbolicUtils.arguments(m.syms[pos])), numerator(e))
-end
-
-# Same monomial with the phase exponent negated: the partner that folds back to a real
-# trigonometric form.
-function _is_conj_partner(m::Monomial, n::Monomial, pos::Int)
-    length(n.syms) == length(m.syms) || return false
-    @inbounds for i in eachindex(m.syms)
-        m.syms[i] === n.syms[i] || return false
-        want = i == pos ? -m.exps[i] : m.exps[i]
-        n.exps[i] == want || return false
-    end
-    return true
-end
-
-# The monomial with its phase factor dropped, as a `Num` (its non-phase part).
-function _without_phase(m::Monomial, pos::Int)
+    power = numerator(e)
+    (iszero(power) || power == typemin(Int)) && return nothing
+    argument = only(SymbolicUtils.arguments(m.syms[pos]))
+    argument isa SymbolicUtils.BasicSymbolic || return nothing
     n = length(m.syms) - 1
     syms = Vector{SymbolicUtils.BasicSymbolic}(undef, n)
+    factor_ids = Vector{UInt}(undef, n)
     exps = Vector{Rational{Int}}(undef, n)
     k = 0
     @inbounds for i in eachindex(m.syms)
         i == pos && continue
         k += 1
         syms[k] = m.syms[i]
+        factor_ids[k] = objectid(m.syms[i])
         exps[k] = m.exps[i]
     end
-    return real(_term_to_num(Monomial(_ONE_C, syms, exps)))
+    key = _PhaseDisplayKey(objectid(m.syms[pos]), abs(power), factor_ids, exps)
+    return _PhaseDisplayTerm(key, power > 0, argument, syms)
+end
+
+function _phase_display_pairs(terms::Vector{Monomial})
+    n = length(terms)
+    partners = zeros(Int, n)
+    descriptions = Vector{Union{Nothing, _PhaseDisplayTerm}}(undef, n)
+    fill!(descriptions, nothing)
+    pending = Dict{_PhaseDisplayKey, _PhasePending}()
+    @inbounds for i in 1:n
+        desc = _phase_display_term(terms[i])
+        descriptions[i] = desc
+        desc === nothing && continue
+        previous = get(pending, desc.key, nothing)
+        if previous === nothing
+            pending[desc.key] = _PhasePending(i, desc.positive)
+        elseif previous.positive != desc.positive
+            partners[i] = previous.index
+            partners[previous.index] = i
+            delete!(pending, desc.key)
+        end
+    end
+    return partners, descriptions
+end
+
+function _without_phase(desc::_PhaseDisplayTerm)
+    return real(_term_to_num(Monomial(_ONE_C, desc.factors, desc.key.exps)))
 end
 
 # Display lowering. A conjugate pair `c₊p^n + c₋p^-n` is exactly
@@ -129,26 +186,20 @@ end
 function _display_num(p::Poly)
     n = length(p.terms)
     acc = Complex(_NUM_ZERO, _NUM_ZERO)
-    used = falses(n)
+    partners, descriptions = _phase_display_pairs(p.terms)
     @inbounds for i in 1:n
-        used[i] && continue
+        partner = partners[i]
+        (partner != 0 && partner < i) && continue
         m = p.terms[i]
-        sp = _sole_phase(m)
-        partner = 0
-        if sp !== nothing
-            for j in (i + 1):n
-                (!used[j] && _is_conj_partner(m, p.terms[j], sp[1])) && (partner = j; break)
-            end
-        end
         if partner == 0
             acc += _term_to_num(m)
-            used[i] = true
             continue
         end
-        pos, arg, e = sp
-        cp, cm = m.scalar, p.terms[partner].scalar
-        rest = _without_phase(m, pos)
-        θ = expand(Num(e) * Num(arg))
+        desc = descriptions[i]::_PhaseDisplayTerm
+        cp = desc.positive ? m.scalar : p.terms[partner].scalar
+        cm = desc.positive ? p.terms[partner].scalar : m.scalar
+        rest = _without_phase(desc)
+        θ = expand(Num(desc.key.power) * Num(desc.argument))
         # `cos` is even and `sin` odd, so a negative argument folds onto the sine's scalar
         # and `cos(-ω*t)` never reaches the page.
         d = cp - cm
@@ -160,7 +211,6 @@ function _display_num(p::Poly)
             Complex(_num_from_float(real(cp + cm)), _num_from_float(imag(cp + cm))) * cos(θ) +
                 im * Complex(_num_from_float(real(d)), _num_from_float(imag(d))) * sin(θ)
         ) * rest
-        used[i] = used[partner] = true
     end
     return acc
 end
@@ -199,12 +249,12 @@ end
 _show_prefactor(io::IO, c::Number) = print(io, c)
 
 function _is_unit(c::CNum)
-    return iszero(imag(c)) && isone(real(c))
+    return isequal(c, _CNUM_ONE)
 end
 _is_unit(c::Number) = isone(c)
 
 function _is_neg_unit(c::CNum)
-    return iszero(imag(c)) && isequal(real(c), Num(-1))
+    return isequal(c, _CNUM_NEG1)
 end
 _is_neg_unit(c::Number) = isequal(c, -1)
 

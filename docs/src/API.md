@@ -220,22 +220,6 @@ Squeeze
 ```
 
 ```@docs
-Bogoliubov
-```
-
-```@docs
-RotatingFrame
-```
-
-```@docs
-is_canonical
-```
-
-```@docs
-canonicality_residuals
-```
-
-```@docs
 expim
 ```
 
@@ -245,14 +229,6 @@ gauge_term
 
 ```@docs
 generators
-```
-
-```@docs
-constraints
-```
-
-```@docs
-DressedFrame
 ```
 
 

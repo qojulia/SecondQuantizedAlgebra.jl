@@ -340,6 +340,9 @@ end
 const _ZERO_QADD = QAdd(QTermDict(), Index[])
 _zero_qadd() = _ZERO_QADD
 
+@inline _same_site(a::QSym, b::QSym) =
+    a.space_index == b.space_index && a.index == b.index
+
 """
     commutator(a, b) -> QAdd
 
@@ -365,9 +368,7 @@ commutator(::Number, ::QField) = _zero_qadd()
 commutator(::QField, ::Number) = _zero_qadd()
 
 function commutator(a::QSym, b::QSym)
-    # `_can_commute`/`_commute_pair` below are only defined on provably-same-site
-    # pairs, which is exactly `Equal`. Anything else commutes or is undetermined.
-    _site_compare(a, b, _EMPTY_NE) === Equal || return _zero_qadd()
+    _same_site(a, b) || return _zero_qadd()
     isequal(a, b) && return _zero_qadd()
     # If exactly one direction needs a swap, [a, b] is the swap residual.
     forward = _can_commute(a, b)

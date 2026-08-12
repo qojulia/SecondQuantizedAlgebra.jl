@@ -75,11 +75,6 @@ U = Squeeze(x, p, r)
 
 conjugate(x, U), conjugate(p, U)
 
-# The map is certified against the canonical commutator and the Hermiticity of
-# both quadratures, without any matrix representation:
-
-is_canonical(U)
-
 # Conjugating ``H`` rescales the two coefficients in opposite directions:
 
 conjugate(H, U)
@@ -107,7 +102,7 @@ conjugate(x * x, U), conjugate(p * p, U)
 # The first variance grows without bound as ``\kappa \to \delta^-``
 # (anti-squeezed quadrature), the second shrinks to zero (squeezed
 # quadrature), and the product stays pinned at the Heisenberg-uncertainty
-# minimum because the squeeze is canonical.
+# minimum because the squeeze preserves the canonical quadrature pair.
 
 # ## Numerical verification
 #
