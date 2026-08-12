@@ -1,6 +1,7 @@
 pages = [
     "Home" => "index.md",
     "Implementation" => "implementation.md",
+    "Symbolic Coefficients and Phases" => "symbolic_coefficients.md",
     "Symbolic Sums and Indices" => "symbolic_sums.md",
     "Collective N-Level Systems" => "collective.md",
     "Building Large Sums Efficiently" => "accumulation.md",

@@ -65,10 +65,9 @@ end
     return Expr(:latexifymerge, body)
 end
 
-# Lowered through `_display_coeff`, the same entry point `show` uses, so the two renderers
-# cannot disagree on how a conjugate phase pair folds back to `cos`/`sin`.
+# Lower through the same public coefficient representation used by terminal display.
 function _latex_prefactor(c::CNum)
-    d = _display_coeff(c)
+    d = to_num(c)
     r_unwrap = SymbolicUtils.unwrap(real(d))
     i_unwrap = SymbolicUtils.unwrap(imag(d))
     r_val = Symbolics.value(r_unwrap)
@@ -184,7 +183,7 @@ function Symbolics._toexpr_op(::AvgFunc, args; kwargs...)
     return _latex_avg_expr(only(args))
 end
 
-# The LaTeX twin of the `show_call(::typeof(expim))` override, so an unpaired phase renders
+# The LaTeX twin of the `show_call(::typeof(expim))` override, so a phase renders
 # as an exponential rather than as the raw head name.
 function Symbolics._toexpr_op(::typeof(expim), args; kwargs...)
     arg = only(args)

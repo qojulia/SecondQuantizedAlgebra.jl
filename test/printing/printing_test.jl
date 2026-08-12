@@ -4,7 +4,7 @@ using LaTeXStrings
 using Symbolics: @variables
 using Test
 import SecondQuantizedAlgebra: simplify, QAdd, QSym, _single_qadd, _zero_qadd, _to_cnum,
-    transition_superscript, make_time_dependent, expim
+    transition_superscript, make_time_dependent, expim, trigonometric_form
 
 @testset "Rendering" begin
     h = FockSpace(:cavity)
@@ -280,16 +280,19 @@ import SecondQuantizedAlgebra: simplify, QAdd, QSym, _single_qadd, _zero_qadd, _
         @test !occursin("+ -", s)
     end
 
-    @testset "phase-pair display" begin
+    @testset "explicit phase display" begin
         @variables θ g
         phase_cos = (expim(θ) + expim(-θ)) * a
         phase_sin = -im * (expim(θ) - expim(-θ)) * a
         grouped = g * (expim(θ) + expim(-θ)) * a
-        @test string(phase_cos) == "2cos(θ) * a"
-        @test string(phase_sin) == "2sin(θ) * a"
-        @test string(grouped) == "2g*cos(θ) * a"
-        @test occursin("exp(im*", string(expim(θ) * a))
-        @test occursin("cos", string(latexify(phase_cos)))
+        @test count("exp(", string(phase_cos)) == 2
+        @test count("exp(", string(phase_sin)) == 2
+        @test count("exp(", string(grouped)) == 2
+        @test !occursin("cos", string(phase_cos))
+        @test !occursin("sin", string(phase_sin))
+        @test !occursin("cos", string(latexify(phase_cos)))
+        @test string(trigonometric_form(phase_cos)) == "2cos(θ) * a"
+        @test occursin("cos", string(latexify(trigonometric_form(phase_cos))))
     end
 
     @testset "_show_prefactor pure-imag and mixed branches" begin

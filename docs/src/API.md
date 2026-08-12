@@ -140,10 +140,24 @@ is_position
 is_momentum
 ```
 
-### Internal representation
+## [Symbolic Coefficients](@id API: Coefficients)
 
 ```@docs
 Coeff
+```
+
+### Unit phases and representation conversion
+
+```@docs
+expim
+```
+
+```@docs
+exponential_form
+```
+
+```@docs
+trigonometric_form
 ```
 
 ## [Algebra](@id API: Algebra)
@@ -217,10 +231,6 @@ Rotation
 
 ```@docs
 Squeeze
-```
-
-```@docs
-expim
 ```
 
 ```@docs

@@ -217,6 +217,14 @@ function _map_coefficients(f::F, q::QAdd) where {F}
     return QAdd(out, _drop_unused_indices(out, q.indices))
 end
 
+exponential_form(op::QSym) =
+    exponential_form(_single_qadd(_CNUM_ONE, Op[op]))
+exponential_form(q::QAdd) = _map_coefficients(exponential_form, q)
+
+trigonometric_form(op::QSym) =
+    trigonometric_form(_single_qadd(_CNUM_ONE, Op[op]))
+trigonometric_form(q::QAdd) = _map_coefficients(trigonometric_form, q)
+
 """
     expand(expr::QField) -> QAdd
 

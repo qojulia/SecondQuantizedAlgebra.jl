@@ -39,6 +39,10 @@ function benchmark_unitary!(SUITE)
     group["phase"]["cancel"] = @benchmarkable $phase * conj($phase)
     group["phase"]["substitute"] = @benchmarkable substitute($phase * $a, Dict($t => 1.0))
     group["phase"]["numeric"] = @benchmarkable substitute($phase * $a, Dict($ω => 2.0, $t => 1.0))
+    group["phase"]["to exponential"] =
+        @benchmarkable SecondQuantizedAlgebra.exponential_form(cos($ω * $t) * $a)
+    group["phase"]["to trigonometric"] =
+        @benchmarkable SecondQuantizedAlgebra.trigonometric_form($phase_expr)
     group["phase display"]["terminal"] = @benchmarkable sprint(show, $phase_expr)
     group["phase display"]["LaTeX"] = @benchmarkable latexify($phase_expr)
 

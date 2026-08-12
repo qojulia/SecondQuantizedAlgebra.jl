@@ -79,148 +79,7 @@ function _show_part(io::IO, v::Num, brace::Bool)
     return
 end
 
-# A display-pair key deliberately excludes the phase sign and scalar. Two monomials match
-# when they contain the same phase atom at opposite nonzero integer powers and otherwise
-# have identical factors. The lookup is display-only; none of these lowered forms are ever
-# fed back into coefficient recognition.
-struct _PhaseDisplayKey
-    phase_id::UInt
-    power::Int
-    factor_ids::Vector{UInt}
-    exps::Vector{Rational{Int}}
-end
-
-function Base.isequal(a::_PhaseDisplayKey, b::_PhaseDisplayKey)
-    a.phase_id == b.phase_id || return false
-    a.power == b.power || return false
-    length(a.factor_ids) == length(b.factor_ids) || return false
-    @inbounds for i in eachindex(a.factor_ids)
-        a.factor_ids[i] == b.factor_ids[i] || return false
-        a.exps[i] == b.exps[i] || return false
-    end
-    return true
-end
-
-function Base.hash(k::_PhaseDisplayKey, h::UInt)
-    h = hash(k.power, hash(k.phase_id, h))
-    @inbounds for i in eachindex(k.factor_ids)
-        h = hash(k.exps[i], hash(k.factor_ids[i], h))
-    end
-    return h
-end
-
-struct _PhaseDisplayTerm{A, F}
-    key::_PhaseDisplayKey
-    positive::Bool
-    argument::A
-    factors::F
-end
-
-struct _PhasePending
-    index::Int
-    positive::Bool
-end
-
-# Describe a monomial with exactly one phase factor, or return `nothing`.
-function _phase_display_term(m::Monomial)
-    pos = 0
-    @inbounds for i in eachindex(m.syms)
-        if _is_phase(m.syms[i])
-            pos != 0 && return nothing
-            pos = i
-        end
-    end
-    pos == 0 && return nothing
-    e = m.exps[pos]
-    denominator(e) == 1 || return nothing
-    power = numerator(e)
-    (iszero(power) || power == typemin(Int)) && return nothing
-    argument = only(SymbolicUtils.arguments(m.syms[pos]))
-    argument isa SymbolicUtils.BasicSymbolic || return nothing
-    n = length(m.syms) - 1
-    syms = Vector{SymbolicUtils.BasicSymbolic}(undef, n)
-    factor_ids = Vector{UInt}(undef, n)
-    exps = Vector{Rational{Int}}(undef, n)
-    k = 0
-    @inbounds for i in eachindex(m.syms)
-        i == pos && continue
-        k += 1
-        syms[k] = m.syms[i]
-        factor_ids[k] = objectid(m.syms[i])
-        exps[k] = m.exps[i]
-    end
-    key = _PhaseDisplayKey(objectid(m.syms[pos]), abs(power), factor_ids, exps)
-    return _PhaseDisplayTerm(key, power > 0, argument, syms)
-end
-
-function _phase_display_pairs(terms::Vector{Monomial})
-    n = length(terms)
-    partners = zeros(Int, n)
-    descriptions = Vector{Union{Nothing, _PhaseDisplayTerm}}(undef, n)
-    fill!(descriptions, nothing)
-    pending = Dict{_PhaseDisplayKey, _PhasePending}()
-    @inbounds for i in 1:n
-        desc = _phase_display_term(terms[i])
-        descriptions[i] = desc
-        desc === nothing && continue
-        previous = get(pending, desc.key, nothing)
-        if previous === nothing
-            pending[desc.key] = _PhasePending(i, desc.positive)
-        elseif previous.positive != desc.positive
-            partners[i] = previous.index
-            partners[previous.index] = i
-            delete!(pending, desc.key)
-        end
-    end
-    return partners, descriptions
-end
-
-function _without_phase(desc::_PhaseDisplayTerm)
-    return real(_term_to_num(Monomial(_ONE_C, desc.factors, desc.key.exps)))
-end
-
-# Display lowering. A conjugate pair `c₊p^n + c₋p^-n` is exactly
-# `(c₊+c₋)cos(n*x) + im*(c₊-c₋)sin(n*x)`, so folding it keeps a rotation reading as a
-# rotation instead of a sum of exponentials. Everything else lowers as usual, and nothing
-# here feeds `_recognize`: the polynomial stays the representation.
-function _display_num(p::Poly)
-    n = length(p.terms)
-    acc = Complex(_NUM_ZERO, _NUM_ZERO)
-    partners, descriptions = _phase_display_pairs(p.terms)
-    @inbounds for i in 1:n
-        partner = partners[i]
-        (partner != 0 && partner < i) && continue
-        m = p.terms[i]
-        if partner == 0
-            acc += _term_to_num(m)
-            continue
-        end
-        desc = descriptions[i]::_PhaseDisplayTerm
-        cp = desc.positive ? m.scalar : p.terms[partner].scalar
-        cm = desc.positive ? p.terms[partner].scalar : m.scalar
-        rest = _without_phase(desc)
-        θ = expand(Num(desc.key.power) * Num(desc.argument))
-        # `cos` is even and `sin` odd, so a negative argument folds onto the sine's scalar
-        # and `cos(-ω*t)` never reaches the page.
-        d = cp - cm
-        if _leading_sign(θ) < 0
-            θ = expand(-θ)
-            d = -d
-        end
-        acc += (
-            Complex(_num_from_float(real(cp + cm)), _num_from_float(imag(cp + cm))) * cos(θ) +
-                im * Complex(_num_from_float(real(d)), _num_from_float(imag(d))) * sin(θ)
-        ) * rest
-    end
-    return acc
-end
-
-# `to_num` for display: identical except that phase pairs fold back to `cos`/`sin`.
-_display_coeff(c::Coeff) =
-    c.tail isa Poly ? Complex(_num_from_float(real(c.z)), _num_from_float(imag(c.z))) +
-    _display_num(c.tail) : to_num(c)
-
-_show_prefactor(io::IO, c::CNum) = _show_display(io, _display_coeff(c))
+_show_prefactor(io::IO, c::CNum) = _show_display(io, to_num(c))
 
 function _show_display(io::IO, c::Complex{Num})
     return if iszero(imag(c))
@@ -280,8 +139,6 @@ _is_real_negative(::Number) = false
 
 # Only `_show_prefactor`'s real-only branch can leave a loose head exposed at top level;
 # the pure-imaginary and mixed branches brace their own parts.
-# Judged on the displayed form, not the stored one: a folded phase pair prints as a bare
-# `cos(...)` even though the polynomial behind it is a sum.
 _needs_pf_parens(c::Complex{Num}) = iszero(imag(c)) && _is_loose_head(real(c))
 
 function _show_term(io::IO, c::CNum, ops::Vector{Op})
@@ -292,9 +149,8 @@ function _show_term(io::IO, c::CNum, ops::Vector{Op})
     if _is_neg_unit(c)
         write(io, "-")
     elseif !_is_unit(c)
-        # Lowered once: `_display_num`'s conjugate-pair pairing is O(n^2) and lowers every
-        # monomial, so asking the parenthesis question and printing must share one result.
-        d = _display_coeff(c)
+        # Lower once so the parenthesis decision and rendering inspect the same expression.
+        d = to_num(c)
         brace = !_is_native(c) && _needs_pf_parens(d)
         brace && write(io, "(")
         _show_display(io, d)

@@ -111,6 +111,16 @@ end
                 ("transform(a'*a, Ut)", () -> transform(ad * a, Ut)),
                 ("inv(U)", () -> inv(U)),
                 ("U * Ut", () -> U * Ut),
+                (
+                    "exponential_form(cos(ω*t)*a)",
+                    () -> SecondQuantizedAlgebra.exponential_form(cos(ω * t) * a),
+                ),
+                (
+                    "trigonometric_form(expim(ω*t)*a)",
+                    () -> SecondQuantizedAlgebra.trigonometric_form(
+                        SecondQuantizedAlgebra.expim(ω * t) * a,
+                    ),
+                ),
             ]
             rep = JET.@report_call target_modules = (SecondQuantizedAlgebra,) ignore_missing_comparison = true expr()
             @testset "$name" begin

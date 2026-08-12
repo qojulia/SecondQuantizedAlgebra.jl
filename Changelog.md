@@ -11,7 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - Exact named unitary transformations for Fock, phase-space, spin/Pauli, and ordinary N-level operators, with `conjugate`, time-aware `transform`, inversion, composition, and analytically derived gauges.
-- `expim(x)` keeps unit phases atomic during coefficient arithmetic, while terminal and LaTeX output fold conjugate phase pairs back to `cos` and `sin`.
+- `expim(x)` keeps unit phases atomic and visible during coefficient arithmetic; `exponential_form` and `trigonometric_form` explicitly convert between phase and trigonometric representations.
 - Coefficient simplification reduces exact trigonometric and hyperbolic identities, including supported composite arguments and higher powers.
 - A unitary-transformation guide and resonator-rotation example show how to prepare an exact moving-frame Hamiltonian for a later Floquet expansion.
 

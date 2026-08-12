@@ -5,7 +5,7 @@ using SymbolicUtils: SymbolicUtils
 import SecondQuantizedAlgebra: Coeff, CNum, Monomial, Poly, _to_cnum, _to_complex, to_num,
     _is_native, _is_poly, _is_symbolic_cnum, _conj_cnum, _mul_cnum, _add_cnum, _neg_cnum,
     _iszero_cnum, _CNUM_ONE, _CNUM_ZERO, _CNUM_NEG1, _CNUM_IM, _NUM_ZERO, expim,
-    _phase_coeff, _is_phase
+    _phase_coeff, _is_phase, exponential_form, trigonometric_form
 
 # Coefficients carry a native `ComplexF64` fast path and a `Complex{Num}` symbolic
 # fallback. These tests pin the invariants the rest of the package relies on:
@@ -389,6 +389,32 @@ import SecondQuantizedAlgebra: Coeff, CNum, Monomial, Poly, _to_cnum, _to_comple
         @test_throws ArgumentError expim(SymbolicUtils.unwrap(z))
     end
 
+    @testset "explicit phase representations" begin
+        @variables θ ω t
+        cosine_phase = @inferred exponential_form(cos(θ))
+        sine_phase = @inferred exponential_form(sin(θ))
+        composite_phase = @inferred exponential_form(cos(ω * t) + sin(ω * t))
+
+        @test cosine_phase == (expim(θ) + expim(-θ)) / 2
+        @test sine_phase == (expim(θ) - expim(-θ)) / (2im)
+        @test trigonometric_form(cosine_phase) == _to_cnum(cos(θ))
+        @test trigonometric_form(sine_phase) == _to_cnum(sin(θ))
+        @test trigonometric_form(composite_phase) == _to_cnum(cos(ω * t) + sin(ω * t))
+        @test trigonometric_form(expim(θ)^2) == _to_cnum(cos(2θ) + im * sin(2θ))
+
+        h = FockSpace(:phase_forms)
+        a = Destroy(h, :a)
+        q = (cos(ω * t) + sin(ω * t)) * a + cos(θ) * a' * a
+        phase_q = @inferred exponential_form(q)
+        @test Set(keys(phase_q.arguments)) == Set(keys(q.arguments))
+        @test iszero(simplify(trigonometric_form(phase_q) - q))
+
+        nested_phase = expim(cos(θ))
+        @test exponential_form(nested_phase) == nested_phase
+        @test exponential_form(3) == 3
+        @test trigonometric_form(3) == 3
+    end
+
     # The public `expim` used to return a `Num`. `Base.conj(::Num)` is the identity and
     # `Complex * Num` splits into real/imag halves, so every law below silently failed.
     @testset "public expim is a coefficient" begin
@@ -399,6 +425,8 @@ import SecondQuantizedAlgebra: Coeff, CNum, Monomial, Poly, _to_cnum, _to_comple
         @test p isa Coeff
 
         @test conj(p) * p == _CNUM_ONE
+        @test (@inferred inv(p)) == conj(p)
+        @test (@inferred p^(-1)) == conj(p)
         @test !isequal(conj(p), p)
         @test (im * p) * conj(p) == _CNUM_IM
         @test _is_poly(im * p)

@@ -43,8 +43,8 @@ Return the unit phase `exp(im*x)` for a provably real argument `x`.
 
 Symbolic phases remain compact under multiplication, conjugation, substitution,
 differentiation, and numerical evaluation. In particular, opposite phases cancel exactly:
-`expim(x) * expim(-x) == 1`. Phases display as exponentials, while suitable conjugate pairs
-are shown as `cos(x)` or `sin(x)`.
+`expim(x) * expim(-x) == 1`. Phases always display as exponentials; use
+[`trigonometric_form`](@ref) for an explicit change of representation.
 
 ```jldoctest
 julia> using SecondQuantizedAlgebra
@@ -543,6 +543,22 @@ Base.:(==)(a::Number, b::Coeff) = isequal(_to_cnum(a), b)
 Base.iszero(c::Coeff) = _iszero_cnum(c)
 Base.conj(c::Coeff) = _conj_cnum(c)
 
+function Base.inv(c::Coeff)::Coeff
+    tail = c.tail
+    tail isa Native && return _native(inv(c.z))
+    if tail isa Poly && length(tail.terms) == 1
+        monomial = only(tail.terms)
+        return _poly_coeff(Poly(Monomial[
+            Monomial(
+                inv(monomial.scalar) + complex(0.0, 0.0),
+                monomial.syms,
+                -monomial.exps,
+            ),
+        ]))
+    end
+    return _to_cnum(inv(to_num(c)))
+end
+
 # Coefficients flow through downstream code (and tests) as numbers; support the
 # usual scalar arithmetic, promoting any `Number` operand into a `Coeff` first.
 Base.:-(c::Coeff) = _neg_cnum(c)
@@ -751,5 +767,173 @@ end
         return _cnum_sym(ar + br, ai + bi)
     end
 end
+
+@inline function _pow_cnum_nonnegative(base::Coeff, n::Int)
+    result = _CNUM_ONE
+    while n > 0
+        isodd(n) && (result = _mul_cnum(result, base))
+        n >>= 1
+        n > 0 && (base = _mul_cnum(base, base))
+    end
+    return result
+end
+
+function _pow_cnum_integer(base::Coeff, n::Int)
+    n >= 0 && return _pow_cnum_nonnegative(base, n)
+    n == typemin(Int) && return _to_cnum(to_num(base)^n)
+    return _CNUM_ONE / _pow_cnum_nonnegative(base, -n)
+end
+
+Base.:^(base::Coeff, n::Integer) = _pow_cnum_integer(base, Int(n))
+
+@inline _factor_cnum(s::SymbolicUtils.BasicSymbolic, e::Rational{Int}) =
+    _poly_coeff(Poly(Monomial[Monomial(_ONE_C, SymbolicUtils.BasicSymbolic[s], Rational{Int}[e])]))
+
+@inline function _euler_cos(argument)
+    phase = _phase_coeff(argument)
+    return _mul_cnum(_CNUM_HALF, _add_cnum(phase, _conj_cnum(phase)))
+end
+
+@inline function _euler_sin(argument)
+    phase = _phase_coeff(argument)
+    difference = _add_cnum(phase, _neg_cnum(_conj_cnum(phase)))
+    return _mul_cnum(_mul_cnum(_CNUM_NEG_IM, _CNUM_HALF), difference)
+end
+
+function _exponential_tree(x)::Coeff
+    u = SymbolicUtils.unwrap(x)
+    u isa Number && return _to_cnum(u)
+    u isa SymbolicUtils.BasicSymbolic || return _to_cnum(u)
+    SymbolicUtils.iscall(u) || return _recognize(u)
+    op = SymbolicUtils.operation(u)
+    args = SymbolicUtils.arguments(u)
+    if op === cos && length(args) == 1
+        return _euler_cos(only(args))
+    elseif op === sin && length(args) == 1
+        return _euler_sin(only(args))
+    elseif op === (+)
+        result = _CNUM_ZERO
+        for arg in args
+            result = _add_cnum(result, _exponential_tree(arg))
+        end
+        return result
+    elseif op === (*)
+        result = _CNUM_ONE
+        for arg in args
+            result = _mul_cnum(result, _exponential_tree(arg))
+        end
+        return result
+    elseif op === (^) && length(args) == 2
+        exponent = _const_value(args[2])
+        exponent isa Integer || return _recognize(u)
+        return _pow_cnum_integer(_exponential_tree(args[1]), Int(exponent))
+    end
+    return _recognize(u)
+end
+
+function _exponential_monomial(m::Monomial)
+    result = _native(m.scalar)
+    @inbounds for i in eachindex(m.syms)
+        symbol = m.syms[i]
+        exponent = m.exps[i]
+        factor = _factor_cnum(symbol, exponent)
+        if denominator(exponent) == 1 && SymbolicUtils.iscall(symbol)
+            op = SymbolicUtils.operation(symbol)
+            if op === cos || op === sin
+                n = numerator(exponent)
+                base = op === cos ?
+                    _euler_cos(only(SymbolicUtils.arguments(symbol))) :
+                    _euler_sin(only(SymbolicUtils.arguments(symbol)))
+                factor = _pow_cnum_integer(base, n)
+            end
+        end
+        result = _mul_cnum(result, factor)
+    end
+    return result
+end
+
+function _exponential_cnum(c::Coeff)
+    tail = c.tail
+    tail isa Native && return c
+    if tail isa Poly
+        result = _native(c.z)
+        for monomial in tail.terms
+            result = _add_cnum(result, _exponential_monomial(monomial))
+        end
+        return result
+    end
+    symbolic = tail::Complex{Num}
+    return _add_cnum(
+        _exponential_tree(real(symbolic)),
+        _mul_cnum(_CNUM_IM, _exponential_tree(imag(symbolic))),
+    )
+end
+
+@inline function _phase_trigonometric(symbol::SymbolicUtils.BasicSymbolic, n::Int)
+    argument = only(SymbolicUtils.arguments(symbol))
+    angle = expand(Num(n) * Num(argument))
+    sine_sign = _CNUM_ONE
+    if _leading_sign(angle) < 0
+        angle = expand(-angle)
+        sine_sign = _CNUM_NEG1
+    end
+    sine = _mul_cnum(sine_sign, _to_cnum(sin(angle)))
+    return _add_cnum(_to_cnum(cos(angle)), _mul_cnum(_CNUM_IM, sine))
+end
+
+function _trigonometric_monomial(m::Monomial)
+    result = _native(m.scalar)
+    @inbounds for i in eachindex(m.syms)
+        symbol = m.syms[i]
+        exponent = m.exps[i]
+        factor = if _is_phase(symbol) && denominator(exponent) == 1
+            _phase_trigonometric(symbol, numerator(exponent))
+        else
+            _factor_cnum(symbol, exponent)
+        end
+        result = _mul_cnum(result, factor)
+    end
+    return result
+end
+
+function _trigonometric_cnum(c::Coeff)
+    tail = c.tail
+    (tail isa Native || tail isa Complex{Num}) && return c
+    result = _native(c.z)
+    for monomial in tail.terms
+        result = _add_cnum(result, _trigonometric_monomial(monomial))
+    end
+    return result
+end
+
+"""
+    exponential_form(x)
+
+Rewrite algebraic occurrences of `cos(θ)` and `sin(θ)` in a coefficient or quantum
+expression using the exact phase atom [`expim`](@ref). The conversion is explicit and does
+not affect ordinary display or [`simplify`](@ref).
+
+See also [`trigonometric_form`](@ref).
+"""
+exponential_form(x::Coeff) = _exponential_cnum(x)
+exponential_form(x::Num) = _exponential_tree(x)
+exponential_form(x::SymbolicUtils.BasicSymbolic) = _exponential_tree(x)
+exponential_form(x::Number) = x
+exponential_form(x::Complex{Num}) = _exponential_cnum(_to_cnum(x))
+
+"""
+    trigonometric_form(x)
+
+Rewrite integer powers of [`expim(θ)`](@ref expim) in a coefficient or quantum expression
+as `cos(nθ) + im*sin(nθ)`. Opposite phases then combine through ordinary coefficient
+arithmetic. The conversion is explicit and leaves the stored input unchanged.
+
+See also [`exponential_form`](@ref).
+"""
+trigonometric_form(x::Coeff) = _trigonometric_cnum(x)
+trigonometric_form(x::Num) = _trigonometric_cnum(_to_cnum(x))
+trigonometric_form(x::SymbolicUtils.BasicSymbolic) = _trigonometric_cnum(_to_cnum(x))
+trigonometric_form(x::Number) = x
+trigonometric_form(x::Complex{Num}) = _trigonometric_cnum(_to_cnum(x))
 
 _sort_key(op::QSym) = (op.space_index, _name_rank(op.index.name_id))

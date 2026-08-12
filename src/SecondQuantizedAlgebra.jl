@@ -135,7 +135,7 @@ export FockSpace, ProductSpace,
     set_acts_on, rename,
     transition_superscript, constraint_pairs,
     to_num, order_key, term_order_key, qadd_order_key,
-    expim
+    expim, exponential_form, trigonometric_form
 
 include("precompile.jl")
 
