@@ -223,6 +223,16 @@ function _show_sum_group(io::IO, terms::Vector{QAdd}, indices::Vector{Index}, ne
     return nothing
 end
 
+function SymbolicUtils.show_call(io::IO, ::DeltaFunc, x::SymbolicUtils.BasicSymbolic; kw...)
+    args = SymbolicUtils.arguments(x)
+    print(io, "δ(")
+    print(io, args[1])
+    print(io, ", ")
+    print(io, args[2])
+    print(io, ")")
+    return nothing
+end
+
 function SymbolicUtils.show_call(io::IO, ::SumFunc, x::SymbolicUtils.BasicSymbolic; kw...)
     _show_sum_prefix(io, _sum_indices(x), _sum_ne(x))
     write(io, " ")

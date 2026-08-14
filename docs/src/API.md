@@ -192,6 +192,22 @@ qadjoint
 inner_adjoint
 ```
 
+```@docs
+Vacuum
+```
+
+```@docs
+expect(::QAdd, ::Vacuum)
+```
+
+```@docs
+kronecker_delta
+```
+
+```@docs
+is_kronecker_delta
+```
+
 
 ## [Average](@id API: Average)
 
