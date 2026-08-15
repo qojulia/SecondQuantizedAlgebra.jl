@@ -189,6 +189,10 @@ qadjoint
 ```
 
 ```@docs
+QuantumInterface.dagger(::QField)
+```
+
+```@docs
 inner_adjoint
 ```
 
