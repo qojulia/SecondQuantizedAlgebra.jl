@@ -293,6 +293,139 @@ function _compose_rules(first::Dict{Op, QAdd}, second::Dict{Op, QAdd})
     return out
 end
 
+function _diagonal_entry(
+        image::QAdd, generator::Op,
+    )::Union{Nothing, Tuple{QTerm, Coeff}}
+    isempty(image.indices) || return nothing
+    length(image.arguments) == 1 || return nothing
+    term, coefficient = first(image.arguments)
+    length(term.ops) == 1 || return nothing
+    only(term.ops) == generator || return nothing
+    return (term, coefficient)
+end
+
+function _diagonal_coefficient(image::QAdd, generator::Op)::Union{Coeff, Nothing}
+    entry = _diagonal_entry(image, generator)
+    return entry === nothing ? nothing : entry[2]
+end
+
+_diagonal_rule(term::QTerm, coefficient::Coeff) =
+    QAdd(QTermDict(term => coefficient), _EMPTY_INDICES)
+
+function _coefficients_are_inverse(left::Coeff, right::Coeff)::Bool
+    if left.tail isa Native && right.tail isa Native
+        return isone(left.z * right.z)
+    end
+    (left.tail isa Poly && right.tail isa Poly) || return false
+    length(left.tail.terms) == length(right.tail.terms) == 1 || return false
+    left_term = only(left.tail.terms)
+    right_term = only(right.tail.terms)
+    isone(left_term.scalar * right_term.scalar) || return false
+    length(left_term.syms) == length(right_term.syms) || return false
+    @inbounds for i in eachindex(left_term.syms)
+        left_term.syms[i] === right_term.syms[i] || return false
+        left_term.exps[i] == -right_term.exps[i] || return false
+    end
+    return true
+end
+
+function _compose_diagonal_rules(
+        first::UnitaryTransform, second::UnitaryTransform,
+    )::Union{Nothing, Tuple{Dict{Op, QAdd}, Dict{Op, QAdd}}}
+    length(first.rules) == length(second.rules) || return nothing
+    rules = Dict{Op, QAdd}()
+    inverse_rules = Dict{Op, QAdd}()
+    sizehint!(rules, length(first.rules))
+    sizehint!(inverse_rules, length(first.rules))
+    for generator in first.generators
+        first_entry = _diagonal_entry(first.rules[generator], generator)
+        first_entry === nothing && return nothing
+        term, first_coefficient = first_entry
+        first_inverse_coefficient = _diagonal_coefficient(
+            first.inverse_rules[generator], generator,
+        )
+        first_inverse_coefficient === nothing && return nothing
+        _coefficients_are_inverse(first_coefficient, first_inverse_coefficient) ||
+            return nothing
+        second_image = get(second.rules, generator, nothing)
+        second_image === nothing && return nothing
+        second_coefficient = _diagonal_coefficient(second_image, generator)
+        second_coefficient === nothing && return nothing
+        second_inverse_coefficient = _diagonal_coefficient(
+            second.inverse_rules[generator], generator,
+        )
+        second_inverse_coefficient === nothing && return nothing
+        _coefficients_are_inverse(second_coefficient, second_inverse_coefficient) ||
+            return nothing
+        paired_generator = adjoint(generator)
+        paired_rule = get(rules, paired_generator, nothing)
+        if paired_rule !== nothing
+            paired_first_coefficient = _diagonal_coefficient(
+                first.rules[paired_generator], paired_generator,
+            )
+            paired_second_coefficient = _diagonal_coefficient(
+                second.rules[paired_generator], paired_generator,
+            )
+            paired_first_coefficient === nothing && return nothing
+            paired_second_coefficient === nothing && return nothing
+            _coefficients_are_inverse(first_coefficient, paired_first_coefficient) ||
+                return nothing
+            _coefficients_are_inverse(second_coefficient, paired_second_coefficient) ||
+                return nothing
+            paired_inverse_rule = inverse_rules[paired_generator]
+            coefficient = _diagonal_coefficient(paired_inverse_rule, paired_generator)
+            inverse_coefficient = _diagonal_coefficient(paired_rule, paired_generator)
+            coefficient === nothing && return nothing
+            inverse_coefficient === nothing && return nothing
+            rules[generator] = _diagonal_rule(term, coefficient)
+            inverse_rules[generator] = _diagonal_rule(term, inverse_coefficient)
+            continue
+        end
+        coefficient = _mul_cnum(first_coefficient, second_coefficient)
+        rules[generator] = _diagonal_rule(term, coefficient)
+        inverse_rules[generator] = _diagonal_rule(term, inv(coefficient))
+    end
+    return (rules, inverse_rules)
+end
+
+function _invariant_under_diagonal_rules(gauge::QAdd, rules::Dict{Op, QAdd})::Bool
+    isempty(gauge.indices) || return false
+    for (term, _) in gauge
+        for operator in term.ops
+            image = get(rules, operator, nothing)
+            image === nothing && continue
+            coefficient = _diagonal_coefficient(image, operator)
+            coefficient === nothing && return false
+            paired = adjoint(operator)
+            if paired == operator
+                isequal(coefficient, _CNUM_ONE) || return false
+            else
+                paired_image = get(rules, paired, nothing)
+                paired_image === nothing && return false
+                paired_coefficient = _diagonal_coefficient(paired_image, paired)
+                paired_coefficient === nothing && return false
+                _coefficients_are_inverse(coefficient, paired_coefficient) || return false
+                count(==(operator), term.ops) == count(==(paired), term.ops) || return false
+            end
+        end
+    end
+    return true
+end
+
+function _add_gauges(left::QAdd, right::QAdd)::QAdd
+    if isempty(left.indices) && isempty(right.indices) &&
+            length(left.arguments) == length(right.arguments) == 1
+        first_term, first_coefficient = first(left.arguments)
+        second_term, second_coefficient = first(right.arguments)
+        if isequal(first_term, second_term)
+            coefficient = _add_cnum(first_coefficient, second_coefficient)
+            _iszero_cnum(coefficient) && return _zero_qadd()
+            return QAdd(QTermDict(first_term => coefficient), _EMPTY_INDICES)
+        end
+    end
+    return left + right
+end
+
 @inline function _raw_depends_on(x, variable)
     isequal(x, variable) && return true
     x isa SymbolicUtils.BasicSymbolic || return false
@@ -336,15 +469,21 @@ function _compose(
         first::UnitaryTransform, second::UnitaryTransform, time::T,
     ) where {T <: Union{StaticTime, DynamicTime}}
     relations = _merge_relations(first.relations, second.relations)
-    rules = _compose_rules(first.rules, second.rules)
-    inverse_rules = _compose_rules(second.inverse_rules, first.inverse_rules)
+    diagonal_rules = _compose_diagonal_rules(first, second)
+    rules, inverse_rules = diagonal_rules === nothing ?
+        (
+            _compose_rules(first.rules, second.rules),
+            _compose_rules(second.inverse_rules, first.inverse_rules),
+        ) : diagonal_rules
     gauge = if iszero(first.gauge)
         second.gauge
+    elseif _invariant_under_diagonal_rules(first.gauge, second.rules)
+        iszero(second.gauge) ? first.gauge : _add_gauges(first.gauge, second.gauge)
     else
         transported = _reduce_params(
             _apply_rules(first.gauge, second.rules), relations, true,
         )
-        iszero(second.gauge) ? transported : transported + second.gauge
+        iszero(second.gauge) ? transported : _add_gauges(transported, second.gauge)
     end
     if length(rules) == length(first.rules)
         same_layout = true
@@ -414,17 +553,12 @@ _conj_phase(ϕ::Real) = _conj_cnum(_phase(ϕ))
 _trig_rel(θ::Real) = ParamRelation(cos(θ), sin(θ), -1)
 _hyp_rel(r::Real) = ParamRelation(cosh(r), sinh(r), 1)
 
-_dt_num(x::Num, t::Num) = Symbolics.expand_derivatives(Symbolics.Differential(t)(x))
-_dt(c::CNum, t::Num) = _cnum(_dt_num(real(c), t), _dt_num(imag(c), t))
+_dt(c::CNum, t::Num) = Symbolics.derivative(c, t)
 _dt(x::_CoeffLike, t::Num) = _dt(_to_cnum(x), t)
 
 function _depends_on_time(x::_CoeffLike, t::Num)
-    variable = SymbolicUtils.unwrap(t)
     c = _to_cnum(x)
-    for part in (real(c), imag(c)), candidate in Symbolics.get_variables(part)
-        isequal(candidate, variable) && return true
-    end
-    return false
+    return _coefficient_depends_on(c, SymbolicUtils.unwrap(t))
 end
 
 _gauge(generator::QAdd, θ::Real, t::Num) = _scale_qadd(_neg_cnum(_dt(θ, t)), generator)

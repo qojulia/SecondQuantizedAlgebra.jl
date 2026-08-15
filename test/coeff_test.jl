@@ -7,6 +7,11 @@ import SecondQuantizedAlgebra: Coeff, CNum, Monomial, Poly, _to_cnum, _to_comple
     _iszero_cnum, _CNUM_ONE, _CNUM_ZERO, _CNUM_NEG1, _CNUM_IM, _NUM_ZERO, expim,
     _phase_coeff, _is_phase, exponential_form, trigonometric_form
 
+function _phase_allocations(f)
+    f()
+    return @allocations f()
+end
+
 # Coefficients carry a native `ComplexF64` fast path and a `Complex{Num}` symbolic
 # fallback. These tests pin the invariants the rest of the package relies on:
 # concrete numbers stay native, genuine symbols stay symbolic, materialization is
@@ -389,11 +394,93 @@ import SecondQuantizedAlgebra: Coeff, CNum, Monomial, Poly, _to_cnum, _to_comple
         @test_throws ArgumentError expim(SymbolicUtils.unwrap(z))
     end
 
+    @testset "canonical phase group" begin
+        @variables x y z g h ω t
+        px = expim(x)
+        py = expim(y)
+
+        @test (@inferred px * py) == expim(x + y)
+        @test px * py == py * px
+        @test px * px == expim(2x)
+        @test px * py * expim(z) == expim(x + y + z)
+        @test (@inferred px / py) == expim(x - y)
+        @test (@inferred px^3) == expim(3x)
+        @test (@inferred px^(-3)) == expim(-3x)
+        @test inv(px) == conj(px) == expim(-x)
+        @test px * inv(px) == _CNUM_ONE
+        @test expim(x) * expim(y - x) == expim(y)
+        @test expim((ω + 2g) * t) * expim(-2g * t) == expim(ω * t)
+
+        combined = g * px * py
+        combined_term = only((combined.tail::Poly).terms)
+        @test count(_is_phase, combined_term.syms) == 1
+        @test only(combined_term.exps[findall(_is_phase, combined_term.syms)]) in (-1, 1)
+
+        hs = FockSpace(:phase_collection)
+        a = Destroy(hs, :a)
+        @test iszero(px * py * a - expim(x + y) * a)
+
+        @test_throws MethodError px^(1 // 2)
+        @test_throws MethodError sqrt(px)
+        phase_symbol = only(only((px.tail::Poly).terms).syms)
+        phase_root = SymbolicUtils.term(sqrt, phase_symbol; type = Complex{Real})
+        @test_throws ArgumentError _to_cnum(phase_root)
+
+        cg, ch = _to_cnum(g), _to_cnum(h)
+        @test _phase_allocations(() -> cg * ch) <= 10
+        @test _phase_allocations(() -> px * conj(px)) <= 18
+        @test _phase_allocations(() -> px * px) <= 165
+        @test _phase_allocations(() -> px * py) <= 285
+    end
+
+    @testset "phase substitution, calculus, and projections" begin
+        @variables ω t θ g z::Complex
+        p = expim(ω * t)
+
+        @test substitute(p, Dict()) === p
+        @test (@inferred substitute(p, Dict(ω => 2ω))) == expim(2ω * t)
+        @test substitute(p, Dict(t => 0)) == _CNUM_ONE
+        @test substitute(p, Dict(g => 2g)) === p
+        @test _to_complex(substitute(p, Dict(ω => 2.0, t => 0.25))) ≈ exp(0.5im)
+        @test_throws ArgumentError substitute(p, Dict(ω => z))
+        @test_throws ArgumentError substitute(p, Dict(ω => 1 + 2im))
+        @test_throws ArgumentError substitute(p, Dict(ω => 1 + 0im))
+
+        D = Symbolics.Differential(t)
+        differentiated = @inferred Symbolics.derivative(p, t)
+        @test differentiated == im * ω * p
+        @test _to_cnum(Symbolics.expand_derivatives(D(p))) == differentiated
+
+        phase = expim(θ)
+        @test isequal(@inferred(real(phase)), cos(θ))
+        @test isequal(@inferred(imag(phase)), sin(θ))
+        @test isequal(@inferred(real(conj(phase))), cos(θ))
+        @test isequal(@inferred(imag(conj(phase))), -sin(θ))
+        @test isequal(real(im * phase), -sin(θ))
+        @test isequal(imag(im * phase), cos(θ))
+        @test (@inferred abs(phase)) == 1
+        @test (@inferred abs2(phase)) == 1
+        @test abs(conj(phase)) == 1
+        @test abs(-im * phase) == 1
+        @test abs2(-im * phase) == 1
+        @test_throws MethodError abs(_to_cnum(g))
+        @test_throws MethodError abs2(_to_cnum(g))
+    end
+
     @testset "explicit phase representations" begin
-        @variables θ ω t
+        @variables θ ω t z::Complex
         cosine_phase = @inferred exponential_form(cos(θ))
         sine_phase = @inferred exponential_form(sin(θ))
         composite_phase = @inferred exponential_form(cos(ω * t) + sin(ω * t))
+        intact_exp = SymbolicUtils.term(
+            exp, im * SymbolicUtils.unwrap(θ); type = Complex{Real},
+        )
+        intact_cis = SymbolicUtils.term(
+            cis, SymbolicUtils.unwrap(θ); type = Complex{Real},
+        )
+        arbitrary_exp = SymbolicUtils.term(
+            exp, SymbolicUtils.unwrap(z); type = Complex{Real},
+        )
 
         @test cosine_phase == (expim(θ) + expim(-θ)) / 2
         @test sine_phase == (expim(θ) - expim(-θ)) / (2im)
@@ -401,6 +488,12 @@ import SecondQuantizedAlgebra: Coeff, CNum, Monomial, Poly, _to_cnum, _to_comple
         @test trigonometric_form(sine_phase) == _to_cnum(sin(θ))
         @test trigonometric_form(composite_phase) == _to_cnum(cos(ω * t) + sin(ω * t))
         @test trigonometric_form(expim(θ)^2) == _to_cnum(cos(2θ) + im * sin(2θ))
+        @test (@inferred exponential_form(exp(im * θ))) == expim(θ)
+        @test (@inferred exponential_form(cis(θ))) == expim(θ)
+        @test (@inferred exponential_form(intact_exp)) == expim(θ)
+        @test (@inferred exponential_form(intact_cis)) == expim(θ)
+        @test isequal(exponential_form(arbitrary_exp), _to_cnum(arbitrary_exp))
+        @test exponential_form(exp(θ)) == _to_cnum(exp(θ))
 
         h = FockSpace(:phase_forms)
         a = Destroy(h, :a)

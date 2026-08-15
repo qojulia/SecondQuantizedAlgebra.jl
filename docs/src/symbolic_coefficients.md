@@ -37,6 +37,7 @@ substitution, and differentiation.
 
 ```@example phase-representations
 using SecondQuantizedAlgebra
+import Symbolics
 import SecondQuantizedAlgebra: expim, exponential_form, trigonometric_form
 
 h = FockSpace(:phase_example)
@@ -47,17 +48,41 @@ p = expim(ω * t)
 p * conj(p)
 ```
 
-Integer powers remain exact, and opposite phases cancel exactly:
+Arguments add canonically when independently constructed phases are multiplied. Integer
+powers scale the argument, while division and conjugation subtract it:
 
 ```@example phase-representations
-p^3 * inv(p)^3
+expim(θ) * expim(ω * t)
+
+expim(θ)^3 / expim(ω * t)
 
 expim(ω * t) * expim(-ω * t) * a
 ```
 
+Arguments are expanded when a phase is constructed or merged. Thus equivalent expressions
+such as `(ω + 2θ)*t` and `ω*t + 2θ*t` produce the same stored phase. This is algebraic
+normalization only; arguments are not guessed modulo ``2π``.
+
+Substitution rebuilds the canonical phase and differentiation applies the usual chain rule:
+
+```@example phase-representations
+substitute(p, Dict(ω => 2ω))
+
+Symbolics.derivative(p, t)
+```
+
+For a coefficient that is exactly one unit phase, its elementary projections are available:
+
+```@example phase-representations
+(real(p), imag(p), abs(p), abs2(p))
+```
+
 Only real arguments are accepted because the identities
 ``\overline{e^{ix}}=e^{-ix}`` and ``|e^{ix}|=1`` require real ``x``. A complex symbolic
-argument should instead be represented with the ordinary symbolic `exp` function.
+argument should instead be represented with the ordinary symbolic `exp` function. Fractional
+powers are deliberately not rewritten: `sqrt(expim(θ))` and `expim(θ)^(1//2)` are unsupported
+because replacing either by `expim(θ/2)` would choose a branch. Integer powers, including
+negative powers, are branch-safe and remain supported.
 
 ## Choosing an exponential or trigonometric form
 
@@ -76,6 +101,10 @@ trigonometric forms is available explicitly.
 
 ```@example phase-representations
 exponential_form(cos(ω * t) * a)
+
+exponential_form(exp(im * θ))
+
+exponential_form(cis(θ))
 ```
 
 [`trigonometric_form`](@ref) performs the reverse conversion:

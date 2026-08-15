@@ -401,8 +401,9 @@ end
 
 function _sym_trig_relations!(rels::Vector{ParamRelation}, c::Coeff)
     store = SymbolicUtils.BasicSymbolic[]
-    _collect_trig!(store, SymbolicUtils.unwrap(real(c)))
-    _collect_trig!(store, SymbolicUtils.unwrap(imag(c)))
+    re, im = _realimag(c)
+    _collect_trig!(store, SymbolicUtils.unwrap(re))
+    _collect_trig!(store, SymbolicUtils.unwrap(im))
     isempty(store) && return rels
     lows = Dict{_TrigKey, SymbolicUtils.BasicSymbolic}()
     heads = _TrigHead[]

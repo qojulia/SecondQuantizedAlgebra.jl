@@ -72,6 +72,36 @@ end
 function _term_mul(a::Monomial, b::Monomial)
     isempty(a.syms) && return Monomial(a.scalar * b.scalar, b.syms, b.exps)
     isempty(b.syms) && return Monomial(a.scalar * b.scalar, a.syms, a.exps)
+    phase_a = _phase_factor_index(a.syms)
+    phase_b = _phase_factor_index(b.syms)
+    if phase_a != 0 && phase_b != 0
+        # The common inverse pair stays on the ordinary identity merge: no symbolic
+        # argument arithmetic and no additional allocation.
+        if a.syms[phase_a] === b.syms[phase_b] &&
+                a.exps[phase_a] == -b.exps[phase_b]
+            se = _merge_factors(a.syms, a.exps, b.syms, b.exps)
+            return Monomial(a.scalar * b.scalar, se[1], se[2])
+        end
+        if length(a.syms) == 1 && length(b.syms) == 1 &&
+                a.syms[phase_a] === b.syms[phase_b]
+            exponent = a.exps[phase_a] + b.exps[phase_b]
+            return _scaled_phase_monomial(
+                a.scalar * b.scalar, Num(a.syms[phase_a]), exponent,
+            )
+        end
+        if length(a.syms) == 1 && length(b.syms) == 1
+            return _merged_phase_monomial(
+                a.scalar * b.scalar,
+                Num(a.syms[phase_a]),
+                a.exps[phase_a],
+                Num(b.syms[phase_b]),
+                b.exps[phase_b],
+            )
+        end
+        syms = vcat(a.syms, b.syms)
+        exps = vcat(a.exps, b.exps)
+        return _canonical_phase_monomial(a.scalar * b.scalar, syms, exps)
+    end
     se = _merge_factors(a.syms, a.exps, b.syms, b.exps)
     return Monomial(a.scalar * b.scalar, se[1], se[2])
 end

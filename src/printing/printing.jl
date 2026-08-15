@@ -131,8 +131,9 @@ end
 # the abstract-typed `r` is unprovably `Bool` to inference (the Symbolics boundary),
 # and leaving it `Any` would poison the `_show_terms` caller.
 @noinline function _is_real_negative_sym(c::CNum)::Bool
-    _iszero_num(imag(c)) || return false
-    r = Symbolics.value(SymbolicUtils.unwrap(real(c)))
+    re, im = _realimag(c)
+    _iszero_num(im) || return false
+    r = Symbolics.value(SymbolicUtils.unwrap(re))
     return r isa Real && r < 0
 end
 _is_real_negative(::Number) = false

@@ -121,6 +121,19 @@ end
                         SecondQuantizedAlgebra.expim(ω * t) * a,
                     ),
                 ),
+                (
+                    "expim(ω*t) * expim(θ)",
+                    () -> SecondQuantizedAlgebra.expim(ω * t) *
+                        SecondQuantizedAlgebra.expim(θ),
+                ),
+                (
+                    "substitute(expim(ω*t), Dict(ω=>θ))",
+                    () -> substitute(
+                        SecondQuantizedAlgebra.expim(ω * t), Dict(ω => θ),
+                    ),
+                ),
+                ("real(expim(θ))", () -> real(SecondQuantizedAlgebra.expim(θ))),
+                ("abs2(expim(θ))", () -> abs2(SecondQuantizedAlgebra.expim(θ))),
             ]
             rep = JET.@report_call target_modules = (SecondQuantizedAlgebra,) ignore_missing_comparison = true expr()
             @testset "$name" begin

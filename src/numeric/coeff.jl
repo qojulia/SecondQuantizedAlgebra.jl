@@ -174,8 +174,9 @@ end
 
 function _apply_scalar_subs(c::CNum, sub_re::Dict, sub_im::Dict, has_imag::Bool)
     (isempty(sub_re) || _is_native(c)) && return c
-    re_part = SymbolicUtils.unwrap(real(c))
-    im_part = SymbolicUtils.unwrap(imag(c))
+    re, im = _realimag(c)
+    re_part = SymbolicUtils.unwrap(re)
+    im_part = SymbolicUtils.unwrap(im)
     if !has_imag
         return _cnum(
             Num(Symbolics.substitute(re_part, sub_re)),

@@ -33,10 +33,15 @@ function benchmark_unitary!(SUITE)
     group["N-level"]["timed"] = @benchmarkable Rotation($σ, $Wt, $t)
 
     phase = SecondQuantizedAlgebra.expim(ω * t)
+    second_phase = SecondQuantizedAlgebra.expim(θ)
     phase_expr = phase * a + conj(phase) * a
     group["phase"]["construct"] =
         @benchmarkable SecondQuantizedAlgebra.expim($ω * $t)
     group["phase"]["cancel"] = @benchmarkable $phase * conj($phase)
+    group["phase"]["merge same"] = @benchmarkable $phase * $phase
+    group["phase"]["merge distinct"] = @benchmarkable $phase * $second_phase
+    group["phase"]["project real"] = @benchmarkable real($phase)
+    group["phase"]["project abs2"] = @benchmarkable abs2($phase)
     group["phase"]["substitute"] = @benchmarkable substitute($phase * $a, Dict($t => 1.0))
     group["phase"]["numeric"] = @benchmarkable substitute($phase * $a, Dict($ω => 2.0, $t => 1.0))
     group["phase"]["to exponential"] =

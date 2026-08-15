@@ -218,11 +218,39 @@ function _substitute_ops(sink::F, ops::Vector{Op}, c::CNum, d) where {F}
     return
 end
 
-function _substitute_cnum(c::CNum, d)
+@inline _provably_real_replacement(x::Real) = true
+@inline _provably_real_replacement(x::Num) = SymbolicUtils.symtype(x) <: Real
+@inline _provably_real_replacement(x::SymbolicUtils.BasicSymbolic) =
+    SymbolicUtils.symtype(x) <: Real
+@inline _provably_real_replacement(x) = false
+
+@noinline function _validate_phase_substitutions(c::Coeff, d)
+    tail = c.tail
+    tail isa Poly || return
+    for monomial in tail.terms, symbol in monomial.syms
+        _is_phase(symbol) || continue
+        argument = only(SymbolicUtils.arguments(symbol))
+        for (from, to) in d
+            _provably_real_replacement(to) && continue
+            (from isa Num || from isa SymbolicUtils.BasicSymbolic) || continue
+            probe = SymbolicUtils.substitute(argument, Dict(from => 0))
+            isequal(probe, argument) || _nonreal_phase_argument(to)
+        end
+    end
+    return
+end
+
+function _substitute_cnum(c::CNum, d)::Coeff
     isempty(d) && return c
     _is_native(c) && return c
-    rep, imp = real(c), imag(c)
+    _validate_phase_substitutions(c, d)
+    materialized = to_num(c)
+    rep, imp = real(materialized), imag(materialized)
     new_rep = SymbolicUtils.substitute(Symbolics.value(rep), d)
     new_imp = SymbolicUtils.substitute(Symbolics.value(imp), d)
+    isequal(new_rep, Symbolics.value(rep)) &&
+        isequal(new_imp, Symbolics.value(imp)) && return c
     return _cnum(Num(new_rep), Num(new_imp))
 end
+
+SymbolicUtils.substitute(c::Coeff, rules::AbstractDict) = _substitute_cnum(c, rules)
