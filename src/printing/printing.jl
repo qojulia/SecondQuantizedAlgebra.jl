@@ -326,21 +326,72 @@ end
 # unreadable at a REPL prompt. `:limit` is what the REPL sets and a file write does not.
 const _SHOW_RULE_LIMIT = 4
 
-function Base.show(io::IO, U::UnitaryTransform)
-    gs = generators(U)
-    n = length(gs)
-    shown = get(io, :limit, false) ? min(n, _SHOW_RULE_LIMIT) : n
-    write(io, "UnitaryTransform(")
-    for k in 1:shown
-        k > 1 && write(io, ", ")
-        show(io, gs[k])
-        write(io, " → ")
-        show(io, U.rules[gs[k]])
-    end
-    shown < n && write(io, ", … ($(n - shown) more)")
+function _show_unitary_rule(io::IO, U::UnitaryTransform, generator::Op)
+    show(io, generator)
+    write(io, " ↦ ")
+    return show(io, U.rules[generator])
+end
+
+_show_unitary_time(::IO, ::UnitaryTransform{StaticTime}) = false
+function _show_unitary_time(io::IO, U::UnitaryTransform{DynamicTime})
+    write(io, "time = ")
+    show(io, U.time.variable)
+    return true
+end
+
+function _show_unitary_metadata(io::IO, U::UnitaryTransform)
+    shown = _show_unitary_time(io, U)
     if !iszero(U.gauge)
-        write(io, "; gauge = ")
+        shown && write(io, ", ")
+        write(io, "gauge = ")
         show(io, U.gauge)
+        shown = true
+    end
+    return shown
+end
+
+function Base.show(io::IO, U::UnitaryTransform)
+    gs = U.generators
+    n = length(gs)
+    write(io, "UnitaryTransform(")
+    limited = get(io, :limit, false) && n > _SHOW_RULE_LIMIT
+    if limited
+        print(io, n, " rules")
+    else
+        for (k, generator) in enumerate(gs)
+            k > 1 && write(io, ", ")
+            _show_unitary_rule(io, U, generator)
+        end
+    end
+    if U isa UnitaryTransform{DynamicTime} || !iszero(U.gauge)
+        write(io, "; ")
+        _show_unitary_metadata(io, U)
     end
     return write(io, ")")
+end
+
+function Base.show(io::IO, ::MIME"text/plain", U::UnitaryTransform)
+    gs = U.generators
+    n = length(gs)
+    if U isa UnitaryTransform{DynamicTime}
+        write(io, "Time-dependent UnitaryTransform in ")
+        show(io, U.time.variable)
+    else
+        write(io, "UnitaryTransform")
+    end
+    print(io, " with ", n, n == 1 ? " rule" : " rules")
+
+    limited = get(io, :limit, false) && n > _SHOW_RULE_LIMIT
+    if !limited
+        write(io, ":")
+        for generator in gs
+            write(io, "\n  ")
+            _show_unitary_rule(io, U, generator)
+        end
+    end
+    if !iszero(U.gauge)
+        write(io, "\n\nGauge:\n  ")
+        show(io, U.gauge)
+    end
+    return nothing
 end

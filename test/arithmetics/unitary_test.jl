@@ -376,6 +376,16 @@ end
             simplify(conjugate(A, second * first)),
         )
 
+        # Composition must retain rules that belong only to either transform. This
+        # exercises independent modes, rather than the overlapping Fock rules above.
+        independent = Destroy(FockSpace(:independent), :c)
+        disjoint = first * Rotation(independent, φ)
+        @test length(generators(disjoint)) == 4
+        @test isequal(
+            simplify(conjugate(a + independent, disjoint)),
+            simplify(expim(-θ) * a + expim(-φ) * independent),
+        )
+
         # Pin each composition mode directly; the explicit pairs keep the application
         # order readable and avoid relying on commutativity in the law above.
         composition_pairs = (

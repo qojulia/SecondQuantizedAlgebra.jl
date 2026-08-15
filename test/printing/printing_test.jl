@@ -79,6 +79,44 @@ import SecondQuantizedAlgebra: simplify, QAdd, QSym, _single_qadd, _zero_qadd, _
             end
         end
 
+        @testset "Unitary transforms" begin
+            @variables θ t
+            static = Rotation(a, θ)
+            @test repr(static) ==
+                "UnitaryTransform(a ↦ exp(-im*θ) * a, a' ↦ exp(im*θ) * a')"
+            @test repr("text/plain", static) ==
+                "UnitaryTransform with 2 rules:\n" *
+                "  a ↦ exp(-im*θ) * a\n" *
+                "  a' ↦ exp(im*θ) * a'"
+
+            # `:limit` is the display context used by the REPL. Large transforms
+            # are summarized rather than showing an arbitrary prefix of their rules.
+            levels = NLevelSpace(:levels, 3)
+            σ12 = Transition(levels, :σ, 1, 2)
+            large = Rotation(σ12, [1 0 0; 0 1 0; 0 0 1])
+            limited = sprint(show, large; context = :limit => true)
+            @test limited == "UnitaryTransform(9 rules)"
+            limited_plain = sprint(show, MIME("text/plain"), large; context = :limit => true)
+            @test limited_plain == "UnitaryTransform with 9 rules"
+            @test !occursin("more", repr(large))
+
+            moving = Rotation(a, θ * t, t)
+            @test repr(moving) ==
+                "UnitaryTransform(a ↦ exp(-im*t*θ) * a, a' ↦ exp(im*t*θ) * a'; time = t, gauge = -θ * a' * a)"
+            @test repr("text/plain", moving) ==
+                "Time-dependent UnitaryTransform in t with 2 rules:\n" *
+                "  a ↦ exp(-im*t*θ) * a\n" *
+                "  a' ↦ exp(im*t*θ) * a'\n\n" *
+                "Gauge:\n" *
+                "  -θ * a' * a"
+
+            # Time metadata is meaningful even when the selected parameter is constant
+            # and therefore produces a zero gauge.
+            constant_timed = Rotation(a, θ, t)
+            @test repr(constant_timed) ==
+                "UnitaryTransform(a ↦ exp(-im*θ) * a, a' ↦ exp(im*θ) * a'; time = t)"
+        end
+
         @testset "Simplify display" begin
             @test repr(simplify(a * ad)) == "1 + a' * a"
         end
