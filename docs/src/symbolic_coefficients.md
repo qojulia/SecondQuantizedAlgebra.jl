@@ -1,10 +1,14 @@
+```@meta
+CurrentModule = SecondQuantizedAlgebra
+```
+
 # Symbolic Coefficients and Phases
 
 The coefficients of a quantum expression can contain symbolic parameters, complex
 amplitudes, trigonometric functions, and exact unit phases. They participate in operator
 arithmetic without changing the operator algebra.
 
-Symbolic parameters are created with [`@variables`](@ref), which is re-exported from
+Symbolic parameters are created with [`@variables`](https://symbolics.juliasymbolics.org/stable/manual/variables/), which is re-exported from
 Symbolics.jl:
 
 ```@example coefficient-basics
