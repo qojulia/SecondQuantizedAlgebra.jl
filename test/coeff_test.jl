@@ -441,8 +441,10 @@ end
         @test (@inferred substitute(p, Dict(ω => 2ω))) == expim(2ω * t)
         @test substitute(p, Dict(t => 0)) == _CNUM_ONE
         @test substitute(p, Dict(g => 2g)) === p
+        @test substitute(p, Dict(g => z)) === p
         @test _to_complex(substitute(p, Dict(ω => 2.0, t => 0.25))) ≈ exp(0.5im)
         @test_throws ArgumentError substitute(p, Dict(ω => z))
+        @test_throws ArgumentError substitute(p, Dict(ω * t => z))
         @test_throws ArgumentError substitute(p, Dict(ω => 1 + 2im))
         @test_throws ArgumentError substitute(p, Dict(ω => 1 + 0im))
 

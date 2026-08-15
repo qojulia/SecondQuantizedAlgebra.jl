@@ -115,7 +115,7 @@ end
 function _two_modes(a::Op, b::Op, what::AbstractString)
     x = _fock_or_throw(a, what)
     y = _fock_or_throw(b, what)
-    _site_key(x) == _site_key(y) && _unitary_error("$what needs two distinct modes")
+    site_key(x) == site_key(y) && _unitary_error("$what needs two distinct modes")
     return x, y
 end
 

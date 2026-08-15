@@ -40,8 +40,6 @@ struct UnitaryTransform{T}
     end
 end
 
-const _site_key = site_key
-
 @noinline _unitary_error(message::AbstractString) = throw(ArgumentError(message))
 
 _is_fock(o::Op) = is_destroy(o) || is_create(o)
@@ -75,7 +73,7 @@ end
 function _site_infos(generators::Vector{Op})
     sites = SiteInfo[]
     for g in generators
-        key = _site_key(g)
+        key = site_key(g)
         found = findfirst(site -> site.key == key, sites)
         if found === nothing
             push!(sites, SiteInfo(key, Op[g]))
@@ -170,7 +168,7 @@ end
 function _validate_coverage(q::QAdd, U::UnitaryTransform)
     for (term, _) in q, operator in term.ops
         haskey(U.rules, operator) && continue
-        _covered_site(U, _site_key(operator)) || continue
+        _covered_site(U, site_key(operator)) || continue
         _unitary_error(
             "`$operator` acts on a site covered by this transform but has no rule; " *
                 "the constructor must cover every generator of a transformed site",
@@ -426,16 +424,6 @@ function _add_gauges(left::QAdd, right::QAdd)::QAdd
     return left + right
 end
 
-@inline function _raw_depends_on(x, variable)
-    isequal(x, variable) && return true
-    x isa SymbolicUtils.BasicSymbolic || return false
-    SymbolicUtils.iscall(x) || return false
-    for argument in SymbolicUtils.arguments(x)
-        _raw_depends_on(argument, variable) && return true
-    end
-    return false
-end
-
 function _coefficient_depends_on(c::CNum, variable)
     tail = c.tail
     tail isa Native && return false
@@ -555,11 +543,6 @@ _hyp_rel(r::Real) = ParamRelation(cosh(r), sinh(r), 1)
 
 _dt(c::CNum, t::Num) = Symbolics.derivative(c, t)
 _dt(x::Coefficient, t::Num) = _dt(_to_cnum(x), t)
-
-function _depends_on_time(x::Coefficient, t::Num)
-    c = _to_cnum(x)
-    return _coefficient_depends_on(c, SymbolicUtils.unwrap(t))
-end
 
 _gauge(generator::QAdd, θ::Real, t::Num) = _scale_qadd(_neg_cnum(_dt(θ, t)), generator)
 

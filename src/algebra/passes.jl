@@ -224,6 +224,16 @@ end
     SymbolicUtils.symtype(x) <: Real
 @inline _provably_real_replacement(x) = false
 
+@inline function _raw_depends_on(x, variable)
+    isequal(x, variable) && return true
+    x isa SymbolicUtils.BasicSymbolic || return false
+    SymbolicUtils.iscall(x) || return false
+    for argument in SymbolicUtils.arguments(x)
+        _raw_depends_on(argument, variable) && return true
+    end
+    return false
+end
+
 @noinline function _validate_phase_substitutions(c::Coeff, d)
     tail = c.tail
     tail isa Poly || return
@@ -233,8 +243,8 @@ end
         for (from, to) in d
             _provably_real_replacement(to) && continue
             (from isa Num || from isa SymbolicUtils.BasicSymbolic) || continue
-            probe = SymbolicUtils.substitute(argument, Dict(from => 0))
-            isequal(probe, argument) || _nonreal_phase_argument(to)
+            _raw_depends_on(argument, SymbolicUtils.unwrap(from)) &&
+                _nonreal_phase_argument(to)
         end
     end
     return
