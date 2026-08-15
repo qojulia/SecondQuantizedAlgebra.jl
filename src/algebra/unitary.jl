@@ -554,9 +554,9 @@ _trig_rel(θ::Real) = ParamRelation(cos(θ), sin(θ), -1)
 _hyp_rel(r::Real) = ParamRelation(cosh(r), sinh(r), 1)
 
 _dt(c::CNum, t::Num) = Symbolics.derivative(c, t)
-_dt(x::_CoeffLike, t::Num) = _dt(_to_cnum(x), t)
+_dt(x::Coefficient, t::Num) = _dt(_to_cnum(x), t)
 
-function _depends_on_time(x::_CoeffLike, t::Num)
+function _depends_on_time(x::Coefficient, t::Num)
     c = _to_cnum(x)
     return _coefficient_depends_on(c, SymbolicUtils.unwrap(t))
 end

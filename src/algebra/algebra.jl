@@ -1,14 +1,11 @@
-const _ScalarLike = Union{Number, SymbolicUtils.BasicSymbolic}
+# Scalar values accepted as coefficients in operator expressions. `Coeff` is included for
+# internal composition, while public inputs ordinarily arrive as numbers or symbolic values.
+const Coefficient = Union{Number, SymbolicUtils.BasicSymbolic, Coeff}
 
-# Operands of operator arithmetic. `_ScalarLike` is the narrower thing a constructor taking
-# an angle or amplitude accepts: a `Coeff` composes with operators but is not a `Number`, and
-# `cos`/`cosh`/`exp` of one is undefined.
-const _CoeffLike = Union{_ScalarLike, Coeff}
+Base.:*(a::QSym, b::Coefficient) = _single_qadd(_to_cnum(b), Op[a])
+Base.:*(b::Coefficient, a::QSym) = a * b
 
-Base.:*(a::QSym, b::_CoeffLike) = _single_qadd(_to_cnum(b), Op[a])
-Base.:*(b::_CoeffLike, a::QSym) = a * b
-
-function Base.:*(a::QAdd, b::_CoeffLike)
+function Base.:*(a::QAdd, b::Coefficient)
     b isa Number && isone(b) && return a
     cb = _to_cnum(b)
     d = QTermDict()
@@ -19,7 +16,7 @@ function Base.:*(a::QAdd, b::_CoeffLike)
     end
     return QAdd(d, copy(a.indices))
 end
-Base.:*(a::_CoeffLike, b::QAdd) = b * a
+Base.:*(a::Coefficient, b::QAdd) = b * a
 
 function Base.:+(a::QSym, b::QSym)
     d = QTermDict()
@@ -43,22 +40,22 @@ function Base.:+(a::QAdd, b::QAdd)
     return QAdd(d, _drop_unused_indices(d, _merge_unique(a.indices, b.indices)))
 end
 
-function Base.:+(a::QSym, b::_CoeffLike)
+function Base.:+(a::QSym, b::Coefficient)
     d = QTermDict()
     _addto!(d, Op[a], _CNUM_ONE)
     _addto!(d, _EMPTY_OPS, _to_cnum(b))
     return QAdd(d, _EMPTY_INDICES)
 end
-Base.:+(a::_CoeffLike, b::QSym) = b + a
+Base.:+(a::Coefficient, b::QSym) = b + a
 
-function Base.:+(a::QAdd, b::_CoeffLike)
+function Base.:+(a::QAdd, b::Coefficient)
     # `iszero` on a `BasicSymbolic` is itself symbolic, so guard the shortcut on `Number`.
     b isa Number && iszero(b) && return a
     d = _copy_args(a.arguments)
     _addto!(d, _EMPTY_OPS, _to_cnum(b))
     return QAdd(d, copy(a.indices))
 end
-Base.:+(a::_CoeffLike, b::QAdd) = b + a
+Base.:+(a::Coefficient, b::QAdd) = b + a
 
 Base.zero(::Type{QAdd}) = _zero_qadd()
 Base.zero(::QAdd) = _zero_qadd()
@@ -74,8 +71,8 @@ function Base.:-(a::QAdd)
 end
 
 Base.:-(a::QField, b::QField) = a + (-b)
-Base.:-(a::QField, b::_CoeffLike) = a + (-b)
-Base.:-(a::_CoeffLike, b::QField) = a + (-b)
+Base.:-(a::QField, b::Coefficient) = a + (-b)
+Base.:-(a::Coefficient, b::QField) = a + (-b)
 
 Base.:/(a::QSym, b::Number) = a * inv(b)
 Base.:/(a::QAdd, b::Number) = a * inv(b)

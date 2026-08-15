@@ -6,7 +6,7 @@
 Displace a Fock mode by the scalar amplitude `α`, so `a ↦ a + α`. The timed form
 stores the complete c-number gauge of the moving displacement.
 """
-function Displace(a::Op, α::_CoeffLike)
+function Displace(a::Op, α::Coefficient)
     d = _fock_or_throw(a, "`Displace`")
     c = _to_cnum(α)
     return _static_transform(
@@ -15,7 +15,7 @@ function Displace(a::Op, α::_CoeffLike)
     )
 end
 
-function Displace(a::Op, α::_CoeffLike, t::Num)
+function Displace(a::Op, α::Coefficient, t::Num)
     d = _fock_or_throw(a, "`Displace`")
     tt = _time_or_throw(t)
     c = _to_cnum(α)
