@@ -444,8 +444,10 @@ function _reduce_all(
         isempty(scratch) && return c
         return _reduce_tail(t, scratch, gated)
     end
-    (_has_symbolic_trig(SymbolicUtils.unwrap(real(t))) ||
-        _has_symbolic_trig(SymbolicUtils.unwrap(imag(t)))) &&
+    (
+        _has_symbolic_trig(SymbolicUtils.unwrap(real(t))) ||
+            _has_symbolic_trig(SymbolicUtils.unwrap(imag(t)))
+    ) &&
         _sym_trig_relations!(scratch, c)
     isempty(scratch) && return c
     return _reduce_via_transient(c, scratch, gated)

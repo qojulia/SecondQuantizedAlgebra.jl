@@ -364,7 +364,7 @@ function _matrix_unit_rules(
     ]
     nonzero_rows = [
         [(column, W[row, column]) for column in 1:n if !_iszero_cnum(W[row, column])]
-        for row in 1:n
+            for row in 1:n
     ]
     rules = Dict{Op, QAdd}()
     for i in 1:n, j in 1:n
