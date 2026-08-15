@@ -1,7 +1,6 @@
 using BenchmarkTools
 using SecondQuantizedAlgebra
-using Latexify: latexify
-using Symbolics: @variables
+using Symbolics: @variables, derivative
 
 const SUITE = BenchmarkGroup()
 

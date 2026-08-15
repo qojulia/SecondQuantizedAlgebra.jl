@@ -10,8 +10,7 @@ Usage:
 
 using BenchmarkTools
 using SecondQuantizedAlgebra
-using Latexify: latexify
-using Symbolics: @variables
+using Symbolics: @variables, derivative
 import Dates
 using Dates: now, DateTime, @dateformat_str
 
