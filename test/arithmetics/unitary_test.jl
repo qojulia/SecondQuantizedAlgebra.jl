@@ -305,10 +305,16 @@ end
         expected_beamsplitter_gauge =
             -im * θ * (left' * right - right' * left)
         @test isequal(gauge_term(moving_beamsplitter), expected_beamsplitter_gauge)
+        @test isequal(
+            gauge_term(Rotation(left', right', θ * t, t)), expected_beamsplitter_gauge,
+        )
 
         moving_two_mode_squeeze = Squeeze(left, right, r * t, t)
         expected_two_mode_gauge = -im * r * (left' * right' - right * left)
         @test isequal(gauge_term(moving_two_mode_squeeze), expected_two_mode_gauge)
+        @test isequal(
+            gauge_term(Squeeze(left', right', r * t, t)), expected_two_mode_gauge,
+        )
 
         moving_quadratures = Displace(x, p, η * t, ω * t^2, t)
         @test isequal(
@@ -559,11 +565,12 @@ end
         @test (@inferred Rotation(Sx, 3, θ)) isa UnitaryTransform{StaticTime}
         @test (@inferred Rotation(Sx, 3, θ * t, t)) isa UnitaryTransform{DynamicTime}
         @test (@inferred Rotation(σ12, [0 1; 1 0])) isa UnitaryTransform{StaticTime}
+        @test Rotation(σ12, Diagonal([1, 1])) isa UnitaryTransform{StaticTime}
 
         level_phases = Coeff[expim(-ω * t) 0; 0 expim(ω * t)]
         @test (@inferred Rotation(σ12, level_phases, t)) isa UnitaryTransform{DynamicTime}
-        @test (@inferred _coefficient_matrix([0 1; 1 0], 2)) isa Matrix{Coeff}
-        coefficients = _coefficient_matrix([0 1; 1 0], 2)
+        @test (@inferred _coefficient_matrix([0 1; 1 0])) isa Matrix{Coeff}
+        coefficients = _coefficient_matrix([0 1; 1 0])
         @test (@inferred _matrix_unit_rules(σ12, coefficients)) isa Dict{Op, QAdd}
         @test (@inferred _nlevel_gauge(σ12, level_phases, t)) isa QAdd
 

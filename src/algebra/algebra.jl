@@ -529,9 +529,10 @@ _substitute_op_rules(q::QAdd, op_rules::Dict{Op, QAdd}) =
 function _substitute_split(q::QAdd, op_rules::AbstractDict, scalar_rules::AbstractDict)
     out = QTermDict()
     indices = copy(q.indices)
+    phase_rules = _nonreal_phase_substitutions(scalar_rules)
     for (t, c) in q
         replacement_indices = _stream_substitution_once!(
-            out, t.ops, c, t.ne, op_rules, scalar_rules,
+            out, t.ops, c, t.ne, op_rules, scalar_rules, phase_rules,
         )
         indices = _merge_unique(indices, replacement_indices)
     end
@@ -569,10 +570,10 @@ end
 
 function _stream_substitution_once!(
         out::QTermDict, ops::Vector{Op}, c::CNum, ne::Vector{NonEqualPair},
-        op_rules::AbstractDict, scalar_rules::AbstractDict
+        op_rules::AbstractDict, scalar_rules::AbstractDict, phase_rules::Vector{Pair{Any, Any}},
     )
     if !_has_operator_rule(ops, op_rules)
-        new_c = _substitute_cnum(c, scalar_rules)
+        new_c = _substitute_cnum(c, scalar_rules, phase_rules)
         _iszero_cnum(new_c) || _stream!(out, copy(ops), new_c, ne)
         return _EMPTY_INDICES
     end
@@ -597,7 +598,7 @@ function _stream_substitution_once!(
     end
 
     for (new_ops, new_c0, new_ne) in partials
-        new_c = _substitute_cnum(new_c0, scalar_rules)
+        new_c = _substitute_cnum(new_c0, scalar_rules, phase_rules)
         _iszero_cnum(new_c) && continue
         _canonicalize!(out, new_ops, new_c, _merge_ne(ne, new_ne))
     end

@@ -440,11 +440,13 @@ function _reduce_all(
     empty!(scratch)
     append!(scratch, rels)
     if t isa Poly
-        _trig_relations!(scratch, t.terms)
+        _has_trig_factor(t.terms) && _trig_relations!(scratch, t.terms)
         isempty(scratch) && return c
         return _reduce_tail(t, scratch, gated)
     end
-    _sym_trig_relations!(scratch, c)
+    (_has_symbolic_trig(SymbolicUtils.unwrap(real(t))) ||
+        _has_symbolic_trig(SymbolicUtils.unwrap(imag(t)))) &&
+        _sym_trig_relations!(scratch, c)
     isempty(scratch) && return c
     return _reduce_via_transient(c, scratch, gated)
 end

@@ -123,7 +123,7 @@ function _phase_pair(x::Op, p::Op, what::AbstractString)
     (is_position(x) && is_momentum(p)) || _unitary_error(
         "$what expects a `(Position, Momentum)` pair in that order",
     )
-    (x.space_index == p.space_index && x.index == p.index) || _unitary_error(
+    site_key(x) == site_key(p) || _unitary_error(
         "$what expects both quadratures on the same site",
     )
     return nothing
@@ -171,9 +171,14 @@ Rotation(a::Op, b::Op, θ::Real) =
 
 function Rotation(a::Op, b::Op, θ::Real, t::Num)
     tt = _time_or_throw(t)
-    U = Rotation(a, b, θ)
-    generator = _is_phase_space(a) ? (a * a + b * b) * (1 // 2) :
-        im * (adjoint(a) * b - adjoint(b) * a)
+    if _is_phase_space(a)
+        U = _quadrature_rotation(a, b, θ)
+        generator = (a * a + b * b) * (1 // 2)
+    else
+        x, y = _two_modes(a, b, "`Rotation`")
+        U = _beamsplitter(x, y, θ)
+        generator = im * (adjoint(x) * y - adjoint(y) * x)
+    end
     return _timed_transform(U, _gauge(generator, θ, tt), tt)
 end
 
@@ -211,9 +216,14 @@ Squeeze(a::Op, b::Op, r::Real) =
 
 function Squeeze(a::Op, b::Op, r::Real, t::Num)
     tt = _time_or_throw(t)
-    U = Squeeze(a, b, r)
-    generator = _is_phase_space(a) ? (a * b + b * a) * (1 // 2) :
-        im * (adjoint(a) * adjoint(b) - b * a)
+    if _is_phase_space(a)
+        U = _quadrature_squeeze(a, b, r)
+        generator = (a * b + b * a) * (1 // 2)
+    else
+        x, y = _two_modes(a, b, "`Squeeze`")
+        U = _two_mode_squeeze(x, y, r)
+        generator = im * (adjoint(x) * adjoint(y) - y * x)
+    end
     return _timed_transform(U, _gauge(generator, r, tt), tt)
 end
 
@@ -261,7 +271,7 @@ _axis_op(o::Op, axis::Integer) =
     Op(o.kind, o.name_id, o.space_index, o.index, Int32(axis), 0, 0, 0)
 
 function _triple_or_throw(S::Op)
-    (S.kind === OP_PAULI || S.kind === OP_SPIN) || _unitary_error(
+    (is_pauli(S) || is_spin(S)) || _unitary_error(
         "`Rotation` expects a Pauli or Spin operator, got $(S.kind)",
     )
     return nothing
@@ -307,7 +317,7 @@ _transition_op(o::Op, i::Integer, j::Integer) =
     Op(OP_TRANSITION, o.name_id, o.space_index, o.index, Int32(i), Int32(j), o.g, o.nlev)
 
 function _nlevel_or_throw(σ::Op, W::AbstractMatrix)
-    σ.kind === OP_TRANSITION || _unitary_error(
+    is_transition(σ) || _unitary_error(
         "`Rotation` expects an ordinary `Transition` operator, got $(σ.kind)",
     )
     n = Int(σ.nlev)
@@ -317,22 +327,23 @@ function _nlevel_or_throw(σ::Op, W::AbstractMatrix)
     return n
 end
 
-function _coefficient_matrix(W::AbstractMatrix, n::Int)
-    converted = Matrix{Coeff}(undef, n, n)
-    for j in 1:n, i in 1:n
+function _coefficient_matrix(W::AbstractMatrix)
+    n, m = size(W)
+    converted = Matrix{Coeff}(undef, n, m)
+    for j in 1:m, i in 1:n
         converted[i, j] = _to_cnum(W[i, j])
     end
     return converted
 end
 
-function _exact_unitary_or_throw(W::Matrix{Coeff})
+function _exact_unitary_or_throw(W::Matrix{Coeff}, Wdagger::Matrix{Coeff})
     n = size(W, 1)
     scratch = ParamRelation[]
     for j in 1:n, k in 1:n
         residual = j == k ? _CNUM_NEG1 : _CNUM_ZERO
         for i in 1:n
             residual = _add_cnum(
-                residual, _mul_cnum(_conj_cnum(W[i, j]), W[i, k]),
+                residual, _mul_cnum(Wdagger[j, i], W[i, k]),
             )
         end
         reduced = _reduce_all(residual, ParamRelation[], false, scratch)
@@ -344,15 +355,24 @@ function _exact_unitary_or_throw(W::Matrix{Coeff})
     return W
 end
 
-function _matrix_unit_rules(σ::Op, W::Matrix{Coeff})
+function _matrix_unit_rules(
+        σ::Op, W::Matrix{Coeff}, Wdagger::Matrix{Coeff} = _dagger_coefficients(W),
+    )
     n = size(W, 1)
-    operators = Op[_transition_op(σ, k, l) for k in 1:n, l in 1:n]
+    operator_terms = QTerm[
+        QTerm(Op[_transition_op(σ, k, l)], _EMPTY_NE) for k in 1:n, l in 1:n
+    ]
+    nonzero_rows = [
+        [(column, W[row, column]) for column in 1:n if !_iszero_cnum(W[row, column])]
+        for row in 1:n
+    ]
     rules = Dict{Op, QAdd}()
     for i in 1:n, j in 1:n
         terms = QTermDict()
-        for k in 1:n, l in 1:n
-            coefficient = _mul_cnum(_conj_cnum(W[i, k]), W[j, l])
-            _iszero_cnum(coefficient) || _addto!(terms, Op[operators[k, l]], coefficient)
+        for (k, _) in nonzero_rows[i], (l, wjl) in nonzero_rows[j]
+            coefficient = _mul_cnum(Wdagger[k, i], wjl)
+            _iszero_cnum(coefficient) ||
+                _addto_key!(terms, operator_terms[k, l], coefficient)
         end
         rules[_transition_op(σ, i, j)] = QAdd(terms, _EMPTY_INDICES)
     end
@@ -368,6 +388,18 @@ function _dagger_coefficients(W::Matrix{Coeff})
     return out
 end
 
+function _nlevel_rotation(σ::Op, W::AbstractMatrix)
+    _nlevel_or_throw(σ, W)
+    coefficients = _coefficient_matrix(W)
+    dagger = _dagger_coefficients(coefficients)
+    _exact_unitary_or_throw(coefficients, dagger)
+    U = _static_transform(
+        _matrix_unit_rules(σ, coefficients, dagger),
+        _matrix_unit_rules(σ, dagger, coefficients),
+    )
+    return U, coefficients
+end
+
 """
     Rotation(σ, W)
     Rotation(σ, W, t)
@@ -376,22 +408,23 @@ Rotate an ordinary N-level basis by a matrix `W` satisfying `W'W = I`. The timed
 derives the Hamiltonian gauge `im*Ẇ'W` entrywise with respect to `t`.
 """
 function Rotation(σ::Op, W::AbstractMatrix)
-    n = _nlevel_or_throw(σ, W)
-    coefficients = _exact_unitary_or_throw(_coefficient_matrix(W, n))
-    return _static_transform(
-        _matrix_unit_rules(σ, coefficients),
-        _matrix_unit_rules(σ, _dagger_coefficients(coefficients)),
-    )
+    U, _ = _nlevel_rotation(σ, W)
+    return U
 end
 
 function _nlevel_gauge(σ::Op, W::Matrix{Coeff}, t::Num)
     n = size(W, 1)
+    conjugated_derivatives = Matrix{Coeff}(undef, n, n)
+    for j in 1:n, k in 1:n
+        conjugated_derivatives[k, j] = _conj_cnum(_dt(W[k, j], t))
+    end
     gauge = QTermDict()
     for j in 1:n, l in 1:n
         coefficient = _CNUM_ZERO
         for k in 1:n
-            derivative = _conj_cnum(_dt(W[k, j], t))
-            coefficient = _add_cnum(coefficient, _mul_cnum(derivative, W[k, l]))
+            coefficient = _add_cnum(
+                coefficient, _mul_cnum(conjugated_derivatives[k, j], W[k, l]),
+            )
         end
         coefficient = _mul_cnum(_CNUM_IM, coefficient)
         _iszero_cnum(coefficient) ||
@@ -402,11 +435,6 @@ end
 
 function Rotation(σ::Op, W::AbstractMatrix, t::Num)
     tt = _time_or_throw(t)
-    n = _nlevel_or_throw(σ, W)
-    coefficients = _exact_unitary_or_throw(_coefficient_matrix(W, n))
-    U = _static_transform(
-        _matrix_unit_rules(σ, coefficients),
-        _matrix_unit_rules(σ, _dagger_coefficients(coefficients)),
-    )
+    U, coefficients = _nlevel_rotation(σ, W)
     return _timed_transform(U, _nlevel_gauge(σ, coefficients, tt), tt)
 end

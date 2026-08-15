@@ -234,26 +234,41 @@ end
     return false
 end
 
-@noinline function _validate_phase_substitutions(c::Coeff, d)
+const _EMPTY_PHASE_SUBSTITUTIONS = Pair{Any, Any}[]
+
+function _nonreal_phase_substitutions(d)
+    isempty(d) && return _EMPTY_PHASE_SUBSTITUTIONS
+    rules = Pair{Any, Any}[]
+    for (from, to) in d
+        _provably_real_replacement(to) && continue
+        (from isa Num || from isa SymbolicUtils.BasicSymbolic) || continue
+        push!(rules, SymbolicUtils.unwrap(from) => to)
+    end
+    return rules
+end
+
+@noinline function _validate_phase_substitutions(
+        c::Coeff, phase_rules::Vector{Pair{Any, Any}},
+    )
+    isempty(phase_rules) && return
     tail = c.tail
     tail isa Poly || return
     for monomial in tail.terms, symbol in monomial.syms
         _is_phase(symbol) || continue
         argument = only(SymbolicUtils.arguments(symbol))
-        for (from, to) in d
-            _provably_real_replacement(to) && continue
-            (from isa Num || from isa SymbolicUtils.BasicSymbolic) || continue
-            _raw_depends_on(argument, SymbolicUtils.unwrap(from)) &&
-                _nonreal_phase_argument(to)
+        for (from, to) in phase_rules
+            _raw_depends_on(argument, from) && _nonreal_phase_argument(to)
         end
     end
     return
 end
 
-function _substitute_cnum(c::CNum, d)::Coeff
+function _substitute_cnum(
+        c::CNum, d, phase_rules::Vector{Pair{Any, Any}} = _nonreal_phase_substitutions(d),
+    )::Coeff
     isempty(d) && return c
     _is_native(c) && return c
-    _validate_phase_substitutions(c, d)
+    _validate_phase_substitutions(c, phase_rules)
     materialized = to_num(c)
     rep, imp = real(materialized), imag(materialized)
     new_rep = SymbolicUtils.substitute(Symbolics.value(rep), d)

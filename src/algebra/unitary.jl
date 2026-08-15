@@ -55,12 +55,12 @@ function _site_generators(o::Op)
     if _is_fock(o)
         d = _lowering(o)
         return Op[d, adjoint(d)]
-    elseif o.kind === OP_PAULI || o.kind === OP_SPIN
+    elseif is_pauli(o) || is_spin(o)
         return Op[
             Op(o.kind, o.name_id, o.space_index, o.index, Int32(axis), 0, 0, 0)
                 for axis in 1:3
         ]
-    elseif o.kind === OP_TRANSITION
+    elseif is_transition(o)
         n = Int(o.nlev)
         return Op[
             Op(OP_TRANSITION, o.name_id, o.space_index, o.index, Int32(i), Int32(j), o.g, o.nlev)
@@ -99,8 +99,9 @@ function _validate_complete(sites::Vector{SiteInfo})
             end
             continue
         end
+        available = Set(site.generators)
         for generator in expected
-            any(g -> isequal(g, generator), site.generators) || _unitary_error(
+            generator in available || _unitary_error(
                 "incomplete rule set: `$first_generator` is covered but `$generator` is not",
             )
         end
@@ -183,15 +184,6 @@ function _reduce_params(q::QAdd, relations::Vector{ParamRelation}, gated::Bool)
     isempty(relations) && return q
     scratch = ParamRelation[]
     return _map_coefficients(c -> _reduce_all(c, relations, gated, scratch), q)
-end
-
-function _scale_qadd(c::CNum, q::QAdd)
-    _iszero_cnum(c) && return _zero_qadd()
-    out = QTermDict()
-    for (term, coefficient) in q
-        _addto_key!(out, _copy_key(term), _mul_cnum(coefficient, c))
-    end
-    return QAdd(out, copy(q.indices))
 end
 
 """
@@ -544,6 +536,6 @@ _hyp_rel(r::Real) = ParamRelation(cosh(r), sinh(r), 1)
 _dt(c::CNum, t::Num) = Symbolics.derivative(c, t)
 _dt(x::Coefficient, t::Num) = _dt(_to_cnum(x), t)
 
-_gauge(generator::QAdd, θ::Real, t::Num) = _scale_qadd(_neg_cnum(_dt(θ, t)), generator)
+_gauge(generator::QAdd, θ::Real, t::Num) = generator * _neg_cnum(_dt(θ, t))
 
 include("unitary_constructors.jl")
