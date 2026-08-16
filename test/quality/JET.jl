@@ -5,12 +5,17 @@ using QuantumOpticsBase: FockBasis, NLevelBasis, SpinBasis, basisstate
 
 _report_text(report) = sprint(show, MIME("text/plain"), report)
 
+# Collected rather than asserted one by one so the failure can name the offender: a bare
+# `@test any(occursin, allowed)` prints only the predicate.
+_unmatched(report, allowed::Vector{String}) = filter(
+    text -> !any(needle -> occursin(needle, text), allowed),
+    map(_report_text, JET.get_reports(report)),
+)
+
 function _test_allowed_only(report, allowed::Vector{String})
-    reports = JET.get_reports(report)
-    for rep in reports
-        text = _report_text(rep)
-        @test any(needle -> occursin(needle, text), allowed)
-    end
+    left = _unmatched(report, allowed)
+    isempty(left) || @info "unmatched JET reports" left
+    @test isempty(left)
     return
 end
 
@@ -28,7 +33,22 @@ end
             target_modules = (SecondQuantizedAlgebra,),
             ignore_missing_comparison = true,
         )
-        @test isempty(JET.get_reports(result))
+        # `Symbolics` defines `Num` only for the `SymReal` variant, so every
+        # `Num(x::BasicSymbolic)` reads as a possible `MethodError` on the `TreeReal` arm.
+        # Nothing here produces one: `unwrap(r)`, `unwrap(cosh(r))` and `unwrap(ω*t)` are all
+        # `SymReal`. Narrowing the callees only relocates the report, since the widening
+        # starts at `_recognize(::BasicSymbolic)`, and `Symbolics.wrap` infers `Any`. Spelled
+        # out in full so a SymbolicUtils rename re-fires the gate — both renderings, since
+        # JET qualifies the type parameter only when the running session lacks the binding.
+        _test_allowed_only(
+            result,
+            [
+                "Num(::SymbolicUtils.BasicSymbolicImpl.var\"typeof(BasicSymbolicImpl)\"" *
+                    "{SymbolicUtils.TreeReal})",
+                "Num(::SymbolicUtils.BasicSymbolicImpl.var\"typeof(BasicSymbolicImpl)\"" *
+                    "{TreeReal})",
+            ],
+        )
     end
 
     @testset "JET report_call on entry points (no errors)" begin
@@ -48,6 +68,9 @@ end
 
         hjc = FockSpace(:f) ⊗ NLevelSpace(:atom, 2)
         ajc = Destroy(hjc, :a, 1); σjc = Transition(hjc, :σ, 1, 2, 2); σjc_p = Transition(hjc, :σ, 2, 1, 2)
+        @variables θ::Real ω::Real t::Real
+        U = Rotation(a, θ)
+        Ut = Rotation(a, ω * t, t)
 
         for (name, expr) in [
                 # Per-family binary products
@@ -82,6 +105,35 @@ end
                 # MutableArithmetics additive reductions
                 ("sum([a'*a, a*a', a'*a])", () -> sum([ad * a, a * ad, ad * a])),
                 ("reduce(+, [a'*a, a*a', a'*a])", () -> reduce(+, [ad * a, a * ad, ad * a])),
+                # Exact unitary-transform public entry points.
+                ("Rotation(a, θ)", () -> Rotation(a, θ)),
+                ("conjugate(a, U)", () -> conjugate(a, U)),
+                ("transform(a'*a, Ut)", () -> transform(ad * a, Ut)),
+                ("inv(U)", () -> inv(U)),
+                ("U * Ut", () -> U * Ut),
+                (
+                    "exponential_form(cos(ω*t)*a)",
+                    () -> SecondQuantizedAlgebra.exponential_form(cos(ω * t) * a),
+                ),
+                (
+                    "trigonometric_form(expim(ω*t)*a)",
+                    () -> SecondQuantizedAlgebra.trigonometric_form(
+                        SecondQuantizedAlgebra.expim(ω * t) * a,
+                    ),
+                ),
+                (
+                    "expim(ω*t) * expim(θ)",
+                    () -> SecondQuantizedAlgebra.expim(ω * t) *
+                        SecondQuantizedAlgebra.expim(θ),
+                ),
+                (
+                    "substitute(expim(ω*t), Dict(ω=>θ))",
+                    () -> substitute(
+                        SecondQuantizedAlgebra.expim(ω * t), Dict(ω => θ),
+                    ),
+                ),
+                ("real(expim(θ))", () -> real(SecondQuantizedAlgebra.expim(θ))),
+                ("abs2(expim(θ))", () -> abs2(SecondQuantizedAlgebra.expim(θ))),
             ]
             rep = JET.@report_call target_modules = (SecondQuantizedAlgebra,) ignore_missing_comparison = true expr()
             @testset "$name" begin
@@ -164,11 +216,41 @@ end
             "SecondQuantizedAlgebra._conj_atom(",
             ".val::Any",
         ]
+        # (a2) The same `::Any` boundary further downstream. `BasicSymbolic` is a UnionAll, so
+        #     `operation`/`arguments` on one return `Any` and every call after that inherits
+        #     it. Two cold walks reach it: `qadjoint(::Num)` unwraps to the field before its
+        #     phase and sign arms run, and the trig discovery in `reduce.jl` iterates
+        #     `Monomial.syms`, whose eltype is that same UnionAll. Neither is fixable here:
+        #     the type is already lost at the caller, and the eltype is SymbolicUtils' choice.
+        allowed_symbolic_walk_reports = [
+            "BasicSymbolicImpl)\"{T} where T)",
+            "operation(",   # the two SymbolicUtils accessors that start the widening
+            "arguments(",
+            "SecondQuantizedAlgebra._strip_conj(",
+            "SecondQuantizedAlgebra.only(",
+            "SecondQuantizedAlgebra._expim(",
+            "SecondQuantizedAlgebra.sign(",
+            "SecondQuantizedAlgebra.exp(",
+            "SecondQuantizedAlgebra.:!(",
+            "SecondQuantizedAlgebra.:<",
+            "SecondQuantizedAlgebra.:-(",
+            "SecondQuantizedAlgebra._unary_arg(",
+            "SecondQuantizedAlgebra._find_partner(",
+            "SecondQuantizedAlgebra._TrigHead(",
+            "SecondQuantizedAlgebra.length(",
+            "SecondQuantizedAlgebra.isequal(",
+            "Dict{SecondQuantizedAlgebra._TrigKey",
+            "Dict{Symbolics.Num, Symbolics.Num}",
+            "unwrap(",
+            ")[1]::Any",
+            "SecondQuantizedAlgebra.Num(",
+            "SecondQuantizedAlgebra.ParamRelation(",
+        ]
         # (b) `undo_average` rebuilds a QAdd from a Symbolics `average` node, reading
         #     its `Any`-typed arguments/metadata (`_average`, `_to_qadd`) and folding
         #     the rebuilt terms through generic iteration.
         allowed_hotpath_reports = vcat(
-            allowed_coeff_reports, [
+            allowed_coeff_reports, allowed_symbolic_walk_reports, [
                 "SecondQuantizedAlgebra._average(",
                 "SecondQuantizedAlgebra._to_qadd(",
                 "SecondQuantizedAlgebra.iszero(",

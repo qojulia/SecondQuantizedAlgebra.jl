@@ -4,7 +4,7 @@ using LaTeXStrings
 using Symbolics: @variables
 using Test
 import SecondQuantizedAlgebra: simplify, QAdd, QSym, _single_qadd, _zero_qadd, _to_cnum,
-    transition_superscript, make_time_dependent
+    transition_superscript, make_time_dependent, expim, trigonometric_form
 
 @testset "Rendering" begin
     h = FockSpace(:cavity)
@@ -77,6 +77,44 @@ import SecondQuantizedAlgebra: simplify, QAdd, QSym, _single_qadd, _zero_qadd, _
             for (input, out) in cases
                 @test repr(input) == out
             end
+        end
+
+        @testset "Unitary transforms" begin
+            @variables θ t
+            static = Rotation(a, θ)
+            @test repr(static) ==
+                "UnitaryTransform(a ↦ exp(-im*θ) * a, a' ↦ exp(im*θ) * a')"
+            @test repr("text/plain", static) ==
+                "UnitaryTransform with 2 rules:\n" *
+                "  a ↦ exp(-im*θ) * a\n" *
+                "  a' ↦ exp(im*θ) * a'"
+
+            # `:limit` is the display context used by the REPL. Large transforms
+            # are summarized rather than showing an arbitrary prefix of their rules.
+            levels = NLevelSpace(:levels, 3)
+            σ12 = Transition(levels, :σ, 1, 2)
+            large = Rotation(σ12, [1 0 0; 0 1 0; 0 0 1])
+            limited = sprint(show, large; context = :limit => true)
+            @test limited == "UnitaryTransform(9 rules)"
+            limited_plain = sprint(show, MIME("text/plain"), large; context = :limit => true)
+            @test limited_plain == "UnitaryTransform with 9 rules"
+            @test !occursin("more", repr(large))
+
+            moving = Rotation(a, θ * t, t)
+            @test repr(moving) ==
+                "UnitaryTransform(a ↦ exp(-im*t*θ) * a, a' ↦ exp(im*t*θ) * a'; time = t, gauge = -θ * a' * a)"
+            @test repr("text/plain", moving) ==
+                "Time-dependent UnitaryTransform in t with 2 rules:\n" *
+                "  a ↦ exp(-im*t*θ) * a\n" *
+                "  a' ↦ exp(im*t*θ) * a'\n\n" *
+                "Gauge:\n" *
+                "  -θ * a' * a"
+
+            # Time metadata is meaningful even when the selected parameter is constant
+            # and therefore produces a zero gauge.
+            constant_timed = Rotation(a, θ, t)
+            @test repr(constant_timed) ==
+                "UnitaryTransform(a ↦ exp(-im*θ) * a, a' ↦ exp(im*θ) * a'; time = t)"
         end
 
         @testset "Simplify display" begin
@@ -191,8 +229,11 @@ import SecondQuantizedAlgebra: simplify, QAdd, QSym, _single_qadd, _zero_qadd, _
 
             @test isless(typeof(b' * b), typeof(σ)) isa Bool
             @test isless(typeof(b' * b), typeof(σ)) == !isless(typeof(σ), typeof(b' * b))
-            @test repr(average(b' * b) + average(σ) + average(b)) ==
-                "⟨b⟩ + ⟨σ₂₂⟩ + ⟨b' * b⟩"
+            rendered = repr(average(b' * b) + average(σ) + average(b))
+            @test all(
+                occursin(term, rendered) for
+                    term in ("⟨b⟩", "⟨σ₂₂⟩", "⟨b' * b⟩")
+            )
         end
 
         @testset "Lifted (time-dependent) averages" begin
@@ -277,6 +318,21 @@ import SecondQuantizedAlgebra: simplify, QAdd, QSym, _single_qadd, _zero_qadd, _
         @test !occursin("+ -", s)
     end
 
+    @testset "explicit phase display" begin
+        @variables θ g
+        phase_cos = (expim(θ) + expim(-θ)) * a
+        phase_sin = -im * (expim(θ) - expim(-θ)) * a
+        grouped = g * (expim(θ) + expim(-θ)) * a
+        @test count("exp(", string(phase_cos)) == 2
+        @test count("exp(", string(phase_sin)) == 2
+        @test count("exp(", string(grouped)) == 2
+        @test !occursin("cos", string(phase_cos))
+        @test !occursin("sin", string(phase_sin))
+        @test !occursin("cos", string(latexify(phase_cos)))
+        @test string(trigonometric_form(phase_cos)) == "2cos(θ) * a"
+        @test occursin("cos", string(latexify(trigonometric_form(phase_cos))))
+    end
+
     @testset "_show_prefactor pure-imag and mixed branches" begin
         h = FockSpace(:f)
         a = Destroy(h, :a)
@@ -302,6 +358,32 @@ import SecondQuantizedAlgebra: simplify, QAdd, QSym, _single_qadd, _zero_qadd, _
         @test occursin("x", s_mixed)
         @test occursin("y", s_mixed)
         @test occursin("im", s_mixed)
+    end
+
+    @testset "_show_prefactor braces composite parts" begin
+        # A composite part must be parenthesized, or the `im` suffix binds to its last
+        # factor only: `x + yim * a` reads as `x + y*im*a`. Anchored patterns, so the
+        # summand order Symbolics picks does not matter.
+        h = FockSpace(:f)
+        a = Destroy(h, :a)
+        @variables x y g
+
+        @test occursin(r"^\(.+\)im \* a$", string((im * (x + y)) * a))
+        @test occursin(r"^\(.+\)im \* a$", string((im * (x / y)) * a))
+        # The `im` suffix is juxtaposition, so every call has to be braced, not just the
+        # loose heads: `x^2im` reads as `x^(2im)`, `x*yim` merges into an identifier, and
+        # `sqrt(x)im` is a syntax error.
+        @test string((im * x^2) * a) == "(x^2)im * a"
+        @test occursin(r"^\(.+\)im \* a$", string((im * x * y) * a))
+        @test occursin(r"^\(.+\)im \* a$", string((im * sqrt(x)) * a))
+        @test occursin(r"^\(g \+ \(x\^2\)im\) \* a$", string((g + im * x^2) * a))
+        @test occursin(r"^\(\(.+\) \+ gim\) \* a$", string(((x + y) + im * g) * a))
+        @test occursin(r"^\(g \+ \(.+\)im\) \* a$", string((g + im * (x + y)) * a))
+        @test occursin(r"^\(\(.+\) \+ \(.+\)im\) \* a$", string(((x + y) + im * (x - y)) * a))
+        @test string((im * x) * a) == "xim * a"
+        @test occursin(r"^\(.+\) \* a$", string((x + y) * a))
+        @test occursin(r"^\(.+\) \* a$", string((x / y) * a))
+        @test string(_single_qadd(_to_cnum(x + y), SecondQuantizedAlgebra.Op[])) == string(x + y)
     end
 
     @testset "LaTeX (latexify)" begin

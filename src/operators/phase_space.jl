@@ -5,6 +5,11 @@ Hilbert space for position and momentum quadratures. Hosts [`Position`](@ref)
 and [`Momentum`](@ref) operators satisfying ``[p, x] = -i``; arithmetic
 canonicalizes products to place position left of momentum.
 
+One `PhaseSpace` is one degree of freedom: it carries a single canonical pair, and the
+quadrature names are labels on that pair rather than part of its identity. A second
+`Position` under another name denotes the same observable, so several modes need several
+spaces combined with [`⊗`](@ref).
+
 # Examples
 
 ```jldoctest

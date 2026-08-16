@@ -27,6 +27,7 @@ include("operators/phase_space.jl")
 include("operators/operators.jl")
 include("expressions/monomial.jl")
 include("expressions/cnum.jl")
+include("expressions/reduce.jl")
 include("expressions/qterm.jl")
 include("expressions/qadd.jl")
 
@@ -38,6 +39,7 @@ include("expressions/index.jl")
 include("algebra/algebra.jl")
 include("algebra/mutable_arithmetics.jl")
 include("algebra/weyl.jl")
+include("algebra/unitary.jl")
 
 include("average.jl")
 
@@ -108,6 +110,8 @@ export FockSpace, ProductSpace,
     prefactor, operators,
     substitute,
     normal_order, normal_to_symmetric, symmetric_to_normal,
+    UnitaryTransform, Displace, Rotation, Squeeze,
+    transform, conjugate, gauge_term, generators,
     simplify, expand, expand_completeness, assume_distinct_index, commutator, anticommutator,
     to_numeric, numeric_average,
     NumericBackend, QuantumOpticsBackend, QuantumToolboxBackend,
@@ -130,7 +134,8 @@ export FockSpace, ProductSpace,
     has_sum_metadata, get_sum_indices, get_sum_non_equal, get_sum_body, indexed_sum,
     set_acts_on, rename,
     transition_superscript, constraint_pairs,
-    to_num, order_key, term_order_key, qadd_order_key
+    to_num, order_key, term_order_key, qadd_order_key,
+    expim, exponential_form, trigonometric_form
 
 include("precompile.jl")
 

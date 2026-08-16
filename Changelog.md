@@ -6,6 +6,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [v0.10.1]
+
+### Added
+
+- Exact named unitary transformations for Fock, phase-space, spin/Pauli, and ordinary N-level operators, with `conjugate`, time-aware `transform`, inversion, composition, and analytically derived gauges.
+- `expim(x)` provides a canonical exact unit-phase algebra: products and integer powers add their real arguments, inverse phases cancel, and substitution, differentiation, projections, and explicit exponential/trigonometric conversion preserve the phase representation.
+- Coefficient simplification reduces exact trigonometric and hyperbolic identities, including supported composite arguments and higher powers.
+- A unitary-transformation guide and resonator-rotation example show how to prepare an exact moving-frame Hamiltonian for a later Floquet expansion.
+
+
 ## [v0.10.0]
 
 Numeric conversion (`to_numeric`/`numeric_average`/`expect`) was redesigned to be extensible, type-stable, and multi-backend. This is a breaking release.
@@ -334,4 +344,5 @@ These names keep their meaning across the migration. Code that only uses them sh
 [v0.9.3]: https://github.com/qojulia/SecondQuantizedAlgebra.jl/releases/tag/v0.9.3
 [v0.9.4]: https://github.com/qojulia/SecondQuantizedAlgebra.jl/releases/tag/v0.9.4
 [v0.10.0]: https://github.com/qojulia/SecondQuantizedAlgebra.jl/releases/tag/v0.10.0
+[v0.10.1]: https://github.com/qojulia/SecondQuantizedAlgebra.jl/releases/tag/v0.10.1
 [#156]: https://github.com/qojulia/SecondQuantizedAlgebra.jl/issues/156

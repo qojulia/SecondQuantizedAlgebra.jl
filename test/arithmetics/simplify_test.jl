@@ -1,6 +1,7 @@
 using SecondQuantizedAlgebra
 using SymbolicUtils: SymbolicUtils
 using Symbolics: Symbolics, @variables
+using Random: MersenneTwister
 using Test
 import SecondQuantizedAlgebra: simplify, QAdd, QSym, QField, sorted_arguments, _single_qadd, _to_cnum
 
@@ -461,6 +462,20 @@ import SecondQuantizedAlgebra: simplify, QAdd, QSym, QField, sorted_arguments, _
         b3 = Destroy(h3, :c, 3)
         no = normal_order(b1 * b1' * b2 * b2' * b3 * b3')
         @test isequal(symmetric_to_normal(normal_to_symmetric(no)), no)
+    end
+
+    @testset "Roundtrip: random two-mode words" begin
+        # The round trips above are hand-picked words. Weyl ordering rewrites every term of
+        # a length-`n` word into `2^n`-ish symmetrized pieces, so the cancellation that makes
+        # it invertible is exactly what a generated corpus is good at probing.
+        h2 = FockSpace(:f1) ⊗ FockSpace(:f2)
+        f1, f2 = Destroy(h2, :f1, 1), Destroy(h2, :f2, 2)
+        pool = [f1, f1', f2, f2']
+        rng = MersenneTwister(3)
+        for _ in 1:200
+            A = prod(rand(rng, pool, rand(rng, 1:4)))
+            @test iszero(symmetric_to_normal(normal_to_symmetric(A)) - A)
+        end
     end
 
     @testset "Roundtrip: Jaynes-Cummings (Fock + NLevel)" begin

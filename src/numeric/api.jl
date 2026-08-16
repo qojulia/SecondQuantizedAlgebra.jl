@@ -187,6 +187,8 @@ function _numeric_average(avg::SymbolicUtils.BasicSymbolic, state, d::AbstractDi
     f === (^) && return _to_complex(_numeric_average(args[1], state, d))^_to_complex(args[2])
     f === (+) && return _sum_avg(args, state, d)
     f === (*) && return _prod_avg(args, state, d)
+    # A phase is a c-number, so it evaluates rather than averaging over the state.
+    f === expim && return exp(im * _to_complex(_numeric_average(only(args), state, d)))
     throw(ArgumentError("numeric_average not implemented for operation $f"))
 end
 

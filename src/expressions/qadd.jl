@@ -108,9 +108,10 @@ function Base.isone(q::QAdd)
     length(q.arguments) == 1 || return false
     (term, c) = first(q.arguments)
     isempty(term.ops) || return false
-    _iszero_num(imag(c)) || return false
-    v = SymbolicUtils.unwrap(real(c))
-    return (v isa Number && isone(v)) || isequal(real(c), _NUM_ONE)
+    re, im = _realimag(c)
+    _iszero_num(im) || return false
+    v = SymbolicUtils.unwrap(re)
+    return (v isa Number && isone(v)) || isequal(re, _NUM_ONE)
 end
 
 # `indices` is a multiset of bound sum indices (`Σ_iΣ_j ≡ Σ_jΣ_i`); compare/hash it
@@ -197,7 +198,12 @@ function sorted_arguments(q::QAdd)
     return QAdd[_single_qadd(c, term.ops, term.ne) for (term, c) in pairs]
 end
 
-_full_op_key(op::QSym) = (_sort_key(op)..., _type_order(op), _name_rank(op.name_id))
+# Total: without the packed level/axis fields two axes of one spin triple (or two levels of
+# one transition set) tie, and the display order falls back to dict iteration order.
+_full_op_key(op::QSym) = (
+    _sort_key(op)..., _type_order(op), _name_rank(op.name_id),
+    Int(op.l1), Int(op.l2), Int(op.g), Int(op.nlev),
+)
 
 """
     term_order_key(t::QTerm) -> Tuple
@@ -223,7 +229,10 @@ end
 Base.isless(a::QAdd, b::QAdd) = isless(qadd_order_key(a), qadd_order_key(b))
 Base.isless(a::Type{<:QField}, b::Type{<:QField}) = isless(nameof(a), nameof(b))
 
-_coeff_key(c::CNum) = (string(real(c)), string(imag(c)))
+function _coeff_key(c::CNum)
+    re, im = _realimag(c)
+    return (string(re), string(im))
+end
 
 """
     Base.getindex(q::QAdd, key::AbstractVector{<:QSym}) -> Complex{Num}

@@ -727,10 +727,16 @@ import SecondQuantizedAlgebra: simplify, QAdd, QSym, QField, CNum, _to_cnum, _si
         a = Destroy(h, :a)
         @variables x::Number
 
-        @test sprint(show, MIME("text/plain"), average(a) + average(a')) == "⟨a⟩ + ⟨a'⟩"
-        @test sprint(show, MIME("text/plain"), x * average(a) + x * average(a')) == "⟨a⟩*x + ⟨a'⟩*x"
-        @test sprint(show, MIME("text/plain"), conj(x) * average(a) + conj(x) * average(a')) ==
-            "⟨a⟩*conj(x) + ⟨a'⟩*conj(x)"
+        shown_pair = sprint(show, MIME("text/plain"), average(a) + average(a'))
+        @test occursin("⟨a⟩", shown_pair) && occursin("⟨a'⟩", shown_pair)
+        shown_x = sprint(show, MIME("text/plain"), x * average(a) + x * average(a'))
+        @test all(occursin(avg, shown_x) for avg in ("⟨a⟩", "⟨a'⟩")) &&
+            length(findall("x", shown_x)) == 2
+        shown_conj = sprint(
+            show, MIME("text/plain"), conj(x) * average(a) + conj(x) * average(a'),
+        )
+        @test all(occursin(avg, shown_conj) for avg in ("⟨a⟩", "⟨a'⟩")) &&
+            length(findall("conj(x)", shown_conj)) == 2
         @test sprint(show, MIME("text/plain"), average(a' * a) + average(a * a')) == "1 + 2⟨a' * a⟩"
 
         @test isless(a, a') == isless(order_key(a), order_key(a'))

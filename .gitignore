@@ -27,6 +27,10 @@ Manifest*.toml
 benchmarks_output.json
 .vscode/settings.json
 
+# Local test-runner output; contains host-specific absolute paths
+test-run.log
+
 *.claude
 # Generated on doc build from the root Changelog.md
 docs/src/changelog.md
+.github/issue-drafts/

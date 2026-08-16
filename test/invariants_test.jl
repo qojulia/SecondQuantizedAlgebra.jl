@@ -141,6 +141,28 @@ end
         ),
         ("double pin (i pinned twice)", () -> Σ(g(i) * σ(1, 2, i) * σ(2, 1, i), i) * σ(2, 1, j) * σ(1, 2, k)),
         ("anticommutator on sums", () -> anticommutator(Σ(bi, iF), Σ(bj_dag, jF))),
+        # ----- Unitary transforms: `conjugate`/`transform` build a `QAdd` term by term, so
+        # they owe the same index-scope and no-zero-coefficient invariants as everything else.
+        ("conjugate under Displace", () -> conjugate(b' * b, Displace(b, Δ))),
+        ("conjugate under Squeeze", () -> conjugate(b' * b, Squeeze(b, κ))),
+        (
+            "transform under a timed resonator rotation", () -> begin
+                @variables tt
+                transform(Δ * b' * b + κ * (b + b'), Rotation(b, Δ * tt, tt))
+            end
+        ),
+        (
+            "gauge term of a moving squeeze", () -> begin
+                @variables tt
+                gauge_term(Squeeze(b, κ * tt, Δ * tt, tt))
+            end
+        ),
+        (
+            "conjugate then invert round-trips", () -> begin
+                U = Rotation(b, Δ) * Squeeze(b, κ)
+                conjugate(conjugate(b' * b, U), inv(U))
+            end,
+        ),
         # ----- Operations the original corpus did not exercise -----
         ("expand_completeness on Σ", () -> expand_completeness(Σ(σ(1, 1, i) * a, i))),
         ("adjoint of Σ-product", () -> (Σ(g(i) * σ(1, 2, i), i) * σ(2, 1, j))'),

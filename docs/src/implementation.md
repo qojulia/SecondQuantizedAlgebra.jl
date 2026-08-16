@@ -132,6 +132,9 @@ conj(η)
 
 Use `::Number` for a complex parameter you want kept atomic (e.g. a coupling amplitude); use `::Complex` when you want the parameter decomposed into independent real and imaginary unknowns. `::Number` keeps coefficient arithmetic on a single symbol, while `::Complex` carries both parts through every product.
 
+See [Symbolic Coefficients and Phases](symbolic_coefficients.md) for exact unit phases,
+explicit exponential/trigonometric conversion, and automatic coefficient identities.
+
 ## Algebraic expressions and commutation relations
 
 All operator expressions are stored as [`QAdd`](@ref), a dictionary mapping operator sequences to prefactors. Commutation rules are applied **eagerly** at construction time: every `*` immediately normal-orders the result, applies algebraic identities (Transition composition, Pauli products), and expands ground-state completeness. The dict key always reflects the canonical form.

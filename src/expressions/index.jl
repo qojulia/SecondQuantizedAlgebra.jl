@@ -115,9 +115,9 @@ function change_index(x::Num, from::Index, to::Index)
 end
 function change_index(x::CNum, from::Index, to::Index)
     _is_native(x) && return x
-    c = to_num(x)
-    re = change_index(real(c), from, to)
-    im = change_index(imag(c), from, to)
+    raw_re, raw_im = _realimag(x)
+    re = change_index(raw_re, from, to)
+    im = change_index(raw_im, from, to)
     # A rename keeps a symbolic tail symbolic; only a Poly may need re-interning.
     _is_poly(x) && return _cnum(re, im)
     return _cnum_sym(re, im)
@@ -183,9 +183,9 @@ function change_index(x::Num, pairs::AbstractDict{Index, Index})
 end
 function change_index(x::CNum, pairs::AbstractDict{Index, Index})
     _is_native(x) && return x
-    c = to_num(x)
-    re = change_index(real(c), pairs)
-    im = change_index(imag(c), pairs)
+    raw_re, raw_im = _realimag(x)
+    re = change_index(raw_re, pairs)
+    im = change_index(raw_im, pairs)
     _is_poly(x) && return _cnum(re, im)
     return _cnum_sym(re, im)
 end
@@ -306,7 +306,7 @@ function _depends_on_index_term(c::CNum, ops::Vector{Op}, idx::Index)
         end
         return false
     end
-    for part in (real(c), imag(c))
+    for part in _realimag(c)
         vars = Symbolics.get_variables(part)
         any(v -> isequal(v, isym), vars) && return true
     end

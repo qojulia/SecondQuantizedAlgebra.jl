@@ -174,8 +174,9 @@ end
 
 function _apply_scalar_subs(c::CNum, sub_re::Dict, sub_im::Dict, has_imag::Bool)
     (isempty(sub_re) || _is_native(c)) && return c
-    re_part = SymbolicUtils.unwrap(real(c))
-    im_part = SymbolicUtils.unwrap(imag(c))
+    re, im = _realimag(c)
+    re_part = SymbolicUtils.unwrap(re)
+    im_part = SymbolicUtils.unwrap(im)
     if !has_imag
         return _cnum(
             Num(Symbolics.substitute(re_part, sub_re)),
@@ -236,6 +237,8 @@ function _fold_const(x)::ComplexF64
             elseif op === (-)
                 return length(args) == 1 ? -_fold_const(first(args)) :
                     _fold_const(first(args)) - _fold_const(last(args))
+            elseif op === expim
+                return exp(im * _fold_const(only(args)))
             end
         elseif SymbolicUtils.isconst(x)
             return x.val

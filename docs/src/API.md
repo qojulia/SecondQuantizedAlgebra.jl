@@ -140,10 +140,24 @@ is_position
 is_momentum
 ```
 
-### Internal representation
+## [Symbolic Coefficients](@id API: Coefficients)
 
 ```@docs
 Coeff
+```
+
+### Unit phases and representation conversion
+
+```@docs
+expim
+```
+
+```@docs
+exponential_form
+```
+
+```@docs
+trigonometric_form
 ```
 
 ## [Algebra](@id API: Algebra)
@@ -190,6 +204,41 @@ qadjoint
 
 ```@docs
 inner_adjoint
+```
+
+
+## [Unitary Transformations](@id API: Unitary)
+
+```@docs
+UnitaryTransform
+```
+
+```@docs
+conjugate
+```
+
+```@docs
+transform
+```
+
+```@docs
+Displace
+```
+
+```@docs
+Rotation
+```
+
+```@docs
+Squeeze
+```
+
+```@docs
+gauge_term
+```
+
+```@docs
+generators
 ```
 
 
