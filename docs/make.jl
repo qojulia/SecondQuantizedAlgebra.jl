@@ -44,7 +44,8 @@ makedocs(;
     sitename = "SecondQuantizedAlgebra.jl",
     modules = SecondQuantizedAlgebra,
     format = Documenter.HTML(;
-        canonical = "https://qojulia.github.io/SecondQuantizedAlgebra.jl"
+        canonical = "https://qojulia.github.io/SecondQuantizedAlgebra.jl",
+        assets = [asset("assets/favicon.png", class = :ico, islocal = true)],
     ),
     pages = pages,
     clean = true,
