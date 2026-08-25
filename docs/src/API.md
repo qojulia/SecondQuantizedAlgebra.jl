@@ -189,7 +189,7 @@ qadjoint
 ```
 
 ```@docs
-QuantumInterface.dagger(::QField)
+dagger(::QField)
 ```
 
 ```@docs
