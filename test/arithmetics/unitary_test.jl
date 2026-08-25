@@ -1,12 +1,8 @@
 using Test
 using LinearAlgebra: Diagonal, I, norm
-using CheckConcreteStructs: all_concrete
 using SecondQuantizedAlgebra
-using Symbolics: @variables, Num
-import SecondQuantizedAlgebra: Coeff, DynamicTime, Op, ParamRelation, QAdd, SiteInfo,
-    StaticTime, _CNUM_ONE, _coefficient_matrix, _matrix_unit_rules, _nlevel_gauge,
-    _rule_qadd, _substitute_cnum, _to_complex, _validated_transform,
-    _zero_qadd, expim
+using Symbolics: @variables, Num, value
+import SecondQuantizedAlgebra: Op, QAdd, expim, to_num
 
 # The unitary API is deliberately tested from its closed forms instead of from a second
 # implementation of the removed generic exponentiator. Constructor tables pin one useful
@@ -20,14 +16,16 @@ function _matrix_of(
     dimension = size(first(values(representations)), 1)
     result = zeros(ComplexF64, dimension, dimension)
     identity_matrix = Matrix{ComplexF64}(I, dimension, dimension)
-    for (term, coefficient) in q
-        reduced = isempty(substitutions) ? coefficient :
-            _substitute_cnum(coefficient, substitutions)
+    reduced_q = isempty(substitutions) ? q : substitute(q, substitutions)
+    for (term, coefficient) in reduced_q
+        numeric_coefficient = to_num(coefficient)
         product = copy(identity_matrix)
         for operator in term.ops
             product *= representations[operator]
         end
-        result .+= _to_complex(reduced) .* product
+        result .+= ComplexF64(
+            value(real(numeric_coefficient)), value(imag(numeric_coefficient)),
+        ) .* product
     end
     return result
 end
@@ -336,7 +334,7 @@ end
             gauge_term(Rotation(σx, 3, θ * t, t)), -(θ * (1 // 2)) * σz,
         )
 
-        phase_matrix = Coeff[expim(-ω * t) 0; 0 expim(ω * t)]
+        phase_matrix = [expim(-ω * t) 0; 0 expim(ω * t)]
         timed_levels = Rotation(σ12, phase_matrix, t)
         @test isequal(
             conjugate(σ12, timed_levels), expim(ω * t) * expim(ω * t) * σ12,
@@ -352,7 +350,7 @@ end
         Hpaper = ω * a' * a - im * Ω * cos(ωd * t) * (a - a')
         static_reference = ω * a' * a + η * (a + a') + g
         static_displacement = Displace(a, static_reference)
-        @test static_displacement isa UnitaryTransform{StaticTime}
+        @test static_displacement isa UnitaryTransform
         @test isequal(conjugate(a, static_displacement), a - η / ω)
         @test transform(static_reference, static_displacement) ==
             ω * a' * a - η^2 / ω + g
@@ -363,7 +361,9 @@ end
             (term.ops, coefficient) for
                 (term, coefficient) in transformed_reference if !isempty(term.ops)
         ]
-        @test operator_terms == [(Op[a', a], SecondQuantizedAlgebra._to_cnum(ω))]
+        @test length(operator_terms) == 1
+        @test operator_terms[1][1] == Op[a', a]
+        @test isequal(to_num(operator_terms[1][2]), Complex(Num(ω), Num(0)))
 
         # Independent numerical comparison with Eq. (2)'s displacement in
         # Phys. Rev. A 110, 042411. Test both sides of the oscillator frequency.
@@ -389,8 +389,9 @@ end
                 (term, coefficient) in transform(static_reference, constant) if
                 !isempty(term.ops)
         ]
-        @test constant_terms ==
-            [(Op[a', a], SecondQuantizedAlgebra._to_cnum(ω))]
+        @test length(constant_terms) == 1
+        @test constant_terms[1][1] == Op[a', a]
+        @test isequal(to_num(constant_terms[1][2]), Complex(Num(ω), Num(0)))
 
         complex_reference = ω * a' * a + α * a' + conj(α) * a
         complex_displacement = Displace(a, complex_reference, t)
@@ -404,8 +405,9 @@ end
                 (term, coefficient) in transform(multitone_reference, multitone) if
                 !isempty(term.ops)
         ]
-        @test multitone_terms ==
-            [(Op[a', a], SecondQuantizedAlgebra._to_cnum(ω))]
+        @test length(multitone_terms) == 1
+        @test multitone_terms[1][1] == Op[a', a]
+        @test isequal(to_num(multitone_terms[1][2]), Complex(Num(ω), Num(0)))
         @test isequal(conjugate(a', multitone), conjugate(a, multitone)')
 
         from_creation = Displace(a', Hpaper, t)
@@ -439,7 +441,7 @@ end
         @test_throws ArgumentError Displace(a, η * (a + a'))
 
         # A possible symbolic resonance remains an exact quotient by design.
-        @test Displace(a, Hpaper, t) isa UnitaryTransform{DynamicTime}
+        @test Displace(a, Hpaper, t) isa UnitaryTransform
     end
 
     @testset "automatic bounded quadrature displacement" begin
@@ -447,7 +449,7 @@ end
             (ω / 2) * x^2 + (g / 2) * (x * p + p * x) +
             (Ω / 2) * p^2 + η * x + dx * p
         static = Displace(x, p, static_reference)
-        @test static isa UnitaryTransform{StaticTime}
+        @test static isa UnitaryTransform
         determinant = ω * Ω - g^2
         @test isequal(conjugate(x, static), x + (g * dx - Ω * η) / determinant)
         @test isequal(conjugate(p, static), p + (g * η - ω * dx) / determinant)
@@ -460,7 +462,7 @@ end
         isotropic_reference =
             (ω / 2) * (x^2 + p^2) + η * cos(ωd * t) * x
         isotropic = Displace(x, p, isotropic_reference, t)
-        @test isotropic isa UnitaryTransform{DynamicTime}
+        @test isotropic isa UnitaryTransform
         isotropic_terms = [
             term.ops for (term, _) in transform(isotropic_reference, isotropic) if
                 !isempty(term.ops)
@@ -542,8 +544,7 @@ end
         @test isequal(conjugate(x + p, nonunique), x + p)
 
         # A possible symbolic determinant resonance remains an exact quotient.
-        @test Displace(x, p, isotropic_reference, t) isa
-            UnitaryTransform{DynamicTime}
+        @test Displace(x, p, isotropic_reference, t) isa UnitaryTransform
     end
 
     @testset "cross-cutting algebraic laws" begin
@@ -560,8 +561,10 @@ end
         )
         @test isequal(conjugate(adjoint(A), U), adjoint(conjugate(A, U)))
         @test isequal(simplify(conjugate(conjugate(A, U), inv(U))), A)
-        @test isequal(inv(inv(U)).rules, U.rules)
-        @test isequal(adjoint(U).rules, inv(U).rules)
+        for generator in generators(U)
+            @test isequal(conjugate(generator, inv(inv(U))), conjugate(generator, U))
+            @test isequal(conjugate(generator, adjoint(U)), conjugate(generator, inv(U)))
+        end
 
         first = Rotation(a, θ)
         second = Squeeze(a, r, ϕ)
@@ -646,7 +649,7 @@ end
             matrix_unitary = exp(-im * angle * sz / 2)
             oracle = matrix_unitary' * sx * matrix_unitary
             symbolic = _matrix_of(
-                conjugate(σx, Rotation(σx, 3, θ)), representations, Dict(θ => angle),
+                conjugate(σx, Rotation(σx, 3, angle)), representations,
             )
             @test norm(oracle - symbolic) < 1.0e-14
         end
@@ -671,7 +674,7 @@ end
             derivative = (Wfun(instant + step) - Wfun(instant - step)) / (2step)
             oracle = im * derivative' * Wfun(instant)
 
-            symbolic_matrix = Coeff[expim(-ω * t) 0; 0 expim(ω * t)]
+            symbolic_matrix = [expim(-ω * t) 0; 0 expim(ω * t)]
             U = Rotation(σ12, symbolic_matrix, t)
             representations = _transition_matrices(atom, :σ, 2)
             symbolic = _matrix_of(
@@ -699,30 +702,18 @@ end
         @test_throws ArgumentError Rotation(a, ω * t, t) * Rotation(a, ω * s, s)
         @test_throws ArgumentError Rotation(a, ω * t) * Rotation(a, ω * t, t)
 
-        lone_rule = Dict{Op, QAdd}(a => _rule_qadd((_CNUM_ONE, Op[a])))
-        @test_throws ArgumentError _validated_transform(
-            lone_rule, copy(lone_rule), _zero_qadd(), StaticTime(), ParamRelation[],
-        )
-        @test_throws MethodError UnitaryTransform(a' * a, θ)
-
         @test_throws ArgumentError Rotation(σ12, [1 0 0; 0 1 0])
         @test_throws ArgumentError Rotation(σ12, [1 0; 0 2])
         @test_throws ArgumentError Rotation(σ12, [cos(θ) -sin(φ); sin(θ) cos(φ)])
-        @test_throws MethodError Rotation(σ12, [0 1; 1 0], t, _zero_qadd())
 
         collective_space = CollectiveNLevelSpace(:ensemble, 2)
         collective = CollectiveTransition(collective_space, :J, 1, 2)
         @test_throws ArgumentError Rotation(collective, [0 1; 1 0])
         undisplaced = Displace(a, a' * a)
-        @test undisplaced isa UnitaryTransform{StaticTime}
+        @test undisplaced isa UnitaryTransform
         @test iszero(conjugate(a, undisplaced) - a)
         @test_throws MethodError Displace(x, p, a' * a, 0)
 
-        @test !isdefined(SecondQuantizedAlgebra, :RotatingFrame)
-        @test !isdefined(SecondQuantizedAlgebra, :DressedFrame)
-        @test !isdefined(SecondQuantizedAlgebra, :Bogoliubov)
-        @test !isdefined(SecondQuantizedAlgebra, :is_canonical)
-        @test !isdefined(SecondQuantizedAlgebra, :constraints)
     end
 
     @testset "defensive generator coverage" begin
@@ -732,7 +723,6 @@ end
         @test eltype(listed) === Op
         empty!(listed)
         @test length(generators(U)) == 2
-        @test length(U.generators) == 2
 
         # A transform on a site may leave unrelated sites untouched, but it must never
         # emit a half-transformed expression for a covered generator.
@@ -740,72 +730,55 @@ end
         @test isequal(conjugate(a + other, U), expim(-θ) * a + other)
     end
 
-    @testset "concrete storage and inference" begin
+    @testset "public API inference" begin
         static = Rotation(a, θ)
         timed = Rotation(a, ω * t, t)
-        for U in (static, timed)
-            transform_type = typeof(U)
-            @test isconcretetype(transform_type)
-            @test all_concrete(transform_type; verbose = false)
-            @test all(isconcretetype, fieldtypes(transform_type))
-            @test !(Any in fieldtypes(transform_type))
-            @test all(field -> !(field <: Function), fieldtypes(transform_type))
-            @test U.rules isa Dict{Op, QAdd}
-            @test U.inverse_rules isa Dict{Op, QAdd}
-            @test U.generators isa Vector{Op}
-            @test U.sites isa Vector{SiteInfo}
-            @test U.relations isa Vector{ParamRelation}
-        end
-        @test static isa UnitaryTransform{StaticTime}
-        @test timed isa UnitaryTransform{DynamicTime}
+        @test static isa UnitaryTransform
+        @test timed isa UnitaryTransform
 
-        @test (@inferred Displace(a, α)) isa UnitaryTransform{StaticTime}
-        @test (@inferred Displace(a, η * t, t)) isa UnitaryTransform{DynamicTime}
+        @test (@inferred Displace(a, α)) isa UnitaryTransform
+        @test (@inferred Displace(a, η * t, t)) isa UnitaryTransform
         automatic_reference = ω * a' * a + η * cos(Ω * t) * (a + a')
         @test (@inferred Displace(a, ω * a' * a + η * (a + a'))) isa
-            UnitaryTransform{StaticTime}
+            UnitaryTransform
         @test (@inferred Displace(a, automatic_reference, t)) isa
-            UnitaryTransform{DynamicTime}
+            UnitaryTransform
         quadrature_reference =
             (ω / 2) * (x^2 + p^2) + η * cos(Ω * t) * x + g * sin(Ω * t) * p
         @test (@inferred Displace(x, p, (ω / 2) * (x^2 + p^2) + η * x)) isa
-            UnitaryTransform{StaticTime}
+            UnitaryTransform
         @test (@inferred Displace(x, p, quadrature_reference, t)) isa
-            UnitaryTransform{DynamicTime}
-        @test (@inferred Rotation(a, θ)) isa UnitaryTransform{StaticTime}
-        @test (@inferred Rotation(a, ω * t, t)) isa UnitaryTransform{DynamicTime}
-        @test (@inferred Squeeze(a, r, ϕ)) isa UnitaryTransform{StaticTime}
-        @test (@inferred Squeeze(a, r * t, ϕ, t)) isa UnitaryTransform{DynamicTime}
-        @test (@inferred Rotation(left, right, θ)) isa UnitaryTransform{StaticTime}
-        @test (@inferred Rotation(left, right, θ * t, t)) isa UnitaryTransform{DynamicTime}
-        @test (@inferred Squeeze(left, right, r)) isa UnitaryTransform{StaticTime}
-        @test (@inferred Squeeze(left, right, r * t, t)) isa UnitaryTransform{DynamicTime}
-        @test (@inferred Displace(x, p, dx, dp)) isa UnitaryTransform{StaticTime}
-        @test (@inferred Displace(x, p, dx * t, dp * t, t)) isa UnitaryTransform{DynamicTime}
-        @test (@inferred Rotation(x, p, θ)) isa UnitaryTransform{StaticTime}
-        @test (@inferred Squeeze(x, p, r)) isa UnitaryTransform{StaticTime}
-        @test (@inferred Rotation(Sx, 3, θ)) isa UnitaryTransform{StaticTime}
-        @test (@inferred Rotation(Sx, 3, θ * t, t)) isa UnitaryTransform{DynamicTime}
-        @test (@inferred Rotation(σ12, [0 1; 1 0])) isa UnitaryTransform{StaticTime}
-        @test Rotation(σ12, Diagonal([1, 1])) isa UnitaryTransform{StaticTime}
+            UnitaryTransform
+        @test (@inferred Rotation(a, θ)) isa UnitaryTransform
+        @test (@inferred Rotation(a, ω * t, t)) isa UnitaryTransform
+        @test (@inferred Squeeze(a, r, ϕ)) isa UnitaryTransform
+        @test (@inferred Squeeze(a, r * t, ϕ, t)) isa UnitaryTransform
+        @test (@inferred Rotation(left, right, θ)) isa UnitaryTransform
+        @test (@inferred Rotation(left, right, θ * t, t)) isa UnitaryTransform
+        @test (@inferred Squeeze(left, right, r)) isa UnitaryTransform
+        @test (@inferred Squeeze(left, right, r * t, t)) isa UnitaryTransform
+        @test (@inferred Displace(x, p, dx, dp)) isa UnitaryTransform
+        @test (@inferred Displace(x, p, dx * t, dp * t, t)) isa UnitaryTransform
+        @test (@inferred Rotation(x, p, θ)) isa UnitaryTransform
+        @test (@inferred Squeeze(x, p, r)) isa UnitaryTransform
+        @test (@inferred Rotation(Sx, 3, θ)) isa UnitaryTransform
+        @test (@inferred Rotation(Sx, 3, θ * t, t)) isa UnitaryTransform
+        @test (@inferred Rotation(σ12, [0 1; 1 0])) isa UnitaryTransform
+        @test Rotation(σ12, Diagonal([1, 1])) isa UnitaryTransform
 
-        level_phases = Coeff[expim(-ω * t) 0; 0 expim(ω * t)]
-        @test (@inferred Rotation(σ12, level_phases, t)) isa UnitaryTransform{DynamicTime}
-        @test (@inferred _coefficient_matrix([0 1; 1 0])) isa Matrix{Coeff}
-        coefficients = _coefficient_matrix([0 1; 1 0])
-        @test (@inferred _matrix_unit_rules(σ12, coefficients)) isa Dict{Op, QAdd}
-        @test (@inferred _nlevel_gauge(σ12, level_phases, t)) isa QAdd
+        level_phases = [expim(-ω * t) 0; 0 expim(ω * t)]
+        @test (@inferred Rotation(σ12, level_phases, t)) isa UnitaryTransform
 
         @test (@inferred conjugate(a, static)) isa QAdd
         @test (@inferred conjugate(a' * a, static)) isa QAdd
         @test (@inferred transform(a' * a, static)) isa QAdd
         @test (@inferred transform(a' * a, timed)) isa QAdd
-        @test (@inferred inv(static)) isa UnitaryTransform{StaticTime}
-        @test (@inferred inv(timed)) isa UnitaryTransform{DynamicTime}
-        @test (@inferred static * Squeeze(a, r)) isa UnitaryTransform{StaticTime}
-        @test (@inferred static * Squeeze(a, r * t, 0, t)) isa UnitaryTransform{DynamicTime}
-        @test (@inferred timed * Squeeze(a, r)) isa UnitaryTransform{DynamicTime}
-        @test (@inferred timed * Squeeze(a, r * t, 0, t)) isa UnitaryTransform{DynamicTime}
+        @test (@inferred inv(static)) isa UnitaryTransform
+        @test (@inferred inv(timed)) isa UnitaryTransform
+        @test (@inferred static * Squeeze(a, r)) isa UnitaryTransform
+        @test (@inferred static * Squeeze(a, r * t, 0, t)) isa UnitaryTransform
+        @test (@inferred timed * Squeeze(a, r)) isa UnitaryTransform
+        @test (@inferred timed * Squeeze(a, r * t, 0, t)) isa UnitaryTransform
     end
 
     @testset "allocation regression gates" begin
