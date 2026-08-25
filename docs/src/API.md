@@ -203,6 +203,10 @@ qadjoint
 ```
 
 ```@docs
+dagger(::QField)
+```
+
+```@docs
 inner_adjoint
 ```
 

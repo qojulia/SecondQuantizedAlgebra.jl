@@ -5,6 +5,9 @@ All notable changes to [`SecondQuantizedAlgebra.jl`](https://github.com/qojulia/
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v0.10.1]
+
+- `dagger(::QField)` now extends `QuantumInterface.dagger`, providing the shared QuantumOptics-ecosystem adjoint verb for operator expressions. It forwards to `qadjoint`; use `qadjoint` or `qconj` for scalar and symbolic adjoints.
 
 ## [v0.10.1]
 

@@ -16,7 +16,7 @@ The package provides:
 - Explicit pipeline functions when you want piecewise control: `normal_order`, `simplify`, `commutator`, `anticommutator`, `expand`, `expand_completeness`.
 - Symbolic summations via `Index` and `Σ` for indexed families, with automatic diagonal splitting and `assume_distinct_index` for free-index constraints.
 - Averaging to symbolic scalars via `average` / `undo_average`, and extensible numeric conversion via QuantumOpticsBase or QuantumToolbox with `to_numeric` / `numeric_average`.
-- Hermitian conjugation across mixed operator + symbolic expressions via `qadjoint` (aliased as `qconj`, `dagger`) and the average-aware `inner_adjoint`.
+- Hermitian conjugation across mixed operator + symbolic expressions via `qadjoint` (aliased as `qconj`; `dagger` extends `QuantumInterface.dagger` for operators) and the average-aware `inner_adjoint`.
 - Extensible for custom operator types via five small hooks — see the developer docs.
 
 The code was refactored out of [QuantumCumulants.jl](https://github.com/qojulia/QuantumCumulants.jl).
