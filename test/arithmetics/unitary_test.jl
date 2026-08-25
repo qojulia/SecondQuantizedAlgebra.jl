@@ -350,6 +350,13 @@ end
 
     @testset "automatic bounded Fock displacement" begin
         Hpaper = ω * a' * a - im * Ω * cos(ωd * t) * (a - a')
+        static_reference = ω * a' * a + η * (a + a') + g
+        static_displacement = Displace(a, static_reference)
+        @test static_displacement isa UnitaryTransform{StaticTime}
+        @test isequal(conjugate(a, static_displacement), a - η / ω)
+        @test transform(static_reference, static_displacement) ==
+            ω * a' * a - η^2 / ω + g
+
         U = Displace(a, Hpaper, t)
         transformed_reference = transform(Hpaper, U)
         operator_terms = [
@@ -375,12 +382,11 @@ end
             @test actual ≈ expected atol = 1.0e-13
         end
 
-        constant_reference = ω * a' * a + η * (a + a') + g
-        constant = Displace(a, constant_reference, t)
+        constant = Displace(a, static_reference, t)
         @test isequal(conjugate(a, constant), a - η / ω)
         constant_terms = [
             (term.ops, coefficient) for
-                (term, coefficient) in transform(constant_reference, constant) if
+                (term, coefficient) in transform(static_reference, constant) if
                 !isempty(term.ops)
         ]
         @test constant_terms ==
@@ -430,9 +436,114 @@ end
             a, ω * a' * a + resonant * a' + conj(resonant) * a, t,
         )
         @test_throws ArgumentError Displace(a, η * (a + a'), t)
+        @test_throws ArgumentError Displace(a, η * (a + a'))
 
         # A possible symbolic resonance remains an exact quotient by design.
         @test Displace(a, Hpaper, t) isa UnitaryTransform{DynamicTime}
+    end
+
+    @testset "automatic bounded quadrature displacement" begin
+        static_reference =
+            (ω / 2) * x^2 + (g / 2) * (x * p + p * x) +
+            (Ω / 2) * p^2 + η * x + dx * p
+        static = Displace(x, p, static_reference)
+        @test static isa UnitaryTransform{StaticTime}
+        determinant = ω * Ω - g^2
+        @test isequal(conjugate(x, static), x + (g * dx - Ω * η) / determinant)
+        @test isequal(conjugate(p, static), p + (g * η - ω * dx) / determinant)
+        static_operator_terms = [
+            term.ops for (term, _) in simplify(transform(static_reference, static)) if
+                !isempty(term.ops)
+        ]
+        @test Set(static_operator_terms) == Set((Op[x, x], Op[x, p], Op[p, p]))
+
+        isotropic_reference =
+            (ω / 2) * (x^2 + p^2) + η * cos(ωd * t) * x
+        isotropic = Displace(x, p, isotropic_reference, t)
+        @test isotropic isa UnitaryTransform{DynamicTime}
+        isotropic_terms = [
+            term.ops for (term, _) in transform(isotropic_reference, isotropic) if
+                !isempty(term.ops)
+        ]
+        @test Set(isotropic_terms) == Set((Op[x, x], Op[p, p]))
+
+        representations = Dict{Op, Matrix{ComplexF64}}(
+            x => zeros(ComplexF64, 2, 2), p => zeros(ComplexF64, 2, 2),
+        )
+        for values in (
+                Dict(ω => 4.0, ωd => 1.5, η => 0.3, t => 0.7),
+                Dict(ω => 1.25, ωd => 2.5, η => -0.4, t => 0.2),
+            )
+            shifts = ComplexF64[0, 0]
+            for sign in (-1, 1)
+                frequency = sign * values[ωd]
+                matrix = ComplexF64[
+                    values[ω] im * frequency
+                    -im * frequency values[ω]
+                ]
+                force = ComplexF64[
+                    values[η] * exp(im * frequency * values[t]) / 2, 0,
+                ]
+                shifts .-= matrix \ force
+            end
+            actual_x = _matrix_of(
+                conjugate(x, isotropic) - x, representations, values,
+            )[1, 1]
+            actual_p = _matrix_of(
+                conjugate(p, isotropic) - p, representations, values,
+            )[1, 1]
+            @test actual_x ≈ shifts[1] atol = 1.0e-13
+            @test actual_p ≈ shifts[2] atol = 1.0e-13
+        end
+
+        multitone_reference =
+            (ω / 2) * x^2 + (g / 2) * (x * p + p * x) +
+            (Ω / 2) * p^2 +
+            (η * cos(ωd * t) + dx * sin(2ωd * t)) * x +
+            dp * cos(3ωd * t) * p
+        multitone = Displace(x, p, multitone_reference, t)
+        multitone_terms = [
+            term.ops for (term, _) in transform(multitone_reference, multitone) if
+                !isempty(term.ops)
+        ]
+        @test Set(multitone_terms) == Set((Op[x, x], Op[x, p], Op[p, p]))
+
+        other_phase = PhaseSpace(:automatic_selected) ⊗ PhaseSpace(:automatic_other)
+        other_x = Position(other_phase, :other_x, 2)
+        nonlinear_phase = expim(t^2)
+        @test_throws ArgumentError Displace(p, x, isotropic_reference, t)
+        @test_throws ArgumentError Displace(
+            x, p, isotropic_reference + other_x, t,
+        )
+        @test_throws ArgumentError Displace(
+            x, p, isotropic_reference + K * x^3, t,
+        )
+        @test_throws ArgumentError Displace(
+            x, p, isotropic_reference + im * x, t,
+        )
+        @test_throws ArgumentError Displace(
+            x, p,
+            ((ω + g * cos(ωd * t)) / 2) * x^2 + (Ω / 2) * p^2 + η * x,
+            t,
+        )
+        @test_throws ArgumentError Displace(
+            x, p, (ω / 2) * (x^2 + p^2) + envelope * x, t,
+        )
+        @test_throws ArgumentError Displace(
+            x, p,
+            (ω / 2) * (x^2 + p^2) + (nonlinear_phase + conj(nonlinear_phase)) * x,
+            t,
+        )
+        @test_throws ArgumentError Displace(
+            x, p, (ω / 2) * (x^2 + p^2) + η * cos(ω * t) * x, t,
+        )
+        @test_throws ArgumentError Displace(x, p, (ω / 2) * x^2 + η * p)
+        nonunique = Displace(x, p, (ω / 2) * x^2)
+        @test isequal(conjugate(x + p, nonunique), x + p)
+
+        # A possible symbolic determinant resonance remains an exact quotient.
+        @test Displace(x, p, isotropic_reference, t) isa
+            UnitaryTransform{DynamicTime}
     end
 
     @testset "cross-cutting algebraic laws" begin
@@ -602,7 +713,9 @@ end
         collective_space = CollectiveNLevelSpace(:ensemble, 2)
         collective = CollectiveTransition(collective_space, :J, 1, 2)
         @test_throws ArgumentError Rotation(collective, [0 1; 1 0])
-        @test_throws MethodError Displace(a, a' * a)
+        undisplaced = Displace(a, a' * a)
+        @test undisplaced isa UnitaryTransform{StaticTime}
+        @test iszero(conjugate(a, undisplaced) - a)
         @test_throws MethodError Displace(x, p, a' * a, 0)
 
         @test !isdefined(SecondQuantizedAlgebra, :RotatingFrame)
@@ -649,7 +762,15 @@ end
         @test (@inferred Displace(a, α)) isa UnitaryTransform{StaticTime}
         @test (@inferred Displace(a, η * t, t)) isa UnitaryTransform{DynamicTime}
         automatic_reference = ω * a' * a + η * cos(Ω * t) * (a + a')
+        @test (@inferred Displace(a, ω * a' * a + η * (a + a'))) isa
+            UnitaryTransform{StaticTime}
         @test (@inferred Displace(a, automatic_reference, t)) isa
+            UnitaryTransform{DynamicTime}
+        quadrature_reference =
+            (ω / 2) * (x^2 + p^2) + η * cos(Ω * t) * x + g * sin(Ω * t) * p
+        @test (@inferred Displace(x, p, (ω / 2) * (x^2 + p^2) + η * x)) isa
+            UnitaryTransform{StaticTime}
+        @test (@inferred Displace(x, p, quadrature_reference, t)) isa
             UnitaryTransform{DynamicTime}
         @test (@inferred Rotation(a, θ)) isa UnitaryTransform{StaticTime}
         @test (@inferred Rotation(a, ω * t, t)) isa UnitaryTransform{DynamicTime}
@@ -706,8 +827,16 @@ end
         @test _warm_allocated(() -> timed * static_second) <= 112
         @test _warm_allocated(() -> timed * timed_second) <= 112
 
+        automatic_static = ω * a' * a + η * (a + a')
         automatic_reference = ω * a' * a + η * cos(Ω * t) * (a + a')
-        # Warm median is 4,203 allocations on Julia 1.12; retain at most 20% headroom.
+        quadrature_static = (ω / 2) * (x^2 + p^2) + η * x + g * p
+        quadrature_timed =
+            (ω / 2) * (x^2 + p^2) + η * cos(Ω * t) * x + g * sin(Ω * t) * p
+        # Julia 1.12 warm medians are 145, 4,556, 232, and 8,211 allocations;
+        # every ceiling retains no more than 20% headroom.
+        @test _warm_allocated(() -> Displace(a, automatic_static)) <= 174
         @test _warm_allocated(() -> Displace(a, automatic_reference, t)) <= 5100
+        @test _warm_allocated(() -> Displace(x, p, quadrature_static)) <= 278
+        @test _warm_allocated(() -> Displace(x, p, quadrature_timed, t)) <= 9853
     end
 end

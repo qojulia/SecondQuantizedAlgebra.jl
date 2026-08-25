@@ -80,26 +80,44 @@ symbolic variable. When a parameter depends on time, pass the time variable to
 the constructor if the gauge term is needed; for example, use
 `Rotation(a, ω*t, t)` for a rotating Hamiltonian frame.
 
-### Bounded displacement from a linear resonator
+### Hamiltonian-derived bosonic displacements
 
-`Displace(a, Hlin, t)` derives the bounded particular displacement of a
-one-mode linear reference Hamiltonian
+The Hamiltonian overloads derive static equilibrium frames or bounded periodic
+frames directly from a one-mode linear reference. For a Fock mode, the accepted
+reference is
 
 ```math
 H_\mathrm{lin}(t)=\omega_0 a^\dagger a+\eta(t)a^\dagger+\eta^*(t)a+c(t).
 ```
 
-The drive may be a finite sum of constant, sine, cosine, or exact `expim`
-harmonics. For a component ``\eta_j e^{i\phi_j(t)}`` with constant
-``\dot\phi_j``, the constructor uses
+`Displace(a, Hlin)` treats every symbolic coefficient as a static parameter and
+uses ``\alpha=-\eta/\omega_0``. `Displace(a, Hlin, t)` instead accepts a finite
+sum of constant, sine, cosine, or exact `expim` harmonics. For a component
+``\eta_j e^{i\phi_j(t)}`` with constant ``\dot\phi_j``, it uses
 
 ```math
 \alpha_j(t)=-\frac{\eta_j e^{i\phi_j(t)}}{\omega_0+\dot\phi_j}.
 ```
 
-The free homogeneous oscillation is set to zero. Supply the field explicitly
-with `Displace(a, α, t)` when an initial-condition transient, a general pulse
-envelope, or a numerical solution is required.
+Canonical quadratures are supported through `Displace(x, p, Hlin)` and
+`Displace(x, p, Hlin, t)`. They accept a Hermitian reference
+
+```math
+H_\mathrm{lin}=c(t)+\frac{\kappa_x}{2}x^2
++\frac{\kappa_{xp}}{2}(xp+px)+\frac{\kappa_p}{2}p^2
++f_x(t)x+f_p(t)p.
+```
+
+Writing its real symmetric quadratic form as ``K`` and
+``J=\left(\begin{smallmatrix}0&1\\-1&0\end{smallmatrix}\right)``, the static
+shift solves ``Ks=-f``. A harmonic at frequency ``\nu_j`` instead contributes
+``s_j=-(K+i\nu_jJ)^{-1}f_j``. These fixed two-dimensional systems are evaluated
+exactly; no numerical matrix inversion is used.
+
+In both timed forms the free homogeneous motion is set to zero. Supply fields
+explicitly with `Displace(a, α, t)` or `Displace(x, p, dx, dp, t)` when an
+initial-condition transient, a general pulse envelope, or a numerical solution
+is required.
 
 For example, the displacement relative to the linear resonance of a
 monochromatically driven oscillator is obtained directly from its linear part:
@@ -123,11 +141,22 @@ Here the computed field is
 -\frac{i\Omega_d}{2(\omega_d+\omega_0)}e^{i\omega_dt}.
 ```
 
-An exactly resonant component is rejected because it has no bounded particular
-solution. A symbolic denominator is kept as an exact quotient, so the returned
-formula applies away from the corresponding resonance surface. Nonlinear terms
-such as Kerr interactions belong in the Hamiltonian passed to `transform`, not
-in the linear reference used to construct `U`.
+For a static quadrature equilibrium, use the same reference-first workflow:
+
+```julia
+Hquad =
+    κx / 2 * x^2 + κxp / 2 * (x * p + p * x) +
+    κp / 2 * p^2 + fx * x + fp * p
+Uquad = Displace(x, p, Hquad)
+conjugate(x, Uquad) - x
+conjugate(p, Uquad) - p
+```
+
+An exactly resonant scalar divisor or quadrature determinant is rejected. A
+symbolic divisor is kept as an exact quotient, so the returned formula applies
+away from its resonance surface. Nonlinear terms such as Kerr interactions
+belong in the Hamiltonian passed to `transform`, not in the linear reference
+used to construct the frame.
 
 
 ## Inversion and composition
