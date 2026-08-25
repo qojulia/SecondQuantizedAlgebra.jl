@@ -15,6 +15,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Coefficient simplification reduces exact trigonometric and hyperbolic identities, including supported composite arguments and higher powers.
 - A unitary-transformation guide and resonator-rotation example show how to prepare an exact moving-frame Hamiltonian for a later Floquet expansion.
 
+### Documentation
+
+- Added a Julia-colored package logo to the GitHub README and documentation sidebar, together with a favicon for browser tabs and bookmarks.
+
 
 ## [v0.10.0]
 

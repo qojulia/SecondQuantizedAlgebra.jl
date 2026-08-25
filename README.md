@@ -1,3 +1,9 @@
+<!-- README_ONLY_START -->
+<p align="center">
+  <img src="assets/logo.svg" alt="SecondQuantizedAlgebra.jl logo" width="520">
+</p>
+<!-- README_ONLY_END -->
+
 # SecondQuantizedAlgebra
 
 [![](https://img.shields.io/badge/docs-dev-blue.svg)](https://qojulia.github.io/SecondQuantizedAlgebra.jl/dev/)

@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg"
+     width="760" height="360" viewBox="40 30 600 285" role="img">
+  <title>SecondQuantizedAlgebra.jl logo</title>
+  <desc>Two hatted Julia-colored operators transform into one hatted operator.</desc>
+
+  <g fill="none" stroke="#777777" stroke-width="28"
+     stroke-linecap="round" stroke-linejoin="round">
+    <path d="M100 123 L150 90 L200 123"/>
+    <path d="M300 123 L350 90 L400 123"/>
+    <path d="M500 123 L550 90 L600 123"/>
+  </g>
+
+  <circle cx="150" cy="220" r="75" fill="#9558b2"/>
+  <circle cx="350" cy="220" r="75" fill="#389826"/>
+
+  <circle cx="550" cy="220" r="75" fill="#cb3c33"/>
+</svg>

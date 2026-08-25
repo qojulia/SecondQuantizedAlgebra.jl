@@ -32,11 +32,11 @@ cp(
 # The README.md file is used index (home) page of the documentation.
 if CI
     include("make_md_examples.jl")
-    cp(
-        normpath(@__FILE__, "../../README.md"),
-        normpath(@__FILE__, "../src/index.md");
-        force = true,
-    )
+    readme_path = normpath(@__FILE__, "../../README.md")
+    index_path = normpath(@__FILE__, "../src/index.md")
+    readme = read(readme_path, String)
+    index = replace(readme, r"(?s)<!-- README_ONLY_START -->.*?<!-- README_ONLY_END -->\n*" => "")
+    write(index_path, index)
 end
 # ^ when using LiveServer, this will generate a loop
 
@@ -44,7 +44,8 @@ makedocs(;
     sitename = "SecondQuantizedAlgebra.jl",
     modules = SecondQuantizedAlgebra,
     format = Documenter.HTML(;
-        canonical = "https://qojulia.github.io/SecondQuantizedAlgebra.jl"
+        canonical = "https://qojulia.github.io/SecondQuantizedAlgebra.jl",
+        assets = [asset("assets/favicon.png", class = :ico, islocal = true)],
     ),
     pages = pages,
     clean = true,
