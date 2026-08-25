@@ -80,6 +80,55 @@ symbolic variable. When a parameter depends on time, pass the time variable to
 the constructor if the gauge term is needed; for example, use
 `Rotation(a, ω*t, t)` for a rotating Hamiltonian frame.
 
+### Bounded displacement from a linear resonator
+
+`Displace(a, Hlin, t)` derives the bounded particular displacement of a
+one-mode linear reference Hamiltonian
+
+```math
+H_\mathrm{lin}(t)=\omega_0 a^\dagger a+\eta(t)a^\dagger+\eta^*(t)a+c(t).
+```
+
+The drive may be a finite sum of constant, sine, cosine, or exact `expim`
+harmonics. For a component ``\eta_j e^{i\phi_j(t)}`` with constant
+``\dot\phi_j``, the constructor uses
+
+```math
+\alpha_j(t)=-\frac{\eta_j e^{i\phi_j(t)}}{\omega_0+\dot\phi_j}.
+```
+
+The free homogeneous oscillation is set to zero. Supply the field explicitly
+with `Displace(a, α, t)` when an initial-condition transient, a general pulse
+envelope, or a numerical solution is required.
+
+For example, the displacement relative to the linear resonance of a
+monochromatically driven oscillator is obtained directly from its linear part:
+
+```julia
+@variables ω₀ ωd Ωd K t
+
+Hlin = ω₀ * a' * a - im * Ωd * cos(ωd * t) * (a - a')
+Hfull = Hlin + (K / 2) * a'^2 * a^2
+
+U = Displace(a, Hlin, t)
+conjugate(a, U)
+Hdisplaced = transform(Hfull, U)
+```
+
+Here the computed field is
+
+```math
+\alpha(t)=
+\frac{i\Omega_d}{2(\omega_d-\omega_0)}e^{-i\omega_dt}
+-\frac{i\Omega_d}{2(\omega_d+\omega_0)}e^{i\omega_dt}.
+```
+
+An exactly resonant component is rejected because it has no bounded particular
+solution. A symbolic denominator is kept as an exact quotient, so the returned
+formula applies away from the corresponding resonance surface. Nonlinear terms
+such as Kerr interactions belong in the Hamiltonian passed to `transform`, not
+in the linear reference used to construct `U`.
+
 
 ## Inversion and composition
 

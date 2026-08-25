@@ -90,8 +90,9 @@ end
     σ21 = Transition(atom, :σ, 2, 1)
     σ22 = Transition(atom, :σ, 2, 2)
 
-    @variables θ φ r ϕ ω Ω η g t s dx dp
+    @variables θ φ r ϕ ω Ω η g t s dx dp ωd K
     @variables α::Number
+    @variables envelope(t)
 
     @testset "constructor image table" begin
         cases = [
@@ -347,6 +348,93 @@ end
         )
     end
 
+    @testset "automatic bounded Fock displacement" begin
+        Hpaper = ω * a' * a - im * Ω * cos(ωd * t) * (a - a')
+        U = Displace(a, Hpaper, t)
+        transformed_reference = transform(Hpaper, U)
+        operator_terms = [
+            (term.ops, coefficient) for
+                (term, coefficient) in transformed_reference if !isempty(term.ops)
+        ]
+        @test operator_terms == [(Op[a', a], SecondQuantizedAlgebra._to_cnum(ω))]
+
+        # Independent numerical comparison with Eq. (2)'s displacement in
+        # Phys. Rev. A 110, 042411. Test both sides of the oscillator frequency.
+        representations = Dict{Op, Matrix{ComplexF64}}(
+            a => zeros(ComplexF64, 2, 2), a' => zeros(ComplexF64, 2, 2),
+        )
+        for values in (
+                Dict(ω => 5.0, ωd => 2.0, Ω => 0.3, t => 0.7),
+                Dict(ω => 1.25, ωd => 2.5, Ω => -0.4, t => 0.2),
+            )
+            actual = _matrix_of(conjugate(a, U) - a, representations, values)[1, 1]
+            ωv, ωdv, Ωv, tv = values[ω], values[ωd], values[Ω], values[t]
+            expected =
+                im * Ωv / (2 * (ωdv - ωv)) * exp(-im * ωdv * tv) -
+                im * Ωv / (2 * (ωdv + ωv)) * exp(im * ωdv * tv)
+            @test actual ≈ expected atol = 1.0e-13
+        end
+
+        constant_reference = ω * a' * a + η * (a + a') + g
+        constant = Displace(a, constant_reference, t)
+        @test isequal(conjugate(a, constant), a - η / ω)
+        constant_terms = [
+            (term.ops, coefficient) for
+                (term, coefficient) in transform(constant_reference, constant) if
+                !isempty(term.ops)
+        ]
+        @test constant_terms ==
+            [(Op[a', a], SecondQuantizedAlgebra._to_cnum(ω))]
+
+        complex_reference = ω * a' * a + α * a' + conj(α) * a
+        complex_displacement = Displace(a, complex_reference, t)
+        @test isequal(conjugate(a, complex_displacement), a - α / ω)
+
+        multitone_drive = η * cos(ωd * t) + g * sin(2ωd * t)
+        multitone_reference = ω * a' * a + multitone_drive * (a + a')
+        multitone = Displace(a, multitone_reference, t)
+        multitone_terms = [
+            (term.ops, coefficient) for
+                (term, coefficient) in transform(multitone_reference, multitone) if
+                !isempty(term.ops)
+        ]
+        @test multitone_terms ==
+            [(Op[a', a], SecondQuantizedAlgebra._to_cnum(ω))]
+        @test isequal(conjugate(a', multitone), conjugate(a, multitone)')
+
+        from_creation = Displace(a', Hpaper, t)
+        @test isequal(conjugate(a, from_creation), conjugate(a, U))
+
+        Kerr = (K / 2) * a'^2 * a^2
+        full = Hpaper + Kerr
+        @test isequal(
+            transform(full, U), transform(Hpaper, U) + conjugate(Kerr, U),
+        )
+
+        other = Destroy(FockSpace(:automatic_other), :b)
+        @test_throws ArgumentError Displace(a, Hpaper + K * a'^2 * a^2, t)
+        @test_throws ArgumentError Displace(a, Hpaper + g * other, t)
+        @test_throws ArgumentError Displace(a, ω * a' * a + η * a', t)
+        @test_throws ArgumentError Displace(
+            a, (ω + g * cos(ωd * t)) * a' * a + η * (a + a'), t,
+        )
+        @test_throws ArgumentError Displace(
+            a, ω * a' * a + envelope * (a + a'), t,
+        )
+        nonlinear_phase = expim(t^2)
+        @test_throws ArgumentError Displace(
+            a, ω * a' * a + nonlinear_phase * a' + conj(nonlinear_phase) * a, t,
+        )
+        resonant = expim(-ω * t)
+        @test_throws ArgumentError Displace(
+            a, ω * a' * a + resonant * a' + conj(resonant) * a, t,
+        )
+        @test_throws ArgumentError Displace(a, η * (a + a'), t)
+
+        # A possible symbolic resonance remains an exact quotient by design.
+        @test Displace(a, Hpaper, t) isa UnitaryTransform{DynamicTime}
+    end
+
     @testset "cross-cutting algebraic laws" begin
         U = Rotation(a, θ) * Squeeze(a, r, ϕ)
         A = a + 2a'
@@ -560,6 +648,9 @@ end
 
         @test (@inferred Displace(a, α)) isa UnitaryTransform{StaticTime}
         @test (@inferred Displace(a, η * t, t)) isa UnitaryTransform{DynamicTime}
+        automatic_reference = ω * a' * a + η * cos(Ω * t) * (a + a')
+        @test (@inferred Displace(a, automatic_reference, t)) isa
+            UnitaryTransform{DynamicTime}
         @test (@inferred Rotation(a, θ)) isa UnitaryTransform{StaticTime}
         @test (@inferred Rotation(a, ω * t, t)) isa UnitaryTransform{DynamicTime}
         @test (@inferred Squeeze(a, r, ϕ)) isa UnitaryTransform{StaticTime}
@@ -614,5 +705,9 @@ end
         @test _warm_allocated(() -> static * timed_second) <= 112
         @test _warm_allocated(() -> timed * static_second) <= 112
         @test _warm_allocated(() -> timed * timed_second) <= 112
+
+        automatic_reference = ω * a' * a + η * cos(Ω * t) * (a + a')
+        # Warm median is 4,203 allocations on Julia 1.12; retain at most 20% headroom.
+        @test _warm_allocated(() -> Displace(a, automatic_reference, t)) <= 5100
     end
 end

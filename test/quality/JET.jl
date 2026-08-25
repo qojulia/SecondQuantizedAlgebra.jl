@@ -68,9 +68,10 @@ end
 
         hjc = FockSpace(:f) ⊗ NLevelSpace(:atom, 2)
         ajc = Destroy(hjc, :a, 1); σjc = Transition(hjc, :σ, 1, 2, 2); σjc_p = Transition(hjc, :σ, 2, 1, 2)
-        @variables θ::Real ω::Real t::Real
+        @variables θ::Real ω::Real ν::Real η::Real t::Real
         U = Rotation(a, θ)
         Ut = Rotation(a, ω * t, t)
+        Hlinear = ω * ad * a + η * cos(ν * t) * (a + ad)
 
         for (name, expr) in [
                 # Per-family binary products
@@ -107,6 +108,7 @@ end
                 ("reduce(+, [a'*a, a*a', a'*a])", () -> reduce(+, [ad * a, a * ad, ad * a])),
                 # Exact unitary-transform public entry points.
                 ("Rotation(a, θ)", () -> Rotation(a, θ)),
+                ("Displace(a, Hlinear, t)", () -> Displace(a, Hlinear, t)),
                 ("conjugate(a, U)", () -> conjugate(a, U)),
                 ("transform(a'*a, Ut)", () -> transform(ad * a, Ut)),
                 ("inv(U)", () -> inv(U)),
@@ -161,6 +163,8 @@ end
         hp = PauliSpace(:s); px = Pauli(hp, :σ, 1); py = Pauli(hp, :σ, 2)
         hs = SpinSpace(:s); sx = Spin(hs, :S, 1); sy = Spin(hs, :S, 2)
         hph = PhaseSpace(:osc); xx = Position(hph, :x); pp = Momentum(hph, :p)
+        @variables ω::Real ν::Real η::Real t::Real
+        Hlinear = ω * ad * a + η * cos(ν * t) * (a + ad)
 
         b = FockBasis(7)
         bn = NLevelBasis(3)
@@ -302,6 +306,7 @@ end
                 # Canonicalisation pipelines on QAdd
                 ("normal_order(a)", () -> normal_order(a)),
                 ("simplify(a*a + a'*a')", () -> simplify(a * a + ad * ad)),
+                ("Displace(a, Hlinear, t)", () -> Displace(a, Hlinear, t)),
                 ("expand_completeness(σ12*σ21)", () -> expand_completeness(σ12 * σ21)),
                 # Average/undo_average round trip
                 ("average(a*a')", () -> average(a * ad)),

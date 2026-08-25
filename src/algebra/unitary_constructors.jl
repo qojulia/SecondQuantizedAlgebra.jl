@@ -20,22 +20,196 @@ function Displace(a::Op, α::Coefficient, t::Num)
     tt = _time_or_throw(t)
     c = _to_cnum(α)
     derivative = _dt(c, tt)
+    derivative_adjoint = _conj_cnum(derivative)
+    gauge = _fock_displacement_gauge(
+        d, c, derivative, derivative_adjoint,
+        _mul_cnum(_CNUM_NEG_IM, derivative),
+        _mul_cnum(_CNUM_IM, derivative_adjoint),
+    )
+    return _timed_transform(Displace(d, c), gauge, tt)
+end
+
+function _fock_displacement_gauge(
+        d::Op, c::CNum, derivative::CNum, derivative_adjoint::CNum,
+        raising_coefficient::CNum, lowering_coefficient::CNum,
+    )
     scalar = _mul_cnum(
         _CNUM_NEG_IM,
         _mul_cnum(
             _CNUM_HALF,
             _add_cnum(
                 _mul_cnum(_conj_cnum(c), derivative),
-                _neg_cnum(_mul_cnum(c, _conj_cnum(derivative))),
+                _neg_cnum(_mul_cnum(c, derivative_adjoint)),
             ),
         ),
     )
-    gauge = _rule_qadd(
-        (_mul_cnum(_CNUM_NEG_IM, derivative), Op[adjoint(d)]),
-        (_mul_cnum(_CNUM_IM, _conj_cnum(derivative)), Op[d]),
+    return _rule_qadd(
+        (raising_coefficient, Op[adjoint(d)]),
+        (lowering_coefficient, Op[d]),
         (scalar, Op[]),
     )
-    return _timed_transform(Displace(a, α), gauge, tt)
+end
+
+function _linear_fock_hamiltonian(H::QAdd, d::Op, t::Num)
+    isempty(H.indices) || _unitary_error(
+        "automatic `Displace` does not support summed reference Hamiltonians",
+    )
+    frequency = _CNUM_ZERO
+    drive = _CNUM_ZERO
+    drive_adjoint = _CNUM_ZERO
+    scalar = _CNUM_ZERO
+    raising = adjoint(d)
+    for (term, coefficient) in H
+        isempty(term.ne) || _unitary_error(
+            "automatic `Displace` does not support constrained reference terms",
+        )
+        if isempty(term.ops)
+            scalar = _add_cnum(scalar, coefficient)
+        elseif term.ops == Op[raising, d]
+            frequency = _add_cnum(frequency, coefficient)
+        elseif term.ops == Op[raising]
+            drive = _add_cnum(drive, coefficient)
+        elseif term.ops == Op[d]
+            drive_adjoint = _add_cnum(drive_adjoint, coefficient)
+        else
+            unsupported = _rule_qadd((coefficient, copy(term.ops)))
+            _unitary_error(
+                "automatic `Displace` expects only scalar, `$raising * $d`, `$raising`, " *
+                    "and `$d` terms; got `$(sprint(show, unsupported))`",
+            )
+        end
+    end
+
+    variable = SymbolicUtils.unwrap(t)
+    _coefficient_depends_on(frequency, variable) && _unitary_error(
+        "automatic `Displace` requires a time-independent oscillator frequency; " *
+            "got `$(to_num(frequency))`",
+    )
+    isequal(frequency, _conj_cnum(frequency)) ||
+        _unitary_error(
+        "automatic `Displace` requires a real oscillator frequency; " *
+            "got `$(to_num(frequency))`",
+    )
+    isequal(scalar, _conj_cnum(scalar)) || _unitary_error(
+        "automatic `Displace` requires a Hermitian scalar reference term",
+    )
+    normalized_drive = exponential_form(drive)
+    normalized_adjoint = exponential_form(drive_adjoint)
+    isequal(normalized_adjoint, _conj_cnum(normalized_drive)) || _unitary_error(
+        "automatic `Displace` requires adjoint coefficients for `$raising` and `$d`",
+    )
+    return (
+        frequency = frequency,
+        drive = drive,
+        drive_adjoint = drive_adjoint,
+        normalized_drive = normalized_drive,
+    )
+end
+
+function _harmonic_frequency(monomial::Monomial, t::Num)
+    phase_index = 0
+    variable = SymbolicUtils.unwrap(t)
+    @inbounds for i in eachindex(monomial.syms)
+        factor = monomial.syms[i]
+        if _is_phase(factor)
+            phase_index == 0 || _unitary_error(
+                "automatic `Displace` found more than one phase in one drive component",
+            )
+            phase_index = i
+        elseif _raw_depends_on(factor, variable)
+            _unitary_error(
+                "automatic `Displace` supports finite harmonic drives, not the " *
+                    "time-dependent envelope `$(Num(factor))`",
+            )
+        end
+    end
+    phase_index == 0 && return _CNUM_ZERO
+
+    exponent = monomial.exps[phase_index]
+    denominator(exponent) == 1 || _unitary_error(
+        "automatic `Displace` requires integer phase powers; got exponent `$exponent`",
+    )
+    phase = monomial.syms[phase_index]
+    argument = Num(only(SymbolicUtils.arguments(phase))) * numerator(exponent)
+    frequency = Symbolics.derivative(argument, t)
+    _raw_depends_on(SymbolicUtils.unwrap(frequency), variable) &&
+        _unitary_error(
+        "automatic `Displace` requires a phase linear in `$t`; " *
+            "got `$(Num(only(SymbolicUtils.arguments(phase))))`",
+    )
+    return _to_cnum(frequency)
+end
+
+function _bounded_harmonic_displacement(drive::CNum, frequency::CNum, t::Num)
+    _iszero_cnum(drive) && return _CNUM_ZERO
+    tail = drive.tail
+    if tail isa Native
+        _iszero_cnum(frequency) && _unitary_error(
+            "automatic `Displace` found a resonant constant drive with zero frequency",
+        )
+        return _neg_cnum(drive) / frequency
+    elseif !(tail isa Poly)
+        _unitary_error(
+            "automatic `Displace` supports only finite harmonic drive coefficients; " *
+                "got `$(to_num(drive))`",
+        )
+    end
+
+    amplitude = _CNUM_ZERO
+    for monomial in tail.terms
+        harmonic = _harmonic_frequency(monomial, t)
+        divisor = _add_cnum(frequency, harmonic)
+        component = _from_poly(Monomial[monomial])
+        _iszero_cnum(divisor) && _unitary_error(
+            "automatic `Displace` found a resonant drive component `$(to_num(component))`",
+        )
+        amplitude = _add_cnum(amplitude, _neg_cnum(component) / divisor)
+    end
+    return amplitude
+end
+
+"""
+    Displace(a, Hlin, t)
+
+Construct the bounded moving displacement generated by the one-mode linear reference
+Hamiltonian `Hlin = ω*a'a + η(t)*a' + conj(η(t))*a + c(t)`. The drive must be a finite
+sum of exact harmonic phases. The free homogeneous solution is set to zero; use
+`Displace(a, α, t)` to supply a transient or arbitrary displacement field explicitly.
+
+A structurally resonant harmonic is rejected. Symbolic divisors are retained as exact
+quotients and therefore describe the response away from their resonance surfaces.
+"""
+function Displace(a::Op, Hlin::QAdd, t::Num)
+    d = _fock_or_throw(a, "`Displace`")
+    tt = _time_or_throw(t)
+    data = _linear_fock_hamiltonian(Hlin, d, tt)
+    amplitude = _bounded_harmonic_displacement(
+        data.normalized_drive, data.frequency, tt,
+    )
+
+    conjugate_amplitude = _conj_cnum(amplitude)
+    derivative = _mul_cnum(
+        _CNUM_NEG_IM,
+        _add_cnum(_mul_cnum(data.frequency, amplitude), data.normalized_drive),
+    )
+    derivative_adjoint = _mul_cnum(
+        _CNUM_IM,
+        _add_cnum(
+            _mul_cnum(data.frequency, conjugate_amplitude),
+            _conj_cnum(data.normalized_drive),
+        ),
+    )
+    gauge = _fock_displacement_gauge(
+        d, amplitude, derivative, derivative_adjoint,
+        _neg_cnum(_add_cnum(data.drive, _mul_cnum(data.frequency, amplitude))),
+        _neg_cnum(
+            _add_cnum(
+                data.drive_adjoint,
+                _mul_cnum(data.frequency, conjugate_amplitude),
+            ),
+        ),
+    )
+    return _timed_transform(Displace(d, amplitude), gauge, tt)
 end
 
 """
