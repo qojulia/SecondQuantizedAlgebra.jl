@@ -4,7 +4,7 @@
   <title>SecondQuantizedAlgebra.jl logo</title>
   <desc>Two hatted Julia-colored operators transform into one hatted operator.</desc>
 
-  <g fill="none" stroke="#2b2b2b" stroke-width="28"
+  <g fill="none" stroke="#777777" stroke-width="28"
      stroke-linecap="round" stroke-linejoin="round">
     <path d="M95 110 L150 60 L205 110"/>
     <path d="M295 110 L350 60 L405 110"/>
@@ -15,7 +15,7 @@
   <circle cx="350" cy="220" r="75" fill="#389826"/>
 
   <path d="M470 203 H575 V173 L640 220 L575 267 V237 H470 Z"
-        fill="#2b2b2b" stroke="#2b2b2b" stroke-width="8"
+        fill="#777777" stroke="#777777" stroke-width="8"
         stroke-linejoin="round"/>
 
   <circle cx="750" cy="220" r="75" fill="#cb3c33"/>
