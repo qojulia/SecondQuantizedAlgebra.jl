@@ -154,5 +154,36 @@ function benchmark_unitary!(SUITE)
     group["Thirty-three-sideband exact phase pipeline"] = @benchmarkable _phase_harmonic_workflow(
         $a, $t, $ω, $ν, $r,
     ) seconds = 3 evals = 1
+
+    single_drive_reference = ω * a' * a + η * cos(ν * t) * (a + a')
+    sideband_reference = ω * a' * a
+    for harmonic in -16:16
+        phase = SecondQuantizedAlgebra.expim(harmonic * ν * t)
+        weight = harmonic + 17
+        sideband_reference += weight * (phase * a' + conj(phase) * a)
+    end
+    group["Automatic Fock displacement, one tone"] = @benchmarkable Displace(
+        $a, $single_drive_reference, $t,
+    ) seconds = 3 evals = 1
+    group["Automatic Fock displacement, thirty-three sidebands"] = @benchmarkable Displace(
+        $a, $sideband_reference, $t,
+    ) seconds = 3 evals = 1
+
+    quadrature_single_reference =
+        (ω / 2) * (x^2 + p^2) + η * cos(ν * t) * x
+    quadrature_sideband_reference = (ω / 2) * (x^2 + p^2)
+    for harmonic in -16:16
+        phase = SecondQuantizedAlgebra.expim(harmonic * ν * t)
+        weight = abs(harmonic) + 1
+        quadrature_sideband_reference +=
+            iseven(harmonic) ? weight * phase * x : weight * phase * p
+    end
+    group["Automatic quadrature displacement, one tone"] = @benchmarkable Displace(
+        $x, $p, $quadrature_single_reference, $t,
+    ) seconds = 3 evals = 1
+    group["Automatic quadrature displacement, thirty-three sidebands"] =
+        @benchmarkable Displace(
+            $x, $p, $quadrature_sideband_reference, $t,
+        ) seconds = 3 evals = 1
     return SUITE
 end

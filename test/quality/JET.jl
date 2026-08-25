@@ -68,9 +68,11 @@ end
 
         hjc = FockSpace(:f) ⊗ NLevelSpace(:atom, 2)
         ajc = Destroy(hjc, :a, 1); σjc = Transition(hjc, :σ, 1, 2, 2); σjc_p = Transition(hjc, :σ, 2, 1, 2)
-        @variables θ::Real ω::Real t::Real
+        @variables θ::Real ω::Real ν::Real η::Real t::Real
         U = Rotation(a, θ)
         Ut = Rotation(a, ω * t, t)
+        Hlinear = ω * ad * a + η * cos(ν * t) * (a + ad)
+        Hquadrature = (ω / 2) * (xx * xx + pp * pp) + η * cos(ν * t) * xx
 
         for (name, expr) in [
                 # Per-family binary products
@@ -107,6 +109,14 @@ end
                 ("reduce(+, [a'*a, a*a', a'*a])", () -> reduce(+, [ad * a, a * ad, ad * a])),
                 # Exact unitary-transform public entry points.
                 ("Rotation(a, θ)", () -> Rotation(a, θ)),
+                ("Displace(a, Hstatic)", () -> Displace(a, ω * ad * a + η * (a + ad))),
+                ("Displace(a, Hlinear, t)", () -> Displace(a, Hlinear, t)),
+                ("Displace(x, p, Hstatic)", () -> Displace(
+                    xx, pp, (ω / 2) * (xx * xx + pp * pp) + η * xx,
+                )),
+                ("Displace(x, p, Hquadrature, t)", () -> Displace(
+                    xx, pp, Hquadrature, t,
+                )),
                 ("conjugate(a, U)", () -> conjugate(a, U)),
                 ("transform(a'*a, Ut)", () -> transform(ad * a, Ut)),
                 ("inv(U)", () -> inv(U)),
@@ -161,11 +171,23 @@ end
         hp = PauliSpace(:s); px = Pauli(hp, :σ, 1); py = Pauli(hp, :σ, 2)
         hs = SpinSpace(:s); sx = Spin(hs, :S, 1); sy = Spin(hs, :S, 2)
         hph = PhaseSpace(:osc); xx = Position(hph, :x); pp = Momentum(hph, :p)
+        @variables ω::Real ν::Real η::Real t::Real
+        Hlinear = ω * ad * a + η * cos(ν * t) * (a + ad)
+        Hquadrature = (ω / 2) * (xx * xx + pp * pp) + η * cos(ν * t) * xx
 
         b = FockBasis(7)
         bn = NLevelBasis(3)
         bs = SpinBasis(1 // 2)
         ψ = basisstate(b, 1)
+        cnum_zero = SecondQuantizedAlgebra._CNUM_ZERO
+        cnum_one = SecondQuantizedAlgebra._CNUM_ONE
+        fock_reference = SecondQuantizedAlgebra._FockLinearReference(
+            cnum_one, cnum_one, cnum_one, cnum_one,
+        )
+        quadrature_reference = SecondQuantizedAlgebra._QuadratureLinearReference(
+            cnum_one, cnum_zero, cnum_one,
+            cnum_one, cnum_zero, cnum_one, cnum_zero,
+        )
 
         # Bucket 1: strict (zero dispatch reports)
         for (name, thunk) in [
@@ -187,6 +209,15 @@ end
                 ("is_average(a)", () -> is_average(a)),
                 ("is_average(average(a))", () -> is_average(average(a))),
                 ("has_sum_metadata(average(a))", () -> SecondQuantizedAlgebra.has_sum_metadata(average(a))),
+                # The fixed-size affine solvers themselves must remain dispatch free;
+                # public construction is covered by report_call above because its
+                # Symbolics normalization crosses the established `Any` boundary.
+                ("static Fock response", () ->
+                    SecondQuantizedAlgebra._static_fock_displacement(fock_reference)),
+                ("quadrature response component", () ->
+                    SecondQuantizedAlgebra._quadrature_response_component(
+                        quadrature_reference, cnum_one, cnum_zero, cnum_zero,
+                    )),
             ]
             rep = JET.@report_opt target_modules = (SecondQuantizedAlgebra,) thunk()
             @testset "$name" begin

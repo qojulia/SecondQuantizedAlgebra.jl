@@ -14,6 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - Exact named unitary transformations for Fock, phase-space, spin/Pauli, and ordinary N-level operators, with `conjugate`, time-aware `transform`, inversion, composition, and analytically derived gauges.
+- Hamiltonian-derived `Displace` constructors compute static equilibrium and bounded finite-harmonic frames for one-mode Fock and general quadratic phase-space references. The free homogeneous response is omitted, exact resonances are rejected, and the resulting frame can be applied directly to a larger Hamiltonian containing Kerr or other nonlinear terms.
 - `expim(x)` provides a canonical exact unit-phase algebra: products and integer powers add their real arguments, inverse phases cancel, and substitution, differentiation, projections, and explicit exponential/trigonometric conversion preserve the phase representation.
 - Coefficient simplification reduces exact trigonometric and hyperbolic identities, including supported composite arguments and higher powers.
 - A unitary-transformation guide and resonator-rotation example show how to prepare an exact moving-frame Hamiltonian for a later Floquet expansion.
