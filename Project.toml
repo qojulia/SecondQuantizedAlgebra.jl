@@ -18,10 +18,11 @@ LinearAlgebra = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
 QuantumOpticsBase = "4f57444f-1401-5e15-980d-4471b28d5678"
 QuantumToolbox = "6c2fb7c5-b903-41d2-bc5e-5a7c320b9fab"
 SciMLOperators = "c0aeaf25-5076-4817-a8d5-81caf7dfa961"
+SparseArrays = "2f01184e-e22b-5df5-ae63-d93ebab69eaf"
 
 [extensions]
 SecondQuantizedAlgebraQuantumOpticsBaseExt = "QuantumOpticsBase"
-SecondQuantizedAlgebraQuantumToolboxExt = ["QuantumToolbox", "SciMLOperators", "LinearAlgebra"]
+SecondQuantizedAlgebraQuantumToolboxExt = ["QuantumToolbox", "SciMLOperators", "SparseArrays", "LinearAlgebra"]
 
 [compat]
 Combinatorics = "1.0.2"
@@ -34,6 +35,7 @@ QuantumOpticsBase = "0.5"
 QuantumToolbox = "0.47"
 SciMLOperators = "1.22"
 SciMLPublic = "1"
+SparseArrays = "1"
 SymbolicUtils = "4.30"
 Symbolics = "7.26"
 TermInterface = "2"

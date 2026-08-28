@@ -40,6 +40,36 @@ const QTBB = QuantumToolboxBackend()
             typeof(QTB.destroy(6).data)
     end
 
+    @testset "concrete materialization and expectations" begin
+        h = FockSpace(:f)
+        @qnumbers a::Destroy(h)
+        ψ = QTB.coherent(8, 0.4 + 0.2im)
+        bra = ψ'
+        ρ = QTB.ket2dm(ψ)
+        n = a' * a
+
+        @test @inferred(to_numeric(a, 8)) isa QTB.QuantumObject
+        @test @inferred(to_numeric(n, 8)) isa QTB.QuantumObject
+
+        lazy = to_numeric(n, 8; op_type = identity)
+        @test @inferred(SO.concretize(lazy.data)) isa AbstractMatrix
+        @test @inferred(QTB.expect(lazy, ψ)) ≈ QTB.expect(QTB.create(8) * QTB.destroy(8), ψ)
+        @test @inferred(QTB.expect(lazy, bra)) ≈ QTB.expect(QTB.create(8) * QTB.destroy(8), bra)
+        @test @inferred(QTB.expect(lazy, ρ)) ≈ QTB.expect(QTB.create(8) * QTB.destroy(8), ρ)
+        @test numeric_basis(bra) == 8
+        @test @inferred(numeric_average(a, ψ)) ≈ QTB.expect(QTB.destroy(8), ψ)
+        @test @inferred(numeric_average(n, ψ)) ≈ QTB.expect(QTB.create(8) * QTB.destroy(8), ψ)
+        @test @inferred(numeric_average(n, bra)) ≈ QTB.expect(QTB.create(8) * QTB.destroy(8), bra)
+        @test @inferred(numeric_average(n, ρ)) ≈ QTB.expect(QTB.create(8) * QTB.destroy(8), ρ)
+
+        # Materialization accepts custom dense leaves but preserves the sparse public form.
+        dense_a = QTB.Qobj(Matrix(QTB.destroy(8).data), QTB.Operator(), 8)
+        dense_lazy = to_numeric(a + a', 8; operators = Dict(a => dense_a), op_type = identity)
+        dense_data = @inferred SO.concretize(dense_lazy.data)
+        @test typeof(dense_data) === typeof(QTB.destroy(8).data)
+        @test dense_data ≈ QTB.destroy(8).data + QTB.create(8).data
+    end
+
     @testset "Fock parity vs QuantumOptics" begin
         h = FockSpace(:f)
         @qnumbers a::Destroy(h)
