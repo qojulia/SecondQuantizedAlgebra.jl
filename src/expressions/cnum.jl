@@ -341,6 +341,13 @@ function _from_raw(x; normalize::Bool = true, real_slot::Bool = false)::Coeff
     return _symbolic(expr; real_slot)
 end
 
+@inline function _from_raw_arithmetic(x, real_slot::Bool)::Coeff
+    value = _const_value(x)
+    value isa Number && return _to_cnum(value)
+    x isa SymbolicUtils.BasicSymbolic || return _to_cnum(x)
+    return _symbolic(x; real_slot)
+end
+
 @inline function _num_from_float(x::Float64)
     return (isinteger(x) && abs(x) <= 9.007199254740992e15) ? Num(Int(x)) : Num(x)
 end
@@ -389,6 +396,10 @@ function _to_cnum(x::Complex{Num})
     return _cnum(re, im)
 end
 _to_cnum(x::SymbolicUtils.BasicSymbolic) = _recognize(x)
+
+# Keep symbolic Fourier amplitudes exact without changing the native numeric fast path used
+# by ordinary internal trigonometric calculations.
+const _CNUM_HALF_EXACT = _exact_coeff(ExactComplex(1 // 2, 0 // 1))
 
 # Canonicalizing constructor from real/imag `Num` parts (`re + im*i`), used by the
 # symbolic boundaries (substitute / conj / change_index) that may yield a polynomial.
@@ -615,9 +626,11 @@ end
     return length(args) == 1 && _is_atom(only(args))
 end
 
+# Keep the identity scalar native for ordinary symbolic products; explicit rational
+# inputs enter through `_exact_coeff` and remain exact when they are combined later.
 # A bare atom (symbol / array index / `conj(atom)`) as a single-monomial Coeff.
 @inline _atom_coeff(x::SymbolicUtils.BasicSymbolic) =
-    _poly_coeff(Poly(Monomial[Monomial(_ONE_R, SymbolicUtils.BasicSymbolic[x], Rational{Int}[1])]))
+    _poly_coeff(Poly(Monomial[Monomial(_ONE_C, SymbolicUtils.BasicSymbolic[x], Rational{Int}[1])]))
 # An unrecognized symbolic value, kept as one raw symbolic expression tree.
 @inline _sym_leaf(x::SymbolicUtils.BasicSymbolic) = _from_raw(x; normalize = false)
 
@@ -633,7 +646,7 @@ function _rational_power(basearg, r::Rational{Int}, x)
             _is_phase(only(m.syms)) &&
                 throw(ArgumentError("a unit phase cannot have a fractional power"))
             return _poly_coeff(
-                Poly(Monomial[Monomial(_ONE_R, m.syms, Rational{Int}[m.exps[1] * r])])
+                Poly(Monomial[Monomial(_ONE_C, m.syms, Rational{Int}[m.exps[1] * r])])
             )
         end
     end
@@ -875,7 +888,7 @@ end
 end
 
 function _recognize_prod(args)::Coeff
-    scalar = _ONE_R
+    scalar = _ONE_C
     syms = SymbolicUtils.BasicSymbolic[]
     exps = Rational{Int}[]
     other = _CNUM_ONE
@@ -983,6 +996,12 @@ end
     _is_native(c) && return (_num_from_float(real(c.z)), _num_from_float(imag(c.z)))
     cn = to_num(c)
     return (real(cn), imag(cn))
+end
+
+@inline function _raw_parts(c::Coeff)
+    tail = c.tail::RawSymbolicCoeff
+    _cnum_is_real(c) && return (Num(tail.expr), _NUM_ZERO)
+    return _realimag(c)
 end
 
 """
@@ -1203,6 +1222,46 @@ end
 end
 
 # Structural `a == -b`, used to recognize exact cancellation without a CAS round-trip.
+@inline function _raw_is_negative_of(
+        positive::SymbolicUtils.BasicSymbolic, negative::SymbolicUtils.BasicSymbolic,
+    )
+    positive_value = _const_value(positive)
+    negative_value = _const_value(negative)
+    positive_value isa Number && negative_value isa Number &&
+        positive_value == -negative_value && return true
+    SymbolicUtils.iscall(negative) || return false
+    op = SymbolicUtils.operation(negative)
+    args = SymbolicUtils.arguments(negative)
+    if op === (*) && length(args) >= 2 && _const_value(args[1]) == -1
+        if SymbolicUtils.iscall(positive) && SymbolicUtils.operation(positive) === (*)
+            positive_args = SymbolicUtils.arguments(positive)
+            length(args) - 1 == length(positive_args) || return false
+            @inbounds for i in eachindex(positive_args)
+                isequal(args[i + 1], positive_args[i]) || return false
+            end
+            return true
+        end
+        return length(args) == 2 && isequal(args[2], positive)
+    end
+    if op === (+) && SymbolicUtils.iscall(positive) && SymbolicUtils.operation(positive) === (+)
+        positive_args = SymbolicUtils.arguments(positive)
+        length(args) == length(positive_args) || return false
+        @inbounds for i in eachindex(positive_args)
+            _raw_is_negative_of(positive_args[i], args[i]) || return false
+        end
+        return true
+    end
+    if op === (/) && length(args) == 2 &&
+            SymbolicUtils.iscall(positive) && SymbolicUtils.operation(positive) === (/)
+        positive_args = SymbolicUtils.arguments(positive)
+        length(positive_args) == 2 || return false
+        return isequal(args[2], positive_args[2]) &&
+            (_raw_is_negative_of(positive_args[1], args[1]) ||
+             _raw_is_negative_of(args[1], positive_args[1]))
+    end
+    return false
+end
+
 @inline function _isneg_cnum(a::Coeff, b::Coeff)
     an = _is_native(a)
     bn = _is_native(b)
@@ -1215,7 +1274,9 @@ end
         return isempty(_poly_add(a.tail.terms, b.tail.terms))
     end
     if a.tail isa RawSymbolicCoeff && b.tail isa RawSymbolicCoeff
-        return a.tail.real_slot == b.tail.real_slot && isequal(a.tail.expr, -b.tail.expr)
+        return a.tail.real_slot == b.tail.real_slot &&
+            (_raw_is_negative_of(a.tail.expr, b.tail.expr) ||
+             _raw_is_negative_of(b.tail.expr, a.tail.expr))
     end
     ar, ai = _realimag(a)
     br, bi = _realimag(b)
@@ -1237,9 +1298,8 @@ end
     elseif tb isa Poly && ta isa Native
         return _from_poly(_poly_scale(tb.terms, a.z))
     end
-    return _from_raw(
-        _raw_expression(a) * _raw_expression(b);
-        real_slot = _cnum_is_real(a) && _cnum_is_real(b),
+    return _from_raw_arithmetic(
+        _raw_expression(a) * _raw_expression(b), _cnum_is_real(a) && _cnum_is_real(b),
     )
 end
 
@@ -1247,7 +1307,7 @@ end
     t = a.tail
     t isa Native && return _native(-a.z)
     t isa Poly && return _from_poly(_poly_scale(t.terms, -_ONE_C))
-    return _from_raw(-t.expr; normalize = false, real_slot = t.real_slot)
+    return _from_raw_arithmetic(-t.expr, t.real_slot)
 end
 
 @inline function _add_cnum(a::Coeff, b::Coeff)
@@ -1275,9 +1335,8 @@ end
     elseif tb isa Poly && ta isa Native
         return _from_poly(_poly_add(tb.terms, Monomial[Monomial(a.z, _EMPTY_SYMS, _EMPTY_EXPS)]))
     end
-    return _from_raw(
-        _raw_expression(a) + _raw_expression(b);
-        normalize = false, real_slot = _cnum_is_real(a) && _cnum_is_real(b),
+    return _from_raw_arithmetic(
+        _raw_expression(a) + _raw_expression(b), _cnum_is_real(a) && _cnum_is_real(b),
     )
 end
 
@@ -1336,17 +1395,17 @@ function Symbolics.derivative(c::Coeff, var; simplify = false, kwargs...)::Coeff
 end
 
 @inline _factor_cnum(s::SymbolicUtils.BasicSymbolic, e::Rational{Int}) =
-    _poly_coeff(Poly(Monomial[Monomial(_ONE_R, SymbolicUtils.BasicSymbolic[s], Rational{Int}[e])]))
+    _poly_coeff(Poly(Monomial[Monomial(_ONE_C, SymbolicUtils.BasicSymbolic[s], Rational{Int}[e])]))
 
 @inline function _euler_cos(argument)
     phase = _phase_coeff(argument)
-    return _mul_cnum(_CNUM_HALF, _add_cnum(phase, _conj_cnum(phase)))
+    return _mul_cnum(_CNUM_HALF_EXACT, _add_cnum(phase, _conj_cnum(phase)))
 end
 
 @inline function _euler_sin(argument)
     phase = _phase_coeff(argument)
     difference = _add_cnum(phase, _neg_cnum(_conj_cnum(phase)))
-    return _mul_cnum(_mul_cnum(_CNUM_NEG_IM, _CNUM_HALF), difference)
+    return _mul_cnum(_mul_cnum(_CNUM_NEG_IM, _CNUM_HALF_EXACT), difference)
 end
 
 function _phase_from_exponential_argument(argument)::Union{Coeff, Nothing}

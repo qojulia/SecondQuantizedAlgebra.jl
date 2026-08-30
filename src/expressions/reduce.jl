@@ -269,7 +269,7 @@ function _reduce_trig(c::Coeff)
         isempty(rels) && return c
         return _reduce_tail(t, rels, true)
     end
-    re, im = _realimag(c)
+    re, im = _raw_parts(c)
     (
         _has_symbolic_trig(SymbolicUtils.unwrap(re)) ||
             _has_symbolic_trig(SymbolicUtils.unwrap(im))
@@ -328,10 +328,16 @@ end
 # members for plain symbols, which *are* atoms, reduce on the polynomial tier, swap back.
 # The stand-ins never leave this function.
 function _reduce_via_transient(c::Coeff, rels::Vector{ParamRelation}, gated::Bool)
+    re, im = _raw_parts(c)
+    return _reduce_via_transient(c, rels, gated, re, im)
+end
+
+function _reduce_via_transient(
+        c::Coeff, rels::Vector{ParamRelation}, gated::Bool, re::Num, im::Num,
+    )
     fwd = Dict{Num, Num}()
     back = Dict{Num, Num}()
     trels = ParamRelation[]
-    re, im = _realimag(c)
     occupied = SymbolicUtils.BasicSymbolic[]
     append!(occupied, Symbolics.get_variables(re))
     append!(occupied, Symbolics.get_variables(im))
@@ -400,8 +406,12 @@ function _collect_trig!(store::Vector{SymbolicUtils.BasicSymbolic}, x)
 end
 
 function _sym_trig_relations!(rels::Vector{ParamRelation}, c::Coeff)
+    re, im = _raw_parts(c)
+    return _sym_trig_relations!(rels, c, re, im)
+end
+
+function _sym_trig_relations!(rels::Vector{ParamRelation}, c::Coeff, re::Num, im::Num)
     store = SymbolicUtils.BasicSymbolic[]
-    re, im = _realimag(c)
     _collect_trig!(store, SymbolicUtils.unwrap(re))
     _collect_trig!(store, SymbolicUtils.unwrap(im))
     isempty(store) && return rels
@@ -444,10 +454,12 @@ function _reduce_all(
         isempty(scratch) && return c
         return _reduce_tail(t, scratch, gated)
     end
-    (
-        _has_symbolic_trig(t.expr)
-    ) &&
-        _sym_trig_relations!(scratch, c)
+    if _has_symbolic_trig(t.expr)
+        re, im = _raw_parts(c)
+        _sym_trig_relations!(scratch, c, re, im)
+        isempty(scratch) && return c
+        return _reduce_via_transient(c, scratch, gated, re, im)
+    end
     isempty(scratch) && return c
     return _reduce_via_transient(c, scratch, gated)
 end
