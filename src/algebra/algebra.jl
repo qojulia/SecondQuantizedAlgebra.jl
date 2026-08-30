@@ -150,10 +150,31 @@ function normal_order(q::QAdd)
     return QAdd(out, copy(q.indices))
 end
 
+function _simplify_raw_component(x; kwargs...)
+    return Num(SymbolicUtils.simplify(SymbolicUtils.expand(x); kwargs...))
+end
+
+function _contains_division(x)
+    x isa SymbolicUtils.BasicSymbolic || return false
+    SymbolicUtils.iscall(x) || return false
+    SymbolicUtils.operation(x) === (/) && return true
+    for argument in SymbolicUtils.arguments(x)
+        _contains_division(argument) && return true
+    end
+    return false
+end
+
 function _simplify_prefactor(x::CNum; kwargs...)
     _is_native(x) && return x                    # already simplest product form
     _is_poly(x) && return _reduce_trig(x)        # the CAS is not reached on this tier
-    expanded = SymbolicUtils.expand(x.tail.expr)
+    tail = x.tail
+    if !_contains_phase(tail.expr) && !_contains_division(tail.expr)
+        re, im = _raw_realimag(tail.expr)
+        return _cnum(
+            _simplify_raw_component(re; kwargs...), _simplify_raw_component(im; kwargs...),
+        )
+    end
+    expanded = SymbolicUtils.expand(tail.expr)
     return _to_cnum(_simplify_raw(expanded; kwargs...))
 end
 

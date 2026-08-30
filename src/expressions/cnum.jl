@@ -1008,7 +1008,9 @@ end
 @inline function _raw_parts(c::Coeff)
     tail = c.tail::RawSymbolicCoeff
     _cnum_is_real(c) && return (Num(tail.expr), _NUM_ZERO)
-    return _realimag(c)
+    _contains_phase(tail.expr) && return _realimag(c)
+    re, im = _raw_realimag(tail.expr)
+    return (Num(re), Num(im))
 end
 
 """
@@ -1552,9 +1554,7 @@ function _trigonometric_cnum(c::Coeff)
     for monomial in tail.terms
         result = _add_cnum(result, _trigonometric_monomial(monomial))
     end
-    return result.tail isa RawSymbolicCoeff ? _from_raw(
-            _simplify_raw(SymbolicUtils.expand(result.tail.expr)); normalize = false,
-        ) : result
+    return result.tail isa RawSymbolicCoeff ? _from_raw(result.tail.expr) : result
 end
 
 """
