@@ -479,6 +479,12 @@ end
             end
         end
 
+        @testset "symbolic N-level rotation" begin
+            W = [cos(θ) -sin(θ); sin(θ) cos(θ)]
+            @test Rotation(σ12, W) isa UnitaryTransform{StaticTime}
+            @test Rotation(σ12, W, t) isa UnitaryTransform{DynamicTime}
+        end
+
         @testset "timed N-level gauge derivative" begin
             frequency = 1.7
             instant = 0.31

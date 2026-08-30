@@ -60,6 +60,9 @@ Base.:+(a::Coefficient, b::QAdd) = b + a
 Base.zero(::Type{QAdd}) = _zero_qadd()
 Base.zero(::QAdd) = _zero_qadd()
 
+Base.:+(a::QSym) = _single_qadd(_CNUM_ONE, Op[a])
+Base.:+(a::QAdd) = a
+
 Base.:-(a::QSym) = _single_qadd(_CNUM_NEG1, Op[a])
 
 function Base.:-(a::QAdd)
@@ -76,9 +79,15 @@ Base.:-(a::Coefficient, b::QField) = a + (-b)
 
 Base.:/(a::QSym, b::Number) = a * inv(b)
 Base.:/(a::QAdd, b::Number) = a * inv(b)
+Base.:/(a::QSym, b::Coefficient) = a * inv(b)
+Base.:/(a::QAdd, b::Coefficient) = a * inv(b)
 
 Base.://(a::QSym, b::Integer) = a * (1 // b)
 Base.://(a::QAdd, b::Integer) = a * (1 // b)
+# A symbolic or non-integer denominator cannot be the denominator of Julia's
+# rational literal, but operator division supports all scalar coefficients.
+Base.://(a::QSym, b::Coefficient) = a / b
+Base.://(a::QAdd, b::Coefficient) = a / b
 
 function Base.:^(a::QSym, n::Integer)
     n >= 0 || throw(ArgumentError("Negative powers not supported"))

@@ -1117,7 +1117,7 @@ end
     return true
 end
 
-# Structural `a == -b`; see `_addto_key!` for why this is needed.
+# Structural `a == -b`, used to recognize exact cancellation without a CAS round-trip.
 @inline function _isneg_cnum(a::Coeff, b::Coeff)
     an = _is_native(a)
     bn = _is_native(b)
@@ -1128,6 +1128,9 @@ end
     (an != bn) && return false   # one native, one symbolic: never exact negatives
     if a.tail isa Poly && b.tail isa Poly
         return isempty(_poly_add(a.tail.terms, b.tail.terms))
+    end
+    if a.tail isa RawSymbolicCoeff && b.tail isa RawSymbolicCoeff
+        return isequal(a.tail.expr, -b.tail.expr)
     end
     ar, ai = _realimag(a)
     br, bi = _realimag(b)
@@ -1165,6 +1168,11 @@ end
     # fold would splice a throwaway zero `Monomial` into the Poly and merge it away.
     _is_native(a) && iszero(a.z) && return b
     _is_native(b) && iszero(b.z) && return a
+    # Raw symbolic addition deliberately avoids a CAS round-trip. Recover the common exact
+    # cancellation case here, which is needed by scalar identities such as the off-diagonal
+    # entries of a symbolic orthogonal matrix product.
+    (a.tail isa RawSymbolicCoeff && b.tail isa RawSymbolicCoeff && _isneg_cnum(a, b)) &&
+        return _CNUM_ZERO
     return _add_cnum_slow(a, b)
 end
 

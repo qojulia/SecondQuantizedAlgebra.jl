@@ -336,6 +336,11 @@ end
         @testset "negation and exact cancellation" begin
             @test isequal(to_num(_neg_cnum(_to_cnum(2 * ω * g))), Complex(Num(-2 * ω * g), Num(0)))
             @test _iszero_cnum(_add_cnum(_to_cnum(ω * g), _neg_cnum(_to_cnum(ω * g))))
+            # Raw symbolic terms do not go through a CAS during addition, but exact opposites
+            # must still cancel for scalar identities (e.g. symbolic orthogonal matrices).
+            @variables u v
+            raw = _to_cnum(cos(u * v))
+            @test _iszero_cnum(_add_cnum(raw, _neg_cnum(raw)))
         end
 
         @testset "array-indexed parameters are recognized" begin
