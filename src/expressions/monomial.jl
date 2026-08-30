@@ -30,6 +30,12 @@ end
     return ExactComplex(Int(re) // 1, Int(im) // 1)
 end
 
+@inline function _scalar_inv(z::ComplexF64)
+    exact = _integer_scalar(z)
+    return exact === nothing ? inv(z) : inv(exact)
+end
+@inline _scalar_inv(z::ExactComplex) = inv(z)
+
 @inline function _scalar_mul(a::ExactComplex, b::ComplexF64)
     ib = _integer_scalar(b)
     return ib === nothing ? _normalize_scalar(a * b) : a * ib

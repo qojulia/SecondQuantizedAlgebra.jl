@@ -296,7 +296,14 @@ function _rewrite_phase(x)
         expanded_angle = SymbolicUtils.expand(angle)
         value = _const_value(expanded_angle)
         phase = value isa Number && iszero(value) ? 1 : _expim_expanded(expanded_angle)
-        return foldl(*, ordinary; init = phase)
+        # Build the real amplitude before attaching the complex phase.  Multiplying the
+        # phase by an exact real rational first makes SymbolicUtils promote `1//2` to a
+        # floating-point complex constant.
+        amplitude = foldl(*, ordinary; init = 1)
+        phase === 1 && return amplitude
+        # Keep the real amplitude in an explicit complex slot while rebuilding sums: a
+        # real term and a complex phase term otherwise get promoted together as Float64.
+        return _raw_complex(amplitude, 0 // 1) * phase
     elseif op === (^) && length(args) == 2 && _is_phase(args[1])
         exponent = _const_value(args[2])
         exponent isa Integer || return nothing
@@ -1061,7 +1068,7 @@ function Base.inv(c::Coeff)::Coeff
             Poly(
                 Monomial[
                     Monomial(
-                        _normalize_scalar(inv(monomial.scalar)),
+                        _scalar_inv(monomial.scalar),
                         monomial.syms,
                         -monomial.exps,
                     ),
@@ -1256,8 +1263,10 @@ end
         positive_args = SymbolicUtils.arguments(positive)
         length(positive_args) == 2 || return false
         return isequal(args[2], positive_args[2]) &&
-            (_raw_is_negative_of(positive_args[1], args[1]) ||
-             _raw_is_negative_of(args[1], positive_args[1]))
+            (
+            _raw_is_negative_of(positive_args[1], args[1]) ||
+                _raw_is_negative_of(args[1], positive_args[1])
+        )
     end
     return false
 end
@@ -1275,8 +1284,10 @@ end
     end
     if a.tail isa RawSymbolicCoeff && b.tail isa RawSymbolicCoeff
         return a.tail.real_slot == b.tail.real_slot &&
-            (_raw_is_negative_of(a.tail.expr, b.tail.expr) ||
-             _raw_is_negative_of(b.tail.expr, a.tail.expr))
+            (
+            _raw_is_negative_of(a.tail.expr, b.tail.expr) ||
+                _raw_is_negative_of(b.tail.expr, a.tail.expr)
+        )
     end
     ar, ai = _realimag(a)
     br, bi = _realimag(b)
