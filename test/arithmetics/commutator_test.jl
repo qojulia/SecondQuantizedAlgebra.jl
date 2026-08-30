@@ -399,10 +399,10 @@ end
             0.5 * rates[1] * (2 * Jd[1] * op * J[1] - Jd[1] * J[1] * op - op * Jd[1] * J[1]) +
                 sum(
                 Σ(
-                        0.5 * rates[x] *
+                    0.5 * rates[x] *
                         (2 * Jd[x] * op * J[x] - Jd[x] * J[x] * op - op * Jd[x] * J[x]),
-                        i,
-                    )
+                    i,
+                )
                     for x in 2:length(J)
             ),
         ),
