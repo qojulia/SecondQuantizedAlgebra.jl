@@ -1310,7 +1310,7 @@ end
         return _from_poly(_poly_scale(tb.terms, a.z))
     end
     raw = (_raw_expression(a) * _raw_expression(b))::
-        SymbolicUtils.BasicSymbolic{SymbolicUtils.SymReal}
+    SymbolicUtils.BasicSymbolic{SymbolicUtils.SymReal}
     return _from_raw_arithmetic(raw, _cnum_is_real(a) && _cnum_is_real(b))
 end
 
@@ -1348,7 +1348,7 @@ end
         return _from_poly(_poly_add(tb.terms, Monomial[Monomial(a.z, _EMPTY_SYMS, _EMPTY_EXPS)]))
     end
     raw = (_raw_expression(a) + _raw_expression(b))::
-        SymbolicUtils.BasicSymbolic{SymbolicUtils.SymReal}
+    SymbolicUtils.BasicSymbolic{SymbolicUtils.SymReal}
     return _from_raw_arithmetic(raw, _cnum_is_real(a) && _cnum_is_real(b))
 end
 
