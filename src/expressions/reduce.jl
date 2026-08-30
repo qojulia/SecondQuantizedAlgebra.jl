@@ -269,11 +269,7 @@ function _reduce_trig(c::Coeff)
         isempty(rels) && return c
         return _reduce_tail(t, rels, true)
     end
-    re, im = _raw_parts(c)
-    (
-        _has_symbolic_trig(SymbolicUtils.unwrap(re)) ||
-            _has_symbolic_trig(SymbolicUtils.unwrap(im))
-    ) || return c
+    _has_symbolic_trig(t.expr) || return c
     rels = ParamRelation[]
     _sym_trig_relations!(rels, c)
     isempty(rels) && return c
@@ -326,8 +322,43 @@ end
 # A relation on a composite argument (`cos(ω*t)`) is not an atom, so its coefficient sits
 # on the raw symbolic tail, where the CAS folds degree 2 and nothing above it. Swap both
 # members for plain symbols, which *are* atoms, reduce on the polynomial tier, swap back.
-# The stand-ins never leave this function.
+# The raw route keeps the complex expression intact; splitting it into real and imaginary
+# parts here would materialize the representation on every coefficient.
+function _reduce_raw_via_transient(
+        c::Coeff, rels::Vector{ParamRelation}, gated::Bool,
+    )
+    tail = c.tail::RawSymbolicCoeff
+    raw = tail.expr
+    fwd = Dict{Num, Num}()
+    back = Dict{Num, Num}()
+    trels = ParamRelation[]
+    occupied = SymbolicUtils.BasicSymbolic[]
+    append!(occupied, Symbolics.get_variables(Num(raw)))
+    for r in rels
+        haskey(fwd, r.hi) && continue
+        th = _fresh_transient!(occupied)
+        tl = _fresh_transient!(occupied)
+        fwd[r.hi] = th
+        fwd[r.lo] = tl
+        back[th] = r.hi
+        back[tl] = r.lo
+        push!(trels, ParamRelation(th, tl, r.sign))
+    end
+    substituted = SymbolicUtils.unwrap(Symbolics.substitute(Num(raw), fwd))
+    sub = _recognize(substituted)
+    sub.tail isa Poly || return c
+    reduced = _reduce_tail(sub.tail, trels, gated)
+    isequal(reduced, sub) && return c
+    reduced.tail isa Native && return reduced
+    result = SymbolicUtils.unwrap(Symbolics.substitute(Num(_raw_expression(reduced)), back))
+    value = _const_value(result)
+    value isa Number && return _to_cnum(value)
+    result isa SymbolicUtils.BasicSymbolic || return c
+    return _from_raw_arithmetic(result, tail.real_slot)
+end
+
 function _reduce_via_transient(c::Coeff, rels::Vector{ParamRelation}, gated::Bool)
+    c.tail isa RawSymbolicCoeff && return _reduce_raw_via_transient(c, rels, gated)
     re, im = _raw_parts(c)
     return _reduce_via_transient(c, rels, gated, re, im)
 end
@@ -383,6 +414,20 @@ function _has_symbolic_trig(x)
     return false
 end
 
+@inline _is_trig_relation(r::ParamRelation) =
+    _has_symbolic_trig(SymbolicUtils.unwrap(r.hi)) ||
+    _has_symbolic_trig(SymbolicUtils.unwrap(r.lo))
+
+function _raw_uses_trig_relation(x, r::ParamRelation)
+    for member in (r.hi, r.lo)
+        raw = SymbolicUtils.unwrap(member)
+        _has_symbolic_trig(raw) || continue
+        args = SymbolicUtils.arguments(raw)
+        isempty(args) || _raw_depends_on(x, only(args)) && return true
+    end
+    return false
+end
+
 function _collect_trig!(store::Vector{SymbolicUtils.BasicSymbolic}, x)
     x isa SymbolicUtils.BasicSymbolic || return nothing
     SymbolicUtils.iscall(x) || return nothing
@@ -406,6 +451,11 @@ function _collect_trig!(store::Vector{SymbolicUtils.BasicSymbolic}, x)
 end
 
 function _sym_trig_relations!(rels::Vector{ParamRelation}, c::Coeff)
+    if c.tail isa RawSymbolicCoeff
+        store = SymbolicUtils.BasicSymbolic[]
+        _collect_trig!(store, c.tail.expr)
+        return _sym_trig_relations!(rels, store)
+    end
     re, im = _raw_parts(c)
     return _sym_trig_relations!(rels, c, re, im)
 end
@@ -414,6 +464,10 @@ function _sym_trig_relations!(rels::Vector{ParamRelation}, c::Coeff, re::Num, im
     store = SymbolicUtils.BasicSymbolic[]
     _collect_trig!(store, SymbolicUtils.unwrap(re))
     _collect_trig!(store, SymbolicUtils.unwrap(im))
+    return _sym_trig_relations!(rels, store)
+end
+
+function _sym_trig_relations!(rels::Vector{ParamRelation}, store::Vector{SymbolicUtils.BasicSymbolic})
     isempty(store) && return rels
     lows = Dict{_TrigKey, SymbolicUtils.BasicSymbolic}()
     heads = _TrigHead[]
@@ -455,10 +509,15 @@ function _reduce_all(
         return _reduce_tail(t, scratch, gated)
     end
     if _has_symbolic_trig(t.expr)
-        re, im = _raw_parts(c)
-        _sym_trig_relations!(scratch, c, re, im)
+        _sym_trig_relations!(scratch, c)
         isempty(scratch) && return c
-        return _reduce_via_transient(c, scratch, gated, re, im)
+        return _reduce_via_transient(c, scratch, gated)
+    end
+    # A raw coefficient without trig or phase factors cannot be affected by the
+    # trigonometric relations attached to a unitary transform. In particular,
+    # leave indexed parameters and time derivatives in their raw representation.
+    if all(_is_trig_relation, rels)
+        any(r -> _raw_uses_trig_relation(t.expr, r), rels) || return c
     end
     isempty(scratch) && return c
     return _reduce_via_transient(c, scratch, gated)

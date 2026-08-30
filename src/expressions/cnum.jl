@@ -414,7 +414,8 @@ function _mul_by_im(c::Coeff)::Coeff
     tail = c.tail
     tail isa Native && return _native(im * c.z)
     tail isa Poly && return _from_poly(_poly_scale(tail.terms, ComplexF64(im)))
-    return _from_raw(im * tail.expr)
+    raw = (im * tail.expr)::SymbolicUtils.BasicSymbolic{SymbolicUtils.SymReal}
+    return _from_raw_arithmetic(raw, false)
 end
 
 _cnum(re::Num, im::Num) =
@@ -1008,7 +1009,6 @@ end
 @inline function _raw_parts(c::Coeff)
     tail = c.tail::RawSymbolicCoeff
     _cnum_is_real(c) && return (Num(tail.expr), _NUM_ZERO)
-    _contains_phase(tail.expr) && return _realimag(c)
     re, im = _raw_realimag(tail.expr)
     return (Num(re), Num(im))
 end
