@@ -245,8 +245,10 @@ function average(op::QAdd)
         # scalar expression. Carry raw coefficients as one scalar here unless the root is
         # an explicit complex constructor, whose slots should remain component-wise.
         opaque_raw = c.tail isa RawSymbolicCoeff &&
-            !(SymbolicUtils.iscall(c.tail.expr) &&
-                SymbolicUtils.operation(c.tail.expr) === complex)
+            !(
+            SymbolicUtils.iscall(c.tail.expr) &&
+                SymbolicUtils.operation(c.tail.expr) === complex
+        )
         if opaque_raw
             raw = Num(c.tail.expr)
             if isempty(term.ops)
