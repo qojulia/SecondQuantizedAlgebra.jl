@@ -299,11 +299,14 @@ function _rewrite_phase(x)
         # Build the real amplitude before attaching the complex phase.  Multiplying the
         # phase by an exact real rational first makes SymbolicUtils promote `1//2` to a
         # floating-point complex constant.
+        isempty(ordinary) && return phase
         amplitude = foldl(*, ordinary; init = 1)
         phase === 1 && return amplitude
         # Keep the real amplitude in an explicit complex slot while rebuilding sums: a
         # real term and a complex phase term otherwise get promoted together as Float64.
-        return _raw_complex(amplitude, 0 // 1) * phase
+        return _raw_complex(
+            amplitude::SymbolicUtils.BasicSymbolic{SymbolicUtils.SymReal}, 0 // 1,
+        ) * phase
     elseif op === (^) && length(args) == 2 && _is_phase(args[1])
         exponent = _const_value(args[2])
         exponent isa Integer || return nothing
@@ -348,12 +351,9 @@ function _from_raw(x; normalize::Bool = true, real_slot::Bool = false)::Coeff
     return _symbolic(expr; real_slot)
 end
 
-@inline function _from_raw_arithmetic(x, real_slot::Bool)::Coeff
-    value = _const_value(x)
-    value isa Number && return _to_cnum(value)
-    x isa SymbolicUtils.BasicSymbolic || return _to_cnum(x)
-    return _symbolic(x; real_slot)
-end
+@inline _from_raw_arithmetic(
+    x::SymbolicUtils.BasicSymbolic{SymbolicUtils.SymReal}, real_slot::Bool,
+)::Coeff = _symbolic(x; real_slot)
 
 @inline function _num_from_float(x::Float64)
     return (isinteger(x) && abs(x) <= 9.007199254740992e15) ? Num(Int(x)) : Num(x)
@@ -1309,16 +1309,17 @@ end
     elseif tb isa Poly && ta isa Native
         return _from_poly(_poly_scale(tb.terms, a.z))
     end
-    return _from_raw_arithmetic(
-        _raw_expression(a) * _raw_expression(b), _cnum_is_real(a) && _cnum_is_real(b),
-    )
+    raw = (_raw_expression(a) * _raw_expression(b))::
+        SymbolicUtils.BasicSymbolic{SymbolicUtils.SymReal}
+    return _from_raw_arithmetic(raw, _cnum_is_real(a) && _cnum_is_real(b))
 end
 
 @inline function _neg_cnum(a::Coeff)
     t = a.tail
     t isa Native && return _native(-a.z)
     t isa Poly && return _from_poly(_poly_scale(t.terms, -_ONE_C))
-    return _from_raw_arithmetic(-t.expr, t.real_slot)
+    raw = (-t.expr)::SymbolicUtils.BasicSymbolic{SymbolicUtils.SymReal}
+    return _from_raw_arithmetic(raw, t.real_slot)
 end
 
 @inline function _add_cnum(a::Coeff, b::Coeff)
@@ -1346,9 +1347,9 @@ end
     elseif tb isa Poly && ta isa Native
         return _from_poly(_poly_add(tb.terms, Monomial[Monomial(a.z, _EMPTY_SYMS, _EMPTY_EXPS)]))
     end
-    return _from_raw_arithmetic(
-        _raw_expression(a) + _raw_expression(b), _cnum_is_real(a) && _cnum_is_real(b),
-    )
+    raw = (_raw_expression(a) + _raw_expression(b))::
+        SymbolicUtils.BasicSymbolic{SymbolicUtils.SymReal}
+    return _from_raw_arithmetic(raw, _cnum_is_real(a) && _cnum_is_real(b))
 end
 
 @inline function _pow_cnum_nonnegative(base::Coeff, n::Int)
