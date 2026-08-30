@@ -28,6 +28,14 @@ import SecondQuantizedAlgebra: simplify, QAdd, QSym, _single_qadd, _zero_qadd, _
             for (input, out) in cases
                 @test repr(input) == out
             end
+
+            @variables x y
+            exact_display = string(((1 // 4) * sqrt(x * y)) * a)
+            @test occursin("1//4", exact_display)
+            @test !occursin("0.25", exact_display)
+            float_display = string((0.25 * sqrt(x * y)) * a)
+            @test occursin("0.25", float_display)
+            @test !occursin("1//4", float_display)
         end
 
         @testset "Operators" begin
@@ -62,6 +70,7 @@ import SecondQuantizedAlgebra: simplify, QAdd, QSym, _single_qadd, _zero_qadd, _
                 (-1 * a, "-a"),
                 (-3 * a, "-3 * a"),
                 (_single_qadd(_to_cnum(5), Op[]), "5"),
+                (a / 4, "1//4 * a"),
                 (0.5 * a, "0.5 * a"),
             ]
             for (input, out) in cases

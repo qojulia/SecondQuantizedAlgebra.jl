@@ -238,13 +238,31 @@ function average(op::QAdd)
     group_bodies = Vector{BS}[]          # one buffer per summation scope
     group_slot = Dict{GroupKey, Int}()   # scope -> index into group_bodies (O(1) lookup)
     for (term, c) in op.arguments
-        r, i = _realimag(c)
         used = Index[idx for idx in shared if _depends_on_index_term(c, term.ops, idx)]
         contrib = Num(0)
-        if isempty(term.ops)
+        # A raw coefficient can be genuinely complex, but splitting it into
+        # `real(raw)` and `imag(raw)` prevents Symbolics from recognizing the original
+        # scalar expression. Carry raw coefficients as one scalar here unless the root is
+        # an explicit complex constructor, whose slots should remain component-wise.
+        opaque_raw = c.tail isa RawSymbolicCoeff &&
+            !(SymbolicUtils.iscall(c.tail.expr) &&
+                SymbolicUtils.operation(c.tail.expr) === complex)
+        if opaque_raw
+            raw = Num(c.tail.expr)
+            if isempty(term.ops)
+                iszero(raw) || (contrib += raw)
+            else
+                inner = length(term.ops) == 1 ? only(term.ops) :
+                    _single_qadd(_CNUM_ONE, term.ops, term.ne)
+                avg = _average(inner)
+                iszero(raw) || (contrib += raw * avg)
+            end
+        elseif isempty(term.ops)
+            r, i = _realimag(c)
             iszero(r) || (contrib += r)
             iszero(i) || (contrib += i * Symbolics.IM)
         else
+            r, i = _realimag(c)
             inner = length(term.ops) == 1 ? only(term.ops) :
                 _single_qadd(_CNUM_ONE, term.ops, term.ne)
             avg = _average(inner)

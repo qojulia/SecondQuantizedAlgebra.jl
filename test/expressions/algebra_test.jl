@@ -163,6 +163,8 @@ import SecondQuantizedAlgebra: QAdd, QSym, QField, sorted_arguments, CNum,
             @test (a + a') // raw_ω == (a + a') / raw_ω
             @test a // 2.0 == a / 2.0
             @test (a + a') // (1 // 2) == (a + a') / (1 // 2)
+            @test isequal(a / 0, a * inv(0))
+            @test isequal(a / false, a * inv(false))
         end
 
         @testset "Power" begin

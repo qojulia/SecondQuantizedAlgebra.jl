@@ -5,7 +5,8 @@ using SymbolicUtils: SymbolicUtils
 import SecondQuantizedAlgebra: Coeff, CNum, Monomial, Poly, _to_cnum, _to_complex, to_num,
     _is_native, _is_poly, _is_symbolic_cnum, _conj_cnum, _mul_cnum, _add_cnum, _neg_cnum,
     _iszero_cnum, _CNUM_ONE, _CNUM_ZERO, _CNUM_NEG1, _CNUM_IM, _NUM_ZERO, expim,
-    _phase_coeff, _is_phase, exponential_form, trigonometric_form
+    _phase_coeff, _is_phase, exponential_form, trigonometric_form, phase_terms, _from_raw,
+    _CNUM_HALF
 
 function _phase_allocations(f)
     f()
@@ -19,21 +20,69 @@ end
 
 @testset "Coeff" begin
     @testset "native classification" begin
-        for x in (0, 1, -1, 2, 1.5, 0.7, im, -im, 2 + 3im, 1 // 2, -3 // 4)
+        for x in (0, 1, -1, 2, 1.5, 0.7, im, -im, 2 + 3im)
             @test _is_native(_to_cnum(x))
         end
+        @test !_is_native(_to_cnum(1 // 2))
+        @test !_is_native(_to_cnum(-3 // 4))
         @test CNum === Coeff
     end
 
-    @testset "exactness gate keeps inexact rationals / bignums symbolic" begin
-        # 1//3 has no exact ComplexF64, so it must stay on the symbolic path.
+    @testset "exact rational coefficients avoid Float64" begin
+        # Every rational literal stays exact, including ones that happen to round-trip
+        # through Float64 without loss.
+        @test _is_poly(_to_cnum(1 // 4))
+        @test isequal(to_num(_to_cnum(1 // 4)), Complex(Num(1 // 4), Num(0)))
+        exact_complex = _to_cnum(Complex(1 // 4, 1 // 2))
+        @test _is_poly(exact_complex)
+        @test isequal(to_num(exact_complex), Complex(Num(1 // 4), Num(1 // 2)))
+        @test _is_native(_to_cnum(0.25))
+        @test _to_complex(_to_cnum(1 // 4)) === ComplexF64(0.25)
+        # A rational coefficient remains exact when multiplied by a symbolic parameter.
+        @variables r
+        @test _is_poly(_to_cnum((1 // 4) * r))
+        @test occursin("1//4", string(to_num(_to_cnum((1 // 4) * r))))
+        @test occursin("1//2", string(to_num(_to_cnum(r / 2))))
+    end
+
+    @testset "exactness gate keeps large values symbolic" begin
+        # 1//3 remains exact as well.
         @test !_is_native(_to_cnum(1 // 3))
+        # An exactly integral Gaussian rational still needs a round-trip check: Int-sized
+        # values above 2^53 are not all exactly representable by ComplexF64.
+        large_exact = Complex((2^53 + 1) // 1, 0 // 1)
+        large_coeff = _to_cnum(large_exact)
+        @test !_is_native(large_coeff)
+        @test isequal(to_num(large_coeff), Complex(Num(2^53 + 1), Num(0)))
         # 2^70 + 1 exceeds Float64 precision (does not round-trip), so it stays symbolic;
         # an exactly representable bignum (e.g. 2^70) would correctly go native.
         @test !_is_native(_to_cnum(big(2)^70 + 1))
         @test _is_native(_to_cnum(big(2)^70))
         # round-trip is still numerically faithful
         @test _to_complex(_to_cnum(1 // 3)) ≈ 1 / 3
+    end
+
+    @testset "raw numeric constants fold back to native" begin
+        raw_const = SymbolicUtils.term(
+            complex, 3, 0; type = Complex{Real}, shape = UnitRange{Int}[],
+        )
+        folded = _from_raw(raw_const)
+        @test _is_native(folded)
+        @test to_num(folded) == Complex(Num(3), Num(0))
+    end
+
+    @testset "raw Number atoms retain complex projections" begin
+        @variables z::Number
+        raw_atom = _from_raw(z; normalize = false)
+        @test SymbolicUtils._iszero(real(raw_atom) - real(z))
+        @test SymbolicUtils._iszero(imag(raw_atom) - imag(z))
+        materialized = to_num(raw_atom)
+        @test SymbolicUtils._iszero(real(materialized) - real(z))
+        @test SymbolicUtils._iszero(imag(materialized) - imag(z))
+    end
+
+    @testset "internal half stays on the native fast path" begin
+        @test _is_native(_CNUM_HALF)
     end
 
     @testset "symbolic fallback" begin
@@ -139,9 +188,9 @@ end
                 @test _is_symbolic_cnum(_to_cnum(x))
                 @test !_is_poly(_to_cnum(x))
             end
-            # inexact scalars keep the coefficient symbolic (exactness gate), never a Poly
+            # Exact rational scalars remain on the polynomial path.
             @test !_is_native(_to_cnum((1 // 3) * g))
-            @test !_is_poly(_to_cnum((1 // 3) * g))
+            @test _is_poly(_to_cnum((1 // 3) * g))
         end
 
         @testset "materialization round-trip" begin
@@ -519,6 +568,10 @@ end
 
         @test cosine_phase == (expim(θ) + expim(-θ)) / 2
         @test sine_phase == (expim(θ) - expim(-θ)) / (2im)
+        @test all(
+            term -> isequal(to_num(term.amplitude), Complex(Num(1 // 2), Num(0))),
+            phase_terms(cosine_phase),
+        )
         @test trigonometric_form(cosine_phase) == _to_cnum(cos(θ))
         @test trigonometric_form(sine_phase) == _to_cnum(sin(θ))
         @test trigonometric_form(composite_phase) == _to_cnum(cos(ω * t) + sin(ω * t))
@@ -546,6 +599,34 @@ end
         @test exponential_form(nested_phase) == nested_phase
         @test exponential_form(3) == 3
         @test trigonometric_form(3) == 3
+    end
+
+    @testset "finite phase decomposition" begin
+        @variables θ ω t g κ
+
+        reconstruct(c) = sum(
+            term.amplitude * expim(term.phase) for term in phase_terms(c);
+            init = _CNUM_ZERO,
+        )
+
+        coefficients = (
+            _to_cnum(3 // 4),
+            2 * expim(-ω * t) + 5 * expim(2 * ω * t),
+            exponential_form(cos(ω * t + θ)),
+            (g + g * expim(-2 * ω * t)) / sqrt(2 * κ),
+            (1 + expim(-ω * t)) * (1 + expim(2 * ω * t)),
+        )
+        for coefficient in coefficients
+            terms = @inferred phase_terms(coefficient)
+            @test iszero(simplify(reconstruct(coefficient) - exponential_form(coefficient)))
+            @test all(term -> term.amplitude isa Coeff && term.phase isa Num, terms)
+        end
+
+        @test isempty(@inferred phase_terms(_CNUM_ZERO))
+        @test_throws ArgumentError phase_terms(_CNUM_ONE / (1 + expim(ω * t)))
+        phase_symbol = only(only((expim(θ).tail::Poly).terms).syms)
+        nested_phase = SymbolicUtils.term(exp, phase_symbol; type = Complex{Real})
+        @test_throws ArgumentError phase_terms(_to_cnum(nested_phase))
     end
 
     # The public `expim` used to return a `Num`. `Base.conj(::Num)` is the identity and

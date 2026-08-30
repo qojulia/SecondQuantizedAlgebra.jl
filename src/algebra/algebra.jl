@@ -77,8 +77,10 @@ Base.:-(a::QField, b::QField) = a + (-b)
 Base.:-(a::QField, b::Coefficient) = a + (-b)
 Base.:-(a::Coefficient, b::QField) = a + (-b)
 
-Base.:/(a::QSym, b::Number) = a * inv(b)
-Base.:/(a::QAdd, b::Number) = a * inv(b)
+Base.:/(a::QSym, b::Number) =
+    b isa Integer && !(b isa Bool) && !iszero(b) ? a * (1 // b) : a * inv(b)
+Base.:/(a::QAdd, b::Number) =
+    b isa Integer && !(b isa Bool) && !iszero(b) ? a * (1 // b) : a * inv(b)
 Base.:/(a::QSym, b::Coefficient) = a * inv(b)
 Base.:/(a::QAdd, b::Coefficient) = a * inv(b)
 

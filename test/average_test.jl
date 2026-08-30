@@ -68,6 +68,21 @@ import SecondQuantizedAlgebra: simplify, QAdd, QSym, QField, CNum, _to_cnum, _si
         @test average(0) === 0
     end
 
+    @testset "average(QAdd) — preserves opaque complex coefficients" begin
+        h = FockSpace(:c)
+        a = Destroy(h, :a)
+        ad = a'
+        @variables κ::Real η::Real
+
+        avg_a = average(a)
+        avg_ad = average(ad)
+        coefficient = _to_cnum((-avg_a - avg_ad) * sqrt(η * κ))
+        actual = average(coefficient * a)
+        expected = (-avg_a - avg_ad) * avg_a * sqrt(η * κ)
+
+        @test SymbolicUtils._iszero(SymbolicUtils.simplify(actual - expected; expand = true))
+    end
+
     @testset "average(QAdd) — linearity" begin
         h = FockSpace(:c)
         a = Destroy(h, :a)

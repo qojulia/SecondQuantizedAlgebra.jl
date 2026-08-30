@@ -7,12 +7,15 @@ _report_text(report) = sprint(show, MIME("text/plain"), report)
 
 # Collected rather than asserted one by one so the failure can name the offender: a bare
 # `@test any(occursin, allowed)` prints only the predicate.
-_unmatched(report, allowed::Vector{String}) = filter(
-    text -> !any(needle -> occursin(needle, text), allowed),
+_matches_allowed(text, needle::AbstractString) = occursin(needle, text)
+_matches_allowed(text, needle::Regex) = occursin(needle, text)
+
+_unmatched(report, allowed::AbstractVector) = filter(
+    text -> !any(needle -> _matches_allowed(text, needle), allowed),
     map(_report_text, JET.get_reports(report)),
 )
 
-function _test_allowed_only(report, allowed::Vector{String})
+function _test_allowed_only(report, allowed::AbstractVector)
     left = _unmatched(report, allowed)
     isempty(left) || @info "unmatched JET reports" left
     @test isempty(left)
@@ -122,6 +125,12 @@ end
                     ),
                 ),
                 (
+                    "phase_terms(cos(ω*t))",
+                    () -> SecondQuantizedAlgebra.phase_terms(
+                        SecondQuantizedAlgebra.exponential_form(cos(ω * t)),
+                    ),
+                ),
+                (
                     "expim(ω*t) * expim(θ)",
                     () -> SecondQuantizedAlgebra.expim(ω * t) *
                         SecondQuantizedAlgebra.expim(θ),
@@ -206,8 +215,27 @@ end
         #     Hermitian-symtype probe (`_avg_symtype`) reaches the same boundary from
         #     the other side: `adjoint` conjugates each coefficient via `_conj_atom`,
         #     which reads that same `::Any` symbolic tail.
-        allowed_coeff_reports = [
+        # The extra entries below are deliberately type-shaped: a new function name alone
+        # must not silence every future report from that function.
+        allowed_coeff_reports = Any[
             "SecondQuantizedAlgebra._recognize(",
+            r"SecondQuantizedAlgebra\._raw_complex\(%\d+::Any, %\d+::Any\)",
+            r"Core\.kwcall\(%\d+::@NamedTuple\{(?:normalize::Bool, )?real_slot::Bool\},",
+            r"SecondQuantizedAlgebra\._to_cnum\(%\d+::Number\)::Any",
+            r"SecondQuantizedAlgebra\._to_cnum\(%\d+::Any\)::Any",
+            r"SecondQuantizedAlgebra\._to_cnum\(%\d+::Rational\)::SecondQuantizedAlgebra\.Coeff",
+            r"SecondQuantizedAlgebra\._normalize_phase\(%\d+::Any\)::Any",
+            r"SecondQuantizedAlgebra\.Complex\(%\d+::Any, %\d+::Any\)::Complex",
+            r"SecondQuantizedAlgebra\.imag\(%\d+::Number\)::Real",
+            r"\(%\d+::Any SecondQuantizedAlgebra\.:/ %\d+::Any\)::Any",
+            r"\(%\d+::SymbolicUtils\.BasicSymbolicImpl.*SecondQuantizedAlgebra\.:/ %\d+::Any\)::Any",
+            r"\(%\d+::Any SecondQuantizedAlgebra\.:- %\d+::Any\)::Any",
+            r"get_variables\(%\d+::Real\)::Any",
+            r"SecondQuantizedAlgebra\.any\(%\d+::.*::Any\)::Any",
+            r"SecondQuantizedAlgebra\.:// %\d+::Integer\)::Rational",
+            r"SecondQuantizedAlgebra\._collect_trig!\(%\d+::Vector\{SymbolicUtils\.BasicSymbolicImpl.*?, %\d+::Any\)::Any",
+            r"SecondQuantizedAlgebra\.append!\(%\d+::Vector\{SymbolicUtils\.BasicSymbolicImpl.*?, %\d+::Any\)::Any",
+            r"SecondQuantizedAlgebra\._has_symbolic_trig\(%\d+::Any\)::Bool",
             "SecondQuantizedAlgebra.ComplexF64(",
             "convert(SecondQuantizedAlgebra.Coeff",
             "SecondQuantizedAlgebra.:*",
@@ -222,7 +250,7 @@ end
         #     phase and sign arms run, and the trig discovery in `reduce.jl` iterates
         #     `Monomial.syms`, whose eltype is that same UnionAll. Neither is fixable here:
         #     the type is already lost at the caller, and the eltype is SymbolicUtils' choice.
-        allowed_symbolic_walk_reports = [
+        allowed_symbolic_walk_reports = Any[
             "BasicSymbolicImpl)\"{T} where T)",
             "operation(",   # the two SymbolicUtils accessors that start the widening
             "arguments(",
