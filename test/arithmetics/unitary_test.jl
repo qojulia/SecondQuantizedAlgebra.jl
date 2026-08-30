@@ -6,7 +6,7 @@ using Symbolics: @variables, Num
 import SecondQuantizedAlgebra: Coeff, DynamicTime, Op, ParamRelation, QAdd, SiteInfo,
     StaticTime, _CNUM_ONE, _coefficient_matrix, _matrix_unit_rules, _nlevel_gauge,
     _rule_qadd, _substitute_cnum, _to_complex, _validated_transform,
-    _zero_qadd, expim
+    _zero_qadd, expim, exponential_form
 
 # The unitary API is deliberately tested from its closed forms instead of from a second
 # implementation of the removed generic exponentiator. Constructor tables pin one useful
@@ -90,7 +90,7 @@ end
     σ21 = Transition(atom, :σ, 2, 1)
     σ22 = Transition(atom, :σ, 2, 2)
 
-    @variables θ φ r ϕ ω Ω η g t s dx dp
+    @variables θ φ r ϕ ω Ω η g t s dx dp ω₀ F
     @variables α::Number
 
     @testset "constructor image table" begin
@@ -292,6 +292,21 @@ end
         @test isequal(conjugate(a, moving_rotation), expim(-ω * t) * a)
         @test isequal(gauge_term(moving_rotation), -ω * a' * a)
         @test isequal(transform(Ω * a' * a, moving_rotation), (Ω - ω) * a' * a)
+
+        @testset "rotating-frame Duffing phase form" begin
+            x_a = (a + a') / sqrt(2 * ω₀)
+            p_a = im * sqrt(ω₀ / 2) * (a' - a)
+            duffing = ω₀ * (p_a^2 + x_a^2) / 2 + α * x_a^4 / 4 - F * x_a * cos(ω * t)
+            rotating_duffing = @inferred exponential_form(transform(duffing, moving_rotation))
+
+            @test !occursin("cos(", string(rotating_duffing))
+            @test !occursin("sin(", string(rotating_duffing))
+
+            duffing_with_phases = ω₀ * (p_a^2 + x_a^2) / 2 + α * x_a^4 / 4 -
+                F * x_a * exponential_form(cos(ω * t))
+            simplified_duffing = @inferred simplify(transform(duffing_with_phases, moving_rotation))
+            @test iszero(simplify(rotating_duffing - simplified_duffing))
+        end
 
         moving_squeeze = Squeeze(a, r * t, 0, t)
         @test isequal(

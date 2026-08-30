@@ -139,15 +139,14 @@ function normal_order(q::QAdd)
     return QAdd(out, copy(q.indices))
 end
 
-function _simplify_prefactor(x::CNum)
+function _simplify_prefactor(x::CNum; kwargs...)
     _is_native(x) && return x                    # already simplest product form
     _is_poly(x) && return _reduce_trig(x)        # the CAS is not reached on this tier
-    (_numeric_value(real(x)) !== nothing && _numeric_value(imag(x)) !== nothing) &&
-        return _cnum(real(x), imag(x))
-    re = Num(SymbolicUtils.simplify(SymbolicUtils.unwrap(Symbolics.expand(real(x)))))
-    im = Num(SymbolicUtils.simplify(SymbolicUtils.unwrap(Symbolics.expand(imag(x)))))
-    return _cnum(re, im)
+    expanded = SymbolicUtils.expand(x.tail.expr)
+    return _to_cnum(_simplify_raw(expanded; kwargs...))
 end
+
+SymbolicUtils.simplify(c::Coeff; kwargs...) = _simplify_prefactor(c; kwargs...)
 function _drop_unused_indices(d::QTermDict, indices::Vector{Index})
     isempty(indices) && return indices
     used = Index[]

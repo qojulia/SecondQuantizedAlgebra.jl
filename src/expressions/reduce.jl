@@ -324,7 +324,7 @@ function _fresh_transient!(occupied::Vector{SymbolicUtils.BasicSymbolic})
 end
 
 # A relation on a composite argument (`cos(ω*t)`) is not an atom, so its coefficient sits
-# on the `Complex{Num}` tail, where the CAS folds degree 2 and nothing above it. Swap both
+# on the raw symbolic tail, where the CAS folds degree 2 and nothing above it. Swap both
 # members for plain symbols, which *are* atoms, reduce on the polynomial tier, swap back.
 # The stand-ins never leave this function.
 function _reduce_via_transient(c::Coeff, rels::Vector{ParamRelation}, gated::Bool)
@@ -363,7 +363,7 @@ function _reduce_cnum(c::Coeff, rels::Vector{ParamRelation}, gated::Bool)
     return _reduce_via_transient(c, rels, gated)
 end
 
-# On the polynomial tier the factors of a coefficient are explicit; on the `Complex{Num}`
+# On the polynomial tier the factors of a coefficient are explicit; on the raw symbolic
 # tail they are buried in a SymbolicUtils tree, so walk it for the same pairs. Only the
 # transform layer pays for this, never `simplify`.
 function _has_symbolic_trig(x)
@@ -445,8 +445,7 @@ function _reduce_all(
         return _reduce_tail(t, scratch, gated)
     end
     (
-        _has_symbolic_trig(SymbolicUtils.unwrap(real(t))) ||
-            _has_symbolic_trig(SymbolicUtils.unwrap(imag(t)))
+        _has_symbolic_trig(t.expr)
     ) &&
         _sym_trig_relations!(scratch, c)
     isempty(scratch) && return c

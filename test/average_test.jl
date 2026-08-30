@@ -305,6 +305,29 @@ import SecondQuantizedAlgebra: simplify, QAdd, QSym, QField, CNum, _to_cnum, _si
         @test result isa QAdd
     end
 
+    @testset "undo_average — complex coefficient round-trips" begin
+        h = FockSpace(:complex_coefficients)
+        a = Destroy(h, :a)
+        @variables r::Real k::Real z::Number w::Number
+
+        explicit = _to_cnum(Complex(Symbolics.Num(z), Symbolics.Num(w)))
+        quotient = _to_cnum(z) / _to_cnum(sqrt(r * k))
+        expressions = (
+            (2 + 3im) * a,
+            explicit * a,
+            quotient * a,
+        )
+
+        for expression in expressions
+            roundtrip = undo_average(average(expression))
+            @test isequal(roundtrip, expression)
+            @test hash(roundtrip) == hash(expression)
+
+            simplified_average = Symbolics.simplify(average(expression); expand = true)
+            @test isequal(undo_average(simplified_average), expression)
+        end
+    end
+
     @testset "undo_average — indexed round-trip" begin
         ha = NLevelSpace(:atom, 2, 1)
         hf = FockSpace(:f)

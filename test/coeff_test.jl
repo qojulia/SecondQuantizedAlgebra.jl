@@ -105,6 +105,11 @@ end
         @test isequal(m', m)               # adjoint reproduces the same coefficient
         @test hash(m') == hash(m)
         @test isequal(simplify(m), m)
+
+        @variables g k
+        simplified_fraction = simplify(((g + g * k) / (1 + k)) * a)
+        @test isequal(simplified_fraction, g * a)
+        @test hash(simplified_fraction) == hash(g * a)
     end
 
     @testset "Poly tier" begin
@@ -144,6 +149,20 @@ end
             @test isequal(to_num(_to_cnum(g^3)), Complex(Num(g^3), Num(0)))
             @test isequal(to_num(_to_cnum(im * g)), Complex(Num(0), Num(g)))
             @test isequal(to_num(_to_cnum((1 // 3) * g)), Complex(Num((1 // 3) * g), Num(0)))
+
+            # Number-symtype atoms occupy the real coefficient slot even when mixed
+            # arithmetic sends the coefficient through the raw symbolic tier.
+            @test isequal(real(_to_cnum(gc)), gc)
+            @test iszero(imag(_to_cnum(gc)))
+            mixed = _to_cnum(gc) / _to_cnum(sqrt(g * κ))
+            @test isequal(to_num(mixed), Complex(Num(gc / sqrt(g * κ)), Num(0)))
+
+            # `Symbolics.IM` is the actual imaginary unit, not a Number-symtype
+            # coefficient slot. It must take the native path before generic atoms.
+            symbolic_im = _to_cnum(Symbolics.IM)
+            @test isequal(symbolic_im, _CNUM_IM)
+            @test iszero(real(symbolic_im))
+            @test isequal(imag(symbolic_im), Num(1))
         end
 
         @testset "multiply merges factors, no CAS" begin
@@ -358,6 +377,15 @@ end
             @test !_is_native(_to_cnum(cos(Num(π))))
             @test !_is_native(_to_cnum(sin(Num(π))))
         end
+
+        @testset "explicit complex slots differentiate component-wise" begin
+            @variables z::Number
+            c = _to_cnum(Complex(Num(z), Num(z)))
+            expected = _to_cnum(1 + im)
+            @test isequal(Symbolics.derivative(c, z), expected)
+            D = Symbolics.Differential(z)
+            @test isequal(_to_cnum(Symbolics.expand_derivatives(D(c))), expected)
+        end
     end
 
     @testset "unit phases" begin
@@ -490,6 +518,11 @@ end
         @test trigonometric_form(sine_phase) == _to_cnum(sin(θ))
         @test trigonometric_form(composite_phase) == _to_cnum(cos(ω * t) + sin(ω * t))
         @test trigonometric_form(expim(θ)^2) == _to_cnum(cos(2θ) + im * sin(2θ))
+        phase_over_root = cos(ω * t) * expim(-ω * t) / sqrt(2 * ω)
+        exponential_phase_over_root = @inferred exponential_form(phase_over_root)
+        @test !occursin("cos(", string(exponential_phase_over_root))
+        expected_phase_over_root = (1 + expim(-2 * ω * t)) / (2 * sqrt(2 * ω))
+        @test iszero(simplify(exponential_phase_over_root - expected_phase_over_root))
         @test (@inferred exponential_form(exp(im * θ))) == expim(θ)
         @test (@inferred exponential_form(cis(θ))) == expim(θ)
         @test (@inferred exponential_form(intact_exp)) == expim(θ)

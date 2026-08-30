@@ -300,6 +300,14 @@ function _fold_qadds(op::F, args::Vector{QAdd}, empty::QAdd) where {F}
     return result
 end
 
+function _contains_average(x)
+    x isa Num && return _contains_average(SymbolicUtils.unwrap(x))
+    x isa SymbolicUtils.BasicSymbolic || return false
+    (is_average(x) || is_indexed_sum(x)) && return true
+    SymbolicUtils.iscall(x) || return false
+    return any(_contains_average, SymbolicUtils.arguments(x))
+end
+
 """
     undo_average(expr) -> QAdd
 
@@ -333,6 +341,12 @@ function undo_average(x::SymbolicUtils.BasicSymbolic)
             arg
         end
         return _to_qadd(inner)
+    end
+    if f === (/) && length(SymbolicUtils.arguments(x)) == 2
+        numerator, denominator = SymbolicUtils.arguments(x)
+        if !_contains_average(denominator)
+            return undo_average(numerator) * inv(_to_cnum(denominator))
+        end
     end
     if f === (+) || f === (*)
         args = QAdd[undo_average(a) for a in SymbolicUtils.arguments(x)]
