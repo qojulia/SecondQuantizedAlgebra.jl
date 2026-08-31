@@ -1714,10 +1714,10 @@ factors are converted to exponential form first. A phase-bearing denominator or 
 inside an unsupported nonlinear operation throws an `ArgumentError` because it does not
 represent a finite phase polynomial.
 
-The decomposition is exact:
+The decomposition is exact after conversion to exponential form:
 
 ```julia
-c == sum(term.amplitude * expim(term.phase) for term in phase_terms(c))
+exponential_form(c) == sum(term.amplitude * expim(term.phase) for term in phase_terms(c))
 ```
 """
 function phase_terms(c::Coeff)::Vector{PhaseTerm}
