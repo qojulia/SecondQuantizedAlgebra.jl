@@ -224,6 +224,7 @@ end
             r"SecondQuantizedAlgebra\._to_cnum\(%\d+::Number\)::Any",
             r"SecondQuantizedAlgebra\._to_cnum\(%\d+::Any\)::Any",
             r"SecondQuantizedAlgebra\._to_cnum\(%\d+::Rational\)::(?:SecondQuantizedAlgebra\.)?Coeff",
+            r"SecondQuantizedAlgebra\._to_cnum\(%\d+::Complex\)::(?:SecondQuantizedAlgebra\.)?Coeff",
             r"SecondQuantizedAlgebra\._normalize_phase\(%\d+::Any\)::Any",
             r"SecondQuantizedAlgebra\.Complex\(%\d+::Any, %\d+::Any\)::Complex",
             r"SecondQuantizedAlgebra\.imag\(%\d+::Number\)::Real",
@@ -274,6 +275,7 @@ end
             ")[1]::Any",
             "SecondQuantizedAlgebra.Num(",
             "SecondQuantizedAlgebra.ParamRelation(",
+            r"SecondQuantizedAlgebra\._simplify_raw_component\(%\d+::Any\)::Any",
         ]
         # (b) `undo_average` rebuilds a QAdd from a Symbolics `average` node, reading
         #     its `Any`-typed arguments/metadata (`_average`, `_to_qadd`) and folding

@@ -1007,7 +1007,8 @@ end
 end
 
 @inline function _raw_parts(c::Coeff)
-    tail = c.tail::RawSymbolicCoeff
+    tail = c.tail
+    tail isa RawSymbolicCoeff || return _realimag(c)
     _cnum_is_real(c) && return (Num(tail.expr), _NUM_ZERO)
     re, im = _raw_realimag(tail.expr)
     return (Num(re), Num(im))
@@ -1064,19 +1065,22 @@ Base.conj(c::Coeff) = _conj_cnum(c)
 function Base.inv(c::Coeff)::Coeff
     tail = c.tail
     tail isa Native && return _native(inv(c.z))
-    if tail isa Poly && length(tail.terms) == 1
-        monomial = only(tail.terms)
-        return _poly_coeff(
-            Poly(
-                Monomial[
-                    Monomial(
-                        _scalar_inv(monomial.scalar),
-                        monomial.syms,
-                        -monomial.exps,
-                    ),
-                ]
+    if tail isa Poly
+        if length(tail.terms) == 1
+            monomial = only(tail.terms)
+            return _poly_coeff(
+                Poly(
+                    Monomial[
+                        Monomial(
+                            _scalar_inv(monomial.scalar),
+                            monomial.syms,
+                            -monomial.exps,
+                        ),
+                    ]
+                )
             )
-        )
+        end
+        return _CNUM_ONE / c
     end
     return _from_raw(inv(tail.expr); real_slot = tail.real_slot)
 end
