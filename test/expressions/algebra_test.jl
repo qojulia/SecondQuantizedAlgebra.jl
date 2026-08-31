@@ -153,6 +153,18 @@ import SecondQuantizedAlgebra: QAdd, QSym, QField, sorted_arguments, CNum,
             @test prefactor(only(sorted_arguments(a / 2.0))) ≈ 0.5
             @test prefactor(only(sorted_arguments(a / 2))) == 1 // 2
             @test ((a + a') / 2.0) isa QAdd
+
+            @variables ω::Real
+            @test a // ω == a / ω
+            @test (a + a') // ω == (a + a') / ω
+
+            raw_ω = SymbolicUtils.unwrap(ω)
+            @test a / raw_ω == a * inv(raw_ω)
+            @test (a + a') // raw_ω == (a + a') / raw_ω
+            @test a // 2.0 == a / 2.0
+            @test (a + a') // (1 // 2) == (a + a') / (1 // 2)
+            @test isequal(a / 0, a * inv(0))
+            @test isequal(a / false, a * inv(false))
         end
 
         @testset "Power" begin
@@ -173,6 +185,12 @@ import SecondQuantizedAlgebra: QAdd, QSym, QField, sorted_arguments, CNum,
             m = -a
             @test m isa QAdd
             @test m[Op[a]] == -1
+        end
+
+        @testset "Unary plus" begin
+            @test +a == a + 0
+            q = a + a'
+            @test +q == q
         end
 
         @testset "Adjoint of QMul" begin

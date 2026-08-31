@@ -437,6 +437,21 @@ import SecondQuantizedAlgebra: simplify, QAdd, QSym, CNum, _to_cnum, NO_INDEX,
         @test isequal(real(cj), gj)
     end
 
+    @testset "change_index — QAdd with batched pairs" begin
+        i = Index(hf, :i, 10, hf)
+        j = Index(hf, :j, 10, hf)
+        @variables g
+        gi = IndexedVariable(:g, i)
+        gj = IndexedVariable(:g, j)
+        a_i = IndexedOperator(a, i)
+        renamed = change_index(exp(gi + g) * a_i, Dict(i => j))
+        @test isequal(real(prefactor(renamed)), exp(gj + g))
+        @test only(operators(renamed)).index == j
+
+        Jij = DoubleIndexedVariable(:J, i, j; identical = false)
+        @test iszero(change_index(Jij * exp(g) * a_i, Dict(j => i)))
+    end
+
     # ========== get_indices ==========
     @testset "get_indices" begin
         i = Index(hf, :i, 10, hf)

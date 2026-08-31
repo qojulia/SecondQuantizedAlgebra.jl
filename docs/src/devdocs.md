@@ -141,34 +141,38 @@ separate roles because they use different basis conventions and numeric paths
 ## The `CNum` prefactor type
 
 ```julia
-const CNum = Complex{Num}
-```
+const CNum = Coeff
 
-All prefactors are promoted to `CNum` — integers, floats, symbolic variables, complex numbers all get converted via `_to_cnum`. This ensures a single concrete prefactor type throughout the entire algebra, which is essential for type stability and therefore performance. The Julia compiler sees `Dict{QTerm, CNum}` (with `QTerm.ops::Vector{Op}`) as a fully concrete type, so dictionary operations, arithmetic, and iteration never trigger dynamic dispatch.
-
-`Num` is the symbolic number type from Symbolics.jl, so `Complex{Num}` can represent both symbolic prefactors (`ω`, `g + im*κ`) and plain numeric ones (`3.0 + 0.0im`).
-
-**Fast-path arithmetic.** Splitting into real and imaginary `Num` parts enables fast-path arithmetic. Most physics prefactors have zero imaginary part, so `_mul_cnum` and `_add_cnum` check `_iszero_num(c.im)` and skip half the arithmetic:
-
-```julia
-# Common case: both purely real → 1 multiply instead of 4
-if ai_zero && bi_zero
-    return Complex(ar * br, _NUM_ZERO)
+struct Coeff
+    z::ComplexF64
+    tail::Union{Native, Poly, RawSymbolicCoeff}
 end
 ```
 
-The `_iszero_num` check skips the imaginary arithmetic, and cached constants (`_CNUM_ZERO`, `_CNUM_ONE`, `_CNUM_IM`, etc.) avoid re-constructing the common literals. There is, however, **no native-number fast path**: the real-part product `ar * br` always goes through `Num` arithmetic, even when both operands wrap plain numbers. Because Symbolics wraps numeric literals as hash-consed `BasicSymbolic` constants, every coefficient multiply/add and every `Num` construction costs on the order of 10²–10³ ns (versus ~1 ns native). On product- and power-heavy workloads this coefficient arithmetic — not the operator algebra — dominates the run time.
+Every prefactor is promoted to the one concrete `Coeff` type. `Native` stores ordinary
+numbers inline, `Poly` stores sparse parameter polynomials (including the optimized unit-phase
+fast path), and `RawSymbolicCoeff` stores an arbitrary scalar
+`BasicSymbolic{SymbolicUtils.SymReal}` expression. Here `SymReal` is the symbolic tree
+variant; `SymbolicUtils.symtype(expr)` separately records whether the represented value is
+`Real`, `Number`, or `Complex{Real}`.
 
-**Opaque vs. split complex parameters.** `_to_cnum` only splits a parameter into `real`/`imag` parts when it already arrives as a `Complex{Num}` (a `::Complex` variable, or an explicit `complex(re, im)` node). Any other symbol, including a `Number`-symtype variable (`@variables η::Number`), is stored *opaquely* in the real slot as `Complex(Num(η), 0)`. This keeps coefficient arithmetic on a single symbol (`η * η → η²`, one multiply) instead of expanding `(a+bi)(c+di)` over two independent unknowns, the cost a `::Complex` parameter pays on every product.
+The raw fallback is important for complex expressions. Mixed polynomial/non-polynomial
+arithmetic operates on one intact symbolic tree instead of first splitting it into real and
+imaginary `Num` components. This lets unit phases remain recognizable across radicals,
+trigonometric factors, division, substitution, and frame transformations.
 
-The opaque storage means conjugation cannot be the generic `conj(::Complex{Num})`, which only flips `.im` and is a no-op when `.im == 0`; otherwise the phase of a `Number`-symtype parameter would be silently dropped. `_conj_cnum` is therefore **symtype-aware**: it leaves a real-symtype real part unchanged (its own conjugate) and applies the symbolic `conj` to a non-real one.
+`Complex{Num}` is now a boundary representation produced by `to_num`, `prefactor`, indexing,
+and numeric backends. It is not used for internal coefficient arithmetic. Operator printing
+renders a raw fallback directly so display alone does not split a compact phase expression.
 
-```julia
-_sym_conj(x::Num) = SymbolicUtils.symtype(x) <: Real ? x : Num(conj(SymbolicUtils.unwrap(x)))
-_conj_cnum(c::CNum) = Complex(_sym_conj(c.re), -c.im)
-```
+`RawSymbolicCoeff` retains explicit `complex(re, im)` nodes when a `Complex{Num}` contains
+`Number`-symtype slots. This preserves the established slot semantics under conjugation:
+`conj(complex(0, g)) == complex(0, -conj(g))`, even when `g` is not provably real.
 
-`Base.adjoint(::QAdd)` conjugates each term coefficient through `_conj_cnum`, so `η::Number` correctly satisfies `adjoint(η) == conj(η)`, and `(η a)†(η a)` carries `|η|² = conj(η)·η` rather than `η²`.
+The package-local phase normalizer is composed with the ordinary SymbolicUtils simplifier.
+SymbolicUtils has no public registry for extending its default rules, so `simplify(::Coeff)`
+runs phase normalization, the standard simplifier, and phase normalization once more. Native
+and `Poly` fast paths still avoid the CAS.
 
 
 ## QAdd internals
