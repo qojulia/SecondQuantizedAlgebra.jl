@@ -6,7 +6,7 @@ import SecondQuantizedAlgebra: Coeff, CNum, Monomial, Poly, _to_cnum, _to_comple
     _is_native, _is_poly, _is_symbolic_cnum, _conj_cnum, _mul_cnum, _add_cnum, _neg_cnum,
     _iszero_cnum, _CNUM_ONE, _CNUM_ZERO, _CNUM_NEG1, _CNUM_IM, _NUM_ZERO, expim,
     _phase_coeff, _is_phase, exponential_form, trigonometric_form, phase_terms, _from_raw,
-    _CNUM_HALF
+    _CNUM_HALF, _cnum_sym, _raw_parts
 
 function _phase_allocations(f)
     f()
@@ -672,5 +672,135 @@ end
         # a registered derivative, not an inert `Differential` node
         d = Symbolics.expand_derivatives(Symbolics.Differential(t)(Num(b)))
         @test isequal(_to_cnum(d), _mul_cnum(_mul_cnum(_CNUM_IM, _to_cnum(ω)), p))
+    end
+
+    @testset "raw symbolic coefficient fallbacks" begin
+        @variables θ φ ψ ω t g κ r α::Number
+        phase = expim(θ)
+        raw_power = phase^2 * exp(ω * t)
+        raw_product = phase * expim(φ) * exp(ω * t)
+        raw_denominator = phase / (expim(φ) * exp(ω * t))
+
+        @test isequal(phase_terms(raw_power)[1].phase, 2θ)
+        @test isequal(phase_terms(raw_product)[1].phase, θ + φ)
+        @test isequal(phase_terms(raw_denominator)[1].phase, θ - φ)
+        @test occursin("cos", string(trigonometric_form(raw_product)))
+        @test occursin("sin", string(trigonometric_form(raw_product)))
+        @test !occursin("expim", string(to_num(exp(ω * t) / (phase * expim(φ)))))
+        @test iszero(raw_product + (-raw_product))
+        @test !isequal(conj(raw_product), raw_product)
+
+        # The raw phase atom is constructed only to exercise the boundary normalizer; the
+        # behavior is checked through the public `to_num` representation.
+        raw_phase = SymbolicUtils.term(
+            expim, SymbolicUtils.unwrap(θ); type = Complex{Real}, shape = UnitRange{Int}[],
+        )
+        raw_phase_atom(x) = SymbolicUtils.term(
+            expim, SymbolicUtils.unwrap(x); type = Complex{Real}, shape = UnitRange{Int}[],
+        )
+        raw_product_tree = SymbolicUtils.term(
+            *, raw_phase, raw_phase_atom(φ), SymbolicUtils.unwrap(exp(ω * t));
+            type = Complex{Real}, shape = UnitRange{Int}[],
+        )
+        raw_denominator_tree = SymbolicUtils.term(
+            /,
+            raw_phase,
+            SymbolicUtils.term(
+                *, raw_phase_atom(φ), raw_phase_atom(ψ);
+                type = Complex{Real}, shape = UnitRange{Int}[],
+            );
+            type = Complex{Real}, shape = UnitRange{Int}[],
+        )
+        raw_nonphase_power_tree = SymbolicUtils.term(
+            ^, SymbolicUtils.unwrap(r), -1; type = Complex{Real}, shape = UnitRange{Int}[],
+        )
+        raw_conjugate_tree = SymbolicUtils.term(
+            conj, raw_phase; type = Complex{Real}, shape = UnitRange{Int}[],
+        )
+        @test isequal(
+            phase_terms(exponential_form(Num(raw_phase^2)))[1].phase, 2θ,
+        )
+        @test isequal(
+            phase_terms(exponential_form(Num(raw_product_tree)))[1].phase, θ + φ,
+        )
+        @test isequal(
+            phase_terms(exponential_form(Num(raw_denominator_tree)))[1].phase,
+            θ - φ - ψ,
+        )
+        @test length(phase_terms(exponential_form(Num(raw_nonphase_power_tree)))) == 1
+        @test isequal(
+            phase_terms(exponential_form(Num(raw_conjugate_tree)))[1].phase, -θ,
+        )
+        @test isequal(
+            to_num(_from_raw(raw_phase^2; normalize = false)),
+            Complex(cos(2θ), sin(2θ)),
+        )
+        @test isequal(
+            to_num(_from_raw(conj(raw_phase); normalize = false)),
+            Complex(cos(-θ), sin(-θ)),
+        )
+        @test isequal(
+            to_num(_from_raw(real(raw_phase); normalize = false)),
+            Complex(cos(θ), Num(0)),
+        )
+        @test isequal(
+            to_num(_from_raw(imag(raw_phase); normalize = false)),
+            Complex(sin(θ), Num(0)),
+        )
+        @test to_num(_from_raw(abs(raw_phase); normalize = false)) == 1
+        @test to_num(_from_raw(abs2(raw_phase); normalize = false)) == 1
+
+        large_q = complex(big(2)^70, big(3)^70) * Destroy(FockSpace(:raw), :a)
+        large = prefactor(large_q)
+        @test isequal(real(large), Num(big(2)^70))
+        @test isequal(imag(large), Num(big(3)^70))
+
+        exact_slots = _cnum_sym(Num(1 // 2), Num(1 // 3))
+        @test isequal(to_num(exact_slots), Complex(Num(1 // 2), Num(1 // 3)))
+        raw_slots = _cnum_sym(g, κ)
+        @test isequal(real(to_num(raw_slots)), g)
+        @test isequal(imag(to_num(raw_slots)), κ)
+        numeric_slots = _cnum_sym(Num(0.5), Num(0.25))
+        @test isequal(to_num(numeric_slots), Complex(Num(0.5), Num(0.25)))
+
+        raw_complex_expr = SymbolicUtils.term(
+            complex,
+            SymbolicUtils.unwrap(g),
+            SymbolicUtils.unwrap(κ);
+            type = Complex{Real},
+            shape = UnitRange{Int}[],
+        )
+        raw_complex = _from_raw(raw_complex_expr; normalize = false)
+        raw_division = _from_raw(
+            raw_complex_expr / SymbolicUtils.unwrap(r); normalize = false,
+        )
+        @test isequal(real(conj(raw_complex)), g)
+        @test isequal(imag(conj(raw_complex)), -κ)
+        @test isequal(_raw_parts(raw_complex), (g, κ))
+        @test !isequal(conj(raw_division), raw_division)
+        renamed = substitute(raw_complex, Dict(SymbolicUtils.unwrap(g) => 2))
+        @test !isequal(renamed, raw_complex)
+
+        raw_number_product = exponential_form(
+            Num(
+                SymbolicUtils.term(
+                    *, raw_phase, SymbolicUtils.unwrap(α);
+                    type = Complex{Real}, shape = UnitRange{Int}[],
+                ),
+            ),
+        )
+        @test !isequal(conj(raw_number_product), raw_number_product)
+
+        unit_phase = Complex(3 // 5, 4 // 5) * phase
+        @test isequal(real(unit_phase), (3 // 5) * cos(θ) - 0.8sin(θ))
+        @test inv(exponential_form((1 // 2) * g)) isa Coeff
+        @test inv(exponential_form(cos(θ) + sin(θ))) isa Coeff
+        mixed_scalars = exponential_form(0.7cos(θ)) + exponential_form((1 // 2) * cos(θ))
+        @test isequal(mixed_scalars, exponential_form(1.2cos(θ)))
+
+        @test length(phase_terms(phase^(-1) * exp(ω * t))) == 1
+        @test length(phase_terms(exponential_form(exp(ω * t)))) == 1
+        @test length(phase_terms(exponential_form(exp(ω * t)^(1 // 2)))) == 1
+        @test_throws ArgumentError substitute(raw_product, Dict(SymbolicUtils.unwrap(θ) => 1im))
     end
 end

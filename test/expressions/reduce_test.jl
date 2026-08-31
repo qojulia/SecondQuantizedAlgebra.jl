@@ -4,7 +4,7 @@ using Symbolics: Symbolics, @variables, Num
 import SymbolicUtils
 import SecondQuantizedAlgebra: ParamRelation,
     _to_cnum, to_num, _is_poly, _iszero_cnum, _reduce_trig, _reduce_cnum, _trig_relations,
-    simplify
+    _reduce_via_transient, _sym_trig_relations!, _from_raw, simplify
 
 # `cos^2+sin^2` and `cosh^2-sinh^2` are identities, so they are folded on the parameter
 # polynomial tier instead of by the CAS: two orders of magnitude cheaper and, unlike
@@ -146,4 +146,26 @@ relations(ex) = _trig_relations(_to_cnum(ex).tail.terms)
         @test SymbolicUtils.unwrap(r1.hi) === SymbolicUtils.unwrap(cos(θ))
         @test ParamRelation(cosh(θ), sinh(θ), 1).sign == 1
     end
+end
+
+@testset "Raw coefficient reduction seams" begin
+    @variables θ ω t
+    relation = ParamRelation(cos(θ), sin(θ), -1)
+    polynomial = _to_cnum(cos(θ)^2 + sin(θ)^2)
+    @test isequal(
+        realpart(_reduce_via_transient(polynomial, [relation], true)),
+        Num(1),
+    )
+
+    raw = _from_raw(SymbolicUtils.unwrap(cos(ω * t) + sin(ω * t)))
+    raw_relations = ParamRelation[]
+    @test _sym_trig_relations!(raw_relations, raw) === raw_relations
+    @test length(raw_relations) == 1
+
+    polynomial_relations = ParamRelation[]
+    @test _sym_trig_relations!(
+        polynomial_relations,
+        _to_cnum(cos(θ) + sin(θ)),
+    ) === polynomial_relations
+    @test length(polynomial_relations) == 1
 end

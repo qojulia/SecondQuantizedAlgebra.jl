@@ -617,6 +617,19 @@ end
         @test (@inferred timed * Squeeze(a, r * t, 0, t)) isa UnitaryTransform{DynamicTime}
     end
 
+    @testset "raw coefficient dependency" begin
+        static = Displace(a, cos(ω * t))
+        moving = Rotation(a, η * t, t)
+        @test_throws ArgumentError static * moving
+
+        squeezed = Squeeze(a, ω * t)
+        transformed = simplify(conjugate(adjoint(a) * a, squeezed))
+        expected =
+            sinh(ω * t)^2 + cosh(2ω * t) * adjoint(a) * a +
+            (sinh(2ω * t) / 2) * (a * a + adjoint(a) * adjoint(a))
+        @test iszero(simplify(transformed - expected))
+    end
+
     @testset "allocation regression gates" begin
         # These ceilings are the pre-refactor medians plus at most 20% headroom. Warm-up is
         # outside the measured region so the checks describe steady-state API costs.
