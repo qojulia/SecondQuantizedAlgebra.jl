@@ -445,7 +445,7 @@ import SecondQuantizedAlgebra: simplify, QAdd, QSym, single_qadd, zero_qadd, to_
             cases = [
                 (Destroy(hf, :a_pol), L"a_{\mathrm{pol}}"),
                 (Create(hf, :c_bog), L"c_{\mathrm{bog}}^{\dagger}"),
-                (Destroy(hf, :b_long_name), L"b_{\mathrm{long\name}}"),
+                (Destroy(hf, :b_long_name), L"b_{\mathrm{long\_name}}"),
                 (Transition(hn, :σ_lab, 1, 2), L"{\sigma_{\mathrm{lab}}}^{{12}}"),
                 (Pauli(hp, :τ_atom, 2), L"{\tau_{\mathrm{atom}}}_{{y}}"),
                 (Spin(hs, :S_lab, 3), L"{S_{\mathrm{lab}}}_{{z}}"),

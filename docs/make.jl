@@ -9,6 +9,8 @@ end
 
 using SecondQuantizedAlgebra
 using Documenter
+using QuantumOpticsBase
+using SparseArrays
 
 using CairoMakie
 
