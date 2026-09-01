@@ -16,9 +16,10 @@ import SparseArrays: SparseMatrixCSC, nonzeros, nzrange, rowvals, sparse, spzero
 # `transpose`/`adjoint` come through Base.
 import LinearAlgebra: dot, mul!
 
-# QuantumToolbox represents a "basis" as integer dims: an `Int` for a simple space, a
-# `Vector{Int}` for a composite one.
-const QTBDims = Union{Integer, AbstractVector{<:Integer}}
+# QuantumToolbox represents a "basis" as integer dims: an `Int` for a simple space, and a
+# tuple/vector of integers for a composite one. Tuples preserve the number of factors in the
+# QTB `Dimensions` type; vectors remain available for runtime-sized composite systems.
+const QTBDims = Union{Integer, AbstractVector{<:Integer}, Tuple{Vararg{T}} where {T <: Integer}}
 
 # =======================================================================================
 # Vector-backed lazy sum
@@ -178,7 +179,7 @@ SQA.numeric_basis(::QuantumToolboxBackend, ::SQA.SpinSpace, s) = Int(2s + 1)
 SQA.numeric_basis(::QuantumToolboxBackend, ::SQA.PhaseSpace, N) = Int(N) + 1
 function SQA.numeric_basis(be::QuantumToolboxBackend, h::SQA.ProductSpace, dims)
     SQA._check_product_dims(h, dims)
-    return Int[SQA.numeric_basis(be, h.spaces[i], dims[i]) for i in eachindex(h.spaces)]
+    return ntuple(i -> Int(SQA.numeric_basis(be, h.spaces[i], dims[i])), length(h.spaces))
 end
 
 function SQA.numeric_subbasis(::QuantumToolboxBackend, N::Integer, slot::Int)
@@ -193,9 +194,18 @@ function SQA.numeric_subbasis(::QuantumToolboxBackend, ds::AbstractVector, slot:
     )
     return ds[slot]
 end
+function SQA.numeric_subbasis(::QuantumToolboxBackend, ds::Tuple{Vararg{T}}, slot::Int) where {T <: Integer}
+    1 <= slot <= length(ds) || throw(
+        ArgumentError(
+            "QuantumToolbox dimensions have $(length(ds)) subsystems, not slot $slot",
+        ),
+    )
+    return ds[slot]
+end
 
 SQA.numeric_num_subsystems(::QuantumToolboxBackend, ::Integer) = 1
 SQA.numeric_num_subsystems(::QuantumToolboxBackend, ds::AbstractVector) = length(ds)
+SQA.numeric_num_subsystems(::QuantumToolboxBackend, ds::Tuple{Vararg{T}}) where {T <: Integer} = length(ds)
 
 # Within-term embedding is EAGER concrete (QuantumToolbox warns on lazy tensor); the lazy sum
 # is the only lazy layer.
@@ -204,12 +214,17 @@ function SQA.numeric_embed(::QuantumToolboxBackend, ds::AbstractVector, slot::In
     length(ds) == 1 && return m
     return QTB.tensor((i == slot ? m : QTB.qeye(ds[i]) for i in eachindex(ds))...)
 end
+function SQA.numeric_embed(::QuantumToolboxBackend, ds::Tuple{Vararg{T}}, slot::Int, m) where {T <: Integer}
+    return QTB.tensor((i == slot ? m : QTB.to_sparse(QTB.qeye(ds[i])) for i in eachindex(ds))...)
+end
 
 SQA.numeric_identity(::QuantumToolboxBackend, N::Integer) = QTB.qeye(N)
 function SQA.numeric_identity(::QuantumToolboxBackend, ds::AbstractVector)
     length(ds) == 1 && return QTB.qeye(ds[1])
     return QTB.tensor((QTB.qeye(d) for d in ds)...)
 end
+SQA.numeric_identity(::QuantumToolboxBackend, ds::Tuple{Vararg{T}}) where {T <: Integer} =
+    QTB.tensor((QTB.qeye(d) for d in ds)...)
 
 # =======================================================================================
 # vector-backed lazy assembly (static + time-dependent share the one VecSum type)
@@ -406,21 +421,21 @@ SQA.to_numeric(
 # Keyword dims form.
 function SQA.to_numeric(
         op::SQA.QField, dims::QTBDims;
-        parameter = Dict(), time_parameter = Dict(),
+        parameter = Dict(), time_parameter = SQA._NO_TIME_PARAMETER,
         operators = Dict{SQA.QSym, Any}(), adjoint_ops = true, op_type = nothing,
     )
     return SQA._to_numeric_kw(QuantumToolboxBackend(), op, dims; parameter, time_parameter, operators, adjoint_ops, op_type)
 end
 function SQA.to_numeric(
         x::Union{Number, BasicSymbolic}, dims::QTBDims;
-        parameter = Dict(), time_parameter = Dict(),
+        parameter = Dict(), time_parameter = SQA._NO_TIME_PARAMETER,
         operators = Dict{SQA.QSym, Any}(), adjoint_ops = true, op_type = nothing,
     )
     return SQA._to_numeric_kw(QuantumToolboxBackend(), x, dims; parameter, time_parameter, operators, adjoint_ops, op_type)
 end
 
 # Vector of operators on the direct QTB-dims form (mirrors the `Basis` method in api.jl).
-SQA.to_numeric(ops::AbstractVector, dims::QTBDims; kwargs...) =
+SQA.to_numeric(ops::AbstractVector{T}, dims::D; kwargs...) where {T, D <: QTBDims} =
     [SQA.to_numeric(op, dims; kwargs...) for op in ops]
 
 # State convenience (dims derived from the state).

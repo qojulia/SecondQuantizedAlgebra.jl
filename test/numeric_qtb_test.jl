@@ -16,6 +16,18 @@ using Test
 
 const QTBB = QuantumToolboxBackend()
 
+function _inferred_qtb_uniform(op::Op, h::FockSpace, n::Int)
+    return to_numeric(op, h, n; backend = QTBB)
+end
+
+function _inferred_qtb_product(op::Op, h::ProductSpace, dims::NTuple{2, Int})
+    return to_numeric(op, h, dims; backend = QTBB)
+end
+
+function _inferred_qtb_raw_product(op::Op, dims::NTuple{2, Int})
+    return to_numeric(op, dims)
+end
+
 @testset "QuantumToolbox backend" begin
     @testset "eager default; lazy assembly is n-stable" begin
         h = FockSpace(:f)
@@ -50,6 +62,12 @@ const QTBB = QuantumToolboxBackend()
 
         @test @inferred(to_numeric(a, 8)) isa QTB.QuantumObject
         @test @inferred(to_numeric(n, 8)) isa QTB.QuantumObject
+        @test @inferred(_inferred_qtb_uniform(a, h, 7)) isa QTB.QuantumObject
+
+        hp = FockSpace(:c) ⊗ NLevelSpace(:atom, 3, 1)
+        ap = Destroy(hp, :a, 1)
+        @test @inferred(_inferred_qtb_product(ap, hp, (7, 3))) isa QTB.QuantumObject
+        @test @inferred(_inferred_qtb_raw_product(ap, (8, 3))) isa QTB.QuantumObject
 
         lazy = to_numeric(n, 8; op_type = identity)
         @test @inferred(SO.concretize(lazy.data)) isa AbstractMatrix

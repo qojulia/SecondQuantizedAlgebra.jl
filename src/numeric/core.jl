@@ -120,6 +120,8 @@ function _to_numeric_kw(be::NumericBackend, op, b; parameter, time_parameter, op
     tp = _normalize_time_parameter(time_parameter)
     ops = _numeric_operator_dict(operators, adjoint_ops)
     ctx = NumericContext(be, b, ops)
+    op_type === nothing && return _to_numeric_translated(op, ctx, param, tp, nothing)
+    op_type === identity && return _to_numeric_translated(op, ctx, param, tp, identity)
     return _to_numeric_translated(op, ctx, param, tp, op_type)
 end
 
