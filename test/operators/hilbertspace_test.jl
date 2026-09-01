@@ -33,6 +33,15 @@ using Test
         @test !isless(h3, h2)
     end
 
+    @testset "named space equality" begin
+        @test PhaseSpace(:q) == PhaseSpace(:q)
+        @test PhaseSpace(:q) != PhaseSpace(:r)
+        @test SpinSpace(:s) == SpinSpace(:s)
+        @test SpinSpace(:s) != SpinSpace(:t)
+        @test hash(PhaseSpace(:q)) == hash(PhaseSpace(:q))
+        @test hash(SpinSpace(:s)) == hash(SpinSpace(:s))
+    end
+
     @testset "length" begin
         # Single Hilbert spaces report 1
         @test length(FockSpace(:a)) == 1

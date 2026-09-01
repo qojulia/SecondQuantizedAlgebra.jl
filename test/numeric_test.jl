@@ -672,16 +672,19 @@ SecondQuantizedAlgebra.numeric_materialize(
         b = FockBasis(7)
         ψ = coherentstate(b, 0.2 + 0.1im)
 
-        # Backend defaults to the single loaded backend (QuantumOpticsBase here).
-        @test _dat(to_numeric(a' * a, h, 7)) == _dat(to_numeric(a' * a, b))
-        @test numeric_average(a' * a, ψ) ≈ expect(to_numeric(a' * a, h, 7), ψ)
+        # Select QuantumOptics explicitly because the full test environment loads both backends.
+        @test _dat(to_numeric(a' * a, h, 7; backend = QuantumOpticsBackend())) ==
+            _dat(to_numeric(a' * a, b))
+        @test numeric_average(a' * a, ψ) ≈
+            expect(to_numeric(a' * a, h, 7; backend = QuantumOpticsBackend()), ψ)
 
         # Composite HilbertSpace with per-subspace dims.
         hp = FockSpace(:c) ⊗ NLevelSpace(:atom, 3, 1)
         ap = Destroy(hp, :a, 1)
         σp = Transition(hp, :σ, 1, 2, 2)
         bp = FockBasis(4) ⊗ NLevelBasis(3)
-        @test _dat(to_numeric(ap' * σp, hp, (4, 3))) == _dat(to_numeric(ap' * σp, bp))
+        @test _dat(to_numeric(ap' * σp, hp, (4, 3); backend = QuantumOpticsBackend())) ==
+            _dat(to_numeric(ap' * σp, bp))
     end
 
     @testset "op_type is shape-independent" begin

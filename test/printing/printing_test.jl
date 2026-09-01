@@ -29,6 +29,10 @@ import SecondQuantizedAlgebra: simplify, QAdd, QSym, _single_qadd, _zero_qadd, _
                 @test repr(input) == out
             end
 
+            @test repr(Index(h, :i, 3, h)) == "i"
+            digits = NLevelSpace(:digits, 12)
+            @test repr(Transition(digits, :σ, 10, 11)) == "σ₁₀₁₁"
+
             @variables x y
             exact_display = string(((1 // 4) * sqrt(x * y)) * a)
             @test occursin("1//4", exact_display)
