@@ -445,6 +445,6 @@ SQA.to_numeric(op::SQA.QField, state::QTB.QuantumObject, d::AbstractDict{<:SQA.Q
 SQA.to_numeric(x::Number, state::QTB.QuantumObject) = SQA.to_numeric(x, SQA.numeric_basis(state))
 
 SQA.numeric_average(op, state::QTB.QuantumObject, d::AbstractDict{<:SQA.QSym} = SQA.NO_SUBS) =
-    SQA.numeric_average(op, state, d)
+    SQA.numeric_average_impl(op, state, d)
 
 end # module
