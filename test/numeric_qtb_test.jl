@@ -80,6 +80,14 @@ end
         @test @inferred(numeric_average(n, bra)) ≈ QTB.expect(QTB.create(8) * QTB.destroy(8), bra)
         @test @inferred(numeric_average(n, ρ)) ≈ QTB.expect(QTB.create(8) * QTB.destroy(8), ρ)
 
+        qop = to_numeric(n, 8)
+        @test numeric_expect(QTBB, qop, ψ) ≈ QTB.expect(qop, ψ)
+        @test numeric_expect(QTBB, qop, bra) ≈ QTB.expect(qop, bra)
+        @test numeric_expect(QTBB, qop, ρ) ≈ QTB.expect(qop, ρ)
+
+        dense_qop = QTB.Qobj(Matrix(qop.data), QTB.Operator(), 8)
+        @test numeric_expect(QTBB, dense_qop, ρ) ≈ QTB.expect(dense_qop, ρ)
+
         # Materialization accepts custom dense leaves but preserves the sparse public form.
         dense_a = QTB.Qobj(Matrix(QTB.destroy(8).data), QTB.Operator(), 8)
         dense_lazy = to_numeric(a + a', 8; operators = Dict(a => dense_a), op_type = identity)
@@ -261,7 +269,9 @@ end
         sites = Dict{Int, Vector{Int}}(1 => [1, 2])
 
         Mt = to_numeric(H, [2, 2], sites)               # QTB (Vector{Int} dims)
+        Mt_tuple = to_numeric(H, (2, 2), sites)         # tuple dims use the same public path
         @test Mt isa QTB.QuantumObject
+        @test Mt_tuple.data ≈ Mt.data
 
         P = QTB.projection(2, 1, 1)                     # |1><1|, 0-indexed excited level
         ref = QTB.tensor(P, QTB.qeye(2)) + QTB.tensor(QTB.qeye(2), P)
