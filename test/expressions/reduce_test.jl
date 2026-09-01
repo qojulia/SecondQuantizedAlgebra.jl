@@ -3,8 +3,8 @@ using SecondQuantizedAlgebra
 using Symbolics: Symbolics, @variables, Num
 import SymbolicUtils
 import SecondQuantizedAlgebra: ParamRelation,
-    _to_cnum, to_num, _is_poly, _iszero_cnum, _reduce_trig, _reduce_cnum, _trig_relations,
-    _reduce_via_transient, _sym_trig_relations!, _from_raw, simplify
+    to_cnum, to_num, is_poly, iszero_cnum, reduce_trig, reduce_cnum, trig_relations,
+    reduce_via_transient, sym_trig_relations!, from_raw, simplify
 
 # `cos^2+sin^2` and `cosh^2-sinh^2` are identities, so they are folded on the parameter
 # polynomial tier instead of by the CAS: two orders of magnitude cheaper and, unlike
@@ -15,8 +15,8 @@ import SecondQuantizedAlgebra: ParamRelation,
 # Every coefficient here is real, and `isequal(::Complex{Num}, ::Num)` is ambiguous, so
 # compare real parts.
 realpart(c) = real(to_num(c))
-reduced(ex) = realpart(_reduce_trig(_to_cnum(ex)))
-relations(ex) = _trig_relations(_to_cnum(ex).tail.terms)
+reduced(ex) = realpart(reduce_trig(to_cnum(ex)))
+relations(ex) = trig_relations(to_cnum(ex).tail.terms)
 
 @testset "Parameter relations" begin
     @variables θ φ r ω t g κ
@@ -44,10 +44,10 @@ relations(ex) = _trig_relations(_to_cnum(ex).tail.terms)
         @test isequal(reduced(cos(θ)^3 * sin(θ)), cos(θ)^3 * sin(θ))
         @test isequal(reduced(cos(θ)^4 + sin(θ)^4), cos(θ)^4 + sin(θ)^4)
         # Ungated, the same input does expand: the two modes genuinely differ.
-        c = _to_cnum(cos(θ)^4 + sin(θ)^4)
-        rels = _trig_relations(c.tail.terms)
-        @test !isequal(realpart(_reduce_cnum(c, rels, false)), realpart(c))
-        @test isequal(realpart(_reduce_cnum(c, rels, true)), realpart(c))
+        c = to_cnum(cos(θ)^4 + sin(θ)^4)
+        rels = trig_relations(c.tail.terms)
+        @test !isequal(realpart(reduce_cnum(c, rels, false)), realpart(c))
+        @test isequal(realpart(reduce_cnum(c, rels, true)), realpart(c))
     end
 
     @testset "no relation, no rewrite" begin
@@ -61,7 +61,7 @@ relations(ex) = _trig_relations(_to_cnum(ex).tail.terms)
     end
 
     @testset "conj-wrapped pair" begin
-        # `_conj_atom` wraps `Number`-symtype atoms, so a conjugated coefficient can hold
+        # `conj_atom` wraps `Number`-symtype atoms, so a conjugated coefficient can hold
         # only `(conj(cos u), conj(sin u))`; `conj(cos u)^2 + conj(sin u)^2 = conj(1) = 1`.
         @variables u::Number
         uu = SymbolicUtils.unwrap(u)
@@ -75,43 +75,43 @@ relations(ex) = _trig_relations(_to_cnum(ex).tail.terms)
         # `cos(ω*t)` is not an atom, so its coefficient never reaches the polynomial tier
         # and the CAS folds neither degree 2 nor degree 4 there.
         rel = ParamRelation(cos(ω * t), sin(ω * t), -1)
-        deg2 = _to_cnum(cos(ω * t)^2 + sin(ω * t)^2)
-        deg4 = _to_cnum(cos(ω * t)^4 + 2cos(ω * t)^2 * sin(ω * t)^2 + sin(ω * t)^4)
-        @test !_is_poly(deg2)
-        @test !_is_poly(deg4)
-        @test isequal(realpart(_reduce_cnum(deg2, [rel], true)), Num(1))
-        @test isequal(realpart(_reduce_cnum(deg4, [rel], true)), Num(1))
+        deg2 = to_cnum(cos(ω * t)^2 + sin(ω * t)^2)
+        deg4 = to_cnum(cos(ω * t)^4 + 2cos(ω * t)^2 * sin(ω * t)^2 + sin(ω * t)^4)
+        @test !is_poly(deg2)
+        @test !is_poly(deg4)
+        @test isequal(realpart(reduce_cnum(deg2, [rel], true)), Num(1))
+        @test isequal(realpart(reduce_cnum(deg4, [rel], true)), Num(1))
         # The CAS leaves the degree-4 form alone, which is why this route exists.
         @test !isequal(Symbolics.simplify(realpart(deg4)), Num(1))
         # A coefficient with no reducible power comes back unchanged.
-        prod = _to_cnum(cos(ω * t) * sin(ω * t))
-        @test isequal(realpart(_reduce_cnum(prod, [rel], true)), realpart(prod))
+        prod = to_cnum(cos(ω * t) * sin(ω * t))
+        @test isequal(realpart(reduce_cnum(prod, [rel], true)), realpart(prod))
 
         # The automatic reducer follows the same route, including above degree two.
-        @test isequal(realpart(_reduce_trig(deg4)), Num(1))
+        @test isequal(realpart(reduce_trig(deg4)), Num(1))
 
         # A user parameter with the old implementation's fixed scratch name must remain a
         # user parameter. Fresh stand-ins are checked against symbols already in the input.
         collision = Symbolics.variable(:__sqa_rel_1)
-        with_collision = _to_cnum(
+        with_collision = to_cnum(
             collision * (cos(ω * t)^2 + sin(ω * t)^2),
         )
-        @test isequal(realpart(_reduce_trig(with_collision)), collision)
+        @test isequal(realpart(reduce_trig(with_collision)), collision)
     end
 
     @testset "guarded high-power refusal" begin
-        original = _to_cnum(cos(θ)^140 + sin(θ)^140)
+        original = to_cnum(cos(θ)^140 + sin(θ)^140)
         # The exact binomial coefficients no longer fit in `Int`; refusing the rewrite is
         # safer than overflowing a coefficient or partially rewriting the expression.
-        @test isequal(_reduce_trig(original), original)
+        @test isequal(reduce_trig(original), original)
     end
 
     @testset "zero is dropped, not stored" begin
         # A canonical `Poly` never reports itself zero, so a reduction reaching zero has to
         # rebuild as a native zero or `iszero`/`isequal` on the result would lie.
-        c = _to_cnum(cos(θ)^4 + 2cos(θ)^2 * sin(θ)^2 + sin(θ)^4 - 1)
-        @test !_iszero_cnum(c)
-        @test _iszero_cnum(_reduce_trig(c))
+        c = to_cnum(cos(θ)^4 + 2cos(θ)^2 * sin(θ)^2 + sin(θ)^4 - 1)
+        @test !iszero_cnum(c)
+        @test iszero_cnum(reduce_trig(c))
         # ... and the enclosing term disappears from the sum.
         h = FockSpace(:f)
         a = Destroy(h, :a)
@@ -133,7 +133,7 @@ relations(ex) = _trig_relations(_to_cnum(ex).tail.terms)
         # have moved these onto the polynomial tier, where the CAS is never reached, and
         # lost every rewrite beyond the Pythagorean identity.
         for x in (exp(g + κ), sin(g * κ), sqrt(g * κ))
-            @test !_is_poly(_to_cnum(x))
+            @test !is_poly(to_cnum(x))
         end
         @test isequal(Symbolics.simplify(cos(θ) * sin(θ)), sin(2θ) / 2)
     end
@@ -151,21 +151,21 @@ end
 @testset "Raw coefficient reduction seams" begin
     @variables θ ω t
     relation = ParamRelation(cos(θ), sin(θ), -1)
-    polynomial = _to_cnum(cos(θ)^2 + sin(θ)^2)
+    polynomial = to_cnum(cos(θ)^2 + sin(θ)^2)
     @test isequal(
-        realpart(_reduce_via_transient(polynomial, [relation], true)),
+        realpart(reduce_via_transient(polynomial, [relation], true)),
         Num(1),
     )
 
-    raw = _from_raw(SymbolicUtils.unwrap(cos(ω * t) + sin(ω * t)))
+    raw = from_raw(SymbolicUtils.unwrap(cos(ω * t) + sin(ω * t)))
     raw_relations = ParamRelation[]
-    @test _sym_trig_relations!(raw_relations, raw) === raw_relations
+    @test sym_trig_relations!(raw_relations, raw) === raw_relations
     @test length(raw_relations) == 1
 
     polynomial_relations = ParamRelation[]
-    @test _sym_trig_relations!(
+    @test sym_trig_relations!(
         polynomial_relations,
-        _to_cnum(cos(θ) + sin(θ)),
+        to_cnum(cos(θ) + sin(θ)),
     ) === polynomial_relations
     @test length(polynomial_relations) == 1
 end

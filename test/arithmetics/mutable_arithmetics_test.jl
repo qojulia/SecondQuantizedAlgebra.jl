@@ -4,7 +4,7 @@ using Test
 import MutableArithmetics as MA
 import SecondQuantizedAlgebra:
     QAdd, Index, IndexedOperator, Σ, constraint_pairs, ⊗,
-    _QAddBuilder, _build, _accumulate!
+    QAddBuilder, build, accumulate!
 
 # Basic correctness vs the explicit `+`-chain is already covered by the
 # "sum and reduce" testset in test/expressions/algebra_test.jl (those
@@ -26,7 +26,7 @@ import SecondQuantizedAlgebra:
         @test sum(terms) == foldl(+, terms)
         @test reduce(+, terms) == foldl(+, terms)
 
-        # polynomial cancellation through the `_addto_key!` gate
+        # polynomial cancellation through the `addto_key!` gate
         pc = [((x + y)^2) * a, -(x^2 + 2x * y + y^2) * a]
         @test iszero(sum(pc))
         @test sum(pc) == foldl(+, pc)
@@ -59,7 +59,7 @@ import SecondQuantizedAlgebra:
         reduce(+, terms)
         @test terms[1].arguments == args_before
 
-        # the empty sum returns the shared `_ZERO_QADD`; later ops must not touch it
+        # the empty sum returns the shared `ZERO_QADD`; later ops must not touch it
         z = sum(QAdd[])
         a + ad
         ad * a
@@ -85,26 +85,26 @@ import SecondQuantizedAlgebra:
         terms = [a + ad, 2 * a, 3 * ad]
         @test (@inferred sum(terms)) isa QAdd
         @test (@inferred reduce(+, terms)) isa QAdd
-        @test (@inferred _build(_QAddBuilder())) isa QAdd
+        @test (@inferred build(QAddBuilder())) isa QAdd
     end
 
     @testset "MA interface" begin
-        b = _QAddBuilder()
+        b = QAddBuilder()
         MA.operate!!(+, b, ad * a)
         MA.operate!!(+, b, ad * a)
-        @test _build(b) == 2 * (ad * a)
+        @test build(b) == 2 * (ad * a)
 
         # add_mul: accumulate c * x in place
-        b = _QAddBuilder()
+        b = QAddBuilder()
         MA.operate!!(MA.add_mul, b, 2, ad * a)
-        @test _build(b) == 2 * (ad * a)
+        @test build(b) == 2 * (ad * a)
 
         # zero: reset the builder
-        b = _QAddBuilder()
-        _accumulate!(b, ad * a)
+        b = QAddBuilder()
+        accumulate!(b, ad * a)
         MA.operate!(zero, b)
         @test isempty(b.args) && isempty(b.indices)
-        @test iszero(_build(b))
+        @test iszero(build(b))
 
         # @rewrite over a +-chain equals the chain
         t1 = a + ad
@@ -116,29 +116,29 @@ import SecondQuantizedAlgebra:
     @testset "Accumulate primitive (QSym / scalar branches)" begin
         @variables x
         # bare QSym operands
-        b = _QAddBuilder()
-        _accumulate!(b, a)
-        _accumulate!(b, ad)
-        @test _build(b) == a + ad
+        b = QAddBuilder()
+        accumulate!(b, a)
+        accumulate!(b, ad)
+        @test build(b) == a + ad
 
         # numeric scalar (non-zero) mixed with a QAdd term
-        b = _QAddBuilder()
-        _accumulate!(b, ad * a)
-        _accumulate!(b, 3)
-        @test _build(b) == ad * a + 3
+        b = QAddBuilder()
+        accumulate!(b, ad * a)
+        accumulate!(b, 3)
+        @test build(b) == ad * a + 3
 
         # zero scalar is a no-op (both Int and Float)
-        b = _QAddBuilder()
-        _accumulate!(b, ad * a)
-        _accumulate!(b, 0)
-        _accumulate!(b, 0.0)
-        @test _build(b) == ad * a
+        b = QAddBuilder()
+        accumulate!(b, ad * a)
+        accumulate!(b, 0)
+        accumulate!(b, 0.0)
+        @test build(b) == ad * a
 
         # symbolic scalar
-        b = _QAddBuilder()
-        _accumulate!(b, ad * a)
-        _accumulate!(b, x)
-        @test _build(b) == ad * a + x
+        b = QAddBuilder()
+        accumulate!(b, ad * a)
+        accumulate!(b, x)
+        @test build(b) == ad * a + x
     end
 
     @testset "sum(f, array)" begin

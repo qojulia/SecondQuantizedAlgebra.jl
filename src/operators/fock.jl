@@ -19,7 +19,7 @@ julia> a * a'
 
 See also [`Create`](@ref), [`FockSpace`](@ref), [`@qnumbers`](@ref).
 """
-Destroy(name::Symbol, si::Int, idx::Index) = Op(OP_DESTROY, _name_id(name), si, idx, 0, 0, 0, 0)
+Destroy(name::Symbol, si::Int, idx::Index) = Op(OP_DESTROY, name_id(name), si, idx, 0, 0, 0, 0)
 Destroy(name::Symbol, si::Int) = Destroy(name, si, NO_INDEX)
 
 """
@@ -31,7 +31,7 @@ constructed directly. Returns an [`Op`](@ref) tagged `OP_CREATE`.
 
 See also [`Destroy`](@ref), [`FockSpace`](@ref).
 """
-Create(name::Symbol, si::Int, idx::Index) = Op(OP_CREATE, _name_id(name), si, idx, 0, 0, 0, 0)
+Create(name::Symbol, si::Int, idx::Index) = Op(OP_CREATE, name_id(name), si, idx, 0, 0, 0, 0)
 Create(name::Symbol, si::Int) = Create(name, si, NO_INDEX)
 
 Destroy(h::FockSpace, name::Symbol) = Destroy(name, 1)
@@ -49,11 +49,11 @@ function Create(h::ProductSpace, name::Symbol, idx::Int)
 end
 
 # Auto-detect subspace when the ProductSpace contains exactly one FockSpace.
-Destroy(h::ProductSpace, name::Symbol) = Destroy(h, name, _unique_subspace_index(h, FockSpace))
-Create(h::ProductSpace, name::Symbol) = Create(h, name, _unique_subspace_index(h, FockSpace))
+Destroy(h::ProductSpace, name::Symbol) = Destroy(h, name, unique_subspace_index(h, FockSpace))
+Create(h::ProductSpace, name::Symbol) = Create(h, name, unique_subspace_index(h, FockSpace))
 
-Destroy(::HilbertSpace, name::AbstractString, args...) = _name_must_be_symbol(name)
-Create(::HilbertSpace, name::AbstractString, args...) = _name_must_be_symbol(name)
+Destroy(::HilbertSpace, name::AbstractString, args...) = name_must_be_symbol(name)
+Create(::HilbertSpace, name::AbstractString, args...) = name_must_be_symbol(name)
 
 """
     IndexedOperator(op::Op, i::Index) -> Op

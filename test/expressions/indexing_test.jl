@@ -2,7 +2,7 @@ using SecondQuantizedAlgebra
 using Test
 using SymbolicUtils: SymbolicUtils
 using Symbolics: Symbolics, @variables
-import SecondQuantizedAlgebra: simplify, QAdd, QSym, CNum, _to_cnum, NO_INDEX,
+import SecondQuantizedAlgebra: simplify, QAdd, QSym, CNum, to_cnum, NO_INDEX,
     create_index_arrays, operators, prefactor, sorted_arguments, constraint_pairs
 
 @testset "Indexing" begin
@@ -431,7 +431,7 @@ import SecondQuantizedAlgebra: simplify, QAdd, QSym, CNum, _to_cnum, NO_INDEX,
         i = Index(hf, :i, 10, hf)
         j = Index(hf, :j, 10, hf)
         gi = IndexedVariable(:g, i)
-        c = _to_cnum(gi)
+        c = to_cnum(gi)
         cj = change_index(c, i, j)
         gj = IndexedVariable(:g, j)
         @test isequal(real(cj), gj)
@@ -1354,12 +1354,12 @@ end
     @test iszero(simplify(commutator(H, a) + Δc * a + η))
 
     result_12 = 1im * commutator(H, σ(1, 2, k))
-    @test any(result_12) do (term, _c)
+    @test any(result_12) do (term, c)
         any(op -> is_transition(op) && op.l1 == 1 && op.l2 == 2 && op.index == j, term.ops)
     end
 
     result_22 = 1im * commutator(H, σ(2, 2, k))
-    @test any(result_22) do (term, _c)
+    @test any(result_22) do (term, c)
         any(op -> is_transition(op) && op.index == j, term.ops)
     end
 
@@ -1433,7 +1433,7 @@ end
 end
 
 @testset "simplify: drops sum-scope metadata that no surviving term references" begin
-    # `simplify` runs `_drop_unused_indices` as the last step of its
+    # `simplify` runs `drop_unused_indices` as the last step of its
     # pipeline, so a `Σ_k F(k) - Σ_k F(k)` cancellation surfaces an empty
     # term dict with no bound index attached.
     h = FockSpace(:f)

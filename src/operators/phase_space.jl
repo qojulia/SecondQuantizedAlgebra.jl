@@ -22,7 +22,7 @@ See also [`Position`](@ref), [`Momentum`](@ref), [`FockSpace`](@ref).
 struct PhaseSpace <: HilbertSpace
     name::Symbol
 end
-PhaseSpace(name::AbstractString) = _name_must_be_symbol(name)
+PhaseSpace(name::AbstractString) = name_must_be_symbol(name)
 Base.:(==)(a::PhaseSpace, b::PhaseSpace) = a.name == b.name
 Base.hash(a::PhaseSpace, h::UInt) = hash(:PhaseSpace, hash(a.name, h))
 
@@ -47,7 +47,7 @@ julia> p * x
 
 See also [`Momentum`](@ref), [`PhaseSpace`](@ref).
 """
-Position(name::Symbol, si::Int, idx::Index) = Op(OP_POSITION, _name_id(name), si, idx, 0, 0, 0, 0)
+Position(name::Symbol, si::Int, idx::Index) = Op(OP_POSITION, name_id(name), si, idx, 0, 0, 0, 0)
 Position(name::Symbol, si::Int) = Position(name, si, NO_INDEX)
 
 """
@@ -60,7 +60,7 @@ Momentum (quadrature) operator ``p`` on a [`PhaseSpace`](@ref). Hermitian
 
 See also [`Position`](@ref), [`PhaseSpace`](@ref).
 """
-Momentum(name::Symbol, si::Int, idx::Index) = Op(OP_MOMENTUM, _name_id(name), si, idx, 0, 0, 0, 0)
+Momentum(name::Symbol, si::Int, idx::Index) = Op(OP_MOMENTUM, name_id(name), si, idx, 0, 0, 0, 0)
 Momentum(name::Symbol, si::Int) = Momentum(name, si, NO_INDEX)
 
 Position(h::PhaseSpace, name::Symbol) = Position(name, 1)
@@ -78,8 +78,8 @@ function Momentum(h::ProductSpace, name::Symbol, idx::Int)
 end
 
 # Auto-detect subspace when the ProductSpace contains exactly one PhaseSpace.
-Position(h::ProductSpace, name::Symbol) = Position(h, name, _unique_subspace_index(h, PhaseSpace))
-Momentum(h::ProductSpace, name::Symbol) = Momentum(h, name, _unique_subspace_index(h, PhaseSpace))
+Position(h::ProductSpace, name::Symbol) = Position(h, name, unique_subspace_index(h, PhaseSpace))
+Momentum(h::ProductSpace, name::Symbol) = Momentum(h, name, unique_subspace_index(h, PhaseSpace))
 
-Position(::HilbertSpace, name::AbstractString, args...) = _name_must_be_symbol(name)
-Momentum(::HilbertSpace, name::AbstractString, args...) = _name_must_be_symbol(name)
+Position(::HilbertSpace, name::AbstractString, args...) = name_must_be_symbol(name)
+Momentum(::HilbertSpace, name::AbstractString, args...) = name_must_be_symbol(name)

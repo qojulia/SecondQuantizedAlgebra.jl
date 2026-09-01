@@ -42,7 +42,7 @@ prevents the "I returned 0 but meant Equal" bug class.
 """
     ReduceKind
 
-Outcome tag for `_reduce_pair`:
+Outcome tag for `reduce_pair`:
 - `NoReduction`: pair does not reduce; `op` and `factor` slots are ignored.
 - `ScalarReduction`: pair contracts to the scalar `factor`; both ops disappear.
 - `OpReduction`: pair reduces to `op * factor`; `op` replaces the first input.

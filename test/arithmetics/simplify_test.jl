@@ -3,7 +3,7 @@ using SymbolicUtils: SymbolicUtils
 using Symbolics: Symbolics, @variables
 using Random: MersenneTwister
 using Test
-import SecondQuantizedAlgebra: simplify, QAdd, QSym, QField, sorted_arguments, _single_qadd, _to_cnum
+import SecondQuantizedAlgebra: simplify, QAdd, QSym, QField, sorted_arguments, single_qadd, to_cnum
 
 @testset "simplify" begin
     h = FockSpace(:c)
@@ -11,7 +11,7 @@ import SecondQuantizedAlgebra: simplify, QAdd, QSym, QField, sorted_arguments, _
     ad = a'
 
     @testset "Collect like terms" begin
-        s = _single_qadd(_to_cnum(5), Op[ad, a])
+        s = single_qadd(to_cnum(5), Op[ad, a])
         result = simplify(s)
         @test result isa QAdd
         @test length(result) == 1
@@ -19,7 +19,7 @@ import SecondQuantizedAlgebra: simplify, QAdd, QSym, QField, sorted_arguments, _
     end
 
     @testset "Remove zero terms" begin
-        s = _single_qadd(_to_cnum(3), Op[ad, a])
+        s = single_qadd(to_cnum(3), Op[ad, a])
         result = simplify(s)
         @test length(result) == 1
         @test prefactor(only(sorted_arguments(result))) == 3
@@ -34,7 +34,7 @@ import SecondQuantizedAlgebra: simplify, QAdd, QSym, QField, sorted_arguments, _
 
     @testset "Symbolic prefactors" begin
         @variables g h_sym
-        s = _single_qadd(_to_cnum(g + h_sym), Op[ad, a])
+        s = single_qadd(to_cnum(g + h_sym), Op[ad, a])
         result = simplify(s)
         @test length(result) == 1
     end
@@ -89,7 +89,7 @@ import SecondQuantizedAlgebra: simplify, QAdd, QSym, QField, sorted_arguments, _
 
     @testset "SymbolicUtils.simplify on QField" begin
         @variables g
-        s = _single_qadd(_to_cnum(2g), Op[ad, a])
+        s = single_qadd(to_cnum(2g), Op[ad, a])
         result = SymbolicUtils.simplify(s)
         @test result isa QAdd
     end
@@ -402,17 +402,17 @@ import SecondQuantizedAlgebra: simplify, QAdd, QSym, QField, sorted_arguments, _
         no = normal_order(a * ad)
         weyl = normal_to_symmetric(no)
         @test length(weyl) == 2
-        @test weyl[Op[]] == _to_cnum(1 // 2)
-        @test weyl[Op[ad, a]] == _to_cnum(1)
+        @test weyl[Op[]] == to_cnum(1 // 2)
+        @test weyl[Op[ad, a]] == to_cnum(1)
     end
 
     @testset "symmetric_to_normal: basic Fock" begin
         # a†a + 1/2 → a†a + 1
-        weyl = _single_qadd(_to_cnum(1), Op[ad, a]) + _single_qadd(_to_cnum(1 // 2), Op[])
+        weyl = single_qadd(to_cnum(1), Op[ad, a]) + single_qadd(to_cnum(1 // 2), Op[])
         no = symmetric_to_normal(weyl)
         @test length(no) == 2
-        @test no[Op[]] == _to_cnum(1)
-        @test no[Op[ad, a]] == _to_cnum(1)
+        @test no[Op[]] == to_cnum(1)
+        @test no[Op[ad, a]] == to_cnum(1)
     end
 
     @testset "normal_to_symmetric: higher powers" begin

@@ -20,8 +20,8 @@ const QOBState = Union{QOB.StateVector, QOB.AbstractOperator}
     k === SQA.OP_POSITION   && return (QOB.destroy(b) + QOB.create(b)) / sqrt(2)
     k === SQA.OP_MOMENTUM   && return im * (QOB.create(b) - QOB.destroy(b)) / sqrt(2)
     k === SQA.OP_TRANSITION && return QOB.transition(b, Int(op.l1), Int(op.l2))
-    k === SQA.OP_PAULI      && return _pauli_matrix(op, b)
-    k === SQA.OP_SPIN       && return _spin_matrix(op, b)
+    k === SQA.OP_PAULI      && return pauli_matrix(op, b)
+    k === SQA.OP_SPIN       && return spin_matrix(op, b)
     return SQA.numeric_operator(be, Val(k), op, b)
 end
 
@@ -47,7 +47,7 @@ function SQA.numeric_operator(::QuantumOpticsBackend, op::Op, b::QOB.ManyBodyBas
     return QOB.manybodyoperator(b, onebody_op)
 end
 
-function _pauli_matrix(op::Op, b::QOB.SpinBasis)
+function pauli_matrix(op::Op, b::QOB.SpinBasis)
     b.spinnumber == 1 // 2 ||
         throw(ArgumentError("Pauli operators require SpinBasis(1//2), got SpinBasis($(b.spinnumber))"))
     op.l1 == 1 && return QOB.sigmax(b)
@@ -55,7 +55,7 @@ function _pauli_matrix(op::Op, b::QOB.SpinBasis)
     return QOB.sigmaz(b)
 end
 
-function _spin_matrix(op::Op, b::QOB.SpinBasis)
+function spin_matrix(op::Op, b::QOB.SpinBasis)
     op.l1 == 1 && return 0.5 * QOB.sigmax(b)
     op.l1 == 2 && return 0.5 * QOB.sigmay(b)
     return 0.5 * QOB.sigmaz(b)
@@ -69,7 +69,7 @@ SQA.numeric_basis(::QuantumOpticsBackend, ::SQA.PauliSpace, _) = QOB.SpinBasis(1
 SQA.numeric_basis(::QuantumOpticsBackend, ::SQA.SpinSpace, s) = QOB.SpinBasis(s)
 SQA.numeric_basis(::QuantumOpticsBackend, ::SQA.PhaseSpace, N) = QOB.FockBasis(Int(N))
 function SQA.numeric_basis(be::QuantumOpticsBackend, h::SQA.ProductSpace, dims)
-    SQA._check_product_dims(h, dims)
+    SQA.check_product_dims(h, dims)
     subs = h.spaces
     return QOB.tensor(ntuple(i -> SQA.numeric_basis(be, subs[i], dims[i]), length(subs))...)
 end
@@ -110,7 +110,7 @@ function SQA.numeric_assemble(be::QuantumOpticsBackend, b, terms)
     ops = QOB.AbstractOperator[]
     for (c, factors) in terms
         push!(coeffs, c)
-        push!(ops, _fuse(be, b, factors))
+        push!(ops, fuse(be, b, factors))
     end
     if isempty(ops)
         push!(coeffs, 0.0im)
@@ -139,7 +139,7 @@ function SQA.numeric_assemble_td(be::QuantumOpticsBackend, b, td_terms)
                 end
                 )
         )
-        push!(ops, QOB.sparse(_fuse(be, b, factors)))
+        push!(ops, QOB.sparse(fuse(be, b, factors)))
     end
     return QOB.TimeDependentSum(ComplexF64, b, b, coeffs, ops)
 end
@@ -148,7 +148,7 @@ end
 # product of the embedded factors. `*` combines disjoint-slot `LazyTensor`s into a single
 # `LazyTensor` (rather than a `LazyProduct`), which keeps the lazy form usable with a
 # `LazyKet` state and matches the eager product of the same operators.
-function _fuse(be::QuantumOpticsBackend, b, factors)
+function fuse(be::QuantumOpticsBackend, b, factors)
     isempty(factors) && return SQA.numeric_identity(be, b)
     length(factors) == 1 && return factors[1]
     return foldl(*, factors)

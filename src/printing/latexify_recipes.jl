@@ -26,7 +26,7 @@ end
 
 # Join accumulated per-slot suffixes into one comma subscript (`i_2_1` -> `i_{2,1}`);
 # a bare `_{i_2_1}` is a double subscript that MathJax rejects.
-function _latex_index_suffix(idx::Index)
+function latex_index_suffix(idx::Index)
     has_index(idx) || return ""
     parts = split(string(index_name(idx)), '_')
     name = length(parts) == 1 ? parts[1] : string(parts[1], "_{", join(parts[2:end], ","), "}")
@@ -37,7 +37,7 @@ end
 # Julia-style compound name (`:a_pol`, `:c_bog`) is split at the first `_` and
 # rendered as `a_{\mathrm{pol}}` — otherwise KaTeX reads the `_` as a subscript
 # operator and the trailing characters render as stray italic letters.
-function _latex_name(name)
+function latex_name(name)
     s = string(name)
     idx = findfirst('_', s)
     idx === nothing && return s
@@ -48,8 +48,8 @@ function _latex_name(name)
 end
 
 @latexrecipe function f(x::Op)
-    suffix = _latex_index_suffix(x.index)
-    name = _latex_name(operator_name(x))
+    suffix = latex_index_suffix(x.index)
+    name = latex_name(operator_name(x))
     k = x.kind
     body = if k === OP_DESTROY
         "$(name)$(suffix)"
@@ -58,7 +58,7 @@ end
     elseif k === OP_TRANSITION || k === OP_COLLECTIVE_TRANSITION
         "{$(name)}$(suffix)$(transition_idx_script[]){{$(Int(x.l1))$(Int(x.l2))}}"
     elseif k === OP_PAULI || k === OP_SPIN
-        "{$(name)}$(suffix)_{{$(_xyz_sym[x.l1])}}"
+        "{$(name)}$(suffix)_{{$(xyz_sym[x.l1])}}"
     else   # OP_POSITION, OP_MOMENTUM
         "\\hat{$(name)}$(suffix)"
     end
@@ -66,7 +66,7 @@ end
 end
 
 # Lower through the same public coefficient representation used by terminal display.
-function _latex_prefactor(c::CNum)
+function latex_prefactor(c::CNum)
     d = to_num(c)
     r_unwrap = SymbolicUtils.unwrap(real(d))
     i_unwrap = SymbolicUtils.unwrap(imag(d))
@@ -92,34 +92,34 @@ function _latex_prefactor(c::CNum)
         return d
     end
 end
-_latex_prefactor(c::Number) = c
+latex_prefactor(c::Number) = c
 
-const _LATEX_TERM = Union{Expr, Number, SymbolicUtils.BasicSymbolic}
-const _LATEX_FRAGMENT = Union{String, Symbol, QSym, Number, SymbolicUtils.BasicSymbolic}
+const LATEX_TERM = Union{Expr, Number, SymbolicUtils.BasicSymbolic}
+const LATEX_FRAGMENT = Union{String, Symbol, QSym, Number, SymbolicUtils.BasicSymbolic}
 
 # Check if a symbolic prefactor needs \left( \right) brackets when followed by operators.
 # Fractions (/) and sums (+) are visually ambiguous without grouping.
-function _needs_pf_brackets(pf::Number)
+function needs_pf_brackets(pf::Number)
     return false
 end
-function _needs_pf_brackets(pf::SymbolicUtils.BasicSymbolic)
+function needs_pf_brackets(pf::SymbolicUtils.BasicSymbolic)
     SymbolicUtils.iscall(pf) || return false
     op = SymbolicUtils.operation(pf)
     return op === (/) || op === (+)
 end
 
 # Helper: render a single term (prefactor * operators) as LaTeX
-function _latex_term(c::CNum, ops::Vector{Op})
-    pf = _latex_prefactor(c)
+function latex_term(c::CNum, ops::Vector{Op})
+    pf = latex_prefactor(c)
     if isempty(ops)
         return pf
     end
-    parts = _LATEX_FRAGMENT[]
+    parts = LATEX_FRAGMENT[]
     if pf isa Number && pf == -1
         push!(parts, :(-))
     elseif pf isa Number && isone(pf)
         # skip prefactor
-    elseif _needs_pf_brackets(pf)
+    elseif needs_pf_brackets(pf)
         push!(parts, "\\left(")
         push!(parts, pf)
         push!(parts, "\\right) ")
@@ -133,7 +133,7 @@ function _latex_term(c::CNum, ops::Vector{Op})
     return Expr(:latexifymerge, parts...)
 end
 
-function _latex_sum_prefix(indices::Vector{Index}, ne_pairs::Vector{NonEqualPair})
+function latex_sum_prefix(indices::Vector{Index}, ne_pairs::Vector{NonEqualPair})
     isempty(indices) && return ""
     idx_parts = String[]
     last_name = index_name(indices[end])
@@ -156,12 +156,12 @@ function _latex_sum_prefix(indices::Vector{Index}, ne_pairs::Vector{NonEqualPair
     return join(idx_parts, " ")
 end
 
-function _latex_sum_group(indices::Vector{Index}, ne_pairs::Vector{NonEqualPair}, terms::Vector{QAdd})
-    prefix = _latex_sum_prefix(indices, ne_pairs)
-    term_exprs = _LATEX_TERM[
+function latex_sum_group(indices::Vector{Index}, ne_pairs::Vector{NonEqualPair}, terms::Vector{QAdd})
+    prefix = latex_sum_prefix(indices, ne_pairs)
+    term_exprs = LATEX_TERM[
         let
-            ops, c, _ = _term_signature(t)
-            _latex_term(c, ops)
+            ops, c, _ = term_signature(t)
+            latex_term(c, ops)
         end for t in terms
     ]
     if length(term_exprs) == 1
@@ -170,30 +170,30 @@ function _latex_sum_group(indices::Vector{Index}, ne_pairs::Vector{NonEqualPair}
     return Expr(:latexifymerge, prefix, Expr(:call, :+, term_exprs...))
 end
 
-function _latex_fragment(x)
+function latex_fragment(x)
     inner = SymbolicUtils.isconst(x) ? x.val : x
     return strip(String(latexify(inner)), '$')
 end
 
-function _latex_avg_expr(inner)
-    return "\\langle $(_latex_fragment(inner)) \\rangle"
+function latex_avg_expr(inner)
+    return "\\langle $(latex_fragment(inner)) \\rangle"
 end
 
 function Symbolics._toexpr_op(::AvgFunc, args; kwargs...)
-    return _latex_avg_expr(only(args))
+    return latex_avg_expr(only(args))
 end
 
 # The LaTeX twin of the `show_call(::typeof(expim))` override, so a phase renders
 # as an exponential rather than as the raw head name.
 function Symbolics._toexpr_op(::typeof(expim), args; kwargs...)
     arg = only(args)
-    neg = _leading_sign(arg) < 0
+    neg = leading_sign(arg) < 0
     body = neg ? SymbolicUtils.unwrap(expand(-arg)) : arg
     return "e^{$(neg ? "-" : "")i $(strip(String(latexify(body; env = :inline)), '$'))}"
 end
 
 function Symbolics._toexpr_op(::SumFunc, args; kwargs...)
-    scope = _scope_of(args[2])
+    scope = scope_of(args[2])
     body = args[1]
     body_tex = strip(String(latexify(body; env = :inline)), '$')
     # Wrap a multi-term (`+`) body so the Σ binds the whole sum, not just its
@@ -201,7 +201,7 @@ function Symbolics._toexpr_op(::SumFunc, args; kwargs...)
     if SymbolicUtils.iscall(body) && SymbolicUtils.operation(body) === (+)
         body_tex = string("\\left( ", body_tex, " \\right)")
     end
-    return string(_latex_sum_prefix(scope.indices, scope.ne), body_tex)
+    return string(latex_sum_prefix(scope.indices, scope.ne), body_tex)
 end
 
 function Symbolics._toexpr_metadata(
@@ -209,7 +209,7 @@ function Symbolics._toexpr_metadata(
         kwargs...,
     )
     iv_tex = strip(String(latexify(only(SymbolicUtils.arguments(x)); env = :inline)), '$')
-    return string(_latex_avg_expr(op), "\\left( ", iv_tex, " \\right)")
+    return string(latex_avg_expr(op), "\\left( ", iv_tex, " \\right)")
 end
 
 @latexrecipe function f(x::QAdd)
@@ -217,19 +217,19 @@ end
     if !isempty(x.indices)
         # Split terms into index-dependent and index-independent
         dep_qadds = QAdd[]
-        terms_out = _LATEX_TERM[]
+        terms_out = LATEX_TERM[]
         for t in st
-            ops, c, _ = _term_signature(t)
-            term_expr = _latex_term(c, ops)
-            if any(idx -> _depends_on_index_term(c, ops, idx), x.indices)
+            ops, c, _ = term_signature(t)
+            term_expr = latex_term(c, ops)
+            if any(idx -> depends_on_index_term(c, ops, idx), x.indices)
                 push!(dep_qadds, t)
             else
                 push!(terms_out, term_expr)
             end
         end
         if !isempty(dep_qadds)
-            for (used, ne_pairs, terms) in _group_dep_terms(dep_qadds, x.indices)
-                push!(terms_out, _latex_sum_group(used, ne_pairs, terms))
+            for (used, ne_pairs, terms) in group_dep_terms(dep_qadds, x.indices)
+                push!(terms_out, latex_sum_group(used, ne_pairs, terms))
             end
         end
         if isempty(terms_out)
@@ -239,10 +239,10 @@ end
         end
         return Expr(:call, :+, terms_out...)
     end
-    terms = _LATEX_TERM[
+    terms = LATEX_TERM[
         let
-            ops, c, _ = _term_signature(t)
-            _latex_term(c, ops)
+            ops, c, _ = term_signature(t)
+            latex_term(c, ops)
         end for t in st
     ]
     return Expr(:call, :+, terms...)

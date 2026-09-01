@@ -26,7 +26,7 @@ function IndexedVariable(name::Symbol, i::Index)
     )
     return Num(f(SymbolicUtils.unwrap(index_sym(i))))
 end
-IndexedVariable(name::AbstractString, args...) = _name_must_be_symbol(name)
+IndexedVariable(name::AbstractString, args...) = name_must_be_symbol(name)
 
 """Metadata key: marks a `DoubleIndexedVariable` node where equal indices must give zero."""
 struct NotIdentical end
@@ -75,7 +75,7 @@ function DoubleIndexedVariable(
     end
     return Num(node)
 end
-DoubleIndexedVariable(name::AbstractString, args...; kwargs...) = _name_must_be_symbol(name)
+DoubleIndexedVariable(name::AbstractString, args...; kwargs...) = name_must_be_symbol(name)
 
 """
     change_index(expr, from::Index, to::Index)
@@ -111,34 +111,34 @@ function change_index(x::Num, from::Index, to::Index)
     vars = Symbolics.get_variables(raw)
     any(v -> isequal(v, isym), vars) || return x
     result = Symbolics.substitute(raw, Dict(isym => SymbolicUtils.unwrap(index_sym(to))))
-    return _check_not_identical(result)
+    return check_not_identical(result)
 end
 function change_index(x::CNum, from::Index, to::Index)
-    _is_native(x) && return x
+    is_native(x) && return x
     tail = x.tail
     if tail isa RawSymbolicCoeff
         raw = change_index(Num(tail.expr), from, to)
         isequal(raw, Num(tail.expr)) && return x
         result = SymbolicUtils.unwrap(raw)
-        value = _const_value(result)
-        value isa Number && return _to_cnum(value)
-        return _from_raw_arithmetic(
+        value = const_value(result)
+        value isa Number && return to_cnum(value)
+        return from_raw_arithmetic(
             result::SymbolicUtils.BasicSymbolic{SymbolicUtils.SymReal}, tail.real_slot,
         )
     end
-    raw_re, raw_im = _realimag(x)
+    raw_re, raw_im = realimag(x)
     re = change_index(raw_re, from, to)
     im = change_index(raw_im, from, to)
     # A rename keeps a symbolic tail symbolic; only a Poly may need re-interning.
-    _is_poly(x) && return _cnum(re, im)
-    return _cnum_sym(re, im)
+    is_poly(x) && return cnum(re, im)
+    return cnum_sym(re, im)
 end
 
 # Rebuild with a new site index; kind-agnostic since all other fields carry over.
-_with_index(op::Op, i::Index) = IndexedOperator(op, i)
+with_index(op::Op, i::Index) = IndexedOperator(op, i)
 
 function change_index(op::QSym, from::Index, to::Index)
-    return _with_index(op, op.index == from ? to : op.index)
+    return with_index(op, op.index == from ? to : op.index)
 end
 
 function change_index(s::QAdd, from::Index, to::Index)
@@ -147,14 +147,14 @@ function change_index(s::QAdd, from::Index, to::Index)
     for (term, c) in s.arguments
         # A term whose NE constraint becomes contradictory under the rename
         # carries weight zero and must be dropped, not relaxed.
-        _ne_becomes_contradictory(term.ne, from, to) && continue
+        ne_becomes_contradictory(term.ne, from, to) && continue
         new_c = change_index(c, from, to)
         new_ops = Op[change_index(op, from, to) for op in term.ops]
-        new_ne = _substitute_ne(term.ne, from, to)
+        new_ne = substitute_ne(term.ne, from, to)
         if needs
-            _accumulate_with_diag!(out, new_ops, new_c, s.indices, new_ne)
+            accumulate_with_diag!(out, new_ops, new_c, s.indices, new_ne)
         else
-            _canonicalize!(out, new_ops, new_c, new_ne)
+            canonicalize!(out, new_ops, new_c, new_ne)
         end
     end
     new_indices = Index[idx == from ? to : idx for idx in s.indices]
@@ -190,31 +190,31 @@ function change_index(x::Num, pairs::AbstractDict{Index, Index})
     vars = Symbolics.get_variables(raw)
     any(v -> any(s -> isequal(v, s), keys(sub)), vars) || return x
     result = Symbolics.substitute(raw, sub)
-    return _check_not_identical(result)
+    return check_not_identical(result)
 end
 function change_index(x::CNum, pairs::AbstractDict{Index, Index})
-    _is_native(x) && return x
+    is_native(x) && return x
     tail = x.tail
     if tail isa RawSymbolicCoeff
         raw = change_index(Num(tail.expr), pairs)
         isequal(raw, Num(tail.expr)) && return x
         result = SymbolicUtils.unwrap(raw)
-        value = _const_value(result)
-        value isa Number && return _to_cnum(value)
-        return _from_raw_arithmetic(
+        value = const_value(result)
+        value isa Number && return to_cnum(value)
+        return from_raw_arithmetic(
             result::SymbolicUtils.BasicSymbolic{SymbolicUtils.SymReal}, tail.real_slot,
         )
     end
-    raw_re, raw_im = _realimag(x)
+    raw_re, raw_im = realimag(x)
     re = change_index(raw_re, pairs)
     im = change_index(raw_im, pairs)
-    _is_poly(x) && return _cnum(re, im)
-    return _cnum_sym(re, im)
+    is_poly(x) && return cnum(re, im)
+    return cnum_sym(re, im)
 end
 
 function change_index(op::QSym, pairs::AbstractDict{Index, Index})
     new_idx = get(pairs, op.index, op.index)
-    return new_idx === op.index ? op : _with_index(op, new_idx)
+    return new_idx === op.index ? op : with_index(op, new_idx)
 end
 
 function change_index(s::QAdd, pairs::AbstractDict{Index, Index})
@@ -222,14 +222,14 @@ function change_index(s::QAdd, pairs::AbstractDict{Index, Index})
     out = QTermDict()
     needs = !isempty(s.indices)
     for (term, c) in s.arguments
-        _ne_becomes_contradictory(term.ne, pairs) && continue
+        ne_becomes_contradictory(term.ne, pairs) && continue
         new_c = change_index(c, pairs)
         new_ops = Op[change_index(op, pairs) for op in term.ops]
-        new_ne = _substitute_ne(term.ne, pairs)
+        new_ne = substitute_ne(term.ne, pairs)
         if needs
-            _accumulate_with_diag!(out, new_ops, new_c, s.indices, new_ne)
+            accumulate_with_diag!(out, new_ops, new_c, s.indices, new_ne)
         else
-            _canonicalize!(out, new_ops, new_c, new_ne)
+            canonicalize!(out, new_ops, new_c, new_ne)
         end
     end
     new_indices = Index[get(pairs, idx, idx) for idx in s.indices]
@@ -290,15 +290,15 @@ two indices became equal. Nested occurrences matter: a `DoubleIndexedVariable`
 with `identical=false` is almost always a factor in a larger product or sum, and
 the surrounding `*`/`+` only collapses once that factor is replaced by zero.
 """
-function _check_not_identical(result::SymbolicUtils.BasicSymbolic)
-    zeros = _collect_identical_zeros!(Dict{SymbolicUtils.BasicSymbolic, Int}(), result)
+function check_not_identical(result::SymbolicUtils.BasicSymbolic)
+    zeros = collect_identical_zeros!(Dict{SymbolicUtils.BasicSymbolic, Int}(), result)
     isempty(zeros) && return Num(result)
     return Num(Symbolics.substitute(result, zeros))
 end
-_check_not_identical(result::Number) = Num(result)
+check_not_identical(result::Number) = Num(result)
 
 """Accumulate into `acc` every `NotIdentical` node in `x` with two equal args, mapped to 0."""
-function _collect_identical_zeros!(acc, x)
+function collect_identical_zeros!(acc, x)
     (x isa SymbolicUtils.BasicSymbolic && SymbolicUtils.iscall(x)) || return acc
     if SymbolicUtils.hasmetadata(x, NotIdentical) &&
             length(SymbolicUtils.arguments(x)) == 2
@@ -307,16 +307,16 @@ function _collect_identical_zeros!(acc, x)
         isequal(a1, a2) && (acc[x] = 0; return acc)
     end
     for a in SymbolicUtils.arguments(x)
-        _collect_identical_zeros!(acc, a)
+        collect_identical_zeros!(acc, a)
     end
     return acc
 end
 
-function _depends_on_index_term(c::CNum, ops::Vector{Op}, idx::Index)
+function depends_on_index_term(c::CNum, ops::Vector{Op}, idx::Index)
     for op in ops
         op.index == idx && return true
     end
-    _is_native(c) && return false
+    is_native(c) && return false
     isym = SymbolicUtils.unwrap(index_sym(idx))
     # A `Poly` coefficient carries its parameters as opaque atoms; scan them directly
     # instead of materializing the whole coefficient to a `Complex{Num}` first.
@@ -328,16 +328,16 @@ function _depends_on_index_term(c::CNum, ops::Vector{Op}, idx::Index)
         end
         return false
     end
-    for part in _realimag(c)
+    for part in realimag(c)
         vars = Symbolics.get_variables(part)
         any(v -> isequal(v, isym), vars) && return true
     end
     return false
 end
 
-function _any_depends_on_index(s::QAdd, idx::Index)
+function any_depends_on_index(s::QAdd, idx::Index)
     for (term, c) in s.arguments
-        _depends_on_index_term(c, term.ops, idx) && return true
+        depends_on_index_term(c, term.ops, idx) && return true
     end
     return false
 end
@@ -378,7 +378,7 @@ See also [`Index`](@ref), [`IndexedOperator`](@ref), [`constraint_pairs`](@ref).
 """
 function Σ(expr::QAdd, i::Index, non_equal::Vector{Index} = Index[])
     i.range_id == 0 && throw(ArgumentError("Σ: index $(index_name(i)) has no summation range"))
-    if !_any_depends_on_index(expr, i)
+    if !any_depends_on_index(expr, i)
         return expr * index_range(i)
     end
 
@@ -386,24 +386,24 @@ function Σ(expr::QAdd, i::Index, non_equal::Vector{Index} = Index[])
     diag = QTermDict()
 
     for (term, c) in expr.arguments
-        depends_on_i = _depends_on_index_term(c, term.ops, i)
+        depends_on_i = depends_on_index_term(c, term.ops, i)
 
         # User-supplied non_equal constraints apply when the term depends on i.
         ne_aug = term.ne
         if depends_on_i
             for j in non_equal
-                ne_aug = _merge_ne_pair(ne_aug, i, j)
+                ne_aug = merge_ne_pair(ne_aug, i, j)
             end
         end
 
         # Identify (i, ext_idx) pairs that need diagonal contributions.
-        distinct = _distinct_op_indices(term.ops)
+        distinct = distinct_op_indices(term.ops)
         diag_pairs = Tuple{Index, Index}[]
         if depends_on_i
             for ext_idx in distinct
                 ext_idx == i && continue
                 ext_idx.space_index == i.space_index || continue
-                _ne_contains(ne_aug, i, ext_idx) && continue
+                ne_contains(ne_aug, i, ext_idx) && continue
                 push!(diag_pairs, (i, ext_idx))
             end
         end
@@ -412,17 +412,17 @@ function Σ(expr::QAdd, i::Index, non_equal::Vector{Index} = Index[])
         # so partial_sort can use those inequalities.
         full_ne = ne_aug
         for (a, b) in diag_pairs
-            full_ne = _merge_ne_pair(full_ne, a, b)
+            full_ne = merge_ne_pair(full_ne, a, b)
         end
         # Σ_i: bake `i.range` into emitted entries whose final ops lose their
         # i-dependence (e.g. the `+1` residual from `a_i*a_i' = a_i'*a_i + 1`),
         # so per-term scope matches the explicit `Σ_i` written by the user.
         if depends_on_i
-            _emit_scaled_by_scope!(off_diag, copy(term.ops), c, full_ne, Index[i])
+            emit_scaled_by_scope!(off_diag, copy(term.ops), c, full_ne, Index[i])
         else
-            _canonicalize!(
+            canonicalize!(
                 off_diag, copy(term.ops),
-                _mul_cnum(c, _to_cnum(index_range(i))), full_ne,
+                mul_cnum(c, to_cnum(index_range(i))), full_ne,
             )
         end
 
@@ -431,8 +431,8 @@ function Σ(expr::QAdd, i::Index, non_equal::Vector{Index} = Index[])
             sub_c = change_index(c, i, ext_idx)
             # Propagate NE onto the diagonal (i≠β becomes ext_idx≠β); dropping it
             # lets a later sum re-admit ext_idx=β and double-count the diagonal.
-            sub_ne = _substitute_ne(ne_aug, i, ext_idx)
-            _canonicalize!(diag, sub_ops, sub_c, sub_ne)
+            sub_ne = substitute_ne(ne_aug, i, ext_idx)
+            canonicalize!(diag, sub_ops, sub_c, sub_ne)
         end
     end
 
@@ -442,11 +442,11 @@ function Σ(expr::QAdd, i::Index, non_equal::Vector{Index} = Index[])
 end
 
 function Σ(expr::QSym, i::Index, non_equal::Vector{Index} = Index[])
-    return Σ(_single_qadd(_CNUM_ONE, Op[expr]), i, non_equal)
+    return Σ(single_qadd(CNUM_ONE, Op[expr]), i, non_equal)
 end
 
 function Σ(expr::Number, i::Index, non_equal::Vector{Index} = Index[])
-    return Σ(_single_qadd(_to_cnum(expr), Op[]), i, non_equal)
+    return Σ(single_qadd(to_cnum(expr), Op[]), i, non_equal)
 end
 
 function Σ(expr::Union{QField, Number}, i::Index, j::Index, rest::Index...)

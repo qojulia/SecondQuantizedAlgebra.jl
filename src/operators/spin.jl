@@ -18,7 +18,7 @@ See also [`Spin`](@ref), [`PauliSpace`](@ref).
 struct SpinSpace <: HilbertSpace
     name::Symbol
 end
-SpinSpace(name::AbstractString) = _name_must_be_symbol(name)
+SpinSpace(name::AbstractString) = name_must_be_symbol(name)
 Base.:(==)(a::SpinSpace, b::SpinSpace) = a.name == b.name
 Base.hash(a::SpinSpace, h::UInt) = hash(:SpinSpace, hash(a.name, h))
 
@@ -46,7 +46,7 @@ See also [`SpinSpace`](@ref), [`Pauli`](@ref).
 """
 function Spin(name::Symbol, axis::Int, si::Int, idx::Index)
     1 <= axis <= 3 || throw(ArgumentError("Spin axis must be 1, 2, or 3, got $axis"))
-    return Op(OP_SPIN, _name_id(name), si, idx, axis, 0, 0, 0)
+    return Op(OP_SPIN, name_id(name), si, idx, axis, 0, 0, 0)
 end
 Spin(name::Symbol, axis::Int, si::Int) = Spin(name, axis, si, NO_INDEX)
 
@@ -59,6 +59,6 @@ end
 
 # Auto-detect subspace when the ProductSpace contains exactly one SpinSpace.
 Spin(h::ProductSpace, name::Symbol, axis::Int) =
-    Spin(h, name, axis, _unique_subspace_index(h, SpinSpace))
+    Spin(h, name, axis, unique_subspace_index(h, SpinSpace))
 
-Spin(::HilbertSpace, name::AbstractString, args...) = _name_must_be_symbol(name)
+Spin(::HilbertSpace, name::AbstractString, args...) = name_must_be_symbol(name)

@@ -1,7 +1,7 @@
 using SecondQuantizedAlgebra
 using Test
 using Symbolics: Symbolics, @variables
-import SecondQuantizedAlgebra: substitute, QAdd, QSym, CNum, _CNUM_ONE, _to_cnum
+import SecondQuantizedAlgebra: substitute, QAdd, QSym, CNum, CNUM_ONE, to_cnum
 
 @testset "Substitute" begin
     hf = FockSpace(:c)

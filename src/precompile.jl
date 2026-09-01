@@ -1,13 +1,13 @@
 using PrecompileTools: @setup_workload, @compile_workload
 
 # === Explicit directives ===
-# Internal entry points the workload does not fully exercise (indexed `_merge_*`).
-precompile(_canonicalize!, (QTermDict, Vector{Op}, CNum, Vector{NonEqualPair}))
-precompile(_addto!, (QTermDict, Vector{Op}, CNum, Vector{NonEqualPair}))
-precompile(_iszero_cnum, (CNum,))
-precompile(_neg_cnum, (CNum,))
-precompile(_merge_unique, (Vector{Index}, Vector{Index}))
-precompile(_merge_ne, (Vector{NonEqualPair}, Vector{NonEqualPair}))
+# Internal entry points the workload does not fully exercise (indexed `merge_*`).
+precompile(canonicalize!, (QTermDict, Vector{Op}, CNum, Vector{NonEqualPair}))
+precompile(addto!, (QTermDict, Vector{Op}, CNum, Vector{NonEqualPair}))
+precompile(iszero_cnum, (CNum,))
+precompile(neg_cnum, (CNum,))
+precompile(merge_unique, (Vector{Index}, Vector{Index}))
+precompile(merge_ne, (Vector{NonEqualPair}, Vector{NonEqualPair}))
 
 # Scalar prefactor products across the numeric types users write literally, in both
 # argument orders (a type loop; the workload only exercises `Int`/`Num` coefficients).

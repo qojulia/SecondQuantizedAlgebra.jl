@@ -67,15 +67,15 @@ Base.nameof(::SumFunc) = :sum
 Base.show(io::IO, ::SumFunc) = print(io, "sum")
 SymbolicUtils.promote_symtype(::SumFunc, Ts...) = Number
 
-_indexed_sum(body, indices::Vector{Index}, ne::Vector{NonEqualPair}) =
-    SymbolicUtils.Term{SymbolicUtils.SymReal}(sym_sum, Any[body, SumScope(indices, ne)]; type = _sum_symtype(body))
+indexed_sum(body, indices::Vector{Index}, ne::Vector{NonEqualPair}) =
+    SymbolicUtils.Term{SymbolicUtils.SymReal}(sym_sum, Any[body, SumScope(indices, ne)]; type = sum_symtype(body))
 
-_scope_of(s::SumScope) = s
-_scope_of(s::SymbolicUtils.BasicSymbolic) = s.val::SumScope
-_sum_body(x::SymbolicUtils.BasicSymbolic) = SymbolicUtils.arguments(x)[1]
-_sum_scope(x::SymbolicUtils.BasicSymbolic) = _scope_of(SymbolicUtils.arguments(x)[2])
-_sum_indices(x::SymbolicUtils.BasicSymbolic) = _sum_scope(x).indices
-_sum_ne(x::SymbolicUtils.BasicSymbolic) = _sum_scope(x).ne
+scope_of(s::SumScope) = s
+scope_of(s::SymbolicUtils.BasicSymbolic) = s.val::SumScope
+sum_body(x::SymbolicUtils.BasicSymbolic) = SymbolicUtils.arguments(x)[1]
+sum_scope(x::SymbolicUtils.BasicSymbolic) = scope_of(SymbolicUtils.arguments(x)[2])
+sum_indices(x::SymbolicUtils.BasicSymbolic) = sum_scope(x).indices
+sum_ne(x::SymbolicUtils.BasicSymbolic) = sum_scope(x).ne
 
 """
     is_indexed_sum(x) -> Bool
@@ -110,27 +110,27 @@ function is_average(x::SymbolicUtils.BasicSymbolic)
 end
 is_average(x::Num) = is_average(SymbolicUtils.unwrap(x))
 
-_avg_symtype(op::QField) = isequal(adjoint(op), op) ? Real : Number
+avg_symtype(op::QField) = isequal(adjoint(op), op) ? Real : Number
 
-_sum_symtype(body) = SymbolicUtils.symtype(body) <: Real ? Real : Number
+sum_symtype(body) = SymbolicUtils.symtype(body) <: Real ? Real : Number
 
-function _avg_symtype_from_arg(arg)
+function avg_symtype_from_arg(arg)
     op = SymbolicUtils.isconst(arg) ? arg.val : arg
     op isa QField || return Number
-    return _avg_symtype(op)
+    return avg_symtype(op)
 end
 
-_average(op::QField) = SymbolicUtils.Term{SymbolicUtils.SymReal}(sym_average, QField[op]; type = _avg_symtype(op))
+average_leaf(op::QField) = SymbolicUtils.Term{SymbolicUtils.SymReal}(sym_average, QField[op]; type = avg_symtype(op))
 
 function TermInterface.maketerm(
         ::Type{SymbolicUtils.BasicSymbolic{SymbolicUtils.SymReal}}, f::AvgFunc, args, metadata;
-        type = _avg_symtype_from_arg(args[1])
+        type = avg_symtype_from_arg(args[1])
     )
     return SymbolicUtils.Term{SymbolicUtils.SymReal}(f, collect(args); type = type, metadata = metadata)
 end
 function TermInterface.maketerm(
         ::Type{SymbolicUtils.BasicSymbolic{SymbolicUtils.SymReal}}, f::SumFunc, args, metadata;
-        type = _sum_symtype(args[1])
+        type = sum_symtype(args[1])
     )
     return SymbolicUtils.Term{SymbolicUtils.SymReal}(f, collect(args); type = type, metadata = metadata)
 end
@@ -150,10 +150,10 @@ make_time_dependent(x::Num, iv) = Symbolics.wrap(make_time_dependent(SymbolicUti
 function make_time_dependent(x, iv)
     x isa SymbolicUtils.BasicSymbolic || return x
     if SymbolicUtils.iscall(x) && SymbolicUtils.operation(x) === sym_average
-        return _lift_average(x, iv)
+        return lift_average(x, iv)
     end
     if is_indexed_sum(x)
-        return _indexed_sum(make_time_dependent(_sum_body(x), iv), _sum_indices(x), _sum_ne(x))
+        return indexed_sum(make_time_dependent(sum_body(x), iv), sum_indices(x), sum_ne(x))
     end
     SymbolicUtils.iscall(x) || return x
     args = SymbolicUtils.arguments(x)
@@ -168,12 +168,12 @@ function make_time_dependent(x, iv)
     return TermInterface.maketerm(typeof(x), SymbolicUtils.operation(x), new_args, TermInterface.metadata(x))
 end
 
-function _lift_average(leaf, iv)
+function lift_average(leaf, iv)
     op = undo_average(leaf)
-    nm = _avg_var_name(op)
+    nm = avg_var_name(op)
     ivw = iv isa SymbolicUtils.BasicSymbolic ? Symbolics.wrap(iv) : iv
     v = SymbolicUtils.unwrap(
-        _avg_symtype(op) === Real ?
+        avg_symtype(op) === Real ?
             first(@variables ($nm(ivw))::Real) :
             first(@variables ($nm(ivw))::Number)
     )
@@ -185,16 +185,16 @@ end
 # be 1:1 with the operator. `hash(op)` is a digest (collisions silently merge two distinct
 # unknowns); `string(op)` alone drops the subspace (`a` on different spaces prints alike),
 # so the per-operator token prepends `space_index` to the faithful operator rendering.
-function _avg_var_name(op::QAdd)
+function avg_var_name(op::QAdd)
     io = IOBuffer()
-    print(io, "_avg")
+    print(io, "avg")
     for (term, c) in op.arguments
         print(io, '_', c)
         for o in term.ops
             print(io, '_', o.space_index, o)
         end
         for (p, q) in term.ne
-            print(io, "_ne", index_name(p), index_name(q))
+            print(io, "ne", index_name(p), index_name(q))
         end
     end
     return Symbol(String(take!(io)))
@@ -224,7 +224,7 @@ See also [`undo_average`](@ref), [`numeric_average`](@ref).
 """
 function average end
 
-average(op::QSym) = _average(op)
+average(op::QSym) = average_leaf(op)
 average(x::Number) = x
 average(x::SymbolicUtils.BasicSymbolic) = x
 average(x::Num) = average(SymbolicUtils.unwrap(x))
@@ -238,7 +238,7 @@ function average(op::QAdd)
     group_bodies = Vector{BS}[]          # one buffer per summation scope
     group_slot = Dict{GroupKey, Int}()   # scope -> index into group_bodies (O(1) lookup)
     for (term, c) in op.arguments
-        used = Index[idx for idx in shared if _depends_on_index_term(c, term.ops, idx)]
+        used = Index[idx for idx in shared if depends_on_index_term(c, term.ops, idx)]
         contrib = Num(0)
         # A raw coefficient can be genuinely complex, but splitting it into
         # `real(raw)` and `imag(raw)` prevents Symbolics from recognizing the original
@@ -255,19 +255,19 @@ function average(op::QAdd)
                 iszero(raw) || (contrib += raw)
             else
                 inner = length(term.ops) == 1 ? only(term.ops) :
-                    _single_qadd(_CNUM_ONE, term.ops, term.ne)
-                avg = _average(inner)
+                    single_qadd(CNUM_ONE, term.ops, term.ne)
+                avg = average_leaf(inner)
                 iszero(raw) || (contrib += raw * avg)
             end
         elseif isempty(term.ops)
-            r, i = _realimag(c)
+            r, i = realimag(c)
             iszero(r) || (contrib += r)
             iszero(i) || (contrib += i * Symbolics.IM)
         else
-            r, i = _realimag(c)
+            r, i = realimag(c)
             inner = length(term.ops) == 1 ? only(term.ops) :
-                _single_qadd(_CNUM_ONE, term.ops, term.ne)
-            avg = _average(inner)
+                single_qadd(CNUM_ONE, term.ops, term.ne)
+            avg = average_leaf(inner)
             iszero(r) || (contrib += r * avg)
             iszero(i) || (contrib += i * Symbolics.IM * avg)
         end
@@ -278,7 +278,7 @@ function average(op::QAdd)
             key = (used, term.ne)
             slot = get(group_slot, key, 0)
             if slot == 0
-                push!(group_keys, (used, _copy_ne(term.ne)))
+                push!(group_keys, (used, copy_ne(term.ne)))
                 push!(group_bodies, BS[body])
                 group_slot[key] = length(group_bodies)
             else
@@ -287,22 +287,22 @@ function average(op::QAdd)
         end
     end
     for (gk, bodies) in zip(group_keys, group_bodies)
-        push!(flat_bodies, _indexed_sum(add_worker(SymbolicUtils.SymReal, bodies), gk[1], gk[2]))
+        push!(flat_bodies, indexed_sum(add_worker(SymbolicUtils.SymReal, bodies), gk[1], gk[2]))
     end
     isempty(flat_bodies) && return SymbolicUtils.unwrap(Num(0))
     return add_worker(SymbolicUtils.SymReal, flat_bodies)::BS
 end
 
 # Uniform-return wrappers (all return QAdd).
-_to_qadd(x::QAdd) = x
-_to_qadd(x::QSym) = _single_qadd(_CNUM_ONE, Op[x])
-_to_qadd(x::SymbolicUtils.BasicSymbolic) = _single_qadd(_to_cnum(x), Op[])
+to_qadd(x::QAdd) = x
+to_qadd(x::QSym) = single_qadd(CNUM_ONE, Op[x])
+to_qadd(x::SymbolicUtils.BasicSymbolic) = single_qadd(to_cnum(x), Op[])
 
-function _rebuild_indexed_sum(inner::QAdd, indices::Vector{Index}, ne::Vector{NonEqualPair})
+function rebuild_indexed_sum(inner::QAdd, indices::Vector{Index}, ne::Vector{NonEqualPair})
     isempty(ne) && return QAdd(inner.arguments, indices)
     new_args = QTermDict()
     for (term, c) in inner.arguments
-        _addto!(new_args, term.ops, c, _merge_ne(term.ne, ne))
+        addto!(new_args, term.ops, c, merge_ne(term.ne, ne))
     end
     return QAdd(new_args, indices)
 end
@@ -310,8 +310,8 @@ end
 # The `+` fold is O(n²) by repeated `Base.:+` (each copies the growing dict); the
 # in-place accumulator behind `sum` makes it O(n) and is byte-identical. The `*`
 # fold stays as repeated `*` (the product path has no in-place win; see devdocs).
-_fold_qadds(::typeof(+), args::Vector{QAdd}, empty::QAdd) = isempty(args) ? empty : sum(args)
-function _fold_qadds(op::F, args::Vector{QAdd}, empty::QAdd) where {F}
+fold_qadds(::typeof(+), args::Vector{QAdd}, empty::QAdd) = isempty(args) ? empty : sum(args)
+function fold_qadds(op::F, args::Vector{QAdd}, empty::QAdd) where {F}
     isempty(args) && return empty
     result = first(args)
     for i in 2:length(args)
@@ -320,12 +320,12 @@ function _fold_qadds(op::F, args::Vector{QAdd}, empty::QAdd) where {F}
     return result
 end
 
-function _contains_average(x)
-    x isa Num && return _contains_average(SymbolicUtils.unwrap(x))
+function contains_average(x)
+    x isa Num && return contains_average(SymbolicUtils.unwrap(x))
     x isa SymbolicUtils.BasicSymbolic || return false
     (is_average(x) || is_indexed_sum(x)) && return true
     SymbolicUtils.iscall(x) || return false
-    return any(_contains_average, SymbolicUtils.arguments(x))
+    return any(contains_average, SymbolicUtils.arguments(x))
 end
 
 """
@@ -346,12 +346,12 @@ true
 """
 function undo_average(x::SymbolicUtils.BasicSymbolic)
     if SymbolicUtils.hasmetadata(x, AverageOperator)
-        return _to_qadd(SymbolicUtils.getmetadata(x, AverageOperator))
+        return to_qadd(SymbolicUtils.getmetadata(x, AverageOperator))
     end
     if is_indexed_sum(x)
-        return _rebuild_indexed_sum(undo_average(_sum_body(x)), _sum_indices(x), _sum_ne(x))
+        return rebuild_indexed_sum(undo_average(sum_body(x)), sum_indices(x), sum_ne(x))
     end
-    SymbolicUtils.iscall(x) || return _to_qadd(x)
+    SymbolicUtils.iscall(x) || return to_qadd(x)
     f = SymbolicUtils.operation(x)
     if f isa AvgFunc
         arg = SymbolicUtils.arguments(x)[1]
@@ -360,26 +360,26 @@ function undo_average(x::SymbolicUtils.BasicSymbolic)
         else
             arg
         end
-        return _to_qadd(inner)
+        return to_qadd(inner)
     end
     if f === (/) && length(SymbolicUtils.arguments(x)) == 2
         numerator, denominator = SymbolicUtils.arguments(x)
-        if !_contains_average(denominator)
-            return undo_average(numerator) * inv(_to_cnum(denominator))
+        if !contains_average(denominator)
+            return undo_average(numerator) * inv(to_cnum(denominator))
         end
     end
     if f === (+) || f === (*)
         args = QAdd[undo_average(a) for a in SymbolicUtils.arguments(x)]
         return f === (+) ?
-            _fold_qadds(+, args, _zero_qadd()) :
-            _fold_qadds(*, args, _single_qadd(_CNUM_ONE, _EMPTY_OPS))
+            fold_qadds(+, args, zero_qadd()) :
+            fold_qadds(*, args, single_qadd(CNUM_ONE, EMPTY_OPS))
     end
-    return _to_qadd(x)
+    return to_qadd(x)
 end
 
-undo_average(x::Number) = _single_qadd(_to_cnum(x), Op[])
+undo_average(x::Number) = single_qadd(to_cnum(x), Op[])
 undo_average(x::Num) = undo_average(SymbolicUtils.unwrap(x))
-undo_average(x::QSym) = _single_qadd(_CNUM_ONE, Op[x])
+undo_average(x::QSym) = single_qadd(CNUM_ONE, Op[x])
 undo_average(x::QAdd) = x
 undo_average(eq::Symbolics.Equation) = undo_average(eq.lhs) => undo_average(eq.rhs)
 
@@ -430,7 +430,7 @@ true
 
 See also [`get_sum_non_equal`](@ref), [`has_sum_metadata`](@ref).
 """
-get_sum_indices(x::SymbolicUtils.BasicSymbolic) = _sum_indices(x)
+get_sum_indices(x::SymbolicUtils.BasicSymbolic) = sum_indices(x)
 get_sum_indices(x::Num) = get_sum_indices(SymbolicUtils.unwrap(x))
 
 """
@@ -455,7 +455,7 @@ true
 
 See also [`get_sum_indices`](@ref), [`has_sum_metadata`](@ref).
 """
-get_sum_non_equal(x::SymbolicUtils.BasicSymbolic) = _sum_ne(x)
+get_sum_non_equal(x::SymbolicUtils.BasicSymbolic) = sum_ne(x)
 get_sum_non_equal(x::Num) = get_sum_non_equal(SymbolicUtils.unwrap(x))
 
 """
@@ -481,7 +481,7 @@ true
 
 See also [`indexed_sum`](@ref), [`get_sum_indices`](@ref), [`get_sum_non_equal`](@ref).
 """
-get_sum_body(x::SymbolicUtils.BasicSymbolic) = _sum_body(x)
+get_sum_body(x::SymbolicUtils.BasicSymbolic) = sum_body(x)
 get_sum_body(x::Num) = get_sum_body(SymbolicUtils.unwrap(x))
 
 """
@@ -516,28 +516,28 @@ true
 See also [`get_sum_body`](@ref), [`is_indexed_sum`](@ref).
 """
 function indexed_sum(body, indices::Vector{Index}; non_equal::Vector{NonEqualPair} = NonEqualPair[])
-    return _indexed_sum(SymbolicUtils.unwrap(body), indices, non_equal)
+    return indexed_sum(SymbolicUtils.unwrap(body), indices, non_equal)
 end
 
 # Seals: recursive calls go through `Any`-typed inputs; isa-narrow restores
 # the typed accumulator without a return annotation.
-_idx_seal(v) = v isa Vector{Index} ? v : Index[]
-_aon_seal(v) = v isa Vector{Int} ? v : Int[]
+idx_seal(v) = v isa Vector{Index} ? v : Index[]
+aon_seal(v) = v isa Vector{Int} ? v : Int[]
 
 function get_indices(x::SymbolicUtils.BasicSymbolic)
-    SymbolicUtils.isconst(x) && return _idx_seal(get_indices(x.val))
+    SymbolicUtils.isconst(x) && return idx_seal(get_indices(x.val))
     SymbolicUtils.hasmetadata(x, AverageOperator) &&
-        return _idx_seal(get_indices(SymbolicUtils.getmetadata(x, AverageOperator)))
-    is_indexed_sum(x) && return _idx_seal(get_indices(_sum_body(x)))
+        return idx_seal(get_indices(SymbolicUtils.getmetadata(x, AverageOperator)))
+    is_indexed_sum(x) && return idx_seal(get_indices(sum_body(x)))
     SymbolicUtils.iscall(x) || return Index[]
     f = SymbolicUtils.operation(x)
     if f isa AvgFunc
         arg = SymbolicUtils.arguments(x)[1]
         inner = SymbolicUtils.isconst(arg) ? arg.val : arg
-        return _idx_seal(get_indices(inner))
+        return idx_seal(get_indices(inner))
     end
     inds = Index[]
-    for arg in SymbolicUtils.arguments(x), idx in _idx_seal(get_indices(arg))
+    for arg in SymbolicUtils.arguments(x), idx in idx_seal(get_indices(arg))
         idx ∉ inds && push!(inds, idx)
     end
     return inds
@@ -590,16 +590,16 @@ function acts_on(op::QAdd)
 end
 
 function acts_on(s::SymbolicUtils.BasicSymbolic)
-    SymbolicUtils.isconst(s) && return _aon_seal(acts_on(s.val))
+    SymbolicUtils.isconst(s) && return aon_seal(acts_on(s.val))
     SymbolicUtils.hasmetadata(s, AverageOperator) &&
-        return _aon_seal(acts_on(SymbolicUtils.getmetadata(s, AverageOperator)))
-    is_indexed_sum(s) && return _aon_seal(acts_on(_sum_body(s)))
+        return aon_seal(acts_on(SymbolicUtils.getmetadata(s, AverageOperator)))
+    is_indexed_sum(s) && return aon_seal(acts_on(sum_body(s)))
     SymbolicUtils.iscall(s) || return Int[]
     f = SymbolicUtils.operation(s)
-    f isa AvgFunc && return _aon_seal(acts_on(SymbolicUtils.arguments(s)[1]))
+    f isa AvgFunc && return aon_seal(acts_on(SymbolicUtils.arguments(s)[1]))
     aon = Int[]
     for arg in SymbolicUtils.arguments(s)
-        append!(aon, _aon_seal(acts_on(arg)))
+        append!(aon, aon_seal(acts_on(arg)))
     end
     unique!(sort!(aon))
     return aon

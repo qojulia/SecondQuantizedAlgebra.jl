@@ -87,7 +87,7 @@ nothing # hide
 
 function optimize_pulse(cost)
     losses = Float64[]
-    optf = OptimizationFunction((u, _p) -> cost(u), AutoMooncake())
+    optf = OptimizationFunction((u, p) -> cost(u), AutoMooncake())
     prob = OptimizationProblem(optf, fill(0.3, M))
     res = solve(prob, OptimizationOptimJL.LBFGS(); maxiters = 100, callback = (s, l) -> (push!(losses, l); false))
     return res.u, losses

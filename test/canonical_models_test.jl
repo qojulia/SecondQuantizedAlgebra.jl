@@ -115,8 +115,8 @@ import SecondQuantizedAlgebra: QAdd, Index, simplify
         # became `u(l,k)+u(l,l)`, over-counting the diagonal.
         comm = commutator(σ(2, 2, l), Hdrive)
         for (term, c) in comm.arguments
-            if SecondQuantizedAlgebra._depends_on_index_term(c, term.ops, k)
-                @test SecondQuantizedAlgebra._ne_contains(term.ne, k, l)
+            if SecondQuantizedAlgebra.depends_on_index_term(c, term.ops, k)
+                @test SecondQuantizedAlgebra.ne_contains(term.ne, k, l)
             end
         end
     end
@@ -178,12 +178,12 @@ end
     ai_dag = IndexedOperator(a', i)
     aj_dag = IndexedOperator(a', j)
 
-    @testset "[Σ_i a_i, Σ_j a'_j] = N (canonical commutator)" begin
+    @testset "[Σ_i a_i, Σ_j a'j] = N (canonical commutator)" begin
         c = commutator(Σ(ai, i), Σ(aj_dag, j))
         @test iszero(simplify(c - Complex(N)))
     end
 
-    @testset "Σ_i (a_i a'_i) = N + Σ_i a'_i a_i" begin
+    @testset "Σ_i (a_i a'i) = N + Σ_i a'i a_i" begin
         # The +1 from the bosonic commutator, summed over i, gives N.
         @test Σ(ai * ai_dag, i) == Σ(ai_dag * ai, i) + Complex(N)
     end

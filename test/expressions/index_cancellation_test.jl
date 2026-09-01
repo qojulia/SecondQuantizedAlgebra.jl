@@ -128,7 +128,7 @@ import SecondQuantizedAlgebra: QAdd, QSym, Index, simplify, sorted_arguments,
         @test isequal(cnums[1], Complex(N))
     end
 
-    @testset "Σ_i (a_i a'_i) yields N + Σ_i a'_i a_i" begin
+    @testset "Σ_i (a_i a'i) yields N + Σ_i a'i a_i" begin
         # The eager a*a' = a'a + 1 canonicalization produces a constant `+1`
         # residual; when wrapped in `Σ_i`, the constant must pick up N.
         hfL = FockSpace(:fM)
@@ -142,7 +142,7 @@ import SecondQuantizedAlgebra: QAdd, QSym, Index, simplify, sorted_arguments,
         @test isequal(cnums[1], Complex(N))
     end
 
-    @testset "[Σ a_i, Σ a'_j] = N (canonical commutator)" begin
+    @testset "[Σ a_i, Σ a'j] = N (canonical commutator)" begin
         # The diagonal pin in the product emits the +1 residual under the
         # surviving bound scope, so it must carry an N factor. Currently
         # returns the un-scaled constant 1, which is mathematically wrong.

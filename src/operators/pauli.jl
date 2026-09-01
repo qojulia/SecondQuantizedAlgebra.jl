@@ -16,7 +16,7 @@ See also [`Pauli`](@ref), [`SpinSpace`](@ref).
 struct PauliSpace <: HilbertSpace
     name::Symbol
 end
-PauliSpace(name::AbstractString) = _name_must_be_symbol(name)
+PauliSpace(name::AbstractString) = name_must_be_symbol(name)
 Base.:(==)(a::PauliSpace, b::PauliSpace) = a.name == b.name
 Base.hash(a::PauliSpace, h::UInt) = hash(:PauliSpace, hash(a.name, h))
 
@@ -47,7 +47,7 @@ See also [`PauliSpace`](@ref), [`Spin`](@ref).
 """
 function Pauli(name::Symbol, axis::Int, si::Int, idx::Index)
     1 <= axis <= 3 || throw(ArgumentError("Pauli axis must be 1, 2, or 3, got $axis"))
-    return Op(OP_PAULI, _name_id(name), si, idx, axis, 0, 0, 0)
+    return Op(OP_PAULI, name_id(name), si, idx, axis, 0, 0, 0)
 end
 Pauli(name::Symbol, axis::Int, si::Int) = Pauli(name, axis, si, NO_INDEX)
 
@@ -60,10 +60,10 @@ end
 
 # Auto-detect subspace when the ProductSpace contains exactly one PauliSpace.
 Pauli(h::ProductSpace, name::Symbol, axis::Int) =
-    Pauli(h, name, axis, _unique_subspace_index(h, PauliSpace))
+    Pauli(h, name, axis, unique_subspace_index(h, PauliSpace))
 
-Pauli(::HilbertSpace, name::AbstractString, args...) = _name_must_be_symbol(name)
+Pauli(::HilbertSpace, name::AbstractString, args...) = name_must_be_symbol(name)
 
 # Per-site Levi-Civita lookup (3×3 antisymmetric); shared by Pauli and Spin
-# hooks in `operators.jl`. _levi_civita[j][k] = ε_{jk(6-j-k)}.
-const _levi_civita = ((0, 1, -1), (-1, 0, 1), (1, -1, 0))
+# hooks in `operators.jl`. levi_civita[j][k] = ε_{jk(6-j-k)}.
+const levi_civita = ((0, 1, -1), (-1, 0, 1), (1, -1, 0))

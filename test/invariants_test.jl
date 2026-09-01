@@ -3,7 +3,7 @@ using Test
 using Symbolics: Symbolics, @variables
 using SymbolicUtils: SymbolicUtils
 import SecondQuantizedAlgebra: QAdd, QSym, QField, Index, simplify, normal_order,
-    _depends_on_index_term, _any_depends_on_index, _iszero_cnum,
+    depends_on_index_term, any_depends_on_index, iszero_cnum,
     has_sum_metadata, get_sum_indices, is_average, undo_average
 
 # ============================================================================
@@ -25,11 +25,11 @@ indices around terms that no longer depend on them.
 function check_qadd_invariants(q::QAdd)
     failures = String[]
     for idx in q.indices
-        _any_depends_on_index(q, idx) ||
+        any_depends_on_index(q, idx) ||
             push!(failures, "index $(index_name(idx)) in .indices has no surviving carrier")
     end
     for (term, c) in q.arguments
-        _iszero_cnum(c) && push!(failures, "term $(term.ops) has zero prefactor")
+        iszero_cnum(c) && push!(failures, "term $(term.ops) has zero prefactor")
     end
     return failures
 end
@@ -41,17 +41,17 @@ summation indices the node advertises. Blanket scope (Bug B) violates this.
 """
 function check_average_metadata(avg)
     failures = String[]
-    _walk_avg!(failures, SymbolicUtils.unwrap(avg))
+    walk_avg!(failures, SymbolicUtils.unwrap(avg))
     return failures
 end
 
-function _walk_avg!(failures, x)
+function walk_avg!(failures, x)
     x isa SymbolicUtils.BasicSymbolic || return
     if has_sum_metadata(x)
         sum_idxs = get_sum_indices(x)
         inner = undo_average(x)
         if inner isa QAdd
-            any_dep = any(idx -> _any_depends_on_index(inner, idx), sum_idxs)
+            any_dep = any(idx -> any_depends_on_index(inner, idx), sum_idxs)
             any_dep || push!(
                 failures,
                 "indexed-sum node $(inner) carries indices=$(sum_idxs) but " *
@@ -62,7 +62,7 @@ function _walk_avg!(failures, x)
     end
     SymbolicUtils.iscall(x) || return
     for arg in SymbolicUtils.arguments(x)
-        _walk_avg!(failures, arg)
+        walk_avg!(failures, arg)
     end
     return
 end

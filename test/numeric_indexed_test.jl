@@ -7,12 +7,12 @@ using Test
 
 # Element-wise sup-norm distance between two complex matrices: avoids a hard
 # `LinearAlgebra` dependency in the test environment.
-_matnorm(A, B) = maximum(abs, A - B)
+matnorm(A, B) = maximum(abs, A - B)
 
 # Build a Tavis-Cummings Hamiltonian both symbolically (indexed sum) and
 # explicitly (per-atom subspaces). Run both through `to_numeric` and verify
 # the matrices agree element-by-element on small concrete N.
-function _tc_indexed(N, cutoff)
+function tc_indexed(N, cutoff)
     hc = FockSpace(:cavity)
     ha = NLevelSpace(:atom, 2)
     h = hc ⊗ ha
@@ -35,7 +35,7 @@ function _tc_indexed(N, cutoff)
     return H, a, b, sites, Δ
 end
 
-function _tc_explicit(N, cutoff)
+function tc_explicit(N, cutoff)
     h = let acc = FockSpace(:c)
         for k in 1:N
             acc = acc ⊗ NLevelSpace(Symbol("atom_", k), 2)
@@ -59,7 +59,7 @@ end
 
 # Build the (scalar_subs, subs_ex) pair from a shared (gnums, Δval) so both
 # numeric pipelines see the same parameters.
-function _build_subs(N, gnums, Δval, Δ_indexed, Δ_ex, gsyms_ex)
+function build_subs(N, gnums, Δval, Δ_indexed, Δ_ex, gsyms_ex)
     ks_sym = SymbolicUtils.Sym{SymbolicUtils.SymReal}(
         :g;
         type = SymbolicUtils.FnType{Tuple{Int}, Real, Nothing},
@@ -81,13 +81,13 @@ end
 @testset "Indexed numeric: Tavis-Cummings" begin
     cutoff = 3
     for N in (2, 3, 4, 5)
-        H_idx, a_idx, b, sites, Δ_idx = _tc_indexed(N, cutoff)
-        H_ex, a_ex, gsyms_ex, Δ_ex = _tc_explicit(N, cutoff)
+        H_idx, a_idx, b, sites, Δ_idx = tc_indexed(N, cutoff)
+        H_ex, a_ex, gsyms_ex, Δ_ex = tc_explicit(N, cutoff)
 
         gnums = ComplexF64[ComplexF64(0.1 + 0.05 * k, 0.02 + 0.03 * k) for k in 1:N]
         Δval = ComplexF64(0.5, 0.0)
         scalar_subs, subs_ex =
-            _build_subs(N, gnums, Δval, Δ_idx, Δ_ex, gsyms_ex)
+            build_subs(N, gnums, Δval, Δ_idx, Δ_ex, gsyms_ex)
 
         @testset "N=$N: Hamiltonian" begin
             M_idx = to_numeric(
@@ -97,7 +97,7 @@ end
             M_ex = to_numeric(H_ex_subbed, b)
             d1 = sparse(M_idx).data
             d2 = sparse(M_ex).data
-            @test _matnorm(d1, d2) < 1.0e-10
+            @test matnorm(d1, d2) < 1.0e-10
         end
 
         @testset "N=$N: [H, a]" begin
@@ -110,7 +110,7 @@ end
             M_ex = to_numeric(C_ex_subbed, b)
             d1 = sparse(M_idx).data
             d2 = sparse(M_ex).data
-            @test _matnorm(d1, d2) < 1.0e-10
+            @test matnorm(d1, d2) < 1.0e-10
         end
     end
 end
@@ -144,7 +144,7 @@ end
 
 @testset "Indexed numeric: ne-constrained double sum" begin
     # A double sum `Σ_{i,j} σ⁺_i σ⁻_j` splits into a diagonal part (`i == j`) and an
-    # off-diagonal part carrying an `ne = (i, j)` constraint that `_violates_ne` uses to
+    # off-diagonal part carrying an `ne = (i, j)` constraint that `violates_ne` uses to
     # skip the `i == j` combinations during the unroll. The result must equal the full
     # explicit sum over all site pairs.
     ha = NLevelSpace(:atom, 2)
@@ -163,12 +163,12 @@ end
     Hex = t(1, 2, 1) * t(2, 1, 1) + t(1, 2, 1) * t(2, 1, 2) +
         t(1, 2, 2) * t(2, 1, 1) + t(1, 2, 2) * t(2, 1, 2)
     Mex = to_numeric(Hex, b)
-    @test _matnorm(sparse(M).data, sparse(Mex).data) < 1.0e-10
+    @test matnorm(sparse(M).data, sparse(Mex).data) < 1.0e-10
 end
 
 @testset "Indexed numeric: real-valued scalar_subs" begin
     # Real (non-`Complex`-typed) `scalar_subs` values exercise the real-only substitution
-    # legs of `_split_scalar_subs`/`_apply_scalar_subs` (the `has_imag == false` path).
+    # legs of `split_scalar_subs`/`apply_scalar_subs` (the `has_imag == false` path).
     hc = FockSpace(:cavity)
     ha = NLevelSpace(:atom, 2)
     h = hc ⊗ ha
@@ -198,7 +198,7 @@ end
     Hex = 0.3 * (ae' * te(1, 2, 1) + ae * te(2, 1, 1)) +
         0.7 * (ae' * te(1, 2, 2) + ae * te(2, 1, 2))
     Mex = to_numeric(Hex, b)
-    @test _matnorm(sparse(M).data, sparse(Mex).data) < 1.0e-10
+    @test matnorm(sparse(M).data, sparse(Mex).data) < 1.0e-10
 end
 
 @testset "Indexed numeric: slot resolution edge cases" begin
@@ -220,7 +220,7 @@ end
     sites_no_cavity = Dict{Int, Vector{Int}}(2 => [2, 3])
     M_full = to_numeric(H, b, sites, Dict{S.QSym, Any}())
     M_omit = to_numeric(H, b, sites_no_cavity, Dict{S.QSym, Any}())
-    @test _matnorm(sparse(M_full).data, sparse(M_omit).data) < 1.0e-10
+    @test matnorm(sparse(M_full).data, sparse(M_omit).data) < 1.0e-10
 
     # An operator carrying an unresolved (non-integer) index on a multi-slot subspace is
     # ambiguous and must error. `σ_j` never binds to the summed index `i`.

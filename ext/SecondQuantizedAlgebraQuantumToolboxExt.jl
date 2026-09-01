@@ -36,7 +36,7 @@ struct VecSum{T} <: SO.AbstractSciMLOperator{T}
 end
 VecSum(coeffs, ops) = VecSum{ComplexF64}(coeffs, ops)
 
-@inline _cv(c)::ComplexF64 = ComplexF64(convert(Number, c))
+@inline cv(c)::ComplexF64 = ComplexF64(convert(Number, c))
 
 Base.size(L::VecSum) = size(L.ops[1])
 Base.size(L::VecSum, i::Int) = size(L.ops[1], i)
@@ -47,16 +47,16 @@ SO.update_coefficients!(L::VecSum, u, p, t) =
     (foreach(c -> SO.update_coefficients!(c, u, p, t), L.coeffs); L)
 
 function mul!(w::AbstractVecOrMat, L::VecSum, v::AbstractVecOrMat)
-    mul!(w, L.ops[1], v, _cv(L.coeffs[1]), false)
+    mul!(w, L.ops[1], v, cv(L.coeffs[1]), false)
     for i in 2:length(L.ops)
-        mul!(w, L.ops[i], v, _cv(L.coeffs[i]), true)
+        mul!(w, L.ops[i], v, cv(L.coeffs[i]), true)
     end
     return w
 end
 function mul!(w::AbstractVecOrMat, L::VecSum, v::AbstractVecOrMat, α, β)
-    mul!(w, L.ops[1], v, _cv(L.coeffs[1]) * α, β)
+    mul!(w, L.ops[1], v, cv(L.coeffs[1]) * α, β)
     for i in 2:length(L.ops)
-        mul!(w, L.ops[i], v, _cv(L.coeffs[i]) * α, true)
+        mul!(w, L.ops[i], v, cv(L.coeffs[i]) * α, true)
     end
     return w
 end
@@ -79,7 +79,7 @@ function SO.concretize(L::VecSum{T})::SparseMatrixCSC{T, Int} where {T}
     data = spzeros(T, size(L)...)
     for i in eachindex(L.ops)
         # Individual terms may be dense or lazy, but the assembled representation is sparse.
-        data += convert(T, _cv(L.coeffs[i])) * sparse(SO.concretize(L.ops[i]))
+        data += convert(T, cv(L.coeffs[i])) * sparse(SO.concretize(L.ops[i]))
     end
     return data
 end
@@ -99,10 +99,10 @@ Base.adjoint(L::VecSum{T}) where {T} =
 
 # --- superoperator construction (mesolve / liouvillian path) ---------------------------
 #
-# Without these, QuantumToolbox's `_spre`/`_spost` wrap a `VecSum` in a generic lazy tensor
+# Without these, QuantumToolbox's `spre`/`spost` wrap a `VecSum` in a generic lazy tensor
 # (a `try/catch` `@warn` that breaks Mooncake, and untraversable by AD). Distributing over the
 # terms instead keeps the superoperator a `VecSum` of concrete `MatrixOperator`s: AD-traversable
-# and warning-free. `_spre`/`_spost` are linear (coefficients pass through); the dissipator's
+# and warning-free. `spre`/`spost` are linear (coefficients pass through); the dissipator's
 # `O'O`/sandwich terms need `VecSum * VecSum`. All three return the single concrete `VecSum{T}`.
 QTB._spre(A::VecSum{T}) where {T} =
     VecSum{T}(A.coeffs, SO.AbstractSciMLOperator[QTB._spre(o) for o in A.ops])
@@ -113,18 +113,18 @@ QTB._spost(B::VecSum{T}) where {T} =
 # ComposedScalarOperator that does not fit `coeffs::Vector{ScalarOperator}`). Two constants
 # multiply eagerly to stay constant (correct `isconstant`/static `concretize`); otherwise a
 # closure defers to update time. The non-mutating `update_coefficients` is AD-safe.
-function _scalprod(c1::SO.ScalarOperator, c2::SO.ScalarOperator)
-    (SO.isconstant(c1) && SO.isconstant(c2)) && return SO.ScalarOperator(_cv(c1) * _cv(c2))
+function scalprod(c1::SO.ScalarOperator, c2::SO.ScalarOperator)
+    (SO.isconstant(c1) && SO.isconstant(c2)) && return SO.ScalarOperator(cv(c1) * cv(c2))
     return SO.ScalarOperator(
         0.0im,
-        (a, u, p, t) -> _cv(SO.update_coefficients(c1, u, p, t)) * _cv(SO.update_coefficients(c2, u, p, t)),
+        (a, u, p, t) -> cv(SO.update_coefficients(c1, u, p, t)) * cv(SO.update_coefficients(c2, u, p, t)),
     )
 end
 
 # Operator product: materialized MatrixOperator fast path (the lazy `*` fallback does not
-# arise after `_spre`/`_spost`, which yield MatrixOperators).
-_opprod(x::SO.MatrixOperator, y::SO.MatrixOperator) = SO.MatrixOperator(x.A * y.A)
-_opprod(x, y) = x * y
+# arise after `spre`/`spost`, which yield MatrixOperators).
+opprod(x::SO.MatrixOperator, y::SO.MatrixOperator) = SO.MatrixOperator(x.A * y.A)
+opprod(x, y) = x * y
 
 function Base.:*(A::VecSum{T}, B::VecSum{T}) where {T}
     n = length(A.ops) * length(B.ops)
@@ -132,8 +132,8 @@ function Base.:*(A::VecSum{T}, B::VecSum{T}) where {T}
     ops = Vector{SO.AbstractSciMLOperator}(undef, n)
     k = 1
     for i in eachindex(A.ops), j in eachindex(B.ops)
-        coeffs[k] = _scalprod(A.coeffs[i], B.coeffs[j])
-        ops[k] = _opprod(A.ops[i], B.ops[j])
+        coeffs[k] = scalprod(A.coeffs[i], B.coeffs[j])
+        ops[k] = opprod(A.ops[i], B.ops[j])
         k += 1
     end
     return VecSum{T}(coeffs, ops)
@@ -151,22 +151,22 @@ end
     k === SQA.OP_MOMENTUM   && return QTB.momentum(N)
     # QuantumToolbox is 0-indexed; SQA `Transition` levels are 1-indexed (as in QuantumOptics).
     k === SQA.OP_TRANSITION && return QTB.projection(N, Int(op.l1) - 1, Int(op.l2) - 1)
-    k === SQA.OP_PAULI      && return _qtb_pauli(op, N)
-    k === SQA.OP_SPIN       && return QTB.jmat((N - 1) // 2, _axis(op))
+    k === SQA.OP_PAULI      && return qtb_pauli(op, N)
+    k === SQA.OP_SPIN       && return QTB.jmat((N - 1) // 2, axis(op))
     return SQA.numeric_operator(be, Val(k), op, N)
 end
 
 SQA.numeric_operator(::QuantumToolboxBackend, ::Val{K}, op::Op, N::Integer) where {K} =
     throw(ArgumentError("no QuantumToolbox numeric_operator for role $K on dim $N"))
 
-function _qtb_pauli(op::Op, N::Integer)
+function qtb_pauli(op::Op, N::Integer)
     N == 2 || throw(ArgumentError("Pauli operators require dim 2, got $N"))
     op.l1 == 1 && return QTB.sigmax()
     op.l1 == 2 && return QTB.sigmay()
     return QTB.sigmaz()
 end
 
-_axis(op::Op) = op.l1 == 1 ? :x : op.l1 == 2 ? :y : :z
+axis(op::Op) = op.l1 == 1 ? :x : op.l1 == 2 ? :y : :z
 
 # =======================================================================================
 # basis (integer dims) / subsystem / embedding / identity
@@ -178,7 +178,7 @@ SQA.numeric_basis(::QuantumToolboxBackend, ::SQA.PauliSpace, _) = 2
 SQA.numeric_basis(::QuantumToolboxBackend, ::SQA.SpinSpace, s) = Int(2s + 1)
 SQA.numeric_basis(::QuantumToolboxBackend, ::SQA.PhaseSpace, N) = Int(N) + 1
 function SQA.numeric_basis(be::QuantumToolboxBackend, h::SQA.ProductSpace, dims)
-    SQA._check_product_dims(h, dims)
+    SQA.check_product_dims(h, dims)
     return ntuple(i -> Int(SQA.numeric_basis(be, h.spaces[i], dims[i])), length(h.spaces))
 end
 
@@ -236,7 +236,7 @@ function SQA.numeric_assemble(be::QuantumToolboxBackend, basis, terms)
     ops = SO.AbstractSciMLOperator[]
     for (c, factors) in terms
         push!(coeffs, SO.ScalarOperator(ComplexF64(c)))
-        push!(ops, SO.MatrixOperator(_fuse(be, basis, factors).data))
+        push!(ops, SO.MatrixOperator(fuse(be, basis, factors).data))
     end
     if isempty(ops)
         push!(coeffs, SO.ScalarOperator(0.0im))
@@ -250,19 +250,19 @@ function SQA.numeric_assemble_td(be::QuantumToolboxBackend, basis, td_terms)
     coeffs = SO.ScalarOperator[]
     ops = SO.AbstractSciMLOperator[]
     for (c, factors) in td_terms
-        push!(coeffs, _td_scalar(c))
-        push!(ops, SO.MatrixOperator(_fuse(be, basis, factors).data))
+        push!(coeffs, td_scalar(c))
+        push!(ops, SO.MatrixOperator(fuse(be, basis, factors).data))
     end
     return QTB.QobjEvo(VecSum(coeffs, ops), QTB.Operator(), refid.dimensions)
 end
 
 # SciML update signature is the four-arg `(a, u, p, t) -> c`, not the two-arg `(p, t)`.
-_td_scalar(c::Function) = SO.ScalarOperator(0.0im, (a, u, p, t) -> ComplexF64(c(t)))
-_td_scalar(c) = SO.ScalarOperator(ComplexF64(c))
+td_scalar(c::Function) = SO.ScalarOperator(0.0im, (a, u, p, t) -> ComplexF64(c(t)))
+td_scalar(c) = SO.ScalarOperator(ComplexF64(c))
 # p-aware: thread `p` into the update function so the QobjEvo is differentiable wrt `p`.
-_td_scalar(c::SQA.PControlCoeff) = SO.ScalarOperator(0.0im, (a, u, p, t) -> ComplexF64(c.f(p, t)))
+td_scalar(c::SQA.PControlCoeff) = SO.ScalarOperator(0.0im, (a, u, p, t) -> ComplexF64(c.f(p, t)))
 
-function _fuse(be::QuantumToolboxBackend, basis, factors)
+function fuse(be::QuantumToolboxBackend, basis, factors)
     isempty(factors) && return SQA.numeric_identity(be, basis)
     length(factors) == 1 && return factors[1]
     return foldl(*, factors)
@@ -276,19 +276,19 @@ end
 # backend operator. `op_type = identity` is the explicit opt-in to the lazily assembled
 # `QobjEvo`/`VecSum`. Other callables are applied to an eager `QuantumObject`;
 # `SciMLOperators.concretize` is special-cased to return its raw matrix as advertised.
-SQA.numeric_materialize(::QuantumToolboxBackend, op, ::Nothing) = QTB.to_sparse(_qtb_eager(op))
+SQA.numeric_materialize(::QuantumToolboxBackend, op, ::Nothing) = QTB.to_sparse(qtb_eager(op))
 function SQA.numeric_materialize(::QuantumToolboxBackend, op, op_type)
     op_type === identity && return op
-    eager = _qtb_eager(op)
+    eager = qtb_eager(op)
     op_type === SO.concretize && return eager.data
     return op_type(eager)
 end
 
 # Reduce the assembled object to an eager `QuantumObject`: concretize the lazy `VecSum`
 # behind a `QobjEvo`; a bare scalar path is already an eager `QuantumObject`.
-_qtb_eager(op::QTB.QuantumObjectEvolution) =
+qtb_eager(op::QTB.QuantumObjectEvolution) =
     QTB.Qobj(SO.concretize(op.data), QTB.Operator(), op.dimensions)
-_qtb_eager(op::QTB.QuantumObject) = op
+qtb_eager(op::QTB.QuantumObject) = op
 
 # =======================================================================================
 # expectation + backend resolution + state/dims convenience
@@ -296,17 +296,17 @@ _qtb_eager(op::QTB.QuantumObject) = op
 
 # QTB leaf construction branches on the runtime operator kind. Routing a single leaf through
 # the one-term VecSum assembler keeps the lazy expectation path concrete, like a QAdd product.
-SQA._to_numeric_lazy(op::Op, ctx::SQA.NumericContext{QuantumToolboxBackend}) =
-    SQA._to_numeric_static(SQA._single_qadd(SQA._CNUM_ONE, Op[op]), ctx)
+SQA.to_numeric_lazy(op::Op, ctx::SQA.NumericContext{QuantumToolboxBackend}) =
+    SQA.to_numeric_static(SQA.single_qadd(SQA.CNUM_ONE, Op[op]), ctx)
 
-function _expect_ket(L::VecSum, data::AbstractVector)
+function expect_ket(L::VecSum, data::AbstractVector)
     work = similar(data, ComplexF64)
     mul!(work, L, data)
     return ComplexF64(dot(data, work))
 end
 
 # Contract each term directly so density expectations do not materialize the full VecSum.
-function _trace_product(A::SparseMatrixCSC, ρ::AbstractMatrix)
+function trace_product(A::SparseMatrixCSC, ρ::AbstractMatrix)
     value = 0.0im
     rows = rowvals(A)
     vals = nonzeros(A)
@@ -315,17 +315,17 @@ function _trace_product(A::SparseMatrixCSC, ρ::AbstractMatrix)
     end
     return value
 end
-function _trace_product(A::AbstractMatrix, ρ::AbstractMatrix)
+function trace_product(A::AbstractMatrix, ρ::AbstractMatrix)
     value = 0.0im
     for j in axes(A, 2), i in axes(A, 1)
         value += A[i, j] * ρ[j, i]
     end
     return value
 end
-function _expect_density(L::VecSum, data::AbstractMatrix)
+function expect_density(L::VecSum, data::AbstractMatrix)
     value = 0.0im
     for i in eachindex(L.ops)
-        value += _cv(L.coeffs[i]) * _cv(_trace_product(SO.concretize(L.ops[i]), data))
+        value += cv(L.coeffs[i]) * cv(trace_product(SO.concretize(L.ops[i]), data))
     end
     return ComplexF64(value)
 end
@@ -335,7 +335,7 @@ end
 QTB.expect(
     numop::QTB.QuantumObjectEvolution{QTB.Operator, D, VecSum{ComplexF64}},
     state::QTB.QuantumObject{QTB.Ket},
-) where {D} = _expect_ket(numop.data, state.data)
+) where {D} = expect_ket(numop.data, state.data)
 QTB.expect(
     numop::QTB.QuantumObjectEvolution{QTB.Operator, D, VecSum{ComplexF64}},
     state::QTB.QuantumObject{QTB.Bra},
@@ -343,7 +343,7 @@ QTB.expect(
 QTB.expect(
     numop::QTB.QuantumObjectEvolution{QTB.Operator, D, VecSum{ComplexF64}},
     state::QTB.QuantumObject{QTB.Operator},
-) where {D} = _expect_density(numop.data, state.data)
+) where {D} = expect_density(numop.data, state.data)
 
 SQA.numeric_expect(
     ::QuantumToolboxBackend,
@@ -365,7 +365,7 @@ SQA.numeric_expect(
     ::QuantumToolboxBackend,
     numop::QTB.QuantumObject{QTB.Operator},
     state::QTB.QuantumObject{QTB.Operator},
-) = ComplexF64(_trace_product(numop.data, state.data))
+) = ComplexF64(trace_product(numop.data, state.data))
 
 SQA.numeric_expect(::QuantumToolboxBackend, numop, state::QTB.QuantumObject) =
     ComplexF64(QTB.expect(numop, state))
@@ -380,33 +380,33 @@ SQA.numeric_expect(::QuantumToolboxBackend, numop, states::AbstractVector) =
     ComplexF64[ComplexF64(QTB.expect(numop, s)) for s in states]
 
 SQA.numeric_backend(::QTB.AbstractQuantumObject) = QuantumToolboxBackend()
-function _qtb_numeric_basis(ds)
+function qtb_numeric_basis(ds)
     dims = collect(Int, ds)
     return length(dims) == 1 ? dims[1] : dims
 end
-SQA.numeric_basis(o::QTB.AbstractQuantumObject{QTB.Bra}) = _qtb_numeric_basis(o.dims[2])
-SQA.numeric_basis(o::QTB.AbstractQuantumObject) = _qtb_numeric_basis(o.dims[1])
+SQA.numeric_basis(o::QTB.AbstractQuantumObject{QTB.Bra}) = qtb_numeric_basis(o.dims[2])
+SQA.numeric_basis(o::QTB.AbstractQuantumObject) = qtb_numeric_basis(o.dims[1])
 
 # Positional dims form (the QuantumToolbox analog of `to_numeric(op, basis, d)`).
-SQA.to_numeric(op::Op, dims::QTBDims, d::AbstractDict{<:SQA.QSym} = SQA._NO_SUBS) =
+SQA.to_numeric(op::Op, dims::QTBDims, d::AbstractDict{<:SQA.QSym} = SQA.NO_SUBS) =
     SQA.numeric_materialize(
     QuantumToolboxBackend(),
-    SQA._to_numeric_static(
-        SQA._single_qadd(SQA._CNUM_ONE, Op[op]),
+    SQA.to_numeric_static(
+        SQA.single_qadd(SQA.CNUM_ONE, Op[op]),
         SQA.NumericContext(QuantumToolboxBackend(), dims, d),
     ),
     nothing,
 )
-SQA.to_numeric(q::SQA.QAdd, dims::QTBDims, d::AbstractDict{<:SQA.QSym} = SQA._NO_SUBS) =
+SQA.to_numeric(q::SQA.QAdd, dims::QTBDims, d::AbstractDict{<:SQA.QSym} = SQA.NO_SUBS) =
     SQA.numeric_materialize(
     QuantumToolboxBackend(),
-    SQA._to_numeric_static(q, SQA.NumericContext(QuantumToolboxBackend(), dims, d)),
+    SQA.to_numeric_static(q, SQA.NumericContext(QuantumToolboxBackend(), dims, d)),
     nothing,
 )
-SQA.to_numeric(x::Number, dims::QTBDims, ::AbstractDict{<:SQA.QSym} = SQA._NO_SUBS) =
+SQA.to_numeric(x::Number, dims::QTBDims, ::AbstractDict{<:SQA.QSym} = SQA.NO_SUBS) =
     SQA.numeric_materialize(
     QuantumToolboxBackend(),
-    SQA._to_complex(x) * SQA.numeric_identity(QuantumToolboxBackend(), dims),
+    SQA.to_complex(x) * SQA.numeric_identity(QuantumToolboxBackend(), dims),
     nothing,
 )
 
@@ -414,24 +414,24 @@ SQA.to_numeric(x::Number, dims::QTBDims, ::AbstractDict{<:SQA.QSym} = SQA._NO_SU
 SQA.to_numeric(
     q::SQA.QAdd, dims::QTBDims,
     sites::AbstractDict{Int, Vector{Int}},
-    d::AbstractDict{<:SQA.QSym} = SQA._NO_SUBS,
-    scalar_subs::AbstractDict = SQA._NO_SCALAR_SUBS,
-) = SQA._to_numeric_indexed(QuantumToolboxBackend(), dims, q, sites, d, scalar_subs)
+    d::AbstractDict{<:SQA.QSym} = SQA.NO_SUBS,
+    scalar_subs::AbstractDict = SQA.NO_SCALAR_SUBS,
+) = SQA.to_numeric_indexed(QuantumToolboxBackend(), dims, q, sites, d, scalar_subs)
 
 # Keyword dims form.
 function SQA.to_numeric(
         op::SQA.QField, dims::QTBDims;
-        parameter = Dict(), time_parameter = SQA._NO_TIME_PARAMETER,
+        parameter = Dict(), time_parameter = SQA.NO_TIME_PARAMETER,
         operators = Dict{SQA.QSym, Any}(), adjoint_ops = true, op_type = nothing,
     )
-    return SQA._to_numeric_kw(QuantumToolboxBackend(), op, dims; parameter, time_parameter, operators, adjoint_ops, op_type)
+    return SQA.to_numeric_kw(QuantumToolboxBackend(), op, dims; parameter, time_parameter, operators, adjoint_ops, op_type)
 end
 function SQA.to_numeric(
         x::Union{Number, BasicSymbolic}, dims::QTBDims;
-        parameter = Dict(), time_parameter = SQA._NO_TIME_PARAMETER,
+        parameter = Dict(), time_parameter = SQA.NO_TIME_PARAMETER,
         operators = Dict{SQA.QSym, Any}(), adjoint_ops = true, op_type = nothing,
     )
-    return SQA._to_numeric_kw(QuantumToolboxBackend(), x, dims; parameter, time_parameter, operators, adjoint_ops, op_type)
+    return SQA.to_numeric_kw(QuantumToolboxBackend(), x, dims; parameter, time_parameter, operators, adjoint_ops, op_type)
 end
 
 # Vector of operators on the direct QTB-dims form (mirrors the `Basis` method in api.jl).
@@ -440,11 +440,11 @@ SQA.to_numeric(ops::AbstractVector{T}, dims::D; kwargs...) where {T, D <: QTBDim
 
 # State convenience (dims derived from the state).
 SQA.to_numeric(op, state::QTB.QuantumObject; kwargs...) = SQA.to_numeric(op, SQA.numeric_basis(state); kwargs...)
-SQA.to_numeric(op::SQA.QField, state::QTB.QuantumObject, d::AbstractDict{<:SQA.QSym} = SQA._NO_SUBS) =
+SQA.to_numeric(op::SQA.QField, state::QTB.QuantumObject, d::AbstractDict{<:SQA.QSym} = SQA.NO_SUBS) =
     SQA.to_numeric(op, SQA.numeric_basis(state), d)
 SQA.to_numeric(x::Number, state::QTB.QuantumObject) = SQA.to_numeric(x, SQA.numeric_basis(state))
 
-SQA.numeric_average(op, state::QTB.QuantumObject, d::AbstractDict{<:SQA.QSym} = SQA._NO_SUBS) =
-    SQA._numeric_average(op, state, d)
+SQA.numeric_average(op, state::QTB.QuantumObject, d::AbstractDict{<:SQA.QSym} = SQA.NO_SUBS) =
+    SQA.numeric_average(op, state, d)
 
 end # module
