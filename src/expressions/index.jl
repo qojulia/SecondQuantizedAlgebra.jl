@@ -115,6 +115,17 @@ function change_index(x::Num, from::Index, to::Index)
 end
 function change_index(x::CNum, from::Index, to::Index)
     _is_native(x) && return x
+    tail = x.tail
+    if tail isa RawSymbolicCoeff
+        raw = change_index(Num(tail.expr), from, to)
+        isequal(raw, Num(tail.expr)) && return x
+        result = SymbolicUtils.unwrap(raw)
+        value = _const_value(result)
+        value isa Number && return _to_cnum(value)
+        return _from_raw_arithmetic(
+            result::SymbolicUtils.BasicSymbolic{SymbolicUtils.SymReal}, tail.real_slot,
+        )
+    end
     raw_re, raw_im = _realimag(x)
     re = change_index(raw_re, from, to)
     im = change_index(raw_im, from, to)
@@ -183,6 +194,17 @@ function change_index(x::Num, pairs::AbstractDict{Index, Index})
 end
 function change_index(x::CNum, pairs::AbstractDict{Index, Index})
     _is_native(x) && return x
+    tail = x.tail
+    if tail isa RawSymbolicCoeff
+        raw = change_index(Num(tail.expr), pairs)
+        isequal(raw, Num(tail.expr)) && return x
+        result = SymbolicUtils.unwrap(raw)
+        value = _const_value(result)
+        value isa Number && return _to_cnum(value)
+        return _from_raw_arithmetic(
+            result::SymbolicUtils.BasicSymbolic{SymbolicUtils.SymReal}, tail.real_slot,
+        )
+    end
     raw_re, raw_im = _realimag(x)
     re = change_index(raw_re, pairs)
     im = change_index(raw_im, pairs)

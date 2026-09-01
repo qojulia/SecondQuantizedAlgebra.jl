@@ -60,6 +60,9 @@ Base.:+(a::Coefficient, b::QAdd) = b + a
 Base.zero(::Type{QAdd}) = _zero_qadd()
 Base.zero(::QAdd) = _zero_qadd()
 
+Base.:+(a::QSym) = _single_qadd(_CNUM_ONE, Op[a])
+Base.:+(a::QAdd) = a
+
 Base.:-(a::QSym) = _single_qadd(_CNUM_NEG1, Op[a])
 
 function Base.:-(a::QAdd)
@@ -74,11 +77,19 @@ Base.:-(a::QField, b::QField) = a + (-b)
 Base.:-(a::QField, b::Coefficient) = a + (-b)
 Base.:-(a::Coefficient, b::QField) = a + (-b)
 
-Base.:/(a::QSym, b::Number) = a * inv(b)
-Base.:/(a::QAdd, b::Number) = a * inv(b)
+Base.:/(a::QSym, b::Number) =
+    b isa Integer && !(b isa Bool) && !iszero(b) ? a * (1 // b) : a * inv(b)
+Base.:/(a::QAdd, b::Number) =
+    b isa Integer && !(b isa Bool) && !iszero(b) ? a * (1 // b) : a * inv(b)
+Base.:/(a::QSym, b::Coefficient) = a * inv(b)
+Base.:/(a::QAdd, b::Coefficient) = a * inv(b)
 
 Base.://(a::QSym, b::Integer) = a * (1 // b)
 Base.://(a::QAdd, b::Integer) = a * (1 // b)
+# A symbolic or non-integer denominator cannot be the denominator of Julia's
+# rational literal, but operator division supports all scalar coefficients.
+Base.://(a::QSym, b::Coefficient) = a / b
+Base.://(a::QAdd, b::Coefficient) = a / b
 
 function Base.:^(a::QSym, n::Integer)
     n >= 0 || throw(ArgumentError("Negative powers not supported"))
@@ -139,15 +150,35 @@ function normal_order(q::QAdd)
     return QAdd(out, copy(q.indices))
 end
 
-function _simplify_prefactor(x::CNum)
+function _simplify_raw_component(x; kwargs...)
+    return Num(SymbolicUtils.simplify(SymbolicUtils.expand(x); kwargs...))
+end
+
+function _contains_division(x)
+    x isa SymbolicUtils.BasicSymbolic || return false
+    SymbolicUtils.iscall(x) || return false
+    SymbolicUtils.operation(x) === (/) && return true
+    for argument in SymbolicUtils.arguments(x)
+        _contains_division(argument) && return true
+    end
+    return false
+end
+
+function _simplify_prefactor(x::CNum; kwargs...)
     _is_native(x) && return x                    # already simplest product form
     _is_poly(x) && return _reduce_trig(x)        # the CAS is not reached on this tier
-    (_numeric_value(real(x)) !== nothing && _numeric_value(imag(x)) !== nothing) &&
-        return _cnum(real(x), imag(x))
-    re = Num(SymbolicUtils.simplify(SymbolicUtils.unwrap(Symbolics.expand(real(x)))))
-    im = Num(SymbolicUtils.simplify(SymbolicUtils.unwrap(Symbolics.expand(imag(x)))))
-    return _cnum(re, im)
+    tail = x.tail
+    if !_contains_phase(tail.expr) && !_contains_division(tail.expr)
+        re, im = _raw_realimag(tail.expr)
+        return _cnum(
+            _simplify_raw_component(re; kwargs...), _simplify_raw_component(im; kwargs...),
+        )
+    end
+    expanded = SymbolicUtils.expand(tail.expr)
+    return _to_cnum(_simplify_raw(expanded; kwargs...))
 end
+
+SymbolicUtils.simplify(c::Coeff; kwargs...) = _simplify_prefactor(c; kwargs...)
 function _drop_unused_indices(d::QTermDict, indices::Vector{Index})
     isempty(indices) && return indices
     used = Index[]

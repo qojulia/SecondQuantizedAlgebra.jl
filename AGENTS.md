@@ -1,4 +1,4 @@
-# CLAUDE.md — SecondQuantizedAlgebra.jl
+# SecondQuantizedAlgebra.jl
 
 ## What is this?
 
@@ -168,6 +168,7 @@ Before merging any PR:
 - **Comments: compact, why not what.** Default to no comment; add one only for a non-obvious *why*. Keep it to a couple of lines.
 - **Changelog entries: short.** One to two sentences per entry. State what changed and where it matters, not the mechanism.
 - **Devdocs: rationale, not private-function tours.** Explain the design decision and its reason. Do not enumerate the private functions that implement it.
+- 
 ## Performance terminology
 
 Three distinct axes; keep them separate when reporting numbers.

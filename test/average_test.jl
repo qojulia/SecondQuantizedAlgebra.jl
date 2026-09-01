@@ -68,6 +68,21 @@ import SecondQuantizedAlgebra: simplify, QAdd, QSym, QField, CNum, _to_cnum, _si
         @test average(0) === 0
     end
 
+    @testset "average(QAdd) — preserves opaque complex coefficients" begin
+        h = FockSpace(:c)
+        a = Destroy(h, :a)
+        ad = a'
+        @variables κ::Real η::Real
+
+        avg_a = average(a)
+        avg_ad = average(ad)
+        coefficient = _to_cnum((-avg_a - avg_ad) * sqrt(η * κ))
+        actual = average(coefficient * a)
+        expected = (-avg_a - avg_ad) * avg_a * sqrt(η * κ)
+
+        @test SymbolicUtils._iszero(SymbolicUtils.simplify(actual - expected; expand = true))
+    end
+
     @testset "average(QAdd) — linearity" begin
         h = FockSpace(:c)
         a = Destroy(h, :a)
@@ -303,6 +318,29 @@ import SecondQuantizedAlgebra: simplify, QAdd, QSym, QField, CNum, _to_cnum, _si
         avg_sum = average(a) + average(ad)
         result = undo_average(avg_sum)
         @test result isa QAdd
+    end
+
+    @testset "undo_average — complex coefficient round-trips" begin
+        h = FockSpace(:complex_coefficients)
+        a = Destroy(h, :a)
+        @variables r::Real k::Real z::Number w::Number
+
+        explicit = _to_cnum(Complex(Symbolics.Num(z), Symbolics.Num(w)))
+        quotient = _to_cnum(z) / _to_cnum(sqrt(r * k))
+        expressions = (
+            (2 + 3im) * a,
+            explicit * a,
+            quotient * a,
+        )
+
+        for expression in expressions
+            roundtrip = undo_average(average(expression))
+            @test isequal(roundtrip, expression)
+            @test hash(roundtrip) == hash(expression)
+
+            simplified_average = Symbolics.simplify(average(expression); expand = true)
+            @test isequal(undo_average(simplified_average), expression)
+        end
     end
 
     @testset "undo_average — indexed round-trip" begin

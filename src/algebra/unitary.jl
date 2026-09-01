@@ -425,8 +425,7 @@ function _coefficient_depends_on(c::CNum, variable)
         end
         return false
     end
-    return _raw_depends_on(SymbolicUtils.unwrap(real(tail)), variable) ||
-        _raw_depends_on(SymbolicUtils.unwrap(imag(tail)), variable)
+    return _raw_depends_on(tail.expr, variable)
 end
 
 function _rules_depend_on(U::UnitaryTransform{StaticTime}, t::Num)

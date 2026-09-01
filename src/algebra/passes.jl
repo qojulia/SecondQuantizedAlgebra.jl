@@ -252,10 +252,24 @@ end
     )
     isempty(phase_rules) && return
     tail = c.tail
-    tail isa Poly || return
-    for monomial in tail.terms, symbol in monomial.syms
-        _is_phase(symbol) || continue
-        argument = only(SymbolicUtils.arguments(symbol))
+    phase_arguments = Any[]
+    if tail isa Poly
+        for monomial in tail.terms, symbol in monomial.syms
+            _is_phase(symbol) && push!(phase_arguments, only(SymbolicUtils.arguments(symbol)))
+        end
+    elseif tail isa RawSymbolicCoeff
+        function collect_phases(x)
+            x isa SymbolicUtils.BasicSymbolic || return
+            if _is_phase(x)
+                push!(phase_arguments, only(SymbolicUtils.arguments(x)))
+                return
+            end
+            SymbolicUtils.iscall(x) || return
+            return foreach(collect_phases, SymbolicUtils.arguments(x))
+        end
+        collect_phases(tail.expr)
+    end
+    for argument in phase_arguments
         for (from, to) in phase_rules
             _raw_depends_on(argument, from) && _nonreal_phase_argument(to)
         end
@@ -269,13 +283,14 @@ function _substitute_cnum(
     isempty(d) && return c
     _is_native(c) && return c
     _validate_phase_substitutions(c, phase_rules)
-    materialized = to_num(c)
-    rep, imp = real(materialized), imag(materialized)
-    new_rep = SymbolicUtils.substitute(Symbolics.value(rep), d)
-    new_imp = SymbolicUtils.substitute(Symbolics.value(imp), d)
-    isequal(new_rep, Symbolics.value(rep)) &&
-        isequal(new_imp, Symbolics.value(imp)) && return c
-    return _cnum(Num(new_rep), Num(new_imp))
+    # An explicit `complex(re, im)` node records coefficient-slot semantics. Lower
+    # it before substitution so a complex replacement for either slot participates
+    # in ordinary arithmetic instead of being passed back to SymbolicUtils' `complex`,
+    # whose arguments must be provably real.
+    raw = _lower_complex_slots(_raw_expression(c))
+    new_raw = SymbolicUtils.substitute(raw, d)
+    isequal(new_raw, raw) && return c
+    return _recognize(new_raw)
 end
 
 SymbolicUtils.substitute(c::Coeff, rules::AbstractDict) = _substitute_cnum(c, rules)

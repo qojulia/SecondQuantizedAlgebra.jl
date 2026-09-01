@@ -160,8 +160,8 @@ function _latex_sum_group(indices::Vector{Index}, ne_pairs::Vector{NonEqualPair}
     prefix = _latex_sum_prefix(indices, ne_pairs)
     term_exprs = _LATEX_TERM[
         let
-                ops, c, _ = _term_signature(t)
-                _latex_term(c, ops)
+            ops, c, _ = _term_signature(t)
+            _latex_term(c, ops)
         end for t in terms
     ]
     if length(term_exprs) == 1
@@ -241,8 +241,8 @@ end
     end
     terms = _LATEX_TERM[
         let
-                ops, c, _ = _term_signature(t)
-                _latex_term(c, ops)
+            ops, c, _ = _term_signature(t)
+            _latex_term(c, ops)
         end for t in st
     ]
     return Expr(:call, :+, terms...)

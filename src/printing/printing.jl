@@ -79,7 +79,11 @@ function _show_part(io::IO, v::Num, brace::Bool)
     return
 end
 
-_show_prefactor(io::IO, c::CNum) = _show_display(io, to_num(c))
+function _show_prefactor(io::IO, c::CNum)
+    tail = c.tail
+    tail isa RawSymbolicCoeff && return print(io, tail.expr)
+    return _show_display(io, to_num(c))
+end
 
 function _show_display(io::IO, c::Complex{Num})
     return if iszero(imag(c))
@@ -150,12 +154,22 @@ function _show_term(io::IO, c::CNum, ops::Vector{Op})
     if _is_neg_unit(c)
         write(io, "-")
     elseif !_is_unit(c)
-        # Lower once so the parenthesis decision and rendering inspect the same expression.
-        d = to_num(c)
-        brace = !_is_native(c) && _needs_pf_parens(d)
-        brace && write(io, "(")
-        _show_display(io, d)
-        brace && write(io, ")")
+        tail = c.tail
+        if tail isa RawSymbolicCoeff
+            expr = tail.expr
+            brace = SymbolicUtils.iscall(expr) &&
+                (SymbolicUtils.operation(expr) === (+) || SymbolicUtils.operation(expr) === (/))
+            brace && write(io, "(")
+            print(io, expr)
+            brace && write(io, ")")
+        else
+            # Lower once so the parenthesis decision and rendering inspect the same expression.
+            d = to_num(c)
+            brace = !_is_native(c) && _needs_pf_parens(d)
+            brace && write(io, "(")
+            _show_display(io, d)
+            brace && write(io, ")")
+        end
         write(io, " * ")
     end
     show(io, ops[1])

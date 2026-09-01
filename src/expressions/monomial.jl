@@ -5,16 +5,57 @@ One term of a parameter polynomial: `scalar * ∏ symᵢ^expᵢ`. Factors are so
 `objectid` and deduplicated; `Rational{Int}` exponents let radicals of a single
 atom merge (`sqrt(p)*sqrt(p) = p`).
 """
+# Keep exact Gaussian rationals alongside the floating-point fast path.  A rational
+# scalar is deliberately narrower than an arbitrary `Complex{Rational}`: this keeps
+# the polynomial representation concrete while covering the exact literals produced
+# by Julia's `//` operator.
+const ExactComplex = Complex{Rational{Int}}
+const CoeffScalar = Union{ComplexF64, ExactComplex}
+
 struct Monomial
-    scalar::ComplexF64
+    scalar::CoeffScalar
     syms::Vector{SymbolicUtils.BasicSymbolic}   # sorted by objectid, distinct
     exps::Vector{Rational{Int}}                 # matching nonzero exponents
 end
 
+@inline _normalize_scalar(z::ComplexF64) = z + complex(0.0, 0.0)
+@inline _normalize_scalar(z::ExactComplex) = z
+
+# Native integer/Gaussian-integer factors (1, -1, and `im`) do not introduce
+# inexactness when multiplied by an exact scalar.  Genuine non-integral floats do.
+@inline function _integer_scalar(z::ComplexF64)
+    re, im = real(z), imag(z)
+    isfinite(re) && isfinite(im) && isinteger(re) && isinteger(im) || return nothing
+    abs(re) <= typemax(Int) && abs(im) <= typemax(Int) || return nothing
+    return ExactComplex(Int(re) // 1, Int(im) // 1)
+end
+
+@inline function _scalar_inv(z::ComplexF64)
+    exact = _integer_scalar(z)
+    return exact === nothing ? inv(z) : inv(exact)
+end
+@inline _scalar_inv(z::ExactComplex) = inv(z)
+
+@inline function _scalar_mul(a::ExactComplex, b::ComplexF64)
+    ib = _integer_scalar(b)
+    return ib === nothing ? _normalize_scalar(a * b) : a * ib
+end
+@inline _scalar_mul(a::ComplexF64, b::ExactComplex) = _scalar_mul(b, a)
+@inline _scalar_mul(a::ExactComplex, b::ExactComplex) = a * b
+@inline _scalar_mul(a::ComplexF64, b::ComplexF64) = _normalize_scalar(a * b)
+
+@inline function _scalar_add(a::ExactComplex, b::ComplexF64)
+    ib = _integer_scalar(b)
+    return ib === nothing ? _normalize_scalar(a + b) : a + ib
+end
+@inline _scalar_add(a::ComplexF64, b::ExactComplex) = _scalar_add(b, a)
+@inline _scalar_add(a::ExactComplex, b::ExactComplex) = a + b
+@inline _scalar_add(a::ComplexF64, b::ComplexF64) = _normalize_scalar(a + b)
+
 """
     Poly
 
-A native sparse multivariate polynomial over named parameters (a sum of distinct
+A sparse multivariate polynomial over named parameters (a sum of distinct
 [`Monomial`](@ref) terms in canonical order), kept off SymbolicUtils hashconsing
 and lowered to `Complex{Num}` only at the symbolic boundaries (see `_poly_to_num`).
 """
@@ -70,8 +111,9 @@ function _merge_factors(syma, expa, symb, expb)
 end
 
 function _term_mul(a::Monomial, b::Monomial)
-    isempty(a.syms) && return Monomial(a.scalar * b.scalar, b.syms, b.exps)
-    isempty(b.syms) && return Monomial(a.scalar * b.scalar, a.syms, a.exps)
+    scalar = _scalar_mul(a.scalar, b.scalar)
+    isempty(a.syms) && return Monomial(scalar, b.syms, b.exps)
+    isempty(b.syms) && return Monomial(scalar, a.syms, a.exps)
     phase_a = _phase_factor_index(a.syms)
     phase_b = _phase_factor_index(b.syms)
     if phase_a != 0 && phase_b != 0
@@ -80,18 +122,18 @@ function _term_mul(a::Monomial, b::Monomial)
         if a.syms[phase_a] === b.syms[phase_b] &&
                 a.exps[phase_a] == -b.exps[phase_b]
             se = _merge_factors(a.syms, a.exps, b.syms, b.exps)
-            return Monomial(a.scalar * b.scalar, se[1], se[2])
+            return Monomial(scalar, se[1], se[2])
         end
         if length(a.syms) == 1 && length(b.syms) == 1 &&
                 a.syms[phase_a] === b.syms[phase_b]
             exponent = a.exps[phase_a] + b.exps[phase_b]
             return _scaled_phase_monomial(
-                a.scalar * b.scalar, Num(a.syms[phase_a]), exponent,
+                scalar, Num(a.syms[phase_a]), exponent,
             )
         end
         if length(a.syms) == 1 && length(b.syms) == 1
             return _merged_phase_monomial(
-                a.scalar * b.scalar,
+                scalar,
                 Num(a.syms[phase_a]),
                 a.exps[phase_a],
                 Num(b.syms[phase_b]),
@@ -100,10 +142,10 @@ function _term_mul(a::Monomial, b::Monomial)
         end
         syms = vcat(a.syms, b.syms)
         exps = vcat(a.exps, b.exps)
-        return _canonical_phase_monomial(a.scalar * b.scalar, syms, exps)
+        return _canonical_phase_monomial(scalar, syms, exps)
     end
     se = _merge_factors(a.syms, a.exps, b.syms, b.exps)
-    return Monomial(a.scalar * b.scalar, se[1], se[2])
+    return Monomial(scalar, se[1], se[2])
 end
 
 # Insertion sort by a strict-less predicate. The polynomial passes sort very short
@@ -130,11 +172,11 @@ function _canonical_terms!(terms::Vector{Monomial})
     @inbounds for r in eachindex(terms)
         t = terms[r]
         if w > 0 && _same_factors(terms[w], t)
-            s = terms[w].scalar + t.scalar + complex(0.0, 0.0)
+            s = _scalar_add(terms[w].scalar, t.scalar)
             terms[w] = Monomial(s, terms[w].syms, terms[w].exps)
         else
             w += 1
-            terms[w] = Monomial(t.scalar + complex(0.0, 0.0), t.syms, t.exps)
+            terms[w] = Monomial(_normalize_scalar(t.scalar), t.syms, t.exps)
         end
     end
     resize!(terms, w)
@@ -157,7 +199,7 @@ function _poly_add(p::Vector{Monomial}, q::Vector{Monomial})
             t = q[iq]; iq += 1
             t.scalar != 0 && push!(out, t)
         else   # same factor set: sum scalars, drop exact cancellations
-            s = p[ip].scalar + q[iq].scalar + complex(0.0, 0.0)
+            s = _scalar_add(p[ip].scalar, q[iq].scalar)
             s != 0 && push!(out, Monomial(s, p[ip].syms, p[ip].exps))
             ip += 1; iq += 1
         end
@@ -168,7 +210,7 @@ end
 function _poly_mul(p::Vector{Monomial}, q::Vector{Monomial})
     if length(p) == 1 && length(q) == 1
         t = _term_mul(p[1], q[1])
-        return Monomial[Monomial(t.scalar + complex(0.0, 0.0), t.syms, t.exps)]
+        return Monomial[Monomial(_normalize_scalar(t.scalar), t.syms, t.exps)]
     end
     out = Monomial[]
     sizehint!(out, length(p) * length(q))
@@ -179,9 +221,9 @@ function _poly_mul(p::Vector{Monomial}, q::Vector{Monomial})
 end
 
 # Scale every term; preserves canonical order (factors unchanged).
-function _poly_scale(p::Vector{Monomial}, z::ComplexF64)
+function _poly_scale(p::Vector{Monomial}, z::CoeffScalar)
     iszero(z) && return Monomial[]
-    return Monomial[Monomial(t.scalar * z + complex(0.0, 0.0), t.syms, t.exps) for t in p]
+    return Monomial[Monomial(_scalar_mul(t.scalar, z), t.syms, t.exps) for t in p]
 end
 
 function Base.isequal(a::Poly, b::Poly)

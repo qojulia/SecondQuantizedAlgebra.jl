@@ -130,12 +130,12 @@ export FockSpace, ProductSpace,
     NumericContext, expect,
     OP_DESTROY, OP_CREATE, OP_TRANSITION, OP_PAULI, OP_SPIN, OP_POSITION, OP_MOMENTUM,
     OP_COLLECTIVE_TRANSITION,
-    QAdd, QTerm, QTermDict, Coeff, CNum,
+    QAdd, QTerm, QTermDict, Coeff, CNum, PhaseTerm,
     has_sum_metadata, get_sum_indices, get_sum_non_equal, get_sum_body, indexed_sum,
     set_acts_on, rename,
     transition_superscript, constraint_pairs,
     to_num, order_key, term_order_key, qadd_order_key,
-    expim, exponential_form, trigonometric_form
+    expim, exponential_form, trigonometric_form, phase_terms
 
 include("precompile.jl")
 

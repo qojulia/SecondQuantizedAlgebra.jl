@@ -238,13 +238,33 @@ function average(op::QAdd)
     group_bodies = Vector{BS}[]          # one buffer per summation scope
     group_slot = Dict{GroupKey, Int}()   # scope -> index into group_bodies (O(1) lookup)
     for (term, c) in op.arguments
-        r, i = _realimag(c)
         used = Index[idx for idx in shared if _depends_on_index_term(c, term.ops, idx)]
         contrib = Num(0)
-        if isempty(term.ops)
+        # A raw coefficient can be genuinely complex, but splitting it into
+        # `real(raw)` and `imag(raw)` prevents Symbolics from recognizing the original
+        # scalar expression. Carry raw coefficients as one scalar here unless the root is
+        # an explicit complex constructor, whose slots should remain component-wise.
+        opaque_raw = c.tail isa RawSymbolicCoeff &&
+            !(
+            SymbolicUtils.iscall(c.tail.expr) &&
+                SymbolicUtils.operation(c.tail.expr) === complex
+        )
+        if opaque_raw
+            raw = Num(c.tail.expr)
+            if isempty(term.ops)
+                iszero(raw) || (contrib += raw)
+            else
+                inner = length(term.ops) == 1 ? only(term.ops) :
+                    _single_qadd(_CNUM_ONE, term.ops, term.ne)
+                avg = _average(inner)
+                iszero(raw) || (contrib += raw * avg)
+            end
+        elseif isempty(term.ops)
+            r, i = _realimag(c)
             iszero(r) || (contrib += r)
             iszero(i) || (contrib += i * Symbolics.IM)
         else
+            r, i = _realimag(c)
             inner = length(term.ops) == 1 ? only(term.ops) :
                 _single_qadd(_CNUM_ONE, term.ops, term.ne)
             avg = _average(inner)
@@ -300,6 +320,14 @@ function _fold_qadds(op::F, args::Vector{QAdd}, empty::QAdd) where {F}
     return result
 end
 
+function _contains_average(x)
+    x isa Num && return _contains_average(SymbolicUtils.unwrap(x))
+    x isa SymbolicUtils.BasicSymbolic || return false
+    (is_average(x) || is_indexed_sum(x)) && return true
+    SymbolicUtils.iscall(x) || return false
+    return any(_contains_average, SymbolicUtils.arguments(x))
+end
+
 """
     undo_average(expr) -> QAdd
 
@@ -333,6 +361,12 @@ function undo_average(x::SymbolicUtils.BasicSymbolic)
             arg
         end
         return _to_qadd(inner)
+    end
+    if f === (/) && length(SymbolicUtils.arguments(x)) == 2
+        numerator, denominator = SymbolicUtils.arguments(x)
+        if !_contains_average(denominator)
+            return undo_average(numerator) * inv(_to_cnum(denominator))
+        end
     end
     if f === (+) || f === (*)
         args = QAdd[undo_average(a) for a in SymbolicUtils.arguments(x)]

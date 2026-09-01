@@ -149,11 +149,19 @@ Coeff
 ### Unit phases and representation conversion
 
 ```@docs
+PhaseTerm
+```
+
+```@docs
 expim
 ```
 
 ```@docs
 exponential_form
+```
+
+```@docs
+phase_terms
 ```
 
 ```@docs
