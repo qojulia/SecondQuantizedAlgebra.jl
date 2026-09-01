@@ -7,6 +7,7 @@ module SecondQuantizedAlgebraQuantumOpticsBaseExt
 import SecondQuantizedAlgebra as SQA
 using SecondQuantizedAlgebra: QuantumOpticsBackend, Op
 import QuantumOpticsBase as QOB
+import SparseArrays: SparseMatrixCSC
 
 const QOBState = Union{QOB.StateVector, QOB.AbstractOperator}
 
@@ -155,8 +156,16 @@ end
 
 # --- materialization (op_type applied once at the top of `to_numeric`) ------------------
 
-# Default (`nothing`) materialises `sparse`; any explicit `op_type` (`sparse`, `dense`,
-# `identity`) is applied as a plain callable.
+# QOB's `sparse(::LazySum)` folds an abstract-operator vector and widens its inferred return;
+# the static assembly shape here is fixed, so narrow that result at this boundary. Any
+# explicit `op_type` (`sparse`, `dense`, `identity`) is still applied as a plain callable.
+function SQA.numeric_materialize(
+        ::QuantumOpticsBackend,
+        op::QOB.LazySum{BL, BR, Vector{ComplexF64}, Vector{QOB.AbstractOperator}},
+        ::Nothing,
+    ) where {BL, BR}
+    return QOB.sparse(op)::QOB.Operator{BL, BR, SparseMatrixCSC{ComplexF64, Int}}
+end
 SQA.numeric_materialize(::QuantumOpticsBackend, op, ::Nothing) = QOB.sparse(op)
 SQA.numeric_materialize(::QuantumOpticsBackend, op, op_type) = op_type(op)
 

@@ -21,7 +21,7 @@ SciMLOperators = "c0aeaf25-5076-4817-a8d5-81caf7dfa961"
 SparseArrays = "2f01184e-e22b-5df5-ae63-d93ebab69eaf"
 
 [extensions]
-SecondQuantizedAlgebraQuantumOpticsBaseExt = "QuantumOpticsBase"
+SecondQuantizedAlgebraQuantumOpticsBaseExt = ["QuantumOpticsBase", "SparseArrays"]
 SecondQuantizedAlgebraQuantumToolboxExt = ["QuantumToolbox", "SciMLOperators", "SparseArrays", "LinearAlgebra"]
 
 [compat]

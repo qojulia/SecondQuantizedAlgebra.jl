@@ -470,6 +470,9 @@ new symbolic operator role through this interface.
 - The internal assembled type must not depend on the number of terms. QuantumOptics uses
   the five-argument, vector-backed `LazySum`; QuantumToolbox uses the extension's
   vector-backed `VecSum` inside `QobjEvo`. Tests enforce inference stability.
+- QuantumOpticsBase's `sparse(::LazySum)` folds an abstract-operator vector and widens its
+  inferred return, so the extension narrows the fixed `ComplexF64` sparse `Operator` at the
+  materialization boundary.
 - The QuantumToolbox `ProductSpace` path uses a tuple internally so the tensor arity remains in
   the `Dimensions` type. Runtime vectors are still accepted by the convenience API, but cannot
   carry a value-dependent tensor arity in their Julia type and therefore are not the
