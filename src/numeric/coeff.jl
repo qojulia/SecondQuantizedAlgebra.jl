@@ -3,6 +3,8 @@
 # coefficient functions. Entirely backend-independent.
 
 const _NO_SCALAR_SUBS = Dict{Num, Any}()
+# An immutable empty value lets the static numeric path prove that no TD assembly is needed.
+const _NO_TIME_PARAMETER = ()
 
 # A p-aware coefficient closure `(p, t) -> Complex`: backends dispatch on it (QuantumToolbox
 # threads `p` into the `ScalarOperator`, QuantumOptics rejects it). Parametric field for

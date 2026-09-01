@@ -49,8 +49,10 @@ Keyword arguments:
 
 `dims` follows the symbolic space convention: a Fock value is a cutoff, so `5` creates a
 six-dimensional space. In contrast, QuantumToolbox's native `to_numeric(op, dims)`
-convenience form accepts raw matrix dimensions. Conversion throws `ArgumentError` when a
-coefficient cannot be reduced to `ComplexF64`.
+convenience form accepts raw matrix dimensions. For QuantumToolbox composite dimensions, pass a
+tuple when inference matters; a runtime `Vector`
+remains supported as a convenience, but its tensor arity is not part of the Julia type.
+Conversion throws `ArgumentError` when a coefficient cannot be reduced to `ComplexF64`.
 
 # Examples
 
@@ -87,7 +89,7 @@ to_numeric(x::Number, b::Basis, ::AbstractDict{<:QSym} = _NO_SUBS) =
 
 function to_numeric(
         op::QField, b::Basis;
-        parameter = Dict(), time_parameter = Dict(),
+        parameter = Dict(), time_parameter = _NO_TIME_PARAMETER,
         operators = Dict{QSym, Any}(), adjoint_ops = true, op_type = nothing,
     )
     return _to_numeric_kw(QuantumOpticsBackend(), op, b; parameter, time_parameter, operators, adjoint_ops, op_type)
@@ -95,7 +97,7 @@ end
 
 function to_numeric(
         x::Union{Number, SymbolicUtils.BasicSymbolic}, b::Basis;
-        parameter = Dict(), time_parameter = Dict(),
+        parameter = Dict(), time_parameter = _NO_TIME_PARAMETER,
         operators = Dict{QSym, Any}(), adjoint_ops = true, op_type = nothing,
     )
     return _to_numeric_kw(QuantumOpticsBackend(), x, b; parameter, time_parameter, operators, adjoint_ops, op_type)
@@ -104,17 +106,17 @@ end
 # --- uniform HilbertSpace form (the only one that works for both backends) -------------
 
 function to_numeric(
-        op, h::HilbertSpace, dims;
-        backend::NumericBackend = _default_backend(),
-        parameter = Dict(), time_parameter = Dict(),
+        op, h::H, dims;
+        backend::B = _default_backend(),
+        parameter = Dict(), time_parameter = _NO_TIME_PARAMETER,
         operators = Dict{QSym, Any}(), adjoint_ops = true, op_type = nothing,
-    )
+    ) where {H <: HilbertSpace, B <: NumericBackend}
     b = numeric_basis(backend, h, dims)
     return _to_numeric_kw(backend, op, b; parameter, time_parameter, operators, adjoint_ops, op_type)
 end
 
 # Vector of operators on the uniform HilbertSpace form (both backends).
-to_numeric(ops::AbstractVector, h::HilbertSpace, dims; backend::NumericBackend = _default_backend(), kwargs...) =
+to_numeric(ops::AbstractVector{T}, h::H, dims; backend::B = _default_backend(), kwargs...) where {T, H <: HilbertSpace, B <: NumericBackend} =
     [to_numeric(op, h, dims; backend, kwargs...) for op in ops]
 
 # --- state convenience (basis derived from the state) ----------------------------------

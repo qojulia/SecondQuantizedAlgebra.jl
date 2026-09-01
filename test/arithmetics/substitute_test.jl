@@ -32,6 +32,7 @@ import SecondQuantizedAlgebra: substitute, QAdd, QSym, CNum, _CNUM_ONE, _to_cnum
         @test length(sub_scalar) == 1
         @test isempty(operators(sub_scalar))
         @test isequal(substitute(x * a, Dict(a => a')), x * a')
+        @test_throws ArgumentError substitute(a, Dict(a => :unsupported); replace_adjoint = false)
     end
 
     @testset "QAdd substitution" begin

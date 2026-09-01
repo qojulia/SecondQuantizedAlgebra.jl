@@ -16,6 +16,18 @@ using Test
 
 const QTBB = QuantumToolboxBackend()
 
+function _inferred_qtb_uniform(op::Op, h::FockSpace, n::Int)
+    return to_numeric(op, h, n; backend = QTBB)
+end
+
+function _inferred_qtb_product(op::Op, h::ProductSpace, dims::NTuple{2, Int})
+    return to_numeric(op, h, dims; backend = QTBB)
+end
+
+function _inferred_qtb_raw_product(op::Op, dims::NTuple{2, Int})
+    return to_numeric(op, dims)
+end
+
 @testset "QuantumToolbox backend" begin
     @testset "eager default; lazy assembly is n-stable" begin
         h = FockSpace(:f)
@@ -38,6 +50,50 @@ const QTBB = QuantumToolboxBackend()
         @test to_numeric(a' * a, h, 5; backend = QTBB) isa QTB.QuantumObject
         @test typeof(to_numeric(a' * a, h, 5; backend = QTBB).data) ===
             typeof(QTB.destroy(6).data)
+    end
+
+    @testset "concrete materialization and expectations" begin
+        h = FockSpace(:f)
+        @qnumbers a::Destroy(h)
+        ψ = QTB.coherent(8, 0.4 + 0.2im)
+        bra = ψ'
+        ρ = QTB.ket2dm(ψ)
+        n = a' * a
+
+        @test @inferred(to_numeric(a, 8)) isa QTB.QuantumObject
+        @test @inferred(to_numeric(n, 8)) isa QTB.QuantumObject
+        @test @inferred(_inferred_qtb_uniform(a, h, 7)) isa QTB.QuantumObject
+
+        hp = FockSpace(:c) ⊗ NLevelSpace(:atom, 3, 1)
+        ap = Destroy(hp, :a, 1)
+        @test @inferred(_inferred_qtb_product(ap, hp, (7, 3))) isa QTB.QuantumObject
+        @test @inferred(_inferred_qtb_raw_product(ap, (8, 3))) isa QTB.QuantumObject
+
+        lazy = to_numeric(n, 8; op_type = identity)
+        @test @inferred(SO.concretize(lazy.data)) isa AbstractMatrix
+        @test @inferred(QTB.expect(lazy, ψ)) ≈ QTB.expect(QTB.create(8) * QTB.destroy(8), ψ)
+        @test @inferred(QTB.expect(lazy, bra)) ≈ QTB.expect(QTB.create(8) * QTB.destroy(8), bra)
+        @test @inferred(QTB.expect(lazy, ρ)) ≈ QTB.expect(QTB.create(8) * QTB.destroy(8), ρ)
+        @test numeric_basis(bra) == 8
+        @test @inferred(numeric_average(a, ψ)) ≈ QTB.expect(QTB.destroy(8), ψ)
+        @test @inferred(numeric_average(n, ψ)) ≈ QTB.expect(QTB.create(8) * QTB.destroy(8), ψ)
+        @test @inferred(numeric_average(n, bra)) ≈ QTB.expect(QTB.create(8) * QTB.destroy(8), bra)
+        @test @inferred(numeric_average(n, ρ)) ≈ QTB.expect(QTB.create(8) * QTB.destroy(8), ρ)
+
+        qop = to_numeric(n, 8)
+        @test numeric_expect(QTBB, qop, ψ) ≈ QTB.expect(qop, ψ)
+        @test numeric_expect(QTBB, qop, bra) ≈ QTB.expect(qop, bra)
+        @test numeric_expect(QTBB, qop, ρ) ≈ QTB.expect(qop, ρ)
+
+        dense_qop = QTB.Qobj(Matrix(qop.data), QTB.Operator(), 8)
+        @test numeric_expect(QTBB, dense_qop, ρ) ≈ QTB.expect(dense_qop, ρ)
+
+        # Materialization accepts custom dense leaves but preserves the sparse public form.
+        dense_a = QTB.Qobj(Matrix(QTB.destroy(8).data), QTB.Operator(), 8)
+        dense_lazy = to_numeric(a + a', 8; operators = Dict(a => dense_a), op_type = identity)
+        dense_data = @inferred SO.concretize(dense_lazy.data)
+        @test typeof(dense_data) === typeof(QTB.destroy(8).data)
+        @test dense_data ≈ QTB.destroy(8).data + QTB.create(8).data
     end
 
     @testset "Fock parity vs QuantumOptics" begin
@@ -213,7 +269,9 @@ const QTBB = QuantumToolboxBackend()
         sites = Dict{Int, Vector{Int}}(1 => [1, 2])
 
         Mt = to_numeric(H, [2, 2], sites)               # QTB (Vector{Int} dims)
+        Mt_tuple = to_numeric(H, (2, 2), sites)         # tuple dims use the same public path
         @test Mt isa QTB.QuantumObject
+        @test Mt_tuple.data ≈ Mt.data
 
         P = QTB.projection(2, 1, 1)                     # |1><1|, 0-indexed excited level
         ref = QTB.tensor(P, QTB.qeye(2)) + QTB.tensor(QTB.qeye(2), P)

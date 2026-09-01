@@ -34,3 +34,4 @@ test-run.log
 # Generated on doc build from the root Changelog.md
 docs/src/changelog.md
 .github/issue-drafts/
+coverage/

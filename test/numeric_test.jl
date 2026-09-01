@@ -13,6 +13,19 @@ using Test
 # `TimeDependentSum`, evaluated via `H(t)` and compared through `expect`.
 _dat(x) = dense(x).data
 
+function _inferred_qob_uniform(op::Op, h::FockSpace, n::Int)
+    return to_numeric(op, h, n; backend = QuantumOpticsBackend())
+end
+function _inferred_qob_uniform_add(op::QAdd, h::FockSpace, n::Int)
+    return to_numeric(op, h, n; backend = QuantumOpticsBackend())
+end
+function _inferred_qob_product(op::Op, h::ProductSpace, dims::NTuple{2, Int})
+    return to_numeric(op, h, dims; backend = QuantumOpticsBackend())
+end
+function _inferred_qob_basis_add(op::QAdd, b::FockBasis)
+    return to_numeric(op, b)
+end
+
 # Tiny backend used as a conformance test for the documented third-party static interface.
 struct MockNumericBackend <: SecondQuantizedAlgebra.NumericBackend end
 struct MockEagerOperator
@@ -159,10 +172,16 @@ SecondQuantizedAlgebra.numeric_materialize(
         b = FockBasis(7)
         ψ = fockstate(b, 2)
 
-        # The lazy assembly is inference-stable and one concrete type for any term count: the
-        # property the 5-arg vector-backed `LazySum` constructor buys. `sparse` materialization
-        # (the default) is a top-level convenience and NOT on the `@inferred` contract, since
-        # `sparse` of the abstract-eltype `LazySum` widens.
+        # The public default conversion remains inference-stable after eager materialization;
+        # the five-argument `LazySum` constructor pins the basis and the backend extension
+        # pins the concrete sparse Operator result.
+        @test @inferred(_inferred_qob_uniform(a, h, 7)) isa Operator
+        @test @inferred(_inferred_qob_uniform_add(a' * a + 2 * a, h, 7)) isa Operator
+        hp = FockSpace(:a) ⊗ FockSpace(:b)
+        ap = Destroy(hp, :a, 1)
+        @test @inferred(_inferred_qob_product(ap, hp, (3, 4))) isa Operator
+        @test @inferred(_inferred_qob_basis_add(a' * a + 2 * a, b)) isa Operator
+
         ctx = NumericContext(QuantumOpticsBackend(), b, Dict{QSym, Union{}}())
         @test @inferred(_to_numeric_static(a' * a, ctx)) isa AbstractOperator
         @test @inferred(_to_numeric_static(2 * a + 3 * a' + 5, ctx)) isa AbstractOperator
@@ -653,16 +672,19 @@ SecondQuantizedAlgebra.numeric_materialize(
         b = FockBasis(7)
         ψ = coherentstate(b, 0.2 + 0.1im)
 
-        # Backend defaults to the single loaded backend (QuantumOpticsBase here).
-        @test _dat(to_numeric(a' * a, h, 7)) == _dat(to_numeric(a' * a, b))
-        @test numeric_average(a' * a, ψ) ≈ expect(to_numeric(a' * a, h, 7), ψ)
+        # Select QuantumOptics explicitly because the full test environment loads both backends.
+        @test _dat(to_numeric(a' * a, h, 7; backend = QuantumOpticsBackend())) ==
+            _dat(to_numeric(a' * a, b))
+        @test numeric_average(a' * a, ψ) ≈
+            expect(to_numeric(a' * a, h, 7; backend = QuantumOpticsBackend()), ψ)
 
         # Composite HilbertSpace with per-subspace dims.
         hp = FockSpace(:c) ⊗ NLevelSpace(:atom, 3, 1)
         ap = Destroy(hp, :a, 1)
         σp = Transition(hp, :σ, 1, 2, 2)
         bp = FockBasis(4) ⊗ NLevelBasis(3)
-        @test _dat(to_numeric(ap' * σp, hp, (4, 3))) == _dat(to_numeric(ap' * σp, bp))
+        @test _dat(to_numeric(ap' * σp, hp, (4, 3); backend = QuantumOpticsBackend())) ==
+            _dat(to_numeric(ap' * σp, bp))
     end
 
     @testset "op_type is shape-independent" begin
