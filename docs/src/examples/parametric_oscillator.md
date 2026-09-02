@@ -1,11 +1,7 @@
-```@meta
-EditURL = "../../../examples/parametric_oscillator.jl"
-```
-
 # Parametric Oscillator in the Phase-Space Representation
 
-The degenerate parametric oscillator (DPO) — a single bosonic mode driven
-by parametric pumping at twice its frequency — is the workhorse of
+The degenerate parametric oscillator (DPO), a single bosonic mode driven
+by parametric pumping at twice its frequency, is the workhorse of
 optical squeezing.  In the rotating frame at half the pump frequency its
 effective Hamiltonian is
 
@@ -23,14 +19,14 @@ stable but its ground state is **squeezed**: one quadrature variance drops
 below ``\tfrac{1}{2}`` while the other grows above it, with the product
 saturating the Heisenberg bound.
 
-This example showcases the [`PhaseSpace`](@ref) hilbert space and the
-canonical-commutator engine — every step uses
-[`Position`](@ref) and [`Momentum`](@ref) directly, without ever invoking
-Fock ladder operators.
+This example showcases the `PhaseSpace` hilbert space, the
+canonical-commutator engine, and the squeeze transformation of a quadrature
+pair: every step uses `Position` and `Momentum` directly,
+without ever invoking Fock ladder operators.
 
 ## Setup
 
-````@example parametric_oscillator
+````julia
 using SecondQuantizedAlgebra
 
 hp = PhaseSpace(:osc)
@@ -39,22 +35,40 @@ hp = PhaseSpace(:osc)
 @variables δ κ
 ````
 
+````
+2-element Vector{Symbolics.Num}:
+ δ
+ κ
+````
+
 Built-in canonical commutator:
 
-````@example parametric_oscillator
+````julia
 commutator(x, p)
+````
+
+````
+im
 ````
 
 ## Hamiltonian and Heisenberg dynamics
 
-````@example parametric_oscillator
+````julia
 H = (δ - κ) / 2 * x^2 + (δ + κ) / 2 * p^2
 
 -1im * commutator(x, H)
 ````
 
-````@example parametric_oscillator
+````
+(δ + κ) * p
+````
+
+````julia
 -1im * commutator(p, H)
+````
+
+````
+(-δ + κ) * x
 ````
 
 Reading off,
@@ -67,14 +81,56 @@ Reading off,
 Combining, ``\ddot x = -(\delta^2 - \kappa^2)\,x``: oscillation at
 **normal-mode frequency** ``\varepsilon = \sqrt{\delta^2 - \kappa^2}``,
 which softens to zero at the **parametric instability threshold**
-``\kappa = \delta``.  Above threshold the system runs away exponentially —
-the squeezing parameter diverges.
+``\kappa = \delta``.  Above threshold the system runs away exponentially,
+and the squeezing parameter diverges.
 
-## Squeezed-state variances
+## Squeezed-state variances from a squeeze transformation
 
-Below threshold, the ground state is a single-mode squeezed vacuum.
-Mapping to ladder operators ``a = (x + i p)/\sqrt{2}`` and applying a
-Bogoliubov rotation gives, after a short calculation,
+Below threshold, the ground state is a single-mode squeezed vacuum.  Rather
+than mapping to ladder operators and quoting the Bogoliubov result, we can
+build the squeeze that diagonalises ``H`` directly on the canonical pair:
+`Squeeze` on a `(Position, Momentum)` pair is
+``e^{-i r (x p + p x)/2}``, which stretches one quadrature and shrinks the
+other.
+
+````julia
+@variables r
+
+U = Squeeze(x, p, r)
+
+conjugate(x, U), conjugate(p, U)
+````
+
+````
+(exp(r) * x, (1 / exp(r)) * p)
+````
+
+Conjugating ``H`` rescales the two coefficients in opposite directions:
+
+````julia
+conjugate(H, U)
+````
+
+````
+((1//2)*(exp(r)^2)*δ - (1//2)*(exp(r)^2)*κ) * x * x + (((1//2)*δ) / (exp(r)^2) + ((1//2)*κ) / (exp(r)^2)) * p * p
+````
+
+The two agree when ``e^{4r} = (\delta + \kappa)/(\delta - \kappa)``, leaving a
+bare oscillator ``\tfrac{\varepsilon}{2}(x^2 + p^2)`` at the normal-mode
+frequency ``\varepsilon = \sqrt{\delta^2 - \kappa^2}`` found above.  Its ground
+state is the vacuum, so the ground state of ``H`` is ``U|0\rangle`` and the
+variances follow from conjugating the observables:
+
+````julia
+conjugate(x * x, U), conjugate(p * p, U)
+````
+
+````
+(exp(r)^2 * x * x, (1 / (exp(r)^2)) * p * p)
+````
+
+With ``\langle x^2\rangle_\mathrm{vac} = \langle p^2\rangle_\mathrm{vac} =
+\tfrac{1}{2}`` and ``e^{2r} = \sqrt{(\delta + \kappa)/(\delta - \kappa)}``:
 
 ```math
 \langle x^2 \rangle_0
@@ -88,7 +144,7 @@ Bogoliubov rotation gives, after a short calculation,
 The first variance grows without bound as ``\kappa \to \delta^-``
 (anti-squeezed quadrature), the second shrinks to zero (squeezed
 quadrature), and the product stays pinned at the Heisenberg-uncertainty
-minimum.
+minimum because the squeeze preserves the canonical quadrature pair.
 
 ## Numerical verification
 
@@ -97,7 +153,7 @@ Fock basis via ``x = (a + a^\dagger)/\sqrt 2``, ``p = i(a^\dagger -
 a)/\sqrt 2``.  We diagonalise ``H`` on a wide Fock basis and read off the
 ground-state variances directly.
 
-````@example parametric_oscillator
+````julia
 using QuantumOpticsBase, LinearAlgebra, CairoMakie
 
 δ_val = 1.0
@@ -146,10 +202,11 @@ ylims!(ax2, 0.24, 0.26)
 axislegend(ax2; position = :lt)
 fig
 ````
+![](parametric_oscillator-18.png)
 
 Both quadrature variances follow their closed-form predictions across the
 entire below-threshold range, and the uncertainty product (right) sits
-precisely at the Heisenberg-minimum ``\tfrac{1}{4}`` throughout — the DPO
+precisely at the Heisenberg-minimum ``\tfrac{1}{4}`` throughout, so the DPO
 ground state is a minimum-uncertainty squeezed vacuum.  As ``\kappa``
 approaches ``\delta``, ``\langle x^2\rangle`` diverges while
 ``\langle p^2\rangle`` collapses toward zero, the dynamical signature of
@@ -190,7 +247,7 @@ W(x, p) = \frac{2}{\pi}\,
 Overlaying both objects in a four-panel sweep across the transition makes
 the squeezing and the instability immediately visible:
 
-````@example parametric_oscillator
+````julia
 H_class(x_val, p_val, κ_val) =
     (δ_val - κ_val) / 2 * x_val^2 + (δ_val + κ_val) / 2 * p_val^2
 W_gs(x_val, p_val, κ_val) =
@@ -228,7 +285,7 @@ for (i, κ_val) in enumerate(κs_show)
             color = :black, linewidth = 1.5
         )
         text!(
-            ax, 0, -2.6; text = "unstable — no GS",
+            ax, 0, -2.6; text = "unstable, no GS",
             align = (:center, :center), color = :firebrick
         )
     end
@@ -236,6 +293,7 @@ for (i, κ_val) in enumerate(κs_show)
 end
 fig2
 ````
+![](parametric_oscillator-21.png)
 
 Top-left (``\kappa = 0``): vacuum, circular Wigner blob, circular orbits.
 Top-right and bottom-left: the Wigner ellipse squeezes along ``p`` and
@@ -243,10 +301,10 @@ stretches along ``x`` as ``\kappa`` climbs toward ``\delta``, with the
 classical orbits doing the same.  Bottom-right (above threshold): the
 saddle separatrix ``H = 0`` (black) splits phase space into four
 hyperbolic sectors; the orbits run off to infinity along the unstable
-manifold.  Everything in this figure — the threshold condition, the
-variances, the Wigner shape — came out of a canonical
-[`Position`](@ref)/[`Momentum`](@ref) pair and the built-in commutator
-engine, with no manual translation to ladder operators required.
+manifold.  Everything in this figure (the threshold condition, the
+variances, the Wigner shape) came out of a canonical
+`Position`/`Momentum` pair, the built-in commutator engine and
+one `Squeeze`, with no manual translation to ladder operators required.
 
 ---
 

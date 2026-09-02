@@ -1,7 +1,3 @@
-```@meta
-EditURL = "../../../examples/schrieffer_wolff.jl"
-```
-
 # Schrieffer-Wolff Transformation
 
 The [Schrieffer-Wolff transformation](https://en.wikipedia.org/wiki/Schrieffer%E2%80%93Wolff_transformation)
@@ -35,11 +31,11 @@ SecondQuantizedAlgebra.jl, deriving both the **dispersive shift** ``\chi``
 
 We consider a single cavity mode coupled to a two-level atom
 (Jaynes-Cummings model).  Working in the **interaction picture** with respect
-to the cavity frequency ``\omega_c``, the only energy scale in ``H_0`` is the
-detuning ``\Delta = \omega_a - \omega_c``.  This eliminates ``\omega_c`` from
+to the cavity frequency ``\omega_0``, the only energy scale in ``H_0`` is the
+detuning ``\Delta = \omega_a - \omega_0``.  This eliminates ``\omega_0`` from
 all intermediate expressions and keeps the algebra clean.
 
-````@example schrieffer_wolff
+````julia
 using SecondQuantizedAlgebra
 
 hc = FockSpace(:cavity)
@@ -55,6 +51,12 @@ h = hc ⊗ ha
 @variables g Δ
 ````
 
+````
+2-element Vector{Symbolics.Num}:
+ g
+ Δ
+````
+
 ## Jaynes-Cummings Hamiltonian (interaction picture)
 
 In the rotating-wave approximation the Hamiltonian splits into:
@@ -64,9 +66,13 @@ H_0 = \Delta\, |e\rangle\!\langle e|, \qquad
 V   = g\bigl(a^\dagger |g\rangle\!\langle e| + a\, |e\rangle\!\langle g|\bigr).
 ```
 
-````@example schrieffer_wolff
+````julia
 H0 = Δ * σee
 V = g * (a' * σge + a * σeg)
+````
+
+````
+g * a * σ₂₁ + g * a' * σ₁₂
 ````
 
 ## Second order: dispersive shift
@@ -79,20 +85,32 @@ S_1 = -\frac{g}{\Delta}\bigl(a^\dagger |g\rangle\!\langle e|
   \;-\; a\,|e\rangle\!\langle g|\bigr).
 ```
 
-````@example schrieffer_wolff
+````julia
 S1 = -(g / Δ) * (a' * σge - a * σeg)
+````
+
+````
+(g / Δ) * a * σ₂₁ - (g / Δ) * a' * σ₁₂
 ````
 
 We can verify that the defining equation is satisfied exactly:
 
-````@example schrieffer_wolff
+````julia
 commutator(S1, H0) + V
+````
+
+````
+0
 ````
 
 The second-order effective Hamiltonian is ``H_0 + \tfrac{1}{2}[S_1, V]``:
 
-````@example schrieffer_wolff
+````julia
 H_eff = H0 + commutator(S1, V) / 2
+````
+
+````
+((g^2) / Δ + Δ) * σ₂₂ - ((g^2) / Δ) * a' * a * σ₁₁ + ((g^2) / Δ) * a' * a * σ₂₂
 ````
 
 Reading off the result, we identify the **dispersive shift** ``\chi = g^2/\Delta``:
@@ -105,8 +123,12 @@ qubits.
 At third order in ``g`` the transformed Hamiltonian acquires off-diagonal
 terms ``B \equiv [S_1, [S_1, V]]``:
 
-````@example schrieffer_wolff
+````julia
 B = commutator(S1, commutator(S1, V))
+````
+
+````
+((-4(g^3)) / (Δ^2)) * a * σ₂₁ - ((4(g^3)) / (Δ^2)) * a' * σ₁₂ - ((4(g^3)) / (Δ^2)) * a' * a * a * σ₂₁ - ((4(g^3)) / (Δ^2)) * a' * a' * a * σ₁₂
 ````
 
 These are cancelled by a second generator ``S_2`` satisfying
@@ -124,25 +146,41 @@ S_2 = \frac{4g^3}{3\Delta^3}\bigl(
 Note how ``S_2`` contains terms with **three** ladder operators --- these
 generate photon-number-dependent corrections.
 
-````@example schrieffer_wolff
+````julia
 S2 = ((4 // 3) * g^3 / Δ^3) * (a' * σge - a * σeg + a' * a' * a * σge - a' * a * a * σeg)
+````
+
+````
+(((-4//3)*(g^3)) / (Δ^3)) * a * σ₂₁ + (((4//3)*(g^3)) / (Δ^3)) * a' * σ₁₂ - (((4//3)*(g^3)) / (Δ^3)) * a' * a * a * σ₂₁ + (((4//3)*(g^3)) / (Δ^3)) * a' * a' * a * σ₁₂
 ````
 
 The fourth-order diagonal correction involves two pieces:
 
-````@example schrieffer_wolff
+````julia
 comm_S2_V = commutator(S2, V)
 ````
 
-````@example schrieffer_wolff
+````
+(((-8//3)*(g^4)) / (Δ^3)) * σ₂₂ + (((8//3)*(g^4)) / (Δ^3)) * a' * a * σ₁₁ - ((8(g^4)) / (Δ^3)) * a' * a * σ₂₂ + (((8//3)*(g^4)) / (Δ^3)) * a' * a' * a * a * σ₁₁ - (((8//3)*(g^4)) / (Δ^3)) * a' * a' * a * a * σ₂₂
+````
+
+````julia
 C = commutator(S1, B)
+````
+
+````
+((-8(g^4)) / (Δ^3)) * σ₂₂ + ((8(g^4)) / (Δ^3)) * a' * a * σ₁₁ - ((24(g^4)) / (Δ^3)) * a' * a * σ₂₂ + ((8(g^4)) / (Δ^3)) * a' * a' * a * a * σ₁₁ - ((8(g^4)) / (Δ^3)) * a' * a' * a * a * σ₂₂
 ````
 
 These combine into the fourth-order effective Hamiltonian via
 ``H_{\mathrm{eff}}^{(4)} = H_{\mathrm{eff}}^{(2)} + \tfrac{1}{2}[S_2, V] - \tfrac{1}{24}[S_1, B]``:
 
-````@example schrieffer_wolff
+````julia
 H_eff_4 = H_eff + comm_S2_V // 2 - C // 24
+````
+
+````
+((g^2) / Δ + (-(g^4)) / (Δ^3) + Δ) * σ₂₂ + ((-(g^2)) / Δ + (g^4) / (Δ^3)) * a' * a * σ₁₁ + ((g^2) / Δ + (-3(g^4)) / (Δ^3)) * a' * a * σ₂₂ + ((g^4) / (Δ^3)) * a' * a' * a * a * σ₁₁ - ((g^4) / (Δ^3)) * a' * a' * a * a * σ₂₂
 ````
 
 While the symbolic prefactors are not automatically simplified by the CAS,
@@ -166,13 +204,13 @@ nonlinearity in dispersive circuit QED.
 ## Numerical verification
 
 We verify the symbolic effective Hamiltonians against the exact Jaynes-Cummings
-eigenvalues using [`numeric_average`](@ref) and [`substitute`](@ref).
+eigenvalues using `numeric_average` and `substitute`.
 For each Fock state ``|n, g\rangle`` we compute the expectation value
-``\langle n,g| H_{\mathrm{eff}} |n,g\rangle`` — since the Schrieffer-Wolff
+``\langle n,g| H_{\mathrm{eff}} |n,g\rangle``.  Since the Schrieffer-Wolff
 transformation block-diagonalises the Hamiltonian, this directly gives the
 dressed-state energy at each order.
 
-````@example schrieffer_wolff
+````julia
 using QuantumOpticsBase, CairoMakie
 
 g_val, Δ_val = 0.3, 2.0
@@ -210,6 +248,7 @@ scatterlines!(ax, collect(ns), E_exact .- E_sw4; label = "SW₄ error", marker =
 axislegend(ax)
 fig
 ````
+![](schrieffer_wolff-24.png)
 
 ---
 

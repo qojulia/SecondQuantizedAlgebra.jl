@@ -7,6 +7,13 @@ if CI
     ENV["JULIA_DEBUG"] = "Documenter,Literate"
 end
 
+# Generate the Literate pages before loading the packages used by the rest of
+# the documentation. The generated pages are executed in isolated child
+# processes, so the parent stays lightweight while the workers run. This also
+# creates the derived plot images referenced by the generated Markdown when
+# building locally.
+include("make_md_examples.jl")
+
 using SecondQuantizedAlgebra
 using Documenter
 using QuantumOpticsBase
@@ -33,7 +40,6 @@ cp(
 
 # The README.md file is used index (home) page of the documentation.
 if CI
-    include("make_md_examples.jl")
     cp(
         normpath(@__FILE__, "../../README.md"),
         normpath(@__FILE__, "../src/index.md");
@@ -46,7 +52,7 @@ makedocs(;
     sitename = "SecondQuantizedAlgebra.jl",
     modules = SecondQuantizedAlgebra,
     format = Documenter.HTML(;
-        canonical = "https://qojulia.github.io/SecondQuantizedAlgebra.jl"
+        canonical = "https://qojulia.github.io/SecondQuantizedAlgebra.jl",
     ),
     pages = pages,
     clean = true,

@@ -1,7 +1,3 @@
-```@meta
-EditURL = "../../../examples/differentiable_control.jl"
-```
-
 # Differentiable Quantum Optimal Control
 
 Gradient-based quantum optimal control means shaping a control pulse, evolving the state,
@@ -36,7 +32,7 @@ H(t) = \Delta\, a^\dagger a + \frac{K}{2}\, a^\dagger a^\dagger a a
 
 with detuning ``\Delta``, Kerr strength ``K``, and a real control ``\varepsilon(t)``.
 
-````@example differentiable_control
+````julia
 using SecondQuantizedAlgebra
 using QuantumToolbox
 using Symbolics
@@ -51,11 +47,19 @@ h = FockSpace(:c)
 @variables Δ K ε κ
 ````
 
+````
+4-element Vector{Symbolics.Num}:
+ Δ
+ K
+ ε
+ κ
+````
+
 Physical constants and control discretization. The pulse is a Fourier sine series, which is
 smooth and vanishes at both ends of the interval, and its amplitudes are the parameters we
 optimize.
 
-````@example differentiable_control
+````julia
 N = 10                       # Fock cutoff (Hilbert dimension N + 1)
 Δ0, K0 = 0.0, -2.0           # on resonance for 0 -> 1; Kerr blockade detunes 1 -> 2
 κ0 = 0.05                    # photon-loss rate (used only for the open-system part)
@@ -64,7 +68,6 @@ tlist = collect(range(0, T, 61))
 M = 6                        # number of control parameters
 
 pulse(p, t) = sum(p[k] * sinpi(k * t / T) for k in eachindex(p))
-nothing # hide
 ````
 
 ## The differentiable control Hamiltonian
@@ -75,7 +78,7 @@ coefficient as solver-parameter aware and makes the returned `QobjEvo` different
 respect to `p`. The Hamiltonian is built once and reused by both solvers; each solver call
 supplies the current `p`.
 
-````@example differentiable_control
+````julia
 Hc = to_numeric(
     Δ * a' * a + (K / 2) * a' * a' * a * a + ε * (a' + a), h, N;
     backend = QuantumToolboxBackend(),
@@ -86,7 +89,6 @@ Hc = to_numeric(
 ψ0 = fock(N + 1, 0)
 proj1 = fock(N + 1, 1) * fock(N + 1, 1)'
 sensealg = BacksolveAdjoint(autojacvec = SciMLSensitivity.MooncakeVJP())
-nothing # hide
 ````
 
 `Optimization.jl` is the idiomatic SciML interface: wrap the cost in an `OptimizationFunction`
@@ -95,15 +97,14 @@ deterministic, low-dimensional control problem with exact gradients, the quasi-N
 converges in far fewer solver evaluations than a first-order method such as Adam. This small
 helper optimizes a cost from a flat initial pulse and records the loss trace.
 
-````@example differentiable_control
+````julia
 function optimize_pulse(cost)
     losses = Float64[]
-    optf = OptimizationFunction((u, _p) -> cost(u), AutoMooncake())
+    optf = OptimizationFunction((u, p) -> cost(u), AutoMooncake())
     prob = OptimizationProblem(optf, fill(0.3, M))
     res = solve(prob, OptimizationOptimJL.LBFGS(); maxiters = 100, callback = (s, l) -> (push!(losses, l); false))
     return res.u, losses
 end
-nothing # hide
 ````
 
 ## Closed system (`sesolve`)
@@ -114,7 +115,7 @@ final time. `sesolve` receives `params` and the adjoint chosen for correct gradi
 `BacksolveAdjoint` with the Mooncake vector-Jacobian product; Enzyme works too, while Zygote
 returns silently wrong gradients for time evolution.
 
-````@example differentiable_control
+````julia
 infidelity_closed(params) =
     1 - real(expect(proj1, sesolve(Hc, ψ0, tlist; params, sensealg, progress_bar = Val(false)).states[end]))
 
@@ -122,10 +123,14 @@ p_closed, losses_closed = optimize_pulse(infidelity_closed)
 1 - infidelity_closed(p_closed)   # near unity: closed dynamics conserve probability
 ````
 
+````
+0.9999361731691209
+````
+
 The optimized pulse drives the mean photon number from 0 to 1, and the final population lands
 almost entirely in ``|1\rangle``; the Kerr blockade suppresses ``|2\rangle``.
 
-````@example differentiable_control
+````julia
 using CairoMakie
 
 n_op = create(N + 1) * destroy(N + 1)
@@ -149,6 +154,7 @@ barplot!(ax3, 0:4, finalpops_closed; color = :seagreen)
 
 fig_closed
 ````
+![](differentiable_control-13.png)
 
 ## Open system (`mesolve`)
 
@@ -156,9 +162,8 @@ Now add photon loss through a single collapse operator ``c = \sqrt{\kappa}\, a``
 Lindblad master equation ``\dot\rho = -i[H(t), \rho] + \kappa\,\mathcal{D}[a]\rho``. The
 collapse operator is assembled the same way as the Hamiltonian, from `sqrt(κ) * a`.
 
-````@example differentiable_control
+````julia
 c_op = to_numeric(sqrt(κ) * a, h, N; backend = QuantumToolboxBackend(), parameter = Dict(κ => κ0))
-nothing # hide
 ````
 
 The loss rate is a control too: writing `time_parameter = Dict(κ => (p, t) -> ...)` would make
@@ -170,12 +175,16 @@ builds its Liouvillian from the time-dependent operators as a lazy superoperator
 single concrete type, so the adjoint solve sees no dynamic dispatch and the same `sensealg`
 applies.
 
-````@example differentiable_control
+````julia
 infidelity_open(params) =
     1 - real(expect(proj1, mesolve(Hc, ψ0, tlist, [c_op]; params, sensealg, progress_bar = Val(false)).states[end]))
 
 p_open, losses_open = optimize_pulse(infidelity_open)
 1 - infidelity_open(p_open)   # below unity: decoherence-limited
+````
+
+````
+0.9065668158944363
 ````
 
 ## Open-system results
@@ -184,7 +193,7 @@ Photon loss caps the achievable fidelity below the closed-system value: the sing
 decays throughout the pulse, so the final ``|1\rangle`` population sits below one and the state
 is left mixed.
 
-````@example differentiable_control
+````julia
 sol_open = mesolve(Hc, ψ0, tlist, [c_op]; params = p_open, e_ops = [n_op], progress_bar = Val(false))
 nt_open = real.(sol_open.expect[1, :])
 εt_open = pulse.(Ref(p_open), tlist)
@@ -205,6 +214,7 @@ barplot!(bx3, 0:4, finalpops_open; color = :seagreen)
 
 fig_open
 ````
+![](differentiable_control-19.png)
 
 ---
 
