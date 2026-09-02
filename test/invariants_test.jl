@@ -205,7 +205,7 @@ import SecondQuantizedAlgebra:
             qa = A isa QAdd ? A : (1 * A)
             @test iszero(simplify(undo_average(average(qa)) - qa)) || error("roundtrip $label")
             @test iszero(commutator(A, A))
-            @test isequal(adjoint(adjoint(A isa QAdd ? A : (1 * A))), A isa QAdd ? A : (1 * A)) || A isa QAdd || true
+            @test isequal(adjoint(adjoint(qa)), qa)
         end
 
         hs = SpinSpace(:spin)

@@ -128,6 +128,11 @@ end
         @test iszero(symmetric_to_normal(x * p + im / 2) - x * p)
         @test iszero(normal_to_symmetric(x) - x)
         @test iszero(symmetric_to_normal(x) - x)
+
+        hf = FockSpace(:weyl_fock)
+        a = Destroy(hf, :a)
+        mixed = a * x * p
+        @test iszero(normal_to_symmetric(mixed) - a * (x * p + im / 2))
     end
 
     @testset "non-Heisenberg operators are unchanged" begin

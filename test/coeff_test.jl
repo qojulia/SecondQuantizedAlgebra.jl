@@ -1,5 +1,6 @@
 using SecondQuantizedAlgebra
 using Symbolics: Symbolics, @variables, Num
+using SymbolicUtils: SymbolicUtils
 using Test
 import SecondQuantizedAlgebra: expim, exponential_form, phase_terms, to_num,
     trigonometric_form
@@ -151,6 +152,9 @@ import SecondQuantizedAlgebra: expim, exponential_form, phase_terms, to_num,
         phase = expim(θ)
         @test Symbolics.simplify(Symbolics.derivative(phase, θ) - im * expim(θ)) == 0
         @test isequal(to_num(phase), to_num(expim(θ)))
+        @test isequal(expim(SymbolicUtils.unwrap(θ)), expim(θ))
+        @test isequal(expim(θ + ω)^2, expim(2θ + 2ω))
+        @test isequal(expim(θ + ω)^(-2), expim(-2θ - 2ω))
     end
 
     @testset "explicit representations round-trip" begin
@@ -206,7 +210,7 @@ import SecondQuantizedAlgebra: expim, exponential_form, phase_terms, to_num,
     end
 
     @testset "public phase and scalar boundary cases" begin
-        @variables θ φ ω t z::Number
+        @variables θ φ ω t z::Number g
         @test isequal(exponential_form(exp(im * θ)), expim(θ))
         @test isequal(exponential_form(cis(θ)), expim(θ))
         @test isequal(exponential_form(conj(expim(θ))), expim(-θ))
@@ -227,5 +231,46 @@ import SecondQuantizedAlgebra: expim, exponential_form, phase_terms, to_num,
 
         trig = trigonometric_form(Complex(Num(z), Num(z)))
         @test iszero(simplify(trig * a - (z + im * z) * a))
+        complex_coefficient = Complex(Num(z), Num(z)) * a
+        @test isequal(prefactor(complex_coefficient), Complex(Num(z), Num(z)))
+        @test isequal(
+            exponential_form(Complex(Num(z), Num(z))),
+            Complex(Num(z), Num(z)),
+        )
+        @test isequal(real(-expim(θ)), -cos(θ))
+        @test isequal(imag(-expim(θ)), -sin(θ))
+        unit_phase = (3 // 5 + (4 // 5) * im) * expim(θ)
+        @test iszero(
+            simplify(real(unit_phase) - (3 // 5) * cos(θ) + (4 // 5) * sin(θ)),
+        )
+        @test iszero(
+            simplify(imag(unit_phase) - (4 // 5) * cos(θ) - (3 // 5) * sin(θ)),
+        )
+        @test isempty(phase_terms(exponential_form(Num(0))))
+
+        radical = exponential_form(sqrt(g))
+        @test isequal(radical, sqrt(g))
+        @test isequal(exponential_form(cbrt(g)), cbrt(g))
+    end
+
+    @testset "raw phase substitutions reject non-real angles" begin
+        @variables θ
+        raw_phase = SymbolicUtils.term(
+            expim,
+            SymbolicUtils.unwrap(θ);
+            type = Complex{Real},
+            shape = UnitRange{Int}[],
+        )
+        raw_product = SymbolicUtils.term(
+            *,
+            raw_phase,
+            SymbolicUtils.unwrap(1 + θ);
+            type = Complex{Real},
+            shape = UnitRange{Int}[],
+        )
+        @test_throws ArgumentError substitute(
+            Num(raw_product) * a,
+            Dict(θ => 1im),
+        )
     end
 end

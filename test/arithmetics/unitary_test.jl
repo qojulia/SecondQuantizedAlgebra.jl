@@ -345,6 +345,41 @@ import SecondQuantizedAlgebra: expim, exponential_form
                     transform(a' * a, Rotation(a, (θ + ϕ) * t, t)),
             ),
         )
+
+        numeric_diagonal = Rotation(a, 1) * Rotation(a, -1)
+        @test iszero(simplify(conjugate(a, numeric_diagonal) - a))
+        static_dynamic = Rotation(a, 1) * Rotation(a, ω * t, t)
+        @test iszero(
+            simplify(
+                conjugate(a, static_dynamic) - expim(-1) * expim(-ω * t) * a,
+            ),
+        )
+        static_symbolic_dynamic = Rotation(a, θ) * Rotation(a, ω * t, t)
+        @test iszero(
+            simplify(
+                conjugate(a, static_symbolic_dynamic) -
+                    expim(-θ) * expim(-ω * t) * a,
+            ),
+        )
+        dynamic_static = Rotation(a, ω * t, t) * Rotation(a, 1)
+        @test iszero(
+            simplify(
+                conjugate(a, dynamic_static) - expim(-ω * t) * expim(-1) * a,
+            ),
+        )
+
+        moving_quadrature_rotation = Rotation(x, p, θ * t, t)
+        @test iszero(
+            simplify(
+                gauge_term(moving_quadrature_rotation) + θ * (x * x + p * p) / 2,
+            ),
+        )
+        moving_quadrature_squeeze = Squeeze(x, p, r * t, t)
+        @test iszero(
+            simplify(
+                gauge_term(moving_quadrature_squeeze) - (im * r / 2 - r * x * p),
+            ),
+        )
     end
 
     @testset "invalid transformations fail at the public boundary" begin

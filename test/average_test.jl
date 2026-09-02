@@ -307,6 +307,11 @@ import SecondQuantizedAlgebra:
         renamed = change_index(right, j, i)
         @test isequal(renamed, left)
         @test length(left + renamed) == 1
+
+        scoped_product = assume_distinct_index(
+            IndexedOperator(b, i) * IndexedOperator(b', j), [(i, j)],
+        )
+        @test iszero(undo_average(average(scoped_product)) - scoped_product)
     end
 
     @testset "average preserves only live scope" begin
@@ -329,12 +334,17 @@ import SecondQuantizedAlgebra:
         # undo roundtrip for scalar and operator
         @test iszero(undo_average(average(a2' * a2)) - a2' * a2)
         @test iszero(undo_average(average(3)) - 3)
+        @test iszero(undo_average(average(a2) / 2) - a2 / 2)
         # indexed coefficient leak check: coefficient with j,i stays inside i≠j sum
         u(k, l) = DoubleIndexedVariable(:u, k, l)
         k = Index(h, :k, N, 2)
         coeff_in_sum = average(Σ(u(j, i) * σ(i), i))
         @test is_indexed_sum(coeff_in_sum)
         @test get_sum_indices(coeff_in_sum) == [i]
+
+        grouped = average(Σ(g(i) * σ(i) + g(i) * σ(i)', i))
+        @test is_indexed_sum(grouped)
+        @test get_sum_indices(grouped) == [i]
     end
 
     @testset "average avoids literal complex(re,im) (public MTK pin)" begin
@@ -365,5 +375,8 @@ import SecondQuantizedAlgebra:
         @test !has_sum_metadata(Symbolics.wrap(average(a)))
         @test acts_on(Symbolics.wrap(a)) == [1]
         @test isempty(acts_on(3))
+        @variables z
+        @test acts_on(average(a) + z) == [1]
+        @test acts_on(2 * average(a)) == [1]
     end
 end
