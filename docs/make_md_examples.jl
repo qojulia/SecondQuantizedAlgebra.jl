@@ -25,7 +25,7 @@ end
 function generated_output(name)
     return any(
         startswith(name, stem * ".") || startswith(name, stem * "-") for
-        stem in EXAMPLE_STEMS
+            stem in EXAMPLE_STEMS
     )
 end
 
