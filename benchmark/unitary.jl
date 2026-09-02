@@ -1,4 +1,4 @@
-function _gaussian_family_workflow(a, b, t, Δa, Δb, J, η, κ, θ, r, ϕ, ω, α)
+function gaussian_family_workflow(a, b, t, Δa, Δb, J, η, κ, θ, r, ϕ, ω, α)
     H =
         Δa * a' * a +
         Δb * b' * b +
@@ -27,7 +27,7 @@ function _gaussian_family_workflow(a, b, t, Δa, Δb, J, η, κ, θ, r, ϕ, ω, 
     return static_results, timed_results, gauges
 end
 
-function _frame_composition_workflow(a, b, t, Δa, Δb, J, η, θ, ω)
+function frame_composition_workflow(a, b, t, Δa, Δb, J, η, θ, ω)
     H = Δa * a' * a + Δb * b' * b + J * (a' * b + b' * a) + η * (b + b')
 
     static = Rotation(a, b, θ) * Displace(a, η) * Rotation(b, θ / 2)
@@ -39,7 +39,7 @@ function _frame_composition_workflow(a, b, t, Δa, Δb, J, η, θ, ω)
     return static_result, timed_result, simplify(round_trip), generators(static), gauge_term(timed)
 end
 
-function _phase_space_spin_workflow(
+function phase_space_spin_workflow(
         x, p, Sx, Sy, Sz, σx, σy, σz, t, ω, Ω, δ, g, dx, dp, r,
     )
     H =
@@ -65,7 +65,7 @@ function _phase_space_spin_workflow(
     return results, gauges
 end
 
-function _moving_two_level_workflow(σ, transitions, t, Ω, Δ1, Δ2, g)
+function moving_two_level_workflow(σ, transitions, t, Ω, Δ1, Δ2, g)
     angle = Ω * t
     W = [cos(angle) -sin(angle); sin(angle) cos(angle)]
     σ11, σ22, σ12, σ21 = transitions
@@ -77,7 +77,7 @@ function _moving_two_level_workflow(σ, transitions, t, Ω, Δ1, Δ2, g)
 end
 
 
-function _phase_harmonic_workflow(a, t, ω, ν, r)
+function phase_harmonic_workflow(a, t, ω, ν, r)
     argument = ω * t
     series = 0 * a
     merged = SecondQuantizedAlgebra.expim(argument)
@@ -138,20 +138,20 @@ function benchmark_unitary!(SUITE)
     )
 
     group = SUITE["Unitary and exact phase workflows"]
-    group["Fock Gaussian constructor family"] = @benchmarkable _gaussian_family_workflow(
+    group["Fock Gaussian constructor family"] = @benchmarkable gaussian_family_workflow(
         $a, $b, $t, $Δa, $Δb, $J, $η, $κ, $θ, $r, $ϕ, $ω, $α,
     ) seconds = 3 evals = 1
-    group["Static and timed frame composition"] = @benchmarkable _frame_composition_workflow(
+    group["Static and timed frame composition"] = @benchmarkable frame_composition_workflow(
         $a, $b, $t, $Δa, $Δb, $J, $η, $θ, $ω,
     ) seconds = 3 evals = 1
     group["Phase-space, spin, and Pauli family"] =
-        @benchmarkable _phase_space_spin_workflow(
+        @benchmarkable phase_space_spin_workflow(
         $x, $p, $Sx, $Sy, $Sz, $σx, $σy, $σz, $t, $ω, $Ω, $δ, $g, $dx, $dp, $r,
     ) seconds = 3 evals = 1
-    group["Static and moving two-level basis"] = @benchmarkable _moving_two_level_workflow(
+    group["Static and moving two-level basis"] = @benchmarkable moving_two_level_workflow(
         $σ, $transitions, $t, $Ω, $Δ1, $Δ2, $g,
     ) seconds = 3 evals = 1
-    group["Thirty-three-sideband exact phase pipeline"] = @benchmarkable _phase_harmonic_workflow(
+    group["Thirty-three-sideband exact phase pipeline"] = @benchmarkable phase_harmonic_workflow(
         $a, $t, $ω, $ν, $r,
     ) seconds = 3 evals = 1
     return SUITE

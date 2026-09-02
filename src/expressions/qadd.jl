@@ -14,16 +14,16 @@ struct QAdd <: QField
     arguments::QTermDict
     indices::Vector{Index}
     function QAdd(arguments::QTermDict, indices::Vector{Index})
-        return new(_prune_dead_ne(arguments, indices), indices)
+        return new(prune_dead_ne(arguments, indices), indices)
     end
 end
 
 # Strip NE pairs that reference no op index, coefficient index, or scope index.
-function _prune_dead_ne(args::QTermDict, indices::Vector{Index})
+function prune_dead_ne(args::QTermDict, indices::Vector{Index})
     needs_rebuild = false
     for (term, c) in args
         for p in term.ne
-            if !_pair_referenced(p, term.ops, c, indices)
+            if !pair_referenced(p, term.ops, c, indices)
                 needs_rebuild = true
                 break
             end
@@ -36,22 +36,22 @@ function _prune_dead_ne(args::QTermDict, indices::Vector{Index})
     for (term, c) in args
         kept = NonEqualPair[]
         for p in term.ne
-            _pair_referenced(p, term.ops, c, indices) && _push_ne_unique!(kept, p)
+            pair_referenced(p, term.ops, c, indices) && push_ne_unique!(kept, p)
         end
-        kept_ne = isempty(kept) ? _EMPTY_NE : _insertion_sort!(kept, isless)
-        _addto_key!(out, QTerm(copy(term.ops), kept_ne), c)
+        kept_ne = isempty(kept) ? EMPTY_NE : insertion_sort!(kept, isless)
+        addto_key!(out, QTerm(copy(term.ops), kept_ne), c)
     end
     return out
 end
 
-@inline function _pair_referenced(
+@inline function pair_referenced(
         p::NonEqualPair, ops::Vector{Op}, c::CNum, scope::Vector{Index},
     )
     α, β = p
     α in scope && return true
     β in scope && return true
-    _depends_on_index_term(c, ops, α) && return true
-    _depends_on_index_term(c, ops, β) && return true
+    depends_on_index_term(c, ops, α) && return true
+    depends_on_index_term(c, ops, β) && return true
     return false
 end
 
@@ -77,14 +77,14 @@ julia> length(SecondQuantizedAlgebra.constraint_pairs(q))
 ```
 """
 function constraint_pairs(q::QAdd)
-    return _constraint_pairs(q.arguments)
+    return constraint_pairs(q.arguments)
 end
 
-function _single_qadd(c::CNum, ops::Vector{Op}, ne::Vector{NonEqualPair} = _EMPTY_NE)
-    _iszero_cnum(c) && return QAdd(QTermDict(), _EMPTY_INDICES)
+function single_qadd(c::CNum, ops::Vector{Op}, ne::Vector{NonEqualPair} = EMPTY_NE)
+    iszero_cnum(c) && return QAdd(QTermDict(), EMPTY_INDICES)
     d = QTermDict()
-    _addto!(d, ops, c, ne)
-    return QAdd(d, _EMPTY_INDICES)
+    addto!(d, ops, c, ne)
+    return QAdd(d, EMPTY_INDICES)
 end
 
 Base.length(a::QAdd) = length(a.arguments)
@@ -95,7 +95,7 @@ Base.iszero(a::QAdd) = isempty(a.arguments)
 
 Multiplicative identity as a unit `QAdd`.
 """
-Base.one(::Type{<:QField}) = _single_qadd(_CNUM_ONE, Op[])
+Base.one(::Type{<:QField}) = single_qadd(CNUM_ONE, Op[])
 Base.one(q::QField) = one(typeof(q))
 
 """
@@ -108,16 +108,16 @@ function Base.isone(q::QAdd)
     length(q.arguments) == 1 || return false
     (term, c) = first(q.arguments)
     isempty(term.ops) || return false
-    re, im = _realimag(c)
-    _iszero_num(im) || return false
+    re, im = realimag(c)
+    iszero_num(im) || return false
     v = SymbolicUtils.unwrap(re)
-    return (v isa Number && isone(v)) || isequal(re, _NUM_ONE)
+    return (v isa Number && isone(v)) || isequal(re, NUM_ONE)
 end
 
 # `indices` is a multiset of bound sum indices (`Σ_iΣ_j ≡ Σ_jΣ_i`); compare/hash it
 # order-insensitively but multiplicity-faithfully. A plain subset test is asymmetric
 # and the XOR hash collapses repeated indices, so both use per-element multiplicity.
-function _same_index_set(a::Vector{Index}, b::Vector{Index})
+function same_index_set(a::Vector{Index}, b::Vector{Index})
     length(a) == length(b) || return false
     for idx in a
         count(x -> isequal(x, idx), a) == count(x -> isequal(x, idx), b) || return false
@@ -127,11 +127,11 @@ end
 
 function Base.isequal(a::QAdd, b::QAdd)
     isequal(a.arguments, b.arguments) || return false
-    return _same_index_set(a.indices, b.indices)
+    return same_index_set(a.indices, b.indices)
 end
 Base.:(==)(a::QAdd, b::QAdd) = isequal(a, b)
 function Base.hash(q::QAdd, h::UInt)
-    # `+` (not `⊻`) so repeated indices contribute, matching `_same_index_set`.
+    # `+` (not `⊻`) so repeated indices contribute, matching `same_index_set`.
     ih = foldl((acc, idx) -> acc + hash(idx), q.indices; init = zero(UInt))
     return hash(:QAdd, hash(q.arguments, hash(ih, hash(length(q.indices), h))))
 end
@@ -140,7 +140,7 @@ function Base.adjoint(q::QAdd)
     out = QTermDict()
     for (t, c) in q
         rev = Op[adjoint(o) for o in Iterators.reverse(t.ops)]
-        _canonicalize!(out, rev, _conj_cnum(c), t.ne)
+        canonicalize!(out, rev, conj_cnum(c), t.ne)
     end
     return QAdd(out, copy(q.indices))
 end
@@ -149,13 +149,13 @@ Base.iterate(q::QAdd) = iterate(q.arguments)
 Base.iterate(q::QAdd, state) = iterate(q.arguments, state)
 Base.eltype(::Type{QAdd}) = Pair{QTerm, CNum}
 
-_ne_sort_key(ne::Vector{NonEqualPair}) = Tuple(ne)
+ne_sort_key(ne::Vector{NonEqualPair}) = Tuple(ne)
 
 # Type-stable display order. Compares operator sequences field-by-field (each
-# `_full_op_key` is a fixed-length concrete tuple), then the constraint set. This
-# replaces `isless` on the variable-length `Vararg` tuples the `_*_sort_key`
+# `full_op_key` is a fixed-length concrete tuple), then the constraint set. This
+# replaces `isless` on the variable-length `Vararg` tuples the `_*sort_key`
 # helpers build, which inference cannot resolve concretely (a print-path cost).
-function _ne_less(a::Vector{NonEqualPair}, b::Vector{NonEqualPair})
+function ne_less(a::Vector{NonEqualPair}, b::Vector{NonEqualPair})
     la, lb = length(a), length(b)
     @inbounds for i in 1:min(la, lb)
         a[i] != b[i] && return isless(a[i], b[i])
@@ -163,15 +163,15 @@ function _ne_less(a::Vector{NonEqualPair}, b::Vector{NonEqualPair})
     return la < lb
 end
 
-function _sorted_args_less(x::Pair{QTerm, CNum}, y::Pair{QTerm, CNum})
+function sorted_args_less(x::Pair{QTerm, CNum}, y::Pair{QTerm, CNum})
     xo, yo = x.first.ops, y.first.ops
     lx, ly = length(xo), length(yo)
     lx != ly && return lx < ly
     @inbounds for i in 1:lx
-        kx, ky = _full_op_key(xo[i]), _full_op_key(yo[i])
+        kx, ky = full_op_key(xo[i]), full_op_key(yo[i])
         kx != ky && return isless(kx, ky)
     end
-    return _ne_less(x.first.ne, y.first.ne)
+    return ne_less(x.first.ne, y.first.ne)
 end
 
 """
@@ -194,14 +194,14 @@ julia> length(SecondQuantizedAlgebra.sorted_arguments(a + a'))
 function sorted_arguments(q::QAdd)
     isempty(q.arguments) && return QAdd[]
     pairs = collect(q.arguments)
-    _insertion_sort!(pairs, _sorted_args_less)
-    return QAdd[_single_qadd(c, term.ops, term.ne) for (term, c) in pairs]
+    insertion_sort!(pairs, sorted_args_less)
+    return QAdd[single_qadd(c, term.ops, term.ne) for (term, c) in pairs]
 end
 
 # Total: without the packed level/axis fields two axes of one spin triple (or two levels of
 # one transition set) tie, and the display order falls back to dict iteration order.
-_full_op_key(op::QSym) = (
-    _sort_key(op)..., _type_order(op), _name_rank(op.name_id),
+full_op_key(op::QSym) = (
+    sort_key(op)..., type_order(op), name_rank(op.name_id),
     Int(op.l1), Int(op.l2), Int(op.g), Int(op.nlev),
 )
 
@@ -211,7 +211,7 @@ _full_op_key(op::QSym) = (
 Total ordering key for an operator product, built from `order_key`: length, then
 operator-by-operator, then the canonical-sorted non-equal constraints.
 """
-term_order_key(t::QTerm) = (length(t.ops), map(order_key, t.ops), _ne_sort_key(t.ne))
+term_order_key(t::QTerm) = (length(t.ops), map(order_key, t.ops), ne_sort_key(t.ne))
 
 """
     qadd_order_key(q::QAdd) -> Vector
@@ -221,16 +221,16 @@ two `QAdd`s compare with `<` on their keys and tie exactly when they are `isequa
 coefficient contributes its printed form (a reproducible tiebreak, not a numeric order).
 """
 function qadd_order_key(q::QAdd)
-    pairs = [(term_order_key(t), _coeff_key(c)) for (t, c) in q.arguments]
-    _insertion_sort!(pairs, isless)
+    pairs = [(term_order_key(t), coeff_key(c)) for (t, c) in q.arguments]
+    insertion_sort!(pairs, isless)
     return pairs
 end
 
 Base.isless(a::QAdd, b::QAdd) = isless(qadd_order_key(a), qadd_order_key(b))
 Base.isless(a::Type{<:QField}, b::Type{<:QField}) = isless(nameof(a), nameof(b))
 
-function _coeff_key(c::CNum)
-    re, im = _realimag(c)
+function coeff_key(c::CNum)
+    re, im = realimag(c)
     return (string(re), string(im))
 end
 
@@ -252,7 +252,7 @@ function Base.getindex(q::QAdd, key::AbstractVector{<:QSym})
         )
         found = c
     end
-    found === nothing && return to_num(_CNUM_ZERO)
+    found === nothing && return to_num(CNUM_ZERO)
     return to_num(found)
 end
 

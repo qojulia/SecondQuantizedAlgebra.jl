@@ -74,13 +74,13 @@ end
         @test SecondQuantizedAlgebra.qadd_order_key(e1) == SecondQuantizedAlgebra.qadd_order_key(e2)
     end
 
-    @testset "coefficient is a tiebreak (via _coeff_key)" begin
+    @testset "coefficient is a tiebreak (via coeff_key)" begin
         @test !isequal(e1, e3)
         @test SecondQuantizedAlgebra.qadd_order_key(e1) != SecondQuantizedAlgebra.qadd_order_key(e3)
-        # _coeff_key distinguishes coefficients directly
-        c2 = SecondQuantizedAlgebra._to_cnum(2.0)
-        c3 = SecondQuantizedAlgebra._to_cnum(3.0)
-        @test SecondQuantizedAlgebra._coeff_key(c2) != SecondQuantizedAlgebra._coeff_key(c3)
+        # coeff_key distinguishes coefficients directly
+        c2 = SecondQuantizedAlgebra.to_cnum(2.0)
+        c3 = SecondQuantizedAlgebra.to_cnum(3.0)
+        @test SecondQuantizedAlgebra.coeff_key(c2) != SecondQuantizedAlgebra.coeff_key(c3)
     end
 
     qs = [e1, e3, e4, a * 1, (a' * a) * 1, σ * 1]

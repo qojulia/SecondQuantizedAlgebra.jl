@@ -9,15 +9,15 @@ end
 #   A^m B^n = sum_{k=0}^{min(m,n)} C(m,k) C(n,k) k! (K α)^k Sym(A^{m-k} B^{n-k})
 #
 # with `α = -1/2` for normal → symmetric and `α = +1/2` for symmetric → normal.
-const _WEYL_K_FOCK = _CNUM_ONE       # [Destroy, Create] = 1
-const _WEYL_K_PHASE = _CNUM_NEG_IM   # [Momentum, Position] = -i
+const WEYL_K_FOCK = CNUM_ONE       # [Destroy, Create] = 1
+const WEYL_K_PHASE = CNUM_NEG_IM   # [Momentum, Position] = -i
 
 # Each entry describes one (m, n) group on a single site, ready to feed into
 # the combinatorial expansion. Fock pairs distinguish multiple ladder modes on
 # the same Hilbert subspace by `op.name`; phase pairs collapse by site, since
 # every PhaseSpace subsystem carries one canonical (x, p) pair.
-const _FockSite = Tuple{Int, Symbol, Symbol, Int, Int}
-const _PhaseSite = Tuple{Int, Symbol, Int, Int}
+const FockSite = Tuple{Int, Symbol, Symbol, Int, Int}
+const PhaseSite = Tuple{Int, Symbol, Int, Int}
 
 """
     normal_to_symmetric(expr) -> QAdd
@@ -46,9 +46,9 @@ julia> normal_to_symmetric(x * p)
 See also [`symmetric_to_normal`](@ref), [`normal_order`](@ref).
 """
 function normal_to_symmetric(s::QAdd)
-    return _convert_ordering(s, -1 // 2)
+    return convert_ordering(s, -1 // 2)
 end
-normal_to_symmetric(op::QSym) = normal_to_symmetric(_single_qadd(_CNUM_ONE, Op[op]))
+normal_to_symmetric(op::QSym) = normal_to_symmetric(single_qadd(CNUM_ONE, Op[op]))
 
 """
     symmetric_to_normal(expr) -> QAdd
@@ -77,56 +77,56 @@ x * p
 See also [`normal_to_symmetric`](@ref), [`normal_order`](@ref).
 """
 function symmetric_to_normal(s::QAdd)
-    return _convert_ordering(s, 1 // 2)
+    return convert_ordering(s, 1 // 2)
 end
-symmetric_to_normal(op::QSym) = symmetric_to_normal(_single_qadd(_CNUM_ONE, Op[op]))
+symmetric_to_normal(op::QSym) = symmetric_to_normal(single_qadd(CNUM_ONE, Op[op]))
 
-function _convert_ordering(s::QAdd, α::Rational)
+function convert_ordering(s::QAdd, α::Rational)
     d = QTermDict()
     for (term, c) in s.arguments
-        _iszero_cnum(c) && continue
-        _convert_term!(d, c, term.ops, term.ne, α)
+        iszero_cnum(c) && continue
+        convert_term!(d, c, term.ops, term.ne, α)
     end
     return QAdd(d, copy(s.indices))
 end
 
 """
-    _convert_term!(d, c, ops, ne, α)
+    convert_term!(d, c, ops, ne, α)
 
 Expand one term under Weyl/symmetric ordering and accumulate into `d`.
 
 Collects Fock (Create/Destroy) and PhaseSpace (Position/Momentum) conjugate
-pairs, runs each through `_expand_site!` via the per-kind wrappers, then
+pairs, runs each through `expand_site!` via the per-kind wrappers, then
 writes every resulting `OrderedTerm` into `d`. Terms with no conjugate pairs
 pass through unchanged.
 
-To add a new Heisenberg pair kind: add `_count_X_sites`, `_expand_X_site!`,
-and `_remove_X_at!`, then add one loop here mirroring the Fock/Phase loops.
+To add a new Heisenberg pair kind: add `count_X_sites`, `expand_X_site!`,
+and `remove_X_at!`, then add one loop here mirroring the Fock/Phase loops.
 """
-function _convert_term!(
+function convert_term!(
         d::QTermDict, c::CNum, ops::Vector{Op},
         ne::Vector{NonEqualPair}, α::Rational,
     )
-    fock_sites = _count_fock_sites(ops)
-    phase_sites = _count_phase_sites(ops)
+    fock_sites = count_fock_sites(ops)
+    phase_sites = count_phase_sites(ops)
     if isempty(fock_sites) && isempty(phase_sites)
-        _addto!(d, ops, c, ne)
+        addto!(d, ops, c, ne)
         return
     end
     current = OrderedTerm[OrderedTerm(c, ops)]
     for site in fock_sites
-        current = _expand_fock_site!(current, site, α)
+        current = expand_fock_site!(current, site, α)
     end
     for site in phase_sites
-        current = _expand_phase_site!(current, site, α)
+        current = expand_phase_site!(current, site, α)
     end
     for t in current
-        _addto!(d, t.ops, t.prefactor, ne)
+        addto!(d, t.ops, t.prefactor, ne)
     end
     return
 end
 
-function _count_fock_sites(ops::Vector{Op})
+function count_fock_sites(ops::Vector{Op})
     counts = Dict{Tuple{Int, Symbol, Symbol}, Tuple{Int, Int}}()
     for op in ops
         if is_create(op)
@@ -139,14 +139,14 @@ function _count_fock_sites(ops::Vector{Op})
             counts[k] = (m, n + 1)
         end
     end
-    sites = _FockSite[]
+    sites = FockSite[]
     for ((si, idxname, name), (m, n)) in counts
         (m > 0 && n > 0) && push!(sites, (si, idxname, name, m, n))
     end
     return sites
 end
 
-function _count_phase_sites(ops::Vector{Op})
+function count_phase_sites(ops::Vector{Op})
     counts = Dict{Tuple{Int, Symbol}, Tuple{Int, Int}}()
     for op in ops
         if is_position(op)
@@ -159,52 +159,52 @@ function _count_phase_sites(ops::Vector{Op})
             counts[k] = (m, n + 1)
         end
     end
-    sites = _PhaseSite[]
+    sites = PhaseSite[]
     for ((si, idxname), (m, n)) in counts
         (m > 0 && n > 0) && push!(sites, (si, idxname, m, n))
     end
     return sites
 end
 
-@inline function _expand_site!(
+@inline function expand_site!(
         current::Vector{OrderedTerm},
         m::Int, n::Int, K::CNum, α::Rational, remove::F,
     ) where {F}
-    Kα = _mul_cnum(K, _to_cnum(α))
+    Kα = mul_cnum(K, to_cnum(α))
     kmax = min(m, n)
     next = OrderedTerm[]
     sizehint!(next, length(current) * (kmax + 1))
     for t in current
         push!(next, OrderedTerm(t.prefactor, copy(t.ops)))
-        Kα_pow = _CNUM_ONE
+        Kα_pow = CNUM_ONE
         for k in 1:kmax
-            Kα_pow = _mul_cnum(Kα_pow, Kα)
+            Kα_pow = mul_cnum(Kα_pow, Kα)
             r = binomial(m, k) * binomial(n, k) * factorial(k)
-            coeff = _mul_cnum(_to_cnum(r), Kα_pow)
+            coeff = mul_cnum(to_cnum(r), Kα_pow)
             new_ops = remove(copy(t.ops), k)
-            push!(next, OrderedTerm(_mul_cnum(t.prefactor, coeff), new_ops))
+            push!(next, OrderedTerm(mul_cnum(t.prefactor, coeff), new_ops))
         end
     end
     return next
 end
 
-function _expand_fock_site!(current::Vector{OrderedTerm}, site::_FockSite, α::Rational)
+function expand_fock_site!(current::Vector{OrderedTerm}, site::FockSite, α::Rational)
     si, idxname, name, m, n = site
-    return _expand_site!(
-        current, m, n, _WEYL_K_FOCK, α,
-        (ops, k) -> _remove_fock_at!(ops, si, idxname, name, k),
+    return expand_site!(
+        current, m, n, WEYL_K_FOCK, α,
+        (ops, k) -> remove_fock_at!(ops, si, idxname, name, k),
     )
 end
 
-function _expand_phase_site!(current::Vector{OrderedTerm}, site::_PhaseSite, α::Rational)
+function expand_phase_site!(current::Vector{OrderedTerm}, site::PhaseSite, α::Rational)
     si, idxname, m, n = site
-    return _expand_site!(
-        current, m, n, _WEYL_K_PHASE, α,
-        (ops, k) -> _remove_phase_at!(ops, si, idxname, k),
+    return expand_site!(
+        current, m, n, WEYL_K_PHASE, α,
+        (ops, k) -> remove_phase_at!(ops, si, idxname, k),
     )
 end
 
-function _remove_fock_at!(
+function remove_fock_at!(
         ops::Vector{Op}, si::Int, idxname::Symbol, name::Symbol, k::Int,
     )
     creates = 0
@@ -234,7 +234,7 @@ function _remove_fock_at!(
     return ops
 end
 
-function _remove_phase_at!(
+function remove_phase_at!(
         ops::Vector{Op}, si::Int, idxname::Symbol, k::Int,
     )
     positions = 0

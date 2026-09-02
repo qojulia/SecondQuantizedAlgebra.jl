@@ -218,7 +218,7 @@ function qadjoint(v::SymbolicUtils.BasicSymbolic)
         f === conj && return args[1]
         # A phase conjugates by negating its argument, not by conjugating it, so the generic
         # rebuild below would produce `expim(conj(x))` and lose the cancellation.
-        f === expim && return _expim(-only(args))
+        f === expim && return expim_symbolic(-only(args))
         return TermInterface.maketerm(
             typeof(v), f, map(qadjoint, args), TermInterface.metadata(v),
         )
@@ -260,10 +260,10 @@ function inner_adjoint(v::SymbolicUtils.BasicSymbolic)
         # same iv. Re-lift the adjoint so time-dependence is preserved.
         op = SymbolicUtils.getmetadata(v, AverageOperator)
         iv = SymbolicUtils.arguments(v)[1]
-        return _lift_average(_average(adjoint(op)), iv)
+        return lift_average(average(adjoint(op)), iv)
     end
     if is_indexed_sum(v)
-        return _indexed_sum(inner_adjoint(_sum_body(v)), _sum_indices(v), _sum_ne(v))
+        return indexed_sum(inner_adjoint(sum_body(v)), sum_indices(v), sum_ne(v))
     end
     if SymbolicUtils.iscall(v)
         f = SymbolicUtils.operation(v)
@@ -271,12 +271,12 @@ function inner_adjoint(v::SymbolicUtils.BasicSymbolic)
         if f isa AvgFunc
             arg = args[1]
             inner = SymbolicUtils.isconst(arg) ? arg.val : arg
-            return _average(adjoint(inner))
+            return average_leaf(adjoint(inner))
         elseif f === conj
             return inner_adjoint(args[1])
         elseif f === expim
             # See `qadjoint`: negate the argument, do not conjugate it.
-            return _expim(-only(args))
+            return expim_symbolic(-only(args))
         else
             return TermInterface.maketerm(
                 typeof(v), f, map(inner_adjoint, args), TermInterface.metadata(v),
@@ -307,8 +307,8 @@ function Base.adjoint(o::Op)
     end
 end
 
-# Instance form used by `_full_op_key`; the enum value is the cross-type order.
-_type_order(o::Op) = Int(o.kind)
+# Instance form used by `full_op_key`; the enum value is the cross-type order.
+type_order(o::Op) = Int(o.kind)
 
 """
     order_key(op::Op) -> Tuple
@@ -318,7 +318,7 @@ reproducibly and ties two exactly when they are `isequal`. The leading
 `space_index` groups operators by subspace; `kind` orders across families within
 a subspace; the packed `l1..nlev` fields keep distinct levels/axes distinct.
 """
-order_key(o::Op) = (o.space_index, Int(o.kind), _name_rank(o.name_id), _index_key(o.index), Int(o.l1), Int(o.l2), Int(o.g), Int(o.nlev))
+order_key(o::Op) = (o.space_index, Int(o.kind), name_rank(o.name_id), index_key(o.index), Int(o.l1), Int(o.l2), Int(o.g), Int(o.nlev))
 
 Base.isless(a::Op, b::Op) = isless(order_key(a), order_key(b))
 
@@ -334,37 +334,37 @@ ladder(o::Op) = (o.kind === OP_DESTROY || o.kind === OP_MOMENTUM) ? 1 : 0
 
 # Operator hooks (single concrete methods branching on `kind`)
 
-# Kept next to `_site_compare` so the two cannot drift: that function skips the name
+# Kept next to `site_compare` so the two cannot drift: that function skips the name
 # comparison for a `Position`/`Momentum` cross-role pair, so this drops the name there too.
 site_key(o::Op) =
     (o.space_index, o.index, (is_position(o) || is_momentum(o)) ? Int32(0) : o.name_id)
 
 # Site family: Fock {Destroy,Create} and PhaseSpace {Position,Momentum} compare
 # cross-role within the family; the others are singleton families. Distinct
-# families fall back to the `kind` integer order (= the old `_type_order`).
-@inline _site_family(k::OpKind) =
+# families fall back to the `kind` integer order (= the old `type_order`).
+@inline site_family(k::OpKind) =
     (k === OP_DESTROY || k === OP_CREATE) ? 0x00 :
     (k === OP_POSITION || k === OP_MOMENTUM) ? 0x05 :
     UInt8(k)
 
-function _site_compare(a::Op, b::Op, ne::Vector{NonEqualPair})
+function site_compare(a::Op, b::Op, ne::Vector{NonEqualPair})
     ka = a.kind; kb = b.kind
     a.space_index == b.space_index || return a.space_index < b.space_index ? Less : Greater
-    fa = _site_family(ka)
-    fa === _site_family(kb) || return UInt8(ka) < UInt8(kb) ? Less : Greater
+    fa = site_family(ka)
+    fa === site_family(kb) || return UInt8(ka) < UInt8(kb) ? Less : Greater
     # PhaseSpace x-vs-p ignores name (conjugate variables on one site); every
     # other same-family pair distinguishes by name.
     if !(fa === 0x05 && ka !== kb)
-        a.name_id == b.name_id || return _name_rank(a.name_id) < _name_rank(b.name_id) ? Less : Greater
+        a.name_id == b.name_id || return name_rank(a.name_id) < name_rank(b.name_id) ? Less : Greater
     end
     a.index == b.index && return Equal
     # PhaseSpace never consults `ne`; Fock/Transition/Pauli/Spin do.
     fa === 0x05 && return Undetermined
-    _ne_contains(ne, a.index, b.index) && return a.index < b.index ? Less : Greater
+    ne_contains(ne, a.index, b.index) && return a.index < b.index ? Less : Greater
     return Undetermined
 end
 
-function _can_commute(a::Op, b::Op)
+function can_commute(a::Op, b::Op)
     ka = a.kind; kb = b.kind
     if ka === OP_DESTROY && kb === OP_CREATE
         return false                 # a·a† carries the identity residual
@@ -384,67 +384,67 @@ function _can_commute(a::Op, b::Op)
     end
 end
 
-# `_commute_pair` returns the swapped pair followed by two residual
+# `commute_pair` returns the swapped pair followed by two residual
 # `(coefficient, operators)` slots. Existing roles use only the first slot.
-function _commute_pair(a::Op, b::Op)
+function commute_pair(a::Op, b::Op)
     ka = a.kind; kb = b.kind
     if ka === OP_DESTROY && kb === OP_CREATE
-        return (b, a, _CNUM_ONE, _EMPTY_OPS, _CNUM_ZERO, _EMPTY_OPS) # aa† = a†a + 1
+        return (b, a, CNUM_ONE, EMPTY_OPS, CNUM_ZERO, EMPTY_OPS) # aa† = a†a + 1
     elseif ka === OP_MOMENTUM && kb === OP_POSITION
-        return (b, a, _to_cnum(-im), _EMPTY_OPS, _CNUM_ZERO, _EMPTY_OPS) # P·X = X·P - i·I
+        return (b, a, to_cnum(-im), EMPTY_OPS, CNUM_ZERO, EMPTY_OPS) # P·X = X·P - i·I
     elseif ka === OP_SPIN && kb === OP_SPIN
         # [Sj, Sk] = iϵⱼₖₗSl; the residual is the contracted spin on the third axis.
-        eps = _levi_civita[a.l1][b.l1]
+        eps = levi_civita[a.l1][b.l1]
         contracted = Op(OP_SPIN, a.name_id, a.space_index, a.index, 6 - a.l1 - b.l1, 0, 0, 0)
-        return (b, a, _mul_cnum(_to_cnum(im * eps), _CNUM_ONE), Op[contracted], _CNUM_ZERO, _EMPTY_OPS)
+        return (b, a, mul_cnum(to_cnum(im * eps), CNUM_ONE), Op[contracted], CNUM_ZERO, EMPTY_OPS)
     elseif ka === OP_COLLECTIVE_TRANSITION && kb === OP_COLLECTIVE_TRANSITION
         # [Sⁱʲ,Sᵏˡ] = δⱼₖSⁱˡ - δₗᵢSᵏʲ.
-        c1 = a.l2 == b.l1 ? _CNUM_ONE : _CNUM_ZERO
-        c2 = b.l2 == a.l1 ? _CNUM_NEG1 : _CNUM_ZERO
-        r1 = _iszero_cnum(c1) ? _EMPTY_OPS : Op[Op(ka, a.name_id, a.space_index, NO_INDEX, a.l1, b.l2, 0, 0)]
-        r2 = _iszero_cnum(c2) ? _EMPTY_OPS : Op[Op(ka, a.name_id, a.space_index, NO_INDEX, b.l1, a.l2, 0, 0)]
+        c1 = a.l2 == b.l1 ? CNUM_ONE : CNUM_ZERO
+        c2 = b.l2 == a.l1 ? CNUM_NEG1 : CNUM_ZERO
+        r1 = iszero_cnum(c1) ? EMPTY_OPS : Op[Op(ka, a.name_id, a.space_index, NO_INDEX, a.l1, b.l2, 0, 0)]
+        r2 = iszero_cnum(c2) ? EMPTY_OPS : Op[Op(ka, a.name_id, a.space_index, NO_INDEX, b.l1, a.l2, 0, 0)]
         return (b, a, c1, r1, c2, r2)
     else
-        return (b, a, _CNUM_ZERO, _EMPTY_OPS, _CNUM_ZERO, _EMPTY_OPS)
+        return (b, a, CNUM_ZERO, EMPTY_OPS, CNUM_ZERO, EMPTY_OPS)
     end
 end
 
 # Reduce-pass gate: only Transition·Transition and Pauli·Pauli compose locally,
 # so non-reducing pairs skip the field checks below.
-_may_reduce(a::Op, b::Op) =
+may_reduce(a::Op, b::Op) =
     (a.kind === OP_TRANSITION && b.kind === OP_TRANSITION) ||
     (a.kind === OP_PAULI && b.kind === OP_PAULI)
 
-function _reduce_pair(a::Op, b::Op)
+function reduce_pair(a::Op, b::Op)
     ka = a.kind
     if ka === OP_TRANSITION && b.kind === OP_TRANSITION
         # σⁱʲ · σᵏˡ = δⱼₖ σⁱˡ.
         (a.name_id == b.name_id && a.space_index == b.space_index && a.index == b.index) ||
-            return (NoReduction, a, _CNUM_ZERO)
+            return (NoReduction, a, CNUM_ZERO)
         if a.l2 == b.l1
             new = Op(OP_TRANSITION, a.name_id, a.space_index, a.index, a.l1, b.l2, a.g, a.nlev)
-            return (OpReduction, new, _CNUM_ONE)
+            return (OpReduction, new, CNUM_ONE)
         else
-            return (ScalarReduction, a, _CNUM_ZERO)    # δ_{j,k} = 0
+            return (ScalarReduction, a, CNUM_ZERO)    # δ_{j,k} = 0
         end
     elseif ka === OP_PAULI && b.kind === OP_PAULI
         # σⱼ·σₖ = δⱼₖI + iϵⱼₖₗσₗ.
         (a.name_id == b.name_id && a.space_index == b.space_index && a.index == b.index) ||
-            return (NoReduction, a, _CNUM_ZERO)
+            return (NoReduction, a, CNUM_ZERO)
         if a.l1 == b.l1
-            return (ScalarReduction, a, _CNUM_ONE)     # σⱼ² = 1
+            return (ScalarReduction, a, CNUM_ONE)     # σⱼ² = 1
         else
-            eps = _levi_civita[a.l1][b.l1]
+            eps = levi_civita[a.l1][b.l1]
             new = Op(OP_PAULI, a.name_id, a.space_index, a.index, 6 - a.l1 - b.l1, 0, 0, 0)
-            return (OpReduction, new, _mul_cnum(_to_cnum(im * eps), _CNUM_ONE))
+            return (OpReduction, new, mul_cnum(to_cnum(im * eps), CNUM_ONE))
         end
     else
-        return (NoReduction, a, _CNUM_ZERO)
+        return (NoReduction, a, CNUM_ZERO)
     end
 end
 
 # Ground-state expansion: σᵍᵍ -> 1 - Σ_{k≠g} σᵏᵏ (Transition only).
-function _ground_state_expand(op::Op)
+function ground_state_expand(op::Op)
     op.kind === OP_TRANSITION || return (false, 0, 0, 0)
     (op.l1 == op.g && op.l2 == op.g) || return (false, 0, 0, 0)
     return (true, Int(op.g), Int(op.nlev), Int(op.space_index))

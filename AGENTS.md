@@ -161,6 +161,7 @@ Before merging any PR:
 ### Imports and style
 
 - **No `using X` without explicit imports.** Use `using X: func1, func2` or `import X`. ExplicitImports.jl enforces this.
+- **Use ordinary names for all files and bindings.** Do not create underscore-prefixed filenames, functions, or other bindings; Julia's module system handles visibility.
 - **Format with Runic.** Run `make format` before committing.
 
 ### Documentation and comments

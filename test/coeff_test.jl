@@ -2,13 +2,13 @@ using Test
 using SecondQuantizedAlgebra
 using Symbolics: Symbolics, @variables, Num
 using SymbolicUtils: SymbolicUtils
-import SecondQuantizedAlgebra: Coeff, CNum, Monomial, Poly, _to_cnum, _to_complex, to_num,
-    _is_native, _is_poly, _is_symbolic_cnum, _conj_cnum, _mul_cnum, _add_cnum, _neg_cnum,
-    _iszero_cnum, _CNUM_ONE, _CNUM_ZERO, _CNUM_NEG1, _CNUM_IM, _NUM_ZERO, expim,
-    _phase_coeff, _is_phase, exponential_form, trigonometric_form, phase_terms, _from_raw,
-    _CNUM_HALF, _cnum_sym, _raw_parts
+import SecondQuantizedAlgebra: Coeff, CNum, Monomial, Poly, to_cnum, to_complex, to_num,
+    is_native, is_poly, is_symbolic_cnum, conj_cnum, mul_cnum, add_cnum, neg_cnum,
+    iszero_cnum, CNUM_ONE, CNUM_ZERO, CNUM_NEG1, CNUM_IM, NUM_ZERO, expim,
+    phase_coeff, is_phase, exponential_form, trigonometric_form, phase_terms, from_raw,
+    CNUM_HALF, cnum_sym, raw_parts
 
-function _phase_allocations(f)
+function phase_allocations(f)
     f()
     return @allocations f()
 end
@@ -21,59 +21,59 @@ end
 @testset "Coeff" begin
     @testset "native classification" begin
         for x in (0, 1, -1, 2, 1.5, 0.7, im, -im, 2 + 3im)
-            @test _is_native(_to_cnum(x))
+            @test is_native(to_cnum(x))
         end
-        @test !_is_native(_to_cnum(1 // 2))
-        @test !_is_native(_to_cnum(-3 // 4))
+        @test !is_native(to_cnum(1 // 2))
+        @test !is_native(to_cnum(-3 // 4))
         @test CNum === Coeff
     end
 
     @testset "exact rational coefficients avoid Float64" begin
         # Every rational literal stays exact, including ones that happen to round-trip
         # through Float64 without loss.
-        @test _is_poly(_to_cnum(1 // 4))
-        @test isequal(to_num(_to_cnum(1 // 4)), Complex(Num(1 // 4), Num(0)))
-        exact_complex = _to_cnum(Complex(1 // 4, 1 // 2))
-        @test _is_poly(exact_complex)
+        @test is_poly(to_cnum(1 // 4))
+        @test isequal(to_num(to_cnum(1 // 4)), Complex(Num(1 // 4), Num(0)))
+        exact_complex = to_cnum(Complex(1 // 4, 1 // 2))
+        @test is_poly(exact_complex)
         @test isequal(to_num(exact_complex), Complex(Num(1 // 4), Num(1 // 2)))
-        @test _is_native(_to_cnum(0.25))
-        @test _to_complex(_to_cnum(1 // 4)) === ComplexF64(0.25)
+        @test is_native(to_cnum(0.25))
+        @test to_complex(to_cnum(1 // 4)) === ComplexF64(0.25)
         # A rational coefficient remains exact when multiplied by a symbolic parameter.
         @variables r
-        @test _is_poly(_to_cnum((1 // 4) * r))
-        @test occursin("1//4", string(to_num(_to_cnum((1 // 4) * r))))
-        @test occursin("1//2", string(to_num(_to_cnum(r / 2))))
+        @test is_poly(to_cnum((1 // 4) * r))
+        @test occursin("1//4", string(to_num(to_cnum((1 // 4) * r))))
+        @test occursin("1//2", string(to_num(to_cnum(r / 2))))
     end
 
     @testset "exactness gate keeps large values symbolic" begin
         # 1//3 remains exact as well.
-        @test !_is_native(_to_cnum(1 // 3))
+        @test !is_native(to_cnum(1 // 3))
         # An exactly integral Gaussian rational still needs a round-trip check: Int-sized
         # values above 2^53 are not all exactly representable by ComplexF64.
         large_exact = Complex((2^53 + 1) // 1, 0 // 1)
-        large_coeff = _to_cnum(large_exact)
-        @test !_is_native(large_coeff)
+        large_coeff = to_cnum(large_exact)
+        @test !is_native(large_coeff)
         @test isequal(to_num(large_coeff), Complex(Num(2^53 + 1), Num(0)))
         # 2^70 + 1 exceeds Float64 precision (does not round-trip), so it stays symbolic;
         # an exactly representable bignum (e.g. 2^70) would correctly go native.
-        @test !_is_native(_to_cnum(big(2)^70 + 1))
-        @test _is_native(_to_cnum(big(2)^70))
+        @test !is_native(to_cnum(big(2)^70 + 1))
+        @test is_native(to_cnum(big(2)^70))
         # round-trip is still numerically faithful
-        @test _to_complex(_to_cnum(1 // 3)) ≈ 1 / 3
+        @test to_complex(to_cnum(1 // 3)) ≈ 1 / 3
     end
 
     @testset "raw numeric constants fold back to native" begin
         raw_const = SymbolicUtils.term(
             complex, 3, 0; type = Complex{Real}, shape = UnitRange{Int}[],
         )
-        folded = _from_raw(raw_const)
-        @test _is_native(folded)
+        folded = from_raw(raw_const)
+        @test is_native(folded)
         @test to_num(folded) == Complex(Num(3), Num(0))
     end
 
     @testset "raw Number atoms retain complex projections" begin
         @variables z::Number
-        raw_atom = _from_raw(z; normalize = false)
+        raw_atom = from_raw(z; normalize = false)
         @test SymbolicUtils._iszero(real(raw_atom) - real(z))
         @test SymbolicUtils._iszero(imag(raw_atom) - imag(z))
         materialized = to_num(raw_atom)
@@ -82,69 +82,69 @@ end
     end
 
     @testset "internal half stays on the native fast path" begin
-        @test _is_native(_CNUM_HALF)
+        @test is_native(CNUM_HALF)
     end
 
     @testset "symbolic fallback" begin
         @variables g
-        c = _to_cnum(Complex(Num(g), _NUM_ZERO))
-        @test !_is_native(c)
-        @test isequal(to_num(c), Complex(Num(g), _NUM_ZERO))
+        c = to_cnum(Complex(Num(g), NUM_ZERO))
+        @test !is_native(c)
+        @test isequal(to_num(c), Complex(Num(g), NUM_ZERO))
         # a symbolic expression that folds to a number lands back on the native path
-        @test _is_native(_to_cnum(Num(g) - Num(g) + 4))
+        @test is_native(to_cnum(Num(g) - Num(g) + 4))
     end
 
     @testset "to_num round-trip and integer display" begin
-        @test isequal(to_num(_to_cnum(2)), Complex(Num(2), Num(0)))
-        @test isequal(to_num(_to_cnum(2)), Complex(Num(2), Num(0)))   # integer, not 2.0
-        @test string(real(to_num(_to_cnum(2)))) == "2"
-        @test string(real(to_num(_to_cnum(0.7)))) == "0.7"
-        @test isequal(to_num(_to_cnum(2 + 3im)), Complex(Num(2), Num(3)))
+        @test isequal(to_num(to_cnum(2)), Complex(Num(2), Num(0)))
+        @test isequal(to_num(to_cnum(2)), Complex(Num(2), Num(0)))   # integer, not 2.0
+        @test string(real(to_num(to_cnum(2)))) == "2"
+        @test string(real(to_num(to_cnum(0.7)))) == "0.7"
+        @test isequal(to_num(to_cnum(2 + 3im)), Complex(Num(2), Num(3)))
     end
 
-    @testset "_to_complex matches the value" begin
-        @test _to_complex(_to_cnum(2)) === ComplexF64(2)
-        @test _to_complex(_to_cnum(2 + 3im)) === ComplexF64(2, 3)
-        @test _to_complex(_CNUM_ZERO) === ComplexF64(0)
+    @testset "to_complex matches the value" begin
+        @test to_complex(to_cnum(2)) === ComplexF64(2)
+        @test to_complex(to_cnum(2 + 3im)) === ComplexF64(2, 3)
+        @test to_complex(CNUM_ZERO) === ComplexF64(0)
     end
 
     @testset "conjugation and signed-zero normalization" begin
         # conj(2) produces a -0.0 imaginary part; it must normalize so structurally
         # equal coefficients stay isequal AND hash identically (dict correctness).
-        c = _to_cnum(2)
-        @test isequal(_conj_cnum(c), c)
-        @test hash(_conj_cnum(c)) == hash(c)
-        @test isequal(_neg_cnum(_neg_cnum(c)), c)
-        @test hash(_neg_cnum(_neg_cnum(c))) == hash(c)
+        c = to_cnum(2)
+        @test isequal(conj_cnum(c), c)
+        @test hash(conj_cnum(c)) == hash(c)
+        @test isequal(neg_cnum(neg_cnum(c)), c)
+        @test hash(neg_cnum(neg_cnum(c))) == hash(c)
         # complex conjugation flips the sign of the imaginary part
-        @test isequal(_conj_cnum(_to_cnum(2 + 3im)), _to_cnum(2 - 3im))
+        @test isequal(conj_cnum(to_cnum(2 + 3im)), to_cnum(2 - 3im))
     end
 
     @testset "native arithmetic stays native and exact" begin
-        @test _is_native(_mul_cnum(_to_cnum(2), _to_cnum(3)))
-        @test _mul_cnum(_to_cnum(2), _to_cnum(3)) == 6
-        @test _add_cnum(_to_cnum(2), _to_cnum(3)) == 5
-        @test _mul_cnum(_CNUM_IM, _CNUM_IM) == -1
-        @test _iszero_cnum(_add_cnum(_to_cnum(2), _neg_cnum(_to_cnum(2))))
+        @test is_native(mul_cnum(to_cnum(2), to_cnum(3)))
+        @test mul_cnum(to_cnum(2), to_cnum(3)) == 6
+        @test add_cnum(to_cnum(2), to_cnum(3)) == 5
+        @test mul_cnum(CNUM_IM, CNUM_IM) == -1
+        @test iszero_cnum(add_cnum(to_cnum(2), neg_cnum(to_cnum(2))))
     end
 
     @testset "mixed comparison with Number / Complex{Num}" begin
-        @test _to_cnum(2) == 2
-        @test 2 == _to_cnum(2)
-        @test _to_cnum(2) == 2 + 0im
-        @test _to_cnum(2) == Complex(Num(2), Num(0))
-        @test isequal(_to_cnum(2), 2)
-        @test !(_to_cnum(2) == 3)
+        @test to_cnum(2) == 2
+        @test 2 == to_cnum(2)
+        @test to_cnum(2) == 2 + 0im
+        @test to_cnum(2) == Complex(Num(2), Num(0))
+        @test isequal(to_cnum(2), 2)
+        @test !(to_cnum(2) == 3)
     end
 
     @testset "scalar arithmetic operators on Coeff" begin
-        @test _to_cnum(2) + _to_cnum(3) == 5
-        @test _to_cnum(2) + 3 == 5
-        @test 3 + _to_cnum(2) == 5
-        @test _to_cnum(5) - 2 == 3
-        @test -_to_cnum(2) == -2
-        @test _to_cnum(2) * 3 == 6
-        @test _to_cnum(6) / 2 == 3
+        @test to_cnum(2) + to_cnum(3) == 5
+        @test to_cnum(2) + 3 == 5
+        @test 3 + to_cnum(2) == 5
+        @test to_cnum(5) - 2 == 3
+        @test -to_cnum(2) == -2
+        @test to_cnum(2) * 3 == 6
+        @test to_cnum(6) / 2 == 3
     end
 
     @testset "QAdd equality is canonical across construction paths" begin
@@ -168,163 +168,163 @@ end
         @testset "recognition" begin
             # single monomials, sums, powers, and quotients all land on the native Poly path
             for x in (g, ω * g, 2 * ω * g, 0.5g, g^3, g / κ, im * g, ω + g, (g + κ)^2)
-                @test _is_poly(_to_cnum(x))
+                @test is_poly(to_cnum(x))
             end
             # an irreducible one-argument call on an atom (`exp`, `sin`,
             # `real`/`imag` of a complex parameter, ...) is kept native as an opaque
             # Poly atom rather than escalating the whole coefficient to the symbolic path
             for x in (exp(g), sin(g), real(gc), imag(gc), conj(gc))
-                @test _is_poly(_to_cnum(x))
+                @test is_poly(to_cnum(x))
             end
             # a radical of a single atom is a Poly with a *rational* exponent
             # (`sqrt(g) = g^(1//2)`), so radicals canonicalize on the fast path too
             for x in (sqrt(g), cbrt(g), g^(1 // 2), g^(3 // 2), g^(-1 // 2), sqrt(sqrt(g)))
-                @test _is_poly(_to_cnum(x))
+                @test is_poly(to_cnum(x))
             end
             # genuinely non-atomic expressions stay on the symbolic (Complex{Num}) path:
             # a non-atom argument, a radical of a product, a float exponent (only exact
             # `Rational` exponents fold), or a division by a sum
             for x in (exp(g + κ), sin(g * κ), sqrt(g * κ), (g + κ)^(1 // 2), g^0.5, 1 / (g + κ))
-                @test _is_symbolic_cnum(_to_cnum(x))
-                @test !_is_poly(_to_cnum(x))
+                @test is_symbolic_cnum(to_cnum(x))
+                @test !is_poly(to_cnum(x))
             end
             # Exact rational scalars remain on the polynomial path.
-            @test !_is_native(_to_cnum((1 // 3) * g))
-            @test _is_poly(_to_cnum((1 // 3) * g))
+            @test !is_native(to_cnum((1 // 3) * g))
+            @test is_poly(to_cnum((1 // 3) * g))
         end
 
         @testset "materialization round-trip" begin
-            @test isequal(to_num(_to_cnum(2 * ω * g)), Complex(Num(2 * ω * g), Num(0)))
-            @test isequal(to_num(_to_cnum(g^3)), Complex(Num(g^3), Num(0)))
-            @test isequal(to_num(_to_cnum(im * g)), Complex(Num(0), Num(g)))
-            @test isequal(to_num(_to_cnum((1 // 3) * g)), Complex(Num((1 // 3) * g), Num(0)))
+            @test isequal(to_num(to_cnum(2 * ω * g)), Complex(Num(2 * ω * g), Num(0)))
+            @test isequal(to_num(to_cnum(g^3)), Complex(Num(g^3), Num(0)))
+            @test isequal(to_num(to_cnum(im * g)), Complex(Num(0), Num(g)))
+            @test isequal(to_num(to_cnum((1 // 3) * g)), Complex(Num((1 // 3) * g), Num(0)))
 
             # Number-symtype atoms occupy the real coefficient slot even when mixed
             # arithmetic sends the coefficient through the raw symbolic tier.
-            @test isequal(real(_to_cnum(gc)), gc)
-            @test iszero(imag(_to_cnum(gc)))
-            mixed = _to_cnum(gc) / _to_cnum(sqrt(g * κ))
+            @test isequal(real(to_cnum(gc)), gc)
+            @test iszero(imag(to_cnum(gc)))
+            mixed = to_cnum(gc) / to_cnum(sqrt(g * κ))
             @test isequal(to_num(mixed), Complex(Num(gc / sqrt(g * κ)), Num(0)))
 
             # `Symbolics.IM` is the actual imaginary unit, not a Number-symtype
             # coefficient slot. It must take the native path before generic atoms.
-            symbolic_im = _to_cnum(Symbolics.IM)
-            @test isequal(symbolic_im, _CNUM_IM)
+            symbolic_im = to_cnum(Symbolics.IM)
+            @test isequal(symbolic_im, CNUM_IM)
             @test iszero(real(symbolic_im))
             @test isequal(imag(symbolic_im), Num(1))
         end
 
         @testset "multiply merges factors, no CAS" begin
-            p = _mul_cnum(_to_cnum(ω * g), _to_cnum(ω * κ))   # -> ω^2 g κ
-            @test _is_poly(p)
+            p = mul_cnum(to_cnum(ω * g), to_cnum(ω * κ))   # -> ω^2 g κ
+            @test is_poly(p)
             @test isequal(to_num(p), Complex(Num(ω^2 * g * κ), Num(0)))
             # scalars combine; (2g)(3κ) = 6 g κ
-            @test isequal(to_num(_mul_cnum(_to_cnum(2g), _to_cnum(3κ))), Complex(Num(6 * g * κ), Num(0)))
+            @test isequal(to_num(mul_cnum(to_cnum(2g), to_cnum(3κ))), Complex(Num(6 * g * κ), Num(0)))
             # factors that cancel collapse back to native
-            @test _is_native(_mul_cnum(_to_cnum(g), _to_cnum(1 / g)))
+            @test is_native(mul_cnum(to_cnum(g), to_cnum(1 / g)))
         end
 
         @testset "add stays a native Poly (no CAS escalation)" begin
             # same factor set: scalars add, one term
-            s = _add_cnum(_to_cnum(2g), _to_cnum(3g))
-            @test _is_poly(s) && isequal(to_num(s), Complex(Num(5g), Num(0)))
+            s = add_cnum(to_cnum(2g), to_cnum(3g))
+            @test is_poly(s) && isequal(to_num(s), Complex(Num(5g), Num(0)))
             # different factor sets: two-term Poly, still native (this is the Design C win)
-            d = _add_cnum(_to_cnum(g), _to_cnum(κ))
-            @test _is_poly(d) && isequal(to_num(d), Complex(Num(g + κ), Num(0)))
+            d = add_cnum(to_cnum(g), to_cnum(κ))
+            @test is_poly(d) && isequal(to_num(d), Complex(Num(g + κ), Num(0)))
         end
 
-        @testset "wide sums fold in one pass (batched _rec_sum)" begin
+        @testset "wide sums fold in one pass (batched rec_sum)" begin
             @variables p[1:6]
             pv = [SecondQuantizedAlgebra.SymbolicUtils.unwrap(Num(p[k])) for k in 1:6]
             pairwise(terms) = foldl(
-                (c, a) -> _add_cnum(c, _to_cnum(a)), terms; init = _CNUM_ZERO,
+                (c, a) -> add_cnum(c, to_cnum(a)), terms; init = CNUM_ZERO,
             )
 
             # distinct monomials: a 6-term Poly, matching the pairwise fold exactly
             distinct = [Num(k) * p[k] for k in 1:6]
-            cd = _to_cnum(sum(distinct))
-            @test _is_poly(cd) && length(cd.tail.terms) == 6
+            cd = to_cnum(sum(distinct))
+            @test is_poly(cd) && length(cd.tail.terms) == 6
             @test isequal(cd, pairwise(distinct))
 
             # repeated factor sets coalesce: 1·g + 2·g + 3·g -> 6g (one term)
-            cc = _to_cnum(g + 2g + 3g)
-            @test _is_poly(cc) && length(cc.tail.terms) == 1
+            cc = to_cnum(g + 2g + 3g)
+            @test is_poly(cc) && length(cc.tail.terms) == 1
             @test isequal(to_num(cc), Complex(Num(6g), Num(0)))
 
             # native + poly mixed in one sum: constants collapse to a single term
-            cm = _to_cnum(2 + g + 3 + κ)
+            cm = to_cnum(2 + g + 3 + κ)
             @test isequal(to_num(cm), Complex(Num(5 + g + κ), Num(0)))
 
             # full cancellation across many terms -> exact zero
-            @test _iszero_cnum(_to_cnum(g + κ - g - κ))
+            @test iszero_cnum(to_cnum(g + κ - g - κ))
 
             # a sym-leaf term (irreducible call) drops to the fallback add and the
             # polynomial part still coalesces around it
-            cs = _to_cnum(g + sin(ω) + g)
+            cs = to_cnum(g + sin(ω) + g)
             @test isequal(to_num(cs), Complex(Num(2g + sin(ω)), Num(0)))
         end
 
-        @testset "wide products fold in one pass (batched _rec_prod)" begin
+        @testset "wide products fold in one pass (batched rec_prod)" begin
             # A `*`-headed coefficient of single-monomial factors collapses to one
             # monomial; the factor lists merge in a single pass, not pairwise.
-            # Result must be byte-identical to the pairwise `_mul_cnum` fold.
+            # Result must be byte-identical to the pairwise `mul_cnum` fold.
             @variables r[1:6]
             pairwise(fs) = foldl(
-                (c, a) -> _mul_cnum(c, _to_cnum(a)), fs; init = _CNUM_ONE,
+                (c, a) -> mul_cnum(c, to_cnum(a)), fs; init = CNUM_ONE,
             )
 
             # distinct atoms: one monomial with 6 factors, matching the pairwise fold
             facs = [Num(r[k]) for k in 1:6]
-            cp = _to_cnum(prod(facs))
-            @test _is_poly(cp) && length(cp.tail.terms) == 1
+            cp = to_cnum(prod(facs))
+            @test is_poly(cp) && length(cp.tail.terms) == 1
             @test length(cp.tail.terms[1].syms) == 6
             @test isequal(cp, pairwise(facs))
 
             # scalars multiply, exponents accumulate across repeated factors
-            ce = _to_cnum(2g * 3g * κ)            # 6 g^2 κ
+            ce = to_cnum(2g * 3g * κ)            # 6 g^2 κ
             @test isequal(to_num(ce), Complex(Num(6 * g^2 * κ), Num(0)))
 
             # a single-monomial part times a multi-term factor distributes (intrinsic)
-            cdist = _to_cnum(g * κ * (g + κ))
+            cdist = to_cnum(g * κ * (g + κ))
             @test isequal(to_num(cdist), Complex(Num(g^2 * κ + g * κ^2), Num(0)))
 
             # factor cancellation drops the atom entirely
-            @test isequal(to_num(_to_cnum(g * κ / g)), Complex(Num(κ), Num(0)))
+            @test isequal(to_num(to_cnum(g * κ / g)), Complex(Num(κ), Num(0)))
 
             # a zero factor collapses the whole product to native zero
-            @test _iszero_cnum(_to_cnum(g * κ * 0 * ω))
+            @test iszero_cnum(to_cnum(g * κ * 0 * ω))
 
             # a sym-leaf factor drops to the fallback multiply; atoms still merge
-            csl = _to_cnum(g * exp(κ) * g)
+            csl = to_cnum(g * exp(κ) * g)
             @test isequal(to_num(csl), Complex(Num(g^2 * exp(κ)), Num(0)))
         end
 
         @testset "(sum)^n is stored in canonical expanded form" begin
             # the package-wide 'always expand' invariant extends to polynomial coefficients
-            c = _to_cnum((g + κ)^2)
-            @test _is_poly(c)
+            c = to_cnum((g + κ)^2)
+            @test is_poly(c)
             @test isequal(to_num(c), Complex(Num(g^2 + 2 * g * κ + κ^2), Num(0)))
         end
 
         @testset "conjugation" begin
             # real parameters: conj is identity
-            @test isequal(to_num(_conj_cnum(_to_cnum(ω * g))), Complex(Num(ω * g), Num(0)))
+            @test isequal(to_num(conj_cnum(to_cnum(ω * g))), Complex(Num(ω * g), Num(0)))
             # complex-symtype parameter: conj reaches the factor
-            @test isequal(to_num(_conj_cnum(_to_cnum(gc))), Complex(Num(conj(gc)), Num(0)))
-            @test isequal(to_num(_conj_cnum(_to_cnum(im * g))), Complex(Num(0), Num(-g)))
+            @test isequal(to_num(conj_cnum(to_cnum(gc))), Complex(Num(conj(gc)), Num(0)))
+            @test isequal(to_num(conj_cnum(to_cnum(im * g))), Complex(Num(0), Num(-g)))
         end
 
         @testset "conjugation involution folds (regression #7cc3ad7)" begin
             # `conj` is an involution: conjugating twice must return the original
             # factor, not nest a `conj(conj(x))` that never folds and survives
             # downstream.
-            c = _to_cnum(gc)
-            @test isequal(_conj_cnum(_conj_cnum(c)), c)
-            @test isequal(to_num(_conj_cnum(_conj_cnum(c))), Complex(Num(gc), Num(0)))
-            @test hash(_conj_cnum(_conj_cnum(c))) == hash(c)
+            c = to_cnum(gc)
+            @test isequal(conj_cnum(conj_cnum(c)), c)
+            @test isequal(to_num(conj_cnum(conj_cnum(c))), Complex(Num(gc), Num(0)))
+            @test hash(conj_cnum(conj_cnum(c))) == hash(c)
             # double-conjugating a scaled complex factor also returns the original
-            cs = _to_cnum(g * gc)
-            @test isequal(_conj_cnum(_conj_cnum(cs)), cs)
+            cs = to_cnum(g * gc)
+            @test isequal(conj_cnum(conj_cnum(cs)), cs)
         end
 
         @testset "complex parameters and irreducible couplings stay native" begin
@@ -332,45 +332,45 @@ end
             # real/imag parts are recognized atoms, so the parameter stays on the Poly
             # path instead of poisoning downstream arithmetic with a Complex{Num} tail.
             @variables gv::Complex γ::Real
-            @test _is_poly(_to_cnum(gv))
-            @test _is_poly(_to_cnum(√(γ) * gv))
+            @test is_poly(to_cnum(gv))
+            @test is_poly(to_cnum(√(γ) * gv))
             # conjugation is native and faithful: real γ is self-conjugate, the complex
             # parameter's imaginary part flips sign.
-            @test isequal(to_num(_conj_cnum(_to_cnum(gv))), conj(gv))
-            @test isequal(to_num(_conj_cnum(_to_cnum(√(γ) * gv))), conj(√(γ) * gv))
+            @test isequal(to_num(conj_cnum(to_cnum(gv))), conj(gv))
+            @test isequal(to_num(conj_cnum(to_cnum(√(γ) * gv))), conj(√(γ) * gv))
         end
 
         @testset "radicals canonicalize via rational exponents" begin
             @variables gv::Complex γ::Real
             # squaring a radical folds to its radicand, matching Symbolics' `sqrt(g)^2 -> g`
-            @test isequal(_mul_cnum(_to_cnum(sqrt(g)), _to_cnum(sqrt(g))), _to_cnum(g))
-            @test isequal(_to_cnum(sqrt(g)^2), _to_cnum(g))
-            @test hash(_to_cnum(sqrt(g)^2)) == hash(_to_cnum(g))
-            three = _mul_cnum(_mul_cnum(_to_cnum(sqrt(g)), _to_cnum(sqrt(g))), _to_cnum(sqrt(g)))
-            @test isequal(three, _to_cnum(g * sqrt(g)))
-            @test isequal(three, _to_cnum(g^(3 // 2)))
-            @test isequal(_mul_cnum(_to_cnum(sqrt(γ)), _to_cnum(γ)), _to_cnum(γ^(3 // 2)))
-            @test isequal(_to_cnum(sqrt(sqrt(g))), _to_cnum(g^(1 // 4)))
+            @test isequal(mul_cnum(to_cnum(sqrt(g)), to_cnum(sqrt(g))), to_cnum(g))
+            @test isequal(to_cnum(sqrt(g)^2), to_cnum(g))
+            @test hash(to_cnum(sqrt(g)^2)) == hash(to_cnum(g))
+            three = mul_cnum(mul_cnum(to_cnum(sqrt(g)), to_cnum(sqrt(g))), to_cnum(sqrt(g)))
+            @test isequal(three, to_cnum(g * sqrt(g)))
+            @test isequal(three, to_cnum(g^(3 // 2)))
+            @test isequal(mul_cnum(to_cnum(sqrt(γ)), to_cnum(γ)), to_cnum(γ^(3 // 2)))
+            @test isequal(to_cnum(sqrt(sqrt(g))), to_cnum(g^(1 // 4)))
             # sqrt(g) and g^(1//2) are the same coefficient
-            @test isequal(_to_cnum(sqrt(g)), _to_cnum(g^(1 // 2)))
-            for c in (_to_cnum(sqrt(g)), _to_cnum(γ^(3 // 2)), _to_cnum(g^(1 // 4)))
-                @test isequal(_to_cnum(to_num(c)), c)   # materialization round-trips
+            @test isequal(to_cnum(sqrt(g)), to_cnum(g^(1 // 2)))
+            for c in (to_cnum(sqrt(g)), to_cnum(γ^(3 // 2)), to_cnum(g^(1 // 4)))
+                @test isequal(to_cnum(to_num(c)), c)   # materialization round-trips
             end
-            @test isequal(to_num(_conj_cnum(_to_cnum(√(γ) * gv))), conj(√(γ) * gv))
+            @test isequal(to_num(conj_cnum(to_cnum(√(γ) * gv))), conj(√(γ) * gv))
             # radical of a product / scaled atom is not distributed: symbolic leaf
-            @test _is_symbolic_cnum(_to_cnum(sqrt(g * κ)))
-            @test _is_symbolic_cnum(_to_cnum((2g)^(1 // 2)))
+            @test is_symbolic_cnum(to_cnum(sqrt(g * κ)))
+            @test is_symbolic_cnum(to_cnum((2g)^(1 // 2)))
             for e in (-1 // 2, -3 // 2)   # negative fractional exps use the divide branch
-                c = _to_cnum(g^e)
-                @test _is_poly(c) && isequal(_to_cnum(to_num(c)), c)
+                c = to_cnum(g^e)
+                @test is_poly(c) && isequal(to_cnum(to_num(c)), c)
             end
-            @test isequal(_mul_cnum(_to_cnum(sqrt(g)), _to_cnum(1 / g)), _to_cnum(g^(-1 // 2)))
-            @test _is_native(_to_cnum(Num(4)^(1 // 2)))   # numeric base stays native
-            @test to_num(_to_cnum(Num(4)^(1 // 2))) == 2
+            @test isequal(mul_cnum(to_cnum(sqrt(g)), to_cnum(1 / g)), to_cnum(g^(-1 // 2)))
+            @test is_native(to_cnum(Num(4)^(1 // 2)))   # numeric base stays native
+            @test to_num(to_cnum(Num(4)^(1 // 2))) == 2
             # only exact `Rational` exponents fold; a float exponent (even `1/3`) stays
             # a symbolic leaf, so the `^` recognizer needs no float-to-rational guesswork
-            @test _is_symbolic_cnum(_to_cnum(g^(1 / 3)))
-            @test _is_symbolic_cnum(_to_cnum(g^0.5))
+            @test is_symbolic_cnum(to_cnum(g^(1 / 3)))
+            @test is_symbolic_cnum(to_cnum(g^0.5))
         end
 
         @testset "radical coefficients dedup in a QAdd" begin
@@ -383,22 +383,22 @@ end
         end
 
         @testset "negation and exact cancellation" begin
-            @test isequal(to_num(_neg_cnum(_to_cnum(2 * ω * g))), Complex(Num(-2 * ω * g), Num(0)))
-            @test _iszero_cnum(_add_cnum(_to_cnum(ω * g), _neg_cnum(_to_cnum(ω * g))))
+            @test isequal(to_num(neg_cnum(to_cnum(2 * ω * g))), Complex(Num(-2 * ω * g), Num(0)))
+            @test iszero_cnum(add_cnum(to_cnum(ω * g), neg_cnum(to_cnum(ω * g))))
             # Raw symbolic terms do not go through a CAS during addition, but exact opposites
             # must still cancel for scalar identities (e.g. symbolic orthogonal matrices).
             @variables u v
-            raw = _to_cnum(cos(u * v))
-            @test _iszero_cnum(_add_cnum(raw, _neg_cnum(raw)))
+            raw = to_cnum(cos(u * v))
+            @test iszero_cnum(add_cnum(raw, neg_cnum(raw)))
         end
 
         @testset "array-indexed parameters are recognized" begin
             @variables ωs[1:3] gs[1:3]
-            @test _is_poly(_to_cnum(ωs[1]))
-            @test _is_poly(_to_cnum(ωs[1] * gs[2]))
-            @test isequal(to_num(_to_cnum(ωs[1] * gs[2])), Complex(Num(ωs[1] * gs[2]), Num(0)))
+            @test is_poly(to_cnum(ωs[1]))
+            @test is_poly(to_cnum(ωs[1] * gs[2]))
+            @test isequal(to_num(to_cnum(ωs[1] * gs[2])), Complex(Num(ωs[1] * gs[2]), Num(0)))
             # products merge array-indexed factors like any other atom
-            p = _mul_cnum(_to_cnum(ωs[1] * gs[2]), _to_cnum(ωs[1]))   # -> ωs[1]^2 gs[2]
+            p = mul_cnum(to_cnum(ωs[1] * gs[2]), to_cnum(ωs[1]))   # -> ωs[1]^2 gs[2]
             @test isequal(to_num(p), Complex(Num(ωs[1]^2 * gs[2]), Num(0)))
         end
 
@@ -415,57 +415,57 @@ end
         @testset "elementary functions of a literal zero fold to their exact value" begin
             @variables ω t
             # Euler-expanding exp(im*ω*t) leaves exp(0) factors; they must fold away.
-            c = _to_cnum(Complex{Num}(exp(1.0im * ω * t)))
+            c = to_cnum(Complex{Num}(exp(1.0im * ω * t)))
             @test !occursin("exp(0)", repr(to_num(c)))
             @test isequal(to_num(c), Complex(Num(cos(t * ω)), Num(sin(t * ω))))
             # exact identities at 0 fold to native
-            @test _is_native(_to_cnum(Num(exp(Num(0)))))
-            @test _to_complex(_to_cnum(Num(exp(Num(0))))) ≈ 1
-            @test _to_complex(_to_cnum(Num(cos(Num(0))))) ≈ 1
-            @test _to_complex(_to_cnum(Num(sin(Num(0))))) ≈ 0
+            @test is_native(to_cnum(Num(exp(Num(0)))))
+            @test to_complex(to_cnum(Num(exp(Num(0))))) ≈ 1
+            @test to_complex(to_cnum(Num(cos(Num(0))))) ≈ 1
+            @test to_complex(to_cnum(Num(sin(Num(0))))) ≈ 0
             # symbol / non-zero-constant / irrational args stay symbolic (exactness gate)
-            @test !_is_native(_to_cnum(Num(exp(ω))))
-            @test !_is_native(_to_cnum(Num(exp(Num(2)))))
-            @test !_is_native(_to_cnum(Num(exp(Num(0.1)))))
-            @test !_is_native(_to_cnum(Num(cos(Num(1)))))
-            @test !_is_native(_to_cnum(cos(Num(π))))
-            @test !_is_native(_to_cnum(sin(Num(π))))
+            @test !is_native(to_cnum(Num(exp(ω))))
+            @test !is_native(to_cnum(Num(exp(Num(2)))))
+            @test !is_native(to_cnum(Num(exp(Num(0.1)))))
+            @test !is_native(to_cnum(Num(cos(Num(1)))))
+            @test !is_native(to_cnum(cos(Num(π))))
+            @test !is_native(to_cnum(sin(Num(π))))
         end
 
         @testset "explicit complex slots differentiate component-wise" begin
             @variables z::Number
-            c = _to_cnum(Complex(Num(z), Num(z)))
-            expected = _to_cnum(1 + im)
+            c = to_cnum(Complex(Num(z), Num(z)))
+            expected = to_cnum(1 + im)
             @test isequal(Symbolics.derivative(c, z), expected)
             D = Symbolics.Differential(z)
-            @test isequal(_to_cnum(Symbolics.expand_derivatives(D(c))), expected)
+            @test isequal(to_cnum(Symbolics.expand_derivatives(D(c))), expected)
         end
     end
 
     @testset "unit phases" begin
         @variables ω J t θ
-        p = _phase_coeff(ω * t)
-        @test _is_poly(p)
-        @test _is_phase(p.tail.terms[1].syms[1])
+        p = phase_coeff(ω * t)
+        @test is_poly(p)
+        @test is_phase(p.tail.terms[1].syms[1])
         # conjugation is exponent negation, so a phase cancels against its own conjugate
-        @test _mul_cnum(p, _conj_cnum(p)) == _CNUM_ONE
-        pp = _mul_cnum(p, p)
-        @test _mul_cnum(pp, _conj_cnum(pp)) == _CNUM_ONE
+        @test mul_cnum(p, conj_cnum(p)) == CNUM_ONE
+        pp = mul_cnum(p, p)
+        @test mul_cnum(pp, conj_cnum(pp)) == CNUM_ONE
         # `expim(0)` is 1, not an atom
-        @test _phase_coeff(0) == _CNUM_ONE
-        @test _to_cnum(expim(Num(0))) == _CNUM_ONE
+        @test phase_coeff(0) == CNUM_ONE
+        @test to_cnum(expim(Num(0))) == CNUM_ONE
         # one atom per frequency however the argument is spelled, and whatever its sign
-        @test isequal(_phase_coeff((ω + 2J) * t), _phase_coeff(ω * t + 2 * J * t))
-        @test _mul_cnum(_phase_coeff(-ω * t), _phase_coeff(ω * t)) == _CNUM_ONE
+        @test isequal(phase_coeff((ω + 2J) * t), phase_coeff(ω * t + 2 * J * t))
+        @test mul_cnum(phase_coeff(-ω * t), phase_coeff(ω * t)) == CNUM_ONE
         # commensurate frequencies are exponent arithmetic, not an angle-addition identity
         @variables E1 E2 E3
-        ph(i, j) = _mul_cnum(_phase_coeff(i * t), _conj_cnum(_phase_coeff(j * t)))
-        @test _iszero_cnum(
-            _add_cnum(_mul_cnum(ph(E1, E2), ph(E2, E3)), _neg_cnum(ph(E1, E3)))
+        ph(i, j) = mul_cnum(phase_coeff(i * t), conj_cnum(phase_coeff(j * t)))
+        @test iszero_cnum(
+            add_cnum(mul_cnum(ph(E1, E2), ph(E2, E3)), neg_cnum(ph(E1, E3)))
         )
         # lowering round-trips back onto the same atom
-        @test isequal(p, _to_cnum(to_num(p)))
-        @test isequal(_conj_cnum(p), _to_cnum(to_num(_conj_cnum(p))))
+        @test isequal(p, to_cnum(to_num(p)))
+        @test isequal(conj_cnum(p), to_cnum(to_num(conj_cnum(p))))
         # a numeric argument still evaluates
         @test (@inferred expim(0.5)) ≈ exp(0.5im)
         @test (@inferred expim(ω * t)) isa Coeff
@@ -489,14 +489,14 @@ end
         @test (@inferred px^3) == expim(3x)
         @test (@inferred px^(-3)) == expim(-3x)
         @test inv(px) == conj(px) == expim(-x)
-        @test px * inv(px) == _CNUM_ONE
+        @test px * inv(px) == CNUM_ONE
         @test expim(x) * expim(y - x) == expim(y)
         @test expim((ω + 2g) * t) * expim(-2g * t) == expim(ω * t)
 
         combined = g * px * py
         combined_term = only((combined.tail::Poly).terms)
-        @test count(_is_phase, combined_term.syms) == 1
-        @test only(combined_term.exps[findall(_is_phase, combined_term.syms)]) in (-1, 1)
+        @test count(is_phase, combined_term.syms) == 1
+        @test only(combined_term.exps[findall(is_phase, combined_term.syms)]) in (-1, 1)
 
         hs = FockSpace(:phase_collection)
         a = Destroy(hs, :a)
@@ -506,13 +506,13 @@ end
         @test_throws MethodError sqrt(px)
         phase_symbol = only(only((px.tail::Poly).terms).syms)
         phase_root = SymbolicUtils.term(sqrt, phase_symbol; type = Complex{Real})
-        @test_throws ArgumentError _to_cnum(phase_root)
+        @test_throws ArgumentError to_cnum(phase_root)
 
-        cg, ch = _to_cnum(g), _to_cnum(h)
-        @test _phase_allocations(() -> cg * ch) <= 10
-        @test _phase_allocations(() -> px * conj(px)) <= 18
-        @test _phase_allocations(() -> px * px) <= 165
-        @test _phase_allocations(() -> px * py) <= 285
+        cg, ch = to_cnum(g), to_cnum(h)
+        @test phase_allocations(() -> cg * ch) <= 10
+        @test phase_allocations(() -> px * conj(px)) <= 18
+        @test phase_allocations(() -> px * px) <= 165
+        @test phase_allocations(() -> px * py) <= 285
     end
 
     @testset "phase substitution, calculus, and projections" begin
@@ -521,10 +521,10 @@ end
 
         @test substitute(p, Dict()) === p
         @test (@inferred substitute(p, Dict(ω => 2ω))) == expim(2ω * t)
-        @test substitute(p, Dict(t => 0)) == _CNUM_ONE
+        @test substitute(p, Dict(t => 0)) == CNUM_ONE
         @test substitute(p, Dict(g => 2g)) === p
         @test substitute(p, Dict(g => z)) === p
-        @test _to_complex(substitute(p, Dict(ω => 2.0, t => 0.25))) ≈ exp(0.5im)
+        @test to_complex(substitute(p, Dict(ω => 2.0, t => 0.25))) ≈ exp(0.5im)
         @test_throws ArgumentError substitute(p, Dict(ω => z))
         @test_throws ArgumentError substitute(p, Dict(ω * t => z))
         @test_throws ArgumentError substitute(p, Dict(ω => 1 + 2im))
@@ -533,7 +533,7 @@ end
         D = Symbolics.Differential(t)
         differentiated = @inferred Symbolics.derivative(p, t)
         @test differentiated == im * ω * p
-        @test _to_cnum(Symbolics.expand_derivatives(D(p))) == differentiated
+        @test to_cnum(Symbolics.expand_derivatives(D(p))) == differentiated
 
         phase = expim(θ)
         @test isequal(@inferred(real(phase)), cos(θ))
@@ -547,8 +547,8 @@ end
         @test abs(conj(phase)) == 1
         @test abs(-im * phase) == 1
         @test abs2(-im * phase) == 1
-        @test_throws MethodError abs(_to_cnum(g))
-        @test_throws MethodError abs2(_to_cnum(g))
+        @test_throws MethodError abs(to_cnum(g))
+        @test_throws MethodError abs2(to_cnum(g))
     end
 
     @testset "explicit phase representations" begin
@@ -572,10 +572,10 @@ end
             term -> isequal(to_num(term.amplitude), Complex(Num(1 // 2), Num(0))),
             phase_terms(cosine_phase),
         )
-        @test trigonometric_form(cosine_phase) == _to_cnum(cos(θ))
-        @test trigonometric_form(sine_phase) == _to_cnum(sin(θ))
-        @test trigonometric_form(composite_phase) == _to_cnum(cos(ω * t) + sin(ω * t))
-        @test trigonometric_form(expim(θ)^2) == _to_cnum(cos(2θ) + im * sin(2θ))
+        @test trigonometric_form(cosine_phase) == to_cnum(cos(θ))
+        @test trigonometric_form(sine_phase) == to_cnum(sin(θ))
+        @test trigonometric_form(composite_phase) == to_cnum(cos(ω * t) + sin(ω * t))
+        @test trigonometric_form(expim(θ)^2) == to_cnum(cos(2θ) + im * sin(2θ))
         phase_over_root = cos(ω * t) * expim(-ω * t) / sqrt(2 * ω)
         exponential_phase_over_root = @inferred exponential_form(phase_over_root)
         @test !occursin("cos(", string(exponential_phase_over_root))
@@ -585,8 +585,8 @@ end
         @test (@inferred exponential_form(cis(θ))) == expim(θ)
         @test (@inferred exponential_form(intact_exp)) == expim(θ)
         @test (@inferred exponential_form(intact_cis)) == expim(θ)
-        @test isequal(exponential_form(arbitrary_exp), _to_cnum(arbitrary_exp))
-        @test exponential_form(exp(θ)) == _to_cnum(exp(θ))
+        @test isequal(exponential_form(arbitrary_exp), to_cnum(arbitrary_exp))
+        @test exponential_form(exp(θ)) == to_cnum(exp(θ))
 
         h = FockSpace(:phase_forms)
         a = Destroy(h, :a)
@@ -606,11 +606,11 @@ end
 
         reconstruct(c) = sum(
             term.amplitude * expim(term.phase) for term in phase_terms(c);
-            init = _CNUM_ZERO,
+            init = CNUM_ZERO,
         )
 
         coefficients = (
-            _to_cnum(3 // 4),
+            to_cnum(3 // 4),
             2 * expim(-ω * t) + 5 * expim(2 * ω * t),
             exponential_form(cos(ω * t + θ)),
             (g + g * expim(-2 * ω * t)) / sqrt(2 * κ),
@@ -622,11 +622,11 @@ end
             @test all(term -> term.amplitude isa Coeff && term.phase isa Num, terms)
         end
 
-        @test isempty(@inferred phase_terms(_CNUM_ZERO))
-        @test_throws ArgumentError phase_terms(_CNUM_ONE / (1 + expim(ω * t)))
+        @test isempty(@inferred phase_terms(CNUM_ZERO))
+        @test_throws ArgumentError phase_terms(CNUM_ONE / (1 + expim(ω * t)))
         phase_symbol = only(only((expim(θ).tail::Poly).terms).syms)
         nested_phase = SymbolicUtils.term(exp, phase_symbol; type = Complex{Real})
-        @test_throws ArgumentError phase_terms(_to_cnum(nested_phase))
+        @test_throws ArgumentError phase_terms(to_cnum(nested_phase))
     end
 
     # The public `expim` used to return a `Num`. `Base.conj(::Num)` is the identity and
@@ -638,22 +638,22 @@ end
         p = expim(ω * t)
         @test p isa Coeff
 
-        @test conj(p) * p == _CNUM_ONE
+        @test conj(p) * p == CNUM_ONE
         @test (@inferred inv(p)) == conj(p)
         @test (@inferred p^(-1)) == conj(p)
         @test !isequal(conj(p), p)
-        @test (im * p) * conj(p) == _CNUM_IM
-        @test _is_poly(im * p)
+        @test (im * p) * conj(p) == CNUM_IM
+        @test is_poly(im * p)
         @test isequal(expim(ω * t) * expim(-ω * t) * a, 1 * a)
         @test isequal(p * a, expim(ω * t) * a)
 
         # a phase over a literal is its value, so numerically cancelling terms fold
-        @test _is_native(expim(Num(1.0)))
+        @test is_native(expim(Num(1.0)))
         @test iszero(expim(Num(1.0)) * a - exp(im * 1.0) * a)
 
         # `type`/`shape` take part in hash-consing, so an unregistered head would come back
         # from any rebuild as a different atom whose `conj` is the identity
-        b = SecondQuantizedAlgebra._expim(SymbolicUtils.unwrap(ω * t))
+        b = SecondQuantizedAlgebra.expim_symbolic(SymbolicUtils.unwrap(ω * t))
         rebuilt = SymbolicUtils.maketerm(
             typeof(b), SymbolicUtils.operation(b), SymbolicUtils.arguments(b),
             SymbolicUtils.metadata(b),
@@ -661,17 +661,17 @@ end
         @test rebuilt === b
         @test SymbolicUtils.symtype(b) === Complex{Real}
         @test Symbolics.substitute(b, Dict(SymbolicUtils.unwrap(ω) => 2.0)) ===
-            SecondQuantizedAlgebra._expim(SymbolicUtils.unwrap(2.0 * t))
+            SecondQuantizedAlgebra.expim_symbolic(SymbolicUtils.unwrap(2.0 * t))
 
         # conjugation negates the argument rather than conjugating it
         @test isequal(
             SecondQuantizedAlgebra.qadjoint(Num(b)),
-            SecondQuantizedAlgebra._expim(SymbolicUtils.unwrap(-ω * t)),
+            SecondQuantizedAlgebra.expim_symbolic(SymbolicUtils.unwrap(-ω * t)),
         )
 
         # a registered derivative, not an inert `Differential` node
         d = Symbolics.expand_derivatives(Symbolics.Differential(t)(Num(b)))
-        @test isequal(_to_cnum(d), _mul_cnum(_mul_cnum(_CNUM_IM, _to_cnum(ω)), p))
+        @test isequal(to_cnum(d), mul_cnum(mul_cnum(CNUM_IM, to_cnum(ω)), p))
     end
 
     @testset "raw symbolic coefficient fallbacks" begin
@@ -732,35 +732,35 @@ end
             phase_terms(exponential_form(Num(raw_conjugate_tree)))[1].phase, -θ,
         )
         @test isequal(
-            to_num(_from_raw(raw_phase^2; normalize = false)),
+            to_num(from_raw(raw_phase^2; normalize = false)),
             Complex(cos(2θ), sin(2θ)),
         )
         @test isequal(
-            to_num(_from_raw(conj(raw_phase); normalize = false)),
+            to_num(from_raw(conj(raw_phase); normalize = false)),
             Complex(cos(-θ), sin(-θ)),
         )
         @test isequal(
-            to_num(_from_raw(real(raw_phase); normalize = false)),
+            to_num(from_raw(real(raw_phase); normalize = false)),
             Complex(cos(θ), Num(0)),
         )
         @test isequal(
-            to_num(_from_raw(imag(raw_phase); normalize = false)),
+            to_num(from_raw(imag(raw_phase); normalize = false)),
             Complex(sin(θ), Num(0)),
         )
-        @test to_num(_from_raw(abs(raw_phase); normalize = false)) == 1
-        @test to_num(_from_raw(abs2(raw_phase); normalize = false)) == 1
+        @test to_num(from_raw(abs(raw_phase); normalize = false)) == 1
+        @test to_num(from_raw(abs2(raw_phase); normalize = false)) == 1
 
         large_q = complex(big(2)^70, big(3)^70) * Destroy(FockSpace(:raw), :a)
         large = prefactor(large_q)
         @test isequal(real(large), Num(big(2)^70))
         @test isequal(imag(large), Num(big(3)^70))
 
-        exact_slots = _cnum_sym(Num(1 // 2), Num(1 // 3))
+        exact_slots = cnum_sym(Num(1 // 2), Num(1 // 3))
         @test isequal(to_num(exact_slots), Complex(Num(1 // 2), Num(1 // 3)))
-        raw_slots = _cnum_sym(g, κ)
+        raw_slots = cnum_sym(g, κ)
         @test isequal(real(to_num(raw_slots)), g)
         @test isequal(imag(to_num(raw_slots)), κ)
-        numeric_slots = _cnum_sym(Num(0.5), Num(0.25))
+        numeric_slots = cnum_sym(Num(0.5), Num(0.25))
         @test isequal(to_num(numeric_slots), Complex(Num(0.5), Num(0.25)))
 
         raw_complex_expr = SymbolicUtils.term(
@@ -770,13 +770,13 @@ end
             type = Complex{Real},
             shape = UnitRange{Int}[],
         )
-        raw_complex = _from_raw(raw_complex_expr; normalize = false)
-        raw_division = _from_raw(
+        raw_complex = from_raw(raw_complex_expr; normalize = false)
+        raw_division = from_raw(
             raw_complex_expr / SymbolicUtils.unwrap(r); normalize = false,
         )
         @test isequal(real(conj(raw_complex)), g)
         @test isequal(imag(conj(raw_complex)), -κ)
-        @test isequal(_raw_parts(raw_complex), (g, κ))
+        @test isequal(raw_parts(raw_complex), (g, κ))
         @test !isequal(conj(raw_division), raw_division)
         renamed = substitute(raw_complex, Dict(SymbolicUtils.unwrap(g) => 2))
         @test !isequal(renamed, raw_complex)

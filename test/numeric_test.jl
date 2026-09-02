@@ -1,6 +1,6 @@
 using SecondQuantizedAlgebra
-import SecondQuantizedAlgebra: QAdd, QSym, _single_qadd, _to_cnum, _to_complex, _fold_const,
-    _to_numeric_static, NumericContext
+import SecondQuantizedAlgebra: QAdd, QSym, single_qadd, to_cnum, to_complex, fold_const,
+    to_numeric_static, NumericContext
 using QuantumOpticsBase
 using Symbolics: @variables, substitute
 import SymbolicUtils
@@ -11,18 +11,18 @@ using Test
 # all return a concrete `Operator`. `op_type = identity` opts into the natural lazy form
 # (`LazyTensor`/`LazyProduct`/`LazySum`). The time-dependent form returns a native
 # `TimeDependentSum`, evaluated via `H(t)` and compared through `expect`.
-_dat(x) = dense(x).data
+dat(x) = dense(x).data
 
-function _inferred_qob_uniform(op::Op, h::FockSpace, n::Int)
+function inferred_qob_uniform(op::Op, h::FockSpace, n::Int)
     return to_numeric(op, h, n; backend = QuantumOpticsBackend())
 end
-function _inferred_qob_uniform_add(op::QAdd, h::FockSpace, n::Int)
+function inferred_qob_uniform_add(op::QAdd, h::FockSpace, n::Int)
     return to_numeric(op, h, n; backend = QuantumOpticsBackend())
 end
-function _inferred_qob_product(op::Op, h::ProductSpace, dims::NTuple{2, Int})
+function inferred_qob_product(op::Op, h::ProductSpace, dims::NTuple{2, Int})
     return to_numeric(op, h, dims; backend = QuantumOpticsBackend())
 end
-function _inferred_qob_basis_add(op::QAdd, b::FockBasis)
+function inferred_qob_basis_add(op::QAdd, b::FockBasis)
     return to_numeric(op, b)
 end
 
@@ -31,20 +31,20 @@ struct MockNumericBackend <: SecondQuantizedAlgebra.NumericBackend end
 struct MockEagerOperator
     data::Matrix{ComplexF64}
 end
-_mock_identity(n) = ComplexF64[i == j for i in 1:n, j in 1:n]
+mock_identity(n) = ComplexF64[i == j for i in 1:n, j in 1:n]
 SecondQuantizedAlgebra.numeric_basis(::MockNumericBackend, ::FockSpace, cutoff) = Int(cutoff) + 1
 SecondQuantizedAlgebra.numeric_num_subsystems(::MockNumericBackend, ::Int) = 1
 SecondQuantizedAlgebra.numeric_subbasis(::MockNumericBackend, n::Int, slot::Int) =
     slot == 1 ? n : throw(ArgumentError("mock basis has no subsystem slot $slot"))
 SecondQuantizedAlgebra.numeric_operator(
     ::MockNumericBackend, ::SecondQuantizedAlgebra.Op, n::Int,
-) = _mock_identity(n)
+) = mock_identity(n)
 SecondQuantizedAlgebra.numeric_embed(::MockNumericBackend, ::Int, ::Int, leaf) = leaf
-SecondQuantizedAlgebra.numeric_identity(::MockNumericBackend, n::Int) = _mock_identity(n)
+SecondQuantizedAlgebra.numeric_identity(::MockNumericBackend, n::Int) = mock_identity(n)
 function SecondQuantizedAlgebra.numeric_assemble(::MockNumericBackend, n::Int, terms)
     result = zeros(ComplexF64, n, n)
     for (coefficient, factors) in terms
-        term = isempty(factors) ? _mock_identity(n) : foldl(*, factors)
+        term = isempty(factors) ? mock_identity(n) : foldl(*, factors)
         result .+= coefficient .* term
     end
     return result
@@ -63,7 +63,7 @@ SecondQuantizedAlgebra.numeric_materialize(
         eager = to_numeric(2 * a, h, 3; backend = MockNumericBackend())
         lazy = to_numeric(2 * a, h, 3; backend = MockNumericBackend(), op_type = identity)
         @test eager isa MockEagerOperator
-        @test eager.data == 2 .* _mock_identity(4)
+        @test eager.data == 2 .* mock_identity(4)
         @test lazy == eager.data
     end
 
@@ -83,8 +83,8 @@ SecondQuantizedAlgebra.numeric_materialize(
 
         @test to_numeric(a' * a, b) isa Operator
         @test to_numeric(a' * a, b; op_type = identity) isa LazySum
-        @test _dat(to_numeric(a' * a, b)) == _dat(create(b) * destroy(b))
-        @test _dat(to_numeric(2 * a, b)) == _dat(2 * destroy(b))
+        @test dat(to_numeric(a' * a, b)) == dat(create(b) * destroy(b))
+        @test dat(to_numeric(2 * a, b)) == dat(2 * destroy(b))
     end
 
     @testset "QAdd" begin
@@ -95,7 +95,7 @@ SecondQuantizedAlgebra.numeric_materialize(
         result = to_numeric(a + a', b)
         @test result isa Operator
         @test to_numeric(a + a', b; op_type = identity) isa LazySum
-        @test _dat(result) == _dat(destroy(b) + create(b))
+        @test dat(result) == dat(destroy(b) + create(b))
     end
 
     @testset "Scalar" begin
@@ -175,17 +175,17 @@ SecondQuantizedAlgebra.numeric_materialize(
         # The public default conversion remains inference-stable after eager materialization;
         # the five-argument `LazySum` constructor pins the basis and the backend extension
         # pins the concrete sparse Operator result.
-        @test @inferred(_inferred_qob_uniform(a, h, 7)) isa Operator
-        @test @inferred(_inferred_qob_uniform_add(a' * a + 2 * a, h, 7)) isa Operator
+        @test @inferred(inferred_qob_uniform(a, h, 7)) isa Operator
+        @test @inferred(inferred_qob_uniform_add(a' * a + 2 * a, h, 7)) isa Operator
         hp = FockSpace(:a) ⊗ FockSpace(:b)
         ap = Destroy(hp, :a, 1)
-        @test @inferred(_inferred_qob_product(ap, hp, (3, 4))) isa Operator
-        @test @inferred(_inferred_qob_basis_add(a' * a + 2 * a, b)) isa Operator
+        @test @inferred(inferred_qob_product(ap, hp, (3, 4))) isa Operator
+        @test @inferred(inferred_qob_basis_add(a' * a + 2 * a, b)) isa Operator
 
         ctx = NumericContext(QuantumOpticsBackend(), b, Dict{QSym, Union{}}())
-        @test @inferred(_to_numeric_static(a' * a, ctx)) isa AbstractOperator
-        @test @inferred(_to_numeric_static(2 * a + 3 * a' + 5, ctx)) isa AbstractOperator
-        @test typeof(_to_numeric_static(a + a', ctx)) === typeof(_to_numeric_static(a + a' + a' * a, ctx))
+        @test @inferred(to_numeric_static(a' * a, ctx)) isa AbstractOperator
+        @test @inferred(to_numeric_static(2 * a + 3 * a' + 5, ctx)) isa AbstractOperator
+        @test typeof(to_numeric_static(a + a', ctx)) === typeof(to_numeric_static(a + a' + a' * a, ctx))
 
         # to_numeric: leaf + QAdd + dict-substitution paths materialise a concrete operator.
         @test to_numeric(a, b) isa AbstractOperator
@@ -202,10 +202,10 @@ SecondQuantizedAlgebra.numeric_materialize(
         @test @inferred(numeric_average(3, ψ)) isa ComplexF64
         @test @inferred(numeric_average(3.5 + 1im, ψ)) isa ComplexF64
 
-        # `_to_complex(::Any) -> ComplexF64` is the keystone; canary against a
+        # `to_complex(::Any) -> ComplexF64` is the keystone; canary against a
         # 7th overload tripping Julia's union-split budget.
-        @test Base.return_types(_to_complex, (Any,))[1] === ComplexF64
-        @test length(methods(_to_complex)) == 2
+        @test Base.return_types(to_complex, (Any,))[1] === ComplexF64
+        @test length(methods(to_complex)) == 2
     end
 
     @testset "op_type materialization" begin
@@ -219,7 +219,7 @@ SecondQuantizedAlgebra.numeric_materialize(
         @test to_numeric(a' * a, b; op_type = identity) isa LazySum
         @test to_numeric(2 * a + 3 * a', b; op_type = identity) isa LazySum
         @test to_numeric(a, b) == sparse(to_numeric(a, b; op_type = identity))
-        @test _dat(to_numeric(a' * a, b; op_type = dense)) == _dat(to_numeric(a' * a, b))
+        @test dat(to_numeric(a' * a, b; op_type = dense)) == dat(to_numeric(a' * a, b))
     end
 
     @testset "numeric_average: Average expressions" begin
@@ -254,7 +254,7 @@ SecondQuantizedAlgebra.numeric_materialize(
 
         # QAdd with Dict
         result_mul = to_numeric(a' * a, b, d)
-        @test _dat(result_mul) == _dat(create(b) * custom_op)
+        @test dat(result_mul) == dat(create(b) * custom_op)
     end
 
     @testset "numeric_average: Dict substitution" begin
@@ -296,8 +296,8 @@ SecondQuantizedAlgebra.numeric_materialize(
                 bprod_gap, [1, 3],
                 (create(bfock), QuantumOpticsBase.transition(bnlevel, i, j)),
             )
-            @test _dat(to_numeric(op1, bprod_gap)) == _dat(ref1)
-            @test _dat(to_numeric(op2, bprod_gap)) == _dat(ref2)
+            @test dat(to_numeric(op1, bprod_gap)) == dat(ref1)
+            @test dat(to_numeric(op2, bprod_gap)) == dat(ref2)
         end
     end
 
@@ -308,9 +308,9 @@ SecondQuantizedAlgebra.numeric_materialize(
 
         ref = 2 * create(bfock) + 2 * destroy(bfock)
         got = to_numeric(2 * a + 2 * a', bfock)
-        @test isequal(_dat(ref), _dat(got))
-        @test iszero(_dat(ref) - _dat(got))
-        @test isequal(_dat(to_numeric(2 * a, bfock)), _dat(2 * destroy(bfock)))
+        @test isequal(dat(ref), dat(got))
+        @test iszero(dat(ref) - dat(got))
+        @test isequal(dat(to_numeric(2 * a, bfock)), dat(2 * destroy(bfock)))
     end
 
     @testset "numeric_average: product state" begin
@@ -399,10 +399,10 @@ SecondQuantizedAlgebra.numeric_materialize(
         dd = Dict([ad, a] .=> [s(2, 2, 1), s(2, 1, 2)])
 
         @test to_numeric(a, b_test, Dict{QSym, Any}()) == to_numeric(a, b_test)
-        @test _dat(to_numeric(ad * n, b_test, Dict{QSym, Any}())) == _dat(to_numeric(ad * n, b_test))
-        @test _dat(to_numeric(2 * ad * a, b_test, Dict{QSym, Any}())) == _dat(to_numeric(2 * ad * a, b_test))
+        @test dat(to_numeric(ad * n, b_test, Dict{QSym, Any}())) == dat(to_numeric(ad * n, b_test))
+        @test dat(to_numeric(2 * ad * a, b_test, Dict{QSym, Any}())) == dat(to_numeric(2 * ad * a, b_test))
         @test to_numeric(ad, b_all, dd) == s(2, 2, 1)
-        @test _dat(to_numeric(2 * ad * a, b_all, dd)) == _dat(2 * s(2, 2, 1) * s(2, 1, 2))
+        @test dat(to_numeric(2 * ad * a, b_all, dd)) == dat(2 * s(2, 2, 1) * s(2, 1, 2))
         @test dense(to_numeric(3, b_all, dd)) == one(b_all) * 3
 
         ψ0 = tensor([nlevelstate(bs, 2) for i in 1:nQDs]...)
@@ -438,7 +438,7 @@ SecondQuantizedAlgebra.numeric_materialize(
 
         @test to_numeric(a, b) == destroy(b)
         @test to_numeric(a', b) == create(b)
-        @test _dat(to_numeric(a' * a, b)) == _dat(create(b) * destroy(b))
+        @test dat(to_numeric(a' * a, b)) == dat(create(b) * destroy(b))
 
         α = 0.1 + 0.2im
         ψ = coherentstate(b, α)
@@ -449,7 +449,7 @@ SecondQuantizedAlgebra.numeric_materialize(
         @test numeric_average(expr, ψ) ≈ α + abs2(α)
 
         # to_numeric with scalar QAdd (empty operators), now a lazy identity
-        @test dense(to_numeric(_single_qadd(_to_cnum(3), Op[]), b)) == 3 * one(b)
+        @test dense(to_numeric(single_qadd(to_cnum(3), Op[]), b)) == 3 * one(b)
     end
 
     @testset "Number-symtype coefficient round-trip" begin
@@ -459,10 +459,10 @@ SecondQuantizedAlgebra.numeric_materialize(
 
         for v in (2 + 3im, 1 + 1im, 0.5 - 0.25im)
             op = substitute((g * a)' * (g * a), Dict(g => v))
-            @test _dat(to_numeric(op, b)) ≈ abs2(v) * _dat(to_numeric(a' * a, b))
+            @test dat(to_numeric(op, b)) ≈ abs2(v) * dat(to_numeric(a' * a, b))
         end
 
-        @test _dat(to_numeric(substitute(g * a, Dict(g => 2 + 3im)), b)) ≈ (2 + 3im) * _dat(to_numeric(a, b))
+        @test dat(to_numeric(substitute(g * a, Dict(g => 2 + 3im)), b)) ≈ (2 + 3im) * dat(to_numeric(a, b))
     end
 
     @testset "Public coefficient lowering" begin
@@ -485,16 +485,16 @@ SecondQuantizedAlgebra.numeric_materialize(
         ψ = coherentstate(b, 0.3 - 0.1im)
         @variables x::Real ϕ::Real E::Number
 
-        @test _dat(to_numeric(substitute(sqrt(x) * a, Dict(x => 2.0)), b)) ≈ sqrt(2.0) * _dat(A)
-        @test _dat(to_numeric(substitute(exp(im * ϕ) * a, Dict(ϕ => 0.5)), b)) ≈ exp(0.5im) * _dat(A)
+        @test dat(to_numeric(substitute(sqrt(x) * a, Dict(x => 2.0)), b)) ≈ sqrt(2.0) * dat(A)
+        @test dat(to_numeric(substitute(exp(im * ϕ) * a, Dict(ϕ => 0.5)), b)) ≈ exp(0.5im) * dat(A)
 
-        @test _dat(to_numeric(sqrt(x) * a, b; parameter = Dict(x => 2.0))) ≈ sqrt(2.0) * _dat(A)
-        @test _dat(to_numeric(exp(im * ϕ) * a, b; parameter = Dict(ϕ => 0.5))) ≈ exp(0.5im) * _dat(A)
+        @test dat(to_numeric(sqrt(x) * a, b; parameter = Dict(x => 2.0))) ≈ sqrt(2.0) * dat(A)
+        @test dat(to_numeric(exp(im * ϕ) * a, b; parameter = Dict(ϕ => 0.5))) ≈ exp(0.5im) * dat(A)
 
         custom = 2 * A
-        @test _dat(to_numeric(a', b; operators = Dict(a => custom))) == _dat(custom')
-        @test _dat(to_numeric(a', b; operators = Dict(a => custom), adjoint_ops = false)) == _dat(Ad)
-        @test [_dat(x) for x in to_numeric([a, a'], b; operators = Dict(a => custom))] == [_dat(custom), _dat(custom')]
+        @test dat(to_numeric(a', b; operators = Dict(a => custom))) == dat(custom')
+        @test dat(to_numeric(a', b; operators = Dict(a => custom), adjoint_ops = false)) == dat(Ad)
+        @test [dat(x) for x in to_numeric([a, a'], b; operators = Dict(a => custom))] == [dat(custom), dat(custom')]
 
         # Time-dependent: native TimeDependentSum, evaluated at a time, compared via expect.
         f = to_numeric(E * a + conj(E) * a', b; time_parameter = Dict(E => t -> 1 + im * t))
@@ -604,7 +604,7 @@ SecondQuantizedAlgebra.numeric_materialize(
         @variables Δ::Real
 
         op_state = to_numeric(Δ * a, ψ; parameter = Dict(Δ => 2.0))
-        @test _dat(op_state) == _dat(2.0 * destroy(b))
+        @test dat(op_state) == dat(2.0 * destroy(b))
     end
 
     @testset "constant symbolic coefficient reduction" begin
@@ -626,16 +626,16 @@ SecondQuantizedAlgebra.numeric_materialize(
         )
         for (label, coeff, expected) in cases
             op = substitute(coeff * a, Dict(z => c0))
-            @test _dat(to_numeric(op, b)) ≈ expected * _dat(A)
+            @test dat(to_numeric(op, b)) ≈ expected * dat(A)
         end
 
         op_sin = substitute(sin(z) * a, Dict(z => 0.5))
-        @test _dat(to_numeric(op_sin, b)) ≈ sin(0.5) * _dat(A)
+        @test dat(to_numeric(op_sin, b)) ≈ sin(0.5) * dat(A)
 
         neg_unary = SymbolicUtils.term(-, 5.0 + 0im; type = Number)
         neg_binary = SymbolicUtils.term(-, 7.0 + 0im, 2.0 + 0im; type = Number)
-        @test _fold_const(neg_unary) == -(5.0 + 0im)
-        @test _fold_const(neg_binary) == (7.0 + 0im) - (2.0 + 0im)
+        @test fold_const(neg_unary) == -(5.0 + 0im)
+        @test fold_const(neg_binary) == (7.0 + 0im) - (2.0 + 0im)
     end
 
     @testset "keyword to_numeric: vector, complex params, errors" begin
@@ -653,10 +653,10 @@ SecondQuantizedAlgebra.numeric_materialize(
         @test dense(to_numeric(2.0 * a' * a, b)) ≈ Hd
 
         # Vector form forwards keywords to each element.
-        @test [_dat(x) for x in to_numeric([a, a'], b; parameter = Dict(x => 1.0))] == [_dat(A), _dat(Ad)]
+        @test [dat(x) for x in to_numeric([a, a'], b; parameter = Dict(x => 1.0))] == [dat(A), dat(Ad)]
 
         # A complex-valued parameter key is split into real/imaginary substitutions.
-        @test _dat(to_numeric(z * a, b; parameter = Dict(z => 2 + 3im))) ≈ (2 + 3im) * _dat(A)
+        @test dat(to_numeric(z * a, b; parameter = Dict(z => 2 + 3im))) ≈ (2 + 3im) * dat(A)
 
         # Error paths.
         @test_throws ArgumentError to_numeric(x * a, b)                         # symbolic, no value
@@ -673,8 +673,8 @@ SecondQuantizedAlgebra.numeric_materialize(
         ψ = coherentstate(b, 0.2 + 0.1im)
 
         # Select QuantumOptics explicitly because the full test environment loads both backends.
-        @test _dat(to_numeric(a' * a, h, 7; backend = QuantumOpticsBackend())) ==
-            _dat(to_numeric(a' * a, b))
+        @test dat(to_numeric(a' * a, h, 7; backend = QuantumOpticsBackend())) ==
+            dat(to_numeric(a' * a, b))
         @test numeric_average(a' * a, ψ) ≈
             expect(to_numeric(a' * a, h, 7; backend = QuantumOpticsBackend()), ψ)
 
@@ -683,8 +683,8 @@ SecondQuantizedAlgebra.numeric_materialize(
         ap = Destroy(hp, :a, 1)
         σp = Transition(hp, :σ, 1, 2, 2)
         bp = FockBasis(4) ⊗ NLevelBasis(3)
-        @test _dat(to_numeric(ap' * σp, hp, (4, 3); backend = QuantumOpticsBackend())) ==
-            _dat(to_numeric(ap' * σp, bp))
+        @test dat(to_numeric(ap' * σp, hp, (4, 3); backend = QuantumOpticsBackend())) ==
+            dat(to_numeric(ap' * σp, bp))
     end
 
     @testset "op_type is shape-independent" begin
@@ -754,7 +754,7 @@ SecondQuantizedAlgebra.numeric_materialize(
         H = κ * a + conj(κ) * a'
         M = to_numeric(H, b; parameter = Dict(κ => 1.0 + 2.0im))
         Mref = to_numeric((1.0 + 2.0im) * a + (1.0 - 2.0im) * a', b)
-        @test _dat(M) ≈ _dat(Mref)
+        @test dat(M) ≈ dat(Mref)
     end
 
     @testset "time_parameter — unsupported key" begin

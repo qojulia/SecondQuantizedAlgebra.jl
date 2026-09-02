@@ -36,20 +36,20 @@ struct NLevelSpace <: HilbertSpace
         return new(name, n, ground_state, levels)
     end
 end
-const _EMPTY_LEVELS = Symbol[]
-NLevelSpace(name::Symbol, n::Int, ground_state::Int) = NLevelSpace(name, n, ground_state, _EMPTY_LEVELS)
-NLevelSpace(name::Symbol, n::Int) = NLevelSpace(name, n, 1, _EMPTY_LEVELS)
+const EMPTY_LEVELS = Symbol[]
+NLevelSpace(name::Symbol, n::Int, ground_state::Int) = NLevelSpace(name, n, ground_state, EMPTY_LEVELS)
+NLevelSpace(name::Symbol, n::Int) = NLevelSpace(name, n, 1, EMPTY_LEVELS)
 function NLevelSpace(name::Symbol, levels::Tuple{Vararg{Symbol}})
     return NLevelSpace(name, length(levels), 1, collect(Symbol, levels))
 end
-NLevelSpace(name::AbstractString, args...) = _name_must_be_symbol(name)
+NLevelSpace(name::AbstractString, args...) = name_must_be_symbol(name)
 
 """
-    _level_index(h::NLevelSpace, s::Symbol) -> Int
+    level_index(h::NLevelSpace, s::Symbol) -> Int
 
 Look up the integer index for a symbolic level name.
 """
-function _level_index(h::NLevelSpace, s::Symbol)
+function level_index(h::NLevelSpace, s::Symbol)
     isempty(h.levels) && throw(ArgumentError("NLevelSpace $(h.name) has no symbolic levels"))
     idx = findfirst(==(s), h.levels)
     idx === nothing && throw(ArgumentError("Level :$s not found in $(h.levels)"))
@@ -78,7 +78,7 @@ struct CollectiveNLevelSpace <: HilbertSpace
         return new(name, n, levels)
     end
 end
-CollectiveNLevelSpace(name::Symbol, n::Int) = CollectiveNLevelSpace(name, n, _EMPTY_LEVELS)
+CollectiveNLevelSpace(name::Symbol, n::Int) = CollectiveNLevelSpace(name, n, EMPTY_LEVELS)
 CollectiveNLevelSpace(name::Symbol, levels::Tuple{Vararg{Symbol}}) =
     CollectiveNLevelSpace(name, length(levels), collect(Symbol, levels))
 
@@ -87,7 +87,7 @@ Base.:(==)(a::CollectiveNLevelSpace, b::CollectiveNLevelSpace) =
 Base.hash(a::CollectiveNLevelSpace, h::UInt) =
     hash(:CollectiveNLevelSpace, hash(a.name, hash(a.n, hash(a.levels, h))))
 
-function _level_index(h::CollectiveNLevelSpace, s::Symbol)
+function level_index(h::CollectiveNLevelSpace, s::Symbol)
     isempty(h.levels) && throw(ArgumentError("CollectiveNLevelSpace $(h.name) has no symbolic levels"))
     idx = findfirst(==(s), h.levels)
     idx === nothing && throw(ArgumentError("Level :$s not found in $(h.levels)"))
@@ -126,7 +126,7 @@ julia> σ' * σ
 See also [`NLevelSpace`](@ref), [`expand_completeness`](@ref), [`@qnumbers`](@ref).
 """
 Transition(name::Symbol, i::Integer, j::Integer, si::Integer, idx::Index, ground_state::Integer, n_levels::Integer) =
-    Op(OP_TRANSITION, _name_id(name), si, idx, i, j, ground_state, n_levels)
+    Op(OP_TRANSITION, name_id(name), si, idx, i, j, ground_state, n_levels)
 
 function Transition(h::NLevelSpace, name::Symbol, i::Int, j::Int)
     1 <= i <= h.n || throw(ArgumentError("Level i=$i out of range 1:$(h.n)"))
@@ -134,7 +134,7 @@ function Transition(h::NLevelSpace, name::Symbol, i::Int, j::Int)
     return Transition(name, i, j, 1, NO_INDEX, h.ground_state, h.n)
 end
 function Transition(h::NLevelSpace, name::Symbol, i::Symbol, j::Symbol)
-    return Transition(name, _level_index(h, i), _level_index(h, j), 1, NO_INDEX, h.ground_state, h.n)
+    return Transition(name, level_index(h, i), level_index(h, j), 1, NO_INDEX, h.ground_state, h.n)
 end
 function Transition(h::ProductSpace, name::Symbol, i::Int, j::Int, idx::Int)
     1 <= idx <= length(h.spaces) || throw(ArgumentError("Index $idx out of range"))
@@ -148,16 +148,16 @@ function Transition(h::ProductSpace, name::Symbol, i::Symbol, j::Symbol, idx::In
     1 <= idx <= length(h.spaces) || throw(ArgumentError("Index $idx out of range"))
     space = h.spaces[idx]
     space isa NLevelSpace || throw(ArgumentError("Space at index $idx is not an NLevelSpace"))
-    return Transition(name, _level_index(space, i), _level_index(space, j), idx, NO_INDEX, space.ground_state, space.n)
+    return Transition(name, level_index(space, i), level_index(space, j), idx, NO_INDEX, space.ground_state, space.n)
 end
 
 # Auto-detect subspace when the ProductSpace contains exactly one NLevelSpace.
 Transition(h::ProductSpace, name::Symbol, i::Int, j::Int) =
-    Transition(h, name, i, j, _unique_subspace_index(h, NLevelSpace))
+    Transition(h, name, i, j, unique_subspace_index(h, NLevelSpace))
 Transition(h::ProductSpace, name::Symbol, i::Symbol, j::Symbol) =
-    Transition(h, name, i, j, _unique_subspace_index(h, NLevelSpace))
+    Transition(h, name, i, j, unique_subspace_index(h, NLevelSpace))
 
-Transition(::HilbertSpace, name::AbstractString, args...) = _name_must_be_symbol(name)
+Transition(::HilbertSpace, name::AbstractString, args...) = name_must_be_symbol(name)
 
 """
     CollectiveTransition(h::CollectiveNLevelSpace, name::Symbol, i, j) -> Op
@@ -167,7 +167,7 @@ obey ``[S^{ij},S^{kl}] = \\delta_{jk}S^{il}-\\delta_{li}S^{kj}`` and do not comp
 like single-site [`Transition`](@ref) operators.
 """
 CollectiveTransition(name::Symbol, i::Integer, j::Integer, si::Integer) =
-    Op(OP_COLLECTIVE_TRANSITION, _name_id(name), si, NO_INDEX, i, j, 0, 0)
+    Op(OP_COLLECTIVE_TRANSITION, name_id(name), si, NO_INDEX, i, j, 0, 0)
 
 function CollectiveTransition(h::CollectiveNLevelSpace, name::Symbol, i::Int, j::Int)
     1 <= i <= h.n || throw(ArgumentError("Level i=$i out of range 1:$(h.n)"))
@@ -175,7 +175,7 @@ function CollectiveTransition(h::CollectiveNLevelSpace, name::Symbol, i::Int, j:
     return CollectiveTransition(name, i, j, 1)
 end
 CollectiveTransition(h::CollectiveNLevelSpace, name::Symbol, i::Symbol, j::Symbol) =
-    CollectiveTransition(name, _level_index(h, i), _level_index(h, j), 1)
+    CollectiveTransition(name, level_index(h, i), level_index(h, j), 1)
 
 function CollectiveTransition(h::ProductSpace, name::Symbol, i::Int, j::Int, idx::Int)
     1 <= idx <= length(h.spaces) || throw(ArgumentError("Index $idx out of range"))
@@ -189,12 +189,12 @@ function CollectiveTransition(h::ProductSpace, name::Symbol, i::Symbol, j::Symbo
     1 <= idx <= length(h.spaces) || throw(ArgumentError("Index $idx out of range"))
     space = h.spaces[idx]
     space isa CollectiveNLevelSpace || throw(ArgumentError("Space at index $idx is not a CollectiveNLevelSpace"))
-    return CollectiveTransition(name, _level_index(space, i), _level_index(space, j), idx)
+    return CollectiveTransition(name, level_index(space, i), level_index(space, j), idx)
 end
 
 CollectiveTransition(h::ProductSpace, name::Symbol, i::Int, j::Int) =
-    CollectiveTransition(h, name, i, j, _unique_subspace_index(h, CollectiveNLevelSpace))
+    CollectiveTransition(h, name, i, j, unique_subspace_index(h, CollectiveNLevelSpace))
 CollectiveTransition(h::ProductSpace, name::Symbol, i::Symbol, j::Symbol) =
-    CollectiveTransition(h, name, i, j, _unique_subspace_index(h, CollectiveNLevelSpace))
+    CollectiveTransition(h, name, i, j, unique_subspace_index(h, CollectiveNLevelSpace))
 
-CollectiveTransition(::HilbertSpace, name::AbstractString, args...) = _name_must_be_symbol(name)
+CollectiveTransition(::HilbertSpace, name::AbstractString, args...) = name_must_be_symbol(name)

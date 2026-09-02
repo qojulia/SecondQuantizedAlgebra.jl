@@ -25,32 +25,32 @@ index unrolling) with numeric values.
 function to_numeric(
         q::QAdd, b::Basis,
         sites::AbstractDict{Int, Vector{Int}},
-        d::AbstractDict{<:QSym} = _NO_SUBS,
-        scalar_subs::AbstractDict = _NO_SCALAR_SUBS,
+        d::AbstractDict{<:QSym} = NO_SUBS,
+        scalar_subs::AbstractDict = NO_SCALAR_SUBS,
     )
-    return _to_numeric_indexed(QuantumOpticsBackend(), b, q, sites, d, scalar_subs)
+    return to_numeric_indexed(QuantumOpticsBackend(), b, q, sites, d, scalar_subs)
 end
 
 # Backend-neutral indexed conversion. Every place that would name a numeric type goes
 # through the hooks, so this drives both backends; the `Basis`/QTB-dims entry points only
 # pick the backend singleton and hand off here.
-function _to_numeric_indexed(
+function to_numeric_indexed(
         be::NumericBackend, basis, q::QAdd,
         sites::AbstractDict{Int, Vector{Int}},
         d::AbstractDict{<:QSym}, scalar_subs::AbstractDict,
     )
     isempty(q.indices) && return to_numeric(q, basis, d)
-    _validate_sites(be, basis, sites)
+    validate_sites(be, basis, sites)
     ctx = NumericContext(be, basis, d, scalar_subs, Dict{Int, Vector{Int}}(sites))
-    sub_re, sub_im, has_imag = _split_scalar_subs(scalar_subs)
+    sub_re, sub_im, has_imag = split_scalar_subs(scalar_subs)
     terms = Tuple{ComplexF64, Vector{Any}}[]
     for (term, c) in q.arguments
-        _accumulate_indexed_term!(terms, term, c, q.indices, ctx, sub_re, sub_im, has_imag)
+        accumulate_indexed_term!(terms, term, c, q.indices, ctx, sub_re, sub_im, has_imag)
     end
     return numeric_materialize(be, numeric_assemble(be, basis, terms), nothing)
 end
 
-function _validate_sites(be::NumericBackend, basis, sites)
+function validate_sites(be::NumericBackend, basis, sites)
     nsubsystems = numeric_num_subsystems(be, basis)
     seen = Set{Int}()
     for (space, slots) in sites
@@ -72,28 +72,28 @@ function _validate_sites(be::NumericBackend, basis, sites)
     return nothing
 end
 
-function _numeric_leaf_indexed(op::Op, ctx::NumericContext)
+function numeric_leaf_indexed(op::Op, ctx::NumericContext)
     haskey(ctx.op_subs, op) && return ctx.op_subs[op]
-    slot = _resolve_slot(op, ctx.sites)
+    slot = resolve_slot(op, ctx.sites)
     sub = numeric_subbasis(ctx.backend, ctx.basis, slot)
     leaf = numeric_operator(ctx.backend, op, sub)
     return numeric_embed(ctx.backend, ctx.basis, slot, leaf)
 end
 
-function _push_indexed_combo!(terms, ops::Vector{Op}, c::CNum, ctx::NumericContext)
-    factors = Any[_numeric_leaf_indexed(op, ctx) for op in ops]
-    push!(terms, (_to_complex(c), factors))
+function push_indexed_combo!(terms, ops::Vector{Op}, c::CNum, ctx::NumericContext)
+    factors = Any[numeric_leaf_indexed(op, ctx) for op in ops]
+    push!(terms, (to_complex(c), factors))
     return terms
 end
 
-function _accumulate_indexed_term!(
+function accumulate_indexed_term!(
         terms, term::QTerm, c::CNum, indices::Vector{Index},
         ctx::NumericContext, sub_re::Dict, sub_im::Dict, has_imag::Bool,
     )
-    dep_indices = Index[idx for idx in indices if _depends_on_index_term(c, term.ops, idx)]
+    dep_indices = Index[idx for idx in indices if depends_on_index_term(c, term.ops, idx)]
     if isempty(dep_indices)
-        c_resolved = _apply_scalar_subs(c, sub_re, sub_im, has_imag)
-        return _push_indexed_combo!(terms, term.ops, c_resolved, ctx)
+        c_resolved = apply_scalar_subs(c, sub_re, sub_im, has_imag)
+        return push_indexed_combo!(terms, term.ops, c_resolved, ctx)
     end
     lens = Int[length(ctx.sites[Int(idx.space_index)]) for idx in dep_indices]
     total = prod(lens)
@@ -113,16 +113,16 @@ function _accumulate_indexed_term!(
             sub_op[idx] = Index(idx.name_id, idx.range_id, idx.space_index, Int32(kpos))
             sub_coef[idx] = Index(Int32(0), idx.range_id, idx.space_index, Int32(kpos))
         end
-        _violates_ne(term.ne, sub_op) && continue
+        violates_ne(term.ne, sub_op) && continue
         new_ops = Op[change_index(op, sub_op) for op in term.ops]
         new_c = change_index(c, sub_coef)
-        new_c = _apply_scalar_subs(new_c, sub_re, sub_im, has_imag)
-        _push_indexed_combo!(terms, new_ops, new_c, ctx)
+        new_c = apply_scalar_subs(new_c, sub_re, sub_im, has_imag)
+        push_indexed_combo!(terms, new_ops, new_c, ctx)
     end
     return terms
 end
 
-function _violates_ne(ne::Vector{NonEqualPair}, sub::Dict{Index, Index})
+function violates_ne(ne::Vector{NonEqualPair}, sub::Dict{Index, Index})
     for (a, b) in ne
         ra = get(sub, a, a)
         rb = get(sub, b, b)
@@ -136,7 +136,7 @@ function _violates_ne(ne::Vector{NonEqualPair}, sub::Dict{Index, Index})
     return false
 end
 
-function _resolve_slot(op::QSym, sites::AbstractDict{Int, Vector{Int}})
+function resolve_slot(op::QSym, sites::AbstractDict{Int, Vector{Int}})
     si = Int(op.space_index)
     slots = get(sites, si, Int[])
     if isempty(slots)

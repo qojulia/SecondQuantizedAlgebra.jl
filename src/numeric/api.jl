@@ -76,53 +76,53 @@ function to_numeric end
 # --- leaf / QAdd / scalar on an explicit basis (positional, no kwargs) -----------------
 # The positional forms always materialize `sparse` (`op_type` is only on the keyword form).
 
-to_numeric(op::Op, b::Basis, d::AbstractDict{<:QSym} = _NO_SUBS) =
-    numeric_materialize(QuantumOpticsBackend(), _numeric_leaf(op, NumericContext(QuantumOpticsBackend(), b, d)), nothing)
+to_numeric(op::Op, b::Basis, d::AbstractDict{<:QSym} = NO_SUBS) =
+    numeric_materialize(QuantumOpticsBackend(), numeric_leaf(op, NumericContext(QuantumOpticsBackend(), b, d)), nothing)
 
-to_numeric(q::QAdd, b::Basis, d::AbstractDict{<:QSym} = _NO_SUBS) =
-    numeric_materialize(QuantumOpticsBackend(), _to_numeric_static(q, NumericContext(QuantumOpticsBackend(), b, d)), nothing)
+to_numeric(q::QAdd, b::Basis, d::AbstractDict{<:QSym} = NO_SUBS) =
+    numeric_materialize(QuantumOpticsBackend(), to_numeric_static(q, NumericContext(QuantumOpticsBackend(), b, d)), nothing)
 
-to_numeric(x::Number, b::Basis, ::AbstractDict{<:QSym} = _NO_SUBS) =
-    numeric_materialize(QuantumOpticsBackend(), _to_complex(x) * numeric_identity(QuantumOpticsBackend(), b), nothing)
+to_numeric(x::Number, b::Basis, ::AbstractDict{<:QSym} = NO_SUBS) =
+    numeric_materialize(QuantumOpticsBackend(), to_complex(x) * numeric_identity(QuantumOpticsBackend(), b), nothing)
 
 # --- keyword form on an explicit basis -------------------------------------------------
 
 function to_numeric(
         op::QField, b::Basis;
-        parameter = Dict(), time_parameter = _NO_TIME_PARAMETER,
+        parameter = Dict(), time_parameter = NO_TIME_PARAMETER,
         operators = Dict{QSym, Any}(), adjoint_ops = true, op_type = nothing,
     )
-    return _to_numeric_kw(QuantumOpticsBackend(), op, b; parameter, time_parameter, operators, adjoint_ops, op_type)
+    return to_numeric_kw(QuantumOpticsBackend(), op, b; parameter, time_parameter, operators, adjoint_ops, op_type)
 end
 
 function to_numeric(
         x::Union{Number, SymbolicUtils.BasicSymbolic}, b::Basis;
-        parameter = Dict(), time_parameter = _NO_TIME_PARAMETER,
+        parameter = Dict(), time_parameter = NO_TIME_PARAMETER,
         operators = Dict{QSym, Any}(), adjoint_ops = true, op_type = nothing,
     )
-    return _to_numeric_kw(QuantumOpticsBackend(), x, b; parameter, time_parameter, operators, adjoint_ops, op_type)
+    return to_numeric_kw(QuantumOpticsBackend(), x, b; parameter, time_parameter, operators, adjoint_ops, op_type)
 end
 
 # --- uniform HilbertSpace form (the only one that works for both backends) -------------
 
 function to_numeric(
         op, h::H, dims;
-        backend::B = _default_backend(),
-        parameter = Dict(), time_parameter = _NO_TIME_PARAMETER,
+        backend::B = default_backend(),
+        parameter = Dict(), time_parameter = NO_TIME_PARAMETER,
         operators = Dict{QSym, Any}(), adjoint_ops = true, op_type = nothing,
     ) where {H <: HilbertSpace, B <: NumericBackend}
     b = numeric_basis(backend, h, dims)
-    return _to_numeric_kw(backend, op, b; parameter, time_parameter, operators, adjoint_ops, op_type)
+    return to_numeric_kw(backend, op, b; parameter, time_parameter, operators, adjoint_ops, op_type)
 end
 
 # Vector of operators on the uniform HilbertSpace form (both backends).
-to_numeric(ops::AbstractVector{T}, h::H, dims; backend::B = _default_backend(), kwargs...) where {T, H <: HilbertSpace, B <: NumericBackend} =
+to_numeric(ops::AbstractVector{T}, h::H, dims; backend::B = default_backend(), kwargs...) where {T, H <: HilbertSpace, B <: NumericBackend} =
     [to_numeric(op, h, dims; backend, kwargs...) for op in ops]
 
 # --- state convenience (basis derived from the state) ----------------------------------
 
 to_numeric(op, state::QuantumState; kwargs...) = to_numeric(op, numeric_basis(state); kwargs...)
-to_numeric(op::QField, state::QuantumState, d::AbstractDict{<:QSym} = _NO_SUBS) =
+to_numeric(op::QField, state::QuantumState, d::AbstractDict{<:QSym} = NO_SUBS) =
     to_numeric(op, numeric_basis(state), d)
 to_numeric(x::Number, state::QuantumState) = to_numeric(x, numeric_basis(state))
 
@@ -160,61 +160,61 @@ See also [`to_numeric`](@ref), [`average`](@ref).
 """
 function numeric_average end
 
-numeric_average(op, state::QuantumState, d::AbstractDict{<:QSym} = _NO_SUBS) =
-    _numeric_average(op, state, d)
-function numeric_average(op, states::AbstractVector, d::AbstractDict{<:QSym} = _NO_SUBS)
+numeric_average(op, state::QuantumState, d::AbstractDict{<:QSym} = NO_SUBS) =
+    numeric_average_impl(op, state, d)
+function numeric_average(op, states::AbstractVector, d::AbstractDict{<:QSym} = NO_SUBS)
     isempty(states) && throw(ArgumentError("numeric_average: states vector is empty"))
-    return _numeric_average_vec(op, states, d)
+    return numeric_average_vec(op, states, d)
 end
 
 # Leaf: assemble the lazy numeric operator on the state's basis (never materialized, so a
 # `LazyKet` state works) and take the backend expectation.
-_numeric_average(op::QField, state, d::AbstractDict{<:QSym}) =
-    numeric_expect(numeric_backend(state), _to_numeric_lazy(op, NumericContext(numeric_backend(state), numeric_basis(state), d)), state)
-_numeric_average(x::Number, ::Any, ::AbstractDict{<:QSym}) = _to_complex(x)
-_numeric_average(x::Num, state, d::AbstractDict{<:QSym}) =
-    _numeric_average(SymbolicUtils.unwrap(x), state, d)
+numeric_average_impl(op::QField, state, d::AbstractDict{<:QSym}) =
+    numeric_expect(numeric_backend(state), to_numeric_lazy(op, NumericContext(numeric_backend(state), numeric_basis(state), d)), state)
+numeric_average_impl(x::Number, ::Any, ::AbstractDict{<:QSym}) = to_complex(x)
+numeric_average_impl(x::Num, state, d::AbstractDict{<:QSym}) =
+    numeric_average_impl(SymbolicUtils.unwrap(x), state, d)
 
-# `arguments(::BasicSymbolic)` is statically `Any`; the `_to_complex` wraps reseal each
+# `arguments(::BasicSymbolic)` is statically `Any`; the `to_complex` wraps reseal each
 # recursive result to `ComplexF64`.
-function _numeric_average(avg::SymbolicUtils.BasicSymbolic, state, d::AbstractDict{<:QSym})
+function numeric_average_impl(avg::SymbolicUtils.BasicSymbolic, state, d::AbstractDict{<:QSym})
     if SymbolicUtils.hasmetadata(avg, AverageOperator) ||
             (SymbolicUtils.iscall(avg) && SymbolicUtils.operation(avg) isa AvgFunc) ||
             is_indexed_sum(avg)
-        return _to_complex(_numeric_average(undo_average(avg), state, d))
+        return to_complex(numeric_average_impl(undo_average(avg), state, d))
     end
-    SymbolicUtils.isconst(avg) && return _to_complex(_numeric_average(avg.val, state, d))
+    SymbolicUtils.isconst(avg) && return to_complex(numeric_average_impl(avg.val, state, d))
     SymbolicUtils.iscall(avg) || throw(ArgumentError("numeric_average not implemented for $(typeof(avg))"))
     f, args = SymbolicUtils.operation(avg), SymbolicUtils.arguments(avg)
-    f === (^) && return _to_complex(_numeric_average(args[1], state, d))^_to_complex(args[2])
-    f === (+) && return _sum_avg(args, state, d)
-    f === (*) && return _prod_avg(args, state, d)
+    f === (^) && return to_complex(numeric_average_impl(args[1], state, d))^to_complex(args[2])
+    f === (+) && return sum_avg(args, state, d)
+    f === (*) && return prod_avg(args, state, d)
     # A phase is a c-number, so it evaluates rather than averaging over the state.
-    f === expim && return exp(im * _to_complex(_numeric_average(only(args), state, d)))
+    f === expim && return exp(im * to_complex(numeric_average_impl(only(args), state, d)))
     throw(ArgumentError("numeric_average not implemented for operation $f"))
 end
 
-function _sum_avg(args, state, d::AbstractDict{<:QSym})
+function sum_avg(args, state, d::AbstractDict{<:QSym})
     r = ComplexF64(0)
     for a in args
-        r += _to_complex(_numeric_average(a, state, d))
+        r += to_complex(numeric_average_impl(a, state, d))
     end
     return r
 end
-function _prod_avg(args, state, d::AbstractDict{<:QSym})
+function prod_avg(args, state, d::AbstractDict{<:QSym})
     r = ComplexF64(1)
     for a in args
-        r *= _to_complex(_numeric_average(a, state, d))
+        r *= to_complex(numeric_average_impl(a, state, d))
     end
     return r
 end
 
 # Operator expressions assemble lazily once and expect over all states (the vector
 # `numeric_expect` materialises internally); symbolic averages map.
-_numeric_average_vec(op::QField, states, d::AbstractDict{<:QSym}) =
-    numeric_expect(numeric_backend(first(states)), _to_numeric_lazy(op, NumericContext(numeric_backend(first(states)), numeric_basis(first(states)), d)), states)
-_numeric_average_vec(op, states, d::AbstractDict{<:QSym}) =
-    [_numeric_average(op, ψ, d) for ψ in states]
+numeric_average_vec(op::QField, states, d::AbstractDict{<:QSym}) =
+    numeric_expect(numeric_backend(first(states)), to_numeric_lazy(op, NumericContext(numeric_backend(first(states)), numeric_basis(first(states)), d)), states)
+numeric_average_vec(op, states, d::AbstractDict{<:QSym}) =
+    [numeric_average(op, ψ, d) for ψ in states]
 
 """
     expect(op::QField, state[, d::AbstractDict{<:QSym}])
@@ -222,4 +222,4 @@ _numeric_average_vec(op, states, d::AbstractDict{<:QSym}) =
 Alias for [`numeric_average`](@ref) on operator expressions. For symbolic scalar
 expressions such as `average(op)`, call [`numeric_average`](@ref) directly.
 """
-expect(op::QField, state, d::AbstractDict{<:QSym} = _NO_SUBS) = numeric_average(op, state, d)
+expect(op::QField, state, d::AbstractDict{<:QSym} = NO_SUBS) = numeric_average(op, state, d)

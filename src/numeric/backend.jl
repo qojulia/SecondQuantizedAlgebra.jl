@@ -148,7 +148,7 @@ this together with [`numeric_backend`](@ref) for state-based numeric conversion.
 """
 numeric_basis(s::Union{StateVector, AbstractOperator}) = basis(s)
 
-function _check_product_dims(h::ProductSpace, dims)
+function check_product_dims(h::ProductSpace, dims)
     nspaces = length(h.spaces)
     ndims = try
         length(dims)
@@ -168,12 +168,12 @@ function _check_product_dims(h::ProductSpace, dims)
 end
 
 """
-    _default_backend()
+    default_backend()
 
 The backend to use when none is given and no backend object pins one. Resolves to the sole
 loaded backend extension, erroring helpfully when zero or both are loaded.
 """
-function _default_backend()
+function default_backend()
     m = @__MODULE__
     qob = Base.get_extension(m, :SecondQuantizedAlgebraQuantumOpticsBaseExt) !== nothing
     qtb = Base.get_extension(m, :SecondQuantizedAlgebraQuantumToolboxExt) !== nothing

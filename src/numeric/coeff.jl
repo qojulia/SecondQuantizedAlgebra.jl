@@ -2,9 +2,9 @@
 # `ComplexF64`, split user parameter/time substitutions, and compile time-dependent
 # coefficient functions. Entirely backend-independent.
 
-const _NO_SCALAR_SUBS = Dict{Num, Any}()
+const NO_SCALAR_SUBS = Dict{Num, Any}()
 # An immutable empty value lets the static numeric path prove that no TD assembly is needed.
-const _NO_TIME_PARAMETER = ()
+const NO_TIME_PARAMETER = ()
 
 # A p-aware coefficient closure `(p, t) -> Complex`: backends dispatch on it (QuantumToolbox
 # threads `p` into the `ScalarOperator`, QuantumOptics rejects it). Parametric field for
@@ -15,7 +15,7 @@ end
 
 # --- parameter / time-parameter normalisation -----------------------------------------
 
-function _expand_parameter(parameter)
+function expand_parameter(parameter)
     isempty(parameter) && return parameter
     out = Dict{Any, Any}()
     for (k, v) in parameter
@@ -30,7 +30,7 @@ function _expand_parameter(parameter)
     return out
 end
 
-function _normalize_time_parameter(time_parameter)
+function normalize_time_parameter(time_parameter)
     isempty(time_parameter) && return time_parameter
     out = Dict{Any, Any}()
     for (k, v) in time_parameter
@@ -42,7 +42,7 @@ end
 # Does a value function read `p`? Arity 2 (`(p, t)`) yes, arity 1 (`t`) no. Checks every
 # method (`nargs - 1` drops the function/self slot, so closures, typed functions, and functors
 # all work) rather than the first, and rejects variadic/conflicting/out-of-range arities.
-function _tp_reads_p(f)::Bool
+function tp_reads_p(f)::Bool
     arities = Set{Int}()
     for m in methods(f)
         m.isva && throw(
@@ -71,19 +71,19 @@ function _tp_reads_p(f)::Bool
 end
 
 # In p-aware mode lift a t-only value function to `(p, t)` arity; a `(p, t)` function is kept.
-_lift_pt(f) = _tp_reads_p(f) ? f : ((p, t) -> f(t))
+lift_pt(f) = tp_reads_p(f) ? f : ((p, t) -> f(t))
 
 # conj wrapper preserving arity (the value function is already lifted in p-aware mode).
-_conj_vf(f, p_aware::Bool) = p_aware ? ((p, t) -> conj(f(p, t))) : (t -> conj(f(t)))
+conj_vf(f, p_aware::Bool) = p_aware ? ((p, t) -> conj(f(p, t))) : (t -> conj(f(t)))
 
-# p-aware iff any value function reads `p`; then all are lifted to `(p, t)` arity so `_td_coeff`
+# p-aware iff any value function reads `p`; then all are lifted to `(p, t)` arity so `td_coeff`
 # maps over them with one signature.
-function _time_basis(time_parameter)
-    p_aware = any(_tp_reads_p, values(time_parameter))
+function time_basis(time_parameter)
+    p_aware = any(tp_reads_p, values(time_parameter))
     basevars = Any[]
     valuefuncs = Any[]
     for (k, f) in time_parameter
-        g = p_aware ? _lift_pt(f) : f
+        g = p_aware ? lift_pt(f) : f
         uk = SymbolicUtils.unwrap(k)
         if SymbolicUtils.issym(uk)
             push!(basevars, k)
@@ -99,7 +99,7 @@ function _time_basis(time_parameter)
         wv = Symbolics.wrap(vs[1])
         if isequal(uk, SymbolicUtils.unwrap(conj(wv)))
             push!(basevars, wv)
-            push!(valuefuncs, _conj_vf(g, p_aware))
+            push!(valuefuncs, conj_vf(g, p_aware))
         else
             throw(
                 ArgumentError(
@@ -111,15 +111,15 @@ function _time_basis(time_parameter)
     return basevars, Tuple(valuefuncs), p_aware
 end
 
-_coeff_is_const(c::Complex{Num}) =
+coeff_is_const(c::Complex{Num}) =
     isempty(Symbolics.get_variables(real(c))) && isempty(Symbolics.get_variables(imag(c)))
 
-_const_coeff(c::Complex{Num}) = _to_complex(c)
+const_coeff(c::Complex{Num}) = to_complex(c)
 
-_as_cnum(x::Complex) = Complex{Num}(Num(real(x)), Num(imag(x)))
-_as_cnum(x) = Complex{Num}(Num(x), Num(false))
+as_cnum(x::Complex) = Complex{Num}(Num(real(x)), Num(imag(x)))
+as_cnum(x) = Complex{Num}(Num(x), Num(false))
 
-function _coefficient_variables(c::Complex{Num})
+function coefficient_variables(c::Complex{Num})
     vars = Any[]
     append!(vars, Symbolics.get_variables(real(c)))
     append!(vars, Symbolics.get_variables(imag(c)))
@@ -127,8 +127,8 @@ function _coefficient_variables(c::Complex{Num})
     return vars
 end
 
-function _check_time_variables(c::Complex{Num}, basevars)
-    vars = _coefficient_variables(c)
+function check_time_variables(c::Complex{Num}, basevars)
+    vars = coefficient_variables(c)
     base_unwrapped = SymbolicUtils.unwrap.(basevars)
     missing = Any[]
     for v in vars
@@ -143,7 +143,7 @@ function _check_time_variables(c::Complex{Num}, basevars)
     )
 end
 
-function _compile_coeff(c::Complex{Num}, vars...)
+function compile_coeff(c::Complex{Num}, vars...)
     f_re = build_function(real(c), vars...; expression = Val(false))
     f_im = build_function(imag(c), vars...; expression = Val(false))
     g_re = f_re isa Tuple ? first(f_re) : f_re
@@ -156,7 +156,7 @@ end
 # Split user-supplied scalar substitutions into real and imag legs once per
 # `to_numeric` call. A complex RHS `re + im*ii` propagates as separate real
 # and imaginary substitutions, preserving the `Complex{Num}` invariant.
-function _split_scalar_subs(scalar_subs::AbstractDict)
+function split_scalar_subs(scalar_subs::AbstractDict)
     sub_re = Dict{Any, Any}()
     sub_im = Dict{Any, Any}()
     has_imag = false
@@ -174,13 +174,13 @@ function _split_scalar_subs(scalar_subs::AbstractDict)
     return sub_re, sub_im, has_imag
 end
 
-function _apply_scalar_subs(c::CNum, sub_re::Dict, sub_im::Dict, has_imag::Bool)
-    (isempty(sub_re) || _is_native(c)) && return c
-    re, im = _realimag(c)
+function apply_scalar_subs(c::CNum, sub_re::Dict, sub_im::Dict, has_imag::Bool)
+    (isempty(sub_re) || is_native(c)) && return c
+    re, im = realimag(c)
     re_part = SymbolicUtils.unwrap(re)
     im_part = SymbolicUtils.unwrap(im)
     if !has_imag
-        return _cnum(
+        return cnum(
             Num(Symbolics.substitute(re_part, sub_re)),
             Num(Symbolics.substitute(im_part, sub_re)),
         )
@@ -190,25 +190,25 @@ function _apply_scalar_subs(c::CNum, sub_re::Dict, sub_im::Dict, has_imag::Bool)
         Symbolics.substitute(im_part, sub_im)
     new_im = Symbolics.substitute(re_part, sub_im) +
         Symbolics.substitute(im_part, sub_re)
-    return _cnum(Num(new_re), Num(new_im))
+    return cnum(Num(new_re), Num(new_im))
 end
 
 # --- concrete reduction ----------------------------------------------------------------
 
-function _reduce_const(n::Num)::ComplexF64
+function reduce_const(n::Num)::ComplexF64
     x = Symbolics.value(n)
     try
-        return _fold_const(x)
+        return fold_const(x)
     catch err
         err isa ArgumentError || rethrow()
         isempty(Symbolics.get_variables(n)) || rethrow()
-        return _compile_const(n)
+        return compile_const(n)
     end
 end
 
-_compile_const(n::Num)::ComplexF64 = ComplexF64(symbolic_to_float(n))
+compile_const(n::Num)::ComplexF64 = ComplexF64(symbolic_to_float(n))
 
-function _fold_const(x)::ComplexF64
+function fold_const(x)::ComplexF64
     x isa Number && return x
     if x isa SymbolicUtils.BasicSymbolic
         if SymbolicUtils.iscall(x)
@@ -217,30 +217,30 @@ function _fold_const(x)::ComplexF64
             if op === (+)
                 acc = zero(ComplexF64)
                 for a in args
-                    acc += _fold_const(a)
+                    acc += fold_const(a)
                 end
                 return acc
             elseif op === (*)
                 acc = one(ComplexF64)
                 for a in args
-                    acc *= _fold_const(a)
+                    acc *= fold_const(a)
                 end
                 return acc
             elseif op === conj
-                return conj(_fold_const(first(args)))
+                return conj(fold_const(first(args)))
             elseif op === real
-                return real(_fold_const(first(args)))
+                return real(fold_const(first(args)))
             elseif op === imag
-                return imag(_fold_const(first(args)))
+                return imag(fold_const(first(args)))
             elseif op === (/)
-                return _fold_const(first(args)) / _fold_const(last(args))
+                return fold_const(first(args)) / fold_const(last(args))
             elseif op === (^)
-                return _fold_const(first(args))^_fold_const(last(args))
+                return fold_const(first(args))^fold_const(last(args))
             elseif op === (-)
-                return length(args) == 1 ? -_fold_const(first(args)) :
-                    _fold_const(first(args)) - _fold_const(last(args))
+                return length(args) == 1 ? -fold_const(first(args)) :
+                    fold_const(first(args)) - fold_const(last(args))
             elseif op === expim
-                return exp(im * _fold_const(only(args)))
+                return exp(im * fold_const(only(args)))
             end
         elseif SymbolicUtils.isconst(x)
             return x.val
@@ -249,15 +249,15 @@ function _fold_const(x)::ComplexF64
     throw(ArgumentError("cannot reduce symbolic expression $x to a concrete number"))
 end
 
-_to_complex(c::Coeff) = _is_native(c) ? c.z : _to_complex(to_num(c))
+to_complex(c::Coeff) = is_native(c) ? c.z : to_complex(to_num(c))
 
 # One method (union-split budget) routing every input through `convert ∘ Complex`,
 # the only pattern that infers to ComplexF64 from `Any` after `Symbolics.value`.
-function _to_complex(x)
+function to_complex(x)
     x isa ComplexF64   && return x
-    x isa Complex{Num} && return _reduce_const(real(x)) + im * _reduce_const(imag(x))
+    x isa Complex{Num} && return reduce_const(real(x)) + im * reduce_const(imag(x))
     x isa Complex      && return convert(ComplexF64, x)
-    x isa Num          && return _reduce_const(x)
+    x isa Num          && return reduce_const(x)
     if x isa SymbolicUtils.BasicSymbolic
         SymbolicUtils.isconst(x) || throw(ArgumentError("cannot reduce symbolic expression $x to a concrete number"))
         return convert(ComplexF64, Complex(x.val, false))

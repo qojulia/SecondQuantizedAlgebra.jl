@@ -1,5 +1,5 @@
 using SecondQuantizedAlgebra
-import SecondQuantizedAlgebra: simplify, QAdd, QSym, _single_qadd, _CNUM_ONE, _to_cnum
+import SecondQuantizedAlgebra: simplify, QAdd, QSym, single_qadd, CNUM_ONE, to_cnum
 using Test
 
 @testset "fock operators" begin
@@ -59,10 +59,10 @@ using Test
         a2 = Destroy(hm, :a2, 2)
 
         @test isequal(
-            simplify(commutator(a1 + a2, a1')), _single_qadd(_to_cnum(1), Op[])
+            simplify(commutator(a1 + a2, a1')), single_qadd(to_cnum(1), Op[])
         )
         @test isequal(
-            simplify(commutator(a2', a1 + a2)), _single_qadd(_to_cnum(-1), Op[])
+            simplify(commutator(a2', a1 + a2)), single_qadd(to_cnum(-1), Op[])
         )
 
         @test commutator(a1, 1) == commutator(1, a2)

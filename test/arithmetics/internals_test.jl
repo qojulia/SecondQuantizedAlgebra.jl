@@ -2,44 +2,44 @@ using Test
 using SecondQuantizedAlgebra
 using Symbolics: @variables
 import SecondQuantizedAlgebra: simplify, QAdd, QSym, CNum, Transition, NO_INDEX,
-    _partial_sort!, _site_compare, _can_commute, _commute_pair,
-    _reduce_pair, _may_reduce, _ground_state_expand,
+    partial_sort!, site_compare, can_commute, commute_pair,
+    reduce_pair, may_reduce, ground_state_expand,
     SiteCmp, Less, Greater, Equal, Undetermined,
     ReduceKind, NoReduction, ScalarReduction, OpReduction,
-    _CNUM_ONE, _CNUM_ZERO, _CNUM_NEG1, _CNUM_IM, _CNUM_NEG_IM, _EMPTY_NE,
-    _mul_cnum, _add_cnum, _neg_cnum, _to_cnum, _NUM_ZERO, _NUM_ONE,
-    _canonicalize_to_dict!, QTermDict,
-    _reduce_ops, _commute_ops, _expand_gs_ops, _substitute_ops,
-    _stream!, _canonicalize!, Index
+    CNUM_ONE, CNUM_ZERO, CNUM_NEG1, CNUM_IM, CNUM_NEG_IM, EMPTY_NE,
+    mul_cnum, add_cnum, neg_cnum, to_cnum, NUM_ZERO, NUM_ONE,
+    canonicalize_to_dict!, QTermDict,
+    reduce_ops, commute_ops, expand_gs_ops, substitute_ops,
+    stream!, canonicalize!, Index
 
 # Tests of private hooks, passes, sort, and canonical-form invariants.
 
 # Helper: is this op a ground-state projector of an NLevelSpace?
-function _is_gs_projector(op)
+function is_gs_projector(op)
     is_transition(op) || return false
     return op.l1 == op.g && op.l2 == op.g
 end
 
 # Helper: every dict key in `expr` is free of ground-state projectors
-function _no_gs_projectors(expr::QAdd)
+function no_gs_projectors(expr::QAdd)
     for term in keys(expr.arguments)
-        any(_is_gs_projector, term.ops) && return false
+        any(is_gs_projector, term.ops) && return false
     end
     return true
 end
 
 # Helper: a term is canonical when no neighboring pair could swap or reduce.
-function _is_canonical(t)
+function is_canonical(t)
     ops = t.ops
     ne = t.ne
     for i in 1:(length(ops) - 1)
-        cmp = _site_compare(ops[i], ops[i + 1], ne)
+        cmp = site_compare(ops[i], ops[i + 1], ne)
         if cmp === Greater
             return false
         end
         if cmp === Equal
-            _can_commute(ops[i], ops[i + 1]) || return false
-            first(_reduce_pair(ops[i], ops[i + 1])) === NoReduction || return false
+            can_commute(ops[i], ops[i + 1]) || return false
+            first(reduce_pair(ops[i], ops[i + 1])) === NoReduction || return false
         end
     end
     return true
@@ -51,23 +51,23 @@ end
         h = FockSpace(:f)
         a = Destroy(h, :a)
         ad = adjoint(a)
-        @test _site_compare(a, ad, _EMPTY_NE) === Equal
-        @test _site_compare(ad, a, _EMPTY_NE) === Equal
-        @test _can_commute(a, ad) === false
-        @test _can_commute(ad, a) === true
-        sw = _commute_pair(a, ad)
+        @test site_compare(a, ad, EMPTY_NE) === Equal
+        @test site_compare(ad, a, EMPTY_NE) === Equal
+        @test can_commute(a, ad) === false
+        @test can_commute(ad, a) === true
+        sw = commute_pair(a, ad)
         @test sw[1] === ad && sw[2] === a
 
         ha = NLevelSpace(:atom, 2)
         σ12 = Transition(ha, :σ, 1, 2)
         σ21 = Transition(ha, :σ, 2, 1)
-        @test _site_compare(σ12, σ21, _EMPTY_NE) === Equal
-        @test _can_commute(σ12, σ21) === false
-        red = _reduce_pair(σ21, σ12)   # σ²¹·σ¹² = σ²²
+        @test site_compare(σ12, σ21, EMPTY_NE) === Equal
+        @test can_commute(σ12, σ21) === false
+        red = reduce_pair(σ21, σ12)   # σ²¹·σ¹² = σ²²
         @test red[1] === OpReduction
         @test red[2].l1 == 2 && red[2].l2 == 2
-        @test red[3] === _CNUM_ONE
-        @test first(_ground_state_expand(Transition(ha, :σ, 1, 1)))
+        @test red[3] === CNUM_ONE
+        @test first(ground_state_expand(Transition(ha, :σ, 1, 1)))
     end
 
     @testset "Partial sort" begin
@@ -76,7 +76,7 @@ end
             a = Destroy(h, :a, 1)
             σ = Transition(h, :σ, 1, 2)
             ops = Op[σ, a]
-            _partial_sort!(ops, _EMPTY_NE)
+            partial_sort!(ops, EMPTY_NE)
             @test is_destroy(ops[1])
             @test is_transition(ops[2])
         end
@@ -87,7 +87,7 @@ end
             σ21 = Transition(h, :σ, 2, 1)
             ops = Op[σ12, σ21]
             pre = copy(ops)
-            _partial_sort!(ops, _EMPTY_NE)
+            partial_sort!(ops, EMPTY_NE)
             @test ops == pre
         end
 
@@ -98,7 +98,7 @@ end
             σ_i = IndexedOperator(Transition(ha, :σ, 1, 2), i)
             σ_j = IndexedOperator(Transition(ha, :σ, 1, 2), j)
             ops = Op[σ_j, σ_i]
-            _partial_sort!(ops, _EMPTY_NE)
+            partial_sort!(ops, EMPTY_NE)
             @test ops[1] === σ_j
             @test ops[2] === σ_i
         end
@@ -110,7 +110,7 @@ end
             σ_i = IndexedOperator(Transition(ha, :σ, 1, 2), i)
             σ_j = IndexedOperator(Transition(ha, :σ, 1, 2), j)
             ops = Op[σ_j, σ_i]
-            _partial_sort!(ops, [(i, j)])
+            partial_sort!(ops, [(i, j)])
             @test ops[1] === σ_i
             @test ops[2] === σ_j
         end
@@ -124,21 +124,21 @@ end
 
         @testset "canonicalize_to_dict!: basic insert" begin
             out = QTermDict()
-            _canonicalize_to_dict!(out, Op[a], _CNUM_ONE, _EMPTY_NE)
+            canonicalize_to_dict!(out, Op[a], CNUM_ONE, EMPTY_NE)
             @test length(out) == 1
         end
 
         @testset "canonicalize_to_dict!: like-term collection" begin
             out = QTermDict()
-            _canonicalize_to_dict!(out, Op[a], _CNUM_ONE, _EMPTY_NE)
-            _canonicalize_to_dict!(out, Op[a], _CNUM_ONE, _EMPTY_NE)
+            canonicalize_to_dict!(out, Op[a], CNUM_ONE, EMPTY_NE)
+            canonicalize_to_dict!(out, Op[a], CNUM_ONE, EMPTY_NE)
             @test length(out) == 1
             @test first(values(out)) == 2 + 0im
         end
 
         @testset "canonicalize_to_dict!: zero coeff dropped" begin
             out = QTermDict()
-            _canonicalize_to_dict!(out, Op[a], _CNUM_ZERO, _EMPTY_NE)
+            canonicalize_to_dict!(out, Op[a], CNUM_ZERO, EMPTY_NE)
             @test isempty(out)
         end
 
@@ -147,24 +147,24 @@ end
             # γ/D + (-γ)/D is structurally non-zero to Symbolics (the `Div` nodes
             # are left un-combined), so exact-negation collection must drop the term.
             out = QTermDict()
-            _canonicalize_to_dict!(out, Op[a], _to_cnum(γ / D), _EMPTY_NE)
-            _canonicalize_to_dict!(out, Op[a], _to_cnum(-γ / D), _EMPTY_NE)
+            canonicalize_to_dict!(out, Op[a], to_cnum(γ / D), EMPTY_NE)
+            canonicalize_to_dict!(out, Op[a], to_cnum(-γ / D), EMPTY_NE)
             @test isempty(out)
         end
 
         @testset "canonicalize_to_dict!: distinct symbolic prefactors kept" begin
             @variables γ D β
             out = QTermDict()
-            _canonicalize_to_dict!(out, Op[a], _to_cnum(γ / D), _EMPTY_NE)
-            _canonicalize_to_dict!(out, Op[a], _to_cnum(β / D), _EMPTY_NE)
+            canonicalize_to_dict!(out, Op[a], to_cnum(γ / D), EMPTY_NE)
+            canonicalize_to_dict!(out, Op[a], to_cnum(β / D), EMPTY_NE)
             @test length(out) == 1
         end
 
-        @testset "_reduce_ops: Transition composition" begin
+        @testset "reduce_ops: Transition composition" begin
             σ12 = Transition(hn, :σ, 1, 2)
             σ23 = Transition(hn, :σ, 2, 3)
             emitted = Tuple{Vector{Op}, CNum}[]
-            _reduce_ops(Op[σ12, σ23], _CNUM_ONE) do o, c
+            reduce_ops(Op[σ12, σ23], CNUM_ONE) do o, c
                 push!(emitted, (copy(o), c))
             end
             @test length(emitted) == 1
@@ -172,71 +172,71 @@ end
             @test emitted[1][1][1].l1 == 1 && emitted[1][1][1].l2 == 3
         end
 
-        @testset "_reduce_ops: zero from incompatible composition" begin
+        @testset "reduce_ops: zero from incompatible composition" begin
             σ12 = Transition(hn, :σ, 1, 2)
             σ31 = Transition(hn, :σ, 3, 1)
             emitted = Tuple{Vector{Op}, CNum}[]
-            _reduce_ops(Op[σ12, σ31], _CNUM_ONE) do o, c
+            reduce_ops(Op[σ12, σ31], CNUM_ONE) do o, c
                 push!(emitted, (copy(o), c))
             end
             @test isempty(emitted)
         end
 
-        @testset "_reduce_ops: no-op input passes through" begin
+        @testset "reduce_ops: no-op input passes through" begin
             emitted = Tuple{Vector{Op}, CNum}[]
-            _reduce_ops(Op[ad, a], _CNUM_ONE) do o, c
+            reduce_ops(Op[ad, a], CNUM_ONE) do o, c
                 push!(emitted, (copy(o), c))
             end
             @test length(emitted) == 1
             @test emitted[1][1] == Op[ad, a]
         end
 
-        @testset "_commute_ops: Fock aa† → a†a + 1" begin
+        @testset "commute_ops: Fock aa† → a†a + 1" begin
             emitted = Tuple{Vector{Op}, CNum}[]
-            _commute_ops(Op[a, ad], _CNUM_ONE) do o, c
+            commute_ops(Op[a, ad], CNUM_ONE) do o, c
                 push!(emitted, (copy(o), c))
             end
             @test length(emitted) == 2
             sort!(emitted, by = e -> length(e[1]))
-            @test isempty(emitted[1][1]) && emitted[1][2] == _CNUM_ONE
+            @test isempty(emitted[1][1]) && emitted[1][2] == CNUM_ONE
             @test emitted[2][1] == Op[ad, a]
         end
 
-        @testset "_commute_ops: no-op on already-ordered pair" begin
+        @testset "commute_ops: no-op on already-ordered pair" begin
             emitted = Tuple{Vector{Op}, CNum}[]
-            _commute_ops(Op[ad, a], _CNUM_ONE) do o, c
+            commute_ops(Op[ad, a], CNUM_ONE) do o, c
                 push!(emitted, (copy(o), c))
             end
             @test length(emitted) == 1
             @test emitted[1][1] == Op[ad, a]
         end
 
-        @testset "_expand_gs_ops: σ¹¹ → 1 - σ²²" begin
+        @testset "expand_gs_ops: σ¹¹ → 1 - σ²²" begin
             h2 = NLevelSpace(:a, 2)
             σ11 = Transition(h2, :σ, 1, 1)
             emitted = Tuple{Vector{Op}, CNum}[]
-            _expand_gs_ops(Op[σ11], _CNUM_ONE) do o, c
+            expand_gs_ops(Op[σ11], CNUM_ONE) do o, c
                 push!(emitted, (copy(o), c))
             end
             @test length(emitted) == 2
             sort!(emitted, by = e -> length(e[1]))
-            @test isempty(emitted[1][1]) && emitted[1][2] == _CNUM_ONE
-            @test length(emitted[2][1]) == 1 && emitted[2][2] == -_CNUM_ONE
+            @test isempty(emitted[1][1]) && emitted[1][2] == CNUM_ONE
+            @test length(emitted[2][1]) == 1 && emitted[2][2] == -CNUM_ONE
             @test emitted[2][1][1].l1 == 2 && emitted[2][1][1].l2 == 2
         end
 
-        @testset "_expand_gs_ops: passthrough when no σᵍᵍ" begin
+        @testset "expand_gs_ops: passthrough when no σᵍᵍ" begin
             emitted = Tuple{Vector{Op}, CNum}[]
-            _expand_gs_ops(Op[a], _CNUM_ONE) do o, c
+            expand_gs_ops(Op[a], CNUM_ONE) do o, c
                 push!(emitted, (copy(o), c))
             end
             @test length(emitted) == 1
             @test emitted[1][1] == Op[a]
         end
 
-        @testset "_substitute_ops: operator → scalar" begin
+        @testset "substitute_ops: operator → scalar" begin
             emitted = Tuple{Vector{Op}, CNum}[]
-            _substitute_ops(Op[a, ad], _CNUM_ONE, Dict(a => 2)) do o, c
+            substitute_ops(Op[a, ad], CNUM_ONE, Dict(a => 2)) do o, c
                 push!(emitted, (copy(o), c))
             end
             @test length(emitted) == 1
@@ -244,15 +244,15 @@ end
             @test emitted[1][1] == Op[ad]
         end
 
-        @testset "_stream!: idempotent on canonical input" begin
+        @testset "stream!: idempotent on canonical input" begin
             out = QTermDict()
-            _stream!(out, Op[ad, a], _CNUM_ONE, _EMPTY_NE)
+            stream!(out, Op[ad, a], CNUM_ONE, EMPTY_NE)
             @test length(out) == 1
         end
 
-        @testset "_canonicalize!: aa† → a†a + 1" begin
+        @testset "canonicalize!: aa† → a†a + 1" begin
             out = QTermDict()
-            _canonicalize!(out, Op[a, ad], _CNUM_ONE, _EMPTY_NE)
+            canonicalize!(out, Op[a, ad], CNUM_ONE, EMPTY_NE)
             @test length(out) == 2
         end
     end
@@ -265,7 +265,7 @@ end
             σ21 = Transition(h, :σ, 2, 1, 2)
             q = a * adjoint(a) * σ12 * σ21
             for (t, _) in q
-                @test _is_canonical(t)
+                @test is_canonical(t)
             end
         end
 
@@ -274,7 +274,7 @@ end
             a = Destroy(h, :a)
             q = a * adjoint(a) * a
             for (t, _) in normal_order(q)
-                @test _is_canonical(t)
+                @test is_canonical(t)
             end
         end
 
@@ -283,7 +283,7 @@ end
             a = Destroy(h, :a)
             q = commutator(a, adjoint(a))
             for (t, _) in q
-                @test _is_canonical(t)
+                @test is_canonical(t)
             end
         end
 
@@ -293,7 +293,7 @@ end
             q = adjoint(a) * a
             sub = SecondQuantizedAlgebra.SymbolicUtils.substitute(q, Dict{Any, Any}(a => 0.5))
             for (t, _) in sub
-                @test _is_canonical(t)
+                @test is_canonical(t)
             end
         end
 
@@ -302,75 +302,75 @@ end
             σ11 = Transition(h, :σ, 1, 1)
             exp = expand_completeness(σ11)
             for (t, _) in exp
-                @test _is_canonical(t)
+                @test is_canonical(t)
             end
         end
     end
 
     @testset "CNum arithmetic type stability" begin
-        @test @inferred(_mul_cnum(_CNUM_ONE, _CNUM_ONE)) isa CNum
-        @test @inferred(_mul_cnum(_CNUM_ONE, _CNUM_ZERO)) isa CNum
-        @test @inferred(_mul_cnum(_CNUM_NEG1, _CNUM_IM)) isa CNum
-        @test @inferred(_add_cnum(_CNUM_ONE, _CNUM_ONE)) isa CNum
-        @test @inferred(_add_cnum(_CNUM_ONE, _CNUM_NEG1)) isa CNum
-        @test @inferred(_neg_cnum(_CNUM_ONE)) isa CNum
-        @test @inferred(_neg_cnum(_CNUM_IM)) isa CNum
+        @test @inferred(mul_cnum(CNUM_ONE, CNUM_ONE)) isa CNum
+        @test @inferred(mul_cnum(CNUM_ONE, CNUM_ZERO)) isa CNum
+        @test @inferred(mul_cnum(CNUM_NEG1, CNUM_IM)) isa CNum
+        @test @inferred(add_cnum(CNUM_ONE, CNUM_ONE)) isa CNum
+        @test @inferred(add_cnum(CNUM_ONE, CNUM_NEG1)) isa CNum
+        @test @inferred(neg_cnum(CNUM_ONE)) isa CNum
+        @test @inferred(neg_cnum(CNUM_IM)) isa CNum
 
         @variables x y
-        c1 = _to_cnum(Complex(SecondQuantizedAlgebra.Num(x), _NUM_ZERO))
-        c2 = _to_cnum(Complex(SecondQuantizedAlgebra.Num(y), _NUM_ZERO))
-        @test @inferred(_mul_cnum(c1, c2)) isa CNum
-        @test @inferred(_add_cnum(c1, c2)) isa CNum
-        @test @inferred(_neg_cnum(c1)) isa CNum
+        c1 = to_cnum(Complex(SecondQuantizedAlgebra.Num(x), NUM_ZERO))
+        c2 = to_cnum(Complex(SecondQuantizedAlgebra.Num(y), NUM_ZERO))
+        @test @inferred(mul_cnum(c1, c2)) isa CNum
+        @test @inferred(add_cnum(c1, c2)) isa CNum
+        @test @inferred(neg_cnum(c1)) isa CNum
     end
 
-    @testset "_to_cnum type stability" begin
-        @test @inferred(_to_cnum(1)) isa CNum
-        @test @inferred(_to_cnum(0)) isa CNum
-        @test @inferred(_to_cnum(-1)) isa CNum
-        @test @inferred(_to_cnum(1.5)) isa CNum
-        @test @inferred(_to_cnum(im)) isa CNum
-        @test @inferred(_to_cnum(-im)) isa CNum
-        @test @inferred(_to_cnum(1 + 2im)) isa CNum
+    @testset "to_cnum type stability" begin
+        @test @inferred(to_cnum(1)) isa CNum
+        @test @inferred(to_cnum(0)) isa CNum
+        @test @inferred(to_cnum(-1)) isa CNum
+        @test @inferred(to_cnum(1.5)) isa CNum
+        @test @inferred(to_cnum(im)) isa CNum
+        @test @inferred(to_cnum(-im)) isa CNum
+        @test @inferred(to_cnum(1 + 2im)) isa CNum
     end
 
     @testset "Operator hook type stability" begin
         h = FockSpace(:f)
         a = Destroy(h, :a)
         ad = Create(h, :a)
-        @test @inferred(_site_compare(a, ad, _EMPTY_NE)) isa SiteCmp
-        @test @inferred(_can_commute(a, ad)) isa Bool
-        @test @inferred(_can_commute(ad, a)) isa Bool
-        @test @inferred(_commute_pair(a, ad)) isa Tuple{Op, Op, CNum, Vector{Op}, CNum, Vector{Op}}
+        @test @inferred(site_compare(a, ad, EMPTY_NE)) isa SiteCmp
+        @test @inferred(can_commute(a, ad)) isa Bool
+        @test @inferred(can_commute(ad, a)) isa Bool
+        @test @inferred(commute_pair(a, ad)) isa Tuple{Op, Op, CNum, Vector{Op}, CNum, Vector{Op}}
 
         ha = NLevelSpace(:atom, 3)
         σ12 = Transition(ha, :σ, 1, 2)
         σ21 = Transition(ha, :σ, 2, 1)
-        @test @inferred(_reduce_pair(σ12, σ21)) isa Tuple{ReduceKind, Op, CNum}
-        @test @inferred(_ground_state_expand(σ12)) isa Tuple{Bool, Int, Int, Int}
+        @test @inferred(reduce_pair(σ12, σ21)) isa Tuple{ReduceKind, Op, CNum}
+        @test @inferred(ground_state_expand(σ12)) isa Tuple{Bool, Int, Int, Int}
 
         hp = PauliSpace(:s)
         px = Pauli(hp, :σ, 1)
         py = Pauli(hp, :σ, 2)
-        @test @inferred(_reduce_pair(px, py)) isa Tuple{ReduceKind, Op, CNum}
+        @test @inferred(reduce_pair(px, py)) isa Tuple{ReduceKind, Op, CNum}
 
         hs = SpinSpace(:s)
         sx = Spin(hs, :S, 1)
         sy = Spin(hs, :S, 2)
-        @test @inferred(_commute_pair(sy, sx)) isa Tuple{Op, Op, CNum, Vector{Op}, CNum, Vector{Op}}
+        @test @inferred(commute_pair(sy, sx)) isa Tuple{Op, Op, CNum, Vector{Op}, CNum, Vector{Op}}
 
         hc = CollectiveNLevelSpace(:collective, 2)
         S12 = CollectiveTransition(hc, :S, 1, 2)
         S21 = CollectiveTransition(hc, :S, 2, 1)
-        @test @inferred(_commute_pair(S12, S21)) isa Tuple{Op, Op, CNum, Vector{Op}, CNum, Vector{Op}}
+        @test @inferred(commute_pair(S12, S21)) isa Tuple{Op, Op, CNum, Vector{Op}, CNum, Vector{Op}}
 
-        # _may_reduce: true iff the same-type pair's _reduce_pair can fire
-        @test @inferred(_may_reduce(σ12, σ21)) === true
-        @test @inferred(_may_reduce(px, py)) === true
-        @test _may_reduce(a, ad) === false
-        @test _may_reduce(sx, sy) === false
-        @test _may_reduce(S12, S21) === false
-        @test _may_reduce(a, σ12) === false
+        # may_reduce: true iff the same-type pair's reduce_pair can fire
+        @test @inferred(may_reduce(σ12, σ21)) === true
+        @test @inferred(may_reduce(px, py)) === true
+        @test may_reduce(a, ad) === false
+        @test may_reduce(sx, sy) === false
+        @test may_reduce(S12, S21) === false
+        @test may_reduce(a, σ12) === false
     end
 
     @testset "Canonical form (NLevelSpace ground-state projection)" begin
@@ -431,7 +431,7 @@ end
             result = expand_completeness(σ12 * σ21)
             @test result isa QAdd
             @test isequal(result, simplify(1 - σ22))
-            @test _no_gs_projectors(result)
+            @test no_gs_projectors(result)
         end
 
         @testset "Composition+expand: σ¹²·σ²¹ → 1 - σ²² - σ³³ (3-level, g=1)" begin
@@ -442,7 +442,7 @@ end
             σ33 = Transition(h, :σ, 3, 3)
             result = expand_completeness(σ12 * σ21)
             @test isequal(result, simplify(1 - σ22 - σ33))
-            @test _no_gs_projectors(result)
+            @test no_gs_projectors(result)
         end
 
         @testset "Composition+expand: ground state ≠ 1 (g=2)" begin
@@ -454,11 +454,11 @@ end
 
             result = expand_completeness(σ21 * σ12)
             @test isequal(result, simplify(1 - σ11 - σ33))
-            @test _no_gs_projectors(result)
+            @test no_gs_projectors(result)
 
             result2 = σ12 * σ21
             @test length(result2) == 1
-            (term, _c) = only(collect(result2))
+            (term, c) = only(collect(result2))
             ops = term.ops
             @test length(ops) == 1
             @test ops[1] == σ11
@@ -476,7 +476,7 @@ end
             result = expand_completeness(σ(1, 2) * σ(2, 1))
             @test result isa QAdd
             @test length(result) == 2
-            @test _no_gs_projectors(result)
+            @test no_gs_projectors(result)
             for term in keys(result.arguments)
                 for op in term.ops
                     if is_transition(op)
@@ -498,7 +498,7 @@ end
 
             result = expand_completeness(σ12 * σ23 * σ31)
             @test isequal(result, simplify(1 - σ22 - σ33))
-            @test _no_gs_projectors(result)
+            @test no_gs_projectors(result)
         end
 
         @testset "Different-site σᵍᵍ_i · σᵍᵍ_j (expand via expand_completeness)" begin
@@ -508,7 +508,7 @@ end
             σi = IndexedOperator(Transition(h, :σ, 2, 2), i)
             σj = IndexedOperator(Transition(h, :σ, 2, 2), j)
             expanded = expand_completeness(σi * σj)
-            @test _no_gs_projectors(expanded)
+            @test no_gs_projectors(expanded)
             @test isequal(expanded, expand_completeness(normal_order(σi * σj)))
         end
 
@@ -551,7 +551,7 @@ end
             for op in (σ(1, 2), σ(2, 1), σ(2, 2), a' * σ(1, 2), a * σ(2, 1))
                 result = expand_completeness(commutator(H_jc, op))
                 result isa QAdd || continue
-                @test _no_gs_projectors(result)
+                @test no_gs_projectors(result)
             end
         end
 
@@ -579,7 +579,7 @@ end
                 )
                 result = expand_completeness(commutator(H, op))
                 result isa QAdd || continue
-                @test _no_gs_projectors(result)
+                @test no_gs_projectors(result)
             end
         end
 
@@ -588,10 +588,10 @@ end
             σ(α, β) = Transition(h, :σ, α, β)
 
             r1 = σ(1, 2) * σ(2, 1)
-            @test _no_gs_projectors(r1)
+            @test no_gs_projectors(r1)
 
             r2 = expand_completeness(σ(2, 1) * σ(1, 2))
-            @test _no_gs_projectors(r2)
+            @test no_gs_projectors(r2)
             @test length(r2) == 4
 
             r3 = σ(3, 2) * σ(2, 3)
@@ -608,10 +608,10 @@ end
             σB(α, β) = Transition(h, :σB, α, β, 2)
 
             rA = expand_completeness(σA(1, 2) * σA(2, 1))
-            @test _no_gs_projectors(rA)
+            @test no_gs_projectors(rA)
 
             rB = expand_completeness(σB(2, 1) * σB(1, 2))
-            @test _no_gs_projectors(rB)
+            @test no_gs_projectors(rB)
 
             rB2 = σB(1, 2) * σB(2, 1)
             term, _ = only(collect(rB2))
@@ -625,16 +625,16 @@ end
 @testset "Intern tables: out-of-range id is bounds-checked" begin
     # A stale/out-of-range Int32 name id (e.g. an Op deserialized across a session
     # boundary) must throw on read, not index out of bounds and corrupt memory.
-    @test_throws BoundsError SecondQuantizedAlgebra._name_from_id(Int32(1_000_000))
-    @test_throws BoundsError SecondQuantizedAlgebra._name_rank(Int32(1_000_000))
+    @test_throws BoundsError SecondQuantizedAlgebra.name_from_id(Int32(1_000_000))
+    @test_throws BoundsError SecondQuantizedAlgebra.name_rank(Int32(1_000_000))
 end
 
 @testset "Intern tables: incremental name rank is lexicographic" begin
     # Names interned out of alphabetical order must still rank alphabetically
     # (the per-name rank splice must match a full re-sort).
-    za = SecondQuantizedAlgebra._intern_name(:zzz_rank)
-    an = SecondQuantizedAlgebra._intern_name(:aaa_rank)
-    mi = SecondQuantizedAlgebra._intern_name(:mmm_rank)
-    r(id) = SecondQuantizedAlgebra._name_rank(id)
+    za = SecondQuantizedAlgebra.intern_name(:zzz_rank)
+    an = SecondQuantizedAlgebra.intern_name(:aaa_rank)
+    mi = SecondQuantizedAlgebra.intern_name(:mmm_rank)
+    r(id) = SecondQuantizedAlgebra.name_rank(id)
     @test r(an) < r(mi) < r(za)
 end

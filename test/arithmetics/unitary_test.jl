@@ -4,16 +4,16 @@ using CheckConcreteStructs: all_concrete
 using SecondQuantizedAlgebra
 using Symbolics: @variables, Num
 import SecondQuantizedAlgebra: Coeff, DynamicTime, Op, ParamRelation, QAdd, SiteInfo,
-    StaticTime, _CNUM_ONE, _coefficient_matrix, _matrix_unit_rules, _nlevel_gauge,
-    _rule_qadd, _substitute_cnum, _to_complex, _validated_transform,
-    _zero_qadd, expim, exponential_form
+    StaticTime, CNUM_ONE, coefficient_matrix, matrix_unit_rules, nlevel_gauge,
+    rule_qadd, substitute_cnum, to_complex, validated_transform,
+    zero_qadd, expim, exponential_form
 
 # The unitary API is deliberately tested from its closed forms instead of from a second
 # implementation of the removed generic exponentiator. Constructor tables pin one useful
 # image from every retained family. Algebraic laws are then tested once on a small,
 # noncommuting set, and the independent oracles below use only ordinary Julia matrices.
 
-function _matrix_of(
+function matrix_of(
         q::QAdd, representations::Dict{Op, Matrix{ComplexF64}},
         substitutions::AbstractDict = Dict{Num, Float64}()
     )
@@ -22,23 +22,23 @@ function _matrix_of(
     identity_matrix = Matrix{ComplexF64}(I, dimension, dimension)
     for (term, coefficient) in q
         reduced = isempty(substitutions) ? coefficient :
-            _substitute_cnum(coefficient, substitutions)
+            substitute_cnum(coefficient, substitutions)
         product = copy(identity_matrix)
         for operator in term.ops
             product *= representations[operator]
         end
-        result .+= _to_complex(reduced) .* product
+        result .+= to_complex(reduced) .* product
     end
     return result
 end
 
-_matrix_of(
+matrix_of(
     o::Op, representations::Dict{Op, Matrix{ComplexF64}},
     substitutions::AbstractDict = Dict{Num, Float64}()
 ) =
-    _matrix_of(1 * o, representations, substitutions)
+    matrix_of(1 * o, representations, substitutions)
 
-function _fock_matrices(dimension::Int)
+function fock_matrices(dimension::Int)
     a = zeros(ComplexF64, dimension, dimension)
     for n in 1:(dimension - 1)
         a[n, n + 1] = sqrt(n)
@@ -46,7 +46,7 @@ function _fock_matrices(dimension::Int)
     return a, Matrix(a')
 end
 
-function _transition_matrices(space::NLevelSpace, name::Symbol, dimension::Int)
+function transition_matrices(space::NLevelSpace, name::Symbol, dimension::Int)
     representations = Dict{Op, Matrix{ComplexF64}}()
     for i in 1:dimension, j in 1:dimension
         matrix = zeros(ComplexF64, dimension, dimension)
@@ -56,7 +56,7 @@ function _transition_matrices(space::NLevelSpace, name::Symbol, dimension::Int)
     return representations
 end
 
-function _warm_allocated(f)
+function warm_allocated(f)
     f()
     GC.gc()
     return @allocations f()
@@ -442,12 +442,12 @@ end
     @testset "independent direct-matrix oracles" begin
         @testset "low-excitation Fock displacement" begin
             dimension = 24
-            lowering, raising = _fock_matrices(dimension)
+            lowering, raising = fock_matrices(dimension)
             representations = Dict{Op, Matrix{ComplexF64}}(a => lowering, a' => raising)
             amplitude = 0.04 + 0.03im
             displacement = exp(amplitude * raising - conj(amplitude) * lowering)
             exact = displacement' * lowering * displacement
-            symbolic = _matrix_of(conjugate(a, Displace(a, amplitude)), representations)
+            symbolic = matrix_of(conjugate(a, Displace(a, amplitude)), representations)
             # The finite truncation violates the CCR only at its top state. The first six
             # levels are an exponentially converged oracle for the infinite Fock result.
             @test norm(exact[1:6, 1:6] - symbolic[1:6, 1:6]) < 1.0e-12
@@ -461,7 +461,7 @@ end
             angle = 0.37
             matrix_unitary = exp(-im * angle * sz / 2)
             oracle = matrix_unitary' * sx * matrix_unitary
-            symbolic = _matrix_of(
+            symbolic = matrix_of(
                 conjugate(σx, Rotation(σx, 3, θ)), representations, Dict(θ => angle),
             )
             @test norm(oracle - symbolic) < 1.0e-14
@@ -470,11 +470,11 @@ end
         @testset "finite N-level contraction" begin
             W = Complex{Rational{Int}}[3 // 5 4im // 5; 4im // 5 3 // 5]
             transform_matrix = Rotation(σ12, W)
-            representations = _transition_matrices(atom, :σ, 2)
+            representations = transition_matrices(atom, :σ, 2)
             for operator in (σ11, σ12, σ21, σ22)
                 input = representations[operator]
                 oracle = ComplexF64.(W)' * input * ComplexF64.(W)
-                symbolic = _matrix_of(conjugate(operator, transform_matrix), representations)
+                symbolic = matrix_of(conjugate(operator, transform_matrix), representations)
                 @test norm(oracle - symbolic) < 1.0e-14
             end
         end
@@ -495,8 +495,8 @@ end
 
             symbolic_matrix = Coeff[expim(-ω * t) 0; 0 expim(ω * t)]
             U = Rotation(σ12, symbolic_matrix, t)
-            representations = _transition_matrices(atom, :σ, 2)
-            symbolic = _matrix_of(
+            representations = transition_matrices(atom, :σ, 2)
+            symbolic = matrix_of(
                 gauge_term(U), representations, Dict(ω => frequency, t => instant),
             )
             @test norm(oracle - symbolic) < 1.0e-9
@@ -521,16 +521,16 @@ end
         @test_throws ArgumentError Rotation(a, ω * t, t) * Rotation(a, ω * s, s)
         @test_throws ArgumentError Rotation(a, ω * t) * Rotation(a, ω * t, t)
 
-        lone_rule = Dict{Op, QAdd}(a => _rule_qadd((_CNUM_ONE, Op[a])))
-        @test_throws ArgumentError _validated_transform(
-            lone_rule, copy(lone_rule), _zero_qadd(), StaticTime(), ParamRelation[],
+        lone_rule = Dict{Op, QAdd}(a => rule_qadd((CNUM_ONE, Op[a])))
+        @test_throws ArgumentError validated_transform(
+            lone_rule, copy(lone_rule), zero_qadd(), StaticTime(), ParamRelation[],
         )
         @test_throws MethodError UnitaryTransform(a' * a, θ)
 
         @test_throws ArgumentError Rotation(σ12, [1 0 0; 0 1 0])
         @test_throws ArgumentError Rotation(σ12, [1 0; 0 2])
         @test_throws ArgumentError Rotation(σ12, [cos(θ) -sin(φ); sin(θ) cos(φ)])
-        @test_throws MethodError Rotation(σ12, [0 1; 1 0], t, _zero_qadd())
+        @test_throws MethodError Rotation(σ12, [0 1; 1 0], t, zero_qadd())
 
         collective_space = CollectiveNLevelSpace(:ensemble, 2)
         collective = CollectiveTransition(collective_space, :J, 1, 2)
@@ -600,10 +600,10 @@ end
 
         level_phases = Coeff[expim(-ω * t) 0; 0 expim(ω * t)]
         @test (@inferred Rotation(σ12, level_phases, t)) isa UnitaryTransform{DynamicTime}
-        @test (@inferred _coefficient_matrix([0 1; 1 0])) isa Matrix{Coeff}
-        coefficients = _coefficient_matrix([0 1; 1 0])
-        @test (@inferred _matrix_unit_rules(σ12, coefficients)) isa Dict{Op, QAdd}
-        @test (@inferred _nlevel_gauge(σ12, level_phases, t)) isa QAdd
+        @test (@inferred coefficient_matrix([0 1; 1 0])) isa Matrix{Coeff}
+        coefficients = coefficient_matrix([0 1; 1 0])
+        @test (@inferred matrix_unit_rules(σ12, coefficients)) isa Dict{Op, QAdd}
+        @test (@inferred nlevel_gauge(σ12, level_phases, t)) isa QAdd
 
         @test (@inferred conjugate(a, static)) isa QAdd
         @test (@inferred conjugate(a' * a, static)) isa QAdd
@@ -639,14 +639,14 @@ end
         timed_second = Rotation(a, η * t, t)
         observable = a' * a
 
-        @test _warm_allocated(() -> Rotation(a, θ)) <= 144
-        @test _warm_allocated(() -> conjugate(a, static)) <= 40
-        @test _warm_allocated(() -> conjugate(observable, static)) <= 41
-        @test _warm_allocated(() -> transform(observable, timed)) <= 57
-        @test _warm_allocated(() -> inv(static)) <= 24
-        @test _warm_allocated(() -> static * static_second) <= 112
-        @test _warm_allocated(() -> static * timed_second) <= 112
-        @test _warm_allocated(() -> timed * static_second) <= 112
-        @test _warm_allocated(() -> timed * timed_second) <= 112
+        @test warm_allocated(() -> Rotation(a, θ)) <= 144
+        @test warm_allocated(() -> conjugate(a, static)) <= 40
+        @test warm_allocated(() -> conjugate(observable, static)) <= 41
+        @test warm_allocated(() -> transform(observable, timed)) <= 57
+        @test warm_allocated(() -> inv(static)) <= 24
+        @test warm_allocated(() -> static * static_second) <= 112
+        @test warm_allocated(() -> static * timed_second) <= 112
+        @test warm_allocated(() -> timed * static_second) <= 112
+        @test warm_allocated(() -> timed * timed_second) <= 112
     end
 end

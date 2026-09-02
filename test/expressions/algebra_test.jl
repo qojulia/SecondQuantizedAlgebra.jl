@@ -3,7 +3,7 @@ using Symbolics: @variables
 using Test
 import SymbolicUtils
 import SecondQuantizedAlgebra: QAdd, QSym, QField, sorted_arguments, CNum,
-    _CNUM_ONE, _single_qadd, _to_cnum, simplify
+    CNUM_ONE, single_qadd, to_cnum, simplify
 
 @testset "Algebra (QAdd / QMul construction)" begin
     h = FockSpace(:c)
@@ -124,13 +124,13 @@ import SecondQuantizedAlgebra: QAdd, QSym, QField, sorted_arguments, CNum,
         @testset "Eager normal ordering" begin
             # a * a† = a†a + 1 (normal ordered)
             result = a * ad
-            @test result[Op[ad, a]] == _CNUM_ONE
-            @test result[Op[]] == _CNUM_ONE
+            @test result[Op[ad, a]] == CNUM_ONE
+            @test result[Op[]] == CNUM_ONE
             @test length(result) == 2
 
             # a† * a is already normal ordered
             result2 = ad * a
-            @test result2[Op[ad, a]] == _CNUM_ONE
+            @test result2[Op[ad, a]] == CNUM_ONE
             @test length(result2) == 1
         end
 
@@ -176,7 +176,7 @@ import SecondQuantizedAlgebra: QAdd, QSym, QField, sorted_arguments, CNum,
             m0 = a^0
             @test m0 isa QAdd
             @test length(m0) == 1
-            @test m0[Op[]] == _CNUM_ONE
+            @test m0[Op[]] == CNUM_ONE
             @test isempty(operators(only(sorted_arguments(m0))))
             @test prefactor(only(sorted_arguments(m0))) == 1
         end
@@ -214,7 +214,7 @@ import SecondQuantizedAlgebra: QAdd, QSym, QField, sorted_arguments, CNum,
     end
 
     @testset "== consistency" begin
-        @test _single_qadd(_to_cnum(1), Op[a]) == _single_qadd(_to_cnum(1), Op[a])
+        @test single_qadd(to_cnum(1), Op[a]) == single_qadd(to_cnum(1), Op[a])
         @test (a + a') == (a + a')
     end
 

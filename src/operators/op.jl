@@ -3,7 +3,7 @@
 
 Runtime tag distinguishing the eight operator roles carried by the single
 concrete leaf type [`Op`](@ref). The integer values double as the cross-family
-sort order (see `_type_order`/`order_key`).
+sort order (see `type_order`/`order_key`).
 """
 @enum OpKind::UInt8 OP_DESTROY OP_CREATE OP_TRANSITION OP_PAULI OP_SPIN OP_POSITION OP_MOMENTUM OP_COLLECTIVE_TRANSITION
 
@@ -48,7 +48,7 @@ end
 # Hashing the shared `NO_INDEX` const recurses through its `Num` fields on every
 # call; non-indexed operators are the common case, so fold it to a precomputed
 # sentinel and only hash a real `Index` when one is present (~5% off products).
-const _NOIDX_H = hash(NO_INDEX, zero(UInt))
+const NOIDX_H = hash(NO_INDEX, zero(UInt))
 function Base.hash(o::Op, h::UInt)
     h = hash(o.kind, h)
     h = hash(o.name_id, h)
@@ -57,7 +57,7 @@ function Base.hash(o::Op, h::UInt)
     h = hash(o.l2, h)
     h = hash(o.g, h)
     h = hash(o.nlev, h)
-    return o.index === NO_INDEX ? hash(_NOIDX_H, h) : hash(o.index, h)
+    return o.index === NO_INDEX ? hash(NOIDX_H, h) : hash(o.index, h)
 end
 Base.isequal(a::Op, b::Op) =
     a.kind === b.kind && a.name_id == b.name_id && a.space_index == b.space_index &&
@@ -68,7 +68,7 @@ Base.isequal(a::Op, b::Op) =
 
 The display name of `op` (recovered from the intern table).
 """
-operator_name(o::Op)::Symbol = _name_from_id(o.name_id)
+operator_name(o::Op)::Symbol = name_from_id(o.name_id)
 Base.:(==)(a::Op, b::Op) = isequal(a, b)
 
 """
@@ -167,8 +167,8 @@ Return a copy of `o` with its display name replaced by `name`, preserving role,
 subspace, index, and levels. The `Op` method of [`rename`](@ref rename(::Index, ::Symbol)).
 """
 rename(o::Op, name::Symbol) =
-    Op(o.kind, _intern_name(name), o.space_index, o.index, o.l1, o.l2, o.g, o.nlev)
-rename(o::Op, name::AbstractString) = _name_must_be_symbol(name)
+    Op(o.kind, intern_name(name), o.space_index, o.index, o.l1, o.l2, o.g, o.nlev)
+rename(o::Op, name::AbstractString) = name_must_be_symbol(name)
 
 # Shared sentinel for empty operator vectors on hot paths. Never mutated.
-const _EMPTY_OPS = Op[]
+const EMPTY_OPS = Op[]

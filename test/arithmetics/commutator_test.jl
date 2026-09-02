@@ -1,7 +1,7 @@
 using SecondQuantizedAlgebra
 using Symbolics: @variables
 using Test
-import SecondQuantizedAlgebra: simplify, QAdd, QSym, _single_qadd, _to_cnum, Index,
+import SecondQuantizedAlgebra: simplify, QAdd, QSym, single_qadd, to_cnum, Index,
     sorted_arguments, constraint_pairs
 
 @testset "commutator" begin
@@ -202,7 +202,7 @@ import SecondQuantizedAlgebra: simplify, QAdd, QSym, _single_qadd, _to_cnum, Ind
         @test iszero(anticommutator(σx, σz))
         @test iszero(anticommutator(σy, σz))
         # σx² = I, so {σx, σx} = 2
-        @test isequal(simplify(anticommutator(σx, σx)), _single_qadd(_to_cnum(2), Op[]))
+        @test isequal(simplify(anticommutator(σx, σx)), single_qadd(to_cnum(2), Op[]))
 
         # Different sites: {A, B} = 2 A B
         h2 = FockSpace(:c1) ⊗ FockSpace(:c2)
@@ -241,23 +241,23 @@ end
     op3 = a' * σ(1, 2, j)
     result3 = expand_completeness(1im * commutator(H, op3))
     @test any(result3) do (term, c)
-        term.ops == [a', σ(1, 2, j)] && isequal(c, _to_cnum(-1im * Δ))
+        term.ops == [a', σ(1, 2, j)] && isequal(c, to_cnum(-1im * Δ))
     end
     @test any(result3) do (term, c)
-        term.ops == [σ(2, 2, j)] && isequal(c, _to_cnum(1im * g(j)))
+        term.ops == [σ(2, 2, j)] && isequal(c, to_cnum(1im * g(j)))
     end
     @test any(result3) do (term, c)
-        term.ops == [a', a, σ(2, 2, j)] && isequal(c, _to_cnum(2im * g(j)))
+        term.ops == [a', a, σ(2, 2, j)] && isequal(c, to_cnum(2im * g(j)))
     end
     @test any(result3) do (term, c)
-        term.ops == [a', a] && isequal(c, _to_cnum(-1im * g(j)))
+        term.ops == [a', a] && isequal(c, to_cnum(-1im * g(j)))
     end
     @test any(result3) do (term, c)
-        term.ops == [σ(2, 1, i), σ(1, 2, j)] && isequal(c, _to_cnum(1im * g(i)))
+        term.ops == [σ(2, 1, i), σ(1, 2, j)] && isequal(c, to_cnum(1im * g(i)))
     end
     @test any(p -> p == (i, j) || p == (j, i), constraint_pairs(result3))
     # σⱼ¹¹ should NOT appear under canonical form
-    @test !any(result3) do (term, _c)
+    @test !any(result3) do (term, c)
         any(op -> is_transition(op) && op.l1 == 1 && op.l2 == 1, term.ops)
     end
 
@@ -269,18 +269,18 @@ end
         ),
     )
     @test any(result4) do (term, c)
-        term.ops == [a, σ(2, 2, j), σ(2, 1, k)] && isequal(c, _to_cnum(2im * g(j)))
+        term.ops == [a, σ(2, 2, j), σ(2, 1, k)] && isequal(c, to_cnum(2im * g(j)))
     end
     @test any(result4) do (term, c)
-        term.ops == [a, σ(2, 1, k)] && isequal(c, _to_cnum(-1im * g(j)))
+        term.ops == [a, σ(2, 1, k)] && isequal(c, to_cnum(-1im * g(j)))
     end
     @test any(result4) do (term, c)
-        term.ops == [a', σ(1, 2, j)] && isequal(c, _to_cnum(1im * g(k)))
+        term.ops == [a', σ(1, 2, j)] && isequal(c, to_cnum(1im * g(k)))
     end
     @test any(result4) do (term, c)
-        term.ops == [a', σ(1, 2, j), σ(2, 2, k)] && isequal(c, _to_cnum(-2im * g(k)))
+        term.ops == [a', σ(1, 2, j), σ(2, 2, k)] && isequal(c, to_cnum(-2im * g(k)))
     end
-    @test !any(result4) do (term, _c)
+    @test !any(result4) do (term, c)
         any(op -> is_transition(op) && op.l1 == 1 && op.l2 == 1, term.ops)
     end
 end
@@ -301,7 +301,7 @@ end
 
     @test length(result) == 1
     @test haskey(result, [σ(2, 2, i), σ(2, 2, j)])
-    @test isequal(result[[σ(2, 2, i), σ(2, 2, j)]], _to_cnum(2))
+    @test isequal(result[[σ(2, 2, i), σ(2, 2, j)]], to_cnum(2))
     @test any(p -> p == (i, j) || p == (j, i), constraint_pairs(result))
     @test !haskey(result, [σ(2, 2, j)])
 end
@@ -328,12 +328,12 @@ end
     H = Δc * a' * a + η * (a' + a) + Ha
 
     result = 1im * commutator(H, σ(1, 2, k))
-    @test any(result) do (term, _c)
+    @test any(result) do (term, c)
         any(op -> is_transition(op) && op.l1 == 1 && op.l2 == 2 && op.index == j, term.ops)
     end
 
     result3 = 1im * commutator(H, σ(2, 2, k))
-    @test any(result3) do (term, _c)
+    @test any(result3) do (term, c)
         any(op -> is_transition(op) && op.index == j, term.ops)
     end
 end
@@ -430,7 +430,7 @@ end
 end
 
 @testset "Regression: leaf fast path respects name as site identity" begin
-    # The fast path gated on a name-blind same-site test, while `_site_compare` (and so
+    # The fast path gated on a name-blind same-site test, while `site_compare` (and so
     # `*`) counts the name as part of site identity. Two modes sharing one FockSpace
     # therefore got the `[a,a†]=1` residual from `*`-disagreeing code.
     h = FockSpace(:one)
@@ -442,11 +442,11 @@ end
     @test iszero(commutator(a', b'))
 
     # Same-site residuals must survive unchanged.
-    @test isequal(commutator(a, a'), _single_qadd(_to_cnum(1), Op[]))
+    @test isequal(commutator(a, a'), single_qadd(to_cnum(1), Op[]))
     hp = PhaseSpace(:ph)
     x = Position(hp, :x)
     p = Momentum(hp, :p)
-    @test isequal(commutator(p, x), _single_qadd(_to_cnum(-im), Op[]))
+    @test isequal(commutator(p, x), single_qadd(to_cnum(-im), Op[]))
     hs = SpinSpace(:S)
     @test isequal(commutator(Spin(hs, :S, 1), Spin(hs, :S, 2)), 1im * Spin(hs, :S, 3))
     hq = PauliSpace(:q)
@@ -465,6 +465,6 @@ end
     @test iszero(commutator(IndexedOperator(am, i), IndexedOperator(am, j)'))
     @test isequal(
         commutator(IndexedOperator(am, i), IndexedOperator(am, i)'),
-        _single_qadd(_to_cnum(1), Op[]),
+        single_qadd(to_cnum(1), Op[]),
     )
 end

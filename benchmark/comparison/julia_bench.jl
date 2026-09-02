@@ -209,10 +209,10 @@ end
 
 # ── Timing ────────────────────────────────────────────────────────────────────
 # One warm-up call (compilation), then one timed call for the cap check.
-_trial(thunk) = (thunk(); @elapsed thunk())
+trial(thunk) = (thunk(); @elapsed thunk())
 
 function run_side!(results, capped, key, thunk)
-    t = _trial(thunk)
+    t = trial(thunk)
     if t > CAP_SECONDS
         capped[key] = t
         println(stderr, "  $key: capped ($(round(t; digits = 1)) s/op)")

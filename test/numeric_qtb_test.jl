@@ -16,15 +16,15 @@ using Test
 
 const QTBB = QuantumToolboxBackend()
 
-function _inferred_qtb_uniform(op::Op, h::FockSpace, n::Int)
+function inferred_qtb_uniform(op::Op, h::FockSpace, n::Int)
     return to_numeric(op, h, n; backend = QTBB)
 end
 
-function _inferred_qtb_product(op::Op, h::ProductSpace, dims::NTuple{2, Int})
+function inferred_qtb_product(op::Op, h::ProductSpace, dims::NTuple{2, Int})
     return to_numeric(op, h, dims; backend = QTBB)
 end
 
-function _inferred_qtb_raw_product(op::Op, dims::NTuple{2, Int})
+function inferred_qtb_raw_product(op::Op, dims::NTuple{2, Int})
     return to_numeric(op, dims)
 end
 
@@ -62,12 +62,12 @@ end
 
         @test @inferred(to_numeric(a, 8)) isa QTB.QuantumObject
         @test @inferred(to_numeric(n, 8)) isa QTB.QuantumObject
-        @test @inferred(_inferred_qtb_uniform(a, h, 7)) isa QTB.QuantumObject
+        @test @inferred(inferred_qtb_uniform(a, h, 7)) isa QTB.QuantumObject
 
         hp = FockSpace(:c) ⊗ NLevelSpace(:atom, 3, 1)
         ap = Destroy(hp, :a, 1)
-        @test @inferred(_inferred_qtb_product(ap, hp, (7, 3))) isa QTB.QuantumObject
-        @test @inferred(_inferred_qtb_raw_product(ap, (8, 3))) isa QTB.QuantumObject
+        @test @inferred(inferred_qtb_product(ap, hp, (7, 3))) isa QTB.QuantumObject
+        @test @inferred(inferred_qtb_raw_product(ap, (8, 3))) isa QTB.QuantumObject
 
         lazy = to_numeric(n, 8; op_type = identity)
         @test @inferred(SO.concretize(lazy.data)) isa AbstractMatrix
@@ -231,7 +231,7 @@ end
 
     @testset "time-dependent with constant term" begin
         # A TD assembly mixing a constant term (`Δ*a'a`) with a genuinely time-dependent
-        # term (`f*a`) exercises both `_td_scalar` branches.
+        # term (`f*a`) exercises both `td_scalar` branches.
         h = FockSpace(:f)
         @qnumbers a::Destroy(h)
         @variables Δ f
@@ -440,7 +440,7 @@ end
         V = to_numeric(a' * a, h, N; backend = QTBB, op_type = identity).data
         Vd = Matrix(V)
 
-        # _spre/_spost/* stay a single concrete VecSum and agree with the dense operations.
+        # spre/spost/* stay a single concrete VecSum and agree with the dense operations.
         @test occursin("VecSum", string(typeof(V)))
         @test isapprox(Matrix(QTB._spre(V)), Matrix(QTB._spre(SO.MatrixOperator(Vd))))
         @test isapprox(Matrix(QTB._spost(V)), Matrix(QTB._spost(SO.MatrixOperator(Vd))))

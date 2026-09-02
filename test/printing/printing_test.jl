@@ -3,7 +3,7 @@ using Latexify
 using LaTeXStrings
 using Symbolics: @variables
 using Test
-import SecondQuantizedAlgebra: simplify, QAdd, QSym, _single_qadd, _zero_qadd, _to_cnum,
+import SecondQuantizedAlgebra: simplify, QAdd, QSym, single_qadd, zero_qadd, to_cnum,
     transition_superscript, make_time_dependent, expim, exponential_form, trigonometric_form
 
 @testset "Rendering" begin
@@ -84,7 +84,7 @@ import SecondQuantizedAlgebra: simplify, QAdd, QSym, _single_qadd, _zero_qadd, _
                 (3 * ad * a, "3 * a' * a"),
                 (-1 * a, "-a"),
                 (-3 * a, "-3 * a"),
-                (_single_qadd(_to_cnum(5), Op[]), "5"),
+                (single_qadd(to_cnum(5), Op[]), "5"),
                 (a / 4, "1//4 * a"),
                 (0.5 * a, "0.5 * a"),
             ]
@@ -316,7 +316,7 @@ import SecondQuantizedAlgebra: simplify, QAdd, QSym, _single_qadd, _zero_qadd, _
             mixed = Σ(ai, i) + Σ(ai_dag, i) + Σ(aj_dag, j)
             @test repr(mixed) == "Σ(i=1:N) (a_i + a_i') + Σ(j=1:N) a_j'"
 
-            # Diagonal-pin residual from Σa_i * Σa'_j: the bound diagonal lives
+            # Diagonal-pin residual from Σa_i * Σa'j: the bound diagonal lives
             # in scope of the surviving index only.
             prod = Σ(ai, i) * Σ(aj_dag, j)
             @test repr(prod) ==
@@ -324,7 +324,7 @@ import SecondQuantizedAlgebra: simplify, QAdd, QSym, _single_qadd, _zero_qadd, _
         end
 
         @testset "Edge cases, no crash" begin
-            @test repr(_zero_qadd()) == "0"
+            @test repr(zero_qadd()) == "0"
         end
 
         @testset "Type inference" begin
@@ -357,7 +357,7 @@ import SecondQuantizedAlgebra: simplify, QAdd, QSym, _single_qadd, _zero_qadd, _
         @test occursin("cos", string(latexify(trigonometric_form(phase_cos))))
     end
 
-    @testset "_show_prefactor pure-imag and mixed branches" begin
+    @testset "show_prefactor pure-imag and mixed branches" begin
         h = FockSpace(:f)
         a = Destroy(h, :a)
         @variables x y
@@ -384,7 +384,7 @@ import SecondQuantizedAlgebra: simplify, QAdd, QSym, _single_qadd, _zero_qadd, _
         @test occursin("im", s_mixed)
     end
 
-    @testset "_show_prefactor braces composite parts" begin
+    @testset "show_prefactor braces composite parts" begin
         # A composite part must be parenthesized, or the `im` suffix binds to its last
         # factor only: `x + yim * a` reads as `x + y*im*a`. Anchored patterns, so the
         # summand order Symbolics picks does not matter.
@@ -407,7 +407,7 @@ import SecondQuantizedAlgebra: simplify, QAdd, QSym, _single_qadd, _zero_qadd, _
         @test string((im * x) * a) == "xim * a"
         @test occursin(r"^\(.+\) \* a$", string((x + y) * a))
         @test occursin(r"^\(.+\) \* a$", string((x / y) * a))
-        @test string(_single_qadd(_to_cnum(x + y), SecondQuantizedAlgebra.Op[])) == string(x + y)
+        @test string(single_qadd(to_cnum(x + y), SecondQuantizedAlgebra.Op[])) == string(x + y)
     end
 
     @testset "LaTeX (latexify)" begin
@@ -492,7 +492,7 @@ import SecondQuantizedAlgebra: simplify, QAdd, QSym, _single_qadd, _zero_qadd, _
                 (1 * adf * af, L"a^{\dagger}a"),
                 (3 * adf * af, L"3 a^{\dagger}a"),
                 (-1 * af, L"-a"),
-                (_single_qadd(_to_cnum(5), Op[]), L"5"),
+                (single_qadd(to_cnum(5), Op[]), L"5"),
             ]
             for (input, out) in cases
                 @test latexify(input) == out
@@ -519,9 +519,9 @@ import SecondQuantizedAlgebra: simplify, QAdd, QSym, _single_qadd, _zero_qadd, _
 
         @testset "Symbolic imaginary and complex prefactors" begin
             # Regression guard: a `Coeff` with a symbolic imaginary part must lower
-            # to `Complex{Num}` in `_latex_prefactor`, so rendering (including the
+            # to `Complex{Num}` in `latex_prefactor`, so rendering (including the
             # text/latex MIME path Documenter uses for `@example` output) never hits
-            # `_needs_pf_brackets(::Coeff)`.
+            # `needs_pf_brackets(::Coeff)`.
             @variables g κ
             hL = FockSpace(:f)
             aL = Destroy(hL, :a)

@@ -11,7 +11,7 @@ abstract type HilbertSpace end
 # Hilbert-space and operator names are `Symbol`s by design (a single canonical
 # name type keeps comparisons and interning type-stable). Passing a `String`
 # would otherwise surface a cryptic `MethodError`; guide the user to `:name`.
-@noinline _name_must_be_symbol(name::AbstractString) =
+@noinline name_must_be_symbol(name::AbstractString) =
     throw(ArgumentError("name must be a `Symbol`, not a `String`; use `:$name` instead of `\"$name\"`"))
 
 """
@@ -32,7 +32,7 @@ See also [`Destroy`](@ref), [`Create`](@ref), [`⊗`](@ref).
 struct FockSpace <: HilbertSpace
     name::Symbol
 end
-FockSpace(name::AbstractString) = _name_must_be_symbol(name)
+FockSpace(name::AbstractString) = name_must_be_symbol(name)
 Base.:(==)(a::FockSpace, b::FockSpace) = a.name == b.name
 Base.hash(a::FockSpace, h::UInt) = hash(:FockSpace, hash(a.name, h))
 
@@ -115,13 +115,13 @@ Base.length(::HilbertSpace) = 1
 Base.length(h::ProductSpace) = length(h.spaces)
 
 """
-    _unique_subspace_index(h::ProductSpace, ::Type{T}) -> Int
+    unique_subspace_index(h::ProductSpace, ::Type{T}) -> Int
 
 Return the index of the unique subspace of type `T` inside `h`. Throws
 `ArgumentError` if there are zero or more than one such subspaces — the caller
 must then specify the subspace index explicitly.
 """
-function _unique_subspace_index(h::ProductSpace, ::Type{T}) where {T <: HilbertSpace}
+function unique_subspace_index(h::ProductSpace, ::Type{T}) where {T <: HilbertSpace}
     matches = findall(s -> s isa T, collect(h.spaces))
     if isempty(matches)
         throw(ArgumentError("No $T found in ProductSpace; specify the subspace index explicitly"))

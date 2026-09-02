@@ -55,9 +55,9 @@ has_index(idx::Index) = idx.space_index != 0
 const NonEqualPair = Tuple{Index, Index}
 
 # Shared sentinels for empty vectors on hot paths. Never mutated.
-# `_EMPTY_OPS` lives in `operators/op.jl` (needs `Op`, defined after `Index`).
-const _EMPTY_NE = NonEqualPair[]
-const _EMPTY_INDICES = Index[]
+# `EMPTY_OPS` lives in `operators/op.jl` (needs `Op`, defined after `Index`).
+const EMPTY_NE = NonEqualPair[]
+const EMPTY_INDICES = Index[]
 
 # Equality compares the interned ids (pure integers). `slot` is excluded, exactly
 # as the old equality excluded the per-slot `sym`: concrete sites are distinguished
@@ -71,19 +71,19 @@ function Base.hash(a::Index, h::UInt)
 end
 # Order by lexicographic name rank (not raw id, which is insertion-order), so
 # canonical form stays alphabetical and deterministic across sessions.
-Base.isless(a::Index, b::Index) = (a.space_index, _name_rank(a.name_id)) < (b.space_index, _name_rank(b.name_id))
+Base.isless(a::Index, b::Index) = (a.space_index, name_rank(a.name_id)) < (b.space_index, name_rank(b.name_id))
 
 # Ordering key for an index; mirrors isless's (space_index, name rank) (range excluded).
-_index_key(idx::Index) = (idx.space_index, _name_rank(idx.name_id))
+index_key(idx::Index) = (idx.space_index, name_rank(idx.name_id))
 
 function Index(h::HilbertSpace, name::Symbol, range::Union{Int, Num}, space::HilbertSpace)
-    si = _find_space_index(h, space)
-    return Index(_intern_name(name), _intern_range(range), Int32(si), Int32(0))
+    si = find_space_index(h, space)
+    return Index(intern_name(name), intern_range(range), Int32(si), Int32(0))
 end
 function Index(h::HilbertSpace, name::Symbol, range::Union{Int, Num}, si::Int)
-    return Index(_intern_name(name), _intern_range(range), Int32(si), Int32(0))
+    return Index(intern_name(name), intern_range(range), Int32(si), Int32(0))
 end
-Index(h::HilbertSpace, name::AbstractString, args...) = _name_must_be_symbol(name)
+Index(h::HilbertSpace, name::AbstractString, args...) = name_must_be_symbol(name)
 
 """
     (i::Index)(k::Integer) -> Index
@@ -97,8 +97,8 @@ internally so the resulting operators dedup-equal `evaluate`'s output. Naming
 seeds from `i.name`, so the user's vocabulary is preserved (SQA's naming policy).
 """
 function (i::Index)(k::Integer)
-    name = Symbol(_name_from_id(i.name_id), "_", k)
-    return Index(_intern_name(name), i.range_id, i.space_index, Int32(k))
+    name = Symbol(name_from_id(i.name_id), "_", k)
+    return Index(intern_name(name), i.range_id, i.space_index, Int32(k))
 end
 
 """
@@ -135,8 +135,8 @@ julia> index_name(j), isequal(index_range(j), index_range(i)), SecondQuantizedAl
 
 See also [`index_name`](@ref), [`index_range`](@ref), [`acts_on`](@ref).
 """
-rename(idx::Index, name::Symbol) = Index(_intern_name(name), idx.range_id, idx.space_index, idx.slot)
-rename(idx::Index, name::AbstractString) = _name_must_be_symbol(name)
+rename(idx::Index, name::Symbol) = Index(intern_name(name), idx.range_id, idx.space_index, idx.slot)
+rename(idx::Index, name::AbstractString) = name_must_be_symbol(name)
 
 """
     index_range(idx::Index) -> Num
@@ -144,14 +144,14 @@ rename(idx::Index, name::AbstractString) = _name_must_be_symbol(name)
 The summation range of `idx` (the user's `Num`, recovered from the intern table).
 Returns `Num(0)` for the sentinel `NO_INDEX`.
 """
-index_range(idx::Index)::Num = _range_from_id(idx.range_id)
+index_range(idx::Index)::Num = range_from_id(idx.range_id)
 
 """
     index_name(idx::Index) -> Symbol
 
 The display name of `idx` (recovered from the intern table).
 """
-index_name(idx::Index)::Symbol = _name_from_id(idx.name_id)
+index_name(idx::Index)::Symbol = name_from_id(idx.name_id)
 
 """
     index_sym(idx::Index) -> Num
@@ -165,13 +165,13 @@ resolved-site convention.
 """
 function index_sym(idx::Index)::Num
     idx.name_id == 0 && return Num(Int(idx.slot))
-    base = _base_sym_from_id(idx.name_id)            # cached name-only Sym (hot path: cached read)
+    base = base_sym_from_id(idx.name_id)            # cached name-only Sym (hot path: cached read)
     idx.slot == 0 && return base
     return Num(SymbolicUtils.setmetadata(SymbolicUtils.unwrap(base), IndexSlot, Int(idx.slot)))
 end
 
-_find_space_index(::HilbertSpace, ::HilbertSpace) = 1
-function _find_space_index(h::ProductSpace, space::HilbertSpace)
+find_space_index(::HilbertSpace, ::HilbertSpace) = 1
+function find_space_index(h::ProductSpace, space::HilbertSpace)
     for (i, s) in enumerate(h.spaces)
         s == space && return i
     end

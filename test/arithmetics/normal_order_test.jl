@@ -3,7 +3,7 @@ using QuantumOpticsBase
 using Symbolics: @variables
 using Test
 import SecondQuantizedAlgebra: simplify, QAdd, QSym, CNum, sorted_arguments,
-    _single_qadd, _to_cnum
+    single_qadd, to_cnum
 
 @testset "normal_order" begin
     h = FockSpace(:c)
@@ -26,7 +26,7 @@ import SecondQuantizedAlgebra: simplify, QAdd, QSym, CNum, sorted_arguments,
     @testset "QSym passthrough" begin
         # normal_order wraps a leaf operator into a single-term QAdd equal to it.
         result = normal_order(a)
-        @test isequal(result, _single_qadd(_to_cnum(1), Op[a]))
+        @test isequal(result, single_qadd(to_cnum(1), Op[a]))
     end
 
     @testset "QAdd — normal-orders each term" begin
@@ -131,7 +131,7 @@ end
             (σy, σz, σx, 1),
             (σz, σx, σy, 2),
         )
-        for (a, b, _c, axis) in cycle
+        for (a, b, c, axis) in cycle
             result = a * b
             @test result isa QAdd
             @test length(result) == 1
