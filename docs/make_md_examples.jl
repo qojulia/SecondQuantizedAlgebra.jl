@@ -31,6 +31,7 @@ end
 
 # Remove only artifacts belonging to the pages generated below. This also
 # clears images left behind when an example changes its output blocks.
+mkpath(OUTPUT_MD_DIR)
 for file in readdir(OUTPUT_MD_DIR)
     generated_output(file) && rm(joinpath(OUTPUT_MD_DIR, file); force = true)
 end
