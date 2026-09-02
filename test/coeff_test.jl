@@ -204,4 +204,28 @@ import SecondQuantizedAlgebra: expim, exponential_form, phase_terms, to_num,
         @inferred trigonometric_form(expim(ω * t))
         @inferred phase_terms(expim(ω * t))
     end
+
+    @testset "public phase and scalar boundary cases" begin
+        @variables θ φ ω t z::Number
+        @test isequal(exponential_form(exp(im * θ)), expim(θ))
+        @test isequal(exponential_form(cis(θ)), expim(θ))
+        @test isequal(exponential_form(conj(expim(θ))), expim(-θ))
+        @test exponential_form(abs(expim(θ))) == 1
+        @test exponential_form(abs2(expim(θ))) == 1
+        @test isequal(exponential_form(expim(θ)^2), expim(2θ))
+        @test isequal(exponential_form(expim(θ)^(-2)), expim(-2θ))
+
+        product = expim(θ) * expim(φ) * exp(ω * t)
+        quotient = expim(θ) / (expim(φ) * exp(ω * t))
+        @test iszero(simplify(exponential_form(product) - product))
+        @test iszero(simplify(exponential_form(quotient) - quotient))
+        @test iszero(simplify(trigonometric_form(product) - trigonometric_form(exponential_form(product))))
+        @test length(phase_terms(product)) == 1
+        @test length(phase_terms(expim(θ) / 2)) == 1
+        @test length(phase_terms(conj(expim(θ)))) == 1
+        @test length(phase_terms(expim(θ)^(-1))) == 1
+
+        trig = trigonometric_form(Complex(Num(z), Num(z)))
+        @test iszero(simplify(trig * a - (z + im * z) * a))
+    end
 end

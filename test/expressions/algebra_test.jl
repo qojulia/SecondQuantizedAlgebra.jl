@@ -1,4 +1,5 @@
 using SecondQuantizedAlgebra
+using SymbolicUtils: SymbolicUtils
 using Symbolics: @variables
 using Test
 
@@ -63,6 +64,21 @@ using Test
 
         expression = (2 + 3im) * ad * a
         @test iszero(adjoint(expression) - (2 - 3im) * ad * a)
+
+        # Exercise public scalar overloads on both atomic and compound expressions.
+        raw_z = SymbolicUtils.unwrap(z)
+        @test iszero(a / raw_z - inv(raw_z) * a)
+        @test iszero((a // raw_z) - a / raw_z)
+        @test iszero((a + ad) / raw_z - inv(raw_z) * (a + ad))
+        @test iszero((a + ad) // raw_z - (a + ad) / raw_z)
+        @test iszero(+(a + ad) - (a + ad))
+        @test iszero(zero(typeof(a + ad)))
+
+        q = 2 * a + ad
+        @test q[[a]] == 2
+        @test q[[ad]] == 1
+        @test q[[a, ad]] == 0
+        @test !haskey(q, [a, ad])
     end
 
     @testset "independent sites commute" begin

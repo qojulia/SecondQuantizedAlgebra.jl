@@ -330,6 +330,21 @@ import SecondQuantizedAlgebra: expim, exponential_form
         listed = generators(U)
         empty!(listed)
         @test !isempty(generators(U))
+
+        diagonal = Rotation(a, θ) * Rotation(a, ϕ)
+        @test iszero(simplify(conjugate(a, diagonal) - expim(-(θ + ϕ)) * a))
+        @test iszero(
+            simplify(
+                conjugate(a, adjoint(diagonal)) - conjugate(a, inv(diagonal)),
+            ),
+        )
+        timed_diagonal = Rotation(a, θ * t, t) * Rotation(a, ϕ * t, t)
+        @test iszero(
+            simplify(
+                transform(a' * a, timed_diagonal) -
+                    transform(a' * a, Rotation(a, (θ + ϕ) * t, t)),
+            ),
+        )
     end
 
     @testset "invalid transformations fail at the public boundary" begin

@@ -1,4 +1,5 @@
 using SecondQuantizedAlgebra
+using MutableArithmetics: add_mul, operate!!
 using Symbolics: @variables
 using Test
 import SecondQuantizedAlgebra: constraint_pairs
@@ -49,5 +50,12 @@ import SecondQuantizedAlgebra: constraint_pairs
         @test (@inferred sum(terms)) isa typeof(terms[1])
         @test (@inferred reduce(+, terms)) isa typeof(terms[1])
         @test (@inferred sum(y -> 2 * y, terms)) isa typeof(terms[1])
+    end
+
+    @testset "MutableArithmetics public integration" begin
+        base = a + ad
+        @test operate!!(+, base, a) == 2 * a + ad
+        @test operate!!(+, base, 2) == 2 + a + ad
+        @test operate!!(add_mul, base, 2, a) == 3 * a + ad
     end
 end

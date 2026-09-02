@@ -67,26 +67,26 @@ import SecondQuantizedAlgebra:
                 "sum-sum commutator Bug A",
                 let hf = FockSpace(:fb), bi = IndexedOperator(Destroy(hf, :b), Index(hf, :iF, N, hf)), jF = Index(hf, :jF, N, hf), bj_dag = IndexedOperator(Create(hf, :b), jF)
                     commutator(Σ(bi, Index(hf, :iF, N, hf)), Σ(bj_dag, jF))
-                end
+                end,
             ),
             (
                 "anticommutator on sums",
                 let hf = FockSpace(:fb2), iF = Index(hf, :iF, N, hf), jF = Index(hf, :jF, N, hf), bi = IndexedOperator(Destroy(hf, :b), iF), bj_dag = IndexedOperator(Create(hf, :b), jF)
                     anticommutator(Σ(bi, iF), Σ(bj_dag, jF))
-                end
+                end,
             ),
             (
                 "Pauli sum-sum",
                 let hP = PauliSpace(:p_inv), iP = Index(hP, :ip, N, hP), jP = Index(hP, :jp, N, hP), σxi = IndexedOperator(Pauli(hP, :σ, 1), iP), σyj = IndexedOperator(Pauli(hP, :σ, 2), jP)
                     commutator(Σ(σxi, iP), Σ(σyj, jP))
-                end
+                end,
             ),
             (
                 "Dicke [H, σy_j]",
                 let hcD = FockSpace(:cD), hpD = PauliSpace(:aD), hD = hcD ⊗ hpD, aD = Destroy(hD, :a, 1), iD = Index(hD, :id, N, hpD), jD = Index(hD, :jd, N, hpD), σxD(kk) = IndexedOperator(Pauli(hD, :σ, 1, 2), kk), σyD(kk) = IndexedOperator(Pauli(hD, :σ, 2, 2), kk), σzD(kk) = IndexedOperator(Pauli(hD, :σ, 3, 2), kk), ω₀ = 1.0, ωₐ = 1.0, λ = 0.5
                     H_dicke = ω₀ * aD' * aD + ωₐ * Σ(σzD(iD), iD) + λ * (aD + aD') * Σ(σxD(iD), iD)
                     commutator(H_dicke, σyD(jD))
-                end
+                end,
             ),
             (
                 "coefficient-index leak u(j,i)",
@@ -94,7 +94,7 @@ import SecondQuantizedAlgebra:
                     inner = Σ(u(jL, kL) * (σL(jL) + σL(kL)), jL)
                     outer = Σ(inner, kL)
                     commutator(σL(iL)' * σL(iL), outer)
-                end
+                end,
             ),
             ("expand_completeness on Σ", expand_completeness(Σ(σ(1, 1, i) * a, i))),
             (

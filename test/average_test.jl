@@ -91,6 +91,12 @@ import SecondQuantizedAlgebra:
         @test is_indexed_sum(off_diagonal)
         @test get_sum_indices(off_diagonal) == [i]
         @test get_sum_non_equal(off_diagonal) == [(i, j)]
+        @test occursin("≠", repr(off_diagonal))
+        dead_scope = indexed_sum(
+            average(IndexedOperator(field, i)), [i];
+            non_equal = [(j, Index(hmix, :k, N, ha))],
+        )
+        @test get_sum_non_equal(dead_scope) == [(j, Index(hmix, :k, N, ha))]
 
         plain = average(field + field')
         @test !is_indexed_sum(plain)
@@ -353,5 +359,11 @@ import SecondQuantizedAlgebra:
         @test !has_complex_literal(average((im * η) * one(a) + (-im * Δ) * a))
         @test !has_complex_literal(average((κ / 2) * a))
         @test !occursin("complex", string(average((-im * Δ) * a)))
+
+        @test iszero(undo_average(Symbolics.wrap(a)) - a)
+        @test iszero(undo_average(Symbolics.wrap(a + a')) - (a + a'))
+        @test !has_sum_metadata(Symbolics.wrap(average(a)))
+        @test acts_on(Symbolics.wrap(a)) == [1]
+        @test isempty(acts_on(3))
     end
 end

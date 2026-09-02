@@ -174,7 +174,7 @@ end
 
         # Public auto-detect: single subspace of each type infers space_index
         h_mixed = FockSpace(:c) ⊗ NLevelSpace(:atom, 2) ⊗ PauliSpace(:p) ⊗
-                  SpinSpace(:s) ⊗ PhaseSpace(:q)
+            SpinSpace(:s) ⊗ PhaseSpace(:q)
         @test Destroy(h_mixed, :a) == Destroy(h_mixed, :a, 1)
         @test Create(h_mixed, :a) == Create(h_mixed, :a, 1)
         @test Transition(h_mixed, :σ, 1, 2) == Transition(h_mixed, :σ, 1, 2, 2)

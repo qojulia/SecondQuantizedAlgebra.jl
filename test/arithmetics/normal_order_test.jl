@@ -117,6 +117,19 @@ end
         end
     end
 
+    @testset "phase-space Weyl ordering" begin
+        hq = PhaseSpace(:weyl_phase)
+        x = Position(hq, :x)
+        p = Momentum(hq, :p)
+        for expression in (x * p, p * x, x * x * p * p, p * p * x * x)
+            @test iszero(symmetric_to_normal(normal_to_symmetric(expression)) - expression)
+        end
+        @test iszero(normal_to_symmetric(x * p) - (x * p + im / 2))
+        @test iszero(symmetric_to_normal(x * p + im / 2) - x * p)
+        @test iszero(normal_to_symmetric(x) - x)
+        @test iszero(symmetric_to_normal(x) - x)
+    end
+
     @testset "non-Heisenberg operators are unchanged" begin
         hn = NLevelSpace(:atom, 3, 1)
         σ = Transition(hn, :σ, 1, 2)
