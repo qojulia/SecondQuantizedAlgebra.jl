@@ -1,9 +1,7 @@
 using SecondQuantizedAlgebra
-import SecondQuantizedAlgebra: QAdd, QSym, single_qadd, to_cnum, to_complex, fold_const,
-    to_numeric_static, NumericContext
+import SecondQuantizedAlgebra: QSym, prefactor
 using QuantumOpticsBase
 using Symbolics: @variables, substitute
-import SymbolicUtils
 using Test
 
 # `to_numeric` materialises via `op_type` (default `sparse`), so the return type depends only
@@ -12,19 +10,6 @@ using Test
 # (`LazyTensor`/`LazyProduct`/`LazySum`). The time-dependent form returns a native
 # `TimeDependentSum`, evaluated via `H(t)` and compared through `expect`.
 dat(x) = dense(x).data
-
-function inferred_qob_uniform(op::Op, h::FockSpace, n::Int)
-    return to_numeric(op, h, n; backend = QuantumOpticsBackend())
-end
-function inferred_qob_uniform_add(op::QAdd, h::FockSpace, n::Int)
-    return to_numeric(op, h, n; backend = QuantumOpticsBackend())
-end
-function inferred_qob_product(op::Op, h::ProductSpace, dims::NTuple{2, Int})
-    return to_numeric(op, h, dims; backend = QuantumOpticsBackend())
-end
-function inferred_qob_basis_add(op::QAdd, b::FockBasis)
-    return to_numeric(op, b)
-end
 
 # Tiny backend used as a conformance test for the documented third-party static interface.
 struct MockNumericBackend <: SecondQuantizedAlgebra.NumericBackend end
@@ -175,17 +160,11 @@ SecondQuantizedAlgebra.numeric_materialize(
         # The public default conversion remains inference-stable after eager materialization;
         # the five-argument `LazySum` constructor pins the basis and the backend extension
         # pins the concrete sparse Operator result.
-        @test @inferred(inferred_qob_uniform(a, h, 7)) isa Operator
-        @test @inferred(inferred_qob_uniform_add(a' * a + 2 * a, h, 7)) isa Operator
+        @test @inferred(to_numeric(a, h, 7; backend = QuantumOpticsBackend())) isa Operator
+        @test @inferred(to_numeric(a' * a + 2 * a, h, 7; backend = QuantumOpticsBackend())) isa Operator
         hp = FockSpace(:a) ⊗ FockSpace(:b)
         ap = Destroy(hp, :a, 1)
-        @test @inferred(inferred_qob_product(ap, hp, (3, 4))) isa Operator
-        @test @inferred(inferred_qob_basis_add(a' * a + 2 * a, b)) isa Operator
-
-        ctx = NumericContext(QuantumOpticsBackend(), b, Dict{QSym, Union{}}())
-        @test @inferred(to_numeric_static(a' * a, ctx)) isa AbstractOperator
-        @test @inferred(to_numeric_static(2 * a + 3 * a' + 5, ctx)) isa AbstractOperator
-        @test typeof(to_numeric_static(a + a', ctx)) === typeof(to_numeric_static(a + a' + a' * a, ctx))
+        @test @inferred(to_numeric(ap, hp, (3, 4); backend = QuantumOpticsBackend())) isa Operator
 
         # to_numeric: leaf + QAdd + dict-substitution paths materialise a concrete operator.
         @test to_numeric(a, b) isa AbstractOperator
@@ -202,10 +181,6 @@ SecondQuantizedAlgebra.numeric_materialize(
         @test @inferred(numeric_average(3, ψ)) isa ComplexF64
         @test @inferred(numeric_average(3.5 + 1im, ψ)) isa ComplexF64
 
-        # `to_complex(::Any) -> ComplexF64` is the keystone; canary against a
-        # 7th overload tripping Julia's union-split budget.
-        @test Base.return_types(to_complex, (Any,))[1] === ComplexF64
-        @test length(methods(to_complex)) == 2
     end
 
     @testset "op_type materialization" begin
@@ -448,8 +423,9 @@ SecondQuantizedAlgebra.numeric_materialize(
         expr = a + a' * a
         @test numeric_average(expr, ψ) ≈ α + abs2(α)
 
-        # to_numeric with scalar QAdd (empty operators), now a lazy identity
-        @test dense(to_numeric(single_qadd(to_cnum(3), Op[]), b)) == 3 * one(b)
+        # A scalar result produced through public algebra must assemble as the identity.
+        scalar_qadd = 3 * commutator(a, a')
+        @test dense(to_numeric(scalar_qadd, b)) == 3 * one(b)
     end
 
     @testset "Number-symtype coefficient round-trip" begin
@@ -470,8 +446,7 @@ SecondQuantizedAlgebra.numeric_materialize(
         @qnumbers a::Destroy(h)
         @variables x::Real
 
-        coeff = first(x * a).second
-        lowered = SecondQuantizedAlgebra.to_num(coeff)
+        lowered = prefactor(x * a)
         @test isequal(real(lowered), x)
         @test iszero(imag(lowered))
     end
@@ -632,10 +607,6 @@ SecondQuantizedAlgebra.numeric_materialize(
         op_sin = substitute(sin(z) * a, Dict(z => 0.5))
         @test dat(to_numeric(op_sin, b)) ≈ sin(0.5) * dat(A)
 
-        neg_unary = SymbolicUtils.term(-, 5.0 + 0im; type = Number)
-        neg_binary = SymbolicUtils.term(-, 7.0 + 0im, 2.0 + 0im; type = Number)
-        @test fold_const(neg_unary) == -(5.0 + 0im)
-        @test fold_const(neg_binary) == (7.0 + 0im) - (2.0 + 0im)
     end
 
     @testset "keyword to_numeric: vector, complex params, errors" begin

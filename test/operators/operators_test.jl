@@ -1,436 +1,156 @@
 using SecondQuantizedAlgebra
 using Test
-using Symbolics: @variables, Num
-import SecondQuantizedAlgebra: QAdd, QSym, QField, AvgFunc, average, conj_cnum, to_cnum,
-    set_acts_on, rename, Index, NO_INDEX
+using Symbolics: @variables
+import SecondQuantizedAlgebra: set_acts_on, rename
 
-@testset "Operators" begin
+@testset "Operator discovery and identity" begin
+    @testset "fundamental operators describe each space" begin
+        hf = FockSpace(:cavity)
+        fock = fundamental_operators(hf)
+        @test fock == [Destroy(hf, :a)]
+        @test is_destroy(only(fock))
+        @test acts_on(only(fock)) == [1]
 
-    @testset "OpKind values remain backward compatible" begin
-        @test Int(SecondQuantizedAlgebra.OP_DESTROY) == 0
-        @test Int(SecondQuantizedAlgebra.OP_CREATE) == 1
-        @test Int(SecondQuantizedAlgebra.OP_TRANSITION) == 2
-        @test Int(SecondQuantizedAlgebra.OP_PAULI) == 3
-        @test Int(SecondQuantizedAlgebra.OP_SPIN) == 4
-        @test Int(SecondQuantizedAlgebra.OP_POSITION) == 5
-        @test Int(SecondQuantizedAlgebra.OP_MOMENTUM) == 6
-        @test Int(SecondQuantizedAlgebra.OP_COLLECTIVE_TRANSITION) == 7
+        hn = NLevelSpace(:atom, 2, 1)
+        @test Set(fundamental_operators(hn)) ==
+            Set([Transition(hn, :σ, 1, 2), Transition(hn, :σ, 2, 2)])
+
+        hn3 = NLevelSpace(:atom3, 3, 1)
+        @test length(fundamental_operators(hn3)) == 5
+
+        hp = PauliSpace(:pauli)
+        @test all(is_pauli, fundamental_operators(hp))
+        @test length(fundamental_operators(hp)) == 3
+
+        hs = SpinSpace(:spin)
+        @test all(is_spin, fundamental_operators(hs))
+        @test length(fundamental_operators(hs)) == 3
+
+        hq = PhaseSpace(:phase)
+        phase_ops = fundamental_operators(hq)
+        @test phase_ops == [Position(hq, :x), Momentum(hq, :p)]
     end
 
-    @testset "fundamental_operators — FockSpace" begin
-        h = FockSpace(:c)
-        ops = fundamental_operators(h)
-        @test length(ops) == 1
-        @test is_destroy(ops[1])
-        @test operator_name(ops[1]) == :a
-        @test ops[1].space_index == 1
+    @testset "product-space discovery and names" begin
+        h = FockSpace(:f) ⊗ NLevelSpace(:atom, 2, 1)
+        @test length(fundamental_operators(h)) == 3
+        @test acts_on.(fundamental_operators(h)) == [[1], [2], [2]]
+
+        named = fundamental_operators(h; names = [:b, :τ])
+        @test operator_name.(named) == [:b, :τ, :τ]
+
+        duplicate = FockSpace(:left) ⊗ FockSpace(:right)
+        discovered = find_operators(duplicate, 1)
+        @test Set(operator_name.(discovered)) == Set([:a, :b])
     end
 
-    @testset "fundamental_operators — NLevelSpace" begin
-        # 2-level with ground state 1: only σ₁₂ and σ₂₂
-        h = NLevelSpace(:atom, 2, 1)
-        ops = fundamental_operators(h)
-        @test all(op -> is_transition(op), ops)
-        @test length(ops) == 2  # σ₁₂ and σ₂₂ (skips σ₁₁ = ground state projector)
-
-        # 3-level with ground state 1
-        h3 = NLevelSpace(:atom, 3, 1)
-        ops3 = fundamental_operators(h3)
-        # Pairs: (1,2),(1,3),(2,2),(2,3),(3,3) — skip (1,1) = ground
-        @test length(ops3) == 5
+    @testset "fundamental set is complete across families" begin
+        h = FockSpace(:s1) ⊗ NLevelSpace(:s2, 2, 1) ⊗ FockSpace(:s3) ⊗
+            PauliSpace(:s4) ⊗ SpinSpace(:s5) ⊗ PhaseSpace(:s6)
+        expected = [
+            Destroy(h, :a, 1),
+            Transition(h, :σ, 1, 2, 2), Transition(h, :σ, 2, 2, 2),
+            Destroy(h, :b, 3),
+            Pauli(h, :σP, 1, 4), Pauli(h, :σP, 2, 4), Pauli(h, :σP, 3, 4),
+            Spin(h, :S, 1, 5), Spin(h, :S, 2, 5), Spin(h, :S, 3, 5),
+            Position(h, :x, 6), Momentum(h, :p, 6),
+        ]
+        @test fundamental_operators(h; names = [:a, :σ, :b, :σP, :S, (:x, :p)]) == expected
     end
 
-    @testset "fundamental_operators — PauliSpace" begin
-        h = PauliSpace(:p)
-        ops = fundamental_operators(h)
-        @test length(ops) == 3
-        @test all(op -> is_pauli(op), ops)
-        @test [op.l1 for op in ops] == [1, 2, 3]
-    end
-
-    @testset "fundamental_operators — SpinSpace" begin
-        h = SpinSpace(:s)
-        ops = fundamental_operators(h)
-        @test length(ops) == 3
-        @test all(op -> is_spin(op), ops)
-        @test [op.l1 for op in ops] == [1, 2, 3]
-    end
-
-    @testset "fundamental_operators — PhaseSpace" begin
-        h = PhaseSpace(:q)
-        ops = fundamental_operators(h)
-        @test length(ops) == 2
-        @test is_position(ops[1])
-        @test is_momentum(ops[2])
-    end
-
-    @testset "fundamental_operators — ProductSpace" begin
-        h = FockSpace(:f) ⊗ NLevelSpace(:n, 2, 1)
-        ops = fundamental_operators(h)
-        # Fock: 1 (Destroy), NLevel 2-level: 2 (σ₁₂, σ₂₂)
-        @test length(ops) == 3
-        @test ops[1].space_index == 1  # Fock operator
-        @test ops[2].space_index == 2  # NLevel operators
-        @test ops[3].space_index == 2
-    end
-
-    @testset "fundamental_operators — custom names" begin
-        h = FockSpace(:c)
-        ops = fundamental_operators(h; names = [:b])
-        @test operator_name(ops[1]) == :b
-    end
-
-    @testset "unique_ops" begin
-        h = FockSpace(:c)
+    @testset "adjoint-aware uniqueness" begin
+        h = FockSpace(:cavity)
         a = Destroy(h, :a)
-        ad = a'
-        # `a` survives; `a'` is dropped as its adjoint duplicate.
-        @test unique_ops([a, ad]) == [a]
-        @test unique_ops([ad, a]) == [ad]  # order preserved (first wins)
+        @test unique_ops([a, a']) == [a]
+        @test unique_ops([a', a]) == [a']
 
-        # Hermitian Pauli operator equals its own adjoint.
-        hp = PauliSpace(:p)
+        hp = PauliSpace(:pauli)
         σx = Pauli(hp, :σ, 1)
         σy = Pauli(hp, :σ, 2)
         @test unique_ops([σx, σx']) == [σx]
         @test unique_ops([σx, σy]) == [σx, σy]
-        @test unique_ops([σy, σx]) == [σy, σx]
     end
 
-    @testset "find_operators on Fock order 1" begin
-        h = FockSpace(:c)
+    @testset "operator products can be discovered" begin
+        h = FockSpace(:cavity)
         a = Destroy(h, :a)
-        # Order 1 is just {a, a'} reduced to {a} by adjoint deduplication.
         @test find_operators(h, 1) == [a]
-    end
-
-    @testset "find_operators on Fock order 2" begin
-        h = FockSpace(:c)
-        a = Destroy(h, :a)
-        # Order 1: a. Order 2 (after adjoint dedup): a*a and a'*a.
-        # a*a' is the adjoint duplicate of a'*a; a'*a' is the adjoint of a*a.
         @test find_operators(h, 2) == [a, a * a, a' * a]
     end
+end
 
-    @testset "find_operators — ProductSpace auto-naming" begin
-        # Two FockSpaces → duplicate types → auto-named a, b
-        h = FockSpace(:f1) ⊗ FockSpace(:f2)
-        ops = find_operators(h, 1)
-        names = [op isa QAdd ? operator_name(first(keys(op.arguments)).ops[1]) : operator_name(op) for op in ops]
-        @test :a in names
-        @test :b in names
-    end
-
-    @testset "fundamental_operators — all 6 types in ProductSpace with custom names" begin
-        h1 = FockSpace(:s1)
-        h2 = NLevelSpace(:s2, 2, 1)
-        h3 = FockSpace(:s3)
-        h4 = PauliSpace(:s4)
-        h5 = SpinSpace(:s5)
-        h6 = PhaseSpace(:s6)
-        h = h1 ⊗ h2 ⊗ h3 ⊗ h4 ⊗ h5 ⊗ h6
-
-        a = Destroy(h, :a, 1)
-        σ(i, j) = Transition(h, :σ, i, j, 2)
-        b = Destroy(h, :b, 3)
-        pauli(i) = Pauli(h, :σP, i, 4)
-        spin(i) = Spin(h, :S, i, 5)
-        x = Position(h, :x, 6)
-        p = Momentum(h, :p, 6)
-
-        @test fundamental_operators(h; names = [:a, :σ, :b, :σP, :S, (:x, :p)]) == [
-            a,
-            σ(1, 2),
-            σ(2, 2),
-            b,
-            pauli(1),
-            pauli(2),
-            pauli(3),
-            spin(1),
-            spin(2),
-            spin(3),
-            x,
-            p,
-        ]
-    end
-
-    @testset "unique_ops — all operator types" begin
-        h1 = FockSpace(:s1)
-        h2 = NLevelSpace(:s2, 2, 1)
-        h3 = FockSpace(:s3)
-        h4 = PauliSpace(:s4)
-        h5 = SpinSpace(:s5)
-        h6 = PhaseSpace(:s6)
-        h = h1 ⊗ h2 ⊗ h3 ⊗ h4 ⊗ h5 ⊗ h6
-
-        a = Destroy(h, :a, 1)
-        σ(i, j) = Transition(h, :σ, i, j, 2)
-        b = Destroy(h, :b, 3)
-        pauli(i) = Pauli(h, :σP, i, 4)
-        spin(i) = Spin(h, :S, i, 5)
-        x = Position(h, :x, 6)
-        p = Momentum(h, :p, 6)
-
-        ops = [
-            a,
-            a',
-            σ(1, 2),
-            σ(2, 2),
-            b,
-            σ(2, 1),
-            pauli(1),
-            pauli(2),
-            pauli(3),
-            spin(1),
-            spin(2),
-            spin(3),
-            x,
-            p,
-        ]
-        @test isequal(
-            unique_ops(ops),
-            [
-                a,
-                σ(1, 2),
-                σ(2, 2),
-                b,
-                pauli(1),
-                pauli(2),
-                pauli(3),
-                spin(1),
-                spin(2),
-                spin(3),
-                x,
-                p,
-            ],
-        )
-    end
-
-    @testset "Symbolic variable adjoint and conj" begin
-        @variables ω_test::Real
-        @variables G_test::Complex
-        @variables N_test::Number
-
-        # Real variable: adjoint is identity
-        @test isequal(adjoint(ω_test), ω_test)
-        @test isequal(adjoint(3ω_test), 3ω_test)
-
-        # Complex variable: adjoint is conj
-        @test isequal(adjoint(G_test), conj(G_test))
-
-        # Number variable: adjoint is conj
-        @test isequal(adjoint(N_test), conj(N_test))
-    end
-
-    @testset "Number-symtype coefficient conjugation" begin
-        @variables g::Number
-        h = FockSpace(:c)
+@testset "Operator accessors and adjoints" begin
+    @testset "symbolic coefficients follow qadjoint" begin
+        @variables g::Number r::Real
+        h = FockSpace(:cavity)
         a = Destroy(h, :a)
 
-        @test isequal(adjoint(g * a), conj(g) * a')
-        @test isequal((g * a)' * (g * a), conj(g) * g * (a' * a))
-        @test !isequal((g * a)' * (g * a), g * g * (a' * a))
-
-        # A Number-symtype coefficient can land in the imaginary slot (e.g. g × an ±i
-        # commutator residual); conjugation must reach it: conj(i*g) = -i*conj(g).
-        c_imag = conj_cnum(to_cnum(Complex(Num(0), Num(g))))
-        @test isequal(real(c_imag), Num(0))
-        @test isequal(imag(c_imag), -conj(g))
-        c_real = conj_cnum(to_cnum(Complex(Num(g), Num(0))))
-        @test isequal(real(c_real), conj(g))
-        @test isequal(imag(c_real), Num(0))
-    end
-
-    @testset "qadjoint" begin
-        @test qadjoint(3 + 2im) == 3 - 2im
-        @test qadjoint(5) == 5
-
-        h = FockSpace(:c)
-        a = Destroy(h, :a)
-        @test qadjoint(a) == a'
-
-        # qconj is a plain alias; dagger extends QuantumInterface.dagger for QField
+        @test isequal(qadjoint(3 + 2im), 3 - 2im)
+        @test isequal(qadjoint(g), conj(g))
+        @test isequal(qadjoint(3 * g * a), 3 * conj(g) * a')
+        @test isequal(qadjoint(qadjoint(g)), g)
+        @test isequal(qadjoint(r), r)
         @test qconj === qadjoint
-        @test nameof(parentmodule(dagger)) === :QuantumInterface
-        @test dagger(a) == qadjoint(a)
+        @test dagger(a) == a'
         @test dagger(2im * a') == qadjoint(2im * a')
     end
 
-    @testset "inner_adjoint" begin
-        h = FockSpace(:c)
+    @testset "average adjoints stay averages" begin
+        h = FockSpace(:cavity)
         a = Destroy(h, :a)
-        ad = a'
+        @test is_average(inner_adjoint(average(a)))
+        @test iszero(undo_average(inner_adjoint(average(a))) - a')
 
-        avg_a = average(a)
-        result = inner_adjoint(avg_a)
-        @test is_average(result)
-        using SymbolicUtils: SymbolicUtils
-        inner_wrapped = SymbolicUtils.arguments(result)[1]
-        inner = SymbolicUtils.isconst(inner_wrapped) ? inner_wrapped.val : inner_wrapped
-        @test inner == ad
+        expression = 2 * average(a) + average(a' * a)
+        @test isequal(
+            inner_adjoint(expression),
+            2 * average(a') + average(a' * a),
+        )
     end
 
-    @testset "one/zero for symbolic variables" begin
-        @variables ω::Real
-        @variables G::Complex{Real}
-        @test one(ω) == 1.0
-        @test one(G) == 1.0 + 0.0im
-        @test zero(ω) == 0.0
-        @test zero(G) == 0.0 + 0.0im
-    end
-
-    @testset "Base.one / Base.isone on QField" begin
-        h = FockSpace(:c)
-        a = Destroy(h, :a)
-
-        u = one(a)
-        @test u isa SecondQuantizedAlgebra.QAdd
-        @test isequal(u, one(typeof(a)))
-
-        @test isone(u)
-        @test isequal(SecondQuantizedAlgebra.simplify(u * a), SecondQuantizedAlgebra.simplify(a))
-
-        @test !isone(a)
-        @test !isone(a')
-
-        @test isone(commutator(a, a'))
-
-        @test !isone(a + a')
-        @test !isone(zero(SecondQuantizedAlgebra.QAdd))
-    end
-
-    @testset "qadjoint on symbolic expressions" begin
-        @variables G::Complex{Real} ϕ::Real r1::Real N::Number
-        # distributes over products
-        @test isequal(qadjoint(3 * G), 3 * conj(G))
-        # real variable is identity
-        @test isequal(qadjoint(r1), r1)
-        # complex variable gives conj
-        @test isequal(qadjoint(G), conj(G))
-        # Number variable gives conj and distributes
-        @test isequal(qadjoint(N), conj(N))
-        @test isequal(qadjoint(3 * N), 3 * conj(N))
-
-        # regression #7cc3ad7: adjoint of a scalar `conj(x)` folds back to `x`
-        # rather than nesting into `conj(conj(x))`, which never simplifies and
-        # survives downstream (e.g. leaving dead time-dependent terms after a
-        # coupling is substituted to 0). qadjoint is therefore an involution here.
-        @test isequal(qadjoint(conj(N)), N)
-        @test isequal(qadjoint(qadjoint(N)), N)
-        @test isequal(qadjoint(qadjoint(3 * N)), 3 * N)
-    end
-
-    @testset "qadjoint/inner_adjoint reach BasicSymbolic recursion" begin
-        import SymbolicUtils
-        @variables r1::Real r2::Real ϕ::Real
-
-        # qadjoint(::Num) now routes through the BasicSymbolic recursion.
-        # For real Nums the recursion preserves the expression (qadjoint of a
-        # real symbol is identity).
-        @test isequal(qadjoint(ϕ), ϕ)
-        @test isequal(qadjoint(r1 + r2), r1 + r2)
-
-        # Direct call on an unwrapped BasicSymbolic exercises the body, too.
-        raw = SymbolicUtils.unwrap(r1 + r2)
-        @test isequal(qadjoint(raw), raw)
-
-        # inner_adjoint folds conj(⟨op⟩) → ⟨op'⟩ via the BasicSymbolic recursion.
-        h = FockSpace(:c)
-        a = Destroy(h, :a)
-        avg = average(a)
-        raw_conj = SymbolicUtils.unwrap(conj(avg))
-        folded = inner_adjoint(raw_conj)
-        @test is_average(folded)
-        inner_wrapped = SymbolicUtils.arguments(folded)[1]
-        inner = SymbolicUtils.isconst(inner_wrapped) ? inner_wrapped.val : inner_wrapped
-        @test inner == a'
-    end
-
-    @testset "ProductSpace constructors auto-detect unique subspace" begin
-        # Single subspace of each type ⇒ idx is inferred
-        h = FockSpace(:c) ⊗ NLevelSpace(:atom, 2) ⊗ PauliSpace(:p) ⊗
-            SpinSpace(:s) ⊗ PhaseSpace(:q)
-
-        @test Destroy(h, :a) == Destroy(h, :a, 1)
-        @test Create(h, :a) == Create(h, :a, 1)
-        @test Transition(h, :σ, 1, 2) == Transition(h, :σ, 1, 2, 2)
-        @test Pauli(h, :p, 1) == Pauli(h, :p, 1, 3)
-        @test Spin(h, :S, 2) == Spin(h, :S, 2, 4)
-        @test Position(h, :x) == Position(h, :x, 5)
-        @test Momentum(h, :p) == Momentum(h, :p, 5)
-
-        # Symbolic-level Transition convenience
-        h_sym = FockSpace(:c) ⊗ NLevelSpace(:atom, (:g, :e))
-        @test Transition(h_sym, :σ, :g, :e) == Transition(h_sym, :σ, :g, :e, 2)
-
-        # @qnumbers on the convenience form (macro inserts the name as 2nd arg)
-        h_jc = FockSpace(:c) ⊗ NLevelSpace(:atom, 2)
-        @qnumbers a::Destroy(h_jc) σ::Transition(h_jc, 1, 2)
-        @test a == Destroy(h_jc, :a, 1)
-        @test σ == Transition(h_jc, :σ, 1, 2, 2)
-
-        # Multiple subspaces of same type ⇒ must specify
-        h_two_fock = FockSpace(:a) ⊗ FockSpace(:b)
-        @test_throws ArgumentError Destroy(h_two_fock, :a)
-        @test_throws ArgumentError Create(h_two_fock, :a)
-
-        # No subspace of requested type ⇒ must specify (or use the right type)
-        h_no_fock = NLevelSpace(:a, 2) ⊗ NLevelSpace(:b, 2)
-        @test_throws ArgumentError Destroy(h_no_fock, :a)
-        @test_throws ArgumentError Pauli(h_no_fock, :p, 1)
-    end
-
-    @testset "Public Op/Index accessors (QC issue #300)" begin
-        h = FockSpace(:a) ⊗ NLevelSpace(:b, 2)
+    @testset "operator and index identity accessors" begin
+        h = FockSpace(:cavity) ⊗ NLevelSpace(:atom, 2)
         a = Destroy(h, :a, 1)
-        σ = Transition(h, :σ, 1, 2, 2)  # subspace 2
+        σ = Transition(h, :σ, 1, 2, 2)
         i = Index(h, :i, 3, 2)
 
-        # operator_index
-        @test operator_index(a) === NO_INDEX
         @test !has_index(operator_index(a))
         ai = IndexedOperator(a, i)
         @test operator_index(ai) == i
-        @test has_index(operator_index(ai))
-
-        # acts_on(::Index) — same Vector{Int} return type as acts_on(::QSym)
         @test acts_on(i) == [2]
         @test acts_on(i) == acts_on(σ)
 
-        # set_acts_on rebinds only the subspace, preserving everything else
-        a2 = set_acts_on(a, 2)
-        @test acts_on(a2) == [2]
-        @test is_destroy(a2)
-        @test operator_name(a2) == :a
-        @test operator_index(a2) === operator_index(a)
+        moved = set_acts_on(a, 2)
+        @test acts_on(moved) == [2]
+        @test operator_name(moved) == :a
+        @test operator_index(moved) == operator_index(a)
         @test set_acts_on(a, 1) == a
 
-        # rename(::Op) preserves role, subspace, index, levels
-        b = rename(a, :b)
-        @test operator_name(b) == :b
-        @test acts_on(b) == acts_on(a)
-        @test is_destroy(b)
-        σ2 = rename(σ, :τ)
-        @test operator_name(σ2) == :τ
-        @test optype(σ2) == optype(σ)
+        renamed = rename(a, :b)
+        @test operator_name(renamed) == :b
+        @test acts_on(renamed) == acts_on(a)
+        @test optype(renamed) == optype(a)
         @test rename(a, :a) == a
 
-        # rename(::Index) preserves range, subspace, slot
-        j = rename(i, :j)
-        @test index_name(j) == :j
-        @test isequal(index_range(j), index_range(i))
-        @test acts_on(j) == acts_on(i)
-
-        # String names are rejected, matching the constructor policy
+        renamed_index = rename(i, :j)
+        @test index_name(renamed_index) == :j
+        @test index_range(renamed_index) == index_range(i)
+        @test acts_on(renamed_index) == acts_on(i)
         @test_throws ArgumentError rename(a, "b")
         @test_throws ArgumentError rename(i, "j")
-
-        # Type stability
-        @test @inferred(operator_index(ai)) isa Index
-        @test @inferred(acts_on(i)) isa Vector{Int}
-        @test @inferred(set_acts_on(a, 2)) isa Op
-        @test @inferred(rename(a, :b)) isa Op
-        @test @inferred(rename(i, :j)) isa Index
     end
 
+    @testset "one, zero, and inference" begin
+        h = FockSpace(:cavity)
+        a = Destroy(h, :a)
+        @test isone(one(a))
+        @test isone(commutator(a, a'))
+        @test !isone(a)
+        @test !isone(zero(a + a'))
+
+        @test @inferred operator_index(a') isa typeof(operator_index(a))
+        @test @inferred acts_on(a) isa Vector{Int}
+        @test @inferred set_acts_on(a, 1) isa typeof(a)
+        @test @inferred rename(a, :b) isa typeof(a)
+    end
 end

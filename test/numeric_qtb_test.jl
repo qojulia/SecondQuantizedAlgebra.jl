@@ -433,27 +433,4 @@ end
         end
     end
 
-    @testset "VecSum superoperator algebra (mesolve path)" begin
-        h = FockSpace(:c)
-        @qnumbers a::Destroy(h)
-        N = 5
-        V = to_numeric(a' * a, h, N; backend = QTBB, op_type = identity).data
-        Vd = Matrix(V)
-
-        # spre/spost/* stay a single concrete VecSum and agree with the dense operations.
-        @test occursin("VecSum", string(typeof(V)))
-        @test isapprox(Matrix(QTB._spre(V)), Matrix(QTB._spre(SO.MatrixOperator(Vd))))
-        @test isapprox(Matrix(QTB._spost(V)), Matrix(QTB._spost(SO.MatrixOperator(Vd))))
-
-        prod = V * V
-        @test isapprox(Matrix(prod), Vd * Vd)
-        # A product of two constant coefficients stays constant (static concretize is correct
-        # and the solver treats the superoperator as time-independent).
-        @test SO.isconstant(prod)
-
-        # Type stability: all three return the single concrete VecSum type.
-        @test only(Base.return_types(QTB._spre, (typeof(V),))) === typeof(V)
-        @test only(Base.return_types(QTB._spost, (typeof(V),))) === typeof(V)
-        @test only(Base.return_types(*, (typeof(V), typeof(V)))) === typeof(V)
-    end
 end

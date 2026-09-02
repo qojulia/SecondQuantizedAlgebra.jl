@@ -1,5 +1,5 @@
 using SecondQuantizedAlgebra
-import SecondQuantizedAlgebra: simplify, QAdd, QSym, single_qadd, CNUM_ONE, to_cnum
+import SecondQuantizedAlgebra: simplify
 using Test
 
 @testset "fock operators" begin
@@ -11,23 +11,17 @@ using Test
         hp = FockSpace(:a) ⊗ FockSpace(:b)
         a1 = Destroy(hp, :a, 1)
         b1 = Destroy(hp, :b, 2)
-        @test a1.space_index == 1
-        @test b1.space_index == 2
+        @test acts_on(a1) == [1]
+        @test acts_on(b1) == [2]
         @test_throws ArgumentError Destroy(hp, :c, 3)
     end
 
     @testset "Adjoint" begin
         @test is_create(ad)
         @test operator_name(ad) == :a
-        @test ad.space_index == 1
+        @test acts_on(ad) == [1]
         @test ad' == a
         @test a'' == a
-    end
-
-    @testset "Canonical ordering helpers" begin
-        import SecondQuantizedAlgebra: ladder
-        @test ladder(a) == 1
-        @test ladder(ad) == 0
     end
 
     @testset "Algebraic simplification" begin
@@ -58,18 +52,13 @@ using Test
         a1 = Destroy(hm, :a1, 1)
         a2 = Destroy(hm, :a2, 2)
 
-        @test isequal(
-            simplify(commutator(a1 + a2, a1')), single_qadd(to_cnum(1), Op[])
-        )
-        @test isequal(
-            simplify(commutator(a2', a1 + a2)), single_qadd(to_cnum(-1), Op[])
-        )
+        @test iszero(simplify(commutator(a1 + a2, a1') - 1))
+        @test iszero(simplify(commutator(a2', a1 + a2) + 1))
 
         @test commutator(a1, 1) == commutator(1, a2)
     end
 
     @testset "Type stability" begin
-        import SecondQuantizedAlgebra: ladder
         @inferred Destroy(:a, 1)
         @inferred Create(:a, 1)
         @inferred adjoint(a)
@@ -77,8 +66,6 @@ using Test
         @inferred isequal(a, a)
         @inferred hash(a, UInt(0))
         @inferred hash(ad, UInt(0))
-        @inferred ladder(a)
-        @inferred ladder(ad)
         @inferred a * ad
         @inferred ad * a
         @inferred a + ad

@@ -3,15 +3,15 @@ using QuantumOpticsBase
 using Latexify
 using Symbolics: @variables, Num
 using Test
-import SecondQuantizedAlgebra: simplify, QAdd, QSym, HilbertSpace
+import SecondQuantizedAlgebra: simplify
 
 @testset "phase_space" begin
     @testset "Construction — product space" begin
         h = FockSpace(:c) ⊗ PhaseSpace(:q)
         x = Position(h, :x, 2)
         p = Momentum(h, :p, 2)
-        @test x.space_index == 2
-        @test p.space_index == 2
+        @test acts_on(x) == [2]
+        @test acts_on(p) == [2]
         @test_throws ArgumentError Position(h, :x, 1)  # FockSpace, not PhaseSpace
         @test_throws ArgumentError Momentum(h, :p, 1)
         @test_throws ArgumentError Position(h, :x, 3)  # out of range
@@ -25,16 +25,13 @@ import SecondQuantizedAlgebra: simplify, QAdd, QSym, HilbertSpace
         @test p' == p
     end
 
-    @testset "Lazy multiplication" begin
+    @testset "Arithmetic" begin
         h = PhaseSpace(:q)
         x = Position(h, :x)
         p = Momentum(h, :p)
 
-        m = x * p
-        @test m isa QAdd
-
-        s = x + p
-        @test s isa QAdd
+        @test iszero(commutator(x, p) - im)
+        @test iszero((x + p) - (p + x))
     end
 
     @testset "Simplify: [X, P] = i" begin
@@ -43,14 +40,8 @@ import SecondQuantizedAlgebra: simplify, QAdd, QSym, HilbertSpace
         p = Momentum(h, :p)
 
         # p*x out of order → x*p - i
-        result = simplify(p * x)
-        @test result isa QAdd
-        @test length(result) == 2  # x·p + (-i)
-
-        # x*p already ordered → x·p (1 term)
-        result2 = simplify(x * p)
-        @test result2 isa QAdd
-        @test length(result2) == 1
+        @test iszero(simplify(p * x - (x * p - im)))
+        @test iszero(simplify(normal_order(x * p) - x * p))
     end
 
     @testset "Simplify: mixed spaces don't interact" begin
@@ -58,9 +49,7 @@ import SecondQuantizedAlgebra: simplify, QAdd, QSym, HilbertSpace
         x1 = Position(h, :x, 1)
         p2 = Momentum(h, :p, 2)
 
-        # Different spaces — no commutation
-        result = simplify(p2 * x1)
-        @test length(result) == 1
+        @test iszero(commutator(p2, x1))
     end
 
     @testset "Higher-order algebra" begin

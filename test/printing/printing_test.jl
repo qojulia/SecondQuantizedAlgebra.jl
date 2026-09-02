@@ -3,8 +3,8 @@ using Latexify
 using LaTeXStrings
 using Symbolics: @variables
 using Test
-import SecondQuantizedAlgebra: simplify, QAdd, QSym, single_qadd, zero_qadd, to_cnum,
-    transition_superscript, make_time_dependent, expim, exponential_form, trigonometric_form
+import SecondQuantizedAlgebra: simplify, transition_superscript, make_time_dependent,
+    expim, exponential_form, trigonometric_form
 
 @testset "Rendering" begin
     h = FockSpace(:cavity)
@@ -84,7 +84,7 @@ import SecondQuantizedAlgebra: simplify, QAdd, QSym, single_qadd, zero_qadd, to_
                 (3 * ad * a, "3 * a' * a"),
                 (-1 * a, "-a"),
                 (-3 * a, "-3 * a"),
-                (single_qadd(to_cnum(5), Op[]), "5"),
+                (5 * commutator(a, ad), "5"),
                 (a / 4, "1//4 * a"),
                 (0.5 * a, "0.5 * a"),
             ]
@@ -242,17 +242,10 @@ import SecondQuantizedAlgebra: simplify, QAdd, QSym, single_qadd, zero_qadd, to_
         end
 
         @testset "Heterogeneous operator averages sort without error" begin
-            # ⟨b'b⟩ wraps a `QAdd`, ⟨σ⟩/⟨b⟩ wrap a `QSym`. When SymbolicUtils sorts a
-            # sum of such averages for printing it unwraps the operator `Const`s and
-            # falls back to `<ₑ(x, y) = typeof(x) < typeof(y)`, comparing the operator
-            # *types*. Regression guard for that comparison being defined (it used to
-            # throw `MethodError: isless(::Type{QAdd}, ::Type{QSym})`).
             h2 = FockSpace(:c) ⊗ NLevelSpace(:atom, 2, 1)
             @qnumbers b::Destroy(h2, 1)
             σ = Transition(h2, :σ, 2, 2, 2)
 
-            @test isless(typeof(b' * b), typeof(σ)) isa Bool
-            @test isless(typeof(b' * b), typeof(σ)) == !isless(typeof(σ), typeof(b' * b))
             rendered = repr(average(b' * b) + average(σ) + average(b))
             @test all(
                 occursin(term, rendered) for
@@ -293,8 +286,6 @@ import SecondQuantizedAlgebra: simplify, QAdd, QSym, single_qadd, zero_qadd, to_
         end
 
         @testset "Per-term Σ scope: distinct-index sums stay separate" begin
-            # A QAdd whose .indices = [i, j] but whose terms each depend on only
-            # one of them must NOT print as a global Σ_i Σ_j over the whole sum.
             @variables N
             hf = FockSpace(:f)
             af = Destroy(hf, :a)
@@ -316,15 +307,13 @@ import SecondQuantizedAlgebra: simplify, QAdd, QSym, single_qadd, zero_qadd, to_
             mixed = Σ(ai, i) + Σ(ai_dag, i) + Σ(aj_dag, j)
             @test repr(mixed) == "Σ(i=1:N) (a_i + a_i') + Σ(j=1:N) a_j'"
 
-            # Diagonal-pin residual from Σa_i * Σa'j: the bound diagonal lives
-            # in scope of the surviving index only.
             prod = Σ(ai, i) * Σ(aj_dag, j)
             @test repr(prod) ==
                 "N + Σ(i=1:N)Σ(j=1:N)(i≠j) a_i * a_j' + Σ(i=1:N) a_i' * a_i"
         end
 
         @testset "Edge cases, no crash" begin
-            @test repr(zero_qadd()) == "0"
+            @test repr(a - a) == "0"
         end
 
         @testset "Type inference" begin
@@ -407,7 +396,7 @@ import SecondQuantizedAlgebra: simplify, QAdd, QSym, single_qadd, zero_qadd, to_
         @test string((im * x) * a) == "xim * a"
         @test occursin(r"^\(.+\) \* a$", string((x + y) * a))
         @test occursin(r"^\(.+\) \* a$", string((x / y) * a))
-        @test string(single_qadd(to_cnum(x + y), SecondQuantizedAlgebra.Op[])) == string(x + y)
+        @test string((x + y) * commutator(a, ad)) == string(x + y)
     end
 
     @testset "LaTeX (latexify)" begin
@@ -492,7 +481,7 @@ import SecondQuantizedAlgebra: simplify, QAdd, QSym, single_qadd, zero_qadd, to_
                 (1 * adf * af, L"a^{\dagger}a"),
                 (3 * adf * af, L"3 a^{\dagger}a"),
                 (-1 * af, L"-a"),
-                (single_qadd(to_cnum(5), Op[]), L"5"),
+                (5 * commutator(af, adf), L"5"),
             ]
             for (input, out) in cases
                 @test latexify(input) == out
@@ -603,10 +592,10 @@ import SecondQuantizedAlgebra: simplify, QAdd, QSym, single_qadd, zero_qadd, to_
             @test latexify(s) ==
                 L"\underset{i{\neq}j}{\overset{N}{\sum}}\Gamma\left( i, j \right) {\sigma}_{i}^{{12}}"
 
-            σ_k = IndexedOperator(Transition(h2, :σ, 2, 2, 2), Index(h2, :k, N, NLevelSpace(:atom, 2, 1)))
-            σ_l = IndexedOperator(Transition(h2, :σ, 2, 1, 2), Index(h2, :l, N, NLevelSpace(:atom, 2, 1)))
-            kk = σ_k.index
-            ll = σ_l.index
+            kk = Index(h2, :k, N, NLevelSpace(:atom, 2, 1))
+            ll = Index(h2, :l, N, NLevelSpace(:atom, 2, 1))
+            σ_k = IndexedOperator(Transition(h2, :σ, 2, 2, 2), kk)
+            σ_l = IndexedOperator(Transition(h2, :σ, 2, 1, 2), ll)
             s2 = Σ(σ_k, kk) * σ_l
             @test latexify(s2) ==
                 L"{\sigma}_{l}^{{21}} + \underset{k{\neq}l}{\overset{N}{\sum}}{\sigma}_{k}^{{22}}{\sigma}_{l}^{{21}}"

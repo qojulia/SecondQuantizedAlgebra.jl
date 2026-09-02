@@ -11,18 +11,18 @@ using Test
 
         h12 = h1 ⊗ h2
         @test h12 isa ProductSpace
-        @test h12.spaces == (h1, h2)
+        @test repr(h12) == "ℋ(a) ⊗ ℋ(b)"
 
         # Associativity
         h123_a = (h1 ⊗ h2) ⊗ h3
         h123_b = h1 ⊗ (h2 ⊗ h3)
         h123_c = h1 ⊗ h2 ⊗ h3
         @test h123_a == h123_b == h123_c
-        @test h123_a.spaces == (h1, h2, h3)
+        @test repr(h123_a) == "ℋ(a) ⊗ ℋ(b) ⊗ ℋ(c)"
 
         # 4 spaces
         h1234 = h1 ⊗ h2 ⊗ h3 ⊗ h4
-        @test h1234.spaces == (h1, h2, h3, h4)
+        @test repr(h1234) == "ℋ(a) ⊗ ℋ(b) ⊗ ℋ(c) ⊗ ℋ(d)"
         @test (h1 ⊗ h2) ⊗ (h3 ⊗ h4) == h1234
 
         # tensor alias

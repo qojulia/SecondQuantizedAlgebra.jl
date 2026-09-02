@@ -1,12 +1,12 @@
 using SecondQuantizedAlgebra
-import SecondQuantizedAlgebra: simplify, QAdd, QSym, HilbertSpace
+import SecondQuantizedAlgebra: simplify
 using Test
 
 @testset "pauli" begin
     @testset "Pauli construction — product space" begin
         h = FockSpace(:c) ⊗ PauliSpace(:p)
         σx = Pauli(h, :σ, 1, 2)
-        @test σx.space_index == 2
+        @test acts_on(σx) == [2]
         @test_throws ArgumentError Pauli(h, :σ, 1, 1)
     end
 
@@ -21,11 +21,8 @@ using Test
         σx = Pauli(h, :σ, 1)
         σy = Pauli(h, :σ, 2)
 
-        m = σx * σy
-        @test m isa QAdd
-
-        s = σx + σy
-        @test s isa QAdd
+        @test iszero(σx * σy - 1im * Pauli(h, :σ, 3))
+        @test iszero((σx + σy) - (σy + σx))
     end
 
     @testset "@qnumbers" begin
@@ -33,7 +30,7 @@ using Test
         @qnumbers σx::Pauli(h, 1)
         @test is_pauli(σx)
         @test operator_name(σx) == :σx
-        @test σx.l1 == 1
+        @test occursin("σx", repr(σx))
     end
 
     @testset "Type stability" begin

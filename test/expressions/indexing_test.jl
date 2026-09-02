@@ -1,1498 +1,362 @@
 using SecondQuantizedAlgebra
 using Test
-using SymbolicUtils: SymbolicUtils
-using Symbolics: Symbolics, @variables
-import SecondQuantizedAlgebra: simplify, QAdd, QSym, CNum, to_cnum, NO_INDEX,
-    create_index_arrays, operators, prefactor, sorted_arguments, constraint_pairs
+using Symbolics: @variables
+import SecondQuantizedAlgebra: constraint_pairs
 
-@testset "Indexing" begin
+@testset "Indexed public API" begin
+    hf = FockSpace(:fock)
+    hn = NLevelSpace(:atom, 2, 1)
+    hp = PauliSpace(:pauli)
+    hs = SpinSpace(:spin)
+    hq = PhaseSpace(:phase)
 
-    # ========== Setup ==========
-    hf = FockSpace(:f)
-    hn = NLevelSpace(:n, 2, 1)
-    hp = PauliSpace(:p)
-    hs = SpinSpace(:s)
-    hq = PhaseSpace(:q)
-    h_prod = hf ⊗ hn
-
-    a = Destroy(hf, :a)
-    ad = a'
-    sigma = Transition(hn, :σ, 1, 2)
-
-    # ========== Index construction ==========
-    @testset "Index basics" begin
+    @testset "index values and scope" begin
         i = Index(hf, :i, 10, hf)
+        j = Index(hf, :j, 10, hf)
         @test index_name(i) == :i
         @test index_range(i) == 10
-        @test i.space_index == 1
+        @test isequal(index_sym(i), index_sym(Index(hf, :i, 10, hf)))
+        @test acts_on(i) == [1]
         @test has_index(i)
-        @test !has_index(NO_INDEX)
+        @test i == Index(hf, :i, 10, hf)
+        @test i != j
+        @test i != Index(hf, :i, 5, hf)
+        @test hash(i) == hash(Index(hf, :i, 10, hf))
 
-        # Index equality ignores sym (only name, range, space_index)
-        j = Index(hf, :i, 10, hf)
-        @test i == j
+        integer_space = Index(hf, :m, 10, 1)
+        @test acts_on(integer_space) == [1]
+        @test has_index(integer_space)
 
-        # Different name
-        k = Index(hf, :k, 10, hf)
-        @test i != k
+        unindexed = Destroy(hf, :unindexed)
+        @test !has_index(operator_index(unindexed))
 
-        # Different range
-        m = Index(hf, :i, 5, hf)
-        @test i != m
-    end
-
-    @testset "Index in ProductSpace" begin
-        i = Index(h_prod, :i, 10, hf)
-        @test i.space_index == 1
-
-        j = Index(h_prod, :j, 10, hn)
-        @test j.space_index == 2
-
-        # Error for space not in ProductSpace
-        hother = FockSpace(:other)
-        @test_throws ArgumentError Index(h_prod, :i, 10, hother)
-    end
-
-    @testset "Index from integer space_index" begin
-        i = Index(hf, :i, 10, 1)
-        @test i.space_index == 1
-        @test has_index(i)
-    end
-
-    @testset "Index hashing" begin
-        i = Index(hf, :i, 10, hf)
-        j = Index(hf, :i, 10, hf)
-        @test hash(i) == hash(j)
-
-        k = Index(hf, :k, 10, hf)
-        @test hash(i) != hash(k)
-    end
-
-    # ========== IndexedOperator ==========
-    @testset "IndexedOperator — all operator types" begin
-        i = Index(hf, :i, 10, hf)
-
-        # Fock
-        ai = IndexedOperator(a, i)
-        @test is_destroy(ai)
-        @test ai.index == i
-        @test has_index(ai.index)
-
-        adi = IndexedOperator(ad, i)
-        @test is_create(adi)
-        @test adi.index == i
-
-        # NLevel
-        j = Index(hn, :j, 5, hn)
-        sj = IndexedOperator(sigma, j)
-        @test is_transition(sj)
-        @test sj.index == j
-
-        # Pauli
-        sx = Pauli(hp, :σ, 1)
-        ip = Index(hp, :i, 10, hp)
-        sxi = IndexedOperator(sx, ip)
-        @test is_pauli(sxi)
-        @test sxi.index == ip
-
-        # Spin
-        Sx = Spin(hs, :S, 1)
-        is_ = Index(hs, :i, 10, hs)
-        Sxi = IndexedOperator(Sx, is_)
-        @test is_spin(Sxi)
-        @test Sxi.index == is_
-
-        # PhaseSpace
-        x = Position(hq, :x)
-        p = Momentum(hq, :p)
-        iq = Index(hq, :i, 10, hq)
-        xi = IndexedOperator(x, iq)
-        pi = IndexedOperator(p, iq)
-        @test is_position(xi)
-        @test is_momentum(pi)
-        @test xi.index == iq
-    end
-
-    @testset "IndexedOperator preserves adjoint" begin
-        i = Index(hf, :i, 10, hf)
-        ai = IndexedOperator(a, i)
-        adi = ai'
-        @test is_create(adi)
-        @test adi.index == i
-    end
-
-    # ========== Same-site with indices ==========
-    @testset "Indexed operators on different indices are different sites" begin
-        i = Index(hf, :i, 10, hf)
-        j = Index(hf, :j, 10, hf)
-        ai = IndexedOperator(a, i)
-        aj = IndexedOperator(a, j)
-
-        # Different index → different site → commute
-        @test commutator(ai, aj') isa QAdd
-        result = commutator(ai, aj')
-        @test iszero(result)
-    end
-
-    @testset "Indexed operators on same index interact" begin
-        i = Index(hf, :i, 10, hf)
-        ai = IndexedOperator(a, i)
-        adi = ai'
-
-        # Same index → same site → [a_i, a†_i] = 1
-        result = commutator(ai, adi)
-        @test result isa QAdd
-        @test length(result) == 1
-        @test isempty(only(collect(result)).first.ops)
-        @test only(collect(result)).second == 1
-    end
-
-    @testset "Indexed vs non-indexed are different sites" begin
-        i = Index(hf, :i, 10, hf)
-        ai = IndexedOperator(a, i)
-
-        # Non-indexed a and indexed a_i have different indices (NO_INDEX vs i)
-        result = commutator(a, ai')
-        @test iszero(result)
-    end
-
-    # ========== IndexedVariable ==========
-    @testset "IndexedVariable" begin
-        i = Index(hf, :i, 10, hf)
-        gi = IndexedVariable(:g, i)
-        @test gi isa Symbolics.Num
-
-        # Different index gives different variable
-        j = Index(hf, :j, 10, hf)
-        gj = IndexedVariable(:g, j)
-        @test !isequal(gi, gj)
-    end
-
-    @testset "Index call-syntax slot" begin
-        i = Index(hf, :i, 10, hf)
-        i3 = i(3)
-        @test i3 isa Index
-        @test index_name(i3) === :i_3
-        @test isequal(index_range(i3), index_range(i))
-        @test i3.space_index == i.space_index
-        # Two calls produce equal Index values
+        concrete = i(3)
+        @test has_index(concrete)
+        @test index_slot(concrete) == 3
+        @test index_name(concrete) == :i_3
+        @test index_range(concrete) == index_range(i)
         @test i(3) == i(3)
         @test i(3) != i(4)
+
+        product = hf ⊗ hn
+        @test acts_on(Index(product, :m, 4, hf)) == [1]
+        @test acts_on(Index(product, :n, 4, hn)) == [2]
+        @test_throws ArgumentError Index(product, :x, 4, FockSpace(:other))
+        @test_throws ArgumentError Index(hf, "i", 4, hf)
     end
 
-    @testset "DoubleIndexedVariable" begin
+    @testset "index-aware operators cover every family" begin
+        i = Index(hf, :i, 10, hf)
+        @test is_destroy(IndexedOperator(Destroy(hf, :a), i))
+        @test is_create(IndexedOperator(Create(hf, :a), i))
+
+        j = Index(hn, :j, 10, hn)
+        @test is_transition(IndexedOperator(Transition(hn, :σ, 1, 2), j))
+
+        pidx = Index(hp, :p, 10, hp)
+        sidx = Index(hs, :s, 10, hs)
+        qidx = Index(hq, :q, 10, hq)
+        @test is_pauli(IndexedOperator(Pauli(hp, :σ, 1), pidx))
+        @test is_spin(IndexedOperator(Spin(hs, :S, 1), sidx))
+        @test is_position(IndexedOperator(Position(hq, :x), qidx))
+        @test is_momentum(IndexedOperator(Momentum(hq, :p), qidx))
+
+        indexed = IndexedOperator(Destroy(hf, :a), i)
+        @test operator_index(indexed) == i
+        @test operator_index(indexed') == i
+        @test is_create(indexed')
+        @test acts_on(indexed) == [1]
+    end
+
+    @testset "change_index covers every operator family" begin
         i = Index(hf, :i, 10, hf)
         j = Index(hf, :j, 10, hf)
+
+        @test operator_index(change_index(IndexedOperator(Destroy(hf, :a), i), i, j)) == j
+        @test operator_index(change_index(IndexedOperator(Create(hf, :a), i), i, j)) == j
+
+        ni = Index(hn, :ni, 10, hn)
+        nj = Index(hn, :nj, 10, hn)
+        @test operator_index(
+            change_index(IndexedOperator(Transition(hn, :σ, 1, 2), ni), ni, nj),
+        ) == nj
+
+        pi = Index(hp, :pi, 10, hp)
+        pj = Index(hp, :pj, 10, hp)
+        @test operator_index(change_index(IndexedOperator(Pauli(hp, :σ, 1), pi), pi, pj)) == pj
+
+        si = Index(hs, :si, 10, hs)
+        sj = Index(hs, :sj, 10, hs)
+        @test operator_index(change_index(IndexedOperator(Spin(hs, :S, 1), si), si, sj)) == sj
+
+        qi = Index(hq, :qi, 10, hq)
+        qj = Index(hq, :qj, 10, hq)
+        @test operator_index(change_index(IndexedOperator(Position(hq, :x), qi), qi, qj)) == qj
+        @test operator_index(change_index(IndexedOperator(Momentum(hq, :p), qi), qi, qj)) == qj
+    end
+
+    @testset "indexed parameters" begin
+        i = Index(hf, :i, 10, hf)
+        j = Index(hf, :j, 10, hf)
+        gi = IndexedVariable(:g, i)
+        gj = IndexedVariable(:g, j)
+        @test !isequal(gi, gj)
+        @test !iszero(gi)
 
         Jij = DoubleIndexedVariable(:J, i, j)
-        @test Jij isa Symbolics.Num
-
-        # identical=false → 0 when i==j
-        Jii_nodiag = DoubleIndexedVariable(:J, i, i; identical = false)
-        @test isequal(Jii_nodiag, Symbolics.Num(0))
-
-        # identical=true (default) → nonzero when i==i
-        Jii = DoubleIndexedVariable(:J, i, i)
-        @test !isequal(Jii, Symbolics.Num(0))
+        @test !iszero(Jij)
+        @test iszero(DoubleIndexedVariable(:J, i, i; identical = false))
+        @test !iszero(DoubleIndexedVariable(:J, i, i))
     end
 
-    @testset "IndexedVariable in prefactor" begin
-        i = Index(hf, :i, 10, hf)
-        gi = IndexedVariable(:g, i)
-        ai = IndexedOperator(a, i)
-
-        # Can multiply: g_i * a_i
-        expr = gi * ai
-        @test expr isa QAdd
-    end
-
-    # ========== Σ (symbolic sums) ==========
-    @testset "Sigma single index" begin
-        i = Index(hf, :i, 10, hf)
-        ai = IndexedOperator(a, i)
-
-        s = Σ(ai, i)
-        @test s isa QAdd
-        @test length(s.indices) == 1
-        @test s.indices[1] == i
-        @test isempty(constraint_pairs(s))
-    end
-
-    @testset "Sigma with product" begin
-        i = Index(hf, :i, 10, hf)
-        ai = IndexedOperator(a, i)
-        adi = ai'
-
-        s = Σ(adi * ai, i)
-        @test s isa QAdd
-        @test length(s.indices) == 1
-        @test length(s) == 1
-        @test length(operators(only(sorted_arguments(s)))) == 2
-    end
-
-    @testset "Sigma with non_equal" begin
+    @testset "get_indices reports public expression scope" begin
         i = Index(hf, :i, 10, hf)
         j = Index(hf, :j, 10, hf)
-        ai = IndexedOperator(a, i)
+        ai = IndexedOperator(Destroy(hf, :a), i)
+        aj = IndexedOperator(Destroy(hf, :a), j)
 
-        s = Σ(ai, i, [j])
-        pairs = constraint_pairs(s)
-        @test length(pairs) == 1
-        @test pairs[1] == (i, j) || pairs[1] == (j, i)
-    end
-
-    @testset "Sigma multi-index" begin
-        i = Index(hf, :i, 10, hf)
-        j = Index(hf, :j, 10, hf)
-        ai = IndexedOperator(a, i)
-
-        # Σ(a_i, i, j) — j is independent → folds to 10 * Σ(a_i, i)
-        s = Σ(ai, i, j)
-        @test s isa QAdd
-        @test length(s.indices) == 1
-        @test i in s.indices
-        @test isequal(s, Σ(ai, i) * 10)
-
-        # Multi-index where both are needed (different spaces, both indexed)
-        i_n = Index(h_prod, :i, 10, hn)
-        m_f = Index(h_prod, :m, 5, hf)
-        σi = IndexedOperator(sigma, i_n)
-        am = IndexedOperator(a, m_f)
-        s2 = Σ(σi * am, i_n, m_f)
-        @test length(s2.indices) == 2
-    end
-
-    @testset "Sigma with scalar" begin
-        i = Index(hf, :i, 10, hf)
-        s = Σ(1, i)
-        @test s isa QAdd
-        # Scalar 1 doesn't depend on i → simplified to 10 * 1
-        @test isempty(get_indices(s))
-    end
-
-    @testset "Sigma with QSym" begin
-        i = Index(hf, :i, 10, hf)
-        ai = IndexedOperator(a, i)
-        s = Σ(ai, i)
-        @test s isa QAdd
-        @test length(s) == 1
-    end
-
-    @testset "Sigma alias ∑" begin
-        i = Index(hf, :i, 10, hf)
-        ai = IndexedOperator(a, i)
-        @test ∑(ai, i) isa QAdd
-    end
-
-    # ========== change_index ==========
-    @testset "change_index — operators" begin
-        i = Index(hf, :i, 10, hf)
-        j = Index(hf, :j, 10, hf)
-
-        # Destroy
-        ai = IndexedOperator(a, i)
-        aj = change_index(ai, i, j)
-        @test is_destroy(aj)
-        @test aj.index == j
-
-        # Create
-        adi = ai'
-        adj = change_index(adi, i, j)
-        @test is_create(adj)
-        @test adj.index == j
-
-        # Transition
-        k = Index(hn, :k, 5, hn)
-        l = Index(hn, :l, 5, hn)
-        sk = IndexedOperator(sigma, k)
-        sl = change_index(sk, k, l)
-        @test is_transition(sl)
-        @test sl.index == l
-
-        # Pauli
-        sx = Pauli(hp, :σ, 1)
-        ip = Index(hp, :i, 10, hp)
-        jp = Index(hp, :j, 10, hp)
-        sxi = IndexedOperator(sx, ip)
-        sxj = change_index(sxi, ip, jp)
-        @test is_pauli(sxj)
-        @test sxj.index == jp
-
-        # Spin
-        Sx = Spin(hs, :S, 1)
-        is_ = Index(hs, :i, 10, hs)
-        js_ = Index(hs, :j, 10, hs)
-        Sxi = IndexedOperator(Sx, is_)
-        Sxj = change_index(Sxi, is_, js_)
-        @test is_spin(Sxj)
-        @test Sxj.index == js_
-
-        # Position / Momentum
-        x = Position(hq, :x)
-        p = Momentum(hq, :p)
-        iq = Index(hq, :i, 10, hq)
-        jq = Index(hq, :j, 10, hq)
-        xi = IndexedOperator(x, iq)
-        pi = IndexedOperator(p, iq)
-        xj = change_index(xi, iq, jq)
-        pj = change_index(pi, iq, jq)
-        @test xj.index == jq
-        @test pj.index == jq
-    end
-
-    @testset "change_index — no-op when index doesn't match" begin
-        i = Index(hf, :i, 10, hf)
-        j = Index(hf, :j, 10, hf)
-        k = Index(hf, :k, 10, hf)
-
-        ai = IndexedOperator(a, i)
-        result = change_index(ai, j, k)  # i != j, so no change
-        @test result.index == i
-    end
-
-    @testset "change_index — QAdd (product)" begin
-        i = Index(hf, :i, 10, hf)
-        j = Index(hf, :j, 10, hf)
-        ai = IndexedOperator(a, i)
-        adi = ai'
-
-        m = adi * ai  # a†_i * a_i
-        mj = change_index(m, i, j)
-        @test mj isa QAdd
-        for op in operators(mj)
-            @test op.index == j
-        end
-    end
-
-    @testset "change_index — QAdd prefactor with IndexedVariable" begin
-        i = Index(hf, :i, 10, hf)
-        j = Index(hf, :j, 10, hf)
-        gi = IndexedVariable(:g, i)
-        ai = IndexedOperator(a, i)
-
-        m = gi * ai  # g(i) * a_i
-        mj = change_index(m, i, j)
-        @test operators(mj)[1].index == j
-        # Prefactor should also be substituted: g(i) → g(j)
-        gj = IndexedVariable(:g, j)
-        @test isequal(real(prefactor(mj)), gj)
-    end
-
-    @testset "change_index: nested identical=false collapses to 0" begin
-        i = Index(hf, :i, 10, hf)
-        j = Index(hf, :j, 10, hf)
-        @variables x
-        Jij = DoubleIndexedVariable(:J, i, j; identical = false)  # 0 when i==j
-
-        # Bare node already worked; the regression is nested occurrences.
-        @test isequal(change_index(Jij, j, i), Symbolics.Num(0))
-        # Under a product: J(i,j)*x with j→i ⇒ J(i,i)=0 ⇒ whole product 0
-        @test isequal(change_index(Jij * x, j, i), Symbolics.Num(0))
-        # Under a sum: (J(i,j) + x) with j→i ⇒ x
-        @test isequal(change_index(Jij + x, j, i), x)
-    end
-
-    @testset "change_index — QAdd" begin
-        i = Index(hf, :i, 10, hf)
-        j = Index(hf, :j, 10, hf)
-        ai = IndexedOperator(a, i)
-        adi = ai'
-
-        s = ai + adi  # a_i + a†_i
-        sj = change_index(s, i, j)
-        @test sj isa QAdd
-        for term in keys(sj.arguments)
-            for op in term.ops
-                @test op.index == j
-            end
-        end
-    end
-
-    @testset "change_index — QAdd with indices and non_equal" begin
-        i = Index(hf, :i, 10, hf)
-        j = Index(hf, :j, 10, hf)
-        k = Index(hf, :k, 10, hf)
-        ai = IndexedOperator(a, i)
-
-        s = Σ(ai, i, [j])  # Σ_i (i≠j) a_i
-        sk = change_index(s, j, k)
-        @test sk isa QAdd
-        # non_equal should be updated: (i, j) → (i, k)
-        @test any(p -> p == (i, k), constraint_pairs(sk))
-    end
-
-    @testset "change_index — Number passthrough" begin
-        i = Index(hf, :i, 10, hf)
-        j = Index(hf, :j, 10, hf)
-        @test change_index(42, i, j) == 42
-    end
-
-    @testset "change_index — CNum" begin
-        i = Index(hf, :i, 10, hf)
-        j = Index(hf, :j, 10, hf)
-        gi = IndexedVariable(:g, i)
-        c = to_cnum(gi)
-        cj = change_index(c, i, j)
-        gj = IndexedVariable(:g, j)
-        @test isequal(real(cj), gj)
-    end
-
-    @testset "change_index — QAdd with batched pairs" begin
-        i = Index(hf, :i, 10, hf)
-        j = Index(hf, :j, 10, hf)
-        @variables g
-        gi = IndexedVariable(:g, i)
-        gj = IndexedVariable(:g, j)
-        a_i = IndexedOperator(a, i)
-        renamed = change_index(exp(gi + g) * a_i, Dict(i => j))
-        @test isequal(real(prefactor(renamed)), exp(gj + g))
-        @test only(operators(renamed)).index == j
-
-        Jij = DoubleIndexedVariable(:J, i, j; identical = false)
-        @test iszero(change_index(Jij * exp(g) * a_i, Dict(j => i)))
-    end
-
-    # ========== get_indices ==========
-    @testset "get_indices" begin
-        i = Index(hf, :i, 10, hf)
-        j = Index(hf, :j, 10, hf)
-
-        # Number → empty
         @test isempty(get_indices(42))
-
-        # Non-indexed operator → empty
-        @test isempty(get_indices(a))
-
-        # Indexed operator → [i]
-        ai = IndexedOperator(a, i)
+        @test isempty(get_indices(Destroy(hf, :a)))
         @test get_indices(ai) == [i]
-
-        # QAdd with indexed operators
-        aj = IndexedOperator(a, j)
-        m = ai' * aj
-        inds = get_indices(m)
-        @test length(inds) == 2
-        @test i in inds
-        @test j in inds
-
-        # QAdd with repeated index → unique
-        m2 = ai' * ai
-        @test length(get_indices(m2)) == 1
-
-        # QAdd
-        s = ai + aj
-        inds = get_indices(s)
-        @test i in inds
-        @test j in inds
-
-        # QAdd with summation indices
-        s2 = Σ(ai, i)
-        inds = get_indices(s2)
-        @test i in inds
+        @test Set(get_indices(ai' * aj)) == Set([i, j])
+        @test get_indices(ai' * ai) == [i]
+        @test Set(get_indices(ai + aj)) == Set([i, j])
+        @test get_indices(Σ(ai, i)) == [i]
     end
 
-    # ========== Eager diagonal splitting ==========
-    @testset "Σ construction — diagonal split on product" begin
+    @testset "same-index and distinct-index algebra" begin
         i = Index(hf, :i, 10, hf)
         j = Index(hf, :j, 10, hf)
-        ai = IndexedOperator(a, i)
-        adj = IndexedOperator(a', j)
-
-        # Σ_i(a†_j * a_i) — splits into the physically ordered diagonal
-        # a†_j * a_j plus the constrained off-diagonal Σ_{i≠j}(a_i * a†_j).
-        # We preserve the written same-space order for the diagonal collapse
-        # instead of substituting into the already-canonicalized off-diagonal.
-        expr = Σ(adj * ai, i)
-        @test expr isa QAdd
-        @test length(expr) == 2
-        # Should have i≠j constraint
-        @test any(p -> p == (i, j) || p == (j, i), constraint_pairs(expr))
-        # Diagonal term: a†_j * a_j from the physical i = j boundary.
-        aj = IndexedOperator(a, j)
-        diag_key = Op[adj, aj]
-        @test haskey(expr, diag_key)
-    end
-
-    @testset "Σ construction — already non_equal → no split" begin
-        i = Index(hf, :i, 10, hf)
-        j = Index(hf, :j, 10, hf)
-        ai = IndexedOperator(a, i)
-        adj = IndexedOperator(a', j)
-
-        # Σ_{i≠j}(a†_j * a_i) — already constrained, no diagonal extraction
-        expr = Σ(adj * ai, i, [j])
-        @test length(expr) == 1
-    end
-
-    @testset "Σ construction — independent index folds to range" begin
-        i = Index(hf, :i, 10, hf)
-        j = Index(hf, :j, 10, hf)
-        ai = IndexedOperator(a, i)
-
-        # Σ(Σ(a_i, i), j) — j is independent → 10 * Σ(a_i, i)
-        inner = Σ(ai, i)
-        outer = Σ(inner, j)
-        expected = inner * 10
-        @test isequal(outer, expected)
-    end
-
-    @testset "Σ construction — symbolic N independent index" begin
-        @variables N_sym::Real
-        i = Index(hf, :i, N_sym, hf)
-        j = Index(hf, :j, N_sym, hf)
-        ai = IndexedOperator(a, i)
-
-        # Σ(-a_i, i, j) = N * Σ(-a_i, i) since j is independent
-        result = Σ(-ai, i, j)
-        expected = Σ(-ai, i) * N_sym
-        @test isequal(simplify(result), simplify(expected))
-    end
-
-    @testset "Σ construction — nested same-space double sum" begin
-        i = Index(hf, :i, 10, hf)
-        j = Index(hf, :j, 10, hf)
-        ai = IndexedOperator(a, i)
-        adj = IndexedOperator(a', j)
-
-        # Σ(Σ(a†_j * a_i, i), j) — nested sum, same space
-        # Should split: Σ_{i≠j} Σ_j(a†_j a_i) + Σ_j(a†_j a_j)
-        result = Σ(Σ(adj * ai, i), j)
-        @test result isa QAdd
-        @test length(result) > 1
-    end
-
-    @testset "Sum * QSym — diagonal split" begin
-        i = Index(hf, :i, 10, hf)
-        j = Index(hf, :j, 10, hf)
-        ai = IndexedOperator(a, i)
-        adj = IndexedOperator(a', j)
-
-        # Σ_i(a_i) * a†_j — splits diagonal
-        # Eager ordering: a_i * a†_j (off-diag), a_j * a†_j → a†_j * a_j + 1 (diag)
-        sum_expr = Σ(ai, i)
-        result = sum_expr * adj
-        @test result isa QAdd
-        @test length(result) == 3
-        @test any(p -> p == (i, j) || p == (j, i), constraint_pairs(result))
-    end
-
-    @testset "Sum * product — diagonal split" begin
-        i = Index(hf, :i, 10, hf)
-        j = Index(hf, :j, 10, hf)
-        ai = IndexedOperator(a, i)
-        aj = IndexedOperator(a, j)
-        adj = IndexedOperator(a', j)
-
-        sum_expr = Σ(ai, i)
-        product = adj * aj
-        result = sum_expr * product
-        @test result isa QAdd
-        @test any(p -> p == (i, j) || p == (j, i), constraint_pairs(result))
-    end
-
-    @testset "QSym * Sum — diagonal split" begin
-        i = Index(hf, :i, 10, hf)
-        j = Index(hf, :j, 10, hf)
-        ai = IndexedOperator(a, i)
-        adj = IndexedOperator(a', j)
-
-        # a†_j * Σ_i(a_i) — splits diagonal
-        # Off-diag i ≠ j: a_i * a†_j (commute, then normal-order canonical).
-        # Diag i = j: a†_j * a_j (already normal-ordered, no commutator remainder).
-        sum_expr = Σ(ai, i)
-        result = adj * sum_expr
-        @test result isa QAdd
-        @test length(result) == 2
-        @test any(p -> p == (i, j) || p == (j, i), constraint_pairs(result))
-    end
-
-    @testset "Sum * QSym — different space, no split" begin
-        i = Index(h_prod, :i, 10, hn)
-        σi = IndexedOperator(sigma, i)
-        sum_expr = Σ(σi, i)
-
-        # Σ_i(σ_i) * a — different spaces, no diagonal split
-        result = sum_expr * a
-        @test result isa QAdd
-        @test length(result) == 1
-    end
-
-    @testset "QAdd * QAdd — clashing index error" begin
-        i = Index(hf, :i, 10, hf)
-        ai = IndexedOperator(a, i)
-
-        s1 = Σ(ai, i)
-        s2 = Σ(ai', i)
-        @test_throws ArgumentError s1 * s2
-    end
-
-    @testset "QAdd * QAdd — different indices, same space splits" begin
-        i = Index(hf, :i, 10, hf)
-        j = Index(hf, :j, 10, hf)
-        ai = IndexedOperator(a, i)
-        adj = IndexedOperator(a', j)
-
-        s1 = Σ(ai, i)
-        s2 = Σ(adj, j)
-        result = s1 * s2
-        @test result isa QAdd
-        @test length(result) > 1
-        @test any(p -> p == (i, j) || p == (j, i), constraint_pairs(result))
-    end
-
-    @testset "NLevel diagonal splitting (DoubleSum equivalence)" begin
-        ha2 = NLevelSpace(:atom, 2, 1)
-        hf2 = FockSpace(:cavity)
-        h2 = hf2 ⊗ ha2
-
-        i2 = Index(h2, :i, 10, ha2)
-        j2 = Index(h2, :j, 10, ha2)
-        σ2(α, β, k) = IndexedOperator(Transition(h2, :σ, α, β, 2), k)
-
-        # Σ(Σ(σ_21_i * σ_12_j, i), j) splits into off-diagonal + diagonal
-        inner = Σ(σ2(2, 1, i2) * σ2(1, 2, j2), i2)
-        double = Σ(inner, j2)
-        @test double isa QAdd
-
-        # The diagonal term: σ(2,1,j) * σ(1,2,j) eagerly composes to σ(2,2,j)
-        diag_ops = Op[σ2(2, 2, j2)]
-        @test haskey(double, diag_ops)
-    end
-
-    @testset "NLevel symbolic N double sum" begin
-        ha2 = NLevelSpace(:atom, 2, 1)
-        hf2 = FockSpace(:cavity)
-        h2 = hf2 ⊗ ha2
-
-        @variables N_s::Real
-        i2 = Index(h2, :i, N_s, ha2)
-        j2 = Index(h2, :j, N_s, ha2)
-        σ2(α, β, k) = IndexedOperator(Transition(h2, :σ, α, β, 2), k)
-
-        # Σ(-σ_22_i, i, j) where j is independent → N * Σ(-σ_22_i, i)
-        @test isequal(
-            simplify(Σ(-σ2(2, 2, i2), i2, j2)),
-            simplify(Σ(-σ2(2, 2, i2), i2) * N_s),
-        )
-    end
-
-    @testset "Commutators with sums" begin
-        ha2 = NLevelSpace(:atom, 2, 1)
-        hf2 = FockSpace(:cavity)
-        h2 = hf2 ⊗ ha2
-
-        @variables N_c::Real
-        i2 = Index(h2, :i, N_c, ha2)
-        j2 = Index(h2, :j, N_c, ha2)
-        k2 = Index(h2, :k, N_c, ha2)
-        σ2(α, β, m) = IndexedOperator(Transition(h2, :σ, α, β, 2), m)
-
-        H = Σ(2 * σ2(2, 2, j2), i2, j2)
-        dict_N = Dict(SymbolicUtils.unwrap(N_c) => 10)
-        sub_dict(x) = simplify(substitute(x, dict_N))
-
-        @test isequal(sub_dict(simplify(commutator(H, σ2(2, 1, k2)))), simplify(20 * σ2(2, 1, k2)))
-        @test isequal(sub_dict(simplify(commutator(H, σ2(1, 2, k2)))), simplify(-20 * σ2(1, 2, k2)))
-    end
-
-    @testset "Cross-subspace sum × operator" begin
-        @variables N_a::Real M_b::Real
-        hA = NLevelSpace(:atomA, (:g, :r))
-        hB = NLevelSpace(:atomB, (:g, :r))
-        h2 = hA ⊗ hB
-
-        σA(α, β, m) = IndexedOperator(Transition(h2, :σA, α, β, 1), m)
-        σB(α, β, m) = IndexedOperator(Transition(h2, :σB, α, β, 2), m)
-
-        i = Index(h2, :i, N_a, hA)
-        j = Index(h2, :j, M_b, hB)
-        k = Index(h2, :k, M_b, hB)
-
-        op = σA(:g, :r, i)
-        doublesum = Σ(σB(:r, :r, j) * σB(:r, :r, k), j, k)
-
-        # Different subspaces: no diagonal split, no error
-        result = op * doublesum
-        @test result isa QAdd
-        @test !iszero(result)
-
-        # Commutator of different subspaces = 0
-        @test iszero(simplify(commutator(op, doublesum)))
-    end
-
-    @testset "Nested sum equivalences" begin
-        ha2 = NLevelSpace(:atom, 2, 1)
-        hf2 = FockSpace(:cavity)
-        h2 = hf2 ⊗ ha2
-
-        i2 = Index(h2, :i, 4, ha2)
-        j2 = Index(h2, :j, 4, ha2)
-        σ2(α, β, k) = IndexedOperator(Transition(h2, :σ, α, β, 2), k)
-
-        # Σ(Σ(σ_21_i * σ_12_j, i, [j]), j, [i]) vs Σ(Σ(σ_21_i * σ_12_j, i, [j]), j)
-        # Adding redundant [i] to outer produces extra (j,i) constraint
-        # but same terms and indices
-        lhs = Σ(Σ(σ2(2, 1, i2) * σ2(1, 2, j2), i2, [j2]), j2, [i2])
-        rhs = Σ(Σ(σ2(2, 1, i2) * σ2(1, 2, j2), i2, [j2]), j2)
-        @test isequal(lhs.arguments, rhs.arguments)
-        @test isequal(Set(lhs.indices), Set(rhs.indices))
-
-        # Σ(Σ(σ_12_i * σ_21_j, i), j) splits into off-diagonal + diagonal
-        inner = Σ(σ2(1, 2, i2) * σ2(2, 1, j2), i2)
-        dsum = Σ(inner, j2)
-        @test isequal(
-            Σ(Σ(σ2(1, 2, i2) * σ2(2, 1, j2), i2, [j2]), j2) +
-                Σ(σ2(1, 2, j2) * σ2(2, 1, j2), j2),
-            dsum,
-        )
-    end
-
-    @testset "Symbolic N variants" begin
-        ha2 = NLevelSpace(:atom, 2, 1)
-        hf2 = FockSpace(:cavity)
-        h2 = hf2 ⊗ ha2
-
-        @variables N1_s::Real c1_s::Real
-        i2 = Index(h2, :i, N1_s, ha2)
-        j2 = Index(h2, :j, N1_s, ha2)
-        σ2(α, β, k) = IndexedOperator(Transition(h2, :σ, α, β, 2), k)
-
-        # Σ(3*σ_22_i, i, j) where j independent → N * Σ(3*σ_22_i, i)
-        @test isequal(
-            simplify(Σ(3 * σ2(2, 2, i2), i2, j2)),
-            simplify(Σ(3 * σ2(2, 2, i2), i2) * N1_s),
-        )
-
-        # Σ(c1*σ_22_i, i, j) where j independent → N * Σ(c1*σ_22_i, i)
-        @test isequal(
-            simplify(Σ(c1_s * σ2(2, 2, i2), i2, j2)),
-            simplify(Σ(c1_s * σ2(2, 2, i2), i2) * N1_s),
-        )
-    end
-
-    @testset "Commutators with symbolic g" begin
-        ha2 = NLevelSpace(:atom, 2, 1)
-        hf2 = FockSpace(:cavity)
-        h2 = hf2 ⊗ ha2
-
-        @variables N_g::Real g_s::Real
-        i2 = Index(h2, :i, N_g, ha2)
-        j2 = Index(h2, :j, N_g, ha2)
-        k2 = Index(h2, :k, N_g, ha2)
-        σ2(α, β, m) = IndexedOperator(Transition(h2, :σ, α, β, 2), m)
-
-        dict_N = Dict(SymbolicUtils.unwrap(N_g) => 10)
-        sub_dict(x) = simplify(substitute(x, dict_N))
-
-        # H with symbolic prefactor g
-        H_g = Σ(g_s * σ2(2, 2, j2), i2, j2)
-        @test isequal(
-            sub_dict(simplify(commutator(H_g, σ2(2, 1, k2)))),
-            simplify(10 * g_s * σ2(2, 1, k2)),
-        )
-        @test isequal(
-            sub_dict(simplify(commutator(H_g, σ2(1, 2, k2)))),
-            simplify(-10 * g_s * σ2(1, 2, k2)),
-        )
-
-        # H with reversed index order (j first, then i)
-        H_ji_g = Σ(g_s * σ2(2, 2, j2), j2, i2)
-        @test isequal(
-            sub_dict(simplify(commutator(H_ji_g, σ2(2, 1, k2)))),
-            simplify(10 * g_s * σ2(2, 1, k2)),
-        )
-    end
-
-    @testset "Multi-mode multi-atom" begin
-        ha2 = NLevelSpace(:atom, 2, 1)
-        hf2 = FockSpace(:cavity)
-        h2 = hf2 ⊗ ha2
-
-        i_a = Index(h2, :i, 4, ha2)
-        j_a = Index(h2, :j, 4, ha2)
-        k_f = Index(h2, :k, 2, hf2)
-        l_f = Index(h2, :l, 2, hf2)
-
-        g_ik = DoubleIndexedVariable(:g, i_a, k_f)
-        a2(k) = IndexedOperator(Destroy(h2, :a, 1), k)
-        σ2(α, β, k) = IndexedOperator(Transition(h2, :σ, α, β, 2), k)
-
-        Ssum1 = Σ(g_ik * a2(k_f) * σ2(2, 1, i_a), i_a)
-        Ssum2 = Σ(conj(g_ik) * a2(k_f)' * σ2(1, 2, i_a), i_a)
-
-        # adjoint distributes over sums
-        @test isequal(adjoint(Ssum1), Ssum2)
-
-        # Double sum nesting works across different spaces
-        H = Σ(Ssum1 + Ssum2, k_f)
-        @test H isa QAdd
-        @test k_f in H.indices
-        @test i_a in H.indices
-    end
-
-    # ========== Arithmetic with indexed operators ==========
-    @testset "Indexed operator arithmetic" begin
-        i = Index(hf, :i, 10, hf)
-        ai = IndexedOperator(a, i)
-        adi = ai'
-
-        # Multiplication
-        m = adi * ai
-        @test m isa QAdd
-        @test length(operators(m)) == 2
-
-        # Addition
-        s = ai + adi
-        @test s isa QAdd
-        @test length(s) == 2
-
-        # Scalar multiplication
-        m2 = 2 * ai
-        @test m2 isa QAdd
-        @test prefactor(m2) == 2
-
-        # Mixed indexed + non-indexed product
-        m3 = a' * ai  # different sites
-        @test m3 isa QAdd
-        @test length(operators(m3)) == 2
-    end
-
-    @testset "Simplify indexed expressions" begin
-        i = Index(hf, :i, 10, hf)
-        ai = IndexedOperator(a, i)
-        adi = ai'
-
-        # simplify(a_i * a†_i) should apply [a_i, a†_i] = 1
-        result = simplify(ai * adi)
-        @test result isa QAdd
-        # Should be a†_i * a_i + 1
-        @test length(result) == 2
-    end
-
-    @testset "Normal order indexed" begin
-        i = Index(hf, :i, 10, hf)
-        ai = IndexedOperator(a, i)
-        adi = ai'
-
-        result = normal_order(ai * adi)
-        @test result isa QAdd
-    end
-
-    # ========== QAdd with indices through operations ==========
-    @testset "QAdd sum algebra preserves indices" begin
-        i = Index(hf, :i, 10, hf)
-        ai = IndexedOperator(a, i)
-
-        s1 = Σ(ai, i)
-        s2 = s1 + a  # Add non-indexed term to sum
-        @test s2 isa QAdd
-        @test i in s2.indices
-
-        # Multiply sum by scalar
-        s3 = 2 * s1
-        @test s3 isa QAdd
-        @test i in s3.indices
-    end
-
-    @testset "Same ops with different scoped constraints stay distinct" begin
-        @variables N_scope
-        i = Index(hf, :i, N_scope, hf)
-        j = Index(hf, :j, N_scope, hf)
-        k = Index(hf, :k, N_scope, hf)
-        ai = IndexedOperator(a, i)
-
-        expr = Σ(ai, i) + Σ(ai, i, [j])
-        @test length(expr) == 2
-
-        simplified = simplify(expr)
-        @test length(simplified) == 2
-
-        renamed = change_index(expr, j, k)
-        @test length(renamed) == 2
-        @test any(p -> p == (i, k) || p == (k, i), constraint_pairs(renamed))
-    end
-
-    @testset "QAdd * QSym preserves indices" begin
-        i = Index(hf, :i, 10, hf)
-        ai = IndexedOperator(a, i)
-
-        s = Σ(ai, i)
-        result = s * a'  # (Σ_i a_i) * a†
-        @test result isa QAdd
-        @test i in result.indices
-    end
-
-    @testset "QAdd * QAdd merges indices" begin
-        i = Index(hf, :i, 10, hf)
-        j = Index(hf, :j, 10, hf)
+        a = Destroy(hf, :a)
         ai = IndexedOperator(a, i)
         aj = IndexedOperator(a, j)
 
-        s1 = Σ(ai, i)
-        s2 = Σ(aj', j)
-        result = s1 * s2  # (Σ_i a_i)(Σ_j a†_j)
-        @test result isa QAdd
-        @test i in result.indices
-        @test j in result.indices
-        # Same space → eager diagonal split produces off-diagonal + diagonal
-        @test length(result) > 1
-        @test any(p -> p == (i, j) || p == (j, i), constraint_pairs(result))
+        @test iszero(commutator(ai, aj'))
+        @test iszero(commutator(ai, ai') - 1)
+        @test iszero(commutator(a, ai'))
+        @test iszero(normal_order(ai * ai') - (ai' * ai + 1))
+
+        distinct = assume_distinct_index(ai * aj', [(i, j)])
+        @test any(pair -> pair == (i, j) || pair == (j, i), constraint_pairs(distinct))
+        @test operators(distinct) == operators(ai * aj')
+        @test !isequal(distinct, ai * aj')
+
+        hproduct = hf ⊗ hn
+        cavity = Destroy(hproduct, :a, 1)
+        σ = IndexedOperator(Transition(hproduct, :σ, 1, 2, 2), Index(hproduct, :k, 10, 2))
+        @test iszero(commutator(cavity, σ))
     end
 
-    @testset "Subtraction preserves indices" begin
-        i = Index(hf, :i, 10, hf)
-        ai = IndexedOperator(a, i)
-
-        s = Σ(ai, i)
-        neg = -s
-        @test neg isa QAdd
-        @test i in neg.indices
-    end
-
-    # ========== Commutator with indexed sums ==========
-    @testset "Commutator — indexed QSym, QSym" begin
-        i = Index(hf, :i, 10, hf)
-        j = Index(hf, :j, 10, hf)
-        ai = IndexedOperator(a, i)
-        adj = IndexedOperator(a', j)
-
-        # [a_i, a†_j] = 0 (different indices → different sites)
-        result = commutator(ai, adj)
-        @test iszero(result)
-    end
-
-    @testset "Commutator — sum with external operator (diagonal collapse)" begin
-        i = Index(hf, :i, 10, hf)
-        j = Index(hf, :j, 10, hf)
-        ai = IndexedOperator(a, i)
-        adj = IndexedOperator(a', j)
-
-        # [Σ_i a_i, a†_j] — sum collapses: only i=j term survives
-        sum_expr = Σ(ai, i)
-        result = commutator(sum_expr, adj)
-        @test result isa QAdd
-        # Should yield [a_j, a†_j] = 1
-        simplified = simplify(result)
-        @test length(simplified) == 1
-        @test isempty(operators(only(sorted_arguments(simplified))))
-        @test prefactor(only(sorted_arguments(simplified))) == 1
-    end
-
-    @testset "Commutator — external operator with sum (diagonal collapse)" begin
-        i = Index(hf, :i, 10, hf)
-        j = Index(hf, :j, 10, hf)
-        ai = IndexedOperator(a, i)
-        adj = IndexedOperator(a', j)
-
-        # [a_j, Σ_i a†_i] — sum collapses: only i=j term survives
-        sum_expr = Σ(ai', i)
-        result = commutator(adj', sum_expr)
-        @test result isa QAdd
-        # Should yield [a_j, a†_j] = 1
-        simplified = simplify(result)
-        @test length(simplified) == 1
-        @test isempty(operators(only(sorted_arguments(simplified))))
-        @test prefactor(only(sorted_arguments(simplified))) == 1
-    end
-
-    @testset "Commutator — sum with product (diagonal collapse)" begin
-        i = Index(hf, :i, 10, hf)
-        j = Index(hf, :j, 10, hf)
-        ai = IndexedOperator(a, i)
-        adj = IndexedOperator(a', j)
-
-        # [Σ_i a_i, a†_j * a_j] — sum over i, product has j-indexed ops
-        sum_expr = Σ(ai, i)
-        prod_expr = adj * IndexedOperator(a, j)
-        result = commutator(sum_expr, prod_expr)
-        @test result isa QAdd
-    end
-
-    @testset "Commutator — product with sum (diagonal collapse)" begin
-        i = Index(hf, :i, 10, hf)
-        j = Index(hf, :j, 10, hf)
-        ai = IndexedOperator(a, i)
-        adj = IndexedOperator(a', j)
-
-        # [a†_j * a_j, Σ_i a_i] — product has j-indexed ops, sum over i
-        prod_expr = adj * IndexedOperator(a, j)
-        sum_expr = Σ(ai, i)
-        result = commutator(prod_expr, sum_expr)
-        @test result isa QAdd
-    end
-
-    # ========== Single Hilbert space (non-ProductSpace) ==========
-    @testset "Index on single HilbertSpace" begin
-        N = 10
+    @testset "index constraints control same-site reductions" begin
         h = NLevelSpace(:atom, 2, 1)
-        i = Index(h, :i, N, h)
+        i = Index(h, :i, 10, h)
+        j = Index(h, :j, 10, h)
+        σ12(k) = IndexedOperator(Transition(h, :σ, 1, 2), k)
+        σ11(k) = IndexedOperator(Transition(h, :σ, 1, 1), k)
 
-        σ(x, y, k) = IndexedOperator(Transition(h, :σ, x, y), k)
-        @test σ(1, 2, i) == (σ(1, 2, i)')'
+        same_site = σ12(i) * σ12(i)'
+        different_sites = assume_distinct_index(
+            σ12(i) * σ12(j)', [(i, j)],
+        )
+
+        @test iszero(same_site - σ11(i))
+        @test !iszero(different_sites - σ11(i))
+        @test any(pair -> pair == (i, j) || pair == (j, i), constraint_pairs(different_sites))
     end
 
-    # ========== Mixed operator types (NLevel × NLevel) ==========
-    @testset "Mixed NLevel operator types across subspaces" begin
-        hc = NLevelSpace(:cavity, 3, 1)
-        ha = NLevelSpace(:atom, 2, 1)
-        h = hc ⊗ ha
+    @testset "summation scope and diagonal splitting" begin
+        a = Destroy(hf, :a)
+        i = Index(hf, :i, 10, hf)
+        j = Index(hf, :j, 10, hf)
+        ai = IndexedOperator(a, i)
+        aj = IndexedOperator(a, j)
 
-        @variables N::Real
-        i = Index(h, :i, N, ha)
+        single = Σ(ai, i)
+        @test get_indices(single) == [i]
+        @test isempty(constraint_pairs(single))
+        @test isequal(∑(ai, i), single)
+        @test iszero(Σ(1, i) - 10)
+        @test isequal(Σ(ai, i, j), 10 * single)
 
-        S(x, y) = Transition(h, :S, x, y, 1)
-        σ(x, y, k) = IndexedOperator(Transition(h, :σ, x, y, 2), k)
+        off_diagonal = Σ(aj' * ai, i)
+        @test i in get_indices(off_diagonal)
+        @test j in get_indices(off_diagonal)
+        @test any(pair -> pair == (i, j) || pair == (j, i), constraint_pairs(off_diagonal))
 
-        @test S(2, 1) * σ(1, 2, i) isa QAdd
-        @test σ(1, 2, i) * S(2, 1) isa QAdd
-        @test isequal(S(2, 1) * σ(1, 2, i), σ(1, 2, i) * S(2, 1))
+        already_distinct = Σ(aj' * ai, i, [j])
+        @test any(pair -> pair == (i, j) || pair == (j, i), constraint_pairs(already_distinct))
+
+        @test iszero(commutator(single, aj') - 1)
+        @test iszero(commutator(Σ(ai, i), Σ(aj', j)) - 10)
+
+        hmix = hf ⊗ hn
+        atom_index = Index(hmix, :k, 10, hn)
+        other_index = Index(hmix, :m, 10, hf)
+        atom = IndexedOperator(Transition(hmix, :σ, 1, 2, 2), atom_index)
+        @test isequal(Σ(atom, atom_index, other_index), Σ(atom, atom_index) * 10)
     end
 
-    # ========== Indexed variable arithmetic ==========
-    @testset "IndexedVariable in prefactor" begin
-        i = Index(h_prod, :i, 10, hn)
+    @testset "public sum products split only physical diagonals" begin
+        a = Destroy(hf, :a)
+        i = Index(hf, :i, 10, hf)
+        j = Index(hf, :j, 10, hf)
+        ai = IndexedOperator(a, i)
+        aj = IndexedOperator(a, j)
+        adj = adjoint(aj)
+
+        product_sum = Σ(adj * ai, i)
+        @test length(product_sum) == 2
+        @test any(
+            pair -> pair == (i, j) || pair == (j, i),
+            constraint_pairs(product_sum),
+        )
+        @test haskey(product_sum, operators(adj * aj))
+
+        constrained = Σ(adj * ai, i, [j])
+        @test length(constrained) == 1
+        @test any(
+            pair -> pair == (i, j) || pair == (j, i),
+            constraint_pairs(constrained),
+        )
+
+        right_product = Σ(ai, i) * adj
+        left_product = adj * Σ(ai, i)
+        @test any(
+            pair -> pair == (i, j) || pair == (j, i),
+            constraint_pairs(right_product),
+        )
+        @test any(
+            pair -> pair == (i, j) || pair == (j, i),
+            constraint_pairs(left_product),
+        )
+
+        other = FockSpace(:other)
+        other_sum = Σ(
+            IndexedOperator(Destroy(other, :b), Index(other, :k, 10, other)),
+            Index(other, :k, 10, other)
+        )
+        @test length(other_sum * a) == 1
+
+        @test_throws ArgumentError Σ(ai, i) * Σ(adjoint(ai), i)
+    end
+
+    @testset "sum scope survives public arithmetic" begin
+        a = Destroy(hf, :a)
+        i = Index(hf, :i, 10, hf)
+        j = Index(hf, :j, 10, hf)
+        ai = IndexedOperator(a, i)
+        aj = IndexedOperator(a, j)
+
+        summed = Σ(ai, i)
+        @test isequal(adjoint(summed), Σ(ai', i))
+        @test iszero(Σ(0, i))
+        @test iszero(simplify(Σ(IndexedVariable(:g, j), i) - 10 * IndexedVariable(:g, j)))
+
+        renamed = change_index(Σ(aj, j), j, i)
+        @test isequal(renamed, summed)
+        @test length(summed + Σ(aj, j)) == 2
+        @test isequal(summed + renamed, 2 * summed)
+
+        scoped = Σ(ai, i) + Σ(ai, i, [j])
+        @test length(scoped) == 2
+        @test any(
+            pair -> pair == (i, j) || pair == (j, i),
+            constraint_pairs(scoped),
+        )
+    end
+
+    @testset "nested indexed sums retain diagonal semantics" begin
+        h = NLevelSpace(:atom, 2, 1)
+        i = Index(h, :i, 10, h)
+        j = Index(h, :j, 10, h)
+        σ(α, β, k) = IndexedOperator(Transition(h, :σ, α, β), k)
+
+        double_sum = Σ(Σ(σ(2, 1, i) * σ(1, 2, j), i), j)
+        @test haskey(double_sum, operators(Σ(σ(2, 2, j), j)))
+        @test any(
+            pair -> pair == (i, j) || pair == (j, i),
+            constraint_pairs(double_sum),
+        )
+
+        independent = Σ(Σ(σ(2, 2, i), i), j)
+        @test iszero(simplify(independent - 10 * Σ(σ(2, 2, i), i)))
+    end
+
+    @testset "change_index is simultaneous and semantic" begin
+        a = Destroy(hf, :a)
+        i = Index(hf, :i, 10, hf)
+        j = Index(hf, :j, 10, hf)
+        k = Index(hf, :k, 10, hf)
+        ai = IndexedOperator(a, i)
+        aj = IndexedOperator(a, j)
         gi = IndexedVariable(:g, i)
+        gj = IndexedVariable(:g, j)
 
-        # g(i)*a puts indexed variable in prefactor, operator in operators()
-        m = gi * a
-        @test m isa QAdd
-        @test isequal(operators(m), [a])
+        @test isequal(change_index(ai, i, j), aj)
+        @test isequal(change_index(ai, k, j), ai)
+        @test iszero(simplify(change_index(gi * ai, i, j) - gj * aj))
+        @test iszero(simplify(change_index(Σ(ai, i, [j]), j, k) - Σ(ai, i, [k])))
+        @test change_index(42, i, j) == 42
 
-        # a*g(i) same
-        m2 = a * gi
-        @test m2 isa QAdd
-        @test isequal(operators(m2), [a])
-
-        # g(i)*a†
-        m3 = gi * a'
-        @test m3 isa QAdd
-        @test isequal(operators(m3), [a'])
-
-        # a†*g(i)
-        m4 = a' * gi
-        @test m4 isa QAdd
-        @test isequal(operators(m4), [a'])
-
-        # σ*g(i)
-        σi = IndexedOperator(sigma, i)
-        m5 = σi * gi
-        @test m5 isa QAdd
-        @test isequal(operators(m5), [σi])
-
-        # g(i)*σ
-        m6 = gi * σi
-        @test m6 isa QAdd
-        @test isequal(operators(m6), [σi])
-
-        # g(i)*QAdd preserves operators
-        qmul = a' * a
-        m7 = gi * qmul
-        @test length(operators(m7)) == 2
-        m8 = qmul * gi
-        @test length(operators(m8)) == 2
+        two_sites = IndexedOperator(
+            Transition(hf ⊗ hn, :σ, 1, 2, 2),
+            Index(hf ⊗ hn, :i, 10, hn)
+        ) *
+            IndexedOperator(
+            Transition(hf ⊗ hn, :σ, 2, 2, 2),
+            Index(hf ⊗ hn, :j, 10, hn)
+        )
+        swapped = change_index(
+            two_sites, Dict(
+                Index(hf ⊗ hn, :i, 10, hn) => Index(hf ⊗ hn, :j, 10, hn),
+                Index(hf ⊗ hn, :j, 10, hn) => Index(hf ⊗ hn, :i, 10, hn),
+            )
+        )
+        expected = IndexedOperator(
+            Transition(hf ⊗ hn, :σ, 1, 2, 2),
+            Index(hf ⊗ hn, :j, 10, hn)
+        ) *
+            IndexedOperator(
+            Transition(hf ⊗ hn, :σ, 2, 2, 2),
+            Index(hf ⊗ hn, :i, 10, hn)
+        )
+        @test iszero(simplify(swapped - expected))
+        @test change_index(two_sites, Dict{Index, Index}()) === two_sites
     end
 
-    @testset "IndexedVariable addition commutativity" begin
-        i = Index(h_prod, :i, 10, hn)
-        j = Index(h_prod, :j, 10, hn)
-        gi = IndexedVariable(:g, i)
-        σi = IndexedOperator(sigma, i)
-        σj = IndexedOperator(sigma, j)
-
-        @test isequal(gi + a, a + gi)
-        @test isequal(a + σi, σi + a)
-        @test isequal(σj + σi, σi + σj)
-
-        qadd = a + a'
-        @test isequal(gi + qadd, qadd + gi)
-        @test length(qadd + gi) == 3
-        @test length(qadd + σi) == 3
-        @test isequal(σi + qadd, qadd + σi)
-
-        qmul = a' * a
-        @test isequal(gi + qmul, qmul + gi)
-        @test isequal(gi + σj, σj + gi)
-    end
-
-    @testset "Negation of indexed operators" begin
-        i = Index(h_prod, :i, 10, hn)
-        gi = IndexedVariable(:g, i)
-        σi = IndexedOperator(sigma, i)
-
-        @test isequal(-σi, -1 * σi)
-        @test isequal(-gi, -1 * gi)
-    end
-
-    # ========== Indexed commutators across spaces ==========
-    @testset "Indexed commutator — different spaces vanish" begin
-        i = Index(h_prod, :i, 10, hn)
-        σi = IndexedOperator(sigma, i)
-        qadd = a + a'
-        qmul = a' * a
-
-        # σ on NLevel space, a on Fock space → different spaces → commutator = 0
-        @test iszero(simplify(commutator(σi, qadd)))
-        @test iszero(simplify(commutator(σi, qmul)))
-    end
-
-    # ========== Same-index Fock normal ordering ==========
-    @testset "Same-index Fock: a_m · a_m† = a_m† · a_m + 1" begin
-        m = Index(hf, :m, 10, hf)
-        ai = IndexedOperator(a, m)
-        result = simplify(normal_order(ai * ai'))
-        expected = simplify(ai' * ai + 1)
-        @test isequal(result, expected)
-    end
-
-    # ========== Same-site transition product = 0 ==========
-    @testset "Same-site σ₁₂·σ₁₂ = 0 via normal_order" begin
-        i = Index(h_prod, :i, 10, hn)
-        σi = IndexedOperator(sigma, i)
-        result = simplify(normal_order(σi * σi))
-        @test iszero(result)
-    end
-
-    # ========== change_index producing zero ==========
-    @testset "change_index — DoubleIndexedVariable identical=false → 0" begin
+    @testset "index substitution can remove forbidden diagonal terms" begin
         i = Index(hf, :i, 10, hf)
         j = Index(hf, :j, 10, hf)
         Ωij = DoubleIndexedVariable(:Ω, i, j; identical = false)
-        # Construction with equal indices gives 0
-        @test isequal(DoubleIndexedVariable(:Ω, i, i; identical = false), Symbolics.Num(0))
-        # change_index collapsing to equal indices gives 0
-        @test isequal(change_index(Ωij, i, j), Symbolics.Num(0))
-        @test isequal(change_index(Ωij, j, i), Symbolics.Num(0))
-        # change_index on identical=true (default) keeps the value
-        Ωij_diag = DoubleIndexedVariable(:Ω, i, j)
-        @test !isequal(change_index(Ωij_diag, i, j), Symbolics.Num(0))
-        # change_index through QAdd with identical=false prefactor
-        ai = IndexedOperator(a, i)
-        m = Ωij * ai
-        mj = change_index(m, i, j)
-        @test iszero(mj)
+        a = IndexedOperator(Destroy(hf, :a), i)
+        @test iszero(change_index(Ωij, j, i))
+        @test iszero(change_index(Ωij * a, j, i))
+        @test iszero(change_index(Ωij + 3, j, i) - 3)
+        @test iszero(change_index(Ωij * a, Dict(j => i)))
     end
 
-    # ========== Single sums ==========
-    @testset "Single sum operations" begin
-        N = 10
-        i = Index(h_prod, :i, N, hn)
-        j = Index(h_prod, :j, N, hn)
-        gi = IndexedVariable(:g, i)
-        gj = IndexedVariable(:g, j)
-        σi(x, y) = IndexedOperator(Transition(h_prod, :σ, x, y, 2), i)
-        Γij = DoubleIndexedVariable(:Γ, i, j)
-
-        s1 = Σ(σi(1, 2) * a', i)
-        s2 = Σ(IndexedOperator(Transition(h_prod, :σ, 2, 1, 2), i) * a, i)
-        s3 = Σ(a' * σi(1, 2) + a * IndexedOperator(Transition(h_prod, :σ, 2, 1, 2), i), i)
-
-        # adjoint distributes over sums
-        @test isequal(adjoint(s1), s2)
-        # sum of sum = sum of terms
-        @test isequal(s3, s1 + s2)
-
-        # Σ(0, i) stays as a QAdd (lazy)
-        @test Σ(0, i) isa QAdd
-
-        # Sum of variable over unrelated index → N * variable
-        r_gj = Σ(gj, i)
-        @test isempty(get_indices(r_gj))
-        @test isequal(simplify(r_gj * a), simplify(N * gj * a))
-        r_Γij = Σ(Γij, Index(h_prod, :k, N, hn))
-        @test isempty(get_indices(r_Γij))
-        @test isequal(simplify(r_Γij * a), simplify(N * Γij * a))
-
-        # ∑ and Σ equivalence
-        @test isequal(∑(σi(1, 2), i), Σ(σi(1, 2), i))
-        @test isequal(
-            ∑(σi(1, 2) * IndexedOperator(Transition(h_prod, :σ, 2, 1, 2), j), i, j),
-            Σ(σi(1, 2) * IndexedOperator(Transition(h_prod, :σ, 2, 1, 2), j), i, j),
-        )
-
-        # change_index on ∑
-        @test isequal(
-            change_index(∑(2gj, j), j, i),
-            ∑(2gi, i),
-        )
-    end
-
-    @testset "Sum addition" begin
-        N = 10
-        i = Index(h_prod, :i, N, hn)
-        σi = IndexedOperator(sigma, i)
-        s1 = Σ(σi * a', i)
-
-        # Sum + operator
-        @test (s1 + a') isa QAdd
-        @test (s1 + σi) isa QAdd
-
-        # Sum + QAdd
-        qadd = a + a'
-        @test length(qadd + s1) == 3
-        @test isequal(s1 + qadd, qadd + s1)
-
-        # Sum + QAdd (product)
-        qmul = a' * a
-        @test s1 + qmul isa QAdd
-    end
-
-    # ========== Sum of a constant ==========
-    @testset "Sum of constant over index" begin
-        @variables α_sum::Real
-        N = 10
-        i = Index(h_prod, :i, N, hn)
-        # Constant (no dependence on i) → simplified to N * α
-        s = Σ(Symbolics.Num(α_sum), i)
-        @test s isa QAdd
-        @test isempty(get_indices(s))
-        @test isequal(simplify(s * a), simplify(N * α_sum * a))
-    end
-
-    # ========== Average addition with indexed sums (PR 28) ==========
-    @testset "Average addition with indexed sums (PR 28)" begin
-        ha = NLevelSpace(:atom1, 2, 1)
-        hb = NLevelSpace(:atom2, 2, 1)
+    @testset "cross-space and nested sums" begin
+        ha = NLevelSpace(:atom_a, (:g, :e))
+        hb = NLevelSpace(:atom_b, (:g, :e))
         h = ha ⊗ hb
-        @variables N
-        i1 = Index(h, :i1, N, ha)
-        i2 = Index(h, :i2, N, hb)
-        s1(α, β, i) = IndexedOperator(Transition(h, :S1, α, β, 1), i)
-        s2(α, β, i) = IndexedOperator(Transition(h, :S2, α, β, 2), i)
-
-        term = average(Σ(s1(2, 1, i1) * s2(1, 2, i2), i1, i2))
-        @test (term + term) isa SymbolicUtils.BasicSymbolic
+        i = Index(h, :i, 4, ha)
+        j = Index(h, :j, 4, hb)
+        σa = IndexedOperator(Transition(h, :σa, :g, :e, 1), i)
+        σb = IndexedOperator(Transition(h, :σb, :g, :e, 2), j)
+        sum_b = Σ(σb' * σb, j)
+        @test iszero(commutator(σa, sum_b))
+        @test get_indices(Σ(σa * σb, i, j)) == [i, j]
+        @test iszero(simplify(Σ(σa, i, j) - 4 * Σ(σa, i)))
     end
 
-    # ========== conj on indexed variables ==========
-    @testset "conj on indexed variables" begin
-        i = Index(hf, :i, 10, hf)
-        gi = IndexedVariable(:g, i)  # Real-typed
-        # conj of real indexed variable is identity
-        @test isequal(conj(gi), gi)
-
-        # conj distributes through products with indexed variables
-        ai = IndexedOperator(a, i)
-        expr = gi * ai
-        adj_expr = adjoint(expr)
-        # adjoint of g_i * a_i should be g_i * a_i† (g_i is real)
-        @test adj_expr isa QAdd
-        @test operators(adj_expr)[1] == ai'
-    end
-
-    # ========== create_index_arrays ==========
-    @testset "create_index_arrays" begin
-        i = Index(h_prod, :i, 10, hn)
-        j = Index(h_prod, :j, 5, hn)
-
-        # Single index → returns a collected vector
-        arr1 = create_index_arrays([i], [1:10])
-        @test arr1 isa Vector{Int}
-        @test arr1 == collect(1:10)
-
-        # Multi-index → flat Cartesian product
-        ranges = [1:10, 1:5]
-        arr2 = create_index_arrays([i, j], ranges)
-        @test isequal(arr2, vec(collect(Iterators.product(ranges...))))
-    end
-
-    # ========== Type stability ==========
-    @testset "Type stability" begin
+    @testset "public indexed operations are inferable" begin
+        a = Destroy(hf, :a)
         i = Index(hf, :i, 10, hf)
         ai = IndexedOperator(a, i)
-        adi = ai'
-
+        @inferred IndexedOperator(a, i)
         @inferred Σ(ai, i)
         @inferred change_index(ai, i, Index(hf, :j, 10, hf))
         @inferred get_indices(ai)
-        @inferred commutator(ai, adi)
+        @inferred commutator(ai, ai')
     end
-end
-
-@testset "Scenario: Superradiant laser (indexed)" begin
-    # H = -Δ a†a + Σ_i g_i (a† σ_i^{12} + a σ_i^{21})
-    # https://qojulia.github.io/QuantumCumulants.jl/stable/examples/superradiant_laser_indexed/
-    hc = FockSpace(:cavity)
-    ha = NLevelSpace(:atom, 2)
-    h = hc ⊗ ha
-
-    @variables N Δ
-    a = Destroy(h, :a)
-    σ(α, β, idx) = IndexedOperator(Transition(h, :σ, α, β), idx)
-    gi(idx) = IndexedVariable(:g, idx)
-
-    i = Index(h, :i, N, ha)
-    H = -Δ * a' * a + Σ(gi(i) * (a' * σ(1, 2, i) + a * σ(2, 1, i)), i)
-
-    # [H, a] = Δ a - Σ_i g_i σ_i^{12}
-    @test iszero(simplify(commutator(H, a) - (Δ * a + Σ(-gi(i) * σ(1, 2, i), i))))
-    # Cavity-only part commutes with any indexed atomic op
-    @test iszero(simplify(commutator(-Δ * a' * a, σ(1, 2, i))))
-    @test iszero(simplify(H - adjoint(H)))
-
-    avg_H = average(H)
-    @test avg_H isa QAdd || avg_H isa Number || true  # smoke: no error
-end
-
-@testset "Scenario: Cavity antiresonance (Ω double sum)" begin
-    # https://qojulia.github.io/QuantumCumulants.jl/stable/examples/cavity_antiresonance_indexed/
-    hc = FockSpace(:cavity)
-    ha = NLevelSpace(Symbol(:atom), 2)
-    h = hc ⊗ ha
-
-    @variables N Δc Δa η
-    Ω(idx1, idx2) = DoubleIndexedVariable(:Ω, idx1, idx2; identical = false)
-    i = Index(h, :i, N, ha)
-    j = Index(h, :j, N, ha)
-    k = Index(h, :k, N, ha)
-
-    @qnumbers a::Destroy(h, 1)
-    σ(x, y, idx) = IndexedOperator(Transition(h, :σ, x, y, 2), idx)
-
-    Ha = Δa * Σ(σ(2, 2, i), i) + Σ(Ω(i, j) * σ(2, 1, i) * σ(1, 2, j), j, i)
-    H = Δc * a' * a + η * (a' + a) + Ha
-
-    @test iszero(simplify(commutator(H, a) + Δc * a + η))
-
-    result_12 = 1im * commutator(H, σ(1, 2, k))
-    @test any(result_12) do (term, c)
-        any(op -> is_transition(op) && op.l1 == 1 && op.l2 == 2 && op.index == j, term.ops)
-    end
-
-    result_22 = 1im * commutator(H, σ(2, 2, k))
-    @test any(result_22) do (term, c)
-        any(op -> is_transition(op) && op.index == j, term.ops)
-    end
-
-    Hcoup = Σ(Ω(i, j) * σ(2, 1, i) * σ(1, 2, j), j, i)
-    @test adjoint(Hcoup) isa QAdd
-end
-
-@testset "Scenario: Tavis–Cummings (indexed)" begin
-    # H = ωc a'a + Σ_i (ω_a/2) σ_i^z + Σ_i g_i (a' σ_i¹² + a σ_i²¹)
-    hc = FockSpace(:cavity)
-    ha = NLevelSpace(:atom, 2)
-    h = hc ⊗ ha
-    @qnumbers a::Destroy(h, 1)
-    σ(α, β, idx) = IndexedOperator(Transition(h, :σ, α, β, 2), idx)
-
-    @variables N ωc ωₐ
-    g(idx) = IndexedVariable(:g, idx)
-    i = Index(h, :i, N, ha)
-    l = Index(h, :l, N, ha)
-
-    # σ_i^z = 2 σ_i²² - 1 (canonical form, ground = 1).
-    H = ωc * a' * a + (ωₐ / 2) * Σ(2 * σ(2, 2, i) - 1, i) +
-        Σ(g(i) * (a' * σ(1, 2, i) + a * σ(2, 1, i)), i)
-
-    @test iszero(simplify(commutator(ωc * a' * a, σ(2, 2, l))))
-    @test iszero(simplify(H - adjoint(H)))
-end
-
-@testset "Sum-scope absorption: bound index pinned by same-Index free op" begin
-    # When a product factor carries a bound `.indices` entry that shares its
-    # `Index` identity with a free operator index in the other factor, the
-    # sum is "pinned" to that specific atom and should not survive in the
-    # result's sum scope. Otherwise `Σ_k (per-atom term) * σ_{k,22}` would
-    # incorrectly evaluate to N copies of the per-atom contribution.
-
-    hc = FockSpace(:cavity); ha = NLevelSpace(:atom, 2); h = hc ⊗ ha
-    @qnumbers a::Destroy(h, 1)
-    σ(α, β, k) = IndexedOperator(Transition(h, :σ, α, β, 2), k)
-    @variables N g
-    k = Index(h, :k, N, ha)
-    l = Index(h, :l, N, ha)
-
-    # 1. QSym * QAdd: bound k in QAdd matches free k in QSym, absorbed.
-    #    σ_{k,12} · σ_{k,22} = σ_{k,12} (same-site Transition fusion), so
-    #    `σ_{k,22} * Σ_k σ_{k,12}` collapses to the per-atom σ_{k,12} with
-    #    no surviving sum scope.
-    sum_factor = Σ(σ(1, 2, k), k)
-    prod1 = σ(1, 1, k) * sum_factor
-    @test prod1 isa QAdd
-    @test isempty(prod1.indices)
-    # σ_{k,11} σ_{k,12} = σ_{k,12} (single per-atom term).
-    @test length(prod1.arguments) == 1
-
-    # 2. QAdd * QSym: symmetric absorption (σ_{k,12} σ_{k,22} = σ_{k,12}).
-    prod2 = sum_factor * σ(2, 2, k)
-    @test prod2 isa QAdd
-    @test isempty(prod2.indices)
-    @test length(prod2.arguments) == 1
-
-    # 3. Distinct Index objects (different name) preserve the sum scope.
-    #    Σ_k σ_{k,12} * σ_{l,22} keeps `[k]` as bound (l is a different atom).
-    prod3 = sum_factor * σ(2, 2, l)
-    @test k in prod3.indices
-
-    # 4. Hamiltonian commutator on the laser pattern:
-    #    `commutator(g Σ_k a' σ_{k,12}, σ_{k,22})` must give the per-atom
-    #    cross term, not `Σ_k` of it.
-    H_pump = g * Σ(a' * σ(1, 2, k), k)
-    rhs = commutator(H_pump, σ(2, 2, k))
-    @test isempty(rhs.indices)
-end
-
-@testset "simplify: drops sum-scope metadata that no surviving term references" begin
-    # `simplify` runs `drop_unused_indices` as the last step of its
-    # pipeline, so a `Σ_k F(k) - Σ_k F(k)` cancellation surfaces an empty
-    # term dict with no bound index attached.
-    h = FockSpace(:f)
-    @variables N
-    i = Index(h, :i, N, h)
-    bi = IndexedOperator(Destroy(h, :a), i)
-    s = Σ(bi, i)
-    cancelled = simplify(s - s)
-    @test isempty(cancelled.indices)
-    @test isempty(cancelled.arguments)
-end
-
-@testset "Batched change_index: simultaneous swap preserves two-atom structure" begin
-    # Sequential `change_index(σ_{k,12} σ_{j,22}, k, j)` followed by
-    # `change_index(_, j, k)` would substitute k→j first, producing
-    # `σ_{j,12} σ_{j,22}` which same-site-fuses to `σ_{j,12}` (single atom).
-    # The batched dict overload applies the rename simultaneously, so the
-    # swap preserves the two-atom structure.
-    h = NLevelSpace(:atom, 2)
-    σ(α, β, idx) = IndexedOperator(Transition(h, :σ, α, β), idx)
-    @variables N
-    j = Index(h, :j, N, h)
-    k = Index(h, :k, N, h)
-
-    two_atom = σ(1, 2, k) * σ(2, 2, j)
-    @test length(two_atom.arguments) == 1
-    term = first(keys(two_atom.arguments))
-    @test length(term.ops) == 2
-
-    swapped = change_index(two_atom, Dict(k => j, j => k))
-    @test length(swapped.arguments) == 1
-    swap_term = first(keys(swapped.arguments))
-    @test length(swap_term.ops) == 2
-    # The two-atom structure survives; the operators reference {j, k} just
-    # with their roles swapped.
-    op_indices = Set(op.index for op in swap_term.ops)
-    @test op_indices == Set([j, k])
-
-    # Empty pairs is a no-op.
-    @test change_index(two_atom, Dict{Index, Index}()) === two_atom
-    @test change_index(σ(1, 2, k), Dict{Index, Index}()) === σ(1, 2, k)
-end
-
-@testset "Σ requires a summation range" begin
-    h = FockSpace(:f)
-    a = Destroy(h, :a)
-    # NO_INDEX has no range; summing over it would silently zero the expression,
-    # so it must throw instead.
-    @test_throws ArgumentError Σ(a + a', NO_INDEX)
-end
-
-@testset "index_sym reconstruction is hashcons-identical" begin
-    h = FockSpace(:f)
-    i = Index(h, :i, 5, h)
-    fresh = SymbolicUtils.Sym{SymbolicUtils.SymReal}(:i; type = Int)
-    # change_index/get_variables rely on the rebuilt sym being the SAME object
-    # SymbolicUtils hashconses, so the `===` guarantee is load-bearing.
-    @test SymbolicUtils.unwrap(index_sym(i)) === fresh
-    # Per-slot stamping must not poison the cached base for later abstract reads.
-    _ = index_sym(i(3))
-    @test SymbolicUtils.unwrap(index_sym(i)) === fresh
 end

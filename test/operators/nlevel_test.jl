@@ -1,12 +1,12 @@
 using SecondQuantizedAlgebra
-import SecondQuantizedAlgebra: simplify, QAdd, QSym, HilbertSpace
+import SecondQuantizedAlgebra: simplify
 using Test
 
 @testset "nlevel" begin
     @testset "Transition construction — product space" begin
         h = FockSpace(:c) ⊗ NLevelSpace(:atom, 2, 1)
         σ = Transition(h, :σ, 1, 2, 2)
-        @test σ.space_index == 2
+        @test acts_on(σ) == [2]
         @test_throws ArgumentError Transition(h, :σ, 1, 2, 1)
     end
 
@@ -15,8 +15,7 @@ using Test
         σ12 = Transition(h, :σ, 1, 2)
         σ21 = σ12'
         @test is_transition(σ21)
-        @test σ21.l1 == 2
-        @test σ21.l2 == 1
+        @test σ21 == Transition(h, :σ, 2, 1)
         @test σ12'' == σ12
     end
 
@@ -25,11 +24,8 @@ using Test
         σ12 = Transition(h, :σ, 1, 2)
         σ21 = Transition(h, :σ, 2, 1)
 
-        m = σ12 * σ21
-        @test m isa QAdd
-
-        s = σ12 + σ21
-        @test s isa QAdd
+        @test iszero(σ12 * σ21 - Transition(h, :σ, 1, 1))
+        @test iszero((σ12 + σ21) - (σ21 + σ12))
     end
 
     @testset "@qnumbers" begin
@@ -50,6 +46,60 @@ using Test
         @test isequal(simplify(expand_completeness(σ * σ')), simplify(1 - σee))
         # The h-aware overload applies completeness explicitly to user-constructed σgg.
         @test isequal(expand_completeness(σgg), simplify(1 - σee))
+    end
+
+    @testset "Ground state projector — non-default state" begin
+        h = NLevelSpace(:atom, 4, 2)
+        σ(i, j) = Transition(h, :σ, i, j)
+
+        # The product rules remain local to the transition basis: σ¹²σ²¹ = σ¹¹,
+        # while σ²¹σ¹² is the ground-state projector and expands on request.
+        @test isequal(σ(1, 2) * σ(2, 1), simplify(σ(1, 1)))
+        @test isequal(
+            expand_completeness(σ(2, 1) * σ(1, 2)),
+            simplify(1 - σ(1, 1) - σ(3, 3) - σ(4, 4)),
+        )
+    end
+
+    @testset "Ground state projector — indexed" begin
+        h = NLevelSpace(:atom, 3, 2)
+        i = Index(h, :i, 5, h)
+        σ(α, β) = IndexedOperator(Transition(h, :σ, α, β), i)
+
+        # Completeness expansion preserves the site index on the surviving
+        # excited-state projectors.
+        @test isequal(
+            expand_completeness(σ(2, 1) * adjoint(σ(2, 1))),
+            simplify(1 - σ(1, 1) - σ(3, 3)),
+        )
+    end
+
+    @testset "Completeness is explicit and site-local" begin
+        h = NLevelSpace(:atom, 3, 1)
+        σ(i, j) = Transition(h, :σ, i, j)
+
+        cycle = σ(1, 2) * σ(2, 3) * σ(3, 1)
+        @test iszero(cycle - σ(1, 1))
+        @test isequal(
+            expand_completeness(cycle),
+            simplify(1 - σ(2, 2) - σ(3, 3)),
+        )
+
+        ha = NLevelSpace(:atom_a, 2, 1)
+        hb = NLevelSpace(:atom_b, 3, 2)
+        hproduct = ha ⊗ hb
+        σa(i, j) = Transition(hproduct, :σa, i, j, 1)
+        σb(i, j) = Transition(hproduct, :σb, i, j, 2)
+
+        @test isequal(
+            expand_completeness(σa(1, 2) * σa(2, 1)),
+            simplify(1 - σa(2, 2)),
+        )
+        @test isequal(
+            expand_completeness(σb(2, 1) * σb(1, 2)),
+            simplify(1 - σb(1, 1) - σb(3, 3)),
+        )
+        @test iszero(commutator(σa(1, 2), σb(2, 1)))
     end
 
     @testset "Algebraic relations" begin
@@ -79,23 +129,20 @@ using Test
         no_result = simplify(expand_completeness(σ2 * σ2'))
         @test isequal(no_result, simplify(1 - Transition(hprod, :σ2, 2, 2, 2)))
         # Different subspaces don't interact
-        @test isequal(simplify(σ1 * σ2), simplify(σ1 * σ2))
+        @test iszero(commutator(σ1, σ2))
+        @test iszero(simplify(σ1 * σ2 - σ2 * σ1))
     end
 
     @testset "Symbolic levels" begin
         levels = (:g, :e, :a)
         h = NLevelSpace(:atom, levels)
-        @test h.n == 3
-        @test h.levels == [:g, :e, :a]
-        @test h.ground_state == 1
+        @test repr(h) == "ℋ(atom)"
 
         # Transition with symbol levels resolves to integer indices
         σge = Transition(h, :σ, :g, :e)
-        @test σge.l1 == 1
-        @test σge.l2 == 2
+        @test σge == Transition(h, :σ, 1, 2)
         σea = Transition(h, :σ, :e, :a)
-        @test σea.l1 == 2
-        @test σea.l2 == 3
+        @test σea == Transition(h, :σ, 2, 3)
 
         # Unknown level throws
         @test_throws ArgumentError Transition(h, :σ, :x, :g)
@@ -108,9 +155,8 @@ using Test
         hf = FockSpace(:c)
         hp = hf ⊗ h
         σge_p = Transition(hp, :σ, :g, :e, 2)
-        @test σge_p.l1 == 1
-        @test σge_p.l2 == 2
-        @test σge_p.space_index == 2
+        @test acts_on(σge_p) == [2]
+        @test σge_p == Transition(hp, :σ, 1, 2, 2)
 
         # Equality: spaces with different levels are not equal
         h_int = NLevelSpace(:atom, 3, 1)
