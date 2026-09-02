@@ -253,7 +253,7 @@ plot!(fig[1]; xlabel = L"\kappa / \omega", ylabel = L"E_0 / \omega", title = "Gr
 
 scatter!(fig[2], collect(κs) ./ ω_val, n_num; label = "diagonalisation", marker = :diamond)
 plot!(fig[2], collect(κs) ./ ω_val, n_th.(κs); label = L"v^2", linestyle = :dash)
-plot!(fig[2]; xlabel = L"\kappa / \omega", ylabel = L"\langle a^\dagger a \rangle", title = "Photon number = v²", legend = :topleft)
+plot!(fig[2]; xlabel = L"\kappa / \omega", ylabel = L"\langle a^\dagger a \rangle", title = L"\mathrm{Photon\ number} = v^2", legend = :topleft)
 fig
 
 # Both observables match the closed-form predictions to truncation error: the

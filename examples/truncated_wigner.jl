@@ -223,7 +223,7 @@ nothing #hide
 
 # ## Occupations: TWA versus the mean-field branches
 
-using Plots
+using Plots, LaTeXStrings
 gr()
 
 fig = plot(; layout = (1, 2), size = (720, 330), margin = 5Plots.mm)
@@ -254,7 +254,7 @@ re2 = [real(traj[k][2, end]) for k in 1:ntraj]
 im2 = [imag(traj[k][2, end]) for k in 1:ntraj]
 hist = Hist2D((re2, im2); binedges = (-8:0.2:8, -8:0.2:8))
 
-fig2 = plot(; size = (470, 410), xlabel = "Re α₂", ylabel = "Im α₂", aspect_ratio = :equal, title = "Wigner samples, site 2 (t = 200)", xlims = (-8, 8), ylims = (-8, 8), margin = 5Plots.mm)
+fig2 = plot(; size = (470, 410), xlabel = L"\mathrm{Re}\,\alpha_2", ylabel = L"\mathrm{Im}\,\alpha_2", aspect_ratio = :equal, title = "Wigner samples, site 2 (t = 200)", xlims = (-8, 8), ylims = (-8, 8), margin = 5Plots.mm)
 heatmap!(fig2, bincenters(hist)..., bincounts(hist); color = :magma, colorbar = false, label = false)
 scatter!(fig2, [real(αlo[2])], [imag(αlo[2])]; color = :cyan, marker = :xcross, markersize = 16, label = "mean-field (lower)")
 scatter!(fig2, [real(αhi[2])], [imag(αhi[2])]; color = :lime, marker = :cross, markersize = 16, label = "mean-field (upper)")

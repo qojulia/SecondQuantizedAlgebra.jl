@@ -19,11 +19,26 @@ function postprocess(content)
     return replace(content, r"(?m)^[^\n]*#\s*hide[ \t]*(?:\n|$)" => "")
 end
 
+function preprocess(content)
+    # Run the plotting setup once in the shared Literate sandbox. The `#hide`
+    # markers keep this worker-only prelude out of the generated Markdown.
+    occursin(r"(?m)^using .*Plots", content) || return content
+    return """
+    using Plots #hide
+    gr() #hide
+    default(fontfamily = \"Computer Modern\") #hide
+    nothing #hide
+
+    $content
+    """
+end
+
 Literate.markdown(
     input_file,
     output_dir;
     flavor = Literate.DefaultFlavor(),
     config = extra_literate_config,
     execute = true,
+    preprocess = preprocess,
     postprocess = postprocess,
 )

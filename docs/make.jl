@@ -24,6 +24,7 @@ using SparseArrays
 
 using Plots
 gr()
+default(fontfamily = "Computer Modern")
 
 DocMeta.setdocmeta!(
     SecondQuantizedAlgebra,
