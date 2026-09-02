@@ -54,7 +54,7 @@ used without deriving another set of rules.
 ## Static and time-dependent transformations
 
 Use [`conjugate`](@ref) for observables and static changes of basis. For a
-Hamiltonian in a moving basis, use [`transform`](@ref):
+Hamiltonian in a moving basis, use [`transform`](@ref SecondQuantizedAlgebra.transform):
 
 ```math
 \operatorname{transform}(H,U)
