@@ -1,6 +1,7 @@
 using SecondQuantizedAlgebra
 using Symbolics: @variables
 using Test
+import SecondQuantizedAlgebra: QAdd
 
 @testset "Commutators and anticommutators" begin
     h = FockSpace(:cavity)
@@ -8,6 +9,8 @@ using Test
     ad = adjoint(a)
 
     @testset "bilinearity and scalar boundaries" begin
+        @test commutator(1, 2) isa QAdd
+        @test commutator(a, ad) isa QAdd
         @test iszero(commutator(1, 2))
         @test iszero(commutator(3, a))
         @test iszero(commutator(a, 5))
@@ -48,6 +51,14 @@ using Test
         @test iszero(commutator(a1, a2))
         @test iszero(commutator(a1, a2'))
         @test iszero(commutator(a1' * a1, a2' * a2))
+
+        # Different named modes in one Fock space are independent sites too.
+        hs = FockSpace(:same_space)
+        mode_a = Destroy(hs, :a)
+        mode_b = Destroy(hs, :b)
+        @test iszero(commutator(mode_a, mode_b'))
+        @test iszero(commutator(mode_a, mode_b))
+        @test iszero(commutator(mode_a', mode_b'))
     end
 
     @testset "spin, Pauli, and phase-space relations" begin

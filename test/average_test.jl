@@ -3,7 +3,7 @@ using SymbolicUtils: SymbolicUtils, SymReal, symtype
 using Symbolics: Symbolics, @variables
 using Test
 import SecondQuantizedAlgebra: get_sum_body, get_sum_indices, get_sum_non_equal,
-    has_sum_metadata, indexed_sum
+    has_sum_metadata, indexed_sum, QAdd
 
 @testset "Expectation-value API" begin
     h = FockSpace(:cavity)
@@ -45,6 +45,9 @@ import SecondQuantizedAlgebra: get_sum_body, get_sum_indices, get_sum_non_equal,
         for expression in expressions
             @test iszero(undo_average(average(expression)) - expression)
         end
+
+        @test undo_average(average(a)) isa QAdd
+        @test undo_average(3) isa QAdd
 
         avg_sum = average(a) + average(ad)
         @test iszero(undo_average(avg_sum) - (a + ad))
@@ -114,7 +117,14 @@ import SecondQuantizedAlgebra: get_sum_body, get_sum_indices, get_sum_non_equal,
         i = Index(ha, :i, N, ha)
         j = Index(ha, :j, N, ha)
         g(k) = IndexedVariable(:g, k)
+        u(k, l) = DoubleIndexedVariable(:u, k, l)
         σ(k) = IndexedOperator(Transition(ha, :σ, 1, 2), k)
+
+        coefficient_sum = Σ(u(j, i), i)
+        averaged_coefficient_sum = average(coefficient_sum)
+        @test is_indexed_sum(averaged_coefficient_sum)
+        @test get_sum_indices(averaged_coefficient_sum) == [i]
+        @test iszero(undo_average(averaged_coefficient_sum) - coefficient_sum)
 
         expression = Σ(g(i) * σ(i), i)
         averaged = average(expression)
