@@ -123,7 +123,7 @@ finalpops_closed = [real(expect(fock(N + 1, n) * fock(N + 1, n)', sol_closed.sta
 fig_closed = plot(; layout = (1, 3), size = (1050, 320), margin = 5Plots.mm)
 plot!(fig_closed[1], 1:length(losses_closed), losses_closed; xlabel = "iteration", ylabel = "infidelity 1 − F", yscale = :log10, title = "LBFGS convergence", color = :crimson, label = false)
 
-plot!(fig_closed[2], tlist, nt_closed; xlabel = "t", ylabel = "⟨n⟩ / ε(t)", title = "optimized pulse & dynamics", label = "⟨n⟩(t)", color = :navy)
+plot!(fig_closed[2], tlist, nt_closed; xlabel = "t", ylabel = "⟨n⟩ / ε(t)", title = "optimized pulse & dynamics", label = "⟨n⟩(t)", color = :navy, legend = :topleft)
 plot!(fig_closed[2], tlist, εt_closed; label = "ε(t)", color = :darkorange, linestyle = :dash)
 
 plot!(fig_closed[3], 0:4, finalpops_closed; xlabel = "Fock state n", ylabel = "population", title = "final state", xticks = 0:4, color = :seagreen, label = false, seriestype = :bar)
@@ -168,7 +168,7 @@ finalpops_open = [real(expect(fock(N + 1, n) * fock(N + 1, n)', sol_open.states[
 fig_open = plot(; layout = (1, 3), size = (1050, 320), margin = 5Plots.mm)
 plot!(fig_open[1], 1:length(losses_open), losses_open; xlabel = "iteration", ylabel = "infidelity 1 − F", yscale = :log10, title = "LBFGS convergence", color = :crimson, label = false)
 
-plot!(fig_open[2], tlist, nt_open; xlabel = "t", ylabel = "⟨n⟩ / ε(t)", title = "optimized pulse & dynamics", label = "⟨n⟩(t)", color = :navy)
+plot!(fig_open[2], tlist, nt_open; xlabel = "t", ylabel = "⟨n⟩ / ε(t)", title = "optimized pulse & dynamics", label = "⟨n⟩(t)", color = :navy, legend = :topleft)
 plot!(fig_open[2], tlist, εt_open; label = "ε(t)", color = :darkorange, linestyle = :dash)
 
 plot!(fig_open[3], 0:4, finalpops_open; xlabel = "Fock state n", ylabel = "population", title = "final state", xticks = 0:4, color = :seagreen, label = false, seriestype = :bar)

@@ -290,7 +290,7 @@ scatter!(fig[2], collect(λs) ./ λc, gap1; label = L"E_1 - E_0", marker = :circ
 scatter!(fig[2], collect(λs) ./ λc, gap2; label = L"E_2 - E_0", marker = :diamond)
 plot!(fig[2], collect(λs) ./ λc, ε_minus.(λs); label = L"\varepsilon_-", linestyle = :dash)
 plot!(fig[2], collect(λs) ./ λc, ε_plus.(λs); label = L"\varepsilon_+", linestyle = :dash)
-vline!(fig[2], [1.0]; color = :gray, linestyle = :dot)
+vline!(fig[2], [1.0]; color = :gray, linestyle = :dot, label = false)
 plot!(fig[2]; xlabel = L"\lambda / \lambda_c", ylabel = L"\Delta E / \omega", title = "Polariton frequencies", legend = :topright)
 fig
 

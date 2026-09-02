@@ -177,8 +177,6 @@ end
 E_exact = [n == 0 ? 0.0 : Δ_val / 2 - sqrt(Δ_val^2 / 4 + g_val^2 * n) for n in ns]
 
 fig = plot(; xlabel = "photon number n", ylabel = "energy error (rotating frame)", title = "Schrieffer-Wolff accuracy: g/Δ = $(g_val / Δ_val)", margin = 5Plots.mm)
-plot!(fig, collect(ns), E_exact .- E_sw2; label = "SW₂ error", marker = :circle, seriestype = :scatter)
-plot!(fig, collect(ns), E_exact .- E_sw2; label = false, linestyle = :solid, color = 1)
-plot!(fig, collect(ns), E_exact .- E_sw4; label = "SW₄ error", marker = :diamond, seriestype = :scatter)
-plot!(fig, collect(ns), E_exact .- E_sw4; label = false, linestyle = :solid, color = 2)
+plot!(fig, collect(ns), E_exact .- E_sw2; label = "SW₂ error", marker = :circle, linestyle = :solid)
+plot!(fig, collect(ns), E_exact .- E_sw4; label = "SW₄ error", marker = :diamond, linestyle = :solid)
 fig

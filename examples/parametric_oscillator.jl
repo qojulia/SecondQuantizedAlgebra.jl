@@ -212,8 +212,9 @@ for (i, κ_val) in enumerate(κs_show)
     else
         contour!(subplot, xs_plot, ps_plot, H_grid; levels = vcat(-3:0.5:-0.5, 0.5:0.5:3), color = :firebrick, linewidth = 0.9, colorbar = false, label = false)
         contour!(subplot, xs_plot, ps_plot, H_grid; levels = [0.0], color = :black, linewidth = 1.5, colorbar = false, label = false)
+        annotate!(subplot, 0, -2.6, text("unstable, no GS", :firebrick, 10))
     end
-    plot!(subplot; aspect_ratio = :equal, xlabel = "x", ylabel = "p", title = κ_val < δ_val ? "κ/δ = $(κ_val)" : "κ/δ = $(κ_val) (unstable, no GS)", xlims = (-3, 3), ylims = (-3, 3), legend = false)
+    plot!(subplot; aspect_ratio = :equal, xlabel = "x", ylabel = "p", title = "κ/δ = $(κ_val)", xlims = (-3, 3), ylims = (-3, 3), legend = false)
 end
 fig2
 
