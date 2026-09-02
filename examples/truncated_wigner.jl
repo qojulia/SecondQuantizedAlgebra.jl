@@ -223,15 +223,15 @@ nothing #hide
 
 # ## Occupations: TWA versus the mean-field branches
 
-using CairoMakie
+using Plots, LaTeXStrings
+gr()
 
-fig = Figure(; size = (720, 330))
+fig = plot(; layout = (1, 2), size = (720, 330), margin = 5Plots.mm)
 for (col, (nt, mode, lab)) in enumerate(((n1_twa, 1, "site 1"), (n2_twa, 2, "site 2")))
-    ax = Axis(fig[1, col]; xlabel = "t", ylabel = "⟨n⟩", title = lab)
-    hlines!(ax, [abs2(αlo[mode])]; color = :gray, linestyle = :dash, label = "mean-field (lower)")
-    hlines!(ax, [abs2(αhi[mode])]; color = :gray, linestyle = :dot, label = "mean-field (upper)")
-    lines!(ax, collect(saveat), nt; color = :firebrick, label = "TWA ⟨n⟩")
-    col == 1 && axislegend(ax; position = :rc)
+    subplot = fig[col]
+    hline!(subplot, [abs2(αlo[mode])]; color = :gray, linestyle = :dash, label = "mean-field (lower)")
+    hline!(subplot, [abs2(αhi[mode])]; color = :gray, linestyle = :dot, label = "mean-field (upper)")
+    plot!(subplot, collect(saveat), nt; xlabel = "t", ylabel = "⟨n⟩", title = lab, color = :firebrick, label = "TWA ⟨n⟩", legend = col == 1 ? :right : false)
 end
 fig
 
@@ -254,12 +254,14 @@ re2 = [real(traj[k][2, end]) for k in 1:ntraj]
 im2 = [imag(traj[k][2, end]) for k in 1:ntraj]
 hist = Hist2D((re2, im2); binedges = (-8:0.2:8, -8:0.2:8))
 
-fig2 = Figure(; size = (470, 410))
-ax = Axis(fig2[1, 1]; xlabel = "Re α₂", ylabel = "Im α₂", aspect = 1, title = "Wigner samples, site 2 (t = 200)")
-heatmap!(ax, bincenters(hist)..., bincounts(hist); colormap = :magma)
-scatter!(ax, [real(αlo[2])], [imag(αlo[2])]; color = :cyan, marker = :xcross, markersize = 16, label = "mean-field (lower)")
-scatter!(ax, [real(αhi[2])], [imag(αhi[2])]; color = :lime, marker = :cross, markersize = 16, label = "mean-field (upper)")
-axislegend(ax; position = :rb)
+fig2 = plot(; size = (940, 820), xlabel = L"\mathrm{Re}\,\alpha_2", ylabel = L"\mathrm{Im}\,\alpha_2", aspect_ratio = :equal, title = "Wigner samples, site 2 (t = 200)", xlims = (-8, 8), ylims = (-8, 8), xticks = -8:2:8, yticks = -8:2:8, margin = 5Plots.mm)
+nothing #hide
+# Makie and Plots use opposite matrix-axis conventions for heatmaps.
+counts = Matrix(adjoint(bincounts(hist)))
+heatmap!(fig2, bincenters(hist)..., counts; color = :magma, colorbar = false, label = false)
+scatter!(fig2, [real(αlo[2])], [imag(αlo[2])]; color = :cyan, marker = :xcross, markersize = 16, label = "mean-field (lower)")
+scatter!(fig2, [real(αhi[2])], [imag(αhi[2])]; color = :lime, marker = :cross, markersize = 16, label = "mean-field (upper)")
+plot!(fig2; legend = :bottomright)
 fig2
 
 # The distribution is unmistakably **bimodal**: one lobe sits on each mean-field

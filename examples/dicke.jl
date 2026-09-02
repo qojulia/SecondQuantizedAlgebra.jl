@@ -234,7 +234,8 @@ conjugate(H_res, Rotation(a_pol, b_pol, θ))
 # occupation against the mean-field order parameter, and the gap of the
 # first excited state against the lower polariton frequency ``\varepsilon_-``.
 
-using QuantumOpticsBase, CairoMakie
+using QuantumOpticsBase, Plots, LaTeXStrings
+gr()
 
 ω₀_val, ωa_val = 1.0, 1.0
 λc = sqrt(ω₀_val * ωa_val) / 2
@@ -279,30 +280,18 @@ for λ_val in λs
     push!(gap2, E[3] - E[1])
 end
 
-fig = Figure(size = (820, 360))
-ax1 = Axis(
-    fig[1, 1];
-    xlabel = L"\lambda / \lambda_c",
-    ylabel = L"\langle a^\dagger a \rangle / N",
-    title = "Superradiant order parameter",
-)
-scatter!(ax1, collect(λs) ./ λc, n_over_N; label = "finite S = $(S_val)", marker = :circle)
-lines!(ax1, collect(λs) ./ λc, n_mf.(λs); label = "mean field", linestyle = :dash)
-vlines!(ax1, [1.0]; color = :gray, linestyle = :dot, label = L"\lambda_c")
-axislegend(ax1; position = :lt)
+fig = plot(; layout = (1, 2), size = (820, 360), margin = 5Plots.mm)
+scatter!(fig[1], collect(λs) ./ λc, n_over_N; label = "finite S = $(S_val)", marker = :circle)
+plot!(fig[1], collect(λs) ./ λc, n_mf.(λs); label = "mean field", linestyle = :dash)
+vline!(fig[1], [1.0]; color = :gray, linestyle = :dot, label = L"\lambda_c")
+plot!(fig[1]; xlabel = L"\lambda / \lambda_c", ylabel = L"\langle a^\dagger a \rangle / N", title = "Superradiant order parameter", legend = :topleft)
 
-ax2 = Axis(
-    fig[1, 2];
-    xlabel = L"\lambda / \lambda_c",
-    ylabel = L"\Delta E / \omega",
-    title = "Polariton frequencies",
-)
-scatter!(ax2, collect(λs) ./ λc, gap1; label = L"E_1 - E_0", marker = :circle)
-scatter!(ax2, collect(λs) ./ λc, gap2; label = L"E_2 - E_0", marker = :diamond)
-lines!(ax2, collect(λs) ./ λc, ε_minus.(λs); label = L"\varepsilon_-", linestyle = :dash)
-lines!(ax2, collect(λs) ./ λc, ε_plus.(λs); label = L"\varepsilon_+", linestyle = :dash)
-vlines!(ax2, [1.0]; color = :gray, linestyle = :dot)
-axislegend(ax2; position = :rt)
+scatter!(fig[2], collect(λs) ./ λc, gap1; label = L"E_1 - E_0", marker = :circle)
+scatter!(fig[2], collect(λs) ./ λc, gap2; label = L"E_2 - E_0", marker = :diamond)
+plot!(fig[2], collect(λs) ./ λc, ε_minus.(λs); label = L"\varepsilon_-", linestyle = :dash)
+plot!(fig[2], collect(λs) ./ λc, ε_plus.(λs); label = L"\varepsilon_+", linestyle = :dash)
+vline!(fig[2], [1.0]; color = :gray, linestyle = :dot, label = false)
+plot!(fig[2]; xlabel = L"\lambda / \lambda_c", ylabel = L"\Delta E / \omega", title = "Polariton frequencies", legend = :topright)
 fig
 
 # Both panels tell the same story.  The finite-``S`` cavity occupation

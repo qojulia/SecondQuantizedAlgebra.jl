@@ -150,7 +150,8 @@ H_eff_4 = H_eff + comm_S2_V // 2 - C // 24
 # transformation block-diagonalises the Hamiltonian, this directly gives the
 # dressed-state energy at each order.
 
-using QuantumOpticsBase, CairoMakie
+using QuantumOpticsBase, Plots, LaTeXStrings
+gr()
 
 g_val, Δ_val = 0.3, 2.0
 n_max = 8
@@ -175,14 +176,7 @@ end
 ## E_g(n) = Δ/2 - √(Δ²/4 + g²n)  for n ≥ 1, and E_g(0) = 0.
 E_exact = [n == 0 ? 0.0 : Δ_val / 2 - sqrt(Δ_val^2 / 4 + g_val^2 * n) for n in ns]
 
-fig = Figure()
-ax = Axis(
-    fig[1, 1];
-    xlabel = "photon number n",
-    ylabel = "energy error (rotating frame)",
-    title = "Schrieffer-Wolff accuracy: g/Δ = $(g_val / Δ_val)",
-)
-scatterlines!(ax, collect(ns), E_exact .- E_sw2; label = "SW₂ error", marker = :circle)
-scatterlines!(ax, collect(ns), E_exact .- E_sw4; label = "SW₄ error", marker = :diamond)
-axislegend(ax)
+fig = plot(; xlabel = "photon number n", ylabel = "energy error (rotating frame)", title = "Schrieffer-Wolff accuracy: g/Δ = $(g_val / Δ_val)", margin = 5Plots.mm)
+plot!(fig, collect(ns), E_exact .- E_sw2; label = L"\mathrm{SW}_2\ error", marker = :circle, linestyle = :solid)
+plot!(fig, collect(ns), E_exact .- E_sw4; label = L"\mathrm{SW}_4\ error", marker = :diamond, linestyle = :solid)
 fig

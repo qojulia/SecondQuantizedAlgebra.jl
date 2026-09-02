@@ -111,7 +111,8 @@ conjugate(x * x, U), conjugate(p * p, U)
 # a)/\sqrt 2``.  We diagonalise ``H`` on a wide Fock basis and read off the
 # ground-state variances directly.
 
-using QuantumOpticsBase, LinearAlgebra, CairoMakie
+using QuantumOpticsBase, LinearAlgebra, Plots, LaTeXStrings
+gr()
 
 δ_val = 1.0
 n_max = 60
@@ -132,31 +133,17 @@ end
 th_x(κ_val) = 0.5 * sqrt((δ_val + κ_val) / (δ_val - κ_val))
 th_p(κ_val) = 0.5 * sqrt((δ_val - κ_val) / (δ_val + κ_val))
 
-fig = Figure(size = (820, 360))
-ax1 = Axis(
-    fig[1, 1];
-    xlabel = L"\kappa / \delta",
-    ylabel = "quadrature variance",
-    title = "Squeezing approaching threshold",
-    yscale = log10,
-)
-scatter!(ax1, collect(κs) ./ δ_val, var_x; label = L"\langle x^2 \rangle", marker = :circle)
-scatter!(ax1, collect(κs) ./ δ_val, var_p; label = L"\langle p^2 \rangle", marker = :diamond)
-lines!(ax1, collect(κs) ./ δ_val, th_x.(κs); linestyle = :dash, color = :black)
-lines!(ax1, collect(κs) ./ δ_val, th_p.(κs); linestyle = :dash, color = :black)
-hlines!(ax1, [0.5]; color = :gray, linestyle = :dot, label = "vacuum SQL")
-axislegend(ax1; position = :lt)
+fig = plot(; layout = (1, 2), size = (820, 360), margin = 5Plots.mm)
+scatter!(fig[1], collect(κs) ./ δ_val, var_x; label = L"\langle x^2 \rangle", marker = :circle)
+scatter!(fig[1], collect(κs) ./ δ_val, var_p; label = L"\langle p^2 \rangle", marker = :diamond)
+plot!(fig[1], collect(κs) ./ δ_val, th_x.(κs); linestyle = :dash, color = :black, label = false)
+plot!(fig[1], collect(κs) ./ δ_val, th_p.(κs); linestyle = :dash, color = :black, label = false)
+hline!(fig[1], [0.5]; color = :gray, linestyle = :dot, label = "vacuum SQL")
+plot!(fig[1]; xlabel = L"\kappa / \delta", ylabel = "quadrature variance", title = "Squeezing approaching threshold", yscale = :log10, legend = :topleft)
 
-ax2 = Axis(
-    fig[1, 2];
-    xlabel = L"\kappa / \delta",
-    ylabel = L"\langle x^2 \rangle\,\langle p^2 \rangle",
-    title = "Heisenberg uncertainty product",
-)
-scatter!(ax2, collect(κs) ./ δ_val, var_x .* var_p; label = "numeric")
-hlines!(ax2, [0.25]; color = :gray, linestyle = :dash, label = "1/4 (min)")
-ylims!(ax2, 0.24, 0.26)
-axislegend(ax2; position = :lt)
+scatter!(fig[2], collect(κs) ./ δ_val, var_x .* var_p; label = "numeric")
+hline!(fig[2], [0.25]; color = :gray, linestyle = :dash, label = "1/4 (min)")
+plot!(fig[2]; xlabel = L"\kappa / \delta", ylabel = L"\langle x^2 \rangle\,\langle p^2 \rangle", title = "Heisenberg uncertainty product", ylims = (0.24, 0.26), legend = :topleft)
 fig
 
 # Both quadrature variances follow their closed-form predictions across the
@@ -213,37 +200,21 @@ W_gs(x_val, p_val, κ_val) =
 xs_plot = -3:0.04:3
 ps_plot = -3:0.04:3
 
-fig2 = Figure(size = (820, 760))
+fig2 = plot(; layout = (2, 2), size = (820, 760), margin = 5Plots.mm)
 for (i, κ_val) in enumerate(κs_show)
     row, col = ((i - 1) ÷ 2) + 1, ((i - 1) % 2) + 1
-    local ax = Axis(
-        fig2[row, col]; aspect = 1, xlabel = "x", ylabel = "p",
-        title = "κ/δ = $(κ_val)",
-    )
+    subplot = fig2[(row - 1) * 2 + col]
     H_grid = [H_class(xv, pv, κ_val) for xv in xs_plot, pv in ps_plot]
     if κ_val < δ_val
         W_grid = [W_gs(xv, pv, κ_val) for xv in xs_plot, pv in ps_plot]
-        heatmap!(ax, xs_plot, ps_plot, W_grid; colormap = :viridis)
-        contour!(
-            ax, xs_plot, ps_plot, H_grid;
-            levels = 10, color = (:white, 0.6), linewidth = 0.8
-        )
+        heatmap!(subplot, xs_plot, ps_plot, W_grid; color = :viridis, label = false)
+        contour!(subplot, xs_plot, ps_plot, H_grid; levels = 10, color = :white, alpha = 0.6, linewidth = 0.8, colorbar = false, label = false)
     else
-        contour!(
-            ax, xs_plot, ps_plot, H_grid;
-            levels = vcat(-3:0.5:-0.5, 0.5:0.5:3),
-            color = :firebrick, linewidth = 0.9
-        )
-        contour!(
-            ax, xs_plot, ps_plot, H_grid; levels = [0.0],
-            color = :black, linewidth = 1.5
-        )
-        text!(
-            ax, 0, -2.6; text = "unstable, no GS",
-            align = (:center, :center), color = :firebrick
-        )
+        contour!(subplot, xs_plot, ps_plot, H_grid; levels = vcat(-3:0.5:-0.5, 0.5:0.5:3), color = :firebrick, linewidth = 0.9, colorbar = false, label = false)
+        contour!(subplot, xs_plot, ps_plot, H_grid; levels = [0.0], color = :black, linewidth = 1.5, colorbar = false, label = false)
+        annotate!(subplot, 0, -2.6, text("unstable, no GS", :firebrick, 10))
     end
-    limits!(ax, -3, 3, -3, 3)
+    plot!(subplot; aspect_ratio = :equal, xlabel = "x", ylabel = "p", title = "κ/δ = $(κ_val)", xlims = (-3, 3), ylims = (-3, 3), legend = false)
 end
 fig2
 
