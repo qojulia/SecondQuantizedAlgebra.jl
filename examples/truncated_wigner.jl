@@ -179,7 +179,7 @@ end
 using Statistics
 
 params = Dict(Δ => 2.0, U => 0.1, J => 0.6, F => 3.0, κ => 1.0)
-tspan = (0.0, 400.0)
+tspan = (0.0, 200.0)
 
 mf_eqs = [D(αa) ~ to_rhs(meanfield_drift(a)), D(αb) ~ to_rhs(meanfield_drift(b))]
 @named mf = System(mf_eqs, t, [αa, αb], [Δ, U, J, F, κ])
@@ -206,8 +206,8 @@ sdeprob = SDEProblem(SDEFunction(prob.f.f, noise!), prob.u0, tspan, prob.p)
 
 vacuum_start(prob, ctx) = remake(prob; u0 = randn(ComplexF64, 2) ./ sqrt(2))
 
-ntraj = 5_000
-saveat = 0.0:2.0:400.0
+ntraj = 1_000
+saveat = 0.0:2.0:200.0
 ensemble = EnsembleProblem(sdeprob; prob_func = vacuum_start)
 sim = solve(ensemble, LambaEulerHeun(), EnsembleThreads(); trajectories = ntraj, saveat)
 nothing #hide

@@ -10,14 +10,13 @@
 #   symbolic expression into the numeric operator (a `QobjEvo`) the solver consumes. Because `p`
 #   is threaded into its coefficients, that operator is differentiable with respect to `p`. No
 #   manual operator assembly is needed.
-# * `QuantumToolbox` is the numeric engine. It solves the dynamics and, through the
-#   SciMLSensitivity adjoint machinery with a reverse-mode backend such as Mooncake or Enzyme,
-#   differentiates the solve with respect to `p`. This is specific to the QuantumToolbox backend;
+# * `QuantumToolbox` is the numeric engine. It solves the dynamics and exposes the control
+#   parameters through the solver interface. This is specific to the QuantumToolbox backend;
 #   the QuantumOpticsBase backend has no solver parameter vector to differentiate against.
 #
-# We solve the same task twice: first as a closed system with `sesolve`, then, after adding
-# photon loss, as an open system with `mesolve`. The task is single-photon state preparation in a
-# Kerr resonator. The Kerr nonlinearity shifts the ``1 \to 2`` transition out of resonance
+# We optimize the control for a closed system with `sesolve`, then evaluate that same pulse after
+# adding photon loss with `mesolve`. The task is single-photon state preparation in a Kerr
+# resonator. The Kerr nonlinearity shifts the ``1 \to 2`` transition out of resonance
 # (photon blockade), so a resonant drive can pump ``0 \to 1`` but not beyond. We optimize the
 # drive pulse to reach the Fock state ``|1\rangle`` from vacuum.
 
@@ -36,9 +35,7 @@ using SecondQuantizedAlgebra
 using QuantumToolbox
 using Symbolics
 
-using SciMLSensitivity
-import Mooncake                       # loads the Mooncake reverse-mode backend
-using DifferentiationInterface: AutoMooncake
+using DifferentiationInterface: AutoFiniteDiff
 using Optimization, OptimizationOptimJL
 
 h = FockSpace(:c)
@@ -53,7 +50,7 @@ N = 10                       # Fock cutoff (Hilbert dimension N + 1)
 Δ0, K0 = 0.0, -2.0           # on resonance for 0 -> 1; Kerr blockade detunes 1 -> 2
 κ0 = 0.05                    # photon-loss rate (used only for the open-system part)
 T = 6.0                      # control duration
-tlist = collect(range(0, T, 61))
+tlist = collect(range(0, T, 31))
 M = 6                        # number of control parameters
 
 pulse(p, t) = sum(p[k] * sinpi(k * t / T) for k in eachindex(p))
@@ -76,20 +73,19 @@ Hc = to_numeric(
 
 ψ0 = fock(N + 1, 0)
 proj1 = fock(N + 1, 1) * fock(N + 1, 1)'
-sensealg = BacksolveAdjoint(autojacvec = SciMLSensitivity.MooncakeVJP())
 nothing # hide
 
 # `Optimization.jl` is the idiomatic SciML interface: wrap the cost in an `OptimizationFunction`
-# carrying the AD backend, build an `OptimizationProblem`, and `solve`. For a smooth,
-# deterministic, low-dimensional control problem with exact gradients, the quasi-Newton `LBFGS`
-# converges in far fewer solver evaluations than a first-order method such as Adam. This small
-# helper optimizes a cost from a flat initial pulse and records the loss trace.
+# carrying the finite-difference backend, build an `OptimizationProblem`, and `solve`. For a
+# smooth, deterministic, low-dimensional control problem, the quasi-Newton `LBFGS` converges in
+# far fewer solver evaluations than a first-order method such as Adam. This small helper
+# optimizes a cost from a flat initial pulse and records the loss trace.
 
 function optimize_pulse(cost)
     losses = Float64[]
-    optf = OptimizationFunction((u, p) -> cost(u), AutoMooncake())
+    optf = OptimizationFunction((u, p) -> cost(u), AutoFiniteDiff())
     prob = OptimizationProblem(optf, fill(0.3, M))
-    res = solve(prob, OptimizationOptimJL.LBFGS(); maxiters = 100, callback = (s, l) -> (push!(losses, l); false))
+    res = solve(prob, OptimizationOptimJL.LBFGS(); maxiters = 40, callback = (s, l) -> (push!(losses, l); false))
     return res.u, losses
 end
 nothing # hide
@@ -98,12 +94,10 @@ nothing # hide
 #
 # With no dissipation the state stays pure. The cost is the infidelity
 # ``1 - |\langle 1 | \psi(T) \rangle|^2``, one minus the population in ``|1\rangle`` at the
-# final time. `sesolve` receives `params` and the adjoint chosen for correct gradients here,
-# `BacksolveAdjoint` with the Mooncake vector-Jacobian product; Enzyme works too, while Zygote
-# returns silently wrong gradients for time evolution.
+# final time. `sesolve` receives `params` for each finite-difference objective evaluation.
 
 infidelity_closed(params) =
-    1 - real(expect(proj1, sesolve(Hc, ψ0, tlist; params, sensealg, progress_bar = Val(false)).states[end]))
+    1 - real(expect(proj1, sesolve(Hc, ψ0, tlist; params, progress_bar = Val(false)).states[end]))
 
 p_closed, losses_closed = optimize_pulse(infidelity_closed)
 1 - infidelity_closed(p_closed)   # near unity: closed dynamics conserve probability
@@ -149,13 +143,14 @@ nothing # hide
 #
 # The cost is now ``1 - \langle 1 | \rho(T) | 1 \rangle`` on the final density matrix. `mesolve`
 # builds its Liouvillian from the time-dependent operators as a lazy superoperator sum of a
-# single concrete type, so the adjoint solve sees no dynamic dispatch and the same `sensealg`
-# applies.
+# single concrete type, so each finite-difference objective evaluation sees no dynamic dispatch.
+# We evaluate the closed-system pulse here instead of repeating the expensive optimization for a
+# second objective.
 
 infidelity_open(params) =
-    1 - real(expect(proj1, mesolve(Hc, ψ0, tlist, [c_op]; params, sensealg, progress_bar = Val(false)).states[end]))
+    1 - real(expect(proj1, mesolve(Hc, ψ0, tlist, [c_op]; params, progress_bar = Val(false)).states[end]))
 
-p_open, losses_open = optimize_pulse(infidelity_open)
+p_open = p_closed
 1 - infidelity_open(p_open)   # below unity: decoherence-limited
 
 # ## Open-system results
@@ -171,8 +166,8 @@ finalpops_open = [real(expect(fock(N + 1, n) * fock(N + 1, n)', sol_open.states[
 
 fig_open = Figure(size = (1050, 320))
 
-bx1 = Axis(fig_open[1, 1]; xlabel = "iteration", ylabel = "infidelity 1 − F", yscale = log10, title = "LBFGS convergence")
-lines!(bx1, 1:length(losses_open), losses_open; color = :crimson)
+bx1 = Axis(fig_open[1, 1]; xlabel = "iteration", ylabel = "infidelity 1 − F", yscale = log10, title = "closed-system LBFGS convergence")
+lines!(bx1, 1:length(losses_closed), losses_closed; color = :crimson)
 
 bx2 = Axis(fig_open[1, 2]; xlabel = "t", ylabel = "⟨n⟩ / ε(t)", title = "optimized pulse & dynamics")
 lines!(bx2, tlist, nt_open; label = "⟨n⟩(t)", color = :navy)
