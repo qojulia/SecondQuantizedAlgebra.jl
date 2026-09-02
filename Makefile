@@ -1,4 +1,6 @@
 JULIA:=julia
+# Run four isolated Literate workers by default; override this on smaller machines.
+DOCUMENTER_LITERATE_WORKERS ?= 4
 
 default: help
 
@@ -10,6 +12,7 @@ format: ## Format all Julia files with Runic
 	runic --inplace src/ ext/ test/ benchmark/ examples/ docs/
 
 servedocs:
+	DOCUMENTER_LITERATE_WORKERS=${DOCUMENTER_LITERATE_WORKERS} ${JULIA} --project=docs docs/make_md_examples.jl
 	${JULIA} --project=docs -e 'using LiveServer; LiveServer.servedocs(skip_files=[joinpath("docs", "src", "changelog.md")])'
 
 test:
@@ -21,7 +24,7 @@ jet:
 
 docs:
 	${JULIA} --project=docs -e 'using Pkg; Pkg.develop(PackageSpec(path=pwd())); Pkg.instantiate()'
-	${JULIA} --project=docs docs/make.jl
+	DOCUMENTER_LITERATE_WORKERS=${DOCUMENTER_LITERATE_WORKERS} ${JULIA} --project=docs docs/make.jl
 
 bench:
 	${JULIA} --project=benchmark -e 'using Pkg; Pkg.develop(PackageSpec(path=pwd())); Pkg.instantiate()'

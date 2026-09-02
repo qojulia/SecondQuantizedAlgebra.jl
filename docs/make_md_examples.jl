@@ -4,39 +4,47 @@ using Literate
 # Always rerun examples
 const EXAMPLES_IN = joinpath(@__DIR__, "..", "examples")
 const OUTPUT_MD_DIR = joinpath(@__DIR__, "src", "examples")
+const LITERATE_RUNNER = joinpath(@__DIR__, "run_literate_example.jl")
+const DOCS_PROJECT = abspath(@__DIR__)
 
-examples = filter!(file -> file[(end - 2):end] == ".jl", readdir(EXAMPLES_IN; join = true))
+examples = filter!(file -> endswith(file, ".jl"), readdir(EXAMPLES_IN; join = true))
 filter!(file -> !contains(file, "make_nb_examples"), examples)
+sort!(examples)
+const EXAMPLE_STEMS = Set(first(splitext(basename(example))) for example in examples)
 
-if isempty(get(ENV, "CI", ""))
-    # only needed when building docs locally; set automatically when built under CI
-    # https://fredrikekre.github.io/Literate.jl/v2/outputformats/#Configuration
-    extra_literate_config = Dict(
-        "repo_root_path" => abspath(joinpath(@__DIR__, "..")),
-        "repo_root_url" => "file://" * abspath(joinpath(@__DIR__, "..")),
-    )
-else
-    extra_literate_config = Dict()
+const LITERATE_WORKERS = let
+    workers = try
+        parse(Int, get(ENV, "DOCUMENTER_LITERATE_WORKERS", "4"))
+    catch
+        error("DOCUMENTER_LITERATE_WORKERS must be a positive integer")
+    end
+    workers > 0 || error("DOCUMENTER_LITERATE_WORKERS must be a positive integer")
+    workers
 end
 
-function preprocess(content)
-    sub = SubstitutionString(
-        """
-        """
+function generated_output(name)
+    return any(
+        startswith(name, stem * ".") || startswith(name, stem * "-") for
+            stem in EXAMPLE_STEMS
     )
-    content = replace(content, r"^# # [^\n]*"m => sub; count = 1)
-
-    # remove VSCode `##` block delimiter lines
-    content = replace(content, r"^##$."ms => "")
-    return content
 end
 
-for example in examples
-    Literate.markdown(
-        example,
-        OUTPUT_MD_DIR;
-        flavor = Literate.DocumenterFlavor(),
-        config = extra_literate_config,
-        # preprocess=preprocess,
+# Remove only artifacts belonging to the pages generated below. This also
+# clears images left behind when an example changes its output blocks.
+mkpath(OUTPUT_MD_DIR)
+for file in readdir(OUTPUT_MD_DIR)
+    generated_output(file) && rm(joinpath(OUTPUT_MD_DIR, file); force = true)
+end
+
+# Each task owns a separate Julia process, so asyncmap gives us bounded
+# concurrency without sharing modules, execution state, or output files.
+function generate_example(example)
+    run(
+        `$(Base.julia_cmd()) --startup-file=no --project=$(DOCS_PROJECT) --threads=1 $(LITERATE_RUNNER) $(example) $(OUTPUT_MD_DIR)`,
     )
+    return example
+end
+
+if !isempty(examples)
+    asyncmap(generate_example, examples; ntasks = min(LITERATE_WORKERS, length(examples)))
 end
