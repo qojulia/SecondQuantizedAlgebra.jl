@@ -70,4 +70,38 @@ import SecondQuantizedAlgebra: order_key, qadd_order_key, term_order_key
         a = Destroy(h, :a)
         @inferred order_key(a)
     end
+
+    @testset "ordering distinguishes type-specific fields" begin
+        a = Destroy(h, :a)
+        i = Index(h, :i, 5, h)
+        j = Index(h, :j, 5, h)
+        ai = IndexedOperator(a, i)
+        aj = IndexedOperator(a, j)
+        @test order_key(ai) != order_key(aj)
+        hn2 = NLevelSpace(:atom2, 2)
+        σ12 = Transition(hn2, :σ, 1, 2)
+        σ21 = Transition(hn2, :σ, 2, 1)
+        @test order_key(σ12) != order_key(σ21)
+        hp2 = PauliSpace(:p2)
+        px = Pauli(hp2, :σ, 1)
+        py = Pauli(hp2, :σ, 2)
+        @test order_key(px) != order_key(py)
+        # strict total order trichotomy on a small set
+        ops = [a, ai, aj, σ12, px]
+        for o1 in ops, o2 in ops
+            k1, k2 = order_key(o1), order_key(o2)
+            @test (k1 < k2) + (k2 < k1) + (k1 == k2) == 1
+        end
+    end
+
+    @testset "orders by space_index before kind" begin
+        h2 = NLevelSpace(:atom, 2) ⊗ FockSpace(:cavity)
+        σ = Transition(h2, :σ, 1, 2, 1)
+        a2 = Destroy(h2, :a, 2)
+        @test order_key(σ) < order_key(a2)
+        @test isless(σ, a2)
+        @test !isless(a2, σ)
+        @test sort([a2, σ]) == [σ, a2]
+        @test isequal(σ * a2, a2 * σ)
+    end
 end

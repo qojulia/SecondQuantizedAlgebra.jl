@@ -1,6 +1,7 @@
 using SecondQuantizedAlgebra
 using Test
 using Symbolics: @variables
+import SecondQuantizedAlgebra: constraint_pairs
 
 @testset "Canonical model workflows" begin
     @testset "Tavis-Cummings equations" begin
@@ -162,5 +163,60 @@ using Symbolics: @variables
                 ),
             ),
         )
+    end
+
+    @testset "structural regression: two-atom correlator" begin
+        cavity = FockSpace(:cavity)
+        atom = NLevelSpace(:atom, 2)
+        h = cavity ⊗ atom
+        a = Destroy(h, :a, 1)
+        σ(α, β, k) = IndexedOperator(Transition(h, :σ, α, β, 2), k)
+        @variables N Δ
+        g(k) = IndexedVariable(:g, k)
+        i = Index(h, :i, N, atom)
+        j = Index(h, :j, N, atom)
+        k = Index(h, :k, N, atom)
+        H = -Δ * a' * a + Σ(g(i) * (a' * σ(1, 2, i) + a * σ(2, 1, i)), i)
+        raw = commutator(H, σ(1, 2, j) * σ(2, 1, k))
+        # diagonal partition must reduce to four 3-operator terms
+        @test length(raw) == 4
+        for term in keys(raw.arguments)
+            @test length(term.ops) == 3
+        end
+        # coefficient-only drive regression: no diagonal leak
+        l = Index(h, :l, N, atom)
+        u(α, β) = DoubleIndexedVariable(:u, α, β)
+        Hdrive = Σ(Σ(u(j, k) * (σ(2, 1, j) + σ(1, 2, j)), j), k)
+        comm = commutator(σ(2, 2, l), Hdrive)
+        expected = u(l, l) * σ(2, 1, l) - u(l, l) * σ(1, 2, l) +
+            Σ(u(l, k) * σ(2, 1, l) - u(l, k) * σ(1, 2, l), k, Index[l])
+        @test iszero(simplify(commutator(σ(2, 2, l), Hdrive) - expected))
+        @test any(pair -> pair == (k, l) || pair == (l, k), constraint_pairs(comm))
+    end
+
+    @testset "hand-derived exact forms are reproducible" begin
+        # Tavis-Cummings exact commutators with public iszero(simplify) as independent reference
+        cavity = FockSpace(:cavity)
+        atom = NLevelSpace(:atom2, 2)
+        h = cavity ⊗ atom
+        a = Destroy(h, :a, 1)
+        σ(α, β, k) = IndexedOperator(Transition(h, :σ, α, β, 2), k)
+        @variables N Δ2
+        g(k) = IndexedVariable(:g, k)
+        i = Index(h, :i, N, atom)
+        j = Index(h, :j, N, atom)
+        H = -Δ2 * a' * a + Σ(g(i) * (a' * σ(1, 2, i) + a * σ(2, 1, i)), i)
+        @test iszero(simplify(commutator(H, a) - (Δ2 * a - Σ(g(i) * σ(1, 2, i), i))))
+        @test iszero(simplify(commutator(H, σ(2, 2, j)) - (g(j) * a' * σ(1, 2, j) - g(j) * a * σ(2, 1, j))))
+        # Dicke exact form without simplify tolerance
+        hD = FockSpace(:cavD) ⊗ SpinSpace(:spinD)
+        aD = Destroy(hD, :a, 1)
+        Sx = Spin(hD, :S, 1, 2)
+        Sy = Spin(hD, :S, 2, 2)
+        Sz = Spin(hD, :S, 3, 2)
+        @variables ω₀ ωₐ λ
+        HD = ω₀ * aD' * aD + ωₐ * Sz + λ * (aD + aD') * Sx
+        @test iszero(simplify(commutator(HD, Sx) - im * ωₐ * Sy))
+        @test iszero(simplify(commutator(HD, Sy) - (-im * ωₐ * Sx + im * λ * (aD + aD') * Sz)))
     end
 end

@@ -27,6 +27,13 @@ import SecondQuantizedAlgebra: exponential_form, trigonometric_form
         @test !iszero(simplify((cos(θ)^2 + sin(φ)^2 - 1) * a))
     end
 
+    @testset "cancellation gate — public view" begin
+        @test isequal(simplify(cos(θ)^3 * sin(θ) * a), cos(θ)^3 * sin(θ) * a)
+        @test isequal(simplify((cos(θ)^4 + sin(θ)^4) * a), (cos(θ)^4 + sin(θ)^4) * a)
+        @test !iszero(simplify((cos(θ)^4 + sin(θ)^4 - 1) * a))
+        @test iszero(simplify((cos(θ)^4 + 2cos(θ)^2 * sin(θ)^2 + sin(θ)^4 - 1) * a))
+    end
+
     @testset "composite arguments and substitutions" begin
         identity = cos(ω * t)^2 + sin(ω * t)^2
         @test iszero(simplify((identity - 1) * a))

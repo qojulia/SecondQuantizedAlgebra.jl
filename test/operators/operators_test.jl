@@ -1,7 +1,7 @@
 using SecondQuantizedAlgebra
 using Test
 using Symbolics: @variables
-import SecondQuantizedAlgebra: set_acts_on, rename
+import SecondQuantizedAlgebra: OP_DESTROY, OP_PAULI, OP_TRANSITION, rename, set_acts_on
 
 @testset "Operator discovery and identity" begin
     @testset "fundamental operators describe each space" begin
@@ -152,5 +152,55 @@ end
         @test @inferred acts_on(a) isa Vector{Int}
         @test @inferred set_acts_on(a, 1) isa typeof(a)
         @test @inferred rename(a, :b) isa typeof(a)
+    end
+
+    @testset "optype contract is observable" begin
+        @test optype(Destroy(FockSpace(:k), :a)) == OP_DESTROY
+        @test optype(Transition(NLevelSpace(:n, 2), :σ, 1, 2)) == OP_TRANSITION
+        @test optype(Pauli(PauliSpace(:p), :σ, 1)) == OP_PAULI
+    end
+
+    @testset "ProductSpace constructors and discovery edge cases" begin
+        h = FockSpace(:f) ⊗ NLevelSpace(:n, 2, 1)
+        @test acts_on(Destroy(FockSpace(:solo), :a)) == [1]
+        @test length(find_operators(h, 1)) == length(fundamental_operators(h))
+        dup = FockSpace(:left) ⊗ FockSpace(:right)
+        @test Set(operator_name.(find_operators(dup, 1))) == Set([:a, :b])
+        hs = SpinSpace(:s)
+        hp = PauliSpace(:p)
+        ops = [Destroy(FockSpace(:f), :a), Transition(NLevelSpace(:n, 2), :σ, 1, 2), Pauli(hp, :σ, 1), Spin(hs, :S, 1)]
+        @test length(unique_ops(ops)) == length(ops)
+        @test length(unique_ops([ops[1], ops[1]'])) == 1
+
+        # Public auto-detect: single subspace of each type infers space_index
+        h_mixed = FockSpace(:c) ⊗ NLevelSpace(:atom, 2) ⊗ PauliSpace(:p) ⊗
+                  SpinSpace(:s) ⊗ PhaseSpace(:q)
+        @test Destroy(h_mixed, :a) == Destroy(h_mixed, :a, 1)
+        @test Create(h_mixed, :a) == Create(h_mixed, :a, 1)
+        @test Transition(h_mixed, :σ, 1, 2) == Transition(h_mixed, :σ, 1, 2, 2)
+        @test Pauli(h_mixed, :p, 1) == Pauli(h_mixed, :p, 1, 3)
+        @test Spin(h_mixed, :S, 2) == Spin(h_mixed, :S, 2, 4)
+        @test Position(h_mixed, :x) == Position(h_mixed, :x, 5)
+        @test Momentum(h_mixed, :p) == Momentum(h_mixed, :p, 5)
+        h_sym = FockSpace(:c) ⊗ NLevelSpace(:atom, (:g, :e))
+        @test Transition(h_sym, :σ, :g, :e) == Transition(h_sym, :σ, :g, :e, 2)
+        h_jc = FockSpace(:c) ⊗ NLevelSpace(:atom, 2)
+        @qnumbers a::Destroy(h_jc) σ::Transition(h_jc, 1, 2)
+        @test a == Destroy(h_jc, :a, 1)
+        @test σ == Transition(h_jc, :σ, 1, 2, 2)
+        h_two_fock = FockSpace(:a) ⊗ FockSpace(:b)
+        @test_throws ArgumentError Destroy(h_two_fock, :a)
+        @test_throws ArgumentError Create(h_two_fock, :a)
+        h_no_fock = NLevelSpace(:a, 2) ⊗ NLevelSpace(:b, 2)
+        @test_throws ArgumentError Destroy(h_no_fock, :a)
+        @test_throws ArgumentError Pauli(h_no_fock, :p, 1)
+    end
+
+    @testset "qadjoint reaches symbolic expressions" begin
+        @variables g::Number
+        h = FockSpace(:cavity)
+        a = Destroy(h, :a)
+        @test isequal(qadjoint(g * a + 2im * a'), conj(g) * a' - 2im * a)
+        @test isequal(inner_adjoint(average(a)), average(a'))
     end
 end

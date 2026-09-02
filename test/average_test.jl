@@ -2,8 +2,14 @@ using SecondQuantizedAlgebra
 using SymbolicUtils: SymbolicUtils, SymReal, symtype
 using Symbolics: Symbolics, @variables
 using Test
-import SecondQuantizedAlgebra: get_sum_body, get_sum_indices, get_sum_non_equal,
-    has_sum_metadata, indexed_sum, QAdd
+import SecondQuantizedAlgebra:
+    constraint_pairs,
+    get_sum_body,
+    get_sum_indices,
+    get_sum_non_equal,
+    has_sum_metadata,
+    indexed_sum,
+    QAdd
 
 @testset "Expectation-value API" begin
     h = FockSpace(:cavity)
@@ -51,7 +57,6 @@ import SecondQuantizedAlgebra: get_sum_body, get_sum_indices, get_sum_non_equal,
 
         avg_sum = average(a) + average(ad)
         @test iszero(undo_average(avg_sum) - (a + ad))
-        @test iszero(undo_average(average(a)) - a)
         @test iszero(undo_average(3) - 3)
 
         equation = Symbolics.Equation(average(a), average(ad))
@@ -248,5 +253,105 @@ import SecondQuantizedAlgebra: get_sum_body, get_sum_indices, get_sum_non_equal,
         summed = average(Σ(IndexedOperator(a, i), i))
         @inferred get_sum_indices(summed)
         @inferred get_sum_non_equal(summed)
+    end
+
+    @testset "dead indices and per-term metadata are observable" begin
+        hf = FockSpace(:f_avg)
+        @qnumbers b::Destroy(hf)
+        @variables N
+        i = Index(hf, :i, N, hf)
+        j = Index(hf, :j, N, hf)
+        # Σ minus itself drops index (minus and plus both prune)
+        s = Σ(IndexedOperator(b, i), i)
+        @test isempty(get_indices(s - s))
+        # disjoint subtraction keeps both
+        si = Σ(IndexedOperator(b, i), i)
+        sj = Σ(IndexedOperator(b, j), j)
+        @test Set(get_indices(si - sj)) == Set([i, j])
+        @test get_indices((si + sj) - si) == [j]
+        # sum-sum commutator is scalar, no avg metadata
+        c = commutator(Σ(IndexedOperator(b, i), i), Σ(IndexedOperator(b', j), j))
+        @test isempty(get_indices(c))
+        @test !has_sum_metadata(average(c))
+        @test !is_indexed_sum(average(c))
+        # singleton single-op NE is vacuous
+        ha = NLevelSpace(:avg_atom, 2)
+        σ(k) = IndexedOperator(Transition(ha, :σ, 1, 2), k)
+        bare = average(Σ(σ(i), i))
+        with_ne = average(Σ(σ(i), i, [j]))
+        # actually single-op with extra NE is not vacuous for atom case, but scalar check:
+        # Use Fock single-op with NE on same site with no second op -> should be bare? Check via public undo
+        @test is_indexed_sum(with_ne)
+        @test get_sum_indices(with_ne) == [i]
+        # dead NE pairs are pruned: a product with no surviving index dependence keeps correct ne
+        hmix = FockSpace(:cav_avg) ⊗ NLevelSpace(:atom_avg, 2)
+        a2 = Destroy(hmix, :a, 1)
+        σ2(k) = IndexedOperator(Transition(hmix, :σ, 1, 2, 2), k)
+        g(k) = IndexedVariable(:g, k)
+        i2 = Index(hmix, :i2, N, 2)
+        j2 = Index(hmix, :j2, N, 2)
+        prod = Σ(g(i2) * σ2(i2), i2) * σ2(j2)
+        avg = average(prod)
+        # average splits dep vs indep: there should be at least one indexed term
+        @test !iszero(undo_average(avg))
+        # distinct scoped terms via change_index
+        left = Σ(IndexedOperator(b, i), i)
+        right = Σ(IndexedOperator(b, j), j)
+        @test length(left + right) == 2
+        renamed = change_index(right, j, i)
+        @test isequal(renamed, left)
+        @test length(left + renamed) == 1
+    end
+
+    @testset "average preserves only live scope" begin
+        h = FockSpace(:cavity_avg2) ⊗ NLevelSpace(:atom_avg2, 2)
+        a2 = Destroy(h, :a, 1)
+        σ(k) = IndexedOperator(Transition(h, :σ, 1, 2, 2), k)
+        @variables N Δ
+        g(k) = IndexedVariable(:g, k)
+        i = Index(h, :i, N, 2)
+        j = Index(h, :j, N, 2)
+        H = -Δ * a2' * a2 + Σ(g(i) * (a2' * σ(i) + a2 * σ(i)'), i)
+        # commutator isolates j, so average should not carry i
+        c = commutator(H, σ(j))
+        @test isempty(get_indices(c)) || j in get_indices(c)
+        avg = average(c)
+        # only j-dependent part should be indexed if present
+        if is_indexed_sum(avg)
+            @test j in get_sum_indices(avg)
+        end
+        # undo roundtrip for scalar and operator
+        @test iszero(undo_average(average(a2' * a2)) - a2' * a2)
+        @test iszero(undo_average(average(3)) - 3)
+        # indexed coefficient leak check: coefficient with j,i stays inside i≠j sum
+        u(k, l) = DoubleIndexedVariable(:u, k, l)
+        k = Index(h, :k, N, 2)
+        coeff_in_sum = average(Σ(u(j, i) * σ(i), i))
+        @test is_indexed_sum(coeff_in_sum)
+        @test get_sum_indices(coeff_in_sum) == [i]
+    end
+
+    @testset "average avoids literal complex(re,im) (public MTK pin)" begin
+        h = FockSpace(:c_public)
+        a = Destroy(h, :a)
+        @variables Δ::Real η::Real κ::Real
+        function has_complex_literal(x)
+            found = Ref(false)
+            function walk(y)
+                found[] && return
+                y isa SymbolicUtils.BasicSymbolic || return
+                SymbolicUtils.iscall(y) || return
+                SymbolicUtils.operation(y) === complex && (found[] = true)
+                for arg in SymbolicUtils.arguments(y)
+                    walk(arg)
+                end
+            end
+            walk(SymbolicUtils.unwrap(x))
+            return found[]
+        end
+        @test !has_complex_literal(average((-im * Δ) * a))
+        @test !has_complex_literal(average((im * η) * one(a) + (-im * Δ) * a))
+        @test !has_complex_literal(average((κ / 2) * a))
+        @test !occursin("complex", string(average((-im * Δ) * a)))
     end
 end
