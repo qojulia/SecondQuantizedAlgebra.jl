@@ -221,7 +221,8 @@ normal_to_symmetric(H_diag)
 # ground-state energy and the photon number ``\langle a^\dagger a\rangle`` to
 # the closed-form predictions.
 
-using QuantumOpticsBase, CairoMakie
+using QuantumOpticsBase, Plots, LaTeXStrings
+gr()
 
 ω_val = 1.0
 n_max = 18
@@ -245,26 +246,14 @@ for κ_val in κs
     push!(n_num, real(numeric_average(a' * a, ψ)))
 end
 
-fig = Figure(size = (820, 360))
-ax1 = Axis(
-    fig[1, 1];
-    xlabel = L"\kappa / \omega",
-    ylabel = L"E_0 / \omega",
-    title = "Ground-state energy",
-)
-scatter!(ax1, collect(κs) ./ ω_val, E0_num; label = "diagonalisation", marker = :circle)
-lines!(ax1, collect(κs) ./ ω_val, E0_th.(κs); label = L"\sqrt{\omega^2-\kappa^2}-\omega", linestyle = :dash)
-axislegend(ax1; position = :lb)
+fig = plot(; layout = (1, 2), size = (820, 360), margin = 5Plots.mm)
+scatter!(fig[1], collect(κs) ./ ω_val, E0_num; label = "diagonalisation", marker = :circle)
+plot!(fig[1], collect(κs) ./ ω_val, E0_th.(κs); label = L"\sqrt{\omega^2-\kappa^2}-\omega", linestyle = :dash)
+plot!(fig[1]; xlabel = L"\kappa / \omega", ylabel = L"E_0 / \omega", title = "Ground-state energy", legend = :bottomleft)
 
-ax2 = Axis(
-    fig[1, 2];
-    xlabel = L"\kappa / \omega",
-    ylabel = L"\langle a^\dagger a \rangle",
-    title = "Photon number = v²",
-)
-scatter!(ax2, collect(κs) ./ ω_val, n_num; label = "diagonalisation", marker = :diamond)
-lines!(ax2, collect(κs) ./ ω_val, n_th.(κs); label = L"v^2", linestyle = :dash)
-axislegend(ax2; position = :lt)
+scatter!(fig[2], collect(κs) ./ ω_val, n_num; label = "diagonalisation", marker = :diamond)
+plot!(fig[2], collect(κs) ./ ω_val, n_th.(κs); label = L"v^2", linestyle = :dash)
+plot!(fig[2]; xlabel = L"\kappa / \omega", ylabel = L"\langle a^\dagger a \rangle", title = "Photon number = v²", legend = :topleft)
 fig
 
 # Both observables match the closed-form predictions to truncation error: the

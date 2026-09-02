@@ -111,7 +111,8 @@ p_closed, losses_closed = optimize_pulse(infidelity_closed)
 # The optimized pulse drives the mean photon number from 0 to 1, and the final population lands
 # almost entirely in ``|1\rangle``; the Kerr blockade suppresses ``|2\rangle``.
 
-using CairoMakie
+using Plots
+gr()
 
 n_op = create(N + 1) * destroy(N + 1)
 sol_closed = sesolve(Hc, ψ0, tlist; params = p_closed, e_ops = [n_op], progress_bar = Val(false))
@@ -119,18 +120,13 @@ nt_closed = real.(sol_closed.expect[1, :])
 εt_closed = pulse.(Ref(p_closed), tlist)
 finalpops_closed = [real(expect(fock(N + 1, n) * fock(N + 1, n)', sol_closed.states[end])) for n in 0:4]
 
-fig_closed = Figure(size = (1050, 320))
+fig_closed = plot(; layout = (1, 3), size = (1050, 320), margin = 5Plots.mm)
+plot!(fig_closed[1], 1:length(losses_closed), losses_closed; xlabel = "iteration", ylabel = "infidelity 1 − F", yscale = :log10, title = "LBFGS convergence", color = :crimson, label = false)
 
-ax1 = Axis(fig_closed[1, 1]; xlabel = "iteration", ylabel = "infidelity 1 − F", yscale = log10, title = "LBFGS convergence")
-lines!(ax1, 1:length(losses_closed), losses_closed; color = :crimson)
+plot!(fig_closed[2], tlist, nt_closed; xlabel = "t", ylabel = "⟨n⟩ / ε(t)", title = "optimized pulse & dynamics", label = "⟨n⟩(t)", color = :navy)
+plot!(fig_closed[2], tlist, εt_closed; label = "ε(t)", color = :darkorange, linestyle = :dash)
 
-ax2 = Axis(fig_closed[1, 2]; xlabel = "t", ylabel = "⟨n⟩ / ε(t)", title = "optimized pulse & dynamics")
-lines!(ax2, tlist, nt_closed; label = "⟨n⟩(t)", color = :navy)
-lines!(ax2, tlist, εt_closed; label = "ε(t)", color = :darkorange, linestyle = :dash)
-axislegend(ax2; position = :lt)
-
-ax3 = Axis(fig_closed[1, 3]; xlabel = "Fock state n", ylabel = "population", title = "final state", xticks = 0:4)
-barplot!(ax3, 0:4, finalpops_closed; color = :seagreen)
+plot!(fig_closed[3], 0:4, finalpops_closed; xlabel = "Fock state n", ylabel = "population", title = "final state", xticks = 0:4, color = :seagreen, label = false, seriestype = :bar)
 
 fig_closed
 
@@ -169,17 +165,12 @@ nt_open = real.(sol_open.expect[1, :])
 εt_open = pulse.(Ref(p_open), tlist)
 finalpops_open = [real(expect(fock(N + 1, n) * fock(N + 1, n)', sol_open.states[end])) for n in 0:4]
 
-fig_open = Figure(size = (1050, 320))
+fig_open = plot(; layout = (1, 3), size = (1050, 320), margin = 5Plots.mm)
+plot!(fig_open[1], 1:length(losses_open), losses_open; xlabel = "iteration", ylabel = "infidelity 1 − F", yscale = :log10, title = "LBFGS convergence", color = :crimson, label = false)
 
-bx1 = Axis(fig_open[1, 1]; xlabel = "iteration", ylabel = "infidelity 1 − F", yscale = log10, title = "LBFGS convergence")
-lines!(bx1, 1:length(losses_open), losses_open; color = :crimson)
+plot!(fig_open[2], tlist, nt_open; xlabel = "t", ylabel = "⟨n⟩ / ε(t)", title = "optimized pulse & dynamics", label = "⟨n⟩(t)", color = :navy)
+plot!(fig_open[2], tlist, εt_open; label = "ε(t)", color = :darkorange, linestyle = :dash)
 
-bx2 = Axis(fig_open[1, 2]; xlabel = "t", ylabel = "⟨n⟩ / ε(t)", title = "optimized pulse & dynamics")
-lines!(bx2, tlist, nt_open; label = "⟨n⟩(t)", color = :navy)
-lines!(bx2, tlist, εt_open; label = "ε(t)", color = :darkorange, linestyle = :dash)
-axislegend(bx2; position = :lt)
-
-bx3 = Axis(fig_open[1, 3]; xlabel = "Fock state n", ylabel = "population", title = "final state", xticks = 0:4)
-barplot!(bx3, 0:4, finalpops_open; color = :seagreen)
+plot!(fig_open[3], 0:4, finalpops_open; xlabel = "Fock state n", ylabel = "population", title = "final state", xticks = 0:4, color = :seagreen, label = false, seriestype = :bar)
 
 fig_open

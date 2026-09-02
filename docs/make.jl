@@ -7,6 +7,9 @@ if CI
     ENV["JULIA_DEBUG"] = "Documenter,Literate"
 end
 
+# Plots/GR must use its headless workstation before Literate launches workers.
+get!(ENV, "GKSwstype", "100")
+
 # Generate the Literate pages before loading the packages used by the rest of
 # the documentation. The generated pages are executed in isolated child
 # processes, so the parent stays lightweight while the workers run. This also
@@ -19,7 +22,8 @@ using Documenter
 using QuantumOpticsBase
 using SparseArrays
 
-using CairoMakie
+using Plots
+gr()
 
 DocMeta.setdocmeta!(
     SecondQuantizedAlgebra,

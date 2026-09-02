@@ -116,7 +116,8 @@ H_pol = ω₀ * a' * a + ωₘ * bd_tilde * b_tilde + g * a' * a * (b_tilde + bd
 # ``H_\mathrm{Kerr} = \omega_0\,a^\dagger a + \omega_m\,b^\dagger b - (g^2/\omega_m)\,(a^\dagger a)^2``
 # and check that they share the same spectrum.
 
-using QuantumOpticsBase, LinearAlgebra, CairoMakie
+using QuantumOpticsBase, LinearAlgebra, Plots, LaTeXStrings
+gr()
 
 ω₀_val, ωm_val = 1.0, 0.4
 n_max_c, n_max_m = 4, 60
@@ -137,19 +138,13 @@ for g_val in gs
     push!(E_eff, sort(real.(eigvals(Hermitian(He.data))))[1:8])
 end
 
-fig = Figure()
-ax = Axis(
-    fig[1, 1];
-    xlabel = L"g / \omega_m",
-    ylabel = L"(E_n - E_0) / \omega_0",
-    title = "Optomechanics: lowest 8 levels",
-)
-colors = Makie.wong_colors()
+fig = plot(; xlabel = L"g / \omega_m", ylabel = L"(E_n - E_0) / \omega_0", title = "Optomechanics: lowest 8 levels", margin = 5Plots.mm)
+colors = palette(:default)
 for n in 2:8
     full = [E_full[i][n] - E_full[i][1] for i in eachindex(gs)]
     eff = [E_eff[i][n] - E_eff[i][1] for i in eachindex(gs)]
-    scatter!(ax, collect(gs) ./ ωm_val, full; color = colors[n - 1], marker = :circle)
-    lines!(ax, collect(gs) ./ ωm_val, eff; color = colors[n - 1], linestyle = :dash)
+    scatter!(fig, collect(gs) ./ ωm_val, full; color = colors[n - 1], marker = :circle, label = false)
+    plot!(fig, collect(gs) ./ ωm_val, eff; color = colors[n - 1], linestyle = :dash, label = false)
 end
 fig
 
