@@ -51,4 +51,4 @@ jobs:
           DOCUMENTER_KEY: ${{ secrets.DOCUMENTER_KEY }} # For authentication with SSH deploy key
           JULIA_DEBUG: "Documenter"
           DATADEPS_ALWAYS_ACCEPT: true
-          GKSwstype: "100" # for Plots.jl plots (if you have them)
+          GKSwstype: "100" # headless GR backend for Plots.jl

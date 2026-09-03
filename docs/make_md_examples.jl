@@ -7,6 +7,9 @@ const OUTPUT_MD_DIR = joinpath(@__DIR__, "src", "examples")
 const LITERATE_RUNNER = joinpath(@__DIR__, "run_literate_example.jl")
 const DOCS_PROJECT = abspath(@__DIR__)
 
+# Plots/GR must stay headless in both `make docs` and `make servedocs`.
+get!(ENV, "GKSwstype", "100")
+
 examples = filter!(file -> endswith(file, ".jl"), readdir(EXAMPLES_IN; join = true))
 filter!(file -> !contains(file, "make_nb_examples"), examples)
 sort!(examples)

@@ -17,6 +17,7 @@ deps/src/
 docs/build/
 docs/src/examples/*.png
 docs/src/examples/*.md
+docs/src/examples/*.svg
 docs/site/
 docs/superpowers/
 
