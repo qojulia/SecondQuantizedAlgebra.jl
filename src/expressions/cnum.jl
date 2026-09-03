@@ -214,8 +214,6 @@ end
     (v isa SymbolicUtils.BasicSymbolic && SymbolicUtils.isconst(v)) && return v.val
     return nothing
 end
-@inline numeric_value(x::Num) = const_value(SymbolicUtils.unwrap(x))
-
 @inline function phase_power(x)
     is_phase(x) && return (only(SymbolicUtils.arguments(x)), 1)
     x isa SymbolicUtils.BasicSymbolic || return nothing
@@ -420,22 +418,6 @@ end
 
 cnum(re::Num, im::Num) =
     add_cnum(recognize(SymbolicUtils.unwrap(re)), mul_by_im(recognize(SymbolicUtils.unwrap(im))))
-
-# Rebuild after a materialized symbolic arithmetic step: folds a numeric constant
-# back to native, else stays symbolic. Must NOT re-enter `recognize` (would recurse).
-function cnum_sym(re::Num, im::Num)
-    rv = numeric_value(re)
-    iv = numeric_value(im)
-    if rv isa Number && iv isa Number
-        w = rv + Complex(false, true) * iv
-        w isa ExactComplex && return exact_coeff(w)
-        z = ComplexF64(w)
-        z == w && return native(z)
-    end
-    raw_re = SymbolicUtils.unwrap(re)
-    raw_im = SymbolicUtils.unwrap(im)
-    return from_raw(raw_re + Symbolics.IM * raw_im)
-end
 
 # === Parameter-polynomial tier: folding, materialization, recognition ===
 
@@ -1006,14 +988,6 @@ end
     return (real(cn), imag(cn))
 end
 
-@inline function raw_parts(c::Coeff)
-    tail = c.tail
-    tail isa RawSymbolicCoeff || return realimag(c)
-    cnum_is_real(c) && return (Num(tail.expr), NUM_ZERO)
-    re, im = raw_realimag(tail.expr)
-    return (Num(re), Num(im))
-end
-
 """
     to_num(c::Coeff) -> Complex{Num}
 
@@ -1123,24 +1097,6 @@ Base.:/(a::Number, b::Coeff) = to_cnum(a) / b
 # second one (which never folds and survives downstream).
 is_conj_call(x) =
     SymbolicUtils.iscall(x) && SymbolicUtils.operation(x) === conj
-function sym_conj(x::Num)
-    SymbolicUtils.symtype(x) <: Real && return x
-    u = SymbolicUtils.unwrap(x)
-    is_conj_call(u) && return Num(SymbolicUtils.arguments(u)[1])
-    # Distribute over sums and products, so a real factor (a radical, a real-symtype
-    # parameter) is left alone and a phase flips on its own. Wrapping the whole expression
-    # leaves a `conj(...)` that never folds, and the residual built from it cannot cancel.
-    if SymbolicUtils.iscall(u)
-        op = SymbolicUtils.operation(u)
-        args = SymbolicUtils.arguments(u)
-        if op === (+)
-            return sum(sym_conj(Num(a)) for a in args)
-        elseif op === (*)
-            return prod(sym_conj(Num(a)) for a in args)
-        end
-    end
-    return Num(conj(u))
-end
 
 function raw_conj(x)
     x isa Number && return conj(x)
@@ -1221,19 +1177,6 @@ end
     return value isa Number && iszero(value)
 end
 
-# `unwrap` returns a `BasicSymbolic` even for numeric constants, so test the
-# node kind rather than `isa Number`.
-@inline function is_symbolic_num(x::Num)
-    v = SymbolicUtils.unwrap(x)
-    return SymbolicUtils.issym(v) || SymbolicUtils.iscall(v)
-end
-
-@inline function is_symbolic_cnum(c::Coeff)
-    is_native(c) && return false
-    c.tail isa Poly && return true
-    return true
-end
-
 # Structural `a == -b`, used to recognize exact cancellation without a CAS round-trip.
 @inline function raw_is_negative_of(
         positive::SymbolicUtils.BasicSymbolic, negative::SymbolicUtils.BasicSymbolic,
@@ -1277,27 +1220,12 @@ end
     return false
 end
 
-@inline function isneg_cnum(a::Coeff, b::Coeff)
-    an = is_native(a)
-    bn = is_native(b)
-    # `iszero(a.z + b.z)`, not `isequal(a.z, -b.z)`: negating a normalized `+0.0im`
-    # gives `-0.0im`, and `isequal(0.0, -0.0)` is false, so the latter misses real
-    # negatives (e.g. `1` vs `-1`).
-    an && bn && return iszero(a.z + b.z)
-    (an != bn) && return false   # one native, one symbolic: never exact negatives
-    if a.tail isa Poly && b.tail isa Poly
-        return isempty(poly_add(a.tail.terms, b.tail.terms))
-    end
-    if a.tail isa RawSymbolicCoeff && b.tail isa RawSymbolicCoeff
-        return a.tail.real_slot == b.tail.real_slot &&
-            (
-            raw_is_negative_of(a.tail.expr, b.tail.expr) ||
-                raw_is_negative_of(b.tail.expr, a.tail.expr)
-        )
-    end
-    ar, ai = realimag(a)
-    br, bi = realimag(b)
-    return isequal(ar, -br) && isequal(ai, -bi)
+@inline function isneg_cnum(a::RawSymbolicCoeff, b::RawSymbolicCoeff)
+    return a.real_slot == b.real_slot &&
+        (
+        raw_is_negative_of(a.expr, b.expr) ||
+            raw_is_negative_of(b.expr, a.expr)
+    )
 end
 
 @inline function mul_cnum(a::Coeff, b::Coeff)
@@ -1337,8 +1265,9 @@ end
     # Raw symbolic addition deliberately avoids a CAS round-trip. Recover the common exact
     # cancellation case here, which is needed by scalar identities such as the off-diagonal
     # entries of a symbolic orthogonal matrix product.
-    (a.tail isa RawSymbolicCoeff && b.tail isa RawSymbolicCoeff && isneg_cnum(a, b)) &&
-        return CNUM_ZERO
+    if a.tail isa RawSymbolicCoeff && b.tail isa RawSymbolicCoeff
+        isneg_cnum(a.tail, b.tail) && return CNUM_ZERO
+    end
     return add_cnum_slow(a, b)
 end
 

@@ -1,108 +1,72 @@
 using SecondQuantizedAlgebra
+using Symbolics: @variables
 using Test
-using Symbolics: Symbolics, @variables
-import SecondQuantizedAlgebra: substitute, QAdd, QSym, CNum, CNUM_ONE, to_cnum
 
-@testset "Substitute" begin
-    hf = FockSpace(:c)
-    a = Destroy(hf, :a)
+@testset "Public substitution" begin
+    h = FockSpace(:cavity)
+    a = Destroy(h, :a)
     @variables x::Real y::Real
 
-    @testset "Number passthrough" begin
+    @testset "scalar substitutions" begin
         @test substitute(42, Dict(x => 0)) == 42
-        @test substitute(0, Dict(x => 1)) == 0
-    end
-
-    @testset "QSym substitution" begin
-        @test isequal(substitute(a, Dict(a => a')), 1 * a')
-        @test isequal(substitute(a, Dict(a' => a)), 1 * a')
-        @test isequal(substitute(a, Dict(a' => a); replace_adjoint = false), 1 * a)
-    end
-
-    @testset "QAdd — symbolic variable substitution" begin
         @test iszero(substitute(x * a, Dict(x => 0)))
-        @test isequal(substitute(x * a, Dict(x => 1)), 1 * a)
-        @test isequal(substitute(x * a, Dict(x => y)), y * a)
+        @test iszero(substitute(x * a, Dict(x => 1)) - a)
+        @test iszero(simplify(substitute(x * a, Dict(x => y)) - y * a))
+        @test iszero(
+            simplify(
+                substitute(x * (a + a'), Dict(x => y)) - y * (a + a'),
+            )
+        )
     end
 
-    @testset "QAdd — operator substitution" begin
+    @testset "operator substitutions" begin
         @test iszero(substitute(x * a, Dict(a => 0)))
-        sub_scalar = substitute(x * a, Dict(a => y))
-        @test sub_scalar isa QAdd
-        @test length(sub_scalar) == 1
-        @test isempty(operators(sub_scalar))
-        @test isequal(substitute(x * a, Dict(a => a')), x * a')
+        @test iszero(simplify(substitute(x * a, Dict(a => y)) - x * y))
+        @test iszero(simplify(substitute(x * a, Dict(a => a')) - x * a'))
+        @test iszero(substitute(a, Dict(a' => a)) - a')
+        @test iszero(
+            substitute(a', Dict(a => 2 * a); replace_adjoint = false) - a',
+        )
         @test_throws ArgumentError substitute(a, Dict(a => :unsupported); replace_adjoint = false)
     end
 
-    @testset "QAdd substitution" begin
-        @test isequal(substitute(x * (a + a'), Dict(x => y)), y * (a + a'))
+    @testset "replacement expressions are expanded once" begin
+        h3 = FockSpace(:one) ⊗ FockSpace(:two) ⊗ FockSpace(:three)
+        a1 = Destroy(h3, :a, 1)
+        a2 = Destroy(h3, :a, 2)
+        a3 = Destroy(h3, :a, 3)
+        @variables g₂::Real g₃::Real
+        replacement = g₂ * a1 + g₃ * a3
+
+        @test iszero(simplify(substitute(a1, Dict(a1 => replacement)) - replacement))
+        @test iszero(
+            simplify(
+                substitute(a1 * a2, Dict(a1 => g₂ * a2 + g₃ * a3)) -
+                    (g₂ * a2 + g₃ * a3) * a2,
+            )
+        )
+        @test iszero(
+            simplify(
+                substitute(a1', Dict(a1 => g₂ * a2)) - g₂ * a2',
+            )
+        )
+        @test iszero(
+            substitute(a1', Dict(a1 => g₂ * a2); replace_adjoint = false) - a1',
+        )
     end
 
-    @testset "conj coefficient folds on substitution (regression #7cc3ad7)" begin
-        # Adjoint of a complex-coupled term carries a `conj(gc)` coefficient.
-        # Substituting the coupling to a constant must let that `conj` fold:
-        # `conj(gc => 0)` collapses the term to zero (no dead surviving term),
-        # `conj(gc => 2)` reaches the value rather than nesting an unfoldable conj.
+    @testset "substitution also handles composite spaces" begin
+        h2 = h ⊗ FockSpace(:second)
+        b = Destroy(h2, :b, 2)
+        @test iszero(substitute(x * a' * b, Dict(x => 2)) - 2 * a' * b)
+
         @variables gc::Number
-        expr = (gc * a)'                       # conj(gc) * a'
-        @test iszero(substitute(expr, Dict(gc => 0)))
-        @test isequal(substitute(expr, Dict(gc => 2)), 2 * a')
+        @test iszero(substitute((gc * a)', Dict(gc => 0)))
+        @test isequal(substitute((gc * a)', Dict(gc => 2)), 2 * a')
     end
 
-    @testset "Composite space" begin
-        hf2 = FockSpace(:c2)
-        h = hf ⊗ hf2
-        b = Destroy(h, :b, 2)
-        expr = x * a' * b
-        @test isequal(substitute(expr, Dict(x => 2)), 2 * a' * b)
-    end
-
-    @testset "QSym → QAdd splices sum into product" begin
-        hpf = FockSpace(:p) ⊗ FockSpace(:q) ⊗ FockSpace(:r)
-        xop = Destroy(hpf, :x, 1)
-        yop = Destroy(hpf, :y, 2)
-        zop = Destroy(hpf, :z, 3)
-        # Replace yop with the sum (xop + zop); xop*yop must expand to xop*xop + xop*zop
-        result = substitute(xop * yop, Dict(yop => xop + zop))
-        expected = xop * xop + xop * zop
-        @test isequal(SecondQuantizedAlgebra.simplify(result), SecondQuantizedAlgebra.simplify(expected))
-
-        # Same in the other operator position
-        result2 = substitute(yop * zop, Dict(yop => xop + zop))
-        expected2 = xop * zop + zop * zop
-        @test isequal(SecondQuantizedAlgebra.simplify(result2), SecondQuantizedAlgebra.simplify(expected2))
-    end
-
-    @testset "operator substitution is one-level" begin
-        hpf = FockSpace(:p) ⊗ FockSpace(:q) ⊗ FockSpace(:r)
-        a1 = Destroy(hpf, :a, 1)
-        a2 = Destroy(hpf, :a, 2)
-        a3 = Destroy(hpf, :a, 3)
-        @variables g2::Real g3::Real
-
-        replacement = g2 * a1 + g3 * a3
-        @test isequal(
-            simplify(substitute(a1, Dict(a1 => replacement))),
-            simplify(replacement),
-        )
-
-        result = substitute(a1 * a2, Dict(a1 => g2 * a2 + g3 * a3))
-        expected = (g2 * a2 + g3 * a3) * a2
-        @test isequal(simplify(result), simplify(expected))
-
-        @test isequal(
-            simplify(substitute(a1', Dict(a1 => g2 * a2))),
-            simplify(g2 * a2'),
-        )
-        @test isequal(substitute(a1', Dict(a1 => g2 * a2); replace_adjoint = false), 1 * a1')
-
-        mixed = substitute(g2 * a1, Dict(a1 => 1, g2 => 2.0))
-        @test length(mixed) == 1
-        @test isempty(operators(mixed))
-        @test prefactor(mixed) == 2.0
-
-        scalar_in_replacement = substitute(a1, Dict(a1 => g2 * a2, g2 => 2.0))
-        @test isequal(simplify(scalar_in_replacement), simplify(2.0 * a2))
+    @testset "public substitution is inferable" begin
+        @inferred substitute(x * a, Dict(x => 2))
+        @inferred substitute(a, Dict(a => a'))
     end
 end

@@ -129,9 +129,9 @@ end
     b = bc ⊗ bn ⊗ bn
     sites = Dict{Int, Vector{Int}}(1 => [1], 2 => [2, 3])
 
-    # A resolved per-site index keeps its real name (not the `:_` sentinel).
-    resolved = Index(i.name_id, i.range_id, i.space_index, Int32(2))
-    @test index_name(resolved) === :i
+    # A resolved per-site index keeps its user-facing name and slot.
+    resolved = i(2)
+    @test index_name(resolved) === :i_2
     @test has_index(resolved)
 
     # A `d` override keyed by the abstract indexed op now applies on the sites

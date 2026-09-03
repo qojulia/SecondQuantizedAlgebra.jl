@@ -140,7 +140,6 @@ end
     r = Symbolics.value(SymbolicUtils.unwrap(re))
     return r isa Real && r < 0
 end
-is_real_negative(::Number) = false
 
 # Only `show_prefactor`'s real-only branch can leave a loose head exposed at top level;
 # the pure-imaginary and mixed branches brace their own parts.

@@ -1,52 +1,64 @@
 using SecondQuantizedAlgebra
 using Test
 using SymbolicUtils: SymbolicUtils, symtype
-using Symbolics: Symbolics, @variables
-import SecondQuantizedAlgebra: AverageOperator, make_time_dependent
+using Symbolics: @variables
+import SecondQuantizedAlgebra: get_sum_body, get_sum_indices, has_sum_metadata, indexed_sum
 
-@testset "make_time_dependent lift" begin
-    h = FockSpace(:c)
+@testset "Time-dependent averages" begin
+    h = FockSpace(:cavity)
     a = Destroy(h, :a)
     @variables t
-    leaf = average(a)
-    lifted = make_time_dependent(leaf, t)
-    @test SymbolicUtils.iscall(lifted)
-    @test isequal(SymbolicUtils.arguments(lifted)[1], SymbolicUtils.unwrap(t))
-    @test symtype(lifted) === Number
-    @test is_average(lifted)
-    @test isequal(undo_average(lifted), undo_average(leaf))   # operator recovered from metadata
-    @test isequal(lifted, make_time_dependent(average(a), t))               # structural identity
-    @test !isequal(lifted, make_time_dependent(average(a'), t))             # distinct operators distinct
 
-    # the lift rewrites ONLY average leaves, leaving the surrounding structure intact:
-    # lifting a compound expression equals the compound of its individually-lifted leaves
-    expr = 2 * average(a) + average(a' * a)
-    lifted_expr = make_time_dependent(expr, t)
-    @test isequal(
-        lifted_expr,
-        2 * make_time_dependent(average(a), t) + make_time_dependent(average(a' * a), t)
-    )
+    @testset "lifting and recovery" begin
+        leaf = average(a)
+        lifted = make_time_dependent(leaf, t)
 
-    # distinct operators on DIFFERENT subspaces must stay distinct unknowns: the lifted
-    # name is structural (space_index + operator), not a hash digest that could collide
-    hm = FockSpace(:m1) ⊗ FockSpace(:m2)
-    a1 = Destroy(hm, :a, 1); a2 = Destroy(hm, :a, 2)
-    @test !isequal(make_time_dependent(average(a1), t), make_time_dependent(average(a2), t))
+        @test is_average(lifted)
+        @test symtype(lifted) === Number
+        @test isequal(undo_average(lifted), undo_average(leaf))
+        @test isequal(lifted, make_time_dependent(leaf, t))
+        @test !isequal(lifted, make_time_dependent(average(a'), t))
+        @test !isequal(make_time_dependent(average(a), t), make_time_dependent(average(a), 2t))
+    end
 
-    # acts_on reads the lifted-form metadata
-    h2 = FockSpace(:a) ⊗ NLevelSpace(:b, 2)
-    aa = Destroy(h2, :a, 1)
-    σ = Transition(h2, :σ, 1, 2, 2)
-    @test acts_on(make_time_dependent(average(aa' * σ), t)) == [1, 2]
+    @testset "compound expressions preserve structure" begin
+        compound = 2 * average(a) + average(a' * a)
+        lifted = make_time_dependent(compound, t)
+        expected = 2 * make_time_dependent(average(a), t) +
+            make_time_dependent(average(a' * a), t)
+        @test isequal(lifted, expected)
+        @test !is_average(make_time_dependent(2a, t))
+    end
 
-    # inner_adjoint of a lifted average stays lifted (time-dependent) and recovers ⟨op'⟩
-    aladj = inner_adjoint(make_time_dependent(average(aa), t))
-    @test is_average(aladj)
-    @test SymbolicUtils.hasmetadata(aladj, AverageOperator)               # still lifted
-    @test isequal(undo_average(aladj), undo_average(average(aa')))
+    @testset "space identity and adjoints" begin
+        hm = FockSpace(:left) ⊗ FockSpace(:right)
+        a1 = Destroy(hm, :a, 1)
+        a2 = Destroy(hm, :a, 2)
+        @test !isequal(make_time_dependent(average(a1), t), make_time_dependent(average(a2), t))
 
-    # inner_adjoint preserves the Σ scope of a summed lifted average
-    hi = FockSpace(:site); ai = Destroy(hi, :a); i = Index(hi, :i, 3, hi)
-    summed = make_time_dependent(average(Σ(IndexedOperator(ai', i) * IndexedOperator(ai, i), i)), t)
-    @test SecondQuantizedAlgebra.has_sum_metadata(inner_adjoint(summed))
+        h2 = FockSpace(:mode) ⊗ NLevelSpace(:atom, 2)
+        aa = Destroy(h2, :a, 1)
+        σ = Transition(h2, :σ, 1, 2, 2)
+        lifted = make_time_dependent(average(aa' * σ), t)
+        @test acts_on(lifted) == [1, 2]
+
+        aladj = inner_adjoint(lifted)
+        @test is_average(aladj)
+        @test isequal(undo_average(aladj), undo_average(average(σ' * aa)))
+    end
+
+    @testset "indexed-sum scope survives lifting" begin
+        hi = FockSpace(:site)
+        ai = Destroy(hi, :a)
+        i = Index(hi, :i, 3, hi)
+        summed = Σ(IndexedOperator(ai', i) * IndexedOperator(ai, i), i)
+        lifted = make_time_dependent(average(summed), t)
+
+        @test is_indexed_sum(lifted)
+        @test has_sum_metadata(lifted)
+        @test get_sum_indices(lifted) == [i]
+        @test is_average(get_sum_body(lifted))
+        @test get_indices(undo_average(lifted)) == [i]
+        @test has_sum_metadata(inner_adjoint(lifted))
+    end
 end

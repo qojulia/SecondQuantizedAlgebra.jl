@@ -43,19 +43,21 @@ function build(b::QAddBuilder)
     return QAdd(b.args, drop_unused_indices(b.args, b.indices))
 end
 
-# MA interface (opt-in): powers `@rewrite` and manual `operate!!`/`add_mul!!`
-# loops. `operate!!`/`add_mul!!` route here via MA's generic dispatch.
-MA.mutability(::Type{QAddBuilder}) = MA.IsMutable()
-MA.operate!(::typeof(+), b::QAddBuilder, x) = accumulate!(b, x)
-MA.operate!(::typeof(MA.add_mul), b::QAddBuilder, c, x) = accumulate!(b, c * x)
-MA.operate!(::typeof(zero), b::QAddBuilder) = (empty!(b.args); empty!(b.indices); b)
-# Kept specific (`QAddBuilder`/`QField`) to avoid ambiguity with MA's own methods.
-function MA.promote_operation(
-        ::Union{typeof(+), typeof(MA.add_mul)},
-        ::Type{<:Union{QAddBuilder, QField}}, ::Type,
+function MA.operate(
+        ::typeof(sum), a::AbstractArray{<:QAdd}; init = zero(QAdd),
     )
-    return QAddBuilder
+    isempty(a) && return init
+    if init isa QAdd || init isa QSym || init isa Coefficient
+        b = QAddBuilder()
+        accumulate!(b, init)
+        for x in a
+            accumulate!(b, x)
+        end
+        return build(b)
+    end
+    return mapreduce(identity, MA.add!!, a; init)
 end
+MA.promote_operation(::typeof(sum), ::Type{<:AbstractArray{<:QAdd}}) = QAdd
 
 # Ergonomic entry points: only `AbstractArray{<:QAdd}` (element is a `QAdd`, so
 # the result is a `QAdd`). A bracketed comprehension `sum([… for …])` is the fast

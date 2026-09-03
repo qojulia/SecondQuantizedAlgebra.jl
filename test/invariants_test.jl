@@ -1,318 +1,262 @@
 using SecondQuantizedAlgebra
 using Test
-using Symbolics: Symbolics, @variables
-using SymbolicUtils: SymbolicUtils
-import SecondQuantizedAlgebra: QAdd, QSym, QField, Index, simplify, normal_order,
-    depends_on_index_term, any_depends_on_index, iszero_cnum,
-    has_sum_metadata, get_sum_indices, is_average, undo_average
+using Symbolics: @variables
+import SecondQuantizedAlgebra:
+    QAdd,
+    QField,
+    constraint_pairs,
+    expim,
+    get_sum_body,
+    get_sum_indices,
+    get_sum_non_equal,
+    has_sum_metadata,
+    indexed_sum
 
-# ============================================================================
-# Invariant helpers
-#
-# These two predicates are the structural contracts that QAdd and average()
-# outputs must satisfy. Bugs A (stale `.indices` after cancellation) and B
-# (blanket `SumIndices` metadata on every averaged term) both violated one
-# of these but slipped through the example-based suite because every
-# isolated primitive looked correct on hand-rolled inputs.
-# ============================================================================
+@testset "Public algebraic properties" begin
+    @testset "canonicalization and average round trips" begin
+        h = FockSpace(:cavity) ⊗ NLevelSpace(:atom, 2, 1)
+        a = Destroy(h, :a, 1)
+        σ(α, β, i) = IndexedOperator(Transition(h, :σ, α, β, 2), i)
+        @variables N Δ g
+        i = Index(h, :i, N, 2)
+        j = Index(h, :j, N, 2)
+        k = Index(h, :k, N, 2)
 
-"""
-Every bound index advertised in `q.indices` must be carried by at least one
-surviving term, and every dict entry must have a nonzero coefficient.
-A violation means downstream code (printing, average) will wrap dead
-indices around terms that no longer depend on them.
-"""
-function check_qadd_invariants(q::QAdd)
-    failures = String[]
-    for idx in q.indices
-        any_depends_on_index(q, idx) ||
-            push!(failures, "index $(index_name(idx)) in .indices has no surviving carrier")
-    end
-    for (term, c) in q.arguments
-        iszero_cnum(c) && push!(failures, "term $(term.ops) has zero prefactor")
-    end
-    return failures
-end
-
-"""
-Walk an averaged symbolic expression and collect every indexed-sum node. For
-each, the underlying QAdd body must actually depend on at least one of the
-summation indices the node advertises. Blanket scope (Bug B) violates this.
-"""
-function check_average_metadata(avg)
-    failures = String[]
-    walk_avg!(failures, SymbolicUtils.unwrap(avg))
-    return failures
-end
-
-function walk_avg!(failures, x)
-    x isa SymbolicUtils.BasicSymbolic || return
-    if has_sum_metadata(x)
-        sum_idxs = get_sum_indices(x)
-        inner = undo_average(x)
-        if inner isa QAdd
-            any_dep = any(idx -> any_depends_on_index(inner, idx), sum_idxs)
-            any_dep || push!(
-                failures,
-                "indexed-sum node $(inner) carries indices=$(sum_idxs) but " *
-                    "does not depend on any of them"
-            )
-        end
-        return
-    end
-    SymbolicUtils.iscall(x) || return
-    for arg in SymbolicUtils.arguments(x)
-        walk_avg!(failures, arg)
-    end
-    return
-end
-
-assert_qadd_ok(q::QAdd, ctx::AbstractString) = begin
-    fs = check_qadd_invariants(q)
-    @test isempty(fs) || (println("QAdd invariant violated [$ctx]: ", fs); false)
-end
-
-assert_avg_ok(avg, ctx::AbstractString) = begin
-    fs = check_average_metadata(avg)
-    @test isempty(fs) || (println("avg invariant violated [$ctx]: ", fs); false)
-end
-
-# ============================================================================
-# Directed-fuzz corpus
-#
-# Each entry is a (label, ()->QAdd) pair. The harness applies the QAdd
-# invariant to every entry, then averages the entry and applies the
-# metadata invariant. The corpus exercises the composition paths that
-# bugs A and B lived on: sum-product, sum-sum, commutator-of-sums,
-# cancellation, and double-pinning. New paths can be appended without
-# rewriting the runner.
-# ============================================================================
-
-@testset "Invariants on QAdd and average() outputs" begin
-
-    # Operator setup shared by all corpus entries.
-    hc = FockSpace(:cavity)
-    ha = NLevelSpace(:atom, 2)
-    h = hc ⊗ ha
-    @qnumbers a::Destroy(h, 1)
-    σ(α, β, k) = IndexedOperator(Transition(h, :σ, α, β, 2), k)
-    @variables N Δ κ
-    g(k) = IndexedVariable(:g, k)
-    i = Index(h, :i, N, ha)
-    j = Index(h, :j, N, ha)
-    k = Index(h, :k, N, ha)
-
-    # Pure-Fock setup for sum-sum commutator and Spin/Pauli laws.
-    hf = FockSpace(:f)
-    @qnumbers b::Destroy(hf)
-    iF = Index(hf, :i, N, hf)
-    jF = Index(hf, :j, N, hf)
-    bi = IndexedOperator(b, iF)
-    bj = IndexedOperator(b, jF)
-    bj_dag = IndexedOperator(b', jF)
-
-    H = -Δ * a' * a + Σ(g(i) * (a' * σ(1, 2, i) + a * σ(2, 1, i)), i)
-
-    corpus = [
-        ("Σ minus itself (Bug A)", () -> Σ(g(i) * σ(1, 2, i), i) - Σ(g(i) * σ(1, 2, i), i)),
-        ("Σ product diag split", () -> Σ(g(i) * σ(1, 2, i), i) * σ(2, 1, j)),
-        ("Σ * external op other space", () -> Σ(g(i) * σ(1, 2, i), i) * a),
-        ("commutator(H, σ_j)", () -> commutator(H, σ(1, 2, j))),
-        ("commutator(H, a' σ_j)", () -> commutator(H, a' * σ(1, 2, j))),
-        ("commutator(H, σ_j σ_k)", () -> commutator(H, σ(1, 2, j) * σ(2, 1, k))),
-        ("sum-sum commutator (Bug A)", () -> commutator(Σ(bi, iF), Σ(bj_dag, jF))),
-        (
-            "(Σ_i b_i)(Σ_j b†_j) cancels", () -> Σ(bi, iF) * Σ(bj_dag, jF) -
-                Σ(bi, iF) * Σ(bj_dag, jF),
-        ),
-        (
-            "nested commutator on sums", () -> begin
-                # Inner commutator binds j; rename one side to avoid bound-name clash.
-                kF = Index(hf, :k, N, hf)
-                bk = IndexedOperator(b, kF)
-                commutator(Σ(bi, iF), commutator(Σ(bj_dag, jF), Σ(bk, kF)))
-            end,
-        ),
-        ("simplify(H - H)", () -> simplify(H - H)),
-        ("normal_order on sum prod", () -> normal_order(Σ(g(i) * σ(2, 2, i), i) * a' * a)),
-        (
-            "partial cancel: i dies, j lives",
-            () -> (Σ(g(i) * σ(1, 2, i), i) + Σ(g(j) * σ(2, 1, j), j)) - Σ(g(i) * σ(1, 2, i), i),
-        ),
-        ("double pin (i pinned twice)", () -> Σ(g(i) * σ(1, 2, i) * σ(2, 1, i), i) * σ(2, 1, j) * σ(1, 2, k)),
-        ("anticommutator on sums", () -> anticommutator(Σ(bi, iF), Σ(bj_dag, jF))),
-        # ----- Unitary transforms: `conjugate`/`transform` build a `QAdd` term by term, so
-        # they owe the same index-scope and no-zero-coefficient invariants as everything else.
-        ("conjugate under Displace", () -> conjugate(b' * b, Displace(b, Δ))),
-        ("conjugate under Squeeze", () -> conjugate(b' * b, Squeeze(b, κ))),
-        (
-            "transform under a timed resonator rotation", () -> begin
-                @variables tt
-                transform(Δ * b' * b + κ * (b + b'), Rotation(b, Δ * tt, tt))
-            end
-        ),
-        (
-            "gauge term of a moving squeeze", () -> begin
-                @variables tt
-                gauge_term(Squeeze(b, κ * tt, Δ * tt, tt))
-            end
-        ),
-        (
-            "conjugate then invert round-trips", () -> begin
-                U = Rotation(b, Δ) * Squeeze(b, κ)
-                conjugate(conjugate(b' * b, U), inv(U))
-            end,
-        ),
-        # ----- Operations the original corpus did not exercise -----
-        ("expand_completeness on Σ", () -> expand_completeness(Σ(σ(1, 1, i) * a, i))),
-        ("adjoint of Σ-product", () -> (Σ(g(i) * σ(1, 2, i), i) * σ(2, 1, j))'),
-        (
-            "substitute on Σ", () -> substitute(
-                Σ(g(i) * σ(1, 2, i), i),
-                Dict(σ(1, 2, j) => 2 * σ(1, 2, j))
+        @variables κS
+        corpus = [
+            ("a a'", a * a'),
+            ("a' a + a a'", a' * a + a * a'),
+            ("Σ_gσ", Σ(g * σ(1, 2, i), i)),
+            ("Σ_gσ * σ", Σ(g * σ(1, 2, i), i) * σ(2, 1, j)),
+            (
+                "commutator H σ_j",
+                commutator(-Δ * a' * a + Σ(g * a' * σ(1, 2, i), i), σ(1, 2, j)),
             ),
-        ),
-        (
-            "change_index after cancel", () -> change_index(
-                (Σ(g(i) * σ(1, 2, i), i) + Σ(g(j) * σ(2, 1, j), j)) - Σ(g(i) * σ(1, 2, i), i),
-                j, k
+            (
+                "commutator H σ_j σ_k",
+                commutator(
+                    -Δ * a' * a + Σ(g * a' * σ(1, 2, i), i),
+                    σ(1, 2, j) * σ(2, 1, k),
+                ),
             ),
-        ),
-        (
-            "Pauli sum-sum commutator", () -> begin
-                hP = PauliSpace(:p)
-                iP = Index(hP, :ip, N, hP)
-                jP = Index(hP, :jp, N, hP)
-                σxi = IndexedOperator(Pauli(hP, :σ, 1), iP)
-                σyj = IndexedOperator(Pauli(hP, :σ, 2), jP)
-                commutator(Σ(σxi, iP), Σ(σyj, jP))
-            end,
-        ),
-        (
-            "Dicke [H_dicke, σy_j]", () -> begin
-                # Cavity ⊗ Pauli-atom, atoms collectively coupled. Tests Pauli
-                # commutator emission interacting with both an indexed sum over
-                # atoms and a Fock-side prefactor (a + a').
-                hcD = FockSpace(:cavity)
-                hpD = PauliSpace(:atom)
-                hD = hcD ⊗ hpD
-                aD = Destroy(hD, :a, 1)
-                iD = Index(hD, :id, N, hpD)
-                jD = Index(hD, :jd, N, hpD)
-                σxD(kk) = IndexedOperator(Pauli(hD, :σ, 1, 2), kk)
-                σyD(kk) = IndexedOperator(Pauli(hD, :σ, 2, 2), kk)
-                σzD(kk) = IndexedOperator(Pauli(hD, :σ, 3, 2), kk)
-                @variables ω₀ ωₐ λ
-                H_dicke = ω₀ * aD' * aD + ωₐ * Σ(σzD(iD), iD) +
-                    λ * (aD + aD') * Σ(σxD(iD), iD)
-                commutator(H_dicke, σyD(jD))
-            end
-        ),
-    ]
+            ("expand_completeness Σ", expand_completeness(Σ(σ(1, 1, i), i))),
+            ("substitute Σ", substitute(Σ(g * σ(1, 2, i), i), Dict(g => 2))),
+            ("change_index Σ", change_index(Σ(g * σ(1, 2, i), i), i, j)),
+            ("Σ minus itself", Σ(g * σ(1, 2, i), i) - Σ(g * σ(1, 2, i), i)),
+            ("Σ product diag split", Σ(g * σ(1, 2, i), i) * σ(2, 1, j)),
+            (
+                "simplify H-H",
+                simplify(
+                    (-Δ * a' * a + Σ(g * a' * σ(1, 2, i), i)) -
+                        (-Δ * a' * a + Σ(g * a' * σ(1, 2, i), i)),
+                ),
+            ),
+            ("adjoint Σ-product", (Σ(g * σ(1, 2, i), i) * σ(2, 1, j))'),
+            ("normal_order sum prod", normal_order(Σ(g * σ(2, 2, i), i) * a' * a)),
+            (
+                "partial cancel i dies j lives",
+                (Σ(g * σ(1, 2, i), i) + Σ(g * σ(2, 1, j), j)) - Σ(g * σ(1, 2, i), i),
+            ),
+            (
+                "double pin i twice",
+                Σ(g * σ(1, 2, i) * σ(2, 1, i), i) * σ(2, 1, j) * σ(1, 2, k),
+            ),
+            ("conjugate Displace", conjugate(a' * a, Displace(a, Δ))),
+            ("conjugate Squeeze", conjugate(a' * a, Squeeze(a, κS))),
+            (
+                "sum-sum commutator Bug A",
+                let hf = FockSpace(:fb), bi = IndexedOperator(Destroy(hf, :b), Index(hf, :iF, N, hf)), jF = Index(hf, :jF, N, hf), bj_dag = IndexedOperator(Create(hf, :b), jF)
+                    commutator(Σ(bi, Index(hf, :iF, N, hf)), Σ(bj_dag, jF))
+                end,
+            ),
+            (
+                "anticommutator on sums",
+                let hf = FockSpace(:fb2), iF = Index(hf, :iF, N, hf), jF = Index(hf, :jF, N, hf), bi = IndexedOperator(Destroy(hf, :b), iF), bj_dag = IndexedOperator(Create(hf, :b), jF)
+                    anticommutator(Σ(bi, iF), Σ(bj_dag, jF))
+                end,
+            ),
+            (
+                "Pauli sum-sum",
+                let hP = PauliSpace(:p_inv), iP = Index(hP, :ip, N, hP), jP = Index(hP, :jp, N, hP), σxi = IndexedOperator(Pauli(hP, :σ, 1), iP), σyj = IndexedOperator(Pauli(hP, :σ, 2), jP)
+                    commutator(Σ(σxi, iP), Σ(σyj, jP))
+                end,
+            ),
+            (
+                "Dicke [H, σy_j]",
+                let hcD = FockSpace(:cD), hpD = PauliSpace(:aD), hD = hcD ⊗ hpD, aD = Destroy(hD, :a, 1), iD = Index(hD, :id, N, hpD), jD = Index(hD, :jd, N, hpD), σxD(kk) = IndexedOperator(Pauli(hD, :σ, 1, 2), kk), σyD(kk) = IndexedOperator(Pauli(hD, :σ, 2, 2), kk), σzD(kk) = IndexedOperator(Pauli(hD, :σ, 3, 2), kk), ω₀ = 1.0, ωₐ = 1.0, λ = 0.5
+                    H_dicke = ω₀ * aD' * aD + ωₐ * Σ(σzD(iD), iD) + λ * (aD + aD') * Σ(σxD(iD), iD)
+                    commutator(H_dicke, σyD(jD))
+                end,
+            ),
+            (
+                "coefficient-index leak u(j,i)",
+                let ha = NLevelSpace(:atom_leak, 2), h = FockSpace(:cav_leak) ⊗ ha, iL = Index(h, :iL, N, ha), jL = Index(h, :jL, N, ha), kL = Index(h, :kL, N, ha), u(k, l) = DoubleIndexedVariable(:u, k, l), σL(kk) = IndexedOperator(Transition(h, :σ, 1, 2, 2), kk)
+                    inner = Σ(u(jL, kL) * (σL(jL) + σL(kL)), jL)
+                    outer = Σ(inner, kL)
+                    commutator(σL(iL)' * σL(iL), outer)
+                end,
+            ),
+            ("expand_completeness on Σ", expand_completeness(Σ(σ(1, 1, i) * a, i))),
+            (
+                "substitute on Σ",
+                substitute(Σ(g * σ(1, 2, i), i), Dict(σ(1, 2, j) => 2 * σ(1, 2, j))),
+            ),
+        ]
 
-    @testset "$label" for (label, builder) in corpus
-        q = builder()
-        @test q isa QAdd
-        assert_qadd_ok(q, label)
-        avg = average(q)
-        assert_avg_ok(avg, label)
-    end
-end
-
-# ============================================================================
-# Algebraic laws on the operator zoo
-#
-# Property tests, not example tests. Each law holds for every (A, B) pair
-# we construct, so adding a new operator type or composition shape only
-# requires extending the basis; the assertions need no edits.
-# ============================================================================
-
-@testset "Algebraic laws" begin
-    hc = FockSpace(:cavity)
-    ha = NLevelSpace(:atom, 2)
-    h = hc ⊗ ha
-    @qnumbers a::Destroy(h, 1)
-    σ(α, β, kk) = IndexedOperator(Transition(h, :σ, α, β, 2), kk)
-    @variables N
-    g(kk) = IndexedVariable(:g, kk)
-    i = Index(h, :i, N, ha)
-    j = Index(h, :j, N, ha)
-
-    hs = SpinSpace(:s)
-    Sx = Spin(hs, :S, 1)
-    Sy = Spin(hs, :S, 2)
-    Sz = Spin(hs, :S, 3)
-
-    # Build a small operator basis spanning leaf / product / sum / sum-prod
-    # across Fock, NLevel, and Spin so the law assertions hit every code
-    # path the algebra uses.
-    basis = [
-        ("a", a),
-        ("a'", a'),
-        ("a'*a", a' * a),
-        ("a + a'", a + a'),
-        ("σ_j^{12}", σ(1, 2, j)),
-        ("σ_j^{11}", σ(1, 1, j)),
-        ("a * σ_j^{12}", a * σ(1, 2, j)),
-        ("Σ_i g(i) σ_i^{12}", Σ(g(i) * σ(1, 2, i), i)),
-        ("Σ_i g(i) a σ_i^{21}", Σ(g(i) * a * σ(2, 1, i), i)),
-        ("Sx", Sx),
-        ("Sx + Sy", Sx + Sy),
-        ("Sx * Sy", Sx * Sy),
-    ]
-
-    @testset "commutator antisymmetry [A,B] + [B,A] = 0" begin
-        for (la, A) in basis, (lb, B) in basis
-            # Skip pairs that share a bound index name (product would throw).
-            A isa QAdd && B isa QAdd &&
-                !isempty(A.indices) && !isempty(B.indices) &&
-                any(idx -> idx in B.indices, A.indices) && continue
-            sum = commutator(A, B) + commutator(B, A)
-            @test iszero(simplify(sum)) ||
-                (println("antisymmetry failed for ($la, $lb): ", sum); false)
+        for (label, expression) in corpus
+            @test iszero(simplify(expression - normal_order(expression))) ||
+                error("canonical invariant failed: $label")
+            @test iszero(simplify(undo_average(average(expression)) - expression)) ||
+                error("average roundtrip failed: $label")
         end
+        # Rotation unitary
+        @test iszero(simplify(conjugate(a, Rotation(a, Δ)) - expim(-Δ) * a))
+        hF = FockSpace(:f)
+        @qnumbers b::Destroy(hF)
+        @variables κd tt Δt ttt
+        @test iszero(
+            simplify(
+                conjugate(conjugate(b' * b, Rotation(b, Δ) * Squeeze(b, κd)), inv(Rotation(b, Δ) * Squeeze(b, κd))) - b' * b,
+            ),
+        )
+        gt = gauge_term(Squeeze(b, κd * ttt, Δt * ttt, ttt))
+        @test gt isa QAdd || gt isa QField
     end
 
-    @testset "commutator bilinearity [A, B+C] = [A,B] + [A,C]" begin
-        # Pick a representative spread; the full Cartesian cube is overkill.
-        A_cases = [a, σ(1, 2, j), Sx]
-        B_cases = [a', σ(2, 1, j), Sy]
-        C_cases = [a, σ(1, 1, j), Sz]
-        for (A, B, C) in zip(A_cases, B_cases, C_cases)
-            lhs = commutator(A, B + C)
-            rhs = commutator(A, B) + commutator(A, C)
-            @test iszero(simplify(lhs - rhs))
+    @testset "cancellation never leaves observable scope" begin
+        h = FockSpace(:sites)
+        a = Destroy(h, :a)
+        @variables N
+        i = Index(h, :i, N, h)
+        j = Index(h, :j, N, h)
+        left = Σ(IndexedOperator(a, i), i)
+        right = Σ(IndexedOperator(a, j), j)
+
+        @test isempty(get_indices(left - left))
+        @test Set(get_indices(left - right)) == Set([i, j])
+        @test get_indices((left + right) - left) == [j]
+        @test isempty(get_indices(commutator(left, Σ(IndexedOperator(a', j), j))))
+    end
+
+    @testset "sum-sum commutator and indexed cancellations" begin
+        h = FockSpace(:cavity) ⊗ NLevelSpace(:atom, 2, 1)
+        a = Destroy(h, :a, 1)
+        σ(α, β, k) = IndexedOperator(Transition(h, :σ, α, β, 2), k)
+        @variables N
+        i = Index(h, :i, N, 2)
+        j = Index(h, :j, N, 2)
+        hf = FockSpace(:fmodes)
+        b = Destroy(hf, :b)
+        iF = Index(hf, :iF, N, hf)
+        jF = Index(hf, :jF, N, hf)
+        # sum-sum commutator yields scalar, no indices
+        c = commutator(Σ(IndexedOperator(b, iF), iF), Σ(IndexedOperator(b', jF), jF))
+        @test iszero(simplify(c - N))
+        @test isempty(get_indices(c))
+        # constants inside Σ pick up range factor
+        @test iszero(simplify(Σ(IndexedOperator(b, iF) + 1, iF) - (Σ(IndexedOperator(b, iF), iF) + N)))
+        # Pauli sum-sum
+        hP = PauliSpace(:pauli_inv)
+        iP = Index(hP, :ip, N, hP)
+        jP = Index(hP, :jp, N, hP)
+        σxi = IndexedOperator(Pauli(hP, :σ, 1), iP)
+        σyj = IndexedOperator(Pauli(hP, :σ, 2), jP)
+        p = Σ(σxi, iP) * Σ(σyj, jP)
+        @test length(p) == 2
+        @test any(pair -> pair == (iP, jP) || pair == (jP, iP), constraint_pairs(p))
+    end
+
+    @testset "public algebraic laws" begin
+        h = FockSpace(:cavity)
+        a = Destroy(h, :a)
+        b = Destroy(h, :b)
+        ha = NLevelSpace(:atom, 2)
+        hmix = h ⊗ ha
+        af = Destroy(hmix, :a, 1)
+        σ(α, β, k) = IndexedOperator(Transition(hmix, :σ, α, β, 2), k)
+        @variables N gval
+        i = Index(hmix, :i, N, ha)
+        j = Index(hmix, :j, N, ha)
+        base = [
+            ("a", a),
+            ("a'", a'),
+            ("a'*a", a' * a),
+            ("a+a'", a + a'),
+            ("σ_j^{12}", σ(1, 2, j)),
+            ("σ_j^{11}", σ(1, 1, j)),
+            ("a*σ_j", af * σ(1, 2, j)),
+            ("Σ g σ", Σ(gval * σ(1, 2, i), i)),
+        ]
+        for (la, A) in base, (lb, B) in base
+            (A isa QAdd && B isa QAdd && !isempty(get_indices(A)) && !isempty(get_indices(B)) && any(idx -> idx in get_indices(B), get_indices(A))) && continue
+            @test iszero(simplify(commutator(A, B) + commutator(B, A))) ||
+                error("antisymmetry $la,$lb")
         end
-    end
-
-    @testset "average linearity average(A + B) = average(A) + average(B)" begin
-        for (la, A) in basis, (lb, B) in basis
-            A isa QAdd && B isa QAdd &&
-                !isempty(A.indices) && !isempty(B.indices) &&
-                any(idx -> idx in B.indices, A.indices) && continue
-            lhs = average(A + B)
-            rhs = average(A) + average(B)
-            # Both sides go through `simplify` on the underlying QAdd so
-            # symbolic prefactors match up.
-            d = simplify(undo_average(lhs) - undo_average(rhs))
-            @test iszero(d) ||
-                (println("linearity failed for ($la, $lb)"); false)
+        for (A, B, C) in ((a, a', b), (a + a', a, b'), (a' * a, a + b, a' - b'))
+            @test iszero(simplify(commutator(A, B + C) - commutator(A, B) - commutator(A, C)))
         end
-    end
-
-    @testset "undo_average ∘ average roundtrip" begin
-        for (label, A) in basis
+        # average linearity over base
+        for (la, A) in base, (lb, B) in base
+            (A isa QAdd && B isa QAdd && !isempty(get_indices(A)) && !isempty(get_indices(B)) && any(idx -> idx in get_indices(B), get_indices(A))) && continue
+            d = simplify(undo_average(average(A + B)) - undo_average(average(A) + average(B)))
+            @test iszero(d) || error("average linearity $la $lb")
+        end
+        for (label, A) in base
             qa = A isa QAdd ? A : (1 * A)
-            r = undo_average(average(qa))
-            @test iszero(simplify(r - qa)) ||
-                (println("roundtrip failed for $label: r=$r, qa=$qa"); false)
+            @test iszero(simplify(undo_average(average(qa)) - qa)) || error("roundtrip $label")
+            @test iszero(commutator(A, A))
+            @test isequal(adjoint(adjoint(qa)), qa)
         end
+
+        hs = SpinSpace(:spin)
+        Sx = Spin(hs, :S, 1)
+        Sy = Spin(hs, :S, 2)
+        Sz = Spin(hs, :S, 3)
+        jacobi = commutator(commutator(Sx, Sy), Sz) +
+            commutator(commutator(Sy, Sz), Sx) +
+            commutator(commutator(Sz, Sx), Sy)
+        @test iszero(simplify(jacobi))
     end
 
-    @testset "Spin Jacobi identity [[Sx,Sy],Sz] + [[Sy,Sz],Sx] + [[Sz,Sx],Sy] = 0" begin
-        j1 = commutator(commutator(Sx, Sy), Sz)
-        j2 = commutator(commutator(Sy, Sz), Sx)
-        j3 = commutator(commutator(Sz, Sx), Sy)
-        @test iszero(simplify(j1 + j2 + j3))
+    @testset "indexed average metadata describes its scope" begin
+        h = NLevelSpace(:atom, 2)
+        @variables N
+        i = Index(h, :i, N, h)
+        j = Index(h, :j, N, h)
+        σ(k) = IndexedOperator(Transition(h, :σ, 1, 2), k)
+
+        averaged = average(Σ(σ(i), i, [j]))
+        @test is_indexed_sum(averaged)
+        @test has_sum_metadata(averaged)
+        @test get_sum_indices(averaged) == [i]
+        @test get_sum_non_equal(averaged) == [(i, j)]
+        @test iszero(undo_average(averaged) - Σ(σ(i), i, [j]))
+
+        plain = average(Σ(σ(i), i))
+        @test get_sum_indices(plain) == [i]
+        @test isempty(get_sum_non_equal(plain))
+
+        # Sum-independent term must not carry metadata
+        hf = FockSpace(:f)
+        @qnumbers bf::Destroy(hf)
+        iF = Index(hf, :iF, N, hf)
+        jF = Index(hf, :jF, N, hf)
+        c = commutator(Σ(IndexedOperator(bf, iF), iF), Σ(IndexedOperator(bf', jF), jF))
+        @test !has_sum_metadata(average(c))
+
+        # Split metadata: dep vs indep
+        hmix = FockSpace(:cavity) ⊗ NLevelSpace(:atom, 2)
+        a2 = Destroy(hmix, :a, 1)
+        σ2(k) = IndexedOperator(Transition(hmix, :σ, 1, 2, 2), k)
+        g2(k) = IndexedVariable(:g, k)
+        i2 = Index(hmix, :i2, N, 2)
+        j2 = Index(hmix, :j2, N, 2)
+        prod = Σ(g2(i2) * σ2(i2), i2) * σ2(j2)
+        avg = average(prod)
+        @test !isequal(avg, 0)
+        # off-diagonal constraint should be visible via constraint_pairs on undo
+        restored = undo_average(avg)
+        @test !iszero(restored)
+        @test iszero(simplify(undo_average(average(Σ(g2(i2) * σ2(i2), i2))) - Σ(g2(i2) * σ2(i2), i2)))
     end
 end

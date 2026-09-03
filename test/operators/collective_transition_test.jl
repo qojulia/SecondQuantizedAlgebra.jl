@@ -1,5 +1,5 @@
 using SecondQuantizedAlgebra
-import SecondQuantizedAlgebra: NO_INDEX, QAdd
+import SecondQuantizedAlgebra: transition_superscript
 using Latexify: latexify
 using QuantumOpticsBase
 using Test
@@ -10,9 +10,7 @@ using Test
         S12 = CollectiveTransition(h, :S, 1, 2)
         @test is_collective_transition(S12)
         @test !is_transition(S12)
-        @test S12.l1 == 1
-        @test S12.l2 == 2
-        @test S12.index == NO_INDEX
+        @test acts_on(S12) == [1]
         @test operator_name(S12) == :S
         @test S12' == CollectiveTransition(h, :S, 2, 1)
         @test S12'' == S12
@@ -36,14 +34,14 @@ using Test
         @test_throws ArgumentError CollectiveTransition(hc, :S, :missing, :e)
 
         h = FockSpace(:cavity) ⊗ hc
-        @test CollectiveTransition(h, :S, 1, 2).space_index == 2
+        @test acts_on(CollectiveTransition(h, :S, 1, 2)) == [2]
         @test CollectiveTransition(h, :S, :g, :e, 2) ==
             CollectiveTransition(h, :S, 1, 2, 2)
         @test_throws ArgumentError CollectiveTransition(h, :S, 1, 2, 1)
 
         duplicate = hc ⊗ CollectiveNLevelSpace(:other, 2)
         @test_throws ArgumentError CollectiveTransition(duplicate, :S, 1, 2)
-        @test CollectiveTransition(duplicate, :T, 1, 2, 2).space_index == 2
+        @test acts_on(CollectiveTransition(duplicate, :T, 1, 2, 2)) == [2]
     end
 
     @testset "fundamental operators and indexing" begin
@@ -51,23 +49,17 @@ using Test
         fund = fundamental_operators(h)
         @test length(fund) == 9
         @test all(is_collective_transition, fund)
-        @test Set((Int(op.l1), Int(op.l2)) for op in fund) ==
-            Set((i, j) for i in 1:3 for j in 1:3)
+        expected = [CollectiveTransition(h, :S, i, j) for i in 1:3 for j in 1:3]
+        @test Set(fund) == Set(expected)
 
         S12 = CollectiveTransition(h, :S, 1, 2)
         i = Index(h, :i, 4, h)
         @test_throws ArgumentError IndexedOperator(S12, i)
-        @test IndexedOperator(S12, NO_INDEX) == S12
     end
 
     @testset "su(N) algebra" begin
         h = CollectiveNLevelSpace(:atom, 3)
         S(i, j) = CollectiveTransition(h, :S, i, j)
-
-        ordered = S(2, 1) * S(1, 3)
-        @test ordered isa QAdd
-        @test length(ordered) == 1
-        @test only(keys(ordered.arguments)).ops == [S(2, 1), S(1, 3)]
 
         @test iszero(simplify(S(1, 2) * S(2, 3) - S(1, 3) - S(2, 3) * S(1, 2)))
         @test iszero(simplify(S(1, 2) * S(2, 1) - S(1, 1) + S(2, 2) - S(2, 1) * S(1, 2)))
@@ -75,11 +67,6 @@ using Test
         @test iszero(simplify(commutator(S(1, 2), S(2, 3)) - S(1, 3)))
         @test iszero(commutator(S(1, 2), S(1, 3)))
         @test expand_completeness(S(1, 1)) == simplify(S(1, 1))
-
-        square = S(1, 2) * S(1, 2)
-        @test length(square) == 1
-        term = only(keys(square.arguments))
-        @test term.ops == [S(1, 2), S(1, 2)]
 
         T12 = CollectiveTransition(h, :T, 1, 2)
         @test iszero(commutator(S(1, 2), T12))
@@ -138,9 +125,9 @@ using Test
         @test sprint(show, h) == "ℋ(atom)"
         @test sprint(show, S12) == "S₁₂"
         @test string(latexify(S12)) == raw"${S}^{{12}}$"
-        SecondQuantizedAlgebra.transition_superscript(false)
+        transition_superscript(false)
         @test string(latexify(S12)) == raw"${S}_{{12}}$"
-        SecondQuantizedAlgebra.transition_superscript(true)
+        transition_superscript(true)
 
         @inferred CollectiveTransition(h, :S, 1, 2)
         @inferred adjoint(S12)

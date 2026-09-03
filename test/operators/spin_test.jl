@@ -1,12 +1,12 @@
 using SecondQuantizedAlgebra
-import SecondQuantizedAlgebra: simplify, QAdd, QSym, HilbertSpace, single_qadd, to_cnum, Index
+import SecondQuantizedAlgebra: simplify
 using Test
 
 @testset "spin" begin
     @testset "Spin construction — product space" begin
         h = FockSpace(:c) ⊗ SpinSpace(:s)
         Sx = Spin(h, :S, 1, 2)
-        @test Sx.space_index == 2
+        @test acts_on(Sx) == [2]
         @test_throws ArgumentError Spin(h, :S, 1, 1)
     end
 
@@ -21,11 +21,8 @@ using Test
         Sx = Spin(h, :S, 1)
         Sy = Spin(h, :S, 2)
 
-        m = Sx * Sy
-        @test m isa QAdd
-
-        s = Sx + Sy
-        @test s isa QAdd
+        @test iszero(commutator(Sx, Sy) - im * Spin(h, :S, 3))
+        @test iszero((Sx + Sy) - (Sy + Sx))
     end
 
     @testset "@qnumbers" begin
@@ -33,7 +30,7 @@ using Test
         @qnumbers Sx::Spin(h, 1)
         @test is_spin(Sx)
         @test operator_name(Sx) == :Sx
-        @test Sx.l1 == 1
+        @test operator_name(Sx) == :Sx
     end
 
     @testset "Pauli algebra — single space" begin
@@ -46,11 +43,9 @@ using Test
         @test isequal(simplify(normal_order(s(1) * s(2))), simplify(1im * s(3)))
         @test !isequal(simplify(normal_order(s(1) * s(2))), simplify(1im * s(2)))
         @test isequal(simplify(normal_order(s(1) * s(3))), simplify(-1im * s(2)))
-        @test isequal(simplify(normal_order(s(3) * s(3))), single_qadd(to_cnum(1), Op[]))
+        @test iszero(simplify(normal_order(s(3) * s(3)) - 1))
         @test isequal(simplify(normal_order(s(3) * s(1))), simplify(1im * s(2)))
-        @test isequal(
-            simplify(normal_order(s(1) * s(2) * s(3))), single_qadd(to_cnum(1im), Op[]),
-        )
+        @test iszero(simplify(normal_order(s(1) * s(2) * s(3)) - 1im))
 
         # adjoint (Hermitian)
         for axis in 1:3

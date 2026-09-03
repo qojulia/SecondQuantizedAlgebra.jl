@@ -175,49 +175,6 @@ function expand_gs_ops(sink::F, ops::Vector{Op}, c::CNum) where {F}
     return
 end
 
-"""
-    substitute_ops(sink, ops, c, d)
-
-Walk `ops` applying substitutions from `d`. Supported value types:
-
-- `QSym`            — replaced in place
-- `Number` / `CNum` — folded into the coefficient (operator removed)
-- `QAdd`            — spliced; forks once per term of the `QAdd`
-- symbolic key      — passes through to `substitute_cnum` on the coefficient
-"""
-function substitute_ops(sink::F, ops::Vector{Op}, c::CNum, d) where {F}
-    for i in eachindex(ops)
-        op = ops[i]
-        haskey(d, op) || continue
-        val = d[op]
-        if val isa QSym
-            new_ops = copy(ops)
-            new_ops[i] = val
-            return substitute_ops(sink, new_ops, c, d)
-        elseif val isa Number
-            new_c = mul_cnum(c, to_cnum(val))
-            iszero_cnum(new_c) && return
-            new_ops = Op[ops[k] for k in eachindex(ops) if k != i]
-            return substitute_ops(sink, new_ops, new_c, d)
-        elseif val isa QAdd
-            for (vt, vc) in val
-                spliced_ops = copy(ops)
-                deleteat!(spliced_ops, i)
-                for (k, vop) in enumerate(vt.ops)
-                    insert!(spliced_ops, i + k - 1, vop)
-                end
-                new_c = mul_cnum(c, vc)
-                substitute_ops(sink, spliced_ops, new_c, d)
-            end
-            return
-        end
-    end
-    new_c = substitute_cnum(c, d)
-    iszero_cnum(new_c) && return
-    sink(ops, new_c)
-    return
-end
-
 @inline provably_real_replacement(x::Real) = true
 @inline provably_real_replacement(x::Num) = SymbolicUtils.symtype(x) <: Real
 @inline provably_real_replacement(x::SymbolicUtils.BasicSymbolic) =
