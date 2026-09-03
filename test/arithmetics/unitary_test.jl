@@ -42,6 +42,9 @@ import SecondQuantizedAlgebra: expim, exponential_form
         @test iszero(simplify(conjugate(a', inv(U)) - expim(-θ) * a'))
         @test iszero(simplify(gauge_term(U)))
 
+        spectator = Destroy(FockSpace(:spectator), :spectator)
+        @test iszero(simplify(conjugate(spectator, U) - spectator))
+
         U = Squeeze(a, r, ϕ)
         image = cosh(r) * a + expim(ϕ) * sinh(r) * a'
         @test iszero(simplify(conjugate(a, U) - image))

@@ -329,6 +329,10 @@ import SecondQuantizedAlgebra: simplify, transition_superscript, make_time_depen
         s = string(a' + a - 3 * a' * a)
         @test occursin(" - 3", s)
         @test !occursin("+ -", s)
+
+        raw_negative = string(a + (-big"1e100") * ad)
+        @test occursin(" - ", raw_negative)
+        @test !occursin("+ -", raw_negative)
     end
 
     @testset "explicit phase display" begin
