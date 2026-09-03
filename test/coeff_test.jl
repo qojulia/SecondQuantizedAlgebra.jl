@@ -310,8 +310,145 @@ import SecondQuantizedAlgebra: expim, exponential_form, phase_terms, to_num,
         )
     end
 
+    @testset "public raw coefficient paths" begin
+        @variables θ φ g z::Number
+        ordinary = stored_coefficient(exp(1 + g) * a)
+        raw_phase = stored_coefficient(exp(1 + g) * expim(θ) * a)
+        raw_phase_other = stored_coefficient(exp(2 + g) * expim(φ) * a)
+        raw_phase_negative = stored_coefficient(exp(2 + g) * expim(-θ) * a)
+
+        mixed_phase = stored_coefficient(g * expim(θ) * expim(φ) * a)
+        mixed_terms = phase_terms(mixed_phase)
+        @test length(mixed_terms) == 1
+        @test Symbolics.simplify(mixed_terms[1].phase - θ - φ) == 0
+        @test Symbolics.simplify(to_num(mixed_terms[1].amplitude) - g) == 0
+
+        duplicated_phase = stored_coefficient(g * expim(θ) * a) *
+            stored_coefficient(g * expim(φ) * a)
+        duplicated_terms = phase_terms(duplicated_phase)
+        @test length(duplicated_terms) == 1
+        @test Symbolics.simplify(duplicated_terms[1].phase - θ - φ) == 0
+        @test Symbolics.simplify(to_num(duplicated_terms[1].amplitude) - g^2) == 0
+
+        constant_phase = expim(θ + 1) * expim(-θ)
+        @test constant_phase == exp(im)
+        mixed_constant_phase = stored_coefficient(
+            g * expim(θ + 1) * expim(-θ) * a,
+        )
+        @test Symbolics.simplify(to_num(mixed_constant_phase) - g * exp(im)) == 0
+
+        raw_sum = raw_phase + raw_phase_other
+        sum_terms = phase_terms(raw_sum)
+        @test length(sum_terms) == 2
+        @test any(isequal(term.phase, θ) for term in sum_terms)
+        @test any(isequal(term.phase, φ) for term in sum_terms)
+        @test iszero(raw_sum + -raw_sum)
+        @test hash(raw_phase) == hash(
+            stored_coefficient(exp(1 + g) * expim(θ) * a),
+        )
+
+        square_terms = phase_terms(raw_phase^2)
+        @test length(square_terms) == 1
+        @test Symbolics.simplify(square_terms[1].phase - 2θ) == 0
+        @test Symbolics.simplify(
+            real(square_terms[1].amplitude) - exp(1 + g)^2,
+        ) == 0
+
+        single_quotient = ordinary / stored_coefficient(expim(θ) * a)
+        expected_quotient = stored_coefficient(exp(1 + g) * expim(-θ) * a)
+        @test Symbolics.simplify(
+            to_num(single_quotient) - to_num(expected_quotient),
+        ) == 0
+
+        denominator_product = raw_phase * raw_phase_other
+        denominator_terms = phase_terms(ordinary / denominator_product)
+        @test length(denominator_terms) == 1
+        @test Symbolics.simplify(denominator_terms[1].phase + θ + φ) == 0
+
+        product_terms = phase_terms((raw_phase * raw_phase_other) / ordinary)
+        @test length(product_terms) == 1
+        @test Symbolics.simplify(product_terms[1].phase - θ - φ) == 0
+
+        cancellation_terms = phase_terms(
+            (raw_phase * raw_phase_negative) / ordinary,
+        )
+        @test length(cancellation_terms) == 1
+        @test iszero(cancellation_terms[1].phase)
+        @test Symbolics.simplify(
+            real(cancellation_terms[1].amplitude) - exp(2 + g),
+        ) == 0
+
+        power_terms = phase_terms(raw_phase^2 / ordinary)
+        @test length(power_terms) == 1
+        @test Symbolics.simplify(power_terms[1].phase - 2θ) == 0
+
+        raw_complex = stored_coefficient((2 + 3im) * exp(1 + g) * a)
+        conjugate_complex = conj(raw_complex)
+        @test Symbolics.simplify(real(conjugate_complex) - 2exp(1 + g)) == 0
+        @test Symbolics.simplify(imag(conjugate_complex) + 3exp(1 + g)) == 0
+
+        raw_nonreal = stored_coefficient(exp(1 + z) * a)
+        conjugate_nonreal = conj(raw_nonreal)
+        @test isequal(real(conjugate_nonreal), real(exp(1 + z)))
+        @test isequal(imag(conjugate_nonreal), -imag(exp(1 + z)))
+
+        raw_complex_slots = stored_coefficient(
+            Complex(Num(exp(1 + g)), Num(exp(1 + g))) * a,
+        )
+        @test Symbolics.simplify(real(raw_complex_slots) - exp(1 + g)) == 0
+        @test Symbolics.simplify(imag(raw_complex_slots) - exp(1 + g)) == 0
+
+        complex_constant = stored_coefficient(Complex(1 // 3, 1 // 2) * a)
+        complex_quotient = complex_constant / ordinary
+        @test Symbolics.simplify(
+            real(complex_quotient) - (1 // 3) / exp(1 + g),
+        ) == 0
+        @test Symbolics.simplify(
+            imag(complex_quotient) - (1 // 2) / exp(1 + g),
+        ) == 0
+        @test Symbolics.simplify(
+            to_num(Symbolics.derivative(complex_quotient, g)) -
+                ((-1 // 3) - im * (1 // 2)) / exp(1 + g),
+        ) == 0
+        conjugate_quotient = conj(complex_quotient)
+        @test Symbolics.simplify(
+            real(conjugate_quotient) - (1 // 3) / exp(1 + g),
+        ) == 0
+        @test Symbolics.simplify(
+            imag(conjugate_quotient) + (1 // 2) / exp(1 + g),
+        ) == 0
+        conjugate_constant = conj(complex_constant)
+        @test isequal(real(conjugate_constant), Num(1 // 3))
+        @test isequal(imag(conjugate_constant), -Num(1 // 2))
+
+        cube_root = stored_coefficient(cbrt(g) * a)
+        square_root = stored_coefficient(sqrt(g) * a)
+        inverse_square_root = stored_coefficient(g^(-1 // 2) * a)
+        @test isequal(real(cube_root), g^(1 // 3))
+        @test isequal(real(square_root), sqrt(g))
+        @test isequal(real(inverse_square_root), 1 / sqrt(g))
+        negative_integer_power = stored_coefficient(g^(-2) * a)
+        @test Symbolics.simplify(real(negative_integer_power) - 1 / g^2) == 0
+
+        polynomial = stored_coefficient(g * a)
+        @test isequal(
+            2 / polynomial,
+            stored_coefficient((2 / g) * a),
+        )
+        @test convert(SecondQuantizedAlgebra.Coeff, polynomial) === polynomial
+        @test isequal(
+            convert(SecondQuantizedAlgebra.Coeff, Complex(Num(g), Num(0))),
+            polynomial,
+        )
+        negative_exponent = parse(Int, "-2")
+        @test isequal(
+            polynomial^negative_exponent,
+            stored_coefficient((1 / g^2) * a),
+        )
+    end
+
     @testset "public symbolic conversion boundaries" begin
-        @variables θ ω t
+        @variables θ ω t z::Number
         raw_exp = SymbolicUtils.term(
             exp,
             SymbolicUtils.term(
@@ -342,6 +479,84 @@ import SecondQuantizedAlgebra: expim, exponential_form, phase_terms, to_num,
         @test isequal(exponential_form(Num(raw_exp)), expim(θ))
         @test isequal(exponential_form(Num(raw_cis)), expim(θ))
         @test isequal(exponential_form(Num(raw_power)), expim(2θ))
+        raw_complex = SymbolicUtils.term(
+            complex,
+            SymbolicUtils.unwrap(θ),
+            SymbolicUtils.unwrap(ω);
+            type = Complex{Real}, shape = UnitRange{Int}[],
+        )
+        @test isequal(
+            to_num(exponential_form(Num(raw_complex))),
+            Complex(θ, ω),
+        )
+        @test isequal(
+            exponential_form(Complex(Num(raw_phase), Num(0))),
+            expim(θ),
+        )
+        raw_conj_phase = SymbolicUtils.term(
+            conj,
+            raw_phase;
+            type = Complex{Real}, shape = UnitRange{Int}[],
+        )
+        raw_real_phase = SymbolicUtils.term(
+            real,
+            raw_phase;
+            type = Real, shape = UnitRange{Int}[],
+        )
+        raw_imag_phase = SymbolicUtils.term(
+            imag,
+            raw_phase;
+            type = Real, shape = UnitRange{Int}[],
+        )
+        raw_abs_phase = SymbolicUtils.term(
+            abs,
+            raw_phase;
+            type = Real, shape = UnitRange{Int}[],
+        )
+        raw_abs2_phase = SymbolicUtils.term(
+            abs2,
+            raw_phase;
+            type = Real, shape = UnitRange{Int}[],
+        )
+        raw_unary_sum = SymbolicUtils.term(
+            +,
+            raw_conj_phase,
+            raw_real_phase,
+            raw_imag_phase,
+            raw_abs_phase,
+            raw_abs2_phase,
+            SymbolicUtils.unwrap(z);
+            type = Complex{Real}, shape = UnitRange{Int}[],
+        )
+        raw_unary_outer = SymbolicUtils.term(
+            exp,
+            raw_unary_sum;
+            type = Complex{Real}, shape = UnitRange{Int}[],
+        )
+        unary = to_num(exponential_form(Num(raw_unary_outer)))
+        @test occursin("cos(θ)", string(unary))
+        @test occursin("sin(θ)", string(unary))
+        @test occursin("exp(-im*θ)", string(unary))
+
+        raw_nonpolynomial = SymbolicUtils.unwrap(exp(1 + z))
+        raw_conj_nonpolynomial = SymbolicUtils.term(
+            conj,
+            raw_nonpolynomial;
+            type = Complex{Real}, shape = UnitRange{Int}[],
+        )
+        conjugate_terms = phase_terms(
+            exponential_form(Num(raw_conj_nonpolynomial)),
+        )
+        @test length(conjugate_terms) == 1
+        @test iszero(conjugate_terms[1].phase)
+        @test isequal(
+            real(conjugate_terms[1].amplitude),
+            real(exp(1 + z)),
+        )
+        @test isequal(
+            imag(conjugate_terms[1].amplitude),
+            -imag(exp(1 + z)),
+        )
         @test isequal(exponential_form(Num(θ)), θ)
         @test isequal(exponential_form(SymbolicUtils.unwrap(θ)), θ)
         @test isequal(trigonometric_form(Num(θ)), θ)

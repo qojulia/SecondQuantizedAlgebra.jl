@@ -1220,27 +1220,12 @@ end
     return false
 end
 
-@inline function isneg_cnum(a::Coeff, b::Coeff)
-    an = is_native(a)
-    bn = is_native(b)
-    # `iszero(a.z + b.z)`, not `isequal(a.z, -b.z)`: negating a normalized `+0.0im`
-    # gives `-0.0im`, and `isequal(0.0, -0.0)` is false, so the latter misses real
-    # negatives (e.g. `1` vs `-1`).
-    an && bn && return iszero(a.z + b.z)
-    (an != bn) && return false   # one native, one symbolic: never exact negatives
-    if a.tail isa Poly && b.tail isa Poly
-        return isempty(poly_add(a.tail.terms, b.tail.terms))
-    end
-    if a.tail isa RawSymbolicCoeff && b.tail isa RawSymbolicCoeff
-        return a.tail.real_slot == b.tail.real_slot &&
-            (
-            raw_is_negative_of(a.tail.expr, b.tail.expr) ||
-                raw_is_negative_of(b.tail.expr, a.tail.expr)
-        )
-    end
-    ar, ai = realimag(a)
-    br, bi = realimag(b)
-    return isequal(ar, -br) && isequal(ai, -bi)
+@inline function isneg_cnum(a::RawSymbolicCoeff, b::RawSymbolicCoeff)
+    return a.real_slot == b.real_slot &&
+        (
+        raw_is_negative_of(a.expr, b.expr) ||
+            raw_is_negative_of(b.expr, a.expr)
+    )
 end
 
 @inline function mul_cnum(a::Coeff, b::Coeff)
@@ -1280,8 +1265,9 @@ end
     # Raw symbolic addition deliberately avoids a CAS round-trip. Recover the common exact
     # cancellation case here, which is needed by scalar identities such as the off-diagonal
     # entries of a symbolic orthogonal matrix product.
-    (a.tail isa RawSymbolicCoeff && b.tail isa RawSymbolicCoeff && isneg_cnum(a, b)) &&
-        return CNUM_ZERO
+    if a.tail isa RawSymbolicCoeff && b.tail isa RawSymbolicCoeff
+        isneg_cnum(a.tail, b.tail) && return CNUM_ZERO
+    end
     return add_cnum_slow(a, b)
 end
 
