@@ -319,6 +319,8 @@ import SecondQuantizedAlgebra: constraint_pairs
         @test isequal(change_index(ai, i, j), aj)
         @test isequal(change_index(ai, k, j), ai)
         @test iszero(simplify(change_index(gi * ai, i, j) - gj * aj))
+        @test iszero(simplify(change_index(2 * ai, i, j) - 2 * aj))
+        @test iszero(simplify(change_index((1 // 2) * ai, i, j) - (1 // 2) * aj))
         @test iszero(simplify(change_index(Σ(ai, i, [j]), j, k) - Σ(ai, i, [k])))
         @test change_index(42, i, j) == 42
 

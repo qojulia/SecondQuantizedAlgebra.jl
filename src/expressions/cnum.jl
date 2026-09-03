@@ -214,8 +214,6 @@ end
     (v isa SymbolicUtils.BasicSymbolic && SymbolicUtils.isconst(v)) && return v.val
     return nothing
 end
-@inline numeric_value(x::Num) = const_value(SymbolicUtils.unwrap(x))
-
 @inline function phase_power(x)
     is_phase(x) && return (only(SymbolicUtils.arguments(x)), 1)
     x isa SymbolicUtils.BasicSymbolic || return nothing
@@ -420,22 +418,6 @@ end
 
 cnum(re::Num, im::Num) =
     add_cnum(recognize(SymbolicUtils.unwrap(re)), mul_by_im(recognize(SymbolicUtils.unwrap(im))))
-
-# Rebuild after a materialized symbolic arithmetic step: folds a numeric constant
-# back to native, else stays symbolic. Must NOT re-enter `recognize` (would recurse).
-function cnum_sym(re::Num, im::Num)
-    rv = numeric_value(re)
-    iv = numeric_value(im)
-    if rv isa Number && iv isa Number
-        w = rv + Complex(false, true) * iv
-        w isa ExactComplex && return exact_coeff(w)
-        z = ComplexF64(w)
-        z == w && return native(z)
-    end
-    raw_re = SymbolicUtils.unwrap(re)
-    raw_im = SymbolicUtils.unwrap(im)
-    return from_raw(raw_re + Symbolics.IM * raw_im)
-end
 
 # === Parameter-polynomial tier: folding, materialization, recognition ===
 
@@ -1004,14 +986,6 @@ end
     is_native(c) && return (num_from_float(real(c.z)), num_from_float(imag(c.z)))
     cn = to_num(c)
     return (real(cn), imag(cn))
-end
-
-@inline function raw_parts(c::Coeff)
-    tail = c.tail
-    tail isa RawSymbolicCoeff || return realimag(c)
-    cnum_is_real(c) && return (Num(tail.expr), NUM_ZERO)
-    re, im = raw_realimag(tail.expr)
-    return (Num(re), Num(im))
 end
 
 """

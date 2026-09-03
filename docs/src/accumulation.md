@@ -100,17 +100,18 @@ For a two-mode toy model the difference is invisible; for tens or hundreds of si
 
 ## Under the hood
 
-Internally the accumulation uses a small builder type. This is what makes `sum` and `reduce(+, …)` fast. The [`@rewrite`](https://jump.dev/MutableArithmetics.jl/stable/) macro remains compatible with `QAdd`'s value semantics:
+Internally the accumulation uses a small builder type. This is what makes `sum` and `reduce(+, …)` fast. The public `MutableArithmetics.operate(sum, qadd_array)` entry point uses the same fast path, while the [`@rewrite`](https://jump.dev/MutableArithmetics.jl/stable/) macro remains compatible with `QAdd`'s value semantics:
 
 ```julia
 import MutableArithmetics as MA
 
 acc = sum([Ω*(a[k] + a[k]') for k in 1:M])
+ma_acc = MA.operate(sum, [Ω*(a[k] + a[k]') for k in 1:M])
 manual = MA.@rewrite sum(Ω*(a[k] + a[k]') for k in 1:M)
-acc == manual   # true
+acc == ma_acc == manual   # true
 ```
 
 !!! tip "For plain sums, prefer the bracketed `sum`"
-    The macro expansion adds overhead and does not select the package's `QAdd` builder for immutable expression inputs. Reach for the bracketed `sum([… for …])` (or `reduce(+, [...])`) as the everyday fast path; use `@rewrite` when you are already composing a larger MutableArithmetics expression.
+    The macro expansion adds overhead and does not select the package's `QAdd` builder for generator inputs. Reach for the bracketed `sum([… for …])`, `reduce(+, [...])`, or `MA.operate(sum, [...])` as the everyday fast path; use `@rewrite` when you are already composing a larger MutableArithmetics expression.
 
 The binary `+`, `-`, and scalar `*` keep their value semantics unchanged: only the reduction drivers that own a transient accumulator take the in-place path. The analytical sum [`Σ`](@ref) over a symbolic [`Index`](@ref) is orthogonal and already accumulates in place; see [Symbolic Sums and Indices](@ref).

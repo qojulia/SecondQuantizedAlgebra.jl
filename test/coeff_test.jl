@@ -395,6 +395,9 @@ import SecondQuantizedAlgebra: expim, exponential_form, phase_terms, to_num,
         @test isequal(imag(phase), sin(θ))
         @test isequal(real(conj(phase)), cos(θ))
         @test isequal(imag(conj(phase)), -sin(θ))
+        @test iszero(
+            simplify((conj(cos(z))^2 + conj(sin(z))^2) * a - a),
+        )
         @test isequal(real(im * phase), -sin(θ))
         @test isequal(imag(im * phase), cos(θ))
         @test abs(phase) == 1

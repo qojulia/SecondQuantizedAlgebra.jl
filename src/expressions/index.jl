@@ -129,9 +129,7 @@ function change_index(x::CNum, from::Index, to::Index)
     raw_re, raw_im = realimag(x)
     re = change_index(raw_re, from, to)
     im = change_index(raw_im, from, to)
-    # A rename keeps a symbolic tail symbolic; only a Poly may need re-interning.
-    is_poly(x) && return cnum(re, im)
-    return cnum_sym(re, im)
+    return cnum(re, im)
 end
 
 # Rebuild with a new site index; kind-agnostic since all other fields carry over.
@@ -208,8 +206,7 @@ function change_index(x::CNum, pairs::AbstractDict{Index, Index})
     raw_re, raw_im = realimag(x)
     re = change_index(raw_re, pairs)
     im = change_index(raw_im, pairs)
-    is_poly(x) && return cnum(re, im)
-    return cnum_sym(re, im)
+    return cnum(re, im)
 end
 
 function change_index(op::QSym, pairs::AbstractDict{Index, Index})

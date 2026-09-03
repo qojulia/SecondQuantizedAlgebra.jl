@@ -21,6 +21,10 @@ import SecondQuantizedAlgebra: constraint_pairs
         @test iszero(sum([a - a]))
         @test sum(y -> 2 * y, terms) == 2 * expected
         @test sum(identity, terms) == expected
+
+        @test iszero(sum(x -> a, [a + ad]) - a)
+        @test iszero(sum(x -> 2, [a + ad]) - 2)
+        @test iszero(sum(x -> 0, [a + ad]))
     end
 
     @testset "indexed expressions retain public scope" begin
@@ -71,5 +75,17 @@ import SecondQuantizedAlgebra: constraint_pairs
         @test expected == manual
         @test isequal(manual, expected)
         @test isequal(expected, manual)
+
+        @test MutableArithmetics.promote_operation(sum, Vector{typeof(a + ad)}) === typeof(a + ad)
+        @test MutableArithmetics.operate(sum, [a + ad, 2a, 3ad]) == expected
+        @test MutableArithmetics.operate!!(sum, [a + ad, 2a, 3ad]) == expected
+        @test (@inferred MutableArithmetics.operate(sum, [a + ad, 2a, 3ad])) isa typeof(expected)
+        @test (@inferred MutableArithmetics.operate!!(sum, [a + ad, 2a, 3ad])) isa typeof(expected)
+        @test MutableArithmetics.operate(sum, [a + ad, 2a, 3ad]; init = 2) == expected + 2
+        @test MutableArithmetics.operate(sum, typeof(expected)[]; init = 2) == 2
+
+        seeded = 1.0e16 * a
+        values = [1.0 * a, -1.0e16 * a, 1.0 * a]
+        @test iszero(MutableArithmetics.operate(sum, values; init = seeded) - a)
     end
 end
