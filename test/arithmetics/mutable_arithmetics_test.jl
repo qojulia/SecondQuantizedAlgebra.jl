@@ -5,6 +5,9 @@ using Test
 import MutableArithmetics
 import SecondQuantizedAlgebra: constraint_pairs
 
+struct TestMAInit end
+Base.:+(::TestMAInit, x::SecondQuantizedAlgebra.QAdd) = x
+
 @testset "Additive reductions" begin
     h = FockSpace(:cavity)
     a = Destroy(h, :a)
@@ -83,6 +86,7 @@ import SecondQuantizedAlgebra: constraint_pairs
         @test (@inferred MutableArithmetics.operate!!(sum, [a + ad, 2a, 3ad])) isa typeof(expected)
         @test MutableArithmetics.operate(sum, [a + ad, 2a, 3ad]; init = 2) == expected + 2
         @test MutableArithmetics.operate(sum, typeof(expected)[]; init = 2) == 2
+        @test MutableArithmetics.operate(sum, [a + ad]; init = TestMAInit()) == a + ad
 
         seeded = 1.0e16 * a
         values = [1.0 * a, -1.0e16 * a, 1.0 * a]
