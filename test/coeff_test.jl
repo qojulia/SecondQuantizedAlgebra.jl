@@ -10,6 +10,7 @@ import SecondQuantizedAlgebra: expim, exponential_form, phase_terms, to_num,
     a = Destroy(h, :a)
 
     coefficient(x) = prefactor(x * a)
+    stored_coefficient(x) = only(x).second
 
     @testset "numeric and exact coefficients" begin
         @test coefficient(2) == 2
@@ -253,6 +254,113 @@ import SecondQuantizedAlgebra: expim, exponential_form, phase_terms, to_num,
         @test isequal(exponential_form(cbrt(g)), cbrt(g))
     end
 
+    @testset "public iterator exposes coefficient arithmetic" begin
+        @variables θ φ ω t g κ z::Number
+        poly = stored_coefficient((g + κ) * a)
+        raw = stored_coefficient(Complex(Num(z), Num(z)) * a)
+        phase_product = stored_coefficient(expim(θ) * exp(ω * t) * a)
+        phase_quotient = stored_coefficient(
+            expim(θ) / (expim(φ) * exp(ω * t)) * a,
+        )
+
+        # QAdd iteration is the documented boundary for the stored coefficient.  Exercise
+        # its scalar methods there, so these checks do not depend on implementation helpers.
+        @test poly + 2 == stored_coefficient((g + κ + 2) * a)
+        @test 2 + poly == stored_coefficient((2 + g + κ) * a)
+        @test poly - 2 == stored_coefficient((g + κ - 2) * a)
+        @test 2 - poly == stored_coefficient((2 - g - κ) * a)
+        @test poly * 2 == stored_coefficient((2g + 2κ) * a)
+        @test 2 * poly == stored_coefficient((2g + 2κ) * a)
+        @test poly / 2 == stored_coefficient(((g + κ) / 2) * a)
+        @test inv(poly) == stored_coefficient((1 / (g + κ)) * a)
+        @test poly^3 == stored_coefficient((g + κ)^3 * a)
+        @test poly^(-2) == stored_coefficient((g + κ)^(-2) * a)
+        @test iszero(poly + -poly)
+
+        native = stored_coefficient(2 * a)
+        @test native == 2
+        @test 2 == native
+        @test native != 3
+        @test native^3 == stored_coefficient(8 * a)
+        @test native^(-2) == stored_coefficient((1 / 4) * a)
+
+        large = stored_coefficient(complex(big(2)^70, big(3)^70) * a)
+        @test isequal(real(large), Num(big(2)^70))
+        @test isequal(imag(large), Num(big(3)^70))
+
+        @test isequal(real(raw), z)
+        @test isequal(imag(raw), z)
+        @test isequal(real(conj(raw)), conj(z))
+        @test isequal(imag(conj(raw)), -conj(z))
+        @test iszero(raw + -raw)
+        @test iszero(phase_product + -phase_product)
+        @test length(phase_terms(phase_product)) == 1
+        @test isequal(phase_terms(phase_product)[1].phase, θ)
+        @test length(phase_terms(phase_quotient)) == 1
+        @test isequal(phase_terms(phase_quotient)[1].phase, θ - φ)
+
+        @test isequal(real(stored_coefficient(cos(ω * t) * a)), cos(ω * t))
+        @test isequal(imag(stored_coefficient(cos(ω * t) * a)), 0)
+        @test Symbolics.simplify(
+            to_num(inv(stored_coefficient(cos(ω * t) * a))) - 1 / cos(ω * t),
+        ) == 0
+        @test isequal(
+            to_num(Symbolics.derivative(raw, z)),
+            Complex(Num(1), Num(1)),
+        )
+    end
+
+    @testset "public symbolic conversion boundaries" begin
+        @variables θ ω t
+        raw_exp = SymbolicUtils.term(
+            exp,
+            SymbolicUtils.term(
+                *,
+                Symbolics.IM,
+                SymbolicUtils.unwrap(θ);
+                type = Complex{Real}, shape = UnitRange{Int}[],
+            );
+            type = Complex{Real}, shape = UnitRange{Int}[],
+        )
+        raw_cis = SymbolicUtils.term(
+            cis,
+            SymbolicUtils.unwrap(θ);
+            type = Complex{Real}, shape = UnitRange{Int}[],
+        )
+        raw_phase = SymbolicUtils.term(
+            expim,
+            SymbolicUtils.unwrap(θ);
+            type = Complex{Real}, shape = UnitRange{Int}[],
+        )
+        raw_power = SymbolicUtils.term(
+            ^,
+            raw_phase,
+            2;
+            type = Complex{Real}, shape = UnitRange{Int}[],
+        )
+
+        @test isequal(exponential_form(Num(raw_exp)), expim(θ))
+        @test isequal(exponential_form(Num(raw_cis)), expim(θ))
+        @test isequal(exponential_form(Num(raw_power)), expim(2θ))
+        @test isequal(exponential_form(Num(θ)), θ)
+        @test isequal(exponential_form(SymbolicUtils.unwrap(θ)), θ)
+        @test isequal(trigonometric_form(Num(θ)), θ)
+        @test isequal(trigonometric_form(SymbolicUtils.unwrap(θ)), θ)
+        @test_throws ArgumentError phase_terms(
+            exponential_form(
+                Num(
+                    SymbolicUtils.term(
+                        ^,
+                        raw_phase,
+                        sqrt(2);
+                        type = Complex{Real}, shape = UnitRange{Int}[],
+                    )
+                )
+            )
+        )
+        @test isequal(exponential_form(exp(ω * t)), exp(ω * t))
+    end
+
     @testset "raw phase substitutions reject non-real angles" begin
         @variables θ
         raw_phase = SymbolicUtils.term(
@@ -272,5 +380,49 @@ import SecondQuantizedAlgebra: expim, exponential_form, phase_terms, to_num,
             Num(raw_product) * a,
             Dict(θ => 1im),
         )
+    end
+
+    @testset "public phase projections and expression trees" begin
+        @variables θ φ ω t g κ z::Number
+        phase = expim(θ)
+
+        # These forms enter through the public symbolic boundaries and must
+        # retain the phase as one canonical coefficient factor.
+        @test isequal(exponential_form(exp(im * θ)), phase)
+        @test isequal(exponential_form(cis(θ)), phase)
+        @test isequal(exponential_form(conj(phase)), expim(-θ))
+        @test isequal(real(phase), cos(θ))
+        @test isequal(imag(phase), sin(θ))
+        @test isequal(real(conj(phase)), cos(θ))
+        @test isequal(imag(conj(phase)), -sin(θ))
+        @test isequal(real(im * phase), -sin(θ))
+        @test isequal(imag(im * phase), cos(θ))
+        @test abs(phase) == 1
+        @test abs2(phase) == 1
+        @test_throws MethodError abs(exponential_form(g))
+        @test_throws MethodError abs2(exponential_form(g))
+
+        # Exercise the raw symbolic fallback through public conversion,
+        # including complex slots and ordinary real denominators.
+        raw = exponential_form(Complex(Num(z), Num(z)))
+        @test isequal(to_num(raw), Complex(Num(z), Num(z)))
+        @test isequal(real(raw), z)
+        @test isequal(imag(raw), z)
+        @test isequal(real(conj(raw)), conj(z))
+        @test isequal(imag(conj(raw)), -conj(z))
+        product = phase * expim(φ) * exp(ω * t)
+        quotient = phase / (expim(φ) * exp(ω * t))
+        @test isequal(phase_terms(product)[1].phase, θ + φ)
+        @test isequal(phase_terms(quotient)[1].phase, θ - φ)
+        @test length(phase_terms(exponential_form(exp(ω * t)))) == 1
+        @test length(phase_terms(exponential_form(exp(ω * t)^(1 // 2)))) == 1
+        @test_throws ArgumentError phase_terms(1 / (1 + phase))
+
+        @test_throws ArgumentError substitute(phase, Dict(θ => z))
+        @test_throws ArgumentError substitute(phase, Dict(θ => 1 + 2im))
+        @test_throws ArgumentError substitute(phase, Dict(θ => 1 + 0im))
+
+        differentiated = Symbolics.derivative(phase, θ)
+        @test Symbolics.simplify(differentiated - im * phase) == 0
     end
 end

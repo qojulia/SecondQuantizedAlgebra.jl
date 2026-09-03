@@ -265,6 +265,30 @@ import SecondQuantizedAlgebra: constraint_pairs
         )
     end
 
+    @testset "public substitution prunes dead constraints" begin
+        a = Destroy(hf, :a)
+        i = Index(hf, :i, 10, hf)
+        j = Index(hf, :j, 10, hf)
+        indexed = IndexedOperator(a, i)
+
+        scalar = substitute(Σ(indexed, i, [j]), Dict(indexed => 2))
+        @test iszero(scalar - 2)
+        @test isempty(constraint_pairs(scalar))
+    end
+
+    @testset "ordering distinguishes public constraint scopes" begin
+        a = Destroy(hf, :a)
+        i = Index(hf, :i, 10, hf)
+        j = Index(hf, :j, 10, hf)
+        k = Index(hf, :k, 10, hf)
+        indexed = IndexedOperator(a, i)
+        constrained = Σ(indexed, i, [j]) + Σ(indexed, i, [k])
+        ordered = SecondQuantizedAlgebra.sorted_arguments(constrained)
+        @test length(ordered) == 2
+        @test Set(constraint_pairs(ordered[1] + ordered[2])) ==
+            Set(constraint_pairs(constrained))
+    end
+
     @testset "nested indexed sums retain diagonal semantics" begin
         h = NLevelSpace(:atom, 2, 1)
         i = Index(h, :i, 10, h)

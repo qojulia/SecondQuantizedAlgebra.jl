@@ -2,7 +2,7 @@ using SecondQuantizedAlgebra
 using LinearAlgebra: exp
 using QuantumOpticsBase: FockBasis, NLevelBasis, SpinBasis
 using Test
-using Symbolics: @variables
+using Symbolics: Num, @variables
 import SecondQuantizedAlgebra: expim, exponential_form
 
 @testset "Unitary transformation workflows" begin
@@ -27,7 +27,9 @@ import SecondQuantizedAlgebra: expim, exponential_form
     σ12 = Transition(atom, :σ, 1, 2)
     σ21 = adjoint(σ12)
     σ22 = Transition(atom, :σ, 2, 2)
-    @variables α::Number θ ϕ r ω η g t s dx dp Ω F ω₀
+    @variables α::Number z::Number θ ϕ r ω η g t s dx dp Ω F ω₀
+    number = left' * left + right' * right
+    weighted_number = Complex(Num(z), Num(z)) * number
 
     @testset "static closed forms" begin
         U = Displace(a, α)
@@ -70,6 +72,8 @@ import SecondQuantizedAlgebra: expim, exponential_form
                     (cos(θ) * right + sin(θ) * left)
             )
         )
+        @test iszero(simplify(conjugate(number, beamsplitter) - number))
+        @test iszero(simplify(conjugate(weighted_number, beamsplitter) - weighted_number))
 
         two_mode_squeeze = Squeeze(left, right, r)
         @test iszero(
@@ -256,6 +260,13 @@ import SecondQuantizedAlgebra: expim, exponential_form
         )
 
         moving_beamsplitter = Rotation(left, right, θ * t, t)
+        @test iszero(simplify(conjugate(number, moving_beamsplitter) - number))
+        @test iszero(
+            simplify(conjugate(weighted_number, moving_beamsplitter) - weighted_number),
+        )
+        @test iszero(
+            simplify(conjugate(number^2, moving_beamsplitter) - number^2),
+        )
         @test iszero(
             simplify(
                 gauge_term(moving_beamsplitter) + im * θ * (left' * right - right' * left),

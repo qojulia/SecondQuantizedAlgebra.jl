@@ -261,19 +261,11 @@ end
 
 # Fold `cos^2 + sin^2` and `cosh^2 - sinh^2` factors of a coefficient.
 function reduce_trig(c::Coeff)
-    t = c.tail
-    t isa Native && return c
-    if t isa Poly
-        has_trig_factor(t.terms) || return c   # common path allocates nothing
-        rels = trig_relations(t.terms)
-        isempty(rels) && return c
-        return reduce_tail(t, rels, true)
-    end
-    has_symbolic_trig(t.expr) || return c
-    rels = ParamRelation[]
-    sym_trig_relations!(rels, c)
+    t = c.tail::Poly
+    has_trig_factor(t.terms) || return c   # common path allocates nothing
+    rels = trig_relations(t.terms)
     isempty(rels) && return c
-    return reduce_via_transient(c, rels, true)
+    return reduce_tail(t, rels, true)
 end
 
 function has_trig_factor(terms::Vector{Monomial})
@@ -358,46 +350,7 @@ function reduce_raw_via_transient(
 end
 
 function reduce_via_transient(c::Coeff, rels::Vector{ParamRelation}, gated::Bool)
-    c.tail isa RawSymbolicCoeff && return reduce_raw_via_transient(c, rels, gated)
-    re, im = raw_parts(c)
-    return reduce_via_transient(c, rels, gated, re, im)
-end
-
-function reduce_via_transient(
-        c::Coeff, rels::Vector{ParamRelation}, gated::Bool, re::Num, im::Num,
-    )
-    fwd = Dict{Num, Num}()
-    back = Dict{Num, Num}()
-    trels = ParamRelation[]
-    occupied = SymbolicUtils.BasicSymbolic[]
-    append!(occupied, Symbolics.get_variables(re))
-    append!(occupied, Symbolics.get_variables(im))
-    for r in rels
-        haskey(fwd, r.hi) && continue   # a declared pair the discovery found again
-        th = fresh_transient!(occupied)
-        tl = fresh_transient!(occupied)
-        fwd[r.hi] = th
-        fwd[r.lo] = tl
-        back[th] = r.hi
-        back[tl] = r.lo
-        push!(trels, ParamRelation(th, tl, r.sign))
-    end
-    sub = cnum(Symbolics.substitute(re, fwd), Symbolics.substitute(im, fwd))
-    st = sub.tail
-    st isa Poly || return c
-    red = reduce_tail(st, trels, gated)
-    isequal(red, sub) && return c
-    rre, rim = realimag(red)
-    return cnum(Symbolics.substitute(rre, back), Symbolics.substitute(rim, back))
-end
-
-# Reduce a coefficient by the given parameter relations.
-function reduce_cnum(c::Coeff, rels::Vector{ParamRelation}, gated::Bool)
-    isempty(rels) && return c
-    t = c.tail
-    t isa Poly && return reduce_tail(t, rels, gated)
-    t isa Native && return c
-    return reduce_via_transient(c, rels, gated)
+    return reduce_raw_via_transient(c, rels, gated)
 end
 
 # On the polynomial tier the factors of a coefficient are explicit; on the raw symbolic
@@ -451,19 +404,8 @@ function collect_trig!(store::Vector{SymbolicUtils.BasicSymbolic}, x)
 end
 
 function sym_trig_relations!(rels::Vector{ParamRelation}, c::Coeff)
-    if c.tail isa RawSymbolicCoeff
-        store = SymbolicUtils.BasicSymbolic[]
-        collect_trig!(store, c.tail.expr)
-        return sym_trig_relations!(rels, store)
-    end
-    re, im = raw_parts(c)
-    return sym_trig_relations!(rels, c, re, im)
-end
-
-function sym_trig_relations!(rels::Vector{ParamRelation}, c::Coeff, re::Num, im::Num)
     store = SymbolicUtils.BasicSymbolic[]
-    collect_trig!(store, SymbolicUtils.unwrap(re))
-    collect_trig!(store, SymbolicUtils.unwrap(im))
+    collect_trig!(store, c.tail.expr)
     return sym_trig_relations!(rels, store)
 end
 

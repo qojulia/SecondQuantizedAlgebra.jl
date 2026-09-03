@@ -1123,24 +1123,6 @@ Base.:/(a::Number, b::Coeff) = to_cnum(a) / b
 # second one (which never folds and survives downstream).
 is_conj_call(x) =
     SymbolicUtils.iscall(x) && SymbolicUtils.operation(x) === conj
-function sym_conj(x::Num)
-    SymbolicUtils.symtype(x) <: Real && return x
-    u = SymbolicUtils.unwrap(x)
-    is_conj_call(u) && return Num(SymbolicUtils.arguments(u)[1])
-    # Distribute over sums and products, so a real factor (a radical, a real-symtype
-    # parameter) is left alone and a phase flips on its own. Wrapping the whole expression
-    # leaves a `conj(...)` that never folds, and the residual built from it cannot cancel.
-    if SymbolicUtils.iscall(u)
-        op = SymbolicUtils.operation(u)
-        args = SymbolicUtils.arguments(u)
-        if op === (+)
-            return sum(sym_conj(Num(a)) for a in args)
-        elseif op === (*)
-            return prod(sym_conj(Num(a)) for a in args)
-        end
-    end
-    return Num(conj(u))
-end
 
 function raw_conj(x)
     x isa Number && return conj(x)
@@ -1219,19 +1201,6 @@ end
     c.tail isa Poly && return false   # a canonical Poly never sums to zero
     value = const_value(c.tail.expr)
     return value isa Number && iszero(value)
-end
-
-# `unwrap` returns a `BasicSymbolic` even for numeric constants, so test the
-# node kind rather than `isa Number`.
-@inline function is_symbolic_num(x::Num)
-    v = SymbolicUtils.unwrap(x)
-    return SymbolicUtils.issym(v) || SymbolicUtils.iscall(v)
-end
-
-@inline function is_symbolic_cnum(c::Coeff)
-    is_native(c) && return false
-    c.tail isa Poly && return true
-    return true
 end
 
 # Structural `a == -b`, used to recognize exact cancellation without a CAS round-trip.

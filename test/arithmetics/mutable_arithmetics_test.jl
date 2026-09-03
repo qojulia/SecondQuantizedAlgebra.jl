@@ -2,6 +2,7 @@ using SecondQuantizedAlgebra
 using MutableArithmetics: add_mul, operate!!
 using Symbolics: @variables
 using Test
+import MutableArithmetics
 import SecondQuantizedAlgebra: constraint_pairs
 
 @testset "Additive reductions" begin
@@ -57,5 +58,18 @@ import SecondQuantizedAlgebra: constraint_pairs
         @test operate!!(+, base, a) == 2 * a + ad
         @test operate!!(+, base, 2) == 2 + a + ad
         @test operate!!(add_mul, base, 2, a) == 3 * a + ad
+
+        # The rewrite macro is a public MutableArithmetics integration boundary.
+        # In particular, this exercises bare operators and scalar terms, not only QAdd inputs.
+        @test MutableArithmetics.@rewrite(a + ad + 2a) == 3a + ad
+        @test MutableArithmetics.@rewrite(a + 2) == a + 2
+        @test MutableArithmetics.@rewrite((a + ad) + 2) == a + ad + 2
+
+        manual = MutableArithmetics.@rewrite sum([a + ad, 2a, 3ad])
+        expected = sum([a + ad, 2a, 3ad])
+        @test manual == expected
+        @test expected == manual
+        @test isequal(manual, expected)
+        @test isequal(expected, manual)
     end
 end

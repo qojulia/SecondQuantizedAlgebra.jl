@@ -19,6 +19,35 @@ using Test
         @test isequal(SymbolicUtils.simplify(2 * g * a), 2 * g * a)
     end
 
+    @testset "trigonometric coefficient identities are simplified" begin
+        h = FockSpace(:trigonometric)
+        a = Destroy(h, :a)
+        @variables θ ϕ
+
+        @test iszero(simplify((cos(θ)^2 + sin(θ)^2 - 1) * a))
+        @test iszero(simplify((cosh(θ)^2 - sinh(θ)^2 - 1) * a))
+        @test iszero(
+            simplify(
+                (cos(θ)^2 + sin(θ)^2 + cos(ϕ)^2 + sin(ϕ)^2 - 2) * a,
+            ),
+        )
+        @test !iszero(simplify((cos(θ)^2 + sin(ϕ)^2) * a))
+    end
+
+    @testset "composite trigonometric arguments are simplified" begin
+        h = FockSpace(:composite_trigonometric)
+        a = Destroy(h, :a)
+        @variables ω t ϕ
+
+        @test iszero(simplify((cos(ω * t)^2 + sin(ω * t)^2 - 1) * a))
+        @test iszero(simplify((cosh(ω * t)^2 - sinh(ω * t)^2 - 1) * a))
+        @test iszero(
+            simplify(
+                (cos(ω * t)^2 + sin(ω * t)^2 + cos(ϕ * t)^2 + sin(ϕ * t)^2 - 2) * a,
+            ),
+        )
+    end
+
     @testset "operator identities are stable" begin
         hf = FockSpace(:cavity)
         a = Destroy(hf, :a)
