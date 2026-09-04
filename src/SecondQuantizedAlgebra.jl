@@ -1,12 +1,13 @@
 module SecondQuantizedAlgebra
 
 using SymbolicUtils: SymbolicUtils, simplify, substitute, add_worker
-using Symbolics: Symbolics, Num, expand, @variables, build_function, symbolic_to_float
+using Symbolics: Symbolics, Num, expand, @variables, build_function, get_variables,
+    symbolic_to_float
+# Re-export the generic; QAdd methods extend it with qualified definitions below.
 using TermInterface: TermInterface
 
-import QuantumInterface: expect, basis, dagger
-using QuantumInterface: AbstractOperator, StateVector, Basis
-import TensorCore: ⊗, tensor
+using QuantumInterface: QuantumInterface, AbstractOperator, StateVector, Basis, expect, dagger
+using TensorCore: TensorCore, ⊗, tensor
 
 using Combinatorics: with_replacement_combinations
 using Latexify: Latexify, latexify, @latexrecipe
@@ -107,8 +108,8 @@ export FockSpace, ProductSpace,
     @qnumbers, @variables,
     average, undo_average, make_time_dependent,
     acts_on, is_average, is_indexed_sum,
-    fundamental_operators, find_operators, unique_ops,
-    prefactor, operators,
+    fundamental_operators, find_operators, unique_up_to_adjoint,
+    get_prefactor, get_operators, get_variables,
     substitute,
     normal_order, normal_to_symmetric, symmetric_to_normal,
     UnitaryTransform, Displace, Rotation, Squeeze,

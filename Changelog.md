@@ -6,6 +6,17 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+##  [v0.12.0]
+
+### Added
+
+- Added `get_operators` and `get_variables` introspection for `QAdd` expressions, including filtered and buffer forms of the `Symbolics.get_variables` interface.
+
+### Changed
+
+- Renamed expression accessors to `get_prefactor`, `get_operators`, and `get_variables`, and renamed adjoint-aware deduplication to `unique_up_to_adjoint`.
+
+
 ##  [v0.11.1]
 
 ### Fixed
@@ -366,4 +377,5 @@ These names keep their meaning across the migration. Code that only uses them sh
 [v0.10.1]: https://github.com/qojulia/SecondQuantizedAlgebra.jl/releases/tag/v0.10.1
 [v0.11.0]: https://github.com/qojulia/SecondQuantizedAlgebra.jl/releases/tag/v0.11.0
 [v0.11.1]: https://github.com/qojulia/SecondQuantizedAlgebra.jl/releases/tag/v0.11.1
+[v0.12.0]: https://github.com/qojulia/SecondQuantizedAlgebra.jl/releases/tag/v0.12.0
 [#156]: https://github.com/qojulia/SecondQuantizedAlgebra.jl/issues/156

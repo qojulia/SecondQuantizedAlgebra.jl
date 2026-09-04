@@ -14,7 +14,7 @@ dat(x) = dense(x).data
 
         @test @inferred(to_numeric(a, h, 7; backend = QuantumOpticsBackend())) isa Operator
         @test @inferred(to_numeric(a' * a + 2 * a, h, 7; backend = QuantumOpticsBackend())) isa Operator
-        hp = FockSpace(:a) ⊗ FockSpace(:b)
+        hp = SecondQuantizedAlgebra.var"⊗"(FockSpace(:a), FockSpace(:b))
         ap = Destroy(hp, :a, 1)
         @test @inferred(to_numeric(ap, hp, (3, 4); backend = QuantumOpticsBackend())) isa Operator
 
@@ -60,9 +60,9 @@ dat(x) = dense(x).data
     end
 
     @testset "op_type is shape-independent" begin
-        h = FockSpace(:a) ⊗ FockSpace(:b)
+        h = SecondQuantizedAlgebra.var"⊗"(FockSpace(:a), FockSpace(:b))
         @qnumbers a1::Destroy(h, 1) a2::Destroy(h, 2)
-        b = FockBasis(3) ⊗ FockBasis(3)
+        b = QuantumOpticsBase.var"⊗"(FockBasis(3), FockBasis(3))
         exprs = (a1, a1' * a1, a1' * a1 + a2' * a2)
 
         for expr in exprs

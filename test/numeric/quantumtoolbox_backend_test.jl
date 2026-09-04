@@ -1,8 +1,8 @@
 # QuantumToolbox backend for `to_numeric`/`numeric_average`.
 #
 # `QuantumToolbox` is imported (not `using`) so its `⊗`/`tensor`/`expect` do not collide
-# with the QuantumInterface ones that `SecondQuantizedAlgebra` extends; `⊗` here is the
-# shared QuantumInterface operator (works on Hilbert spaces and QuantumOptics bases). Parity
+# with the QuantumInterface ones that `SecondQuantizedAlgebra` extends; Hilbert-space `⊗`
+# is qualified below, as are QuantumOpticsBase state products. Parity
 # is checked through `expect`/`numeric_average` scalars (never raw matrices, whose kron
 # convention differs across backends), with states built per-backend in slot order.
 
@@ -64,7 +64,7 @@ end
         @test @inferred(to_numeric(n, 8)) isa QTB.QuantumObject
         @test @inferred(inferred_qtb_uniform(a, h, 7)) isa QTB.QuantumObject
 
-        hp = FockSpace(:c) ⊗ NLevelSpace(:atom, 3, 1)
+        hp = SecondQuantizedAlgebra.var"⊗"(FockSpace(:c), NLevelSpace(:atom, 3, 1))
         ap = Destroy(hp, :a, 1)
         @test @inferred(inferred_qtb_product(ap, hp, (7, 3))) isa QTB.QuantumObject
         @test @inferred(inferred_qtb_raw_product(ap, (8, 3))) isa QTB.QuantumObject
@@ -141,12 +141,14 @@ end
     end
 
     @testset "Composite parity" begin
-        h = FockSpace(:c) ⊗ NLevelSpace(:atom, 3, 1)
+        h = SecondQuantizedAlgebra.var"⊗"(FockSpace(:c), NLevelSpace(:atom, 3, 1))
         a = Destroy(h, :a, 1)
         σ(i, j) = Transition(h, :σ, i, j, 2)
         ba = QOB.NLevelBasis(3)
-        ψq = QOB.coherentstate(QOB.FockBasis(4), 0.3) ⊗
-            ((QOB.nlevelstate(ba, 1) + QOB.nlevelstate(ba, 2)) / sqrt(2))
+        ψq = QOB.var"⊗"(
+            QOB.coherentstate(QOB.FockBasis(4), 0.3),
+            (QOB.nlevelstate(ba, 1) + QOB.nlevelstate(ba, 2)) / sqrt(2),
+        )
         ψt = QTB.tensor(QTB.coherent(5, 0.3), (QTB.basis(3, 0) + QTB.basis(3, 1)) / sqrt(2))
         for op in (a' * a, a' * σ(1, 2) + a * σ(2, 1), a' * a * σ(2, 2))
             @test numeric_average(op, ψq) ≈ numeric_average(op, ψt) atol = 1.0e-6
@@ -355,7 +357,7 @@ end
         @test SecondQuantizedAlgebra.numeric_num_subsystems(QTBB, 3) == 1
         @test SecondQuantizedAlgebra.numeric_num_subsystems(QTBB, [2, 3]) == 2
 
-        h = FockSpace(:a) ⊗ FockSpace(:b)
+        h = SecondQuantizedAlgebra.var"⊗"(FockSpace(:a), FockSpace(:b))
         a = Destroy(h, :a, 1)
         @test_throws ArgumentError to_numeric(a, h, [2]; backend = QTBB)
         @test_throws ArgumentError to_numeric(a, h, [2, 3, 99]; backend = QTBB)

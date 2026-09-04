@@ -42,9 +42,9 @@ dat(x) = dense(x).data
     end
 
     @testset "Product space" begin
-        h = FockSpace(:a) ⊗ FockSpace(:b)
+        h = SecondQuantizedAlgebra.var"⊗"(FockSpace(:a), FockSpace(:b))
         @qnumbers a1::Destroy(h, 1) a2::Destroy(h, 2)
-        b = FockBasis(3) ⊗ FockBasis(3)
+        b = QuantumOpticsBase.var"⊗"(FockBasis(3), FockBasis(3))
 
         a1_num = to_numeric(a1, b)
         @test a1_num isa Operator
@@ -82,12 +82,12 @@ dat(x) = dense(x).data
     end
 
     @testset "Composite NLevel + Fock" begin
-        h = FockSpace(:c) ⊗ NLevelSpace(:atom, 3, 1)
+        h = SecondQuantizedAlgebra.var"⊗"(FockSpace(:c), NLevelSpace(:atom, 3, 1))
         @qnumbers a::Destroy(h, 1)
         σ12 = Transition(h, :σ, 1, 2, 2)
         bf = FockBasis(3)
         bn = NLevelBasis(3)
-        bc = bf ⊗ bn
+        bc = QuantumOpticsBase.var"⊗"(bf, bn)
         @test to_numeric(σ12, bc) isa Operator
         @test to_numeric(σ12, bc; op_type = identity) isa LazySum
     end
@@ -95,10 +95,10 @@ dat(x) = dense(x).data
     @testset "Composite basis with gaps" begin
         hfock = FockSpace(:fock)
         hnlevel = NLevelSpace(:nlevel, 3, 1)
-        hprod_gap = hfock ⊗ hnlevel ⊗ hnlevel
+        hprod_gap = SecondQuantizedAlgebra.var"⊗"(hfock, hnlevel, hnlevel)
         bfock = FockBasis(7)
         bnlevel = NLevelBasis(3)
-        bprod_gap = bfock ⊗ bnlevel ⊗ bnlevel
+        bprod_gap = QuantumOpticsBase.var"⊗"(bfock, bnlevel, bnlevel)
 
         a = Destroy(hprod_gap, :a, 1)
         σprod_gap(i, j) = Transition(hprod_gap, :σ, i, j, 3)

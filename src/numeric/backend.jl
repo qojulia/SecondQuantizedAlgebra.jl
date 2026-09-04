@@ -146,7 +146,7 @@ function numeric_backend end
 Return the backend basis/dimensions carried by `state`. Third-party backends must implement
 this together with [`numeric_backend`](@ref) for state-based numeric conversion.
 """
-numeric_basis(s::Union{StateVector, AbstractOperator}) = basis(s)
+numeric_basis(s::Union{StateVector, AbstractOperator}) = QuantumInterface.basis(s)
 
 function check_product_dims(h::ProductSpace, dims)
     nspaces = length(h.spaces)

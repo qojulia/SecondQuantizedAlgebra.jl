@@ -48,7 +48,7 @@ using Test
     end
 
     @testset "mixed-space canonicalization" begin
-        h = FockSpace(:cavity) ⊗ NLevelSpace(:atom, 3, 2)
+        h = SecondQuantizedAlgebra.var"⊗"(FockSpace(:cavity), NLevelSpace(:atom, 3, 2))
         a = Destroy(h, :a, 1)
         σ12 = Transition(h, :σ, 1, 2, 2)
         σ23 = Transition(h, :σ, 2, 3, 2)
@@ -74,7 +74,7 @@ using Test
             ),
         )
 
-        h = FockSpace(:left) ⊗ FockSpace(:right)
+        h = SecondQuantizedAlgebra.var"⊗"(FockSpace(:left), FockSpace(:right))
         left = Destroy(h, :a, 1)
         right = Destroy(h, :b, 2)
         @test iszero(normal_order(left * right') - left * right')
@@ -93,13 +93,13 @@ end
             @test iszero(normal_to_symmetric(symmetric_to_normal(symmetric)) - symmetric)
         end
 
-        h2 = FockSpace(:left) ⊗ FockSpace(:right)
+        h2 = SecondQuantizedAlgebra.var"⊗"(FockSpace(:left), FockSpace(:right))
         left = Destroy(h2, :a, 1)
         right = Destroy(h2, :b, 2)
         expression = left * right' * left' * right
         @test iszero(symmetric_to_normal(normal_to_symmetric(expression)) - expression)
 
-        hm = FockSpace(:cavity) ⊗ NLevelSpace(:atom, 2, 1)
+        hm = SecondQuantizedAlgebra.var"⊗"(FockSpace(:cavity), NLevelSpace(:atom, 2, 1))
         cavity = Destroy(hm, :a, 1)
         σ = Transition(hm, :σ, 1, 2, 2)
         expression = (cavity' * σ + cavity * σ')^2
@@ -107,7 +107,7 @@ end
     end
 
     @testset "generated words" begin
-        h2 = FockSpace(:left) ⊗ FockSpace(:right)
+        h2 = SecondQuantizedAlgebra.var"⊗"(FockSpace(:left), FockSpace(:right))
         left, right = Destroy(h2, :a, 1), Destroy(h2, :b, 2)
         pool = [left, left', right, right']
         rng = MersenneTwister(3)

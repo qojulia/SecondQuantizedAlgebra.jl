@@ -7,7 +7,7 @@ import SecondQuantizedAlgebra: simplify
 
 @testset "phase_space" begin
     @testset "Construction — product space" begin
-        h = FockSpace(:c) ⊗ PhaseSpace(:q)
+        h = SecondQuantizedAlgebra.var"⊗"(FockSpace(:c), PhaseSpace(:q))
         x = Position(h, :x, 2)
         p = Momentum(h, :p, 2)
         @test acts_on(x) == [2]
@@ -45,7 +45,7 @@ import SecondQuantizedAlgebra: simplify
     end
 
     @testset "Simplify: mixed spaces don't interact" begin
-        h = PhaseSpace(:q1) ⊗ PhaseSpace(:q2)
+        h = SecondQuantizedAlgebra.var"⊗"(PhaseSpace(:q1), PhaseSpace(:q2))
         x1 = Position(h, :x, 1)
         p2 = Momentum(h, :p, 2)
 
@@ -65,7 +65,7 @@ import SecondQuantizedAlgebra: simplify
     @testset "Multi-space algebra" begin
         hps1 = PhaseSpace(:motion1)
         hps2 = PhaseSpace(:motion2)
-        h = hps1 ⊗ hps2
+        h = SecondQuantizedAlgebra.var"⊗"(hps1, hps2)
 
         x1 = Position(h, :x_1, 1)
         p1 = Momentum(h, :p_1, 1)
@@ -81,7 +81,7 @@ import SecondQuantizedAlgebra: simplify
     @testset "Hamiltonian construction and commutators" begin
         hps1 = PhaseSpace(:motion1)
         hps2 = PhaseSpace(:motion2)
-        h = hps1 ⊗ hps2
+        h = SecondQuantizedAlgebra.var"⊗"(hps1, hps2)
 
         x1 = Position(h, :x_1, 1)
         p1 = Momentum(h, :p_1, 1)
@@ -126,11 +126,11 @@ import SecondQuantizedAlgebra: simplify
     end
 
     @testset "Numeric: composite basis" begin
-        h = FockSpace(:c) ⊗ PhaseSpace(:q)
+        h = SecondQuantizedAlgebra.var"⊗"(FockSpace(:c), PhaseSpace(:q))
         x = Position(h, :x, 2)
         bf = FockBasis(3)
         bq = FockBasis(5)
-        bc = bf ⊗ bq
+        bc = QuantumOpticsBase.var"⊗"(bf, bq)
         @test to_numeric(x, bc; op_type = identity) isa LazySum
         @test to_numeric(x, bc) isa Operator
     end

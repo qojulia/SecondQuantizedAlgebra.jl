@@ -138,7 +138,7 @@ import SecondQuantizedAlgebra: constraint_pairs
 
         distinct = assume_distinct_index(ai * aj', [(i, j)])
         @test any(pair -> pair == (i, j) || pair == (j, i), constraint_pairs(distinct))
-        @test operators(distinct) == operators(ai * aj')
+        @test get_operators(distinct) == get_operators(ai * aj')
         @test !isequal(distinct, ai * aj')
 
         hproduct = hf ⊗ hn
@@ -210,7 +210,8 @@ import SecondQuantizedAlgebra: constraint_pairs
             pair -> pair == (i, j) || pair == (j, i),
             constraint_pairs(product_sum),
         )
-        @test haskey(product_sum, operators(adj * aj))
+        product_key = first(keys((adj * aj).arguments)).ops
+        @test haskey(product_sum, product_key)
 
         constrained = Σ(adj * ai, i, [j])
         @test length(constrained) == 1
@@ -296,7 +297,8 @@ import SecondQuantizedAlgebra: constraint_pairs
         σ(α, β, k) = IndexedOperator(Transition(h, :σ, α, β), k)
 
         double_sum = Σ(Σ(σ(2, 1, i) * σ(1, 2, j), i), j)
-        @test haskey(double_sum, operators(Σ(σ(2, 2, j), j)))
+        diagonal_key = first(keys(Σ(σ(2, 2, j), j).arguments)).ops
+        @test haskey(double_sum, diagonal_key)
         @test any(
             pair -> pair == (i, j) || pair == (j, i),
             constraint_pairs(double_sum),

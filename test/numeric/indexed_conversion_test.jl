@@ -15,7 +15,7 @@ matnorm(A, B) = maximum(abs, A - B)
 function tc_indexed(N, cutoff)
     hc = FockSpace(:cavity)
     ha = NLevelSpace(:atom, 2)
-    h = hc ⊗ ha
+    h = SecondQuantizedAlgebra.var"⊗"(hc, ha)
     a = Destroy(h, :a, 1)
     σ(α, β, k) = IndexedOperator(Transition(h, :σ, α, β, 2), k)
     @variables Δ
@@ -27,7 +27,7 @@ function tc_indexed(N, cutoff)
     bn = NLevelBasis(2)
     b = let acc = bc
         for _ in 1:N
-            acc = acc ⊗ bn
+            acc = QuantumOpticsBase.var"⊗"(acc, bn)
         end
         acc
     end
@@ -38,7 +38,7 @@ end
 function tc_explicit(N, cutoff)
     h = let acc = FockSpace(:c)
         for k in 1:N
-            acc = acc ⊗ NLevelSpace(Symbol("atom_", k), 2)
+            acc = SecondQuantizedAlgebra.var"⊗"(acc, NLevelSpace(Symbol("atom_", k), 2))
         end
         acc
     end
@@ -118,7 +118,7 @@ end
 @testset "Indexed numeric: d-override and resolved-site naming" begin
     hc = FockSpace(:cavity)
     ha = NLevelSpace(:atom, 2)
-    h = hc ⊗ ha
+    h = SecondQuantizedAlgebra.var"⊗"(hc, ha)
     a = Destroy(h, :a, 1)
     sig(α, β, k) = IndexedOperator(Transition(h, :σ, α, β, 2), k)
     i = Index(h, :i, 2, ha)
@@ -126,7 +126,7 @@ end
 
     bc = FockBasis(2)
     bn = NLevelBasis(2)
-    b = bc ⊗ bn ⊗ bn
+    b = QuantumOpticsBase.var"⊗"(bc, bn, bn)
     sites = Dict{Int, Vector{Int}}(1 => [1], 2 => [2, 3])
 
     # A resolved per-site index keeps its user-facing name and slot.
@@ -154,11 +154,11 @@ end
     H = Σ(σ(1, 2, i) * σ(2, 1, j), i, j)
 
     bn = NLevelBasis(2)
-    b = bn ⊗ bn
+    b = QuantumOpticsBase.var"⊗"(bn, bn)
     sites = Dict{Int, Vector{Int}}(1 => [1, 2])
     M = to_numeric(H, b, sites, Dict{S.QSym, Any}())
 
-    he = NLevelSpace(:a1, 2) ⊗ NLevelSpace(:a2, 2)
+    he = SecondQuantizedAlgebra.var"⊗"(NLevelSpace(:a1, 2), NLevelSpace(:a2, 2))
     t(α, β, k) = Transition(he, Symbol(:s, k), α, β, k)
     Hex = t(1, 2, 1) * t(2, 1, 1) + t(1, 2, 1) * t(2, 1, 2) +
         t(1, 2, 2) * t(2, 1, 1) + t(1, 2, 2) * t(2, 1, 2)
@@ -171,7 +171,7 @@ end
     # legs of `split_scalar_subs`/`apply_scalar_subs` (the `has_imag == false` path).
     hc = FockSpace(:cavity)
     ha = NLevelSpace(:atom, 2)
-    h = hc ⊗ ha
+    h = SecondQuantizedAlgebra.var"⊗"(hc, ha)
     a = Destroy(h, :a, 1)
     σ(α, β, k) = IndexedOperator(Transition(h, :σ, α, β, 2), k)
     gv(k) = IndexedVariable(:g, k)
@@ -180,7 +180,7 @@ end
 
     bc = FockBasis(2)
     bn = NLevelBasis(2)
-    b = bc ⊗ bn ⊗ bn
+    b = QuantumOpticsBase.var"⊗"(bc, bn, bn)
     sites = Dict{Int, Vector{Int}}(1 => [1], 2 => [2, 3])
 
     ks_sym = SymbolicUtils.Sym{SymbolicUtils.SymReal}(
@@ -192,7 +192,9 @@ end
     M = to_numeric(H, b, sites, Dict{S.QSym, Any}(), scalar_subs)
 
     # Explicit reference on the same layout.
-    he = FockSpace(:c) ⊗ NLevelSpace(:a1, 2) ⊗ NLevelSpace(:a2, 2)
+    he = SecondQuantizedAlgebra.var"⊗"(
+        FockSpace(:c), NLevelSpace(:a1, 2), NLevelSpace(:a2, 2),
+    )
     ae = Destroy(he, :a, 1)
     te(α, β, k) = Transition(he, Symbol(:s, k), α, β, k + 1)
     Hex = 0.3 * (ae' * te(1, 2, 1) + ae * te(2, 1, 1)) +
@@ -204,7 +206,7 @@ end
 @testset "Indexed numeric: slot resolution edge cases" begin
     hc = FockSpace(:cavity)
     ha = NLevelSpace(:atom, 2)
-    h = hc ⊗ ha
+    h = SecondQuantizedAlgebra.var"⊗"(hc, ha)
     a = Destroy(h, :a, 1)
     σ(α, β, k) = IndexedOperator(Transition(h, :σ, α, β, 2), k)
     i = Index(h, :i, 2, ha)
@@ -212,7 +214,7 @@ end
 
     bc = FockBasis(2)
     bn = NLevelBasis(2)
-    b = bc ⊗ bn ⊗ bn
+    b = QuantumOpticsBase.var"⊗"(bc, bn, bn)
     sites = Dict{Int, Vector{Int}}(1 => [1], 2 => [2, 3])
 
     # A non-indexed subspace (the cavity) may be omitted from `sites`: its operator falls
@@ -236,7 +238,7 @@ end
     H = Σ(IndexedOperator(a, i), i)
 
     @test_throws ArgumentError to_numeric(H, FockBasis(2), Dict(1 => [1, 2]))
-    b = FockBasis(2) ⊗ FockBasis(2)
+    b = QuantumOpticsBase.var"⊗"(FockBasis(2), FockBasis(2))
     @test_throws ArgumentError to_numeric(H, b, Dict(1 => [1, 1]))
     @test_throws ArgumentError to_numeric(H, b, Dict(1 => [1, 3]))
 end

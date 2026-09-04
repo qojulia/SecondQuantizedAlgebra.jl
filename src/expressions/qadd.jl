@@ -7,7 +7,7 @@ All arithmetic on [`QSym`](@ref) operators produces a `QAdd`. Iterating over a
 `QAdd` yields `Pair{QTerm, CNum}` entries; read `term.ops` for the operator
 sequence and `term.ne` for the scoped index constraints.
 
-See also [`QTerm`](@ref), [`prefactor`](@ref), [`operators`](@ref), [`Σ`](@ref),
+See also [`QTerm`](@ref), [`get_prefactor`](@ref), [`get_operators`](@ref), [`Σ`](@ref),
 [`constraint_pairs`](@ref).
 """
 struct QAdd <: QField
@@ -271,7 +271,7 @@ function Base.haskey(q::QAdd, key::AbstractVector{<:QSym})
 end
 
 """
-    prefactor(s::QAdd) -> Complex{Num}
+    get_prefactor(s::QAdd) -> Complex{Num}
 
 Return the `Complex{Num}` prefactor of a single-term [`QAdd`](@ref).
 
@@ -285,27 +285,28 @@ julia> h = FockSpace(:f);
 
 julia> @qnumbers a::Destroy(h);
 
-julia> prefactor(2 * a' * a)
+julia> get_prefactor(2 * a' * a)
 2
 ```
 
-See also [`operators`](@ref), [`sorted_arguments`](@ref).
+See also [`get_operators`](@ref), [`sorted_arguments`](@ref).
 """
-function prefactor(s::QAdd)
+function get_prefactor(s::QAdd)
     length(s.arguments) == 1 || throw(
-        ArgumentError("prefactor requires a single-term expression, got $(length(s.arguments)) terms")
+        ArgumentError("get_prefactor requires a single-term expression, got $(length(s.arguments)) terms")
     )
     return to_num(first(values(s.arguments)))
 end
 
 """
-    operators(s::QAdd) -> Vector{Op}
+    get_operators(s::QAdd) -> Vector{Op}
 
-Return the ordered operator sequence of a single-term [`QAdd`](@ref).
+Return the unique operators occurring in [`QAdd`](@ref) `s`.
 
-Throws `ArgumentError` if `s` contains more than one term. For multi-term
-expressions, iterate over the `QAdd` directly and read `term.ops` from each
-[`QTerm`](@ref).
+The result is sorted by the canonical [`order_key`](@ref). An operator and
+its adjoint are distinct entries; use [`unique_up_to_adjoint`](@ref) when adjoint pairs
+should be treated as one degree of freedom. Repeated factors are returned once;
+read `term.ops` directly when multiplicity must be preserved.
 
 # Examples
 
@@ -314,15 +315,108 @@ julia> h = FockSpace(:f);
 
 julia> @qnumbers a::Destroy(h);
 
-julia> length(operators(a' * a))
+julia> length(get_operators(a' * a))
 2
 ```
 
-See also [`prefactor`](@ref), [`sorted_arguments`](@ref).
+See also [`get_prefactor`](@ref), [`unique_up_to_adjoint`](@ref), [`sorted_arguments`](@ref).
 """
-function operators(s::QAdd)
-    length(s.arguments) == 1 || throw(
-        ArgumentError("operators requires a single-term expression, got $(length(s.arguments)) terms")
+function get_operators(s::QAdd)
+    ops = Op[]
+    for term in keys(s.arguments)
+        append!(ops, term.ops)
+    end
+    unique!(ops)
+    sort!(ops; by = order_key)
+    return ops
+end
+
+"""
+    get_variables(s::QAdd) -> Vector{SymbolicUtils.BasicSymbolic}
+
+Return the unique scalar symbolic variables occurring in the prefactors of
+[`QAdd`](@ref) `s`. Operator leaves are not included. Variables in indexed
+coefficients are returned according to `Symbolics.get_variables`; use
+[`get_indices`](@ref) to inspect the expression's structured index scope.
+
+The returned variables follow the representation used by
+`Symbolics.get_variables`, so they can be passed directly to Symbolics
+functions such as `build_function`. Pass a `varlist` as the second argument
+to restrict the result, or use `Symbolics.get_variables!` to fill a caller-owned
+buffer.
+
+# Examples
+
+```jldoctest
+julia> h = FockSpace(:f);
+
+julia> @qnumbers a::Destroy(h);
+
+julia> @variables ω g;
+
+julia> length(get_variables(ω * a' * a + g * a))
+2
+```
+"""
+function Symbolics.get_variables(s::QAdd; kwargs...)::Vector{SymbolicUtils.BasicSymbolic}
+    vars = SymbolicUtils.BasicSymbolic[]
+    for c in values(s.arguments)
+        append!(vars, Symbolics.get_variables(real(c); kwargs...))
+        append!(vars, Symbolics.get_variables(imag(c); kwargs...))
+    end
+    unique!(vars)
+    sort!(vars; by = string)
+    return vars
+end
+
+function Symbolics.get_variables(
+        s::QAdd,
+        varlist;
+        is_atomic = SymbolicUtils.default_is_atomic,
+        kwargs...,
+    )::Vector{SymbolicUtils.BasicSymbolic}
+    vars = SymbolicUtils.BasicSymbolic[]
+    for c in values(s.arguments)
+        append!(
+            vars,
+            Symbolics.get_variables(
+                real(c), varlist; is_atomic = is_atomic, kwargs...
+            ),
+        )
+        append!(
+            vars,
+            Symbolics.get_variables(
+                imag(c), varlist; is_atomic = is_atomic, kwargs...
+            ),
+        )
+    end
+    unique!(vars)
+    sort!(vars; by = string)
+    return vars
+end
+
+function Symbolics.get_variables!(buffer, s::QAdd; kwargs...)
+    for c in values(s.arguments)
+        Symbolics.get_variables!(buffer, real(c); kwargs...)
+        Symbolics.get_variables!(buffer, imag(c); kwargs...)
+    end
+    return buffer
+end
+
+function Symbolics.get_variables!(
+        buffer,
+        s::QAdd,
+        varlist;
+        is_atomic = SymbolicUtils.default_is_atomic,
+        kwargs...,
     )
-    return first(keys(s.arguments)).ops
+    for c in values(s.arguments)
+        Symbolics.get_variables!(
+            buffer, real(c), varlist; is_atomic = is_atomic, kwargs...
+        )
+        Symbolics.get_variables!(
+            buffer, imag(c), varlist; is_atomic = is_atomic, kwargs...
+        )
+    end
+    return buffer
 end

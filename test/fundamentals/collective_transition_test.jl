@@ -33,13 +33,13 @@ using Test
         @test Sge == CollectiveTransition(hc, :S, 1, 2)
         @test_throws ArgumentError CollectiveTransition(hc, :S, :missing, :e)
 
-        h = FockSpace(:cavity) ⊗ hc
+        h = SecondQuantizedAlgebra.var"⊗"(FockSpace(:cavity), hc)
         @test acts_on(CollectiveTransition(h, :S, 1, 2)) == [2]
         @test CollectiveTransition(h, :S, :g, :e, 2) ==
             CollectiveTransition(h, :S, 1, 2, 2)
         @test_throws ArgumentError CollectiveTransition(h, :S, 1, 2, 1)
 
-        duplicate = hc ⊗ CollectiveNLevelSpace(:other, 2)
+        duplicate = SecondQuantizedAlgebra.var"⊗"(hc, CollectiveNLevelSpace(:other, 2))
         @test_throws ArgumentError CollectiveTransition(duplicate, :S, 1, 2)
         @test acts_on(CollectiveTransition(duplicate, :T, 1, 2, 2)) == [2]
     end
@@ -71,12 +71,12 @@ using Test
         T12 = CollectiveTransition(h, :T, 1, 2)
         @test iszero(commutator(S(1, 2), T12))
 
-        hp = h ⊗ CollectiveNLevelSpace(:other, 3)
+        hp = SecondQuantizedAlgebra.var"⊗"(h, CollectiveNLevelSpace(:other, 3))
         A12 = CollectiveTransition(hp, :A, 1, 2, 1)
         B21 = CollectiveTransition(hp, :B, 2, 1, 2)
         @test iszero(commutator(A12, B21))
 
-        hm = FockSpace(:cavity) ⊗ h
+        hm = SecondQuantizedAlgebra.var"⊗"(FockSpace(:cavity), h)
         a = Destroy(hm, :a, 1)
         Sp = CollectiveTransition(hm, :S, 1, 2, 2)
         Sm = Sp'

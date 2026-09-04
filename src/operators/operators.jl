@@ -22,7 +22,7 @@ julia> length(fundamental_operators(h))
 3
 ```
 
-See also [`find_operators`](@ref), [`unique_ops`](@ref).
+See also [`find_operators`](@ref), [`unique_up_to_adjoint`](@ref).
 """
 function fundamental_operators(h::FockSpace, si::Int = 1; names::Union{Nothing, AbstractVector} = nothing)
     name = names === nothing ? :a : names[si]
@@ -71,7 +71,7 @@ function fundamental_operators(h::ProductSpace; names::Union{Nothing, AbstractVe
 end
 
 """
-    unique_ops(ops) -> Vector
+    unique_up_to_adjoint(ops) -> Vector
 
 Return unique operators from `ops`, treating `op` and `op'` (adjoint) as the
 same degree of freedom. Only the first occurrence of each operator/adjoint pair
@@ -84,22 +84,22 @@ julia> h = FockSpace(:f);
 
 julia> @qnumbers a::Destroy(h);
 
-julia> length(unique_ops([a, a', a]))
+julia> length(unique_up_to_adjoint([a, a', a]))
 1
 ```
 
-See also [`unique_ops!`](@ref), [`fundamental_operators`](@ref).
+See also [`unique_up_to_adjoint!`](@ref), [`fundamental_operators`](@ref).
 """
-function unique_ops(ops::AbstractVector)
+function unique_up_to_adjoint(ops::AbstractVector{<:QField})
     ops_ = copy(ops)
-    unique_ops!(ops_)
+    unique_up_to_adjoint!(ops_)
     return ops_
 end
 
 """
-    unique_ops!(ops) -> Vector
+    unique_up_to_adjoint!(ops) -> Vector
 
-In-place version of [`unique_ops`](@ref).
+In-place version of [`unique_up_to_adjoint`](@ref).
 
 # Examples
 
@@ -110,13 +110,13 @@ julia> @qnumbers a::Destroy(h);
 
 julia> v = [a, a'];
 
-julia> SecondQuantizedAlgebra.unique_ops!(v);
+julia> SecondQuantizedAlgebra.unique_up_to_adjoint!(v);
 
 julia> length(v)
 1
 ```
 """
-function unique_ops!(ops::AbstractVector)
+function unique_up_to_adjoint!(ops::AbstractVector{<:QField})
     seen = Set{UInt}()
     j = 0
     for i in eachindex(ops)
@@ -155,7 +155,7 @@ julia> length(find_operators(h, 1))
 1
 ```
 
-See also [`fundamental_operators`](@ref), [`unique_ops`](@ref).
+See also [`fundamental_operators`](@ref), [`unique_up_to_adjoint`](@ref).
 """
 function find_operators(h::HilbertSpace, order::Int; names::Union{Nothing, AbstractVector} = nothing)
     # Auto-generate names when ProductSpace has duplicate space types
@@ -183,7 +183,7 @@ function find_operators(h::HilbertSpace, order::Int; names::Union{Nothing, Abstr
         end
     end
 
-    unique_ops!(all_ops)
+    unique_up_to_adjoint!(all_ops)
     return all_ops
 end
 
@@ -240,7 +240,7 @@ Hermitian conjugate of an operator expression. Method added to
 ecosystem) so it resolves without qualification when both are loaded. Forwards
 to [`qadjoint`](@ref); use `qadjoint`/`qconj` for bare scalar/symbolic adjoints.
 """
-dagger(x::QField) = qadjoint(x)
+QuantumInterface.dagger(x::QField) = qadjoint(x)
 
 """
     inner_adjoint(x)
