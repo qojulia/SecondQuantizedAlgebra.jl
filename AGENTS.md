@@ -108,17 +108,19 @@ Use the `julia-mcp` MCP server (tools: `julia_eval`, `julia_list_sessions`, `jul
 
 ### Test structure
 
-Tests are organized in subdirectories matching `src/`, run via `test/runtests.jl` (ParallelTestRunner).
+Tests are organized by behavioral contract rather than by mirroring `src/`. The detailed taxonomy and placement rule live in [`test/README.md`](test/README.md): put a test where a contributor would look when the behavior breaks, not where the implementing function currently lives.
+
+- `test/fundamentals/`: Hilbert spaces, operator construction, indexing primitives, names, and canonical ordering.
+- `test/algebra/`: arithmetic, commutators, normal ordering, simplification, substitution, and unitary transformations.
+- `test/symbolic/`: coefficients, phases, averages, indexed constraints, time dependence, and symbolic reductions.
+- `test/numeric/`: core conversion, backend interfaces, materialization/performance, expectation values, parameter/operator substitution, indexed conversion, and backend-specific behavior.
+- `test/presentation/`: text/Unicode and LaTeX rendering.
+- `test/integration/`: workflows and invariants that deliberately cross subsystem boundaries.
+- `test/quality/`: static and repository-wide quality gates.
+
+Directories encode concepts, filenames encode contracts, and nested `@testset`s encode scenarios. Tests that intentionally span several concepts belong in `integration/`. The suite is discovered recursively by `test/runtests.jl` using ParallelTestRunner; keep the `quality/JET` path stable because the runner handles it specially.
 
 **Quality gates** (`test/quality/quality_test.jl`): Aqua (unbound args, stale deps, piracy), JET (type errors), ExplicitImports, CheckConcreteStructs.
-
-**Operator tests** (`test/operators/`): `fock_test.jl`, `nlevel_test.jl`, `pauli_test.jl`, `spin_test.jl`, `phase_space_test.jl`, `hilbertspace_test.jl`, `operators_test.jl`
-
-**Expression tests** (`test/expressions/`): `algebra_test.jl`, `indexing_test.jl`, `macros_test.jl`
-
-**Arithmetic tests** (`test/arithmetics/`): `simplify_test.jl`, `commutator_test.jl`, `normal_order_test.jl`, `substitute_test.jl`, `internals_test.jl`
-
-**Other:** `test/printing/printing_test.jl`, `test/average_test.jl`, `test/numeric_test.jl`
 
 ### Testing patterns
 
