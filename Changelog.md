@@ -10,7 +10,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
-- Follow QuantumInterface 0.4.4's move of `tensor` and `⊗` to TensorCore, declaring TensorCore directly so the shared tensor-product API continues to load and passes explicit-import ownership checks.
 - Make numeric conversion for QuantumToolbox.jl type-stable
 
 ##  [v0.11.0]
@@ -79,3 +78,291 @@ Numeric conversion (`to_numeric`/`numeric_average`/`expect`) was redesigned to b
 - `to_numeric` converts a `CollectiveTransition` on a `QuantumOpticsBase.ManyBodyBasis` with an `NLevelBasis` one-body basis through `manybodyoperator`. This gives exact finite-``N`` dynamics in a symmetric space of dimension ``\binom{N+n-1}{n-1}`` and works unchanged inside composite bases. For two levels it reproduces the spin-``N/2`` representation, with ``S^{12}=S_+``, ``S^{21}=S_-``, and ``(S^{11}-S^{22})/2=S_z`` in the QuantumOpticsBase convention.
 - `OP_COLLECTIVE_TRANSITION` extends the public `OpKind` tags with value `7`. It is appended after `OP_MOMENTUM`, preserving the values `0:6` and structural ordering keys of every existing operator role.
 - A public constructor and body accessor for the moment-layer indexed-sum node, completing the read/write API alongside the existing `is_indexed_sum`, `has_sum_metadata`, `get_sum_indices`, and `get_sum_non_equal`. `SecondQuantizedAlgebra.indexed_sum(body, indices; non_equal = NonEqualPair[])` wraps an averaged `body` in a sum node over `indices` (mirroring what `average` builds for a summed `QAdd`), and `SecondQuantizedAlgebra.get_sum_body(x)` reads the summed body back out. This lets downstream code (for example cumulant expansion factorizing a summed moment into a product form) re-wrap a body while preserving its summation scope. Resolves [#209](https://github.com/qojulia/SecondQuantizedAlgebra.jl/issues/209).
+- Public accessors and rebuilders for `Op`/`Index` internals, so downstream packages no longer reach into struct fields or the private constructors. `operator_index(op)` reads an operator's site `Index`; `acts_on(idx::Index)` returns an index's subspace as a one-element `Vector{Int}` (matching the return type of `acts_on(::QSym)`); `set_acts_on(op, aon)` rebinds an operator to a new subspace; and `SecondQuantizedAlgebra.rename(x, name)` renames an `Op` or an `Index` in place of the internal `Op`/`Index` constructor (preserving every other field). This is the SecondQuantizedAlgebra half of QuantumCumulants issue [#300](https://github.com/qojulia/QuantumCumulants.jl/issues/300).
+
+### Changed
+
+- The internal `_commute_pair` hook now carries up to two residual terms. Fock, phase-space, and spin operators continue to use one residual slot; collective transitions use both when both Kronecker deltas contribute. The eager commute pass and the leaf `commutator` fast path retain and combine both branches.
+- Passing a `String` where a name `Symbol` is expected now throws a clear `ArgumentError` telling the user to use a `Symbol` (`:x`), instead of a cryptic `MethodError`. This covers Hilbert-space constructors (`FockSpace`, `NLevelSpace`, `PauliSpace`, `SpinSpace`, `PhaseSpace`), operator constructors (`Destroy`, `Create`, `Transition`, `Pauli`, `Spin`, `Position`, `Momentum`), and the index-related constructors `Index`, `IndexedVariable`, and `DoubleIndexedVariable`. Names remain `Symbol`s by design: a single canonical name type keeps name comparison and interning type-stable, so strings are rejected rather than silently converted.
+
+### Documentation
+
+- Added a guide comparing indexed sums with exact collective symmetric-subspace operators, developer documentation for the two-residual commute contract and the collective-transition/spin relationship, and a finite-``N`` Tavis–Cummings example using `ManyBodyBasis`
+
+## [v0.9.3]
+
+### Fixed
+
+- The diagonal split in `_accumulate_with_diag!` no longer leaks the diagonal coefficient into the off-diagonal body when a summation index appears only in a term's coefficient. Multiplying a sum such as `Σ_k u(l,k)·σ_l` by an operator peels off the diagonal `k = l` slice, but the substitution dropped the split's `k ≠ l` constraint instead of rewriting it onto the collapsed index. A sibling scope then re-admitted `k = l`, so the off-diagonal body's coefficient became `u(l,k) + u(l,l)` and the diagonal was over-counted (for example `commutator(σ_l^{22}, Σ_{j,k} u(j,k)(σ_j^{21}+σ_j^{12}))` gained a spurious `u(l,l)` in every `Σ_k` term). The diagonal contribution now rewrites each `sum_idx ≠ β` constraint onto `ext_idx`, exactly as the `Σ` diagonal split already does, so the off-diagonal body keeps its bare coefficient and the diagonal is emitted once. This is the SecondQuantizedAlgebra half of QuantumCumulants issue [#198](https://github.com/qojulia/QuantumCumulants.jl/issues/198).
+
+## [v0.9.2]
+
+### Changed
+
+- `to_numeric` now returns a concrete operator by default, and its representation depends only on `op_type`, not on the shape of the expression. Previously a bare operator translated to a `LazyTensor` and a sum to a `LazySum` (via the positional path), while the keyword path materialized `sparse` only in some branches, so composing subexpressions silently changed the return type and operators handed to solvers were lazy by default. The default `op_type` is now `sparse` (was `identity`), applied uniformly to bare operators, products, and sums. Pass `op_type=dense` for a dense operator, or `op_type=identity` to opt into the natural lazy representation (`LazyTensor`/`LazyProduct`/`LazySum`) for large tensor-product spaces where an operator is local to a few subsystems. The lazy embedding is kept internal, so a term is still assembled from lazy factors and materialized exactly once. Code relying on the previous lazy default must now pass `op_type=identity`.
+
+## [v0.9.1]
+
+### Fixed
+
+- Printing a sum of averages whose operators have different concrete types (for example `⟨a'a⟩`, which wraps a `QAdd`, alongside `⟨σ⟩`, which wraps a `QSym`) no longer errors. When SymbolicUtils sorts such a sum for display it unwraps the operator constants and falls back to comparing the operator *types*, which previously threw `MethodError: no method matching isless(::Type{QAdd}, ::Type{...})`. `QField` types now compare by name, so heterogeneous operator sums render as before.
+
+## [v0.9.0]
+
+### Added
+
+- `substitute` now replaces operators as well as scalar parameters in a single, simultaneous pass. A rule dictionary is split by key: `QSym` keys replace operator leaves, every other key substitutes into coefficients through SymbolicUtils. Operator replacements are applied once to the original leaves and the replacement expression is not searched again for operator keys, so a mode transformation such as `a => g*a + h*b` is well-defined even though its right-hand side contains the key `a`. Missing adjoint rules are generated automatically (`a => b` also implies `a' => b'`); pass `replace_adjoint=false` to match only the keys supplied explicitly.
+- A keyword form of `to_numeric(op, basis; parameter, time_parameter, operators, adjoint_ops, op_type)`. Scalar `parameter`s are substituted first, then the expression is translated with custom numeric `operators` (missing adjoints are added when `adjoint_ops=true`), and each emitted operator is passed through `op_type`. When `time_parameter` is non-empty the result is a closure `t -> op(t)`; its values may be numbers or functions of time, and a key may be a bare variable `v` or `conj(v)`. A vector form `to_numeric(ops::AbstractVector, basis; kwargs...)` forwards the keywords to each element.
+- `to_num(c::Coeff)` is now public and documented as the supported way to read the coefficient returned when iterating a `QAdd`. `Coeff` and `CNum` are now declared public, and the package's public-API declarations use [SciMLPublic.jl](https://github.com/SciML/SciMLPublic.jl) instead of a hand-rolled `@public` macro.
+
+### Changed
+
+- The ordering of the displayed expressions are now ordered first by Hilbert space and then by operator kind.
+
+## [v0.8.3]
+
+### Changed
+
+- `average` of a many-term operator is now O(n) instead of O(n²): a 500-term sum drops from about 31 ms to 9.6 ms.
+- Wide symbolic prefactors (large sums or products of parameters, as high-order perturbation theory generates) build in one pass instead of pairwise, O(n²) → O(n log n): at n=800 about 12.5× faster for a sum, 17× for a product.
+
+## [v0.8.2]
+
+### Changed
+
+- `commutator(::QAdd, ::QSym)` and `commutator(::QAdd, ::QAdd)` on operators without summation indices now stream each term-pair contribution straight into one shared result dict instead of materializing intermediates. The previous code wrapped every term of the left operand in a temporary single-term `QAdd` and built `a*b`, `b*a`, and their difference as separate `QAdd`s before merging into the accumulator, so a commutator over an n-term operand allocated O(n) throwaway dicts (O(n·m) for two n- and m-term sums). The fast path emits `+tₐ·t_b` and `−t_b·tₐ` directly through `_emit_product!`, which already runs the eager canonicalization, and lets the dict collect like terms. Operators that carry summation indices keep the existing path, where the per-term `_absorb_pinned_sums` index-scope bookkeeping must run. Results are byte-identical to `a*b - b*a`. Measured on the many-mode operator `Σ_{i,j} g aᵢ† aⱼ`: `QAdd×QSym` about 1.9× to 2.2× faster with about 5× less memory, and `QAdd×QAdd` about 2.2× faster with about 5× less memory at M=4/8/12.
+
+### Fixed
+
+- `conj` now folds as an involution in the coefficient algebra and in `qadjoint`. Conjugating a complex factor twice (or taking the adjoint of a scalar `conj(x)`) returned a nested `conj(conj(x))` that never simplified and survived downstream, leaving dead terms (e.g. a `conj(0.0)` that failed to collapse to zero after a complex coupling was substituted to a real value). Double conjugation now returns the original factor, and `conj` of an expression that reduces to a constant folds to a native coefficient.
+
+## [v0.8.1]
+
+### Added
+
+- `sum` and `reduce(+, …)` over a `Vector{QAdd}` now accumulate in place instead of folding with `Base.:+`. Building an n-term `QAdd` by repeated addition is O(n²) because every `+` copies the whole backing dict before inserting; the new `_QAddBuilder` (exposed through the [MutableArithmetics.jl](https://github.com/jump-dev/MutableArithmetics.jl) interface, so `MA.@rewrite` and `operate!!` loops work too) threads one shared dict through the entire reduction and materializes once. Results are byte-identical to the `+`-chain and `Base.:+` value semantics are unchanged. The fast path is the bracketed comprehension `sum([ω[k]*a[k]'*a[k] for k in 1:M])` (a bare generator stays on the generic fold). Measured on the many-mode Hamiltonian `Σ_k ω_k a_k† a_k`: about 3.9×/5.9×/11.8× faster and 5.5×/6.2×/11.4× less memory at M=8/16/24, the win growing with system size. The product path is intentionally left as repeated `*` (a prototype builder showed no win; the intrinsic distributive expansion dominates), see the devdocs.
+
+### Changed
+
+- `hash(::Op)` short-circuits the common non-indexed case. A profile of the product path found that about a third of the time goes to hashing `QTerm` dict keys, and `hash(::Op)` was recursing through the shared `NO_INDEX` constant's `Num` fields on every call even though most operators carry no index. The hash now folds `NO_INDEX` to a precomputed sentinel and only hashes a real `Index` when one is present. The per-operator hash is about 31% faster and term-building operations (products, powers, commutators, `substitute`) are about 5% to 6% faster end-to-end; for example `(a + a†)^12` drops from about 379 µs to 344 µs. Hash values are internal dict keys only (never persisted) and `isequal` is unchanged, so canonical results are identical.
+
+## [v0.8.0]
+
+### Changed
+
+- **Breaking: the seven operator types collapsed into one concrete `Op`.** `Destroy`, `Create`, `Transition`, `Pauli`, `Spin`, `Position`, and `Momentum` were separate `QSym` subtypes; they are now a single concrete `struct Op <: QSym` carrying a `kind::OpKind` tag plus shared packed fields. The role names stay as constructor functions, so every existing `Destroy(h, :a)` or `Transition(h, :σ, 1, 2)` call still builds the right operator with no source change. What breaks is type-level dispatch: code that branched on `isa Destroy` (or used `::Transition` method signatures, or `typeof(op) == Pauli`) must switch to the exported predicates `is_destroy`, `is_create`, `is_transition`, `is_pauli`, `is_spin`, `is_position`, `is_momentum`, or read the role with `optype(op)::OpKind`. Direct field reads also moved: a `Transition`'s `i`/`j`/`ground_state`/`n_levels` are now `l1`/`l2`/`g`/`nlev`, and a `Pauli`/`Spin` `axis` is `l1`. `Op` and the predicates are exported. Because operator products are now stored as a concrete `Vector{Op}` (`QTerm.ops`), the per-operator hooks (`_site_compare`, `_can_commute`, `_commute_pair`, `_reduce_pair`, `hash`) dispatch and inline statically instead of through the former abstract-`QSym` dynamic dispatch, and `_commute_pair`/`_reduce_pair` return concrete `Tuple{Op, …}` with no tuple boxing; custom `hash`/`isequal` on `Op` exclude the index's `Num` fields. Measured speedups over the v0.7.1 baseline from the operator collapse alone: Fock `(a·a†)^10` about 2.7×, single-mode `H^4` about 2.1×, many-mode `H^2` (M=8) about 1.7×, with roughly 30% fewer allocations on the Fock-dominated cases ([#164](https://github.com/qojulia/SecondQuantizedAlgebra.jl/issues/164)).
+- Parameter-polynomial coefficient arithmetic (the `Poly` tail of `Coeff`) allocates less: single-term times single-term (the common `ω·J` case) skips the sort/compact pass, term canonicalisation compacts its owned buffer in place instead of allocating a second vector, and a scalar-times-term product shares the other operand's factor vectors instead of re-merging. Results are byte-identical (canonical form unchanged) and the arithmetic stays fully type-stable. This cuts about 18% of allocations on many-mode `H^2` (M=8) and 11% on single-mode `H^4`, bringing the combined speedup over v0.7.1 to about 1.9× and 2.2× on those cases ([#164](https://github.com/qojulia/SecondQuantizedAlgebra.jl/issues/164)).
+
+- **Breaking: `Op` and `Index` are now `isbits` via interned integer ids ([#137](https://github.com/qojulia/SecondQuantizedAlgebra.jl/issues/137)).** Operator and index names are stored as an interned `name_id::Int32` (resolved back to a `Symbol` with the new `operator_name(op)` / `index_name(idx)` accessors), and an index's summation range as an interned `range_id::Int32` (recovered as the original `Num` with the new `index_range(idx)` accessor). `Index` drops its `range::Num` and `sym::Num` fields: the symbolic variable is reconstructed on demand by the new `index_sym(idx)` (SymbolicUtils hashconsing makes it the same object, so substitution and `get_variables` are unchanged), and a per-site `slot::Int32` replaces the per-slot/numeric `sym` payload. With every field a bits type, `Op` is `isbits` at 44 bytes (down from 72) and `QTerm.ops::Vector{Op}` is a dense inline buffer the GC never scans, hashed and compared on pure integers. Canonical ordering is preserved exactly and stays deterministic across sessions via a lexicographic name-rank table (interned ids are insertion-order; ranks are name-order). What breaks: code reading `op.name`, `idx.name`, `idx.range`, or `idx.sym` directly must switch to `operator_name`/`index_name`/`index_range`/`index_sym`; `Op.space_index` and `Index.space_index` are now `Int32`. The intern tables are module-global, written only at construction under a lock; their ids are not stable across sessions (never serialize them). Measured end-to-end speedups over v0.8.0: Fock `(c·c')^5` normal-order about 1.4×, indexed Jaynes-Cummings `H` simplify about 1.3×, nested-commutator and `H²` simplify about 1.1–1.2×, with no regressions.
+
+## [v0.7.2]
+
+### Changed
+
+- Complex parameters and irreducible scalar couplings now stay on the native `Poly` coefficient path instead of escalating to the `Complex{Num}` symbolic tail, where every later product/sum round-tripped through SymbolicUtils hashconsing. `_is_atom`/`_rec` now recognize any non-algebraic one-argument call on an atom (`real(g)`, `imag(g)`, `exp`, `sin`, ...) as a single opaque polynomial atom; a `@variables g::Complex` parameter (stored as `Complex(real(g), imag(g))`) therefore no longer poisons downstream coefficient arithmetic. Conjugation of a `Poly` coefficient is now native (`_conj_poly`: conjugate scalars and atoms, re-canonicalize) rather than materializing each term through `to_num`. On the downstream `QuantumInputOutput.jl` SLH cascade benchmark this lowers a 3-cavity `hamiltonian`/`lindblad` build from about 140 µs to about 7.6 µs (roughly 18×).
+- Radicals of a single parameter now canonicalize on the native `Poly` path: `Monomial` exponents are `Rational{Int}`, so `sqrt(p)` is stored as `p^(1//2)` (likewise `cbrt(p)` as `p^(1//3)`, and `p^(m//n)`). Building `sqrt(p)` and squaring it folds to `p` natively, matching the `sqrt(p)^2 -> p` fold Symbolics performs at the `Num` level; previously `sqrt(p)` was an opaque integer-exponent atom, so the two construction paths produced distinct, non-`isequal` coefficients and `QAdd` like-term dedup could miss merges. A radical of a non-atom (`sqrt(g*κ)`, `(g+κ)^(1//2)`) is not distributed (unsound in general) and stays a `Complex{Num}` symbolic leaf, consistent with how Symbolics treats it.
+
+## [v0.7.1]
+
+### changed
+
+- The per-term operator machinery is faster on product and power workloads, lowering the floor that remained after the `Coeff` rework. `QTerm` now caches its hash in a field computed once at construction, so the repeated dict probes, inserts, and growth-rehashes that key every canonicalization no longer re-walk the operator vector (whose abstract `QSym` eltype forces a dynamic dispatch per element); `isequal` also short-circuits on the cached hash before comparing operators. The reduce pass gained a type-domain `_may_reduce` gate consulted before `_reduce_pair`: only same-type `Transition` and `Pauli` pairs can compose, so every Fock, Spin, and `PhaseSpace` pair (the bulk of bosonic products) now skips the dynamically dispatched `_reduce_pair` call whose `(kind, op, factor)` tuple would otherwise box on each adjacent pair. Measured speedups over the post-`Coeff` baseline: Fock `(a·a†)^10` about 1.74×, many-mode `H^2` (M=8) about 1.81×, single-mode `H^4` about 1.54×, with roughly half the allocations ([#141](https://github.com/qojulia/SecondQuantizedAlgebra.jl/issues/141), [#164](https://github.com/qojulia/SecondQuantizedAlgebra.jl/issues/164)).
+
+## [v0.7.0]
+
+### Fixed
+
+- Averaging an indexed sum whose coefficient depends on the summation index no longer drops the scope or lets the index dangle outside the `Σ`. `average` previously stamped `SumIndices`/`SumNonEqual` metadata on the average leaf and emitted `coeff * leaf`; SymbolicUtils discards metadata on composite/numerically-scaled nodes, so `average(Σ(u(kk,k), k))` collapsed to a bare `u(kk,k)` and an index-dependent coefficient was hoisted outside the sum. Index-dependent terms are now wrapped in a dedicated moment-layer node (`SumFunc`/`sym_sum`) carrying the summation scope as a `SumScope` argument, so the whole averaged body stays inside the sum and the representation survives `Add`/`Mul` canonicalization. Because the scope rides as an argument (not metadata, which `isequal`/`hash` ignore), differently-scoped sums over the same body no longer wrongly cancel in a subtraction. New `is_indexed_sum` predicate; `has_sum_metadata`/`get_sum_indices`/`get_sum_non_equal` retained and now read the node ([#175](https://github.com/qojulia/SecondQuantizedAlgebra.jl/issues/175)).
+
+### Changed
+
+- `make_time_dependent` on an averaged indexed sum now yields `Σ(i) ⟨a_i⟩(t)` (per-site time-dependent moments under the sum) instead of `⟨Σ_i a_i⟩(t)` (one collective lumped variable), matching the non-lifted display `Σ(i) ⟨a_i⟩` and giving indexable per-site unknowns for indexed equations.
+- Operator prefactors are stored as a concrete `Coeff` with three forms (a native `ComplexF64` fast path, a sparse parameter polynomial for products and sums of named parameters, and a `Complex{Num}` fallback) instead of always `Complex{Num}`. Numeric and parameter-polynomial coefficient arithmetic stays native and never routes through SymbolicUtils hashconsing; a coefficient lowers to `Complex{Num}` only at the symbolic boundaries (`substitute`/`average`/printing/`prefactor`). The polynomial arithmetic is fully type-stable, with factor identity via `objectid`/`===` (which assumes SymbolicUtils hashconsing is enabled, the default). Polynomial coefficients are kept in canonical expanded form, so `(g+h)^2` is stored as `g^2 + 2*g*h + h^2`. Measured speedups over `Complex{Num}`: numeric power expansion about 2.1×, single-mode `H^4` about 2.65×, many-mode `H^2` about 3.5×, nested commutator about 2.4× ([#164](https://github.com/qojulia/SecondQuantizedAlgebra.jl/issues/164), [#183](https://github.com/qojulia/SecondQuantizedAlgebra.jl/pull/183)).
+
+
+## [v0.6.5]
+
+### Added
+
+- `@variables η::Number` declares a complex coefficient that stays a single atomic symbol, conjugating to the symbolic `conj(η)`. Unlike `::Complex` (which splits into independent real/imaginary unknowns and pays `(a+bi)(c+di)` expansion on every product), `::Number` keeps coefficient arithmetic on one symbol (`η * η → η²`). Adjoint routes coefficients through a symtype-aware `_conj_cnum`, so `(η a)†(η a)` correctly carries `|η|² = conj(η)·η`, and `to_numeric` reduces such coefficients (e.g. an unfolded `conj` of a complex literal) via `build_function`.
+
+## [v0.6.4]
+
+### Fixed
+
+- `change_index` now correctly zeros `DoubleIndexedVariable` nodes tagged `identical=false` even when they appear nested inside a larger product or sum. Previously `_check_not_identical` only examined the root of the substituted expression, so a `J(i,j)` factor inside `J(i,j) * x` would survive a `j → i` substitution intact instead of collapsing to zero. The fix walks the full expression tree, collects every `NotIdentical`-tagged node whose two index arguments became equal, and replaces them all via a single `Symbolics.substitute` pass.
+
+## [v0.6.3]
+
+### Changed
+
+- Lifted time-dependent averages now display as `⟨op⟩(t)` in both the REPL and `latexify` output, instead of exposing the internal `_avg_…` variable name. The `AverageOperator` metadata drives the rendering through new `show_metadata`/`_toexpr_metadata` hooks, so a moment's MTK unknown reads the same as its `average` ([#173](https://github.com/qojulia/SecondQuantizedAlgebra.jl/pull/173)).
+
+## [v0.6.2]
+
+### Added
+
+- `index_slot` (public): recover the concrete position `k` of a per-slot index symbol minted by `(i::Index)(k)`, read from metadata rather than parsed out of the symbol's name. `(i::Index)(k)` now stamps `k` as metadata; since symbol equality and hashing ignore metadata, a per-slot index still dedup-equals its name-only counterpart ([#170](https://github.com/qojulia/SecondQuantizedAlgebra.jl/pull/170)).
+
+## [v0.6.1]
+
+### Added
+
+- `order_key`, `term_order_key`, `qadd_order_key` (public): a total, identity-faithful structural ordering for operators, products, and sums, built from one per-type `order_key` method. The key ties two operators exactly when they are `isequal`, giving downstream packages a reproducible way to pick canonical representatives and compare expressions without round-tripping through `show` or `hash` ([#169](https://github.com/qojulia/SecondQuantizedAlgebra.jl/pull/169)).
+
+## [v0.6.0]
+
+### Changed
+
+- Average expressions now use `Number` as their Symbolics `symtype`, and the new `make_time_dependent` helper lifts them into ModelingToolkit-style time-dependent unknowns while preserving average metadata for round-tripping.
+
+## [v0.5.2]
+
+### Fixed
+
+- Commuting commutators with symbolic rational coefficients no longer bloat derived expressions ([#162](https://github.com/qojulia/SecondQuantizedAlgebra.jl/pull/162)). Deriving `[Hₖ, op]` for an `Hₖ` that commutes with `op` should vanish, but with a rational coupling such as `γ/|xᵢ-xⱼ|³` the two halves land as `γ/D + (-γ)/D`, which Symbolics leaves un-combined and `_iszero_cnum` does not see as zero; the spurious term then survives and inflates every downstream RHS. Fixed at two levels:
+  - `_addto_key!` cancels exact-negation prefactor pairs for symbolic coefficients (the numeric path stays allocation-free).
+  - `commutator` distributes over terms and skips disjoint-subspace pairs (`[aₖ, bₗ] = 0`), so the cancelling products are never formed.
+
+## [v0.5.1]
+
+
+### Fixed
+
+- `Σ` now **propagates index-inequality constraints onto the diagonal** when a summed index collapses onto an external one. When splitting the diagonal of `Σ_{i≠j} σᵢ²¹ σₖ¹²`, the `i = k` contribution now inherits `k ≠ j` instead of dropping it. Previously the constraint was discarded, letting a later sum re-admit the `k = j` point and double-count the diagonal of nested and ollective double sums ([#161](https://github.com/qojulia/SecondQuantizedAlgebra.jl/issues/161)).
+
+### Changed
+
+- LaTeX rendering for averaged expressions now uses `\langle \cdots \rangle`, and averaged indexed sums preserve their `\sum` prefix in `latexify` output via the new Symbolics LaTeX hooks ([#153](https://github.com/qojulia/SecondQuantizedAlgebra.jl/issues/153)).
+
+### Documentation
+
+- Document why alpha-equivalent sums (`Σᵢ σᵢ + Σⱼ σⱼ`) are not auto-collected and clarify the bound-index naming policy in the developer docs; add a "read the devdocs first" note for contributors ([#156]). Resolves [[#134](https://github.com/qojulia/SecondQuantizedAlgebra.jl/issues/134)].
+
+## [v0.5.0]
+
+Breaking release: redesign of the algebraic core. Most public entry points keep their names and meaning. The substantive changes fall into three groups: direct renames, constructs replaced by more general machinery, and behavioural changes in shared API names. This entry is the migration reference for users with code written against **SecondQuantizedAlgebra.jl v0.4** or **QuantumCumulants.jl**, which shares the v0.4 API surface.
+
+### Renamed
+
+One-to-one renames. Replace the left column with the right column anywhere it appears in your code.
+
+| v0.4 / QuantumCumulants.jl | v0.5 |
+|---|---|
+| `reorder(expr, [(α, β), …])` | `assume_distinct_index(expr, [(α, β), …])` |
+| `simplify(expr, h)` | `expand_completeness(simplify(expr))` |
+| `normal_order(expr, h)` | `expand_completeness(normal_order(expr))` |
+| `@cnumbers a b c` | `@variables a b c` *(reexported from Symbolics)* |
+| `@rnumbers a b c` | `@variables a::Real b::Real c::Real` |
+| `Parameter(:x)` | `@variables x` and use `x` |
+
+### Removed
+
+A handful of constructs that lived at the type level in v0.4 have been replaced by mechanisms that scale better and avoid bespoke types.
+
+**`ClusterSpace`.** Indexed families of identical subsystems are now expressed through the `Index` and `Σ` machinery. Where v0.4 wrote
+
+```julia
+hc = ClusterSpace(NLevelSpace(:atom, 2), N, k)
+σ = Transition(hc, :σ, 1, 2)
+H = Δ * sum(σ' * σ)
+```
+
+v0.5 writes
+
+```julia
+ha = NLevelSpace(:atom, 2)
+i  = Index(ha, :i, N, ha)
+σ(i) = IndexedOperator(Transition(ha, :σ, 1, 2), i)
+H = Δ * Σ(σ(i)' * σ(i), i)
+```
+
+`N` stays symbolic through equation derivation. The cumulant truncation order, which used to be the `k` parameter on `ClusterSpace`, is now a property of the moment expansion and is passed to the downstream solver (e.g. `meanfield(…; order=k)` in QuantumCumulants.jl) rather than baked into the Hilbert space.
+
+**`SingleSum` / `DoubleSum` / `SpecialIndexedTerm`.** These wrapper types are gone. `Σ(expr, i)` constructs a `QAdd` directly, with the summation index recorded on the `QAdd.indices` field and per-term inequality constraints recorded on each term's `ne` vector. The `SpecialIndexedTerm` role (carrying `(α, β) ∈ ne` constraints attached to a single product) is filled by the per-term `ne` field. Code that pattern-matched on these types should iterate the resulting `QAdd` and inspect `term.ne` directly.
+
+**`NumberedOperator` / `insert_index`.** v0.5 keeps indices symbolic throughout. Numeric basis instantiation for an indexed family of operators is the responsibility of the downstream numeric layer, not the algebra.
+
+**`IndexedAverageSum` / `IndexedAverageDoubleSum`.** Averaging an indexed `QAdd` now lifts the `indices` and per-term `ne` onto the resulting `BasicSymbolic` as metadata via `SymbolicUtils.setmetadata`. There is no dedicated indexed-average type; the same averaging machinery handles indexed and non-indexed cases uniformly.
+
+**`QMul`.** All arithmetic returns `QAdd`. Code that branched on `QMul`-vs-`QAdd` can drop the branch: multiplication is uniform-return-type. Iteration over a `QAdd` yields `Pair{QTerm, CNum}`; reach into `term.ops` and `term.ne` directly for the operator string and its constraints.
+
+**`order_by_index`.** Operators with symbolic indices on the same Hilbert subspace are sorted automatically when `_partial_sort!` can resolve their relationship (sum bound, declared inequality). When the relationship is undetermined, declare the pairs with `assume_distinct_index` to trigger the sort.
+
+### Changed
+
+A few API names survive but their behaviour has shifted. The differences are intentional and pay off in correctness or performance, so be aware of them when porting tests.
+
+**`σᵍᵍ` no longer expands automatically.** In v0.4, every product passing through `*` rewrote ground-state projectors via `σᵍᵍ = 1 - Σ_{k≠g} σᵏᵏ`. In v0.5, `σᵍᵍ` is a legitimate canonical-form atom and stays atomic through `*`, `normal_order`, and `simplify`. Use `expand_completeness(expr)` to materialise the identity explicitly. The change preserves like-term collection across operations and avoids an `n_levels^k` blow-up for products containing many ground-state factors.
+
+**`simplify` now includes coefficient simplification.** In v0.4, `simplify` applied algebraic identities to operators only. In v0.5, `simplify` is `normal_order` followed by `Symbolics.simplify` on each surviving coefficient and a drop of summation indices that no surviving term depends on. The expensive symbolic simplification deliberately runs once per surviving term rather than on every internal dict insertion, so the cost shows up at the `simplify` call site rather than inside `*`.
+
+**`Transition` carries `ground_state` and `n_levels`.** The constructor signature `Transition(h, :σ, i, j)` still works and infers these from the surrounding `NLevelSpace`, but the fields now live on the operator itself rather than being looked up on demand. Downstream code that previously had to consult `h` to expand completeness no longer needs the Hilbert space.
+
+**Free indices stay in physical order under `*`.** Two operators carrying different symbolic indices on the same Hilbert subspace, with no `Σ` binding either and no declared inequality, are stored in their physical order rather than being sorted alphabetically by name. Declare the pairs with `assume_distinct_index(q, [(j, k)])` to trigger sorting (and any same-site collapse that follows).
+
+### Migration
+
+Side-by-side, an indexed Tavis-Cummings Hamiltonian.
+
+```julia
+# v0.4 / QuantumCumulants.jl
+hc = FockSpace(:cavity)
+ha = NLevelSpace(:atom, 2)
+h  = hc ⊗ ha
+@qnumbers a::Destroy(h, 1)
+σ(i, j, k) = IndexedOperator(Transition(h, :σ, i, j), k)
+@cnumbers N Δ
+g(i) = IndexedVariable(:g, i)
+i = Index(h, :i, N, ha)
+H = -Δ * a' * a + Σ(g(i) * (a' * σ(1, 2, i) + a * σ(2, 1, i)), i)
+
+# v0.5
+hc = FockSpace(:cavity)
+ha = NLevelSpace(:atom, 2)
+h  = hc ⊗ ha
+@qnumbers a::Destroy(h, 1)
+σ(i, j, k) = IndexedOperator(Transition(h, :σ, i, j, 2), k)
+@variables N Δ
+g(i) = IndexedVariable(:g, i)
+i = Index(h, :i, N, ha)
+H = -Δ * a' * a + Σ(g(i) * (a' * σ(1, 2, i) + a * σ(2, 1, i)), i)
+```
+
+The differences are local: `@cnumbers` becomes `@variables`, and `Transition` takes an explicit `n_levels` argument (2 for a two-level atom). Everything downstream (commutators, averaging, equation derivation) uses the same names with the same meaning.
+
+### Unchanged
+
+These names keep their meaning across the migration. Code that only uses them should port without changes:
+
+`FockSpace`, `NLevelSpace`, `PauliSpace`, `SpinSpace`, `PhaseSpace`, `ProductSpace`, `⊗`, `tensor`, `@qnumbers`, `Destroy`, `Create`, `Transition`, `Pauli`, `Spin`, `Position`, `Momentum`, `Index`, `IndexedOperator`, `IndexedVariable`, `DoubleIndexedVariable`, `Σ`, `∑`, `change_index`, `get_indices`, `commutator`, `anticommutator`, `acts_on`, `find_operators`, `fundamental_operators`, `unique_ops`, `prefactor`, `operators`, `substitute`, `expand`, `normal_order`, `simplify`, `normal_to_symmetric`, `symmetric_to_normal`, `average`, `undo_average`, `is_average`, `to_numeric`, `numeric_average`.
+
+
+<!-- Links generated by Changelog.jl -->
+
+[v0.5.0]: https://github.com/qojulia/SecondQuantizedAlgebra.jl/releases/tag/v0.5.0
+[v0.5.1]: https://github.com/qojulia/SecondQuantizedAlgebra.jl/releases/tag/v0.5.1
+[v0.5.2]: https://github.com/qojulia/SecondQuantizedAlgebra.jl/releases/tag/v0.5.2
+[v0.6.0]: https://github.com/qojulia/SecondQuantizedAlgebra.jl/releases/tag/v0.6.0
+[v0.6.1]: https://github.com/qojulia/SecondQuantizedAlgebra.jl/releases/tag/v0.6.1
+[v0.6.2]: https://github.com/qojulia/SecondQuantizedAlgebra.jl/releases/tag/v0.6.2
+[v0.6.3]: https://github.com/qojulia/SecondQuantizedAlgebra.jl/releases/tag/v0.6.3
+[v0.6.4]: https://github.com/qojulia/SecondQuantizedAlgebra.jl/releases/tag/v0.6.4
+[v0.6.5]: https://github.com/qojulia/SecondQuantizedAlgebra.jl/releases/tag/v0.6.5
+[v0.7.0]: https://github.com/qojulia/SecondQuantizedAlgebra.jl/releases/tag/v0.7.0
+[v0.7.1]: https://github.com/qojulia/SecondQuantizedAlgebra.jl/releases/tag/v0.7.1
+[v0.7.2]: https://github.com/qojulia/SecondQuantizedAlgebra.jl/releases/tag/v0.7.2
+[v0.8.0]: https://github.com/qojulia/SecondQuantizedAlgebra.jl/releases/tag/v0.8.0
+[v0.8.1]: https://github.com/qojulia/SecondQuantizedAlgebra.jl/releases/tag/v0.8.1
+[v0.8.2]: https://github.com/qojulia/SecondQuantizedAlgebra.jl/releases/tag/v0.8.2
+[v0.8.3]: https://github.com/qojulia/SecondQuantizedAlgebra.jl/releases/tag/v0.8.3
+[v0.9.0]: https://github.com/qojulia/SecondQuantizedAlgebra.jl/releases/tag/v0.9.0
+[v0.9.1]: https://github.com/qojulia/SecondQuantizedAlgebra.jl/releases/tag/v0.9.1
+[v0.9.2]: https://github.com/qojulia/SecondQuantizedAlgebra.jl/releases/tag/v0.9.2
+[v0.9.3]: https://github.com/qojulia/SecondQuantizedAlgebra.jl/releases/tag/v0.9.3
+[v0.9.4]: https://github.com/qojulia/SecondQuantizedAlgebra.jl/releases/tag/v0.9.4
+[v0.10.0]: https://github.com/qojulia/SecondQuantizedAlgebra.jl/releases/tag/v0.10.0
+[v0.10.1]: https://github.com/qojulia/SecondQuantizedAlgebra.jl/releases/tag/v0.10.1
+[v0.11.0]: https://github.com/qojulia/SecondQuantizedAlgebra.jl/releases/tag/v0.11.0
+[v0.11.1]: https://github.com/qojulia/SecondQuantizedAlgebra.jl/releases/tag/v0.11.1
+[#156]: https://github.com/qojulia/SecondQuantizedAlgebra.jl/issues/156
