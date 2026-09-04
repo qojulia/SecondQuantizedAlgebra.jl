@@ -93,7 +93,7 @@ import SecondQuantizedAlgebra: expim, exponential_form, phase_terms, to_num,
 
     @testset "public coefficient boundaries remain inferable" begin
         @variables ω t
-        @test prefactor(expim(ω * t) * a) isa Complex{Num}
+        @test get_prefactor(expim(ω * t) * a) isa Complex{Num}
         @inferred expim(ω * t)
         @inferred exponential_form(cos(ω * t))
         @inferred trigonometric_form(expim(ω * t))
@@ -123,7 +123,7 @@ import SecondQuantizedAlgebra: expim, exponential_form, phase_terms, to_num,
         trig = trigonometric_form(Complex(Num(z), Num(z)))
         @test iszero(simplify(trig * a - (z + im * z) * a))
         complex_coefficient = Complex(Num(z), Num(z)) * a
-        @test isequal(prefactor(complex_coefficient), Complex(Num(z), Num(z)))
+        @test isequal(get_prefactor(complex_coefficient), Complex(Num(z), Num(z)))
         @test isequal(
             exponential_form(Complex(Num(z), Num(z))),
             Complex(Num(z), Num(z)),

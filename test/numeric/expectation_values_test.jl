@@ -53,21 +53,21 @@ dat(x) = dense(x).data
     @testset "numeric_average: product state" begin
         hfock = FockSpace(:fock)
         hnlevel = NLevelSpace(:nlevel, 3, 1)
-        hprod = hfock ⊗ hnlevel
+        hprod = SecondQuantizedAlgebra.var"⊗"(hfock, hnlevel)
         bfock = FockBasis(7)
         bnlevel = NLevelBasis(3)
-        bprod = bfock ⊗ bnlevel
+        bprod = QuantumOpticsBase.var"⊗"(bfock, bnlevel)
 
         α = 0.1 + 0.2im
         ψ = coherentstate(bfock, α)
-        ψprod = ψ ⊗ nlevelstate(bnlevel, 1)
+        ψprod = QuantumOpticsBase.var"⊗"(ψ, nlevelstate(bnlevel, 1))
 
         σprod(i, j) = Transition(hprod, :σ, i, j, 2)
 
         idfock = one(bfock)
         for i in 1:3, j in 1:3
             op = σprod(i, j)
-            op_num = idfock ⊗ QuantumOpticsBase.transition(bnlevel, i, j)
+            op_num = QuantumOpticsBase.var"⊗"(idfock, QuantumOpticsBase.transition(bnlevel, i, j))
             @test numeric_average(op, ψprod) ≈ expect(op_num, ψprod)
         end
     end
@@ -123,15 +123,15 @@ dat(x) = dense(x).data
         nQDs = 2
         h_qc1 = FockSpace(:ada)
         h_qc2 = FockSpace(:n)
-        h_qc = h_qc1 ⊗ h_qc2
+        h_qc = SecondQuantizedAlgebra.var"⊗"(h_qc1, h_qc2)
         a = Destroy(h_qc, :a, 1)
         n = Destroy(h_qc, :n, 2)
         ad = a'
 
         bs = NLevelBasis(2)
-        b_all = tensor([bs for i in 1:nQDs]...)
+        b_all = QuantumOpticsBase.tensor([bs for i in 1:nQDs]...)
         s(α, i, j) = embed(b_all, α, transition(bs, i, j))
-        b_test = FockBasis(2) ⊗ FockBasis(3)
+        b_test = QuantumOpticsBase.var"⊗"(FockBasis(2), FockBasis(3))
 
         dd = Dict([ad, a] .=> [s(2, 2, 1), s(2, 1, 2)])
 
@@ -142,7 +142,7 @@ dat(x) = dense(x).data
         @test dat(to_numeric(2 * ad * a, b_all, dd)) == dat(2 * s(2, 2, 1) * s(2, 1, 2))
         @test dense(to_numeric(3, b_all, dd)) == one(b_all) * 3
 
-        ψ0 = tensor([nlevelstate(bs, 2) for i in 1:nQDs]...)
+        ψ0 = QuantumOpticsBase.tensor([nlevelstate(bs, 2) for i in 1:nQDs]...)
         @test numeric_average(average(ad * a), ψ0, dd) ==
             expect(s(2, 2, 1) * s(2, 1, 2), ψ0)
         @test numeric_average(average(ad) * average(ad * a) + 3, ψ0, dd) ==
@@ -156,10 +156,10 @@ dat(x) = dense(x).data
     @testset "numeric_average — LazyKet state" begin
         hfock = FockSpace(:fock)
         hnlevel = NLevelSpace(:nlevel, (:a, :b, :c))
-        hprod = hfock ⊗ hnlevel
+        hprod = SecondQuantizedAlgebra.var"⊗"(hfock, hnlevel)
         bfock = FockBasis(10)
         bnlevel = NLevelBasis(3)
-        bprod = bfock ⊗ bnlevel
+        bprod = QuantumOpticsBase.var"⊗"(bfock, bnlevel)
 
         @qnumbers a::Destroy(hprod, 1)
         σ(i, j) = Transition(hprod, :σ, i, j, 2)
@@ -168,7 +168,7 @@ dat(x) = dense(x).data
         ket_fock = coherentstate(bfock, α)
         ket_nlevel = (nlevelstate(bnlevel, 1) + nlevelstate(bnlevel, 3)) / sqrt(2)
         ψ_lazy = LazyKet(bprod, (ket_fock, ket_nlevel))
-        ψ_dense = ket_fock ⊗ ket_nlevel
+        ψ_dense = QuantumOpticsBase.var"⊗"(ket_fock, ket_nlevel)
 
         for op in (a, a' * σ(:a, :c), a + a' * σ(:a, :c))
             @test numeric_average(op, ψ_lazy) ≈ expect(to_numeric(op, bprod), ψ_dense)

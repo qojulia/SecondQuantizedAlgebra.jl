@@ -1,5 +1,5 @@
 using SecondQuantizedAlgebra
-import SecondQuantizedAlgebra: QSym, prefactor
+import SecondQuantizedAlgebra: QSym, get_prefactor
 using QuantumOpticsBase
 using Symbolics: @variables, substitute
 using Test
@@ -40,7 +40,7 @@ dat(x) = dense(x).data
         @qnumbers a::Destroy(h)
         @variables x::Real
 
-        lowered = prefactor(x * a)
+        lowered = get_prefactor(x * a)
         @test isequal(real(lowered), x)
         @test iszero(imag(lowered))
     end
@@ -71,10 +71,10 @@ dat(x) = dense(x).data
     end
 
     @testset "keyword to_numeric on composite basis" begin
-        hf = FockSpace(:c) ⊗ FockSpace(:d)
+        hf = SecondQuantizedAlgebra.var"⊗"(FockSpace(:c), FockSpace(:d))
         a = Destroy(hf, :a, 1)
         @variables Δ::Real
-        b = FockBasis(2) ⊗ FockBasis(3)
+        b = QuantumOpticsBase.var"⊗"(FockBasis(2), FockBasis(3))
         Ia = identityoperator(b)
         an = to_numeric(a, b)
 

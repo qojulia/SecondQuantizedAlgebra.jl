@@ -77,12 +77,12 @@ julia> FockSpace(:a) ⊗ FockSpace(:b) ⊗ NLevelSpace(:atom, 2)
 
 See also [`ProductSpace`](@ref), [`tensor`](@ref).
 """
-⊗(a::HilbertSpace, b::HilbertSpace) = ProductSpace((a, b))
-⊗(a::ProductSpace, b::HilbertSpace) = ProductSpace((a.spaces..., b))
-⊗(a::HilbertSpace, b::ProductSpace) = ProductSpace((a, b.spaces...))
-⊗(a::ProductSpace, b::ProductSpace) = ProductSpace((a.spaces..., b.spaces...))
-⊗(a::HilbertSpace, b::HilbertSpace, c::HilbertSpace...) = ⊗(a ⊗ b, c...)
-⊗(a::HilbertSpace) = a
+TensorCore.var"⊗"(a::HilbertSpace, b::HilbertSpace) = ProductSpace((a, b))
+TensorCore.var"⊗"(a::ProductSpace, b::HilbertSpace) = ProductSpace((a.spaces..., b))
+TensorCore.var"⊗"(a::HilbertSpace, b::ProductSpace) = ProductSpace((a, b.spaces...))
+TensorCore.var"⊗"(a::ProductSpace, b::ProductSpace) = ProductSpace((a.spaces..., b.spaces...))
+TensorCore.var"⊗"(a::HilbertSpace, b::HilbertSpace, c::HilbertSpace...) = TensorCore.var"⊗"(a ⊗ b, c...)
+TensorCore.var"⊗"(a::HilbertSpace) = a
 
 """
     tensor(spaces::HilbertSpace...)
@@ -99,7 +99,7 @@ julia> tensor(FockSpace(:a), FockSpace(:b))
 
 See also [`⊗`](@ref), [`ProductSpace`](@ref).
 """
-tensor(args::Vararg{HilbertSpace}) = ⊗(args...)
+TensorCore.tensor(args::Vararg{HilbertSpace}) = TensorCore.var"⊗"(args...)
 
 Base.isless(h1::HilbertSpace, h2::HilbertSpace) = isless(h1.name, h2.name)
 Base.isless(h1::ProductSpace, h2::ProductSpace) = isless(h1.spaces, h2.spaces)

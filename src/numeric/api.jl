@@ -222,4 +222,5 @@ numeric_average_vec(op, states, d::AbstractDict{<:QSym}) =
 Alias for [`numeric_average`](@ref) on operator expressions. For symbolic scalar
 expressions such as `average(op)`, call [`numeric_average`](@ref) directly.
 """
-expect(op::QField, state, d::AbstractDict{<:QSym} = NO_SUBS) = numeric_average(op, state, d)
+QuantumInterface.expect(op::QField, state, d::AbstractDict{<:QSym} = NO_SUBS) =
+    numeric_average(op, state, d)

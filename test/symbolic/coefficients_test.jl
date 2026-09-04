@@ -7,7 +7,7 @@ using Test
     h = FockSpace(:coefficients)
     a = Destroy(h, :a)
 
-    coefficient(x) = prefactor(x * a)
+    coefficient(x) = get_prefactor(x * a)
     stored_coefficient(x) = only(x).second
 
     @testset "numeric and exact coefficients" begin
@@ -65,15 +65,15 @@ using Test
         distinct = [Num(k) * p[k] for k in 1:6]
         s = sum(distinct[k] * a for k in 1:6)
         @test length(s) == 1
-        @test occursin("p[1]", string(prefactor(s)))
-        @test occursin("p[6]", string(prefactor(s)))
+        @test occursin("p[1]", string(get_prefactor(s)))
+        @test occursin("p[6]", string(get_prefactor(s)))
         coalesced = g * a + 2g * a + 3g * a
         @test iszero(simplify(coalesced - 6g * a))
         @test length(coalesced) == 1
         different = g * a + κ * a
         @test length(different) == 1
-        @test occursin("g", string(prefactor(different)))
-        @test occursin("κ", string(prefactor(different)))
+        @test occursin("g", string(get_prefactor(different)))
+        @test occursin("κ", string(get_prefactor(different)))
         @test iszero(simplify(different - (g + κ) * a))
         product = (2g * a) * (3κ * a')
         @test iszero(simplify(product - 6 * g * κ * a * a'))

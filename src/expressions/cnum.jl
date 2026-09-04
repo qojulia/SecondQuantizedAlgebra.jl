@@ -1027,7 +1027,7 @@ function Base.hash(c::Coeff, h::UInt)
 end
 
 # Coefficients are routinely compared against plain numbers / `Complex{Num}`
-# (e.g. `prefactor(x) == 2`, `q[key] == CNUM_ONE`); promote the number side.
+# (e.g. `get_prefactor(x) == 2`, `q[key] == CNUM_ONE`); promote the number side.
 Base.isequal(a::Coeff, b::Number) = isequal(a, to_cnum(b))
 Base.isequal(a::Number, b::Coeff) = isequal(to_cnum(a), b)
 Base.:(==)(a::Coeff, b::Number) = isequal(a, to_cnum(b))

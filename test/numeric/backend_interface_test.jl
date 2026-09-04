@@ -51,7 +51,7 @@ SecondQuantizedAlgebra.numeric_materialize(
         @test numeric_basis(ψ) == b
         @test SecondQuantizedAlgebra.numeric_num_subsystems(QuantumOpticsBackend(), b) == 1
 
-        h = FockSpace(:a) ⊗ FockSpace(:b)
+        h = SecondQuantizedAlgebra.var"⊗"(FockSpace(:a), FockSpace(:b))
         a = Destroy(h, :a, 1)
         @test_throws ArgumentError to_numeric(a, h, [2]; backend = QuantumOpticsBackend())
         @test_throws ArgumentError to_numeric(a, h, [2, 3, 99]; backend = QuantumOpticsBackend())
@@ -68,10 +68,10 @@ SecondQuantizedAlgebra.numeric_materialize(
         @test numeric_average(a' * a, ψ) ≈
             expect(to_numeric(a' * a, h, 7; backend = QuantumOpticsBackend()), ψ)
 
-        hp = FockSpace(:c) ⊗ NLevelSpace(:atom, 3, 1)
+        hp = SecondQuantizedAlgebra.var"⊗"(FockSpace(:c), NLevelSpace(:atom, 3, 1))
         ap = Destroy(hp, :a, 1)
         σp = Transition(hp, :σ, 1, 2, 2)
-        bp = FockBasis(4) ⊗ NLevelBasis(3)
+        bp = QuantumOpticsBase.var"⊗"(FockBasis(4), NLevelBasis(3))
         @test dat(to_numeric(ap' * σp, hp, (4, 3); backend = QuantumOpticsBackend())) ==
             dat(to_numeric(ap' * σp, bp))
     end
