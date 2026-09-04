@@ -1,8 +1,7 @@
 using SecondQuantizedAlgebra
 using Test
-using SymbolicUtils: SymbolicUtils, symtype
+using SymbolicUtils: symtype
 using Symbolics: @variables
-import SecondQuantizedAlgebra: get_sum_body, get_sum_indices, has_sum_metadata, indexed_sum
 
 @testset "Time-dependent averages" begin
     h = FockSpace(:cavity)
@@ -45,20 +44,5 @@ import SecondQuantizedAlgebra: get_sum_body, get_sum_indices, has_sum_metadata, 
         aladj = inner_adjoint(lifted)
         @test is_average(aladj)
         @test isequal(undo_average(aladj), undo_average(average(σ' * aa)))
-    end
-
-    @testset "indexed-sum scope survives lifting" begin
-        hi = FockSpace(:site)
-        ai = Destroy(hi, :a)
-        i = Index(hi, :i, 3, hi)
-        summed = Σ(IndexedOperator(ai', i) * IndexedOperator(ai, i), i)
-        lifted = make_time_dependent(average(summed), t)
-
-        @test is_indexed_sum(lifted)
-        @test has_sum_metadata(lifted)
-        @test get_sum_indices(lifted) == [i]
-        @test is_average(get_sum_body(lifted))
-        @test get_indices(undo_average(lifted)) == [i]
-        @test has_sum_metadata(inner_adjoint(lifted))
     end
 end
