@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1788468950637,
+  "lastUpdate": 1788550230839,
   "repoUrl": "https://github.com/qojulia/SecondQuantizedAlgebra.jl",
   "entries": {
     "Benchmark Results": [
@@ -10570,6 +10570,258 @@ window.BENCHMARK_DATA = {
           {
             "name": "Unitary and exact phase workflows/Thirty-three-sideband exact phase pipeline",
             "value": 10821932,
+            "unit": "ns",
+            "extra": "gctime=0\nmemory=4308544\nallocs=65659\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "orjan.ameye@hotmail.com",
+            "name": "Orjan Ameye",
+            "username": "oameye"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "67f11058a29290c6a2d36cbe1f3ebabab314ab6a",
+          "message": "test: organize suite by behavioral contract (#251)\n\n* test: organize suite by behavioral contract\n\n* test: refine behavioral test contracts\n\n* test: split rendering contracts\n\n* test: split numeric and symbolic contracts\n\n* docs: align test guidance with behavioral taxonomy\n\n* fix: follow TensorCore tensor ownership\n\n* docs: note TensorCore compatibility fix\n\n* fix: restore changelog history\n\n* ci: avoid benchmark comments on fork PRs\n\n* docs: record TensorCore compatibility fix",
+          "timestamp": "2026-09-04T21:18:20+02:00",
+          "tree_id": "4f9a3f9059145168ccd1fcede1eb1577c1e6e864",
+          "url": "https://github.com/qojulia/SecondQuantizedAlgebra.jl/commit/67f11058a29290c6a2d36cbe1f3ebabab314ab6a"
+        },
+        "date": 1788550228968,
+        "tool": "julia",
+        "benches": [
+          {
+            "name": "Accumulation/Many-mode H/foldl M=16",
+            "value": 10971,
+            "unit": "ns",
+            "extra": "gctime=0\nmemory=59472\nallocs=213\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
+          },
+          {
+            "name": "Accumulation/Many-mode H/foldl M=24",
+            "value": 24426,
+            "unit": "ns",
+            "extra": "gctime=0\nmemory=131408\nallocs=436\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
+          },
+          {
+            "name": "Accumulation/Many-mode H/foldl M=8",
+            "value": 2824.222222222222,
+            "unit": "ns",
+            "extra": "gctime=0\nmemory=12432\nallocs=63\nparams={\"evals\":9,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
+          },
+          {
+            "name": "Accumulation/Many-mode H/sum M=16",
+            "value": 1724.2,
+            "unit": "ns",
+            "extra": "gctime=0\nmemory=6816\nallocs=24\nparams={\"evals\":10,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
+          },
+          {
+            "name": "Accumulation/Many-mode H/sum M=24",
+            "value": 2264.3333333333335,
+            "unit": "ns",
+            "extra": "gctime=0\nmemory=7968\nallocs=32\nparams={\"evals\":9,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
+          },
+          {
+            "name": "Accumulation/Many-mode H/sum M=8",
+            "value": 742.2480620155038,
+            "unit": "ns",
+            "extra": "gctime=0\nmemory=2272\nallocs=13\nparams={\"evals\":129,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
+          },
+          {
+            "name": "Accumulation/Same-site/foldl",
+            "value": 6143.6,
+            "unit": "ns",
+            "extra": "gctime=0\nmemory=30912\nallocs=138\nparams={\"evals\":5,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
+          },
+          {
+            "name": "Accumulation/Same-site/sum",
+            "value": 2165.222222222222,
+            "unit": "ns",
+            "extra": "gctime=0\nmemory=4576\nallocs=29\nparams={\"evals\":9,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
+          },
+          {
+            "name": "Commutator/Nested JC/depth=1",
+            "value": 1754.2,
+            "unit": "ns",
+            "extra": "gctime=0\nmemory=4272\nallocs=39\nparams={\"evals\":10,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
+          },
+          {
+            "name": "Commutator/Nested JC/depth=2",
+            "value": 20468,
+            "unit": "ns",
+            "extra": "gctime=0\nmemory=30160\nallocs=303\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
+          },
+          {
+            "name": "Commutator/Nested JC/depth=3",
+            "value": 77715,
+            "unit": "ns",
+            "extra": "gctime=0\nmemory=101968\nallocs=937\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
+          },
+          {
+            "name": "Commutator/Nested JC/depth=4",
+            "value": 193584,
+            "unit": "ns",
+            "extra": "gctime=0\nmemory=225104\nallocs=2029\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
+          },
+          {
+            "name": "Commutator/Nested JC/depth=5",
+            "value": 425800,
+            "unit": "ns",
+            "extra": "gctime=0\nmemory=443024\nallocs=3875\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
+          },
+          {
+            "name": "Commutator/Schrieffer-Wolff/[S, V]",
+            "value": 158357,
+            "unit": "ns",
+            "extra": "gctime=0\nmemory=38960\nallocs=909\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
+          },
+          {
+            "name": "Commutator/Schrieffer-Wolff/[S, [S, H0]]",
+            "value": 267953,
+            "unit": "ns",
+            "extra": "gctime=0\nmemory=66576\nallocs=1489\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
+          },
+          {
+            "name": "Indexing/Diagonal collapse/[H_Dicke, S_j]",
+            "value": 38583,
+            "unit": "ns",
+            "extra": "gctime=0\nmemory=55072\nallocs=535\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
+          },
+          {
+            "name": "Indexing/Diagonal collapse/[H_JC, σ_j]",
+            "value": 58380,
+            "unit": "ns",
+            "extra": "gctime=0\nmemory=61232\nallocs=636\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
+          },
+          {
+            "name": "Indexing/Simplify/double-sum spin-spin",
+            "value": 17853,
+            "unit": "ns",
+            "extra": "gctime=0\nmemory=8848\nallocs=131\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
+          },
+          {
+            "name": "Indexing/Simplify/indexed JC H",
+            "value": 1401.6,
+            "unit": "ns",
+            "extra": "gctime=0\nmemory=3488\nallocs=19\nparams={\"evals\":10,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
+          },
+          {
+            "name": "Indexing/Sum construction/double Σ_ij(J_ij*S_i*S_j)",
+            "value": 8141.666666666667,
+            "unit": "ns",
+            "extra": "gctime=0\nmemory=12488\nallocs=91\nparams={\"evals\":3,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
+          },
+          {
+            "name": "Indexing/Sum construction/single Σ_i(σ_i*σ_j)",
+            "value": 11201,
+            "unit": "ns",
+            "extra": "gctime=0\nmemory=11952\nallocs=121\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
+          },
+          {
+            "name": "Normal Order/Fock (c*c')^n/n=2",
+            "value": 637,
+            "unit": "ns",
+            "extra": "gctime=0\nmemory=1568\nallocs=8\nparams={\"evals\":174,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
+          },
+          {
+            "name": "Normal Order/Fock (c*c')^n/n=3",
+            "value": 916.7058823529412,
+            "unit": "ns",
+            "extra": "gctime=0\nmemory=1904\nallocs=9\nparams={\"evals\":34,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
+          },
+          {
+            "name": "Normal Order/Fock (c*c')^n/n=4",
+            "value": 1252.4,
+            "unit": "ns",
+            "extra": "gctime=0\nmemory=2352\nallocs=10\nparams={\"evals\":10,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
+          },
+          {
+            "name": "Normal Order/Fock (c*c')^n/n=5",
+            "value": 1686.1,
+            "unit": "ns",
+            "extra": "gctime=0\nmemory=2848\nallocs=11\nparams={\"evals\":10,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
+          },
+          {
+            "name": "Normal Order/Ground state/3-level rewrite",
+            "value": 817.9642857142857,
+            "unit": "ns",
+            "extra": "gctime=0\nmemory=2816\nallocs=16\nparams={\"evals\":84,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
+          },
+          {
+            "name": "Normal Order/Multi-mode/2-mode 6-op chain",
+            "value": 1033.9,
+            "unit": "ns",
+            "extra": "gctime=0\nmemory=2080\nallocs=9\nparams={\"evals\":10,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
+          },
+          {
+            "name": "Simplify/Jaynes-Cummings/H",
+            "value": 1204.3,
+            "unit": "ns",
+            "extra": "gctime=0\nmemory=3264\nallocs=17\nparams={\"evals\":10,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
+          },
+          {
+            "name": "Simplify/Jaynes-Cummings/H²",
+            "value": 2874.222222222222,
+            "unit": "ns",
+            "extra": "gctime=0\nmemory=5472\nallocs=27\nparams={\"evals\":9,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
+          },
+          {
+            "name": "Simplify/Two cavities/H",
+            "value": 1262.4,
+            "unit": "ns",
+            "extra": "gctime=0\nmemory=3328\nallocs=17\nparams={\"evals\":10,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
+          },
+          {
+            "name": "Simplify/Two cavities/H²",
+            "value": 5103,
+            "unit": "ns",
+            "extra": "gctime=0\nmemory=14432\nallocs=41\nparams={\"evals\":6,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
+          },
+          {
+            "name": "Simplify/Λ-system/H",
+            "value": 1565.9,
+            "unit": "ns",
+            "extra": "gctime=0\nmemory=3648\nallocs=21\nparams={\"evals\":10,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
+          },
+          {
+            "name": "Simplify/Λ-system/H²",
+            "value": 2815.222222222222,
+            "unit": "ns",
+            "extra": "gctime=0\nmemory=4992\nallocs=29\nparams={\"evals\":9,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
+          },
+          {
+            "name": "Unitary and exact phase workflows/Fock Gaussian constructor family",
+            "value": 5503338,
+            "unit": "ns",
+            "extra": "gctime=0\nmemory=1907832\nallocs=27136\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
+          },
+          {
+            "name": "Unitary and exact phase workflows/Phase-space, spin, and Pauli family",
+            "value": 1999596,
+            "unit": "ns",
+            "extra": "gctime=0\nmemory=810272\nallocs=10810\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
+          },
+          {
+            "name": "Unitary and exact phase workflows/Static and moving two-level basis",
+            "value": 22889318,
+            "unit": "ns",
+            "extra": "gctime=0\nmemory=9119984\nallocs=218226\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
+          },
+          {
+            "name": "Unitary and exact phase workflows/Static and timed frame composition",
+            "value": 3350454,
+            "unit": "ns",
+            "extra": "gctime=0\nmemory=1100160\nallocs=16861\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
+          },
+          {
+            "name": "Unitary and exact phase workflows/Thirty-three-sideband exact phase pipeline",
+            "value": 10800028,
             "unit": "ns",
             "extra": "gctime=0\nmemory=4308544\nallocs=65659\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           }
