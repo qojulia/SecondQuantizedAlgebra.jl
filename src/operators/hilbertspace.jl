@@ -84,7 +84,7 @@ See also [`ProductSpace`](@ref), [`tensor`](@ref).
 ⊗(a::HilbertSpace, b::HilbertSpace, c::HilbertSpace...) = ⊗(a ⊗ b, c...)
 ⊗(a::HilbertSpace) = a
 
-"""
+@doc """
     tensor(spaces::HilbertSpace...)
 
 ASCII alias for [`⊗`](@ref): create a [`ProductSpace`](@ref) from multiple
@@ -98,9 +98,7 @@ julia> tensor(FockSpace(:a), FockSpace(:b))
 ```
 
 See also [`⊗`](@ref), [`ProductSpace`](@ref).
-"""
-tensor(args::Vararg{HilbertSpace}) = ⊗(args...)
-
+""" tensor
 Base.isless(h1::HilbertSpace, h2::HilbertSpace) = isless(h1.name, h2.name)
 Base.isless(h1::ProductSpace, h2::ProductSpace) = isless(h1.spaces, h2.spaces)
 
