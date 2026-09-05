@@ -133,4 +133,5 @@ TwoModeSqueeze
 BasisRotation
 Bogoliubov
 RotatingFrame
+DisplacementFrame
 ```
