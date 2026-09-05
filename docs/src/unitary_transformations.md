@@ -132,4 +132,5 @@ BeamSplitter
 TwoModeSqueeze
 BasisRotation
 Bogoliubov
+RotatingFrame
 ```
