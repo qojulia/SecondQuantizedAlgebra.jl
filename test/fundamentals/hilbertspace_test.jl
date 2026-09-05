@@ -1,6 +1,12 @@
 using SecondQuantizedAlgebra
 import SecondQuantizedAlgebra: HilbertSpace
+import QuantumInterface
+import TensorCore
 using Test
+
+@test tensor === (⊗)
+@test tensor === TensorCore.tensor === QuantumInterface.tensor
+@test !applicable(tensor)
 
 @testset "hilbert spaces" begin
     @testset "ProductSpace" begin
@@ -26,6 +32,7 @@ using Test
         @test (h1 ⊗ h2) ⊗ (h3 ⊗ h4) == h1234
 
         # tensor alias
+        @test tensor(h1) === h1
         @test tensor(h1, h2, h3, h4) == h1234
 
         # isless

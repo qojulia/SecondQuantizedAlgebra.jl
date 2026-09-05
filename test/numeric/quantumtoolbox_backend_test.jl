@@ -1,8 +1,8 @@
 # QuantumToolbox backend for `to_numeric`/`numeric_average`.
 #
 # `QuantumToolbox` is imported (not `using`) so its `⊗`/`tensor`/`expect` do not collide
-# with the QuantumInterface ones that `SecondQuantizedAlgebra` extends; `⊗` here is the
-# shared QuantumInterface operator (works on Hilbert spaces and QuantumOptics bases). Parity
+# with the shared TensorCore ones that `SecondQuantizedAlgebra` extends; `⊗` here is the
+# shared TensorCore operator (works on Hilbert spaces and QuantumOptics bases). Parity
 # is checked through `expect`/`numeric_average` scalars (never raw matrices, whose kron
 # convention differs across backends), with states built per-backend in slot order.
 
