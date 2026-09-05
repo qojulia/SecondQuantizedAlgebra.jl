@@ -41,6 +41,7 @@ include("algebra/algebra.jl")
 include("algebra/mutable_arithmetics.jl")
 include("algebra/weyl.jl")
 include("algebra/unitary.jl")
+include("algebra/unitary_bogoliubov.jl")
 
 include("average.jl")
 
@@ -112,7 +113,7 @@ export FockSpace, ProductSpace,
     substitute,
     normal_order, normal_to_symmetric, symmetric_to_normal,
     UnitaryTransform, Displace, Rotation, Squeeze,
-    BeamSplitter, TwoModeSqueeze, BasisRotation,
+    BeamSplitter, TwoModeSqueeze, BasisRotation, Bogoliubov,
     transform, conjugate, gauge_term, generators,
     simplify, expand, expand_completeness, assume_distinct_index, commutator, anticommutator,
     to_numeric, numeric_average,

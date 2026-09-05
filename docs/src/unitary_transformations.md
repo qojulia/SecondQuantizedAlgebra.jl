@@ -131,4 +131,5 @@ generators
 BeamSplitter
 TwoModeSqueeze
 BasisRotation
+Bogoliubov
 ```
