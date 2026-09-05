@@ -187,8 +187,20 @@ function exact_rotation_pair(rate::CNum, θ::Real)
     return to_cnum(cos(angle)), to_cnum(sin(angle))
 end
 
+function push_exact_relation!(
+        relations::Vector{ParamRelation}, relation::ParamRelation,
+    )
+    any(
+        existing -> isequal(existing.hi, relation.hi) &&
+            isequal(existing.lo, relation.lo) && existing.sign == relation.sign,
+        relations,
+    ) || push!(relations, relation)
+    return nothing
+end
+
 function exact_two_by_two_flow!(
         result::Matrix{CNum}, flow::Matrix{CNum}, i::Int, j::Int, θ::Real,
+        relations::Vector{ParamRelation},
     )
     coefficient_is_zero(flow[i, i]) && coefficient_is_zero(flow[j, j]) ||
         unitary_error(
@@ -200,6 +212,7 @@ function exact_two_by_two_flow!(
     if coefficient_is_real(upper) && coefficient_is_real(lower) &&
             coefficient_equal(lower, neg_cnum(upper))
         cosine, sine = exact_rotation_pair(upper, θ)
+        push_exact_relation!(relations, trig_rel(exact_real_argument(upper, θ)))
         result[i, i] = cosine
         result[i, j] = sine
         result[j, i] = neg_cnum(sine)
@@ -212,6 +225,7 @@ function exact_two_by_two_flow!(
         if coefficient_equal(norm_squared, CNUM_ONE)
             ch = to_cnum(cosh(θ))
             sh = to_cnum(sinh(θ))
+            push_exact_relation!(relations, hyp_rel(θ))
             result[i, i] = ch
             result[i, j] = mul_cnum(upper, sh)
             result[j, i] = mul_cnum(lower, sh)
@@ -221,6 +235,7 @@ function exact_two_by_two_flow!(
             angle = exact_real_argument(upper, θ)
             ch = to_cnum(cosh(angle))
             sh = to_cnum(sinh(angle))
+            push_exact_relation!(relations, hyp_rel(angle))
             result[i, i] = ch
             result[i, j] = sh
             result[j, i] = sh
@@ -265,12 +280,15 @@ function exact_closed_adjoint_action(
     end
 
     result = fill(CNUM_ZERO, n, n)
+    relations = ParamRelation[]
     for component in connected_components(flow)
         if length(component) == 1
             i = only(component)
             result[i, i] = generated_scalar_exponential(flow[i, i], θ)
         elseif length(component) == 2
-            exact_two_by_two_flow!(result, flow, component[1], component[2], θ)
+            exact_two_by_two_flow!(
+                result, flow, component[1], component[2], θ, relations,
+            )
         else
             unitary_error(
                 "the adjoint action closes on a $(length(component))-dimensional coupled " *
@@ -278,7 +296,9 @@ function exact_closed_adjoint_action(
             )
         end
     end
-    return AffineAction(basis, result, fill(CNUM_ZERO, n))
+    return AffineAction(
+        basis, result, fill(CNUM_ZERO, n); relations = relations,
+    )
 end
 
 """

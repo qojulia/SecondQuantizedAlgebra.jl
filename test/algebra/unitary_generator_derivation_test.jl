@@ -91,15 +91,23 @@ import SecondQuantizedAlgebra: expim
             UnitaryTransform(2 * a' * a, θ),
             Rotation(a, 2θ),
         )
-        equivalent_on(
-            (x, p),
-            UnitaryTransform(x^2 + p^2, θ),
-            Rotation(x, p, 2θ),
+
+        scaled_rotation = UnitaryTransform(x^2 + p^2, θ)
+        equivalent_on((x, p), scaled_rotation, Rotation(x, p, 2θ))
+        @test iszero(
+            simplify(conjugate(conjugate(x, scaled_rotation), inv(scaled_rotation)) - x),
+        )
+
+        scaled_squeeze = UnitaryTransform(
+            2im * (left' * right' - right * left), r,
         )
         equivalent_on(
             (left, right, left', right'),
-            UnitaryTransform(2im * (left' * right' - right * left), r),
+            scaled_squeeze,
             TwoModeSqueeze(left, right, 2r),
+        )
+        @test iszero(
+            simplify(conjugate(conjugate(left, scaled_squeeze), inv(scaled_squeeze)) - left),
         )
     end
 
