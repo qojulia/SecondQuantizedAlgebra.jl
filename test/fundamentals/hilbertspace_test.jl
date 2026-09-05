@@ -4,11 +4,17 @@ import QuantumInterface
 import TensorCore
 using Test
 
-@test tensor === (⊗)
-@test tensor === TensorCore.tensor === QuantumInterface.tensor
-@test !applicable(tensor)
-
 @testset "hilbert spaces" begin
+    @testset "tensor alias binding" begin
+        # `⊗` and `tensor` are one generic function shared with TensorCore, so the
+        # `⊗(::HilbertSpace, ...)` methods are already `tensor`'s methods.
+        @test tensor === (⊗)
+        @test tensor === TensorCore.tensor === QuantumInterface.tensor
+        # A `tensor(::Vararg{HilbertSpace})` forwarder would call itself at zero
+        # arity and overflow the stack, so no zero-argument method may exist.
+        @test !applicable(tensor)
+    end
+
     @testset "ProductSpace" begin
         h1 = FockSpace(:a)
         h2 = FockSpace(:b)

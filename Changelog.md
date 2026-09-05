@@ -11,7 +11,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - Make numeric conversion for QuantumToolbox.jl type-stable
-- Follow the QuantumInterface 0.4.4 tensor-product ownership change by importing `tensor` and `⊗` directly from TensorCore, and remove the redundant zero-capable `tensor(::Vararg{HilbertSpace})` forwarding method.
+- Follow the QuantumInterface 0.4.4 tensor-product ownership change by importing `tensor` and `⊗` directly from TensorCore.
+- Tensor products of Hilbert spaces now require at least one space. Calling `tensor()` previously recursed into itself and overflowed the stack instead of raising a `MethodError`.
 
 ##  [v0.11.0]
 
