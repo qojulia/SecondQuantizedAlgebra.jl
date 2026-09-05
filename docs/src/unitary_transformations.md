@@ -122,19 +122,4 @@ conjugate(σ, Ulevels)
 `Rotation(σ, W, t)`. Its gauge is computed entrywise from
 ``i\dot W^\dagger W``.
 
-## API reference
-
-```@docs
-UnitaryTransform
-conjugate
-gauge_term
-generators
-Rotation
-Squeeze
-BeamSplitter
-TwoModeSqueeze
-BasisRotation
-Bogoliubov
-RotatingFrame
-DisplacementFrame
-```
+The complete public API is listed under [Unitary Transformations](@ref API: Unitary).
