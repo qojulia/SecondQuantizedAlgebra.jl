@@ -125,9 +125,12 @@ conjugate(σ, Ulevels)
 ## API reference
 
 ```@docs
+UnitaryTransform
 conjugate
 gauge_term
 generators
+Rotation
+Squeeze
 BeamSplitter
 TwoModeSqueeze
 BasisRotation

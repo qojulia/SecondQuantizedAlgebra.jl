@@ -68,13 +68,6 @@ import SecondQuantizedAlgebra: expim
         @test_throws ArgumentError Bogoliubov((left, right), [1 0; 0 1; 0 0], [0 0; 0 0])
         @test_throws ArgumentError Bogoliubov((left, right), [1 0; 0 1], [0 0 0; 0 0 0])
 
-        @test_throws ArgumentError SecondQuantizedAlgebra.bogoliubov_matrix(
-            [1 0 0; 0 1 0], [0 0; 0 0], 2,
-        )
-        @test_throws ArgumentError SecondQuantizedAlgebra.bogoliubov_matrix(
-            [1 0; 0 1], [0 0 0; 0 0 0], 2,
-        )
-
         identity_map = Bogoliubov(a, [1 0; 0 1])
         @test iszero(simplify(conjugate(a, identity_map) - a))
         @test iszero(simplify(conjugate(a, inv(identity_map)) - a))

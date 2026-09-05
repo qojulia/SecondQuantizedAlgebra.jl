@@ -96,6 +96,11 @@ import SecondQuantizedAlgebra: expim
             UnitaryTransform(x^2 + p^2, θ),
             Rotation(x, p, 2θ),
         )
+        equivalent_on(
+            (left, right, left', right'),
+            UnitaryTransform(2im * (left' * right' - right * left), r),
+            TwoModeSqueeze(left, right, 2r),
+        )
     end
 
     @testset "spin and Pauli rotations" begin
