@@ -253,6 +253,15 @@ gauge_term
 generators
 ```
 
+```@docs
+BeamSplitter
+TwoModeSqueeze
+BasisRotation
+Bogoliubov
+RotatingFrame
+DisplacementFrame
+```
+
 
 ## [Average](@id API: Average)
 
