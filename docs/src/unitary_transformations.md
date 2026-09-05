@@ -121,3 +121,14 @@ conjugate(σ, Ulevels)
 ``W^\dagger W=I`` symbolically. For a time-dependent matrix, use
 `Rotation(σ, W, t)`. Its gauge is computed entrywise from
 ``i\dot W^\dagger W``.
+
+## API reference
+
+```@docs
+conjugate
+gauge_term
+generators
+BeamSplitter
+TwoModeSqueeze
+BasisRotation
+```
