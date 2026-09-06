@@ -1,8 +1,20 @@
 using SecondQuantizedAlgebra
 import SecondQuantizedAlgebra: HilbertSpace
+import QuantumInterface
+import TensorCore
 using Test
 
 @testset "hilbert spaces" begin
+    @testset "tensor alias binding" begin
+        # `⊗` and `tensor` are one generic function shared with TensorCore, so the
+        # `⊗(::HilbertSpace, ...)` methods are already `tensor`'s methods.
+        @test tensor === (⊗)
+        @test tensor === TensorCore.tensor === QuantumInterface.tensor
+        # A `tensor(::Vararg{HilbertSpace})` forwarder would call itself at zero
+        # arity and overflow the stack, so no zero-argument method may exist.
+        @test !applicable(tensor)
+    end
+
     @testset "ProductSpace" begin
         h1 = FockSpace(:a)
         h2 = FockSpace(:b)
@@ -26,6 +38,7 @@ using Test
         @test (h1 ⊗ h2) ⊗ (h3 ⊗ h4) == h1234
 
         # tensor alias
+        @test tensor(h1) === h1
         @test tensor(h1, h2, h3, h4) == h1234
 
         # isless
