@@ -428,5 +428,5 @@ function compose_action_metadata(
         deleteat!(result, reverse(overlapping))
         push!(result, composed)
     end
-    return AffineAction(result; relations = relations)
+    return AffineAction(result, copy(relations))
 end
