@@ -222,8 +222,10 @@ function canonical_block_basis(structure::AffineStructure, raw::Vector{Op})
 end
 
 function blocks_overlap(first::AffineBlock, second::AffineBlock)
-    second_basis = Set(second.basis)
-    return any(generator -> generator in second_basis, first.basis)
+    for generator in first.basis
+        generator in second.basis && return true
+    end
+    return false
 end
 
 function extend_blocks(blocks::Vector{AffineBlock}, basis::Vector{Op})
@@ -248,6 +250,85 @@ function extend_blocks(blocks::Vector{AffineBlock}, basis::Vector{Op})
         end
     end
     return linear, shift
+end
+
+function subset_positions(subset::Vector{Op}, superset::Vector{Op})::Union{Nothing, Vector{Int}}
+    positions = Vector{Int}(undef, length(subset))
+    for i in eachindex(subset)
+        position = findfirst(==(subset[i]), superset)
+        position === nothing && return nothing
+        positions[i] = position
+    end
+    return positions
+end
+
+function is_identity_affine_linear(linear::Matrix{CNum})
+    n, m = size(linear)
+    n == m || return false
+    for j in 1:n, i in 1:n
+        coefficient = linear[i, j]
+        if i == j
+            isequal(coefficient, CNUM_ONE) || return false
+        else
+            iszero_cnum(coefficient) || return false
+        end
+    end
+    return true
+end
+
+function is_zero_affine_shift(shift::Vector{CNum})
+    for coefficient in shift
+        iszero_cnum(coefficient) || return false
+    end
+    return true
+end
+
+function compose_subset_block(
+        first::AffineBlock, second::AffineBlock, positions::Vector{Int},
+        relations::Vector{ParamRelation},
+    )
+    n = length(first.basis)
+    m = length(second.basis)
+
+    linear = if is_identity_affine_linear(second.linear)
+        first.linear
+    else
+        out = copy(first.linear)
+        scratch = ParamRelation[]
+        for local_j in 1:m, i in 1:n
+            value = CNUM_ZERO
+            for local_k in 1:m
+                value = add_cnum(
+                    value,
+                    mul_cnum(
+                        first.linear[i, positions[local_k]], second.linear[local_k, local_j],
+                    ),
+                )
+            end
+            out[i, positions[local_j]] = reduce_affine(value, relations, scratch)
+        end
+        out
+    end
+
+    shift = if is_zero_affine_shift(second.shift)
+        first.shift
+    else
+        out = Vector{CNum}(undef, n)
+        scratch = ParamRelation[]
+        for i in 1:n
+            value = first.shift[i]
+            for local_k in 1:m
+                value = add_cnum(
+                    value,
+                    mul_cnum(first.linear[i, positions[local_k]], second.shift[local_k]),
+                )
+            end
+            out[i] = reduce_affine(value, relations, scratch)
+        end
+        out
+    end
+
+    return AffineBlock(first.structure, first.basis, linear, shift)
 end
 
 function compose_affine_data(
@@ -279,10 +360,35 @@ function compose_affine_data(
     return linear, shift
 end
 
+function compose_overlapping_block(
+        first::AffineBlock, second::AffineBlock, relations::Vector{ParamRelation},
+    )
+    structure = second.structure
+    first.structure === structure || unitary_error(
+        "overlapping affine blocks must describe the same canonical algebra",
+    )
+
+    positions = subset_positions(second.basis, first.basis)
+    positions === nothing || return compose_subset_block(first, second, positions, relations)
+
+    raw = copy(second.basis)
+    append!(raw, first.basis)
+    basis = canonical_block_basis(structure, raw)
+    first_linear, first_shift = extend_blocks(AffineBlock[first], basis)
+    second_linear, second_shift = extend_blocks(AffineBlock[second], basis)
+    linear, shift = compose_affine_data(
+        first_linear, first_shift, second_linear, second_shift, relations,
+    )
+    return AffineBlock(structure, basis, linear, shift)
+end
+
 function compose_overlapping_blocks(
         first_blocks::Vector{AffineBlock}, second::AffineBlock,
         relations::Vector{ParamRelation},
     )
+    length(first_blocks) == 1 &&
+        return compose_overlapping_block(only(first_blocks), second, relations)
+
     structure = second.structure
     all(block -> block.structure === structure, first_blocks) || unitary_error(
         "overlapping affine blocks must describe the same canonical algebra",
@@ -308,6 +414,13 @@ function compose_action_metadata(
         overlapping = findall(block -> blocks_overlap(block, second_block), result)
         if isempty(overlapping)
             push!(result, second_block)
+            continue
+        end
+        if length(overlapping) == 1
+            index = only(overlapping)
+            composed = compose_overlapping_block(result[index], second_block, relations)
+            deleteat!(result, index)
+            push!(result, composed)
             continue
         end
         first_blocks = result[overlapping]
