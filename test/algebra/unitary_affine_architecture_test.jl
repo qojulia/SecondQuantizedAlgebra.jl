@@ -7,6 +7,7 @@ using Symbolics: @variables
 
     fock = FockSpace(:fock)
     a = Destroy(fock, :a)
+    b = Destroy(fock, :b)
 
     phase = PhaseSpace(:phase)
     x = Position(phase, :x)
@@ -15,7 +16,7 @@ using Symbolics: @variables
     atom = NLevelSpace(:atom, 2)
     σ = Transition(atom, :σ, 1, 2)
 
-    @variables θ dx dp
+    @variables θ ϕ η dx dp
 
     @testset "disjoint algebras remain separate blocks" begin
         phase_rotation = Rotation(x, p, θ)
@@ -45,6 +46,23 @@ using Symbolics: @variables
         for op in (x, p)
             sequential = conjugate(conjugate(op, Rotation(x, p, θ)), Displace(x, p, dx, dp))
             @test iszero(simplify(conjugate(op, composed) - sequential))
+        end
+    end
+
+    @testset "subset composition matches sequential application" begin
+        first = Rotation(a, b, θ)
+        second = Displace(a, η)
+        third = Rotation(b, ϕ)
+        composed = first * second * third
+
+        @test length(composed.action.blocks) == 1
+        @test only(composed.action.blocks).structure === SQA.BosonicNambu()
+
+        inverse = inv(composed)
+        for op in (a, b, adjoint(a), adjoint(b))
+            sequential = conjugate(conjugate(conjugate(op, first), second), third)
+            @test iszero(simplify(conjugate(op, composed) - sequential))
+            @test iszero(simplify(conjugate(conjugate(op, composed), inverse) - op))
         end
     end
 
