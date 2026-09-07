@@ -406,23 +406,48 @@ function compose_overlapping_blocks(
     return AffineBlock(structure, basis, linear, shift)
 end
 
+function first_two_overlaps(blocks::Vector{AffineBlock}, second::AffineBlock)
+    first_index = 0
+    second_index = 0
+    for i in eachindex(blocks)
+        blocks_overlap(blocks[i], second) || continue
+        if iszero(first_index)
+            first_index = i
+        else
+            second_index = i
+            break
+        end
+    end
+    return first_index, second_index
+end
+
+function remaining_overlaps(
+        blocks::Vector{AffineBlock}, second::AffineBlock, first_index::Int, second_index::Int,
+    )
+    overlapping = Int[first_index, second_index]
+    for i in (second_index + 1):lastindex(blocks)
+        blocks_overlap(blocks[i], second) && push!(overlapping, i)
+    end
+    return overlapping
+end
+
 function compose_action_metadata(
         first::AffineAction, second::AffineAction, relations::Vector{ParamRelation},
     )
     result = copy(first.blocks)
     for second_block in second.blocks
-        overlapping = findall(block -> blocks_overlap(block, second_block), result)
-        if isempty(overlapping)
+        first_index, second_index = first_two_overlaps(result, second_block)
+        if iszero(first_index)
             push!(result, second_block)
             continue
         end
-        if length(overlapping) == 1
-            index = only(overlapping)
-            composed = compose_overlapping_block(result[index], second_block, relations)
-            deleteat!(result, index)
+        if iszero(second_index)
+            composed = compose_overlapping_block(result[first_index], second_block, relations)
+            deleteat!(result, first_index)
             push!(result, composed)
             continue
         end
+        overlapping = remaining_overlaps(result, second_block, first_index, second_index)
         first_blocks = result[overlapping]
         composed = compose_overlapping_blocks(first_blocks, second_block, relations)
         deleteat!(result, reverse(overlapping))
