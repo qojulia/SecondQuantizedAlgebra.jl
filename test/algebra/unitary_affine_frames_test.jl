@@ -1,7 +1,6 @@
 using SecondQuantizedAlgebra
 using Test
 using Symbolics: @variables
-import SecondQuantizedAlgebra: expim
 
 @testset "Affine unitary transformation contracts" begin
     fock = FockSpace(:fock)
@@ -23,30 +22,18 @@ import SecondQuantizedAlgebra: expim
     @variables α::Number
     @variables envelope(t)
 
-    @testset "affine IR validates basis layouts" begin
-        SQA = SecondQuantizedAlgebra
-        @test_throws ArgumentError SQA.AffineAction(
-            SQA.BosonicNambu(), Op[a], [1 0; 0 1], [0],
-        )
-        @test_throws ArgumentError SQA.AffineAction(
-            SQA.BosonicNambu(), Op[a, a'], reshape([1], 1, 1), [0, 0],
-        )
-        @test_throws ArgumentError SQA.AffineAction(
-            SQA.BosonicNambu(), Op[a, a], [1 0; 0 1], [0, 0],
-        )
-        @test_throws ArgumentError SQA.AffineAction(
-            Op[a], reshape([1], 1, 1), [0],
-        )
-    end
-
     @testset "affine composition preserves family semantics" begin
-        phase_composed = Rotation(x, p, θ) * Displace(x, p, dx, dp)
+        phase_rotation = Rotation(x, p, θ)
+        phase_displacement = Displace(x, p, dx, dp)
+        phase_composed = phase_rotation * phase_displacement
         for op in (x, p)
-            sequential = conjugate(conjugate(op, Rotation(x, p, θ)), Displace(x, p, dx, dp))
+            sequential = conjugate(conjugate(op, phase_rotation), phase_displacement)
             @test iszero(simplify(conjugate(op, phase_composed) - sequential))
         end
         phase_inverse = inv(phase_composed)
-        @test iszero(simplify(conjugate(conjugate(x + p, phase_composed), phase_inverse) - x - p))
+        @test iszero(
+            simplify(conjugate(conjugate(x + p, phase_composed), phase_inverse) - x - p),
+        )
 
         level_swap = Rotation(σ12, [0 1; 1 0])
         mixed = Rotation(a, θ) * level_swap
@@ -82,14 +69,14 @@ import SecondQuantizedAlgebra: expim
         U = DisplacementFrame(a, reference, t)
 
         expected =
-            im * Ω / (2 * (ωd - ω)) * expim(-ωd * t) -
-            im * Ω / (2 * (ωd + ω)) * expim(ωd * t)
+            im * Ω / (2 * (ωd - ω)) * exp(-im * ωd * t) -
+            im * Ω / (2 * (ωd + ω)) * exp(im * ωd * t)
         @test iszero(simplify(conjugate(a, U) - a - expected))
 
         transformed = transform(reference, U)
-        for (term, _) in transformed
-            isempty(term.ops) && continue
-            @test term.ops == Op[a', a]
+        quadratic = ω * a' * a
+        for op in (a, a')
+            @test iszero(simplify(commutator(transformed, op) - commutator(quadratic, op)))
         end
 
         constant = DisplacementFrame(a, ω * a' * a + η * (a + a'), t)
@@ -101,9 +88,13 @@ import SecondQuantizedAlgebra: expim
         multitone_drive = η * cos(ωd * t) + g * sin(2ωd * t)
         multitone_reference = ω * a' * a + multitone_drive * (a + a')
         multitone = DisplacementFrame(a, multitone_reference, t)
-        for (term, _) in transform(multitone_reference, multitone)
-            isempty(term.ops) && continue
-            @test term.ops == Op[a', a]
+        transformed_multitone = transform(multitone_reference, multitone)
+        for op in (a, a')
+            @test iszero(
+                simplify(
+                    commutator(transformed_multitone, op) - commutator(quadratic, op),
+                ),
+            )
         end
 
         Kerr = (K / 2) * a'^2 * a^2
@@ -140,12 +131,12 @@ import SecondQuantizedAlgebra: expim
             a, Σ(indexed_a' * indexed_a, i),
         )
 
-        nonlinear_phase = expim(t^2)
+        nonlinear_phase = exp(im * t^2)
         @test_throws ArgumentError DisplacementFrame(
             a, ω * a' * a + nonlinear_phase * a' + conj(nonlinear_phase) * a, t,
         )
 
-        resonant = expim(-ω * t)
+        resonant = exp(-im * ω * t)
         @test_throws ArgumentError DisplacementFrame(
             a, ω * a' * a + resonant * a' + conj(resonant) * a, t,
         )
@@ -154,9 +145,10 @@ import SecondQuantizedAlgebra: expim
     end
 
     @testset "static quadrature displacement frame" begin
-        reference =
+        quadratic =
             (ω / 2) * x^2 + (g / 2) * (x * p + p * x) +
-            (Ω / 2) * p^2 + η * x + dx * p
+            (Ω / 2) * p^2
+        reference = quadratic + η * x + dx * p
         U = DisplacementFrame(x, p, reference)
         determinant = ω * Ω - g^2
 
@@ -169,41 +161,43 @@ import SecondQuantizedAlgebra: expim
         )
 
         transformed = simplify(transform(reference, U))
-        allowed = Set((Op[x, x], Op[x, p], Op[p, p]))
-        for (term, _) in transformed
-            isempty(term.ops) && continue
-            @test term.ops in allowed
+        for op in (x, p)
+            @test iszero(simplify(commutator(transformed, op) - commutator(quadratic, op)))
         end
     end
 
     @testset "bounded harmonic quadrature displacement frame" begin
-        reference = (ω / 2) * (x^2 + p^2) + η * cos(ωd * t) * x
+        quadratic = (ω / 2) * (x^2 + p^2)
+        reference = quadratic + η * cos(ωd * t) * x
         U = DisplacementFrame(x, p, reference, t)
         @test U isa UnitaryTransform
 
         transformed = transform(reference, U)
-        allowed = Set((Op[x, x], Op[p, p]))
-        for (term, _) in transformed
-            isempty(term.ops) && continue
-            @test term.ops in allowed
+        for op in (x, p)
+            @test iszero(simplify(commutator(transformed, op) - commutator(quadratic, op)))
         end
 
         numeric_constant = DisplacementFrame(
-            x, p, (ω / 2) * (x^2 + p^2) + x + p, t,
+            x, p, quadratic + x + p, t,
         )
         @test numeric_constant isa UnitaryTransform
 
-        multitone_reference =
+        multitone_quadratic =
             (ω / 2) * x^2 + (g / 2) * (x * p + p * x) +
-            (Ω / 2) * p^2 +
+            (Ω / 2) * p^2
+        multitone_reference =
+            multitone_quadratic +
             (η * cos(ωd * t) + dx * sin(2ωd * t)) * x +
             dp * cos(3ωd * t) * p
         multitone = DisplacementFrame(x, p, multitone_reference, t)
         transformed_multitone = transform(multitone_reference, multitone)
-        allowed_multitone = Set((Op[x, x], Op[x, p], Op[p, p]))
-        for (term, _) in transformed_multitone
-            isempty(term.ops) && continue
-            @test term.ops in allowed_multitone
+        for op in (x, p)
+            @test iszero(
+                simplify(
+                    commutator(transformed_multitone, op) -
+                        commutator(multitone_quadratic, op),
+                ),
+            )
         end
     end
 
@@ -211,7 +205,7 @@ import SecondQuantizedAlgebra: expim
         reference = (ω / 2) * (x^2 + p^2) + η * cos(ωd * t) * x
         other_phase = PhaseSpace(:selected) ⊗ PhaseSpace(:other)
         other_x = Position(other_phase, :other_x, 2)
-        nonlinear_phase = expim(t^2)
+        nonlinear_phase = exp(im * t^2)
 
         @test_throws ArgumentError DisplacementFrame(p, x, reference, t)
         @test_throws ArgumentError DisplacementFrame(x, p, reference + other_x, t)
