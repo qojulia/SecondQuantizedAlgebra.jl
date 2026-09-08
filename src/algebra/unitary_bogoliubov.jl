@@ -65,7 +65,7 @@ end
 function bogoliubov_action(modes::Vector{Op}, matrix::Matrix{CNum})
     basis = bogoliubov_basis(modes)
     return AffineAction(
-        BosonicNambu(), basis, matrix, fill(CNUM_ZERO, length(basis)),
+        AFFINE_BOSONIC_NAMBU, basis, matrix, fill(CNUM_ZERO, length(basis)),
     )
 end
 
