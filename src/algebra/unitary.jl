@@ -349,11 +349,28 @@ function check_adopted_time(U::UnitaryTransform{StaticTime}, t::Num)
     return nothing
 end
 
+function compose_action(
+        first::AffineAction, second::AffineAction, relations::Vector{ParamRelation},
+    )
+    if length(first.blocks) == 1 && length(second.blocks) == 1
+        first_block = only(first.blocks)
+        second_block = only(second.blocks)
+        if blocks_overlap(first_block, second_block)
+            return AffineAction(
+                AffineBlock[compose_overlapping_block(first_block, second_block, relations)],
+                relations,
+            )
+        end
+        return AffineAction(AffineBlock[first_block, second_block], relations)
+    end
+    return compose_action_metadata(first, second, relations)
+end
+
 function compose(
         first::UnitaryTransform, second::UnitaryTransform, time::T,
     ) where {T <: Union{StaticTime, DynamicTime}}
     relations = merge_relations(first.action.relations, second.action.relations)
-    action = compose_action_metadata(first.action, second.action, relations)
+    action = compose_action(first.action, second.action, relations)
     rules = compose_rules(first.rules, second.rules)
     inverse_rules = compose_rules(second.inverse_rules, first.inverse_rules)
 
