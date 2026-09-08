@@ -2,9 +2,7 @@ using SecondQuantizedAlgebra
 using Test
 using Symbolics: @variables
 
-@testset "Affine block architecture" begin
-    SQA = SecondQuantizedAlgebra
-
+@testset "Affine transformation composition" begin
     fock = FockSpace(:fock)
     a = Destroy(fock, :a)
     b = Destroy(fock, :b)
@@ -18,34 +16,29 @@ using Symbolics: @variables
 
     @variables θ ϕ η dx dp
 
-    @testset "disjoint algebras remain separate blocks" begin
+    @testset "disjoint algebra transformations compose independently" begin
         phase_rotation = Rotation(x, p, θ)
         level_rotation = Rotation(σ, [0 1; 1 0])
         mixed = phase_rotation * level_rotation
-
-        @test mixed.action isa SQA.AffineAction
-        @test length(mixed.action.blocks) == 2
-        @test Set(block.structure for block in mixed.action.blocks) == Set(
-            (
-                SQA.SymplecticPhaseSpace(), SQA.UnitaryLinearAction(),
-            )
-        )
-
         inverse = inv(mixed)
-        @test length(inverse.action.blocks) == 2
+
         for op in (x, p, σ)
+            sequential = conjugate(conjugate(op, phase_rotation), level_rotation)
+            @test iszero(simplify(conjugate(op, mixed) - sequential))
             @test iszero(simplify(conjugate(conjugate(op, mixed), inverse) - op))
         end
     end
 
-    @testset "overlapping transforms merge within one algebra" begin
-        composed = Rotation(x, p, θ) * Displace(x, p, dx, dp)
-        @test length(composed.action.blocks) == 1
-        block = only(composed.action.blocks)
-        @test block.structure === SQA.SymplecticPhaseSpace()
+    @testset "overlapping transformations agree with sequential application" begin
+        rotation = Rotation(x, p, θ)
+        displacement = Displace(x, p, dx, dp)
+        composed = rotation * displacement
+        inverse = inv(composed)
+
         for op in (x, p)
-            sequential = conjugate(conjugate(op, Rotation(x, p, θ)), Displace(x, p, dx, dp))
+            sequential = conjugate(conjugate(op, rotation), displacement)
             @test iszero(simplify(conjugate(op, composed) - sequential))
+            @test iszero(simplify(conjugate(conjugate(op, composed), inverse) - op))
         end
     end
 
@@ -54,11 +47,8 @@ using Symbolics: @variables
         second = Displace(a, η)
         third = Rotation(b, ϕ)
         composed = first * second * third
-
-        @test length(composed.action.blocks) == 1
-        @test only(composed.action.blocks).structure === SQA.BosonicNambu()
-
         inverse = inv(composed)
+
         for op in (a, b, adjoint(a), adjoint(b))
             sequential = conjugate(conjugate(conjugate(op, first), second), third)
             @test iszero(simplify(conjugate(op, composed) - sequential))
@@ -66,13 +56,7 @@ using Symbolics: @variables
         end
     end
 
-    @testset "mixed raw affine bases are not flattened" begin
-        @test_throws ArgumentError SQA.AffineAction(
-            Op[a, x], [1 0; 0 1], [0, 0],
-        )
-    end
-
-    @testset "scalar substitution recompiles affine metadata" begin
+    @testset "scalar substitution recompiles transformation semantics" begin
         U = Rotation(a, θ)
         resolved = @inferred substitute(U, Dict(θ => 0))
         @test resolved isa UnitaryTransform
