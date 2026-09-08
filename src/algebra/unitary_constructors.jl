@@ -159,7 +159,7 @@ function phase_pair(x::Op, p::Op, what::AbstractString)
     return nothing
 end
 
-function beamsplitter(a::Op, b::Op, θ::Real)
+function fock_mode_rotation(a::Op, b::Op, θ::Real)
     x, y = two_modes(a, b, "`Rotation`")
     c = to_cnum(cos(θ))
     s = to_cnum(sin(θ))
@@ -194,9 +194,18 @@ function quadrature_rotation(x::Op, p::Op, θ::Real)
     return canonical_transform(action)
 end
 
-"""Mix two Fock modes (beam splitter) or rotate a canonical quadrature pair."""
+"""
+    Rotation(a, b, θ)
+    Rotation(a, b, θ, t)
+
+For two distinct Fock modes, apply the passive mixing
+`a ↦ cos(θ)*a + sin(θ)*b`, `b ↦ -sin(θ)*a + cos(θ)*b`.
+For a canonical `(Position, Momentum)` pair `(x, p)`, apply
+`x ↦ cos(θ)*x + sin(θ)*p`, `p ↦ -sin(θ)*x + cos(θ)*p`.
+The timed form carries the corresponding exact moving-frame gauge.
+"""
 Rotation(a::Op, b::Op, θ::Real) =
-    is_phase_space(a) ? quadrature_rotation(a, b, θ) : beamsplitter(a, b, θ)
+    is_phase_space(a) ? quadrature_rotation(a, b, θ) : fock_mode_rotation(a, b, θ)
 
 function Rotation(a::Op, b::Op, θ::Real, t::Num)
     tt = time_or_throw(t)
@@ -207,10 +216,10 @@ function Rotation(a::Op, b::Op, θ::Real, t::Num)
     end
     x, y = two_modes(a, b, "`Rotation`")
     generator = im * (adjoint(x) * y - adjoint(y) * x)
-    return timed_transform(beamsplitter(x, y, θ), gauge(generator, θ, tt), tt)
+    return timed_transform(fock_mode_rotation(x, y, θ), gauge(generator, θ, tt), tt)
 end
 
-function two_mode_squeeze(a::Op, b::Op, r::Real)
+function fock_two_mode_squeeze(a::Op, b::Op, r::Real)
     x, y = two_modes(a, b, "`Squeeze`")
     u = to_cnum(cosh(r))
     v = to_cnum(sinh(r))
@@ -243,9 +252,18 @@ function quadrature_squeeze(x::Op, p::Op, r::Real)
     return canonical_transform(action)
 end
 
-"""Squeeze two Fock modes or a canonical quadrature pair."""
+"""
+    Squeeze(a, b, r)
+    Squeeze(a, b, r, t)
+
+For two distinct Fock modes, apply
+`a ↦ cosh(r)*a + sinh(r)*b'`, `b ↦ cosh(r)*b + sinh(r)*a'`.
+For a canonical `(Position, Momentum)` pair `(x, p)`, apply
+`x ↦ exp(r)*x`, `p ↦ exp(-r)*p`.
+The timed form carries the corresponding exact moving-frame gauge.
+"""
 Squeeze(a::Op, b::Op, r::Real) =
-    is_phase_space(a) ? quadrature_squeeze(a, b, r) : two_mode_squeeze(a, b, r)
+    is_phase_space(a) ? quadrature_squeeze(a, b, r) : fock_two_mode_squeeze(a, b, r)
 
 function Squeeze(a::Op, b::Op, r::Real, t::Num)
     tt = time_or_throw(t)
@@ -256,7 +274,7 @@ function Squeeze(a::Op, b::Op, r::Real, t::Num)
     end
     x, y = two_modes(a, b, "`Squeeze`")
     generator = im * (adjoint(x) * adjoint(y) - y * x)
-    return timed_transform(two_mode_squeeze(x, y, r), gauge(generator, r, tt), tt)
+    return timed_transform(fock_two_mode_squeeze(x, y, r), gauge(generator, r, tt), tt)
 end
 
 function quadrature_displacement(x::Op, p::Op, cx::CNum, cp::CNum)
@@ -288,7 +306,14 @@ function quadrature_displacement_gauge(
     )
 end
 
-"""Displace a canonical quadrature pair by real scalar shifts."""
+"""
+    Displace(x, p, dx, dp)
+    Displace(x, p, dx, dp, t)
+
+Translate a canonical `(Position, Momentum)` pair by real scalar shifts,
+`x ↦ x + dx` and `p ↦ p + dp`. The timed form carries the exact Weyl moving-frame gauge,
+including its scalar phase term.
+"""
 function Displace(x::Op, p::Op, dx::Real, dp::Real)
     phase_pair(x, p, "`Displace`")
     return quadrature_displacement(x, p, to_cnum(dx), to_cnum(dp))
@@ -322,7 +347,15 @@ function triple_or_throw(S::Op)
     return nothing
 end
 
-"""Rotate a Pauli or spin triple by `θ` around axis 1, 2, or 3."""
+"""
+    Rotation(S, axis, θ)
+    Rotation(S, axis, θ, t)
+
+Rotate a Pauli or spin triple by `θ` around `axis ∈ 1:3`. If `(u, v)` are the two cyclic
+components following the fixed axis, the map is
+`u ↦ cos(θ)*u - sin(θ)*v`, `v ↦ sin(θ)*u + cos(θ)*v`; the selected axis is unchanged.
+The timed form uses the corresponding spin generator, with the Pauli `1/2` convention.
+"""
 function Rotation(S::Op, axis::Integer, θ::Real)
     triple_or_throw(S)
     main_axis = Int(axis_or_throw(axis))
@@ -393,7 +426,7 @@ function matrix_unit_action(σ::Op, W::Matrix{Coeff}, Wdagger::Matrix{Coeff})
         end
     end
     return AffineAction(
-        UnitaryLinearAction(), basis, linear, fill(CNUM_ZERO, dimension),
+        AFFINE_UNITARY_LINEAR, basis, linear, fill(CNUM_ZERO, dimension),
     )
 end
 
@@ -418,10 +451,11 @@ end
     Rotation(σ, W)
     Rotation(σ, W, t)
 
-Transform an ordinary N-level basis by a square matrix `W`. `W` is required by contract to be
-unitary (`W'W = I`); satisfying that mathematical precondition is the caller's responsibility.
-The constructor validates only the transition family and matrix dimensions. The timed form
-derives the Hamiltonian gauge `im*Ẇ'W` entrywise with respect to `t`.
+Transform an ordinary N-level matrix-unit basis by `σᵢⱼ ↦ W' * σᵢⱼ * W` for a square
+matrix `W`. `W` is required by contract to be unitary (`W'W = I`); satisfying that
+mathematical precondition is the caller's responsibility. The constructor validates only the
+transition family and matrix dimensions. The timed form derives the Hamiltonian gauge
+`im*Ẇ'W` entrywise with respect to `t`.
 """
 function Rotation(σ::Op, W::AbstractMatrix)
     U, _ = nlevel_rotation(σ, W)
