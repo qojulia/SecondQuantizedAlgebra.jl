@@ -46,19 +46,18 @@ generators. Construct transforms with [`Displace`](@ref), [`Rotation`](@ref),
 struct UnitaryTransform{T}
     action::AffineAction
     rules::Dict{Op, QAdd}
-    inverse_rules::Dict{Op, QAdd}
     generators::Vector{Op}
     sites::Vector{SiteInfo}
     gauge::QAdd
     time::T
 
     function UnitaryTransform{T}(
-            action::AffineAction, rules::Dict{Op, QAdd}, inverse_rules::Dict{Op, QAdd},
-            generators::Vector{Op}, sites::Vector{SiteInfo}, gauge::QAdd, time::T,
+            action::AffineAction, rules::Dict{Op, QAdd}, generators::Vector{Op},
+            sites::Vector{SiteInfo}, gauge::QAdd, time::T,
         ) where {T}
         (T === StaticTime || T === DynamicTime) ||
             throw(ArgumentError("invalid unitary-transform time marker `$T`"))
-        return new{T}(action, rules, inverse_rules, generators, sites, gauge, time)
+        return new{T}(action, rules, generators, sites, gauge, time)
     end
 end
 
@@ -135,7 +134,6 @@ function validated_transform(
         action::AffineAction, gauge::QAdd, time::T,
     ) where {T <: Union{StaticTime, DynamicTime}}
     rules = affine_rules(action)
-    inverse_rules = affine_rules(canonical_affine_inverse(action))
     generators = sort!(collect(keys(rules)))
     for generator in generators
         (has_index(generator.index) && index_slot(generator.index) === nothing) &&
@@ -143,15 +141,10 @@ function validated_transform(
             "unitary transforms of free indexed-operator families are not part of " *
                 "the exact closed-form API; resolve the index to one site first",
         )
-        haskey(inverse_rules, generator) || unitary_error(
-            "inverse rules are missing the generator `$generator`",
-        )
     end
     sites = site_infos(generators)
     validate_complete(sites)
-    return UnitaryTransform{T}(
-        action, rules, inverse_rules, generators, sites, gauge, time,
-    )
+    return UnitaryTransform{T}(action, rules, generators, sites, gauge, time)
 end
 
 function time_or_throw(t::Num)
@@ -166,7 +159,7 @@ function timed_transform(U::UnitaryTransform{StaticTime}, gauge::QAdd, t::Num)
     time = DynamicTime(time_or_throw(t))
     reduced = reduce_params(gauge, U.action.relations, true)
     return UnitaryTransform{DynamicTime}(
-        U.action, U.rules, U.inverse_rules, U.generators, U.sites, reduced, time,
+        U.action, U.rules, U.generators, U.sites, reduced, time,
     )
 end
 
@@ -229,15 +222,16 @@ gauge_term(U::UnitaryTransform) = U.gauge
 generators(U::UnitaryTransform) = copy(U.generators)
 
 function Base.inv(U::UnitaryTransform{T}) where {T}
+    inverse_action = canonical_affine_inverse(U.action)
+    inverse_rules = affine_rules(inverse_action)
     relations = U.action.relations
     gauge = if T === StaticTime || iszero(U.gauge)
         U.gauge
     else
-        -reduce_params(apply_rules(U.gauge, U.inverse_rules), relations, true)
+        -reduce_params(apply_rules(U.gauge, inverse_rules), relations, true)
     end
     return UnitaryTransform{T}(
-        canonical_affine_inverse(U.action), U.inverse_rules, U.rules,
-        U.generators, U.sites, gauge, U.time,
+        inverse_action, inverse_rules, U.generators, U.sites, gauge, U.time,
     )
 end
 
@@ -372,7 +366,6 @@ function compose(
     relations = merge_relations(first.action.relations, second.action.relations)
     action = compose_action(first.action, second.action, relations)
     rules = compose_rules(first.rules, second.rules)
-    inverse_rules = compose_rules(second.inverse_rules, first.inverse_rules)
 
     gauge = if iszero(first.gauge)
         second.gauge
@@ -391,9 +384,7 @@ function compose(
         generators = sort!(collect(keys(rules)))
         sites = site_infos(generators)
     end
-    return UnitaryTransform{T}(
-        action, rules, inverse_rules, generators, sites, gauge, time,
-    )
+    return UnitaryTransform{T}(action, rules, generators, sites, gauge, time)
 end
 
 Base.:*(
