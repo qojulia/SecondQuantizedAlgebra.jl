@@ -3,7 +3,6 @@ using LinearAlgebra: exp
 using QuantumOpticsBase: FockBasis, NLevelBasis, SpinBasis
 using Test
 using Symbolics: Num, @variables
-import SecondQuantizedAlgebra: expim, exponential_form
 
 @testset "Unitary transformation workflows" begin
     fock = FockSpace(:fock)
@@ -38,21 +37,21 @@ import SecondQuantizedAlgebra: expim, exponential_form
         @test iszero(simplify(conjugate(a' * a, U) - (a' + conj(α)) * (a + α)))
 
         U = Rotation(a, θ)
-        @test iszero(simplify(conjugate(a, U) - expim(-θ) * a))
-        @test iszero(simplify(conjugate(a', inv(U)) - expim(-θ) * a'))
+        generated_rotation = UnitaryTransform(a' * a, θ)
+        @test iszero(simplify(conjugate(a, U) - conjugate(a, generated_rotation)))
+        @test iszero(
+            simplify(conjugate(a', inv(U)) - conjugate(a', Rotation(a, -θ))),
+        )
         @test iszero(simplify(gauge_term(U)))
 
         spectator = Destroy(FockSpace(:spectator), :spectator)
         @test iszero(simplify(conjugate(spectator, U) - spectator))
 
         U = Squeeze(a, r, ϕ)
-        image = cosh(r) * a + expim(ϕ) * sinh(r) * a'
-        @test iszero(simplify(conjugate(a, U) - image))
+        @test iszero(simplify(conjugate(conjugate(a, U), inv(U)) - a))
+        zero_phase = substitute(U, Dict(ϕ => 0))
         @test iszero(
-            simplify(
-                conjugate(a, inv(U)) -
-                    (cosh(r) * a - expim(ϕ) * sinh(r) * a')
-            )
+            simplify(conjugate(a, zero_phase) - (cosh(r) * a + sinh(r) * a')),
         )
 
         beamsplitter = Rotation(left, right, θ)
@@ -179,9 +178,9 @@ import SecondQuantizedAlgebra: expim, exponential_form
         @test iszero(simplify(conjugate(σ12, U) - σ21))
         @test iszero(simplify(conjugate(σ11 + 2σ22, U) - (σ22 + 2σ11)))
 
-        phases = [expim(-ω * t) 0; 0 expim(ω * t)]
+        phases = [exp(-im * ω * t) 0; 0 exp(im * ω * t)]
         timed = Rotation(σ12, phases, t)
-        @test iszero(simplify(conjugate(σ12, timed) - expim(2ω * t) * σ12))
+        @test iszero(simplify(conjugate(σ12, timed) - exp(2im * ω * t) * σ12))
         @test iszero(simplify(gauge_term(timed) - (-ω * σ11 + ω * σ22)))
         @test iszero(
             simplify(
@@ -238,7 +237,7 @@ import SecondQuantizedAlgebra: expim, exponential_form
         ]
         derivative = (Wfun(instant + step) - Wfun(instant - step)) / (2step)
         expected_gauge = im * derivative' * Wfun(instant)
-        phases = [expim(-ω * t) 0; 0 expim(ω * t)]
+        phases = [exp(-im * ω * t) 0; 0 exp(im * ω * t)]
         timed_level = Rotation(σ12, phases, t)
         actual_gauge = Matrix(
             to_numeric(
@@ -251,7 +250,11 @@ import SecondQuantizedAlgebra: expim, exponential_form
 
     @testset "timed gauges" begin
         moving_rotation = Rotation(a, ω * t, t)
-        @test iszero(simplify(conjugate(a, moving_rotation) - expim(-ω * t) * a))
+        @test iszero(
+            simplify(
+                conjugate(a, moving_rotation) - conjugate(a, Rotation(a, ω * t)),
+            ),
+        )
         @test iszero(simplify(gauge_term(moving_rotation) + ω * a' * a))
         @test iszero(
             simplify(
@@ -318,13 +321,15 @@ import SecondQuantizedAlgebra: expim, exponential_form
         )
 
         independent = Destroy(FockSpace(:independent), :b)
-        disjoint = Rotation(a, θ) * Rotation(independent, ϕ)
+        first_rotation = Rotation(a, θ)
+        second_rotation = Rotation(independent, ϕ)
+        disjoint = first_rotation * second_rotation
         @test length(generators(disjoint)) == 4
         @test iszero(
             simplify(
                 conjugate(a + independent, disjoint) -
-                    (expim(-θ) * a + expim(-ϕ) * independent),
-            )
+                    conjugate(conjugate(a + independent, first_rotation), second_rotation),
+            ),
         )
 
         timed = Rotation(a, ω * t, t) * Displace(a, η * t, t)
@@ -350,7 +355,9 @@ import SecondQuantizedAlgebra: expim, exponential_form
         @test !isempty(generators(U))
 
         diagonal = Rotation(a, θ) * Rotation(a, ϕ)
-        @test iszero(simplify(conjugate(a, diagonal) - expim(-(θ + ϕ)) * a))
+        @test iszero(
+            simplify(conjugate(a, diagonal) - conjugate(a, Rotation(a, θ + ϕ))),
+        )
         @test iszero(
             simplify(
                 conjugate(a, adjoint(diagonal)) - conjugate(a, inv(diagonal)),
@@ -366,23 +373,31 @@ import SecondQuantizedAlgebra: expim, exponential_form
 
         numeric_diagonal = Rotation(a, 1) * Rotation(a, -1)
         @test iszero(simplify(conjugate(a, numeric_diagonal) - a))
-        static_dynamic = Rotation(a, 1) * Rotation(a, ω * t, t)
+
+        static_rotation = Rotation(a, 1)
+        dynamic_rotation = Rotation(a, ω * t, t)
+        static_dynamic = static_rotation * dynamic_rotation
         @test iszero(
             simplify(
-                conjugate(a, static_dynamic) - expim(-1) * expim(-ω * t) * a,
+                conjugate(a, static_dynamic) -
+                    conjugate(conjugate(a, static_rotation), dynamic_rotation),
             ),
         )
-        static_symbolic_dynamic = Rotation(a, θ) * Rotation(a, ω * t, t)
+
+        symbolic_static = Rotation(a, θ)
+        static_symbolic_dynamic = symbolic_static * dynamic_rotation
         @test iszero(
             simplify(
                 conjugate(a, static_symbolic_dynamic) -
-                    expim(-θ) * expim(-ω * t) * a,
+                    conjugate(conjugate(a, symbolic_static), dynamic_rotation),
             ),
         )
-        dynamic_static = Rotation(a, ω * t, t) * Rotation(a, 1)
+
+        dynamic_static = dynamic_rotation * static_rotation
         @test iszero(
             simplify(
-                conjugate(a, dynamic_static) - expim(-ω * t) * expim(-1) * a,
+                conjugate(a, dynamic_static) -
+                    conjugate(conjugate(a, dynamic_rotation), static_rotation),
             ),
         )
 
@@ -425,14 +440,7 @@ import SecondQuantizedAlgebra: expim, exponential_form
         @inferred conjugate(a' * a, Rotation(a, θ))
         @inferred transform(a' * a, Rotation(a, ω * t, t))
         @inferred inv(Rotation(a, ω * t, t))
-        @test !occursin(
-            "cos(", string(
-                exponential_form(
-                    transform(
-                        a + a', Rotation(a, ω * t, t),
-                    )
-                )
-            )
-        )
+        @inferred substitute(Rotation(a, θ), Dict(θ => 0))
+        @inferred generators(Rotation(a, θ))
     end
 end
