@@ -3,6 +3,7 @@ using LinearAlgebra: exp
 using QuantumOpticsBase: FockBasis
 using Test
 using Symbolics: @variables
+import SecondQuantizedAlgebra: expim
 
 @testset "Exact bosonic Bogoliubov transformations" begin
     fock = FockSpace(:fock)
@@ -16,8 +17,8 @@ using Symbolics: @variables
 
     @testset "single-mode squeezing is a Bogoliubov map" begin
         S = [
-            cosh(r) exp(im * ϕ) * sinh(r)
-            exp(-im * ϕ) * sinh(r) cosh(r)
+            cosh(r) expim(ϕ) * sinh(r)
+            expim(-ϕ) * sinh(r) cosh(r)
         ]
         raw = Bogoliubov(a, S)
         named = Squeeze(a, r, ϕ)
@@ -30,7 +31,7 @@ using Symbolics: @variables
             )
         end
         @test iszero(
-            simplify(conjugate(a, raw) - cosh(r) * a - exp(im * ϕ) * sinh(r) * a'),
+            simplify(conjugate(a, raw) - cosh(r) * a - expim(ϕ) * sinh(r) * a'),
         )
     end
 
