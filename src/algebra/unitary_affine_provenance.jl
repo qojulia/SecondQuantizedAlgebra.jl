@@ -21,9 +21,8 @@ function canonical_affine_inverse(action::AffineAction)
     blocks = AffineBlock[
         canonical_block_inverse(block, action.relations) for block in action.blocks
     ]
-    # Structural inversion preserves block disjointness, and the input action already owns a
-    # validated relation set. Avoid re-running the public AffineAction validation/copy path.
-    return AffineAction(blocks, copy(action.relations))
+    # Structural inversion preserves block disjointness and does not mutate parameter relations.
+    return AffineAction(blocks, action.relations)
 end
 
 canonical_transform(action::AffineAction) =
