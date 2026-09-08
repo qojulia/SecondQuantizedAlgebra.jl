@@ -14,18 +14,14 @@ struct SiteInfo
 end
 
 # Exact actions are partitioned into algebra-homogeneous affine blocks. These types live next
-# to `UnitaryTransform` so every transform can carry concrete affine metadata directly.
+# to `UnitaryTransform` so every transform can carry concrete affine metadata directly. Their
+# container fields are immutable by convention after construction and may be shared safely.
 @enum AffineStructure::UInt8 begin
     AFFINE_BOSONIC_NAMBU
     AFFINE_SYMPLECTIC_PHASE_SPACE
     AFFINE_ORTHOGONAL
     AFFINE_UNITARY_LINEAR
 end
-
-BosonicNambu() = AFFINE_BOSONIC_NAMBU
-SymplecticPhaseSpace() = AFFINE_SYMPLECTIC_PHASE_SPACE
-OrthogonalAction() = AFFINE_ORTHOGONAL
-UnitaryLinearAction() = AFFINE_UNITARY_LINEAR
 
 struct AffineBlock
     structure::AffineStructure
@@ -240,22 +236,38 @@ function Base.inv(U::UnitaryTransform{T}) where {T}
         -reduce_params(apply_rules(U.gauge, U.inverse_rules), relations, true)
     end
     return UnitaryTransform{T}(
-        canonical_affine_inverse(U.action), copy(U.inverse_rules), copy(U.rules),
+        canonical_affine_inverse(U.action), U.inverse_rules, U.rules,
         U.generators, U.sites, gauge, U.time,
     )
 end
 
 Base.adjoint(U::UnitaryTransform) = inv(U)
 
+function contains_relation(relations::Vector{ParamRelation}, relation::ParamRelation)
+    for existing in relations
+        isequal(existing.hi, relation.hi) && isequal(existing.lo, relation.lo) &&
+            existing.sign == relation.sign && return true
+    end
+    return false
+end
+
 function merge_relations(a::Vector{ParamRelation}, b::Vector{ParamRelation})
     isempty(a) && return b
     isempty(b) && return a
+
+    first_new = 0
+    for i in eachindex(b)
+        if !contains_relation(a, b[i])
+            first_new = i
+            break
+        end
+    end
+    iszero(first_new) && return a
+
     out = copy(a)
-    for relation in b
-        any(
-            r -> isequal(r.hi, relation.hi) && isequal(r.lo, relation.lo) &&
-                r.sign == relation.sign, out
-        ) || push!(out, relation)
+    for i in first_new:lastindex(b)
+        relation = b[i]
+        contains_relation(out, relation) || push!(out, relation)
     end
     return out
 end
