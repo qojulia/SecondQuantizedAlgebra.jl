@@ -1,7 +1,6 @@
 using SecondQuantizedAlgebra
 using Test
 using Symbolics: @variables
-import SecondQuantizedAlgebra: expim
 
 @testset "Generator-derived exact unitary transformations" begin
     fock = FockSpace(:fock)
@@ -53,7 +52,7 @@ import SecondQuantizedAlgebra: expim
     end
 
     @testset "single-mode squeeze" begin
-        G = (im / 2) * (expim(ϕ) * a'^2 - expim(-ϕ) * a^2)
+        G = (im / 2) * (exp(im * ϕ) * a'^2 - exp(-im * ϕ) * a^2)
         generic = UnitaryTransform(G, r)
         named = Squeeze(a, r, ϕ)
         equivalent_on((a, a'), generic, named)
