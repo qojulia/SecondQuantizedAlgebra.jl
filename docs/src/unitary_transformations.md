@@ -2,8 +2,9 @@
 
 A unitary transformation changes the operator basis while preserving the
 operator algebra. In SecondQuantizedAlgebra, a [`UnitaryTransform`](@ref) stores
-an exact affine action together with compiled forward/inverse rules and—when
-the basis moves in time—the corresponding Hamiltonian gauge term.
+an exact affine action together with compiled forward rules and—when the basis
+moves in time—the corresponding Hamiltonian gauge term. Inverse rules are
+derived exactly from the affine action when `inv(U)` is requested.
 
 The basic workflow is:
 
@@ -49,8 +50,8 @@ their arguments.
 | Spin or Pauli operators | `Rotation(S, axis, θ)` | rotation around axis 1, 2, or 3 |
 | N-level transitions | `Rotation(σ, W)` | basis change defined by the unitary matrix `W` |
 
-Each constructor defines the inverse transformation, so `inv(U)` can be used
-without supplying another set of rules.
+Each constructor defines an affine action with an exact structural inverse, so
+`inv(U)` does not require the caller to supply inverse rules.
 
 ## Raw bosonic Bogoliubov maps
 
@@ -149,9 +150,9 @@ Fock, phase-space, spin, or N-level blocks remain separate. This avoids generic
 symbolic matrix inversion: each block uses the inverse formula of its canonical
 algebra.
 
-Every `UnitaryTransform` carries this affine representation. Compiled rule
-dictionaries are execution data derived from it rather than an alternate
-rule-only transformation representation.
+Every `UnitaryTransform` carries this affine representation. Compiled forward
+rules are execution data derived from it rather than an alternate semantic
+representation; inverse rules are derived from the structural inverse on demand.
 
 Static and timed transformations can be composed. Timed transformations in a
 single product must use the same time variable. The gauge terms are composed
