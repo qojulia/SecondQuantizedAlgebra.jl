@@ -167,28 +167,22 @@ function inverse_linear(linear::Matrix{CNum}, structure::AffineStructure)
     unitary_error("no exact inverse strategy is registered for affine structure `$structure`")
 end
 
-function affine_block_rules(block::AffineBlock)
-    n = length(block.basis)
-    rules = Dict{Op, QAdd}()
-    sizehint!(rules, n)
-    for i in 1:n
-        pairs = Tuple{CNum, Vector{Op}}[]
-        sizehint!(pairs, n + 1)
-        for j in 1:n
-            coefficient = block.linear[i, j]
-            iszero_cnum(coefficient) || push!(pairs, (coefficient, Op[block.basis[j]]))
-        end
-        offset = block.shift[i]
-        iszero_cnum(offset) || push!(pairs, (offset, Op[]))
-        rules[block.basis[i]] = rule_qadd(pairs)
-    end
-    return rules
-end
-
 function affine_rules(action::AffineAction)
     rules = Dict{Op, QAdd}()
+    sizehint!(rules, sum(length(block.basis) for block in action.blocks))
     for block in action.blocks
-        merge!(rules, affine_block_rules(block))
+        n = length(block.basis)
+        for i in 1:n
+            terms = QTermDict()
+            sizehint!(terms, n + 1)
+            for j in 1:n
+                coefficient = block.linear[i, j]
+                iszero_cnum(coefficient) || addto!(terms, Op[block.basis[j]], coefficient)
+            end
+            offset = block.shift[i]
+            iszero_cnum(offset) || addto!(terms, Op[], offset)
+            rules[block.basis[i]] = QAdd(terms, EMPTY_INDICES)
+        end
     end
     return rules
 end
