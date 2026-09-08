@@ -59,7 +59,6 @@ struct UnitaryTransform{T}
     function UnitaryTransform{T}(
             action::AffineAction, rules::Dict{Op, QAdd}, inverse_rules::Dict{Op, QAdd},
             generators::Vector{Op}, sites::Vector{SiteInfo}, gauge::QAdd, time::T,
-            ::Val{:validated},
         ) where {T}
         (T === StaticTime || T === DynamicTime) ||
             throw(ArgumentError("invalid unitary-transform time marker `$T`"))
@@ -155,7 +154,7 @@ function validated_transform(
     sites = site_infos(generators)
     validate_complete(sites)
     return UnitaryTransform{T}(
-        action, rules, inverse_rules, generators, sites, gauge, time, Val(:validated),
+        action, rules, inverse_rules, generators, sites, gauge, time,
     )
 end
 
@@ -172,7 +171,6 @@ function timed_transform(U::UnitaryTransform{StaticTime}, gauge::QAdd, t::Num)
     reduced = reduce_params(gauge, U.action.relations, true)
     return UnitaryTransform{DynamicTime}(
         U.action, U.rules, U.inverse_rules, U.generators, U.sites, reduced, time,
-        Val(:validated),
     )
 end
 
@@ -243,7 +241,7 @@ function Base.inv(U::UnitaryTransform{T}) where {T}
     end
     return UnitaryTransform{T}(
         canonical_affine_inverse(U.action), copy(U.inverse_rules), copy(U.rules),
-        U.generators, U.sites, gauge, U.time, Val(:validated),
+        U.generators, U.sites, gauge, U.time,
     )
 end
 
@@ -365,7 +363,7 @@ function compose(
         sites = site_infos(generators)
     end
     return UnitaryTransform{T}(
-        action, rules, inverse_rules, generators, sites, gauge, time, Val(:validated),
+        action, rules, inverse_rules, generators, sites, gauge, time,
     )
 end
 
