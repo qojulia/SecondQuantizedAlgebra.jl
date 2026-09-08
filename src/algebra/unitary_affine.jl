@@ -2,7 +2,8 @@
 #
 # Exact actions are stored as algebra-homogeneous blocks. `UnitaryTransform` keeps the
 # compiled rule dictionaries used by `conjugate` and `transform`, but affine metadata is the
-# semantic source for inversion and composition.
+# semantic source for inversion and composition. Published blocks/actions are never mutated;
+# unchanged basis, matrix, shift, and relation storage may therefore be shared.
 
 function AffineBlock(
         structure::AffineStructure, basis::Vector{Op}, linear::AbstractMatrix,
@@ -25,7 +26,7 @@ function AffineBlock(
     for i in 1:n
         offsets[i] = to_cnum(shift[i])
     end
-    return AffineBlock(structure, copy(basis), coefficients, offsets)
+    return AffineBlock(structure, basis, coefficients, offsets)
 end
 
 function validate_disjoint_blocks(blocks::Vector{AffineBlock})
@@ -44,8 +45,8 @@ function AffineAction(
     )
     isempty(blocks) && unitary_error("an affine action needs at least one block")
     validate_disjoint_blocks(blocks)
-    usable = all(is_usable_rel, relations) ? copy(relations) : filter(is_usable_rel, relations)
-    return AffineAction(copy(blocks), usable)
+    usable = all(is_usable_rel, relations) ? relations : filter(is_usable_rel, relations)
+    return AffineAction(blocks, usable)
 end
 
 function infer_affine_structure(basis::Vector{Op})
@@ -62,7 +63,7 @@ function infer_affine_structure(basis::Vector{Op})
                 "bosonic Nambu ordering requires matching creation operators second",
             )
         end
-        return BosonicNambu()
+        return AFFINE_BOSONIC_NAMBU
     elseif all(is_phase_space, basis)
         iseven(n) || unitary_error("a phase-space basis needs an even number of generators")
         half = n ÷ 2
@@ -77,11 +78,11 @@ function infer_affine_structure(basis::Vector{Op})
                 "phase-space basis must pair position and momentum operators by site",
             )
         end
-        return SymplecticPhaseSpace()
+        return AFFINE_SYMPLECTIC_PHASE_SPACE
     elseif all(o -> is_pauli(o) || is_spin(o), basis)
-        return OrthogonalAction()
+        return AFFINE_ORTHOGONAL
     elseif all(is_transition, basis)
-        return UnitaryLinearAction()
+        return AFFINE_UNITARY_LINEAR
     end
     unitary_error(
         "no single exact affine structure is registered for the supplied generator basis",
@@ -105,8 +106,6 @@ function AffineAction(
         infer_affine_structure(basis), basis, linear, shift; relations = relations,
     )
 end
-
-only_affine_block(action::AffineAction) = only(action.blocks)
 
 function reduce_affine(c::CNum, relations::Vector{ParamRelation}, scratch::Vector{ParamRelation})
     isempty(relations) && return c
@@ -167,10 +166,6 @@ function inverse_linear(linear::Matrix{CNum}, structure::AffineStructure)
     structure === AFFINE_UNITARY_LINEAR && return dagger_linear(linear)
     unitary_error("no exact inverse strategy is registered for affine structure `$structure`")
 end
-
-inverse_linear(
-    linear::Matrix{CNum}, structure::AffineStructure, ::Vector{ParamRelation},
-) = inverse_linear(linear, structure)
 
 function affine_block_rules(block::AffineBlock)
     n = length(block.basis)
@@ -453,5 +448,5 @@ function compose_action_metadata(
         deleteat!(result, reverse(overlapping))
         push!(result, composed)
     end
-    return AffineAction(result, copy(relations))
+    return AffineAction(result, relations)
 end
