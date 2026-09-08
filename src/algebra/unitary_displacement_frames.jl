@@ -196,6 +196,11 @@ struct QuadratureLinearReference
     normalized_drive_p::CNum
 end
 
+@enum QuadratureDriveAxis::UInt8 begin
+    QUADRATURE_DRIVE_X
+    QUADRATURE_DRIVE_P
+end
+
 @noinline function quadrature_reference_error(coefficient::CNum, name::AbstractString)
     unitary_error(
         "`DisplacementFrame` requires a real $name coefficient; " *
@@ -322,14 +327,14 @@ function static_quadrature_displacement(data::QuadratureLinearReference)
 end
 
 function bounded_quadrature_drive(
-        drive::CNum, data::QuadratureLinearReference, t::Num, ::Val{axis},
-    ) where {axis}
+        drive::CNum, data::QuadratureLinearReference, t::Num, axis::QuadratureDriveAxis,
+    )
     iszero_cnum(drive) && return (x = CNUM_ZERO, p = CNUM_ZERO)
     tail = drive.tail
     displacement_x = CNUM_ZERO
     displacement_p = CNUM_ZERO
     if tail isa Native
-        return axis === :x ?
+        return axis === QUADRATURE_DRIVE_X ?
             quadrature_response_component(data, drive, CNUM_ZERO, CNUM_ZERO) :
             quadrature_response_component(data, CNUM_ZERO, drive, CNUM_ZERO)
     elseif !(tail isa Poly)
@@ -342,7 +347,7 @@ function bounded_quadrature_drive(
     for monomial in tail.terms
         harmonic = harmonic_frequency(monomial, t)
         component = from_poly(Monomial[monomial])
-        response = axis === :x ?
+        response = axis === QUADRATURE_DRIVE_X ?
             quadrature_response_component(data, component, CNUM_ZERO, harmonic) :
             quadrature_response_component(data, CNUM_ZERO, component, harmonic)
         displacement_x = add_cnum(displacement_x, response.x)
@@ -352,8 +357,12 @@ function bounded_quadrature_drive(
 end
 
 function bounded_quadrature_displacement(data::QuadratureLinearReference, t::Num)
-    from_x = bounded_quadrature_drive(data.normalized_drive_x, data, t, Val(:x))
-    from_p = bounded_quadrature_drive(data.normalized_drive_p, data, t, Val(:p))
+    from_x = bounded_quadrature_drive(
+        data.normalized_drive_x, data, t, QUADRATURE_DRIVE_X,
+    )
+    from_p = bounded_quadrature_drive(
+        data.normalized_drive_p, data, t, QUADRATURE_DRIVE_P,
+    )
     return (
         x = add_cnum(from_x.x, from_p.x),
         p = add_cnum(from_x.p, from_p.p),
