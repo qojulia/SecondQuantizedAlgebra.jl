@@ -1,9 +1,9 @@
 # Internal affine representation for exact total canonical transformations.
 #
 # Exact actions are stored as algebra-homogeneous blocks. `UnitaryTransform` keeps the
-# compiled rule dictionaries used by `conjugate` and `transform`, but affine metadata is the
-# semantic source for inversion and composition. Published blocks/actions are never mutated;
-# unchanged basis, matrix, shift, and relation storage may therefore be shared.
+# compiled rules used by `conjugate` and `transform`, but affine metadata is the semantic
+# source for inversion and composition. Published blocks/actions are never mutated; unchanged
+# basis, matrix, shift, and relation storage may therefore be shared safely.
 
 function AffineBlock(
         structure::AffineStructure, basis::Vector{Op}, linear::AbstractMatrix,
@@ -147,12 +147,11 @@ function inverse_symplectic(linear::Matrix{CNum})
     n = size(linear, 1)
     iseven(n) || unitary_error("a phase-space action needs an even-dimensional basis")
     half = n ÷ 2
-    transposed = transpose_linear(linear)
     out = Matrix{CNum}(undef, n, n)
     for j in 1:n, i in 1:n
         source_i = i <= half ? i + half : i - half
         source_j = j <= half ? j + half : j - half
-        value = transposed[source_i, source_j]
+        value = linear[source_j, source_i]
         (i <= half) == (j <= half) || (value = neg_cnum(value))
         out[i, j] = value
     end
