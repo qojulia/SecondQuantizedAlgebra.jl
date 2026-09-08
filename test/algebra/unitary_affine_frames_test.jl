@@ -1,6 +1,7 @@
 using SecondQuantizedAlgebra
 using Test
 using Symbolics: @variables
+import SecondQuantizedAlgebra: expim
 
 @testset "Affine unitary transformation contracts" begin
     fock = FockSpace(:fock)
@@ -69,8 +70,8 @@ using Symbolics: @variables
         U = DisplacementFrame(a, reference, t)
 
         expected =
-            im * Ω / (2 * (ωd - ω)) * exp(-im * ωd * t) -
-            im * Ω / (2 * (ωd + ω)) * exp(im * ωd * t)
+            im * Ω / (2 * (ωd - ω)) * expim(-ωd * t) -
+            im * Ω / (2 * (ωd + ω)) * expim(ωd * t)
         @test iszero(simplify(conjugate(a, U) - a - expected))
 
         transformed = transform(reference, U)
@@ -131,12 +132,12 @@ using Symbolics: @variables
             a, Σ(indexed_a' * indexed_a, i),
         )
 
-        nonlinear_phase = exp(im * t^2)
+        nonlinear_phase = expim(t^2)
         @test_throws ArgumentError DisplacementFrame(
             a, ω * a' * a + nonlinear_phase * a' + conj(nonlinear_phase) * a, t,
         )
 
-        resonant = exp(-im * ω * t)
+        resonant = expim(-ω * t)
         @test_throws ArgumentError DisplacementFrame(
             a, ω * a' * a + resonant * a' + conj(resonant) * a, t,
         )
@@ -205,7 +206,7 @@ using Symbolics: @variables
         reference = (ω / 2) * (x^2 + p^2) + η * cos(ωd * t) * x
         other_phase = PhaseSpace(:selected) ⊗ PhaseSpace(:other)
         other_x = Position(other_phase, :other_x, 2)
-        nonlinear_phase = exp(im * t^2)
+        nonlinear_phase = expim(t^2)
 
         @test_throws ArgumentError DisplacementFrame(p, x, reference, t)
         @test_throws ArgumentError DisplacementFrame(x, p, reference + other_x, t)
