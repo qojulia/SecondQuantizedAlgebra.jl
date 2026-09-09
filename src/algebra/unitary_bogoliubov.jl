@@ -17,9 +17,6 @@ function bogoliubov_modes(modes::AbstractVector{Op})
     return lowering_modes
 end
 
-bogoliubov_modes(mode::Op) = bogoliubov_modes(Op[mode])
-bogoliubov_modes(modes::Tuple{Vararg{Op}}) = bogoliubov_modes(Op[modes...])
-
 function bogoliubov_basis(modes::Vector{Op})
     n = length(modes)
     basis = Vector{Op}(undef, 2 * n)
