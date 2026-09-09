@@ -99,7 +99,8 @@ import SecondQuantizedAlgebra: expim
         )
 
         scaled_local_squeeze = UnitaryTransform(x * p + p * x, r)
-        equivalent_on((x, p), scaled_local_squeeze, Squeeze(x, p, 2r))
+        @test iszero(simplify(conjugate(x, scaled_local_squeeze) - exp(2r) * x))
+        @test iszero(simplify(conjugate(p, scaled_local_squeeze) - exp(-2r) * p))
 
         scaled_squeeze = UnitaryTransform(
             2im * (left' * right' - right * left), r,
