@@ -85,6 +85,19 @@ using Symbolics: @variables
         end
     end
 
+    @testset "one block can overlap one member of a multi-block action" begin
+        displacements = Displace(a, α) * Displace(b, β)
+        rotation = Rotation(a, θ)
+        composed = displacements * rotation
+        inverse = inv(composed)
+
+        for op in (a, b, adjoint(a), adjoint(b))
+            sequential = conjugate(conjugate(op, displacements), rotation)
+            @test iszero(simplify(conjugate(op, composed) - sequential))
+            @test iszero(simplify(conjugate(conjugate(op, composed), inverse) - op))
+        end
+    end
+
     @testset "scalar substitution recompiles transformation semantics" begin
         U = Rotation(a, b, θ)
         resolved = @inferred substitute(U, Dict(θ => 0))
