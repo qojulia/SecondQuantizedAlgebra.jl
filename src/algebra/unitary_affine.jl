@@ -5,9 +5,12 @@
 # source for inversion and composition. Published blocks/actions are never mutated; unchanged
 # basis, matrix, shift, and relation storage may therefore be shared safely.
 
-function AffineBlock(
-        structure::AffineStructure, basis::Vector{Op}, linear::AbstractMatrix,
-        shift::AbstractVector,
+# Physical/raw construction enters through this checked boundary. Internal composition,
+# inversion, and substitution construct `AffineBlock`s directly after preserving these
+# invariants algebraically.
+function checked_affine_block(
+        structure::AffineStructure, basis::Vector{Op}, linear::Matrix{CNum},
+        shift::Vector{CNum},
     )
     n = length(basis)
     size(linear) == (n, n) || unitary_error(
@@ -17,16 +20,7 @@ function AffineBlock(
         "an affine block on $n generators needs $n shifts; got $(length(shift))",
     )
     length(Set(basis)) == n || unitary_error("an affine block basis cannot contain duplicates")
-
-    coefficients = Matrix{CNum}(undef, n, n)
-    offsets = Vector{CNum}(undef, n)
-    for j in 1:n, i in 1:n
-        coefficients[i, j] = to_cnum(linear[i, j])
-    end
-    for i in 1:n
-        offsets[i] = to_cnum(shift[i])
-    end
-    return AffineBlock(structure, basis, coefficients, offsets)
+    return AffineBlock(structure, basis, linear, shift)
 end
 
 function validate_disjoint_blocks(blocks::Vector{AffineBlock})
@@ -90,16 +84,17 @@ function infer_affine_structure(basis::Vector{Op})
 end
 
 function AffineAction(
-        structure::AffineStructure, basis::Vector{Op}, linear::AbstractMatrix,
-        shift::AbstractVector; relations::Vector{ParamRelation} = ParamRelation[],
+        structure::AffineStructure, basis::Vector{Op}, linear::Matrix{CNum},
+        shift::Vector{CNum}; relations::Vector{ParamRelation} = ParamRelation[],
     )
     return AffineAction(
-        AffineBlock[AffineBlock(structure, basis, linear, shift)]; relations = relations,
+        AffineBlock[checked_affine_block(structure, basis, linear, shift)];
+        relations = relations,
     )
 end
 
 function AffineAction(
-        basis::Vector{Op}, linear::AbstractMatrix, shift::AbstractVector;
+        basis::Vector{Op}, linear::Matrix{CNum}, shift::Vector{CNum};
         relations::Vector{ParamRelation} = ParamRelation[],
     )
     return AffineAction(
