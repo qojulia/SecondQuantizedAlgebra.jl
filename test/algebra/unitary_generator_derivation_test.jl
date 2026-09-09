@@ -25,6 +25,12 @@ import SecondQuantizedAlgebra: expim
     σy = Pauli(pauli, :σ, 2)
     σz = Pauli(pauli, :σ, 3)
 
+    atom = NLevelSpace(:atom, 2)
+    σ11 = Transition(atom, :τ, 1, 1)
+    σ12 = Transition(atom, :τ, 1, 2)
+    σ21 = Transition(atom, :τ, 2, 1)
+    σ22 = Transition(atom, :τ, 2, 2)
+
     @variables θ r ϕ ω t
     @variables α::Number
 
@@ -83,6 +89,12 @@ import SecondQuantizedAlgebra: expim
         generic_squeeze = UnitaryTransform(squeeze_generator, r)
         named_squeeze = Squeeze(x, p, r)
         equivalent_on((x, p), generic_squeeze, named_squeeze)
+    end
+
+    @testset "N-level diagonal phase" begin
+        generic = UnitaryTransform(σ11, θ)
+        named = Rotation(σ12, [expim(-θ) 0; 0 1])
+        equivalent_on((σ11, σ12, σ21, σ22), generic, named)
     end
 
     @testset "scaled exact blocks stay symbolic" begin
