@@ -8,11 +8,6 @@ struct DynamicTime
     variable::Num
 end
 
-struct SiteInfo
-    key::SiteKey
-    generators::Vector{Op}
-end
-
 # Exact actions are partitioned into algebra-homogeneous affine blocks. These types live next
 # to `UnitaryTransform` so every transform can carry concrete affine metadata directly. Their
 # container fields are immutable by convention after construction and may be shared safely.
@@ -47,17 +42,16 @@ struct UnitaryTransform{T}
     action::AffineAction
     rules::Dict{Op, QAdd}
     generators::Vector{Op}
-    sites::Vector{SiteInfo}
     gauge::QAdd
     time::T
 
     function UnitaryTransform{T}(
             action::AffineAction, rules::Dict{Op, QAdd}, generators::Vector{Op},
-            sites::Vector{SiteInfo}, gauge::QAdd, time::T,
+            gauge::QAdd, time::T,
         ) where {T}
         (T === StaticTime || T === DynamicTime) ||
             throw(ArgumentError("invalid unitary-transform time marker `$T`"))
-        return new{T}(action, rules, generators, sites, gauge, time)
+        return new{T}(action, rules, generators, gauge, time)
     end
 end
 
@@ -91,36 +85,30 @@ function site_generators(o::Op)
     return Op[]
 end
 
-function site_infos(generators::Vector{Op})
-    sites = SiteInfo[]
-    for g in generators
-        key = site_key(g)
-        found = findfirst(site -> site.key == key, sites)
-        if found === nothing
-            push!(sites, SiteInfo(key, Op[g]))
-        else
-            push!(sites[found].generators, g)
-        end
-    end
-    sort!(sites; by = site -> (site.key[1], index_key(site.key[2]), name_rank(site.key[3])))
-    return sites
-end
+function validate_complete(generators::Vector{Op})
+    available = Set(generators)
+    checked = Set{SiteKey}()
+    for first_generator in generators
+        key = site_key(first_generator)
+        key in checked && continue
+        push!(checked, key)
 
-function validate_complete(sites::Vector{SiteInfo})
-    for site in sites
-        first_generator = first(site.generators)
         expected = site_generators(first_generator)
         if isempty(expected)
             if is_phase_space(first_generator)
-                has_x = any(is_position, site.generators)
-                has_p = any(is_momentum, site.generators)
+                has_x = false
+                has_p = false
+                for generator in generators
+                    site_key(generator) == key || continue
+                    has_x |= is_position(generator)
+                    has_p |= is_momentum(generator)
+                end
                 (has_x && has_p) || unitary_error(
                     "incomplete rule set: `$first_generator` has no rule for its conjugate variable",
                 )
             end
             continue
         end
-        available = Set(site.generators)
         for generator in expected
             generator in available || unitary_error(
                 "incomplete rule set: `$first_generator` is covered but `$generator` is not",
@@ -142,9 +130,8 @@ function validated_transform(
                 "the exact closed-form API; resolve the index to one site first",
         )
     end
-    sites = site_infos(generators)
-    validate_complete(sites)
-    return UnitaryTransform{T}(action, rules, generators, sites, gauge, time)
+    validate_complete(generators)
+    return UnitaryTransform{T}(action, rules, generators, gauge, time)
 end
 
 function time_or_throw(t::Num)
@@ -158,14 +145,12 @@ end
 function timed_transform(U::UnitaryTransform{StaticTime}, gauge::QAdd, t::Num)
     time = DynamicTime(time_or_throw(t))
     reduced = reduce_params(gauge, U.action.relations, true)
-    return UnitaryTransform{DynamicTime}(
-        U.action, U.rules, U.generators, U.sites, reduced, time,
-    )
+    return UnitaryTransform{DynamicTime}(U.action, U.rules, U.generators, reduced, time)
 end
 
 function covered_site(U::UnitaryTransform, key::SiteKey)
-    for site in U.sites
-        site.key == key && return true
+    for generator in U.generators
+        site_key(generator) == key && return true
     end
     return false
 end
@@ -231,7 +216,7 @@ function Base.inv(U::UnitaryTransform{T}) where {T}
         -reduce_params(apply_rules(U.gauge, inverse_rules), relations, true)
     end
     return UnitaryTransform{T}(
-        inverse_action, inverse_rules, U.generators, U.sites, gauge, U.time,
+        inverse_action, inverse_rules, U.generators, gauge, U.time,
     )
 end
 
@@ -379,12 +364,10 @@ function compose(
     if length(rules) == length(first.rules)
         same_layout = all(generator -> haskey(rules, generator), first.generators)
         generators = same_layout ? first.generators : sort!(collect(keys(rules)))
-        sites = same_layout ? first.sites : site_infos(generators)
     else
         generators = sort!(collect(keys(rules)))
-        sites = site_infos(generators)
     end
-    return UnitaryTransform{T}(action, rules, generators, sites, gauge, time)
+    return UnitaryTransform{T}(action, rules, generators, gauge, time)
 end
 
 Base.:*(
