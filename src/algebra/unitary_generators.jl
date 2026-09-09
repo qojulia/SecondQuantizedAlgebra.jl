@@ -198,6 +198,14 @@ function push_exact_relation!(
     return nothing
 end
 
+function real_scale_and_unit_phase(c::CNum)::Union{Nothing, Tuple{CNum, CNum}}
+    terms = phase_terms(c)
+    length(terms) == 1 || return nothing
+    term = only(terms)
+    coefficient_is_real(term.amplitude) || return nothing
+    return term.amplitude, phase(term.phase)
+end
+
 function exact_two_by_two_flow!(
         result::Matrix{CNum}, flow::Matrix{CNum}, i::Int, j::Int, θ::Real,
         relations::Vector{ParamRelation},
@@ -239,6 +247,20 @@ function exact_two_by_two_flow!(
             result[i, i] = ch
             result[i, j] = sh
             result[j, i] = sh
+            result[j, j] = ch
+            return nothing
+        end
+
+        scaled_phase = real_scale_and_unit_phase(upper)
+        if scaled_phase !== nothing
+            rate, direction = scaled_phase
+            angle = exact_real_argument(rate, θ)
+            ch = to_cnum(cosh(angle))
+            sh = to_cnum(sinh(angle))
+            push_exact_relation!(relations, hyp_rel(angle))
+            result[i, i] = ch
+            result[i, j] = mul_cnum(direction, sh)
+            result[j, i] = mul_cnum(conj_cnum(direction), sh)
             result[j, j] = ch
             return nothing
         end
