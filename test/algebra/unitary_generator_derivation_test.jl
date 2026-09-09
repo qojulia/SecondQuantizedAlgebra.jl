@@ -97,6 +97,17 @@ import SecondQuantizedAlgebra: expim
         equivalent_on((σ11, σ12, σ21, σ22), generic, named)
     end
 
+    @testset "disjoint mixed generator blocks" begin
+        generic = UnitaryTransform(a' * a + Sz, θ)
+        composed = Rotation(a, θ) * Rotation(Sx, 3, θ)
+        equivalent_on((a, a', Sx, Sy, Sz), generic, composed)
+
+        inverse = inv(generic)
+        for op in (a, a', Sx, Sy, Sz)
+            @test iszero(simplify(conjugate(conjugate(op, generic), inverse) - op))
+        end
+    end
+
     @testset "scaled exact blocks stay symbolic" begin
         equivalent_on(
             (a, a'),
