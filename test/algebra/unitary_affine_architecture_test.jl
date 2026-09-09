@@ -127,6 +127,7 @@ using Symbolics: @variables
             @test iszero(simplify(conjugate(op, resolved) - op))
             @test iszero(simplify(conjugate(op, inv(resolved)) - op))
         end
+        @test_throws ArgumentError substitute(U, Dict(a => b))
     end
 
     @testset "moving transforms keep their differentiation variable" begin
