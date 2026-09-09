@@ -6,6 +6,7 @@ using Symbolics: @variables
     fock = FockSpace(:fock)
     a = Destroy(fock, :a)
     b = Destroy(fock, :b)
+    c = Destroy(fock, :c)
 
     phase = PhaseSpace(:phase)
     x = Position(phase, :x)
@@ -14,7 +15,7 @@ using Symbolics: @variables
     atom = NLevelSpace(:atom, 2)
     σ = Transition(atom, :σ, 1, 2)
 
-    @variables θ ϕ η dx dp
+    @variables θ ϕ η α β γ dx dp
 
     @testset "disjoint algebra transformations compose independently" begin
         phase_rotation = Rotation(x, p, θ)
@@ -51,6 +52,34 @@ using Symbolics: @variables
 
         for op in (a, b, adjoint(a), adjoint(b))
             sequential = conjugate(conjugate(conjugate(op, first), second), third)
+            @test iszero(simplify(conjugate(op, composed) - sequential))
+            @test iszero(simplify(conjugate(conjugate(op, composed), inverse) - op))
+        end
+    end
+
+    @testset "partially overlapping mode rotations extend the affine basis" begin
+        first = Rotation(a, b, θ)
+        second = Rotation(b, c, ϕ)
+        composed = first * second
+        inverse = inv(composed)
+
+        for op in (a, b, c, adjoint(a), adjoint(b), adjoint(c))
+            sequential = conjugate(conjugate(op, first), second)
+            @test iszero(simplify(conjugate(op, composed) - sequential))
+            @test iszero(simplify(conjugate(conjugate(op, composed), inverse) - op))
+        end
+    end
+
+    @testset "one affine block can merge several existing blocks" begin
+        displacements = Displace(a, α) * Displace(b, β) * Displace(c, γ)
+        identity = [1 0 0; 0 1 0; 0 0 1]
+        zeros3 = zeros(Int, 3, 3)
+        joint = Bogoliubov((a, b, c), identity, zeros3)
+        composed = displacements * joint
+        inverse = inv(composed)
+
+        for op in (a, b, c, adjoint(a), adjoint(b), adjoint(c))
+            sequential = conjugate(conjugate(op, displacements), joint)
             @test iszero(simplify(conjugate(op, composed) - sequential))
             @test iszero(simplify(conjugate(conjugate(op, composed), inverse) - op))
         end
