@@ -22,6 +22,7 @@ import SecondQuantizedAlgebra: expim
     @variables θ r ω Ω η g t dx dp ωd K
     @variables α::Number
     @variables envelope(t)
+    rational_envelope = 1 / (1 + t)
 
     @testset "affine composition preserves family semantics" begin
         phase_rotation = Rotation(x, p, θ)
@@ -124,6 +125,9 @@ import SecondQuantizedAlgebra: expim
         @test_throws ArgumentError DisplacementFrame(
             a, ω * a' * a + envelope * (a + a'), t,
         )
+        @test_throws ArgumentError DisplacementFrame(
+            a, ω * a' * a + rational_envelope * (a + a'), t,
+        )
 
         indexed_fock = FockSpace(:indexed_reference)
         i = Index(indexed_fock, :i, 3, indexed_fock)
@@ -219,6 +223,9 @@ import SecondQuantizedAlgebra: expim
         )
         @test_throws ArgumentError DisplacementFrame(
             x, p, (ω / 2) * (x^2 + p^2) + envelope * x, t,
+        )
+        @test_throws ArgumentError DisplacementFrame(
+            x, p, (ω / 2) * (x^2 + p^2) + rational_envelope * x, t,
         )
         @test_throws ArgumentError DisplacementFrame(
             x, p,
