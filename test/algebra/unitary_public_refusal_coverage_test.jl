@@ -20,6 +20,8 @@ using Symbolics: @variables
         x, p, (ω / 2) * (x^2 + p^2) + nonharmonic * x, t,
     )
 
+    @test_throws ArgumentError UnitaryTransform((2 * x^2 + 3 * p^2) / 2, 1)
+
     moving = Rotation(a, ω * t, t)
     unchanged = substitute(moving, Dict(:unused => 1))
     @test iszero(simplify(conjugate(a, unchanged) - conjugate(a, moving)))
