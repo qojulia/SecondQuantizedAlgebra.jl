@@ -1,6 +1,6 @@
 using SecondQuantizedAlgebra
 using Test
-using Symbolics: @variables
+using Symbolics: Symbolics, @variables
 import SecondQuantizedAlgebra: OP_DESTROY, OP_PAULI, OP_TRANSITION, rename, set_acts_on
 
 @testset "Operator discovery and identity" begin
@@ -61,14 +61,43 @@ import SecondQuantizedAlgebra: OP_DESTROY, OP_PAULI, OP_TRANSITION, rename, set_
     @testset "adjoint-aware uniqueness" begin
         h = FockSpace(:cavity)
         a = Destroy(h, :a)
-        @test unique_ops([a, a']) == [a]
-        @test unique_ops([a', a]) == [a']
+        @test unique_up_to_adjoint([a, a']) == [a]
+        @test unique_up_to_adjoint([a', a]) == [a']
 
         hp = PauliSpace(:pauli)
         σx = Pauli(hp, :σ, 1)
         σy = Pauli(hp, :σ, 2)
-        @test unique_ops([σx, σx']) == [σx]
-        @test unique_ops([σx, σy]) == [σx, σy]
+        @test unique_up_to_adjoint([σx, σx']) == [σx]
+        @test unique_up_to_adjoint([σx, σy]) == [σx, σy]
+    end
+
+    @testset "QAdd introspection" begin
+        h = FockSpace(:cavity) ⊗ SpinSpace(:spin)
+        a = Destroy(h, :a, 1)
+        Sx = Spin(h, :S, 1, 2)
+        Sz = Spin(h, :S, 3, 2)
+        @variables ω₀ ωₐ g
+
+        H = ω₀ * a' * a + ωₐ * Sz + g * (a + a') * Sx
+        ops = get_operators(H)
+        @test eltype(ops) === Op
+        @test length(ops) == 4
+        @test ops == [a, a', Sx, Sz]
+        @test get_operators(a * a) == [a]
+
+        expected = Set(Symbolics.unwrap.([ω₀, ωₐ, g]))
+        @test Set(get_variables(H)) == expected
+        @test Set(Symbolics.get_variables(H)) == expected
+        @test Set(get_variables(H, [ω₀])) == Set([Symbolics.unwrap(ω₀)])
+        buffer = Set{Any}()
+        @test Symbolics.get_variables!(buffer, H) === buffer
+        @test buffer == expected
+        @test isempty(get_variables(2 * a))
+
+        i = Index(h, :i, 3, 1)
+        ai = IndexedOperator(a, i)
+        gi = IndexedVariable(:g, i)
+        @test sort(string.(get_variables(gi * ai))) == ["g", "i"]
     end
 
     @testset "operator products can be discovered" begin
@@ -169,8 +198,8 @@ end
         hs = SpinSpace(:s)
         hp = PauliSpace(:p)
         ops = [Destroy(FockSpace(:f), :a), Transition(NLevelSpace(:n, 2), :σ, 1, 2), Pauli(hp, :σ, 1), Spin(hs, :S, 1)]
-        @test length(unique_ops(ops)) == length(ops)
-        @test length(unique_ops([ops[1], ops[1]'])) == 1
+        @test length(unique_up_to_adjoint(ops)) == length(ops)
+        @test length(unique_up_to_adjoint([ops[1], ops[1]'])) == 1
 
         # Public auto-detect: single subspace of each type infers space_index
         h_mixed = FockSpace(:c) ⊗ NLevelSpace(:atom, 2) ⊗ PauliSpace(:p) ⊗

@@ -294,11 +294,11 @@ find_operators
 ```
 
 ```@docs
-unique_ops
+unique_up_to_adjoint
 ```
 
 ```@docs
-unique_ops!
+unique_up_to_adjoint!
 ```
 
 ```@docs
@@ -306,7 +306,7 @@ fundamental_operators
 ```
 
 ```@docs
-prefactor
+get_prefactor
 ```
 
 ```@docs
@@ -314,7 +314,11 @@ to_num
 ```
 
 ```@docs
-operators
+get_operators
+```
+
+```@docs
+get_variables
 ```
 
 ```@docs

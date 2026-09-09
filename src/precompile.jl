@@ -15,9 +15,10 @@ for T in (Int, Float64, ComplexF64, Rational{Int}, Num)
     precompile(*, (T, Op))
     precompile(*, (Op, T))
 end
-# Public single-term accessors, not reached by the display-driven workload.
-precompile(prefactor, (QAdd,))
-precompile(operators, (QAdd,))
+# Public accessors not reached by the display-driven workload.
+precompile(get_prefactor, (QAdd,))
+precompile(get_operators, (QAdd,))
+precompile(get_variables, (QAdd,))
 precompile(to_num, (CNum,))
 
 # === Representative workload ===

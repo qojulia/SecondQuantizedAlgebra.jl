@@ -1,5 +1,5 @@
 using SecondQuantizedAlgebra
-import SecondQuantizedAlgebra: QSym, prefactor
+import SecondQuantizedAlgebra: QSym, get_prefactor
 using QuantumOpticsBase
 using Symbolics: @variables, substitute
 using Test
@@ -40,7 +40,7 @@ dat(x) = dense(x).data
         @qnumbers a::Destroy(h)
         @variables x::Real
 
-        lowered = prefactor(x * a)
+        lowered = get_prefactor(x * a)
         @test isequal(real(lowered), x)
         @test iszero(imag(lowered))
     end
