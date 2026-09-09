@@ -438,7 +438,7 @@ function compose_action_metadata(
         overlapping = remaining_overlaps(result, second_block, first_index, second_index)
         first_blocks = result[overlapping]
         composed = compose_overlapping_blocks(first_blocks, second_block, relations)
-        deleteat!(result, reverse(overlapping))
+        deleteat!(result, overlapping)
         push!(result, composed)
     end
     return AffineAction(result, relations)
