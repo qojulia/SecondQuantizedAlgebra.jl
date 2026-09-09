@@ -98,6 +98,9 @@ import SecondQuantizedAlgebra: expim
             simplify(conjugate(conjugate(x, scaled_rotation), inv(scaled_rotation)) - x),
         )
 
+        scaled_local_squeeze = UnitaryTransform(x * p + p * x, r)
+        equivalent_on((x, p), scaled_local_squeeze, Squeeze(x, p, 2r))
+
         scaled_squeeze = UnitaryTransform(
             2im * (left' * right' - right * left), r,
         )
