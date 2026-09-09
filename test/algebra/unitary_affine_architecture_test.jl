@@ -12,6 +12,14 @@ using Symbolics: @variables
     x = Position(phase, :x)
     p = Momentum(phase, :p)
 
+    phase_network = PhaseSpace(:phase1) ⊗ PhaseSpace(:phase2) ⊗ PhaseSpace(:phase3)
+    x1 = Position(phase_network, :x1, 1)
+    p1 = Momentum(phase_network, :p1, 1)
+    x2 = Position(phase_network, :x2, 2)
+    p2 = Momentum(phase_network, :p2, 2)
+    x3 = Position(phase_network, :x3, 3)
+    p3 = Momentum(phase_network, :p3, 3)
+
     atom = NLevelSpace(:atom, 2)
     σ = Transition(atom, :σ, 1, 2)
 
@@ -64,6 +72,19 @@ using Symbolics: @variables
         inverse = inv(composed)
 
         for op in (a, b, c, adjoint(a), adjoint(b), adjoint(c))
+            sequential = conjugate(conjugate(op, first), second)
+            @test iszero(simplify(conjugate(op, composed) - sequential))
+            @test iszero(simplify(conjugate(conjugate(op, composed), inverse) - op))
+        end
+    end
+
+    @testset "partially overlapping phase-space rotations extend the affine basis" begin
+        first = UnitaryTransform(x1 * p2 - p1 * x2, θ)
+        second = UnitaryTransform(x2 * p3 - p2 * x3, ϕ)
+        composed = first * second
+        inverse = inv(composed)
+
+        for op in (x1, p1, x2, p2, x3, p3)
             sequential = conjugate(conjugate(op, first), second)
             @test iszero(simplify(conjugate(op, composed) - sequential))
             @test iszero(simplify(conjugate(conjugate(op, composed), inverse) - op))
