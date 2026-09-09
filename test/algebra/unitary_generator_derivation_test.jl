@@ -114,6 +114,15 @@ import SecondQuantizedAlgebra: expim
         @test iszero(simplify(conjugate(x, scaled_local_squeeze) - exp(2r) * x))
         @test iszero(simplify(conjugate(p, scaled_local_squeeze) - exp(-2r) * p))
 
+        phased_generator = (im / 2) * (expim(ϕ) * a'^2 - expim(-ϕ) * a^2)
+        scaled_phased_squeeze = UnitaryTransform(2 * phased_generator, r)
+        equivalent_on((a, a'), scaled_phased_squeeze, Squeeze(a, 2r, ϕ))
+        @test iszero(
+            simplify(
+                conjugate(conjugate(a, scaled_phased_squeeze), inv(scaled_phased_squeeze)) - a,
+            ),
+        )
+
         scaled_squeeze = UnitaryTransform(
             2im * (left' * right' - right * left), r,
         )
