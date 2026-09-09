@@ -133,6 +133,12 @@ using Symbolics: @variables
     @testset "moving transforms keep their differentiation variable" begin
         U = Rotation(a, θ * t, t)
         @test iszero(simplify(transform(a, U) - conjugate(a, U) - gauge_term(U)))
+
+        resolved = @inferred substitute(U, Dict(θ => 2))
+        expected = Rotation(a, 2t, t)
+        @test iszero(simplify(conjugate(a, resolved) - conjugate(a, expected)))
+        @test iszero(simplify(gauge_term(resolved) - gauge_term(expected)))
+
         @test_throws ArgumentError substitute(U, Dict(t => 0))
     end
 end
