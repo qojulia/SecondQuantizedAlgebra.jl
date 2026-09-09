@@ -185,7 +185,8 @@ Three distinct axes; keep them separate when reporting numbers.
 | Package | Purpose |
 |---------|---------|
 | Combinatorics | Product enumeration for operator generation |
-| QuantumInterface | Lightweight owner of `⊗`/`tensor`/`expect`/`basis` and `Basis`/`AbstractOperator`/`StateVector` types (hard dep) |
+| QuantumInterface | Lightweight owner of `expect`/`basis` and the `Basis`/`AbstractOperator`/`StateVector` types (hard dep) |
+| TensorCore | Owner of the shared `⊗`/`tensor` generic function, imported directly since QuantumInterface 0.4.4 (hard dep) |
 | SymbolicUtils | Symbolic tree traversal interface |
 | Symbolics | Symbolic variables (`@variables`), `Num` type for CNum prefactors |
 | TermInterface | `iscall`, `operation`, `arguments` protocol |

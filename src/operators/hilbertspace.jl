@@ -62,11 +62,11 @@ Base.:(==)(a::ProductSpace, b::ProductSpace) = a.spaces == b.spaces
 Base.hash(a::ProductSpace, h::UInt) = hash(:ProductSpace, hash(a.spaces, h))
 
 """
-    ⊗(spaces::HilbertSpace...)
+    ⊗(space::HilbertSpace, spaces::HilbertSpace...)
 
-Create a [`ProductSpace`](@ref) from multiple Hilbert spaces. Flattens nested
-`ProductSpace` arguments so that `(A ⊗ B) ⊗ C == A ⊗ B ⊗ C`. Unicode input
-`\\otimes<tab>`; ASCII alias [`tensor`](@ref).
+Create a [`ProductSpace`](@ref) from one or more Hilbert spaces. Flattens nested
+`ProductSpace` arguments so that `(A ⊗ B) ⊗ C == A ⊗ B ⊗ C`. Unicode input `\\otimes<tab>`;
+ASCII alias [`tensor`](@ref).
 
 # Examples
 
@@ -84,10 +84,13 @@ See also [`ProductSpace`](@ref), [`tensor`](@ref).
 ⊗(a::HilbertSpace, b::HilbertSpace, c::HilbertSpace...) = ⊗(a ⊗ b, c...)
 ⊗(a::HilbertSpace) = a
 
-"""
-    tensor(spaces::HilbertSpace...)
+# `⊗` and `tensor` name the same generic function (TensorCore's `const ⊗ = tensor`),
+# so the methods above already serve both spellings and no forwarding method is
+# needed. The docstring therefore attaches to the binding rather than a signature.
+@doc """
+    tensor(space::HilbertSpace, spaces::HilbertSpace...)
 
-ASCII alias for [`⊗`](@ref): create a [`ProductSpace`](@ref) from multiple
+ASCII alias for [`⊗`](@ref): create a [`ProductSpace`](@ref) from one or more
 Hilbert spaces.
 
 # Examples
@@ -98,8 +101,7 @@ julia> tensor(FockSpace(:a), FockSpace(:b))
 ```
 
 See also [`⊗`](@ref), [`ProductSpace`](@ref).
-"""
-tensor(args::Vararg{HilbertSpace}) = ⊗(args...)
+""" tensor
 
 Base.isless(h1::HilbertSpace, h2::HilbertSpace) = isless(h1.name, h2.name)
 Base.isless(h1::ProductSpace, h2::ProductSpace) = isless(h1.spaces, h2.spaces)
