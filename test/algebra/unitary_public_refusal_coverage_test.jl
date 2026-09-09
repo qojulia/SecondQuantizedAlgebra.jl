@@ -22,6 +22,10 @@ using Symbolics: @variables
 
     @test_throws ArgumentError UnitaryTransform((2 * x^2 + 3 * p^2) / 2, 1)
 
+    collective = CollectiveNLevelSpace(:collective, 2)
+    S11 = CollectiveTransition(collective, :S, 1, 1)
+    @test_throws ArgumentError UnitaryTransform(S11, 1)
+
     moving = Rotation(a, ω * t, t)
     unchanged = substitute(moving, Dict(:unused => 1))
     @test iszero(simplify(conjugate(a, unchanged) - conjugate(a, moving)))
