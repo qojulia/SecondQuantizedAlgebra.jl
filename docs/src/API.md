@@ -253,6 +253,12 @@ gauge_term
 generators
 ```
 
+```@docs
+Bogoliubov
+RotatingFrame
+DisplacementFrame
+```
+
 
 ## [Average](@id API: Average)
 

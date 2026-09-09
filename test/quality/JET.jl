@@ -75,6 +75,10 @@ end
         U = Rotation(a, θ)
         Ut = Rotation(a, ω * t, t)
 
+        @variables u::Number v::Number
+        bogo_matrix = [u v; conj(v) conj(u)]
+        B = Bogoliubov(a, bogo_matrix)
+
         for (name, expr) in [
                 # Per-family binary products
                 ("a' * a", () -> ad * a),
@@ -143,6 +147,17 @@ end
                 ),
                 ("real(expim(θ))", () -> real(SecondQuantizedAlgebra.expim(θ))),
                 ("abs2(expim(θ))", () -> abs2(SecondQuantizedAlgebra.expim(θ))),
+                # Bogoliubov transforms and the affine substitution that resolves them.
+                ("Bogoliubov(a, integer matrix)", () -> Bogoliubov(a, [1 0; 0 1])),
+                (
+                    "Bogoliubov(a, complex matrix)",
+                    () -> Bogoliubov(a, ComplexF64[im 0; 0 -im]),
+                ),
+                ("Bogoliubov(a, symbolic matrix)", () -> Bogoliubov(a, bogo_matrix)),
+                (
+                    "substitute(Bogoliubov, Dict(u=>5//3, v=>4//3))",
+                    () -> substitute(B, Dict(u => 5 // 3, v => 4 // 3)),
+                ),
             ]
             rep = JET.@report_call target_modules = (SecondQuantizedAlgebra,) ignore_missing_comparison = true expr()
             @testset "$name" begin

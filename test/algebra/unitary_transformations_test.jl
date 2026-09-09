@@ -189,6 +189,10 @@ import SecondQuantizedAlgebra: expim, exponential_form
                     ((Ω - ω) * σ11 + (Ω + ω) * σ22),
             )
         )
+
+        # As with raw Bogoliubov maps, mathematical unitarity is a caller precondition.
+        assumed = @inferred Rotation(σ12, [1 0; 0 2])
+        @test iszero(simplify(conjugate(σ12, assumed) - 2σ12))
     end
 
     @testset "numeric oracles validate symbolic transformations" begin
@@ -405,8 +409,6 @@ import SecondQuantizedAlgebra: expim, exponential_form
         @test_throws ArgumentError Rotation(Sx, 0, θ)
         @test_throws ArgumentError Rotation(Sx, 4, θ)
         @test_throws ArgumentError Rotation(σ12, [1 0 0; 0 1 0])
-        @test_throws ArgumentError Rotation(σ12, [1 0; 0 2])
-        @test_throws ArgumentError Rotation(σ12, [cos(θ) -sin(ϕ); sin(θ) cos(θ)])
         @test_throws MethodError Rotation(a, 1 + im)
         @test_throws MethodError Squeeze(a, 1 + im)
         @test_throws MethodError Displace(x, p, 1 + im, 0)

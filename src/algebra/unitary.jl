@@ -8,35 +8,50 @@ struct DynamicTime
     variable::Num
 end
 
-struct SiteInfo
-    key::SiteKey
-    generators::Vector{Op}
+# Exact actions are partitioned into algebra-homogeneous affine blocks. These types live next
+# to `UnitaryTransform` so every transform can carry concrete affine metadata directly. Their
+# container fields are immutable by convention after construction and may be shared safely.
+@enum AffineStructure::UInt8 begin
+    AFFINE_BOSONIC_NAMBU
+    AFFINE_SYMPLECTIC_PHASE_SPACE
+    AFFINE_ORTHOGONAL
+    AFFINE_UNITARY_LINEAR
+end
+
+struct AffineBlock
+    structure::AffineStructure
+    basis::Vector{Op}
+    linear::Matrix{CNum}
+    shift::Vector{CNum}
+end
+
+struct AffineAction
+    blocks::Vector{AffineBlock}
+    relations::Vector{ParamRelation}
 end
 
 """
     UnitaryTransform
 
-An exact change of frame represented by its forward and inverse action on a complete set of
-site generators. Construct transforms with [`Displace`](@ref), [`Rotation`](@ref), or
-[`Squeeze`](@ref); apply them with [`conjugate`](@ref) or [`transform`](@ref).
+An exact change of frame compiled from a canonical affine action on a complete set of site
+generators. Construct transforms with [`Displace`](@ref), [`Rotation`](@ref),
+[`Squeeze`](@ref), [`Bogoliubov`](@ref), or the frame constructors; apply them with
+[`conjugate`](@ref) or [`transform`](@ref).
 """
 struct UnitaryTransform{T}
+    action::AffineAction
     rules::Dict{Op, QAdd}
-    inverse_rules::Dict{Op, QAdd}
     generators::Vector{Op}
-    sites::Vector{SiteInfo}
     gauge::QAdd
     time::T
-    relations::Vector{ParamRelation}
 
     function UnitaryTransform{T}(
-            rules::Dict{Op, QAdd}, inverse_rules::Dict{Op, QAdd},
-            generators::Vector{Op}, sites::Vector{SiteInfo}, gauge::QAdd, time::T,
-            relations::Vector{ParamRelation}, ::Val{:validated},
+            action::AffineAction, rules::Dict{Op, QAdd}, generators::Vector{Op},
+            gauge::QAdd, time::T,
         ) where {T}
         (T === StaticTime || T === DynamicTime) ||
             throw(ArgumentError("invalid unitary-transform time marker `$T`"))
-        return new{T}(rules, inverse_rules, generators, sites, gauge, time, relations)
+        return new{T}(action, rules, generators, gauge, time)
     end
 end
 
@@ -70,36 +85,30 @@ function site_generators(o::Op)
     return Op[]
 end
 
-function site_infos(generators::Vector{Op})
-    sites = SiteInfo[]
-    for g in generators
-        key = site_key(g)
-        found = findfirst(site -> site.key == key, sites)
-        if found === nothing
-            push!(sites, SiteInfo(key, Op[g]))
-        else
-            push!(sites[found].generators, g)
-        end
-    end
-    sort!(sites; by = site -> (site.key[1], index_key(site.key[2]), name_rank(site.key[3])))
-    return sites
-end
+function validate_complete(generators::Vector{Op})
+    available = Set(generators)
+    checked = Set{SiteKey}()
+    for first_generator in generators
+        key = site_key(first_generator)
+        key in checked && continue
+        push!(checked, key)
 
-function validate_complete(sites::Vector{SiteInfo})
-    for site in sites
-        first_generator = first(site.generators)
         expected = site_generators(first_generator)
         if isempty(expected)
             if is_phase_space(first_generator)
-                has_x = any(is_position, site.generators)
-                has_p = any(is_momentum, site.generators)
+                has_x = false
+                has_p = false
+                for generator in generators
+                    site_key(generator) == key || continue
+                    has_x |= is_position(generator)
+                    has_p |= is_momentum(generator)
+                end
                 (has_x && has_p) || unitary_error(
                     "incomplete rule set: `$first_generator` has no rule for its conjugate variable",
                 )
             end
             continue
         end
-        available = Set(site.generators)
         for generator in expected
             generator in available || unitary_error(
                 "incomplete rule set: `$first_generator` is covered but `$generator` is not",
@@ -110,13 +119,9 @@ function validate_complete(sites::Vector{SiteInfo})
 end
 
 function validated_transform(
-        rules::Dict{Op, QAdd}, inverse_rules::Dict{Op, QAdd}, gauge::QAdd, time::T,
-        relations::Vector{ParamRelation} = ParamRelation[],
+        action::AffineAction, gauge::QAdd, time::T,
     ) where {T <: Union{StaticTime, DynamicTime}}
-    isempty(rules) && unitary_error("a `UnitaryTransform` needs at least one rule")
-    length(rules) == length(inverse_rules) || unitary_error(
-        "forward and inverse rules must cover the same generators",
-    )
+    rules = affine_rules(action)
     generators = sort!(collect(keys(rules)))
     for generator in generators
         (has_index(generator.index) && index_slot(generator.index) === nothing) &&
@@ -124,23 +129,10 @@ function validated_transform(
             "unitary transforms of free indexed-operator families are not part of " *
                 "the exact closed-form API; resolve the index to one site first",
         )
-        haskey(inverse_rules, generator) || unitary_error(
-            "inverse rules are missing the generator `$generator`",
-        )
     end
-    sites = site_infos(generators)
-    validate_complete(sites)
-    validate_complete(site_infos(sort!(collect(keys(inverse_rules)))))
-    usable = all(is_usable_rel, relations) ? relations : filter(is_usable_rel, relations)
-    return UnitaryTransform{T}(
-        rules, inverse_rules, generators, sites, gauge, time, usable, Val(:validated),
-    )
+    validate_complete(generators)
+    return UnitaryTransform{T}(action, rules, generators, gauge, time)
 end
-
-static_transform(
-    rules::Dict{Op, QAdd}, inverse_rules::Dict{Op, QAdd},
-    relations::Vector{ParamRelation} = ParamRelation[],
-) = validated_transform(rules, inverse_rules, zero_qadd(), StaticTime(), relations)
 
 function time_or_throw(t::Num)
     raw = SymbolicUtils.unwrap(t)
@@ -152,16 +144,13 @@ end
 
 function timed_transform(U::UnitaryTransform{StaticTime}, gauge::QAdd, t::Num)
     time = DynamicTime(time_or_throw(t))
-    reduced = reduce_params(gauge, U.relations, true)
-    return UnitaryTransform{DynamicTime}(
-        U.rules, U.inverse_rules, U.generators, U.sites, reduced, time, U.relations,
-        Val(:validated),
-    )
+    reduced = reduce_params(gauge, U.action.relations, true)
+    return UnitaryTransform{DynamicTime}(U.action, U.rules, U.generators, reduced, time)
 end
 
 function covered_site(U::UnitaryTransform, key::SiteKey)
-    for site in U.sites
-        site.key == key && return true
+    for generator in U.generators
+        site_key(generator) == key && return true
     end
     return false
 end
@@ -194,7 +183,7 @@ use [`transform`](@ref) to include the time-dependent gauge term.
 """
 function conjugate(q::QAdd, U::UnitaryTransform)
     validate_coverage(q, U)
-    return reduce_params(apply_rules(q, U.rules), U.relations, true)
+    return reduce_params(apply_rules(q, U.rules), U.action.relations, true)
 end
 
 conjugate(o::QSym, U::UnitaryTransform) =
@@ -218,52 +207,66 @@ gauge_term(U::UnitaryTransform) = U.gauge
 generators(U::UnitaryTransform) = copy(U.generators)
 
 function Base.inv(U::UnitaryTransform{T}) where {T}
+    inverse_action = canonical_affine_inverse(U.action)
+    inverse_rules = affine_rules(inverse_action)
+    relations = U.action.relations
     gauge = if T === StaticTime || iszero(U.gauge)
         U.gauge
     else
-        -reduce_params(apply_rules(U.gauge, U.inverse_rules), U.relations, true)
+        -reduce_params(apply_rules(U.gauge, inverse_rules), relations, true)
     end
     return UnitaryTransform{T}(
-        copy(U.inverse_rules), copy(U.rules), U.generators, U.sites, gauge, U.time,
-        copy(U.relations), Val(:validated),
+        inverse_action, inverse_rules, U.generators, gauge, U.time,
     )
 end
 
 Base.adjoint(U::UnitaryTransform) = inv(U)
 
+function contains_relation(relations::Vector{ParamRelation}, relation::ParamRelation)
+    for existing in relations
+        isequal(existing.hi, relation.hi) && isequal(existing.lo, relation.lo) &&
+            existing.sign == relation.sign && return true
+    end
+    return false
+end
+
 function merge_relations(a::Vector{ParamRelation}, b::Vector{ParamRelation})
     isempty(a) && return b
     isempty(b) && return a
+
+    first_new = 0
+    for i in eachindex(b)
+        if !contains_relation(a, b[i])
+            first_new = i
+            break
+        end
+    end
+    iszero(first_new) && return a
+
     out = copy(a)
-    for relation in b
-        any(
-            r -> isequal(r.hi, relation.hi) && isequal(r.lo, relation.lo) &&
-                r.sign == relation.sign, out
-        ) || push!(out, relation)
+    for i in first_new:lastindex(b)
+        relation = b[i]
+        contains_relation(out, relation) || push!(out, relation)
     end
     return out
 end
 
-# The first transform is applied first. Images belonging only to the second transform are
-# preserved, while overlapping images are transported through the second map.
 function compose_rule_image(image::QAdd, rules::Dict{Op, QAdd})
     isempty(image.indices) || return apply_rules(image, rules)
     out = QTermDict()
     for (term, coefficient) in image
         if isempty(term.ops)
             addto_key!(out, copy_key(term), coefficient)
-        elseif length(term.ops) == 1
-            replacement = get(rules, first(term.ops), nothing)
-            if replacement === nothing
-                addto_key!(out, copy_key(term), coefficient)
-            else
-                for (replacement_term, replacement_coefficient) in replacement
-                    addto_key!(
-                        out, copy_key(replacement_term),
-                        mul_cnum(coefficient, replacement_coefficient),
-                    )
-                end
+        elseif length(term.ops) == 1 && haskey(rules, first(term.ops))
+            replacement = rules[first(term.ops)]
+            for (replacement_term, replacement_coefficient) in replacement
+                addto_key!(
+                    out, copy_key(replacement_term),
+                    mul_cnum(coefficient, replacement_coefficient),
+                )
             end
+        elseif length(term.ops) == 1
+            addto_key!(out, copy_key(term), coefficient)
         else
             return apply_rules(image, rules)
         end
@@ -281,125 +284,6 @@ function compose_rules(first::Dict{Op, QAdd}, second::Dict{Op, QAdd})
         haskey(out, generator) || (out[generator] = image)
     end
     return out
-end
-
-function diagonal_entry(
-        image::QAdd, generator::Op,
-    )::Union{Nothing, Tuple{QTerm, Coeff}}
-    isempty(image.indices) || return nothing
-    length(image.arguments) == 1 || return nothing
-    term, coefficient = first(image.arguments)
-    length(term.ops) == 1 || return nothing
-    only(term.ops) == generator || return nothing
-    return (term, coefficient)
-end
-
-function diagonal_coefficient(image::QAdd, generator::Op)::Union{Coeff, Nothing}
-    entry = diagonal_entry(image, generator)
-    return entry === nothing ? nothing : entry[2]
-end
-
-diagonal_rule(term::QTerm, coefficient::Coeff) =
-    QAdd(QTermDict(term => coefficient), EMPTY_INDICES)
-
-function coefficients_are_inverse(left::Coeff, right::Coeff)::Bool
-    if left.tail isa Native && right.tail isa Native
-        return isone(left.z * right.z)
-    end
-    (left.tail isa Poly && right.tail isa Poly) || return false
-    length(left.tail.terms) == length(right.tail.terms) == 1 || return false
-    left_term = only(left.tail.terms)
-    right_term = only(right.tail.terms)
-    isone(left_term.scalar * right_term.scalar) || return false
-    length(left_term.syms) == length(right_term.syms) || return false
-    @inbounds for i in eachindex(left_term.syms)
-        left_term.syms[i] === right_term.syms[i] || return false
-        left_term.exps[i] == -right_term.exps[i] || return false
-    end
-    return true
-end
-
-function compose_diagonal_rules(
-        first::UnitaryTransform, second::UnitaryTransform,
-    )::Union{Nothing, Tuple{Dict{Op, QAdd}, Dict{Op, QAdd}}}
-    length(first.rules) == length(second.rules) || return nothing
-    rules = Dict{Op, QAdd}()
-    inverse_rules = Dict{Op, QAdd}()
-    sizehint!(rules, length(first.rules))
-    sizehint!(inverse_rules, length(first.rules))
-    for generator in first.generators
-        first_entry = diagonal_entry(first.rules[generator], generator)
-        first_entry === nothing && return nothing
-        term, first_coefficient = first_entry
-        first_inverse_coefficient = diagonal_coefficient(
-            first.inverse_rules[generator], generator,
-        )
-        first_inverse_coefficient === nothing && return nothing
-        coefficients_are_inverse(first_coefficient, first_inverse_coefficient) ||
-            return nothing
-        second_image = get(second.rules, generator, nothing)
-        second_image === nothing && return nothing
-        second_coefficient = diagonal_coefficient(second_image, generator)
-        second_coefficient === nothing && return nothing
-        second_inverse_coefficient = diagonal_coefficient(
-            second.inverse_rules[generator], generator,
-        )
-        second_inverse_coefficient === nothing && return nothing
-        coefficients_are_inverse(second_coefficient, second_inverse_coefficient) ||
-            return nothing
-        paired_generator = adjoint(generator)
-        paired_rule = get(rules, paired_generator, nothing)
-        if paired_rule !== nothing
-            paired_first_coefficient = diagonal_coefficient(
-                first.rules[paired_generator], paired_generator,
-            )
-            paired_second_coefficient = diagonal_coefficient(
-                second.rules[paired_generator], paired_generator,
-            )
-            paired_first_coefficient === nothing && return nothing
-            paired_second_coefficient === nothing && return nothing
-            coefficients_are_inverse(first_coefficient, paired_first_coefficient) ||
-                return nothing
-            coefficients_are_inverse(second_coefficient, paired_second_coefficient) ||
-                return nothing
-            paired_inverse_rule = inverse_rules[paired_generator]
-            coefficient = diagonal_coefficient(paired_inverse_rule, paired_generator)
-            inverse_coefficient = diagonal_coefficient(paired_rule, paired_generator)
-            coefficient === nothing && return nothing
-            inverse_coefficient === nothing && return nothing
-            rules[generator] = diagonal_rule(term, coefficient)
-            inverse_rules[generator] = diagonal_rule(term, inverse_coefficient)
-            continue
-        end
-        coefficient = mul_cnum(first_coefficient, second_coefficient)
-        rules[generator] = diagonal_rule(term, coefficient)
-        inverse_rules[generator] = diagonal_rule(term, inv(coefficient))
-    end
-    return (rules, inverse_rules)
-end
-
-function invariant_under_diagonal_rules(gauge::QAdd, rules::Dict{Op, QAdd})::Bool
-    isempty(gauge.indices) || return false
-    for (term, _) in gauge
-        for operator in term.ops
-            image = get(rules, operator, nothing)
-            image === nothing && continue
-            coefficient = diagonal_coefficient(image, operator)
-            coefficient === nothing && return false
-            paired = adjoint(operator)
-            if paired == operator
-                isequal(coefficient, CNUM_ONE) || return false
-            else
-                paired_image = get(rules, paired, nothing)
-                paired_image === nothing && return false
-                paired_coefficient = diagonal_coefficient(paired_image, paired)
-                paired_coefficient === nothing && return false
-                coefficients_are_inverse(coefficient, paired_coefficient) || return false
-                count(==(operator), term.ops) == count(==(paired), term.ops) || return false
-            end
-        end
-    end
-    return true
 end
 
 function add_gauges(left::QAdd, right::QAdd)::QAdd
@@ -444,40 +328,46 @@ function check_adopted_time(U::UnitaryTransform{StaticTime}, t::Num)
     return nothing
 end
 
+function compose_action(
+        first::AffineAction, second::AffineAction, relations::Vector{ParamRelation},
+    )
+    if length(first.blocks) == 1 && length(second.blocks) == 1
+        first_block = only(first.blocks)
+        second_block = only(second.blocks)
+        if blocks_overlap(first_block, second_block)
+            return AffineAction(
+                AffineBlock[compose_overlapping_block(first_block, second_block, relations)],
+                relations,
+            )
+        end
+        return AffineAction(AffineBlock[first_block, second_block], relations)
+    end
+    return compose_action_metadata(first, second, relations)
+end
+
 function compose(
         first::UnitaryTransform, second::UnitaryTransform, time::T,
     ) where {T <: Union{StaticTime, DynamicTime}}
-    relations = merge_relations(first.relations, second.relations)
-    diagonal_rules = compose_diagonal_rules(first, second)
-    rules, inverse_rules = diagonal_rules === nothing ?
-        (
-            compose_rules(first.rules, second.rules),
-            compose_rules(second.inverse_rules, first.inverse_rules),
-        ) : diagonal_rules
+    relations = merge_relations(first.action.relations, second.action.relations)
+    action = compose_action(first.action, second.action, relations)
+    rules = compose_rules(first.rules, second.rules)
+
     gauge = if iszero(first.gauge)
         second.gauge
-    elseif invariant_under_diagonal_rules(first.gauge, second.rules)
-        iszero(second.gauge) ? first.gauge : add_gauges(first.gauge, second.gauge)
     else
         transported = reduce_params(
             apply_rules(first.gauge, second.rules), relations, true,
         )
         iszero(second.gauge) ? transported : add_gauges(transported, second.gauge)
     end
+
     if length(rules) == length(first.rules)
-        same_layout = true
-        for generator in first.generators
-            haskey(rules, generator) || (same_layout = false; break)
-        end
+        same_layout = all(generator -> haskey(rules, generator), first.generators)
         generators = same_layout ? first.generators : sort!(collect(keys(rules)))
-        sites = same_layout ? first.sites : site_infos(generators)
     else
         generators = sort!(collect(keys(rules)))
-        sites = site_infos(generators)
     end
-    return UnitaryTransform{T}(
-        rules, inverse_rules, generators, sites, gauge, time, relations, Val(:validated),
-    )
+    return UnitaryTransform{T}(action, rules, generators, gauge, time)
 end
 
 Base.:*(
@@ -510,8 +400,7 @@ function Base.:*(
     return compose(first, second, first.time)
 end
 
-# Rule-building primitives. All named constructors produce linear images, so these avoid a
-# general expression canonicalization pass during construction.
+# Rule-building primitives used by affine compilation and gauge construction.
 function rule_qadd(pairs::Vector{Tuple{CNum, Vector{Op}}})
     out = QTermDict()
     for (coefficient, operators) in pairs
@@ -523,9 +412,6 @@ end
 rule_qadd(pairs::Vararg{Tuple{CNum, Vector{Op}}}) =
     rule_qadd(Tuple{CNum, Vector{Op}}[pairs...])
 scaled(coefficient::CNum, operator::Op) = rule_qadd((coefficient, Op[operator]))
-with_adjoint(generator::Op, image::QAdd) =
-    Dict{Op, QAdd}(generator => image, adjoint(generator) => adjoint(image))
-pair_rules(x::Op, p::Op, fx::QAdd, fp::QAdd) = Dict{Op, QAdd}(x => fx, p => fp)
 
 phase(ϕ::Real) = phase_coeff(as_num(ϕ))
 conj_phase(ϕ::Real) = conj_cnum(phase(ϕ))
@@ -536,5 +422,3 @@ dt(c::CNum, t::Num) = Symbolics.derivative(c, t)
 dt(x::Coefficient, t::Num) = dt(to_cnum(x), t)
 
 gauge(generator::QAdd, θ::Real, t::Num) = generator * neg_cnum(dt(θ, t))
-
-include("unitary_constructors.jl")

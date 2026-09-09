@@ -8,6 +8,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ##  [v0.11.1]
 
+### Added
+
+- Extend exact unitary transformations with a shared affine representation, general bosonic Bogoliubov maps, generator-derived exact transforms and rotating frames, overloaded `Rotation`/`Squeeze` APIs for passive mixing, two-mode squeezing, and N-level basis rotations, and Hamiltonian-derived displacement frames.
+
 ### Fixed
 
 - Make numeric conversion for QuantumToolbox.jl type-stable

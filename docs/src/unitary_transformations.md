@@ -2,8 +2,9 @@
 
 A unitary transformation changes the operator basis while preserving the
 operator algebra. In SecondQuantizedAlgebra, a [`UnitaryTransform`](@ref) stores
-the transformed fundamental operators, their inverse transformation, and—when
-the basis moves in time—the corresponding Hamiltonian gauge term.
+an exact affine action together with compiled forward rules and—when the basis
+moves in time—the corresponding Hamiltonian gauge term. Inverse rules are
+derived exactly from the affine action when `inv(U)` is requested.
 
 The basic workflow is:
 
@@ -40,16 +41,65 @@ their arguments.
 | Fock mode | `Displace(a, α)` | ``a \mapsto a+\alpha`` |
 | Fock mode | `Rotation(a, θ)` | ``a \mapsto e^{-i\theta}a`` |
 | Fock mode | `Squeeze(a, r, ϕ=0)` | ``a \mapsto \cosh(r)a+e^{i\phi}\sinh(r)a^\dagger`` |
-| Two Fock modes | `Rotation(a, b, θ)` | beamsplitter rotation |
+| Two Fock modes | `Rotation(a, b, θ)` | passive beam-splitter mixing |
 | Two Fock modes | `Squeeze(a, b, r)` | two-mode squeezing |
+| Bosonic modes | `Bogoliubov(modes, S)` | general Nambu-linear canonical map |
 | Canonical quadratures | `Displace(x, p, dx, dp)` | ``x\mapsto x+dx``, ``p\mapsto p+dp`` |
 | Canonical quadratures | `Rotation(x, p, θ)` | phase-space rotation |
 | Canonical quadratures | `Squeeze(x, p, r)` | ``x\mapsto e^r x``, ``p\mapsto e^{-r}p`` |
 | Spin or Pauli operators | `Rotation(S, axis, θ)` | rotation around axis 1, 2, or 3 |
 | N-level transitions | `Rotation(σ, W)` | basis change defined by the unitary matrix `W` |
 
-Each constructor also defines the inverse transformation, so `inv(U)` can be
-used without deriving another set of rules.
+Each constructor defines an affine action with an exact structural inverse, so
+`inv(U)` does not require the caller to supply inverse rules.
+
+## Raw bosonic Bogoliubov maps
+
+[`Bogoliubov`](@ref) uses Nambu ordering
+
+```math
+\Xi=(a_1,\ldots,a_N,a_1^\dagger,\ldots,a_N^\dagger)^T,
+\qquad \Xi' = S\Xi.
+```
+
+The public spellings are
+
+```julia
+Bogoliubov(modes, S)
+Bogoliubov(modes, U, V)
+```
+
+where the block form means ``a' = Ua + Va^\dagger``.
+
+`Bogoliubov` is an exact algebraic API, not a symbolic theorem prover. Its
+function contract requires the supplied matrix to preserve adjoints and the
+bosonic commutator form
+
+```math
+SJS^\dagger=J.
+```
+
+Satisfying these mathematical canonicality conditions is the caller's
+responsibility for both numeric and symbolic inputs. The constructor validates
+structural requirements such as the selected modes and matrix dimensions, but
+it does not introduce hidden assumptions, maintain canonicality states, use
+numerical tolerances, or project a matrix onto the canonical group.
+
+The structured `Squeeze` and two-mode `Rotation`/`Squeeze` overloads satisfy
+their canonicality conditions by construction and remain the preferred spelling
+when they apply.
+
+Scalar parameter substitution acts on the affine transformation itself and then
+recompiles its execution rules:
+
+```julia
+@variables u::Number v::Number
+B = Bogoliubov(a, [u v; conj(v) conj(u)]) # caller asserts canonicality
+Bnum = substitute(B, Dict(u => 5 // 3, v => 4 // 3))
+```
+
+The same contract applies after substitution: the caller is responsible for
+preserving any symbolic preconditions they supplied.
 
 ## Static and time-dependent transformations
 
@@ -80,7 +130,6 @@ symbolic variable. When a parameter depends on time, pass the time variable to
 the constructor if the gauge term is needed; for example, use
 `Rotation(a, ω*t, t)` for a rotating Hamiltonian frame.
 
-
 ## Inversion and composition
 
 `inv(U)` reverses a transformation. Transform products follow application
@@ -94,6 +143,16 @@ U = U1 * U2
 conjugate(a, U) == conjugate(conjugate(a, U1), U2)
 iszero(simplify(conjugate(conjugate(a, U), inv(U)) - a))
 ```
+
+Internally, exact affine transformations remain partitioned into homogeneous
+algebra blocks. Overlapping blocks compose by the affine group law; disjoint
+Fock, phase-space, spin, or N-level blocks remain separate. This avoids generic
+symbolic matrix inversion: each block uses the inverse formula of its canonical
+algebra.
+
+Every `UnitaryTransform` carries this affine representation. Compiled forward
+rules are execution data derived from it rather than an alternate semantic
+representation; inverse rules are derived from the structural inverse on demand.
 
 Static and timed transformations can be composed. Timed transformations in a
 single product must use the same time variable. The gauge terms are composed
@@ -117,7 +176,10 @@ Ulevels = Rotation(σ, W)
 conjugate(σ, Ulevels)
 ```
 
-`W` must be square, match the number of levels, and satisfy
-``W^\dagger W=I`` symbolically. For a time-dependent matrix, use
-`Rotation(σ, W, t)`. Its gauge is computed entrywise from
-``i\dot W^\dagger W``.
+`W` must be square, match the number of levels, and be unitary. Unitarity is a
+mathematical precondition supplied by the caller; the constructor checks the
+transition family and matrix dimensions rather than attempting a symbolic proof.
+For a time-dependent matrix, use `Rotation(σ, W, t)`. Its gauge is computed
+entrywise from ``i\dot W^\dagger W`` under the same unitary-matrix contract.
+
+The complete public API is listed under [Unitary Transformations](@ref "API: Unitary").
