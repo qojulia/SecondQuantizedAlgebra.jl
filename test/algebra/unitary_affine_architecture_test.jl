@@ -15,7 +15,7 @@ using Symbolics: @variables
     atom = NLevelSpace(:atom, 2)
     σ = Transition(atom, :σ, 1, 2)
 
-    @variables θ ϕ η α β γ dx dp
+    @variables θ ϕ η α β γ dx dp t
 
     @testset "disjoint algebra transformations compose independently" begin
         phase_rotation = Rotation(x, p, θ)
@@ -86,10 +86,18 @@ using Symbolics: @variables
     end
 
     @testset "scalar substitution recompiles transformation semantics" begin
-        U = Rotation(a, θ)
+        U = Rotation(a, b, θ)
         resolved = @inferred substitute(U, Dict(θ => 0))
         @test resolved isa UnitaryTransform
-        @test iszero(simplify(conjugate(a, resolved) - a))
-        @test iszero(simplify(conjugate(a, inv(resolved)) - a))
+        for op in (a, b)
+            @test iszero(simplify(conjugate(op, resolved) - op))
+            @test iszero(simplify(conjugate(op, inv(resolved)) - op))
+        end
+    end
+
+    @testset "moving transforms keep their differentiation variable" begin
+        U = Rotation(a, θ * t, t)
+        @test iszero(simplify(transform(a, U) - conjugate(a, U) - gauge_term(U)))
+        @test_throws ArgumentError substitute(U, Dict(t => 0))
     end
 end
