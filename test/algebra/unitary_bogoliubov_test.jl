@@ -45,6 +45,17 @@ import SecondQuantizedAlgebra: expim
         for op in (left, right, left', right')
             @test iszero(simplify(conjugate(op, raw) - conjugate(op, named)))
         end
+
+        identity_nambu = [
+            1 0 0 0
+            0 1 0 0
+            0 0 1 0
+            0 0 0 1
+        ]
+        tuple_map = @inferred Bogoliubov((left, right), identity_nambu)
+        for op in (left, right, left', right')
+            @test iszero(simplify(conjugate(op, tuple_map) - op))
+        end
     end
 
     @testset "two-mode squeezing uses the same Nambu core" begin
@@ -78,6 +89,9 @@ import SecondQuantizedAlgebra: expim
         # violates it. In that case only the supplied forward map is meaningful.
         assumed = @inferred Bogoliubov(a, [2 0; 0 2])
         @test iszero(simplify(conjugate(a, assumed) - 2 * a))
+
+        block_identity = @inferred Bogoliubov(a, ones(Int, 1, 1), zeros(Int, 1, 1))
+        @test iszero(simplify(conjugate(a, block_identity) - a))
     end
 
     @testset "structural validation" begin
