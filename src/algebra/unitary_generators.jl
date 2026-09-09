@@ -323,6 +323,48 @@ function exact_closed_adjoint_action(
     )
 end
 
+function operator_affine_structure(o::Op)::Union{Nothing, AffineStructure}
+    is_fock(o) && return AFFINE_BOSONIC_NAMBU
+    is_phase_space(o) && return AFFINE_SYMPLECTIC_PHASE_SPACE
+    (is_pauli(o) || is_spin(o)) && return AFFINE_ORTHOGONAL
+    is_transition(o) && return AFFINE_UNITARY_LINEAR
+    return nothing
+end
+
+function generator_structure_parts(G::QAdd)::Vector{QAdd}
+    isempty(G.indices) || return QAdd[G]
+    groups = Dict{AffineStructure, QTermDict}()
+    for (term, coefficient) in G
+        isempty(term.ops) && continue
+        structure = operator_affine_structure(first(term.ops))
+        structure === nothing && return QAdd[G]
+        for operator in term.ops
+            operator_affine_structure(operator) === structure || return QAdd[G]
+        end
+        terms = get!(groups, structure, QTermDict())
+        addto_key!(terms, copy_key(term), coefficient)
+    end
+    length(groups) <= 1 && return QAdd[G]
+
+    parts = QAdd[]
+    for structure in (
+            AFFINE_BOSONIC_NAMBU,
+            AFFINE_SYMPLECTIC_PHASE_SPACE,
+            AFFINE_ORTHOGONAL,
+            AFFINE_UNITARY_LINEAR,
+        )
+        terms = get(groups, structure, nothing)
+        terms === nothing || push!(parts, QAdd(terms, EMPTY_INDICES))
+    end
+    return parts
+end
+
+function exact_generator_transform(G::QAdd, θ::Real)
+    basis = closed_adjoint_basis(G)
+    linear, shift = affine_commutator_data(G, basis)
+    return canonical_transform(exact_closed_adjoint_action(basis, linear, shift, θ))
+end
+
 """
     UnitaryTransform(G, θ)
 
@@ -332,9 +374,12 @@ exponential strategy. Unsupported closed blocks are refused; there is no numeric
 """
 function UnitaryTransform(G::QAdd, θ::Real)
     hermitian_generator_or_throw(G)
-    basis = closed_adjoint_basis(G)
-    linear, shift = affine_commutator_data(G, basis)
-    return canonical_transform(exact_closed_adjoint_action(basis, linear, shift, θ))
+    parts = generator_structure_parts(G)
+    transform = exact_generator_transform(first(parts), θ)
+    for i in 2:length(parts)
+        transform = transform * exact_generator_transform(parts[i], θ)
+    end
+    return transform
 end
 
 UnitaryTransform(G::QSym, θ::Real) =
