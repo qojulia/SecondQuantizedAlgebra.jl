@@ -45,7 +45,7 @@ When a finite polynomial is required, use the `taylor` generic re-exported from 
 taylor(cos(A), 0:4)
 ```
 
-For operator functions, the second argument must currently be a prefix range `0:n`. The result is a canonical `QAdd` with exact coefficients. For example,
+For operator functions, the second argument must currently be a prefix range `0:n`. The result is a canonical `QAdd` with exact coefficients. The cutoff is applied independently to each formal-function node, not as a global total-degree cutoff on the final polynomial; products of lowered functions can therefore contain powers above `n`. For example,
 
 ```@example operator-functions
 @assert taylor(cos(A), 0:4) == 1 - (1 // 2) * A^2 + (1 // 24) * A^4
