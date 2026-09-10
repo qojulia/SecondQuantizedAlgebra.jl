@@ -86,12 +86,10 @@ function show_qexpr_function(io::IO, q::QExpr)
         write(io, "cos(")
         show_qexpr_arg(io, arg, 0)
         write(io, ")")
-    elseif q.kind == QEXPR_EXPIM
+    else
         write(io, "exp(im*(")
         show_qexpr_arg(io, arg, 0)
         write(io, "))")
-    else
-        error("unknown QExpr function kind $(q.kind)")
     end
     return
 end
@@ -166,10 +164,8 @@ function qexpr_latex_function(q::QExpr)
         return string(prefix, "\\sin\\left( ", body, " \\right)")
     elseif q.kind == QEXPR_COS
         return string(prefix, "\\cos\\left( ", body, " \\right)")
-    elseif q.kind == QEXPR_EXPIM
-        return string(prefix, "e^{i\\left( ", body, " \\right)}")
     end
-    error("unknown QExpr function kind $(q.kind)")
+    return string(prefix, "e^{i\\left( ", body, " \\right)}")
 end
 
 function qexpr_latex(q::QExpr, parent_precedence::Int)
