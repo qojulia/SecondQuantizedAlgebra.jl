@@ -20,11 +20,11 @@ import SecondQuantizedAlgebra: QAdd
         1 + im * A - (1 // 2) * A^2 - im * (1 // 6) * A^3 + (1 // 24) * A^4,
     )
 
-    @test isequal(taylor(cos(A), 0:0), 1)
-    @test isequal(taylor(cos(A), 0:1), 1)
+    @test isone(taylor(cos(A), 0:0))
+    @test isone(taylor(cos(A), 0:1))
     @test iszero(taylor(sin(A), 0:0))
     @test isequal(taylor(sin(A), 0:1), A)
-    @test isequal(taylor(expim(A), 0:0), 1)
+    @test isone(taylor(expim(A), 0:0))
     @test isequal(taylor(expim(A), 0:1), 1 + im * A)
 
     @test isequal(taylor(a * cos(A), 0:2), a * (1 - (1 // 2) * A^2))
@@ -51,5 +51,5 @@ import SecondQuantizedAlgebra: QAdd
     σ11 = Transition(atom, :σ, 1, 1)
     high_order = taylor(cos(σ11), 0:22)
     coeff = sum((-1)^k * (big(1) // factorial(big(2k))) for k in 1:11)
-    @test isequal(high_order, 1 + coeff * σ11)
+    @test iszero(simplify(high_order - (1 + coeff * σ11)))
 end
