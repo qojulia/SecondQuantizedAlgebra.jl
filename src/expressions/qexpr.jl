@@ -26,14 +26,14 @@ const QExprArg = Union{QAdd, QExpr}
 
 qexpr_zero() = QExpr(QEXPR_ADD, CNUM_ONE, QExprArg[])
 qexpr_one() = QExpr(QEXPR_MUL, CNUM_ONE, QExprArg[])
+qexpr_is_scalar(q::QExpr) = q.kind == QEXPR_MUL && isempty(q.args)
 
 Base.zero(::Type{QExpr}) = qexpr_zero()
 Base.zero(::QExpr) = qexpr_zero()
 Base.one(::Type{QExpr}) = qexpr_one()
 Base.one(::QExpr) = qexpr_one()
 Base.iszero(q::QExpr) = q.kind == QEXPR_ADD && isempty(q.args)
-Base.isone(q::QExpr) =
-    q.kind == QEXPR_MUL && isempty(q.args) && isequal(q.coeff, CNUM_ONE)
+Base.isone(q::QExpr) = qexpr_is_scalar(q) && isequal(q.coeff, CNUM_ONE)
 
 qexpr_arg(q::QSym) = +q
 qexpr_arg(q::QAdd) = q
@@ -86,6 +86,11 @@ function qexpr_sum(raw::Vector{QExprArg})
             polynomial = have_polynomial ? polynomial + arg : arg
             have_polynomial = true
             continue
+        elseif qexpr_is_scalar(arg)
+            scalar = single_qadd(arg.coeff, Op[])
+            polynomial = have_polynomial ? polynomial + scalar : scalar
+            have_polynomial = true
+            continue
         end
         found = findfirst(term -> qexpr_same_body(term, arg), formal)
         if found === nothing
@@ -107,7 +112,10 @@ function qexpr_sum(raw::Vector{QExprArg})
     append!(args, formal)
 
     isempty(args) && return qexpr_zero()
-    length(args) == 1 && return only(args) isa QExpr ? only(args) : qexpr_from_qadd(only(args))
+    if length(args) == 1
+        arg = only(args)
+        return arg isa QExpr ? arg : qexpr_from_qadd(arg)
+    end
     return QExpr(QEXPR_ADD, CNUM_ONE, args)
 end
 
@@ -237,7 +245,10 @@ function qexpr_arg_less(a::QExprArg, b::QExprArg)
     isequal(a, b) && return false
     a isa QAdd && b isa QExpr && return true
     a isa QExpr && b isa QAdd && return false
-    return isless(a, b)
+    if a isa QAdd
+        return isless(a, b::QAdd)
+    end
+    return isless(a::QExpr, b::QExpr)
 end
 
 function qexpr_args_less(a::Vector{QExprArg}, b::Vector{QExprArg})
@@ -255,12 +266,8 @@ function Base.isless(a::QExpr, b::QExpr)
     return isless(coeff_key(a.coeff), coeff_key(b.coeff))
 end
 
-function qexpr_adjoint_arg(arg::QAdd)
-    return adjoint(arg)
-end
-function qexpr_adjoint_arg(arg::QExpr)
-    return adjoint(arg)
-end
+qexpr_adjoint_arg(arg::QAdd) = adjoint(arg)
+qexpr_adjoint_arg(arg::QExpr) = adjoint(arg)
 
 function Base.adjoint(q::QExpr)
     c = conj_cnum(q.coeff)
@@ -279,8 +286,7 @@ function Base.adjoint(q::QExpr)
         return qexpr_scale(qexpr_call(q.kind, arg), c)
     elseif q.kind == QEXPR_EXPIM
         arg = qexpr_adjoint_arg(only(q.args))
-        negarg = arg isa QAdd ? -arg : -arg
-        return qexpr_scale(qexpr_call(QEXPR_EXPIM, negarg), c)
+        return qexpr_scale(qexpr_call(QEXPR_EXPIM, -arg), c)
     end
     error("unknown QExpr kind $(q.kind)")
 end
