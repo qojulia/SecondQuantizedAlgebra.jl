@@ -1,8 +1,5 @@
 # Structural operations for the cold-path formal expression layer.
 
-qexpr_map_arg(f, arg::QAdd) = f(arg)
-qexpr_map_arg(f, arg::QExpr) = f(arg)
-
 function qexpr_rebuild(kind::QExprKind, coeff::CNum, args::Vector{QExprArg})
     if kind == QEXPR_ADD
         return qexpr_scale(qexpr_sum(args), coeff)
@@ -196,6 +193,26 @@ function Symbolics.expand(q::QExpr; kwargs...)
     return qexpr_rebuild(q.kind, coeff, args)
 end
 
+function expand_completeness(q::QExpr)
+    args = QExprArg[]
+    sizehint!(args, length(q.args))
+    for arg in q.args
+        push!(args, expand_completeness(arg))
+    end
+    return qexpr_rebuild(q.kind, q.coeff, args)
+end
+
+function assume_distinct_index(q::QExpr, pairs::Vector{Tuple{Index, Index}})
+    args = QExprArg[]
+    sizehint!(args, length(q.args))
+    for arg in q.args
+        push!(args, assume_distinct_index(arg, pairs))
+    end
+    return qexpr_rebuild(q.kind, q.coeff, args)
+end
+
 commutator(a::QExpr, b::QExpr) = a * b - b * a
 commutator(a::QExpr, b::Union{QSym, QAdd}) = a * b - b * a
 commutator(a::Union{QSym, QAdd}, b::QExpr) = a * b - b * a
+commutator(::QExpr, ::Number) = qexpr_zero()
+commutator(::Number, ::QExpr) = qexpr_zero()
