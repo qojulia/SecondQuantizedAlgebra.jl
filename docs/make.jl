@@ -1,4 +1,4 @@
-CI = get(ENV, "CI", nothing) == "true" || get(ENV, "GITHUB_TOKEN", nothing) !== nothing
+CI = get(ENV, "CI", "") == "true"
 
 # On CI, turn on Documenter/Literate debug logging so each example page logs an
 # "Expanding markdown page" line as it is built. Combined with the timestamps in
@@ -10,15 +10,16 @@ end
 # Plots/GR must use its headless workstation before Literate launches workers.
 get!(ENV, "GKSwstype", "100")
 
-# Generate the Literate pages before loading the packages used by the rest of
-# the documentation. The generated pages are executed in isolated child
-# processes, so the parent stays lightweight while the workers run. This also
-# creates the derived plot images referenced by the generated Markdown when
-# building locally.
+# Generate and execute the Literate pages before loading the packages used by the
+# rest of the documentation. Each generated example runs in its own Julia process.
 include("make_md_examples.jl")
 
 using SecondQuantizedAlgebra
 using Documenter
+using DocumenterCitations
+using DocumenterCodeBlocks
+using DocumenterInterLinks
+using DocumenterLandingPage
 using QuantumOpticsBase
 using SparseArrays
 
@@ -35,6 +36,12 @@ DocMeta.setdocmeta!(
 
 include("pages.jl")
 
+bib = CitationBibliography("src/refs.bib"; style = :authoryear)
+links = InterLinks(
+    "Julia" => "https://docs.julialang.org/en/v1/",
+    "Documenter" => "https://documenter.juliadocs.org/stable/",
+)
+
 # changelog.md mirrors the root Changelog.md: it is gitignored and regenerated on every
 # build. `make servedocs` skips it so LiveServer does not loop on the regenerated copy.
 cp(
@@ -43,23 +50,15 @@ cp(
     force = true,
 )
 
-# The README.md file is used index (home) page of the documentation.
-if CI
-    cp(
-        normpath(@__FILE__, "../../README.md"),
-        normpath(@__FILE__, "../src/index.md");
-        force = true,
-    )
-end
-# ^ when using LiveServer, this will generate a loop
-
 makedocs(;
     sitename = "SecondQuantizedAlgebra.jl",
     modules = SecondQuantizedAlgebra,
     format = Documenter.HTML(;
         canonical = "https://qojulia.github.io/SecondQuantizedAlgebra.jl",
+        assets = [asset("assets/favicon.ico"; class = :ico, islocal = true)],
     ),
     pages = pages,
+    plugins = [bib, CodeBlocks(), LandingPage(), links],
     clean = true,
     linkcheck = true,
     # GitHub throttles the burst of HEAD requests from the changelog's PR/issue
@@ -69,8 +68,7 @@ makedocs(;
     ],
     linkcheck_timeout = 30,
     warnonly = [:linkcheck],
-    # warnonly = :missing_docs,
-    draft = false, #,(!CI),
+    draft = false,
     doctest = true,
     checkdocs = :exports,
 )
