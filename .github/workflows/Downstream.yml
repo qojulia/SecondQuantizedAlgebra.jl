@@ -28,22 +28,16 @@ on:
 
 jobs:
   test:
-    name: ${{ matrix.package.repo }}/${{ matrix.julia-version }}
+    name: QuantumCumulants.jl/${{ matrix.julia-version }}
     runs-on: ${{ matrix.os }}
     permissions: # needed to allow julia-actions/cache to proactively delete old caches that it has created
       actions: write
       contents: read
-    env:
-      GROUP: ${{ matrix.package.group }}
     strategy:
       fail-fast: false
       matrix:
         julia-version: ['1']
         os: [ubuntu-latest]
-        package:
-          - {user: qojulia, repo: QuantumCumulants.jl}
-          - {user: qojulia, repo: QuantumInputOutput.jl}
-          - {user: oameye, repo: FloquetExpansions.jl}
 
     steps:
       - uses: actions/checkout@v7
@@ -53,10 +47,11 @@ jobs:
           arch: x64
       - uses: julia-actions/cache@v3
       - uses: julia-actions/julia-buildpkg@v1
-      - name: Clone Downstream
+      - name: Clone QuantumCumulants migration branch
         uses: actions/checkout@v7
         with:
-          repository: ${{ matrix.package.user }}/${{ matrix.package.repo }}
+          repository: qojulia/QuantumCumulants.jl
+          ref: compat/sqa-0.12
           path: downstream
       - name: Load this and run the downstream tests
         shell: julia --color=yes --project=@. --depwarn=yes {0}
@@ -64,10 +59,6 @@ jobs:
           using Pkg
           using TOML
 
-          # Downstream releases may not yet declare compatibility with this development
-          # version of SQA. Pin only that bound to the checkout's exact package version in
-          # the temporary CI clone. This lets Pkg resolve the checkout under review while
-          # preserving valid package metadata for downstream checks such as Aqua.
           sqa_version = VersionNumber(TOML.parsefile("Project.toml")["version"])
           sqa_compat = "=" * string(sqa_version)
 
@@ -79,7 +70,6 @@ jobs:
             previous = get(compat, "SecondQuantizedAlgebra", nothing)
             previous === nothing && return
             compat["SecondQuantizedAlgebra"] = compat_spec
-            @info "Temporarily pinning downstream SQA compat to checkout version" project_file previous compat_spec
             open(project_file, "w") do io
               TOML.print(io, project)
             end
