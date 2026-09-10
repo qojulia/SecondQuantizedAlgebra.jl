@@ -21,6 +21,8 @@ import SecondQuantizedAlgebra: QAdd, QExpr, expim
     @test iszero(cA - cA)
     @test cA + sA == sA + cA
     @test one(QExpr) + 1 == 2 * one(QExpr)
+    @test cA / 2 == (1 // 2) * cA
+    @test cA // 2 == (1 // 2) * cA
 
     @test a * cA != cA * a
     @test (a * cA) * a == a * (cA * a)
