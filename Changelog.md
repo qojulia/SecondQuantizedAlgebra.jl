@@ -13,11 +13,12 @@ This is a breaking release for expression introspection. The exact unitary-trans
 ### Added
 
 - Exact affine unitary transformations with a shared representation for bosonic and phase-space displacements, general bosonic Bogoliubov maps, passive mode mixing, single- and two-mode squeezing, spin/Pauli rotations, N-level basis rotations, generator-derived exact transforms and rotating frames, Hamiltonian-derived displacement frames, composition, inversion, and moving-frame gauges.
-- `get_operators` and `get_variables` introspection for `QAdd` expressions, including filtered and buffer forms of the `Symbolics.get_variables` interface.
+- `get_operators` collects the unique operators occurring anywhere in a `QAdd`, and `get_variables` collects scalar symbolic variables from its coefficients, including filtered and buffer forms of the `Symbolics.get_variables` interface.
 
 ### Changed (breaking)
 
-- Renamed the expression accessors `prefactor` → `get_prefactor`, `operators` → `get_operators`, and `variables` → `get_variables`; renamed adjoint-aware deduplication `unique_ops` → `unique_up_to_adjoint`.
+- Renamed the single-term coefficient accessor `prefactor` to `get_prefactor`, and adjoint-aware deduplication `unique_ops` / `unique_ops!` to `unique_up_to_adjoint` / `unique_up_to_adjoint!`.
+- Replaced the old single-term `operators(::QAdd)` accessor with expression-wide `get_operators`. This is not a drop-in rename: `get_operators` accepts multi-term expressions, returns each operator once in canonical order, and therefore removes repeated factors. When ordered multiplicity is required, iterate the `QAdd` and read the public `QTerm.ops` sequence for each term.
 
 ### Fixed
 
