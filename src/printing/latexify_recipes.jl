@@ -94,6 +94,12 @@ function latex_prefactor(c::CNum)
 end
 latex_prefactor(c::Number) = c
 
+# Standalone coefficients use the same lowering as operator prefactors so their
+# representation tier remains an implementation detail of the coefficient algebra.
+@latexrecipe function f(c::Coeff)
+    return latex_prefactor(c)
+end
+
 const LATEX_TERM = Union{Expr, Number, SymbolicUtils.BasicSymbolic}
 const LATEX_FRAGMENT = Union{String, Symbol, QSym, Number, SymbolicUtils.BasicSymbolic}
 
@@ -250,3 +256,4 @@ end
 
 const QLaTeX = Union{<:QField}
 Base.show(io::IO, ::MIME"text/latex", x::QLaTeX) = write(io, latexify(x))
+Base.show(io::IO, ::MIME"text/latex", c::Coeff) = write(io, latexify(c))
