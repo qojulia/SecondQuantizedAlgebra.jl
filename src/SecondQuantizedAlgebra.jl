@@ -58,6 +58,7 @@ include("numeric/indexed.jl")
 include("numeric/api.jl")
 
 include("printing/printing.jl")
+include("printing/number_compat.jl")
 include("printing/latexify_recipes.jl")
 
 """
