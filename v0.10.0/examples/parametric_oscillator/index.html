@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width, initial-scale=1.0"/><title>Parametric Oscillator · SecondQuantizedAlgebra.jl</title><meta name="title" content="Parametric Oscillator · SecondQuantizedAlgebra.jl"/><meta property="og:title" content="Parametric Oscillator · SecondQuantizedAlgebra.jl"/><meta property="twitter:title" content="Parametric Oscillator · SecondQuantizedAlgebra.jl"/><meta name="description" content="Documentation for SecondQuantizedAlgebra.jl."/><meta property="og:description" content="Documentation for SecondQuantizedAlgebra.jl."/><meta property="twitter:description" content="Documentation for SecondQuantizedAlgebra.jl."/><meta property="og:url" content="https://qojulia.github.io/SecondQuantizedAlgebra.jl/examples/parametric_oscillator/"/><meta property="twitter:url" content="https://qojulia.github.io/SecondQuantizedAlgebra.jl/examples/parametric_oscillator/"/><link rel="canonical" href="https://qojulia.github.io/SecondQuantizedAlgebra.jl/examples/parametric_oscillator/"/><script data-outdated-warner src="../../assets/warner.js"></script><link href="https://cdnjs.cloudflare.com/ajax/libs/lato-font/3.0.0/css/lato-font.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/juliamono/0.050/juliamono.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/fontawesome.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/solid.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/brands.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.8/katex.min.css" rel="stylesheet" type="text/css"/><script>documenterBaseURL="../.."</script><script src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.6/require.min.js" data-main="../../assets/documenter.js"></script><script src="../../search_index.js"></script><script src="../../siteinfo.js"></script><script src="../../../versions.js"></script><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../../assets/themes/catppuccin-mocha.css" data-theme-name="catppuccin-mocha"/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../../assets/themes/catppuccin-macchiato.css" data-theme-name="catppuccin-macchiato"/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../../assets/themes/catppuccin-frappe.css" data-theme-name="catppuccin-frappe"/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../../assets/themes/catppuccin-latte.css" data-theme-name="catppuccin-latte"/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../../assets/themes/documenter-dark.css" data-theme-name="documenter-dark" data-theme-primary-dark/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../../assets/themes/documenter-light.css" data-theme-name="documenter-light" data-theme-primary/><script src="../../assets/themeswap.js"></script></head><body><div id="documenter"><nav class="docs-sidebar"><div class="docs-package-name"><span class="docs-autofit"><a href="../../">SecondQuantizedAlgebra.jl</a></span></div><button class="docs-search-query input is-rounded is-small is-clickable my-2 mx-auto py-1 px-2" id="documenter-search-query">Search docs (Ctrl + /)</button><ul class="docs-menu"><li><a class="tocitem" href="../../">Home</a></li><li><a class="tocitem" href="../../implementation/">Implementation</a></li><li><a class="tocitem" href="../../symbolic_sums/">Symbolic Sums and Indices</a></li><li><a class="tocitem" href="../../collective/">Collective N-Level Systems</a></li><li><a class="tocitem" href="../../accumulation/">Building Large Sums Efficiently</a></li><li><span class="tocitem">Examples</span><ul><li><a class="tocitem" href="../schrieffer_wolff/">Schrieffer-Wolff Transformation</a></li><li><a class="tocitem" href="../dicke/">Dicke Superradiant Transition</a></li><li><a class="tocitem" href="../bogoliubov/">Two-Mode Bogoliubov</a></li><li><a class="tocitem" href="../optomechanics/">Cavity Optomechanics</a></li><li><a class="tocitem" href="../two_atom/">Two-Atom Dipole-Dipole</a></li><li class="is-active"><a class="tocitem" href>Parametric Oscillator</a><ul class="internal"><li><a class="tocitem" href="#Setup"><span>Setup</span></a></li><li><a class="tocitem" href="#Hamiltonian-and-Heisenberg-dynamics"><span>Hamiltonian and Heisenberg dynamics</span></a></li><li><a class="tocitem" href="#Squeezed-state-variances"><span>Squeezed-state variances</span></a></li><li><a class="tocitem" href="#Numerical-verification"><span>Numerical verification</span></a></li><li><a class="tocitem" href="#Phase-space-portrait"><span>Phase-space portrait</span></a></li></ul></li><li><a class="tocitem" href="../tavis_cummings/">Tavis–Cummings Model</a></li><li><a class="tocitem" href="../differentiable_control/">Differentiable Quantum Control</a></li></ul></li><li><a class="tocitem" href="../../comparison/">Comparison with other packages</a></li><li><a class="tocitem" href="../../API/">API</a></li><li><a class="tocitem" href="../../changelog/">Changelog</a></li><li><a class="tocitem" href="../../devdocs/">Developer Documentation</a></li></ul><div class="docs-version-selector field has-addons"><div class="control"><span class="docs-label button is-static is-size-7">Version</span></div><div class="docs-selector control is-expanded"><div class="select is-fullwidth is-size-7"><select id="documenter-version-selector"></select></div></div></div></nav><div class="docs-main"><header class="docs-navbar"><a class="docs-sidebar-button docs-navbar-link fa-solid fa-bars is-hidden-desktop" id="documenter-sidebar-button" href="#"></a><nav class="breadcrumb"><ul class="is-hidden-mobile"><li><a class="is-disabled">Examples</a></li><li class="is-active"><a href>Parametric Oscillator</a></li></ul><ul class="is-hidden-tablet"><li class="is-active"><a href>Parametric Oscillator</a></li></ul></nav><div class="docs-right"><a class="docs-navbar-link" href="https://github.com/qojulia/SecondQuantizedAlgebra.jl" title="View the repository on GitHub"><span class="docs-icon fa-brands"></span><span class="docs-label is-hidden-touch">GitHub</span></a><a class="docs-navbar-link" href="https://github.com/qojulia/SecondQuantizedAlgebra.jl/blob/main/examples/parametric_oscillator.jl" title="Edit source on GitHub"><span class="docs-icon fa-solid"></span></a><a class="docs-settings-button docs-navbar-link fa-solid fa-gear" id="documenter-settings-button" href="#" title="Settings"></a><a class="docs-article-toggle-button fa-solid fa-chevron-up" id="documenter-article-toggle-button" href="javascript:;" title="Collapse all docstrings"></a></div></header><article class="content" id="documenter-page"><h1 id="Parametric-Oscillator-in-the-Phase-Space-Representation"><a class="docs-heading-anchor" href="#Parametric-Oscillator-in-the-Phase-Space-Representation">Parametric Oscillator in the Phase-Space Representation</a><a id="Parametric-Oscillator-in-the-Phase-Space-Representation-1"></a><a class="docs-heading-anchor-permalink" href="#Parametric-Oscillator-in-the-Phase-Space-Representation" title="Permalink"></a></h1><p>The degenerate parametric oscillator (DPO), a single bosonic mode driven by parametric pumping at twice its frequency, is the workhorse of optical squeezing.  In the rotating frame at half the pump frequency its effective Hamiltonian is</p><p class="math-container">\[H = \delta\,\bigl(\tfrac{x^2 + p^2}{2}\bigr)
+  - \tfrac{\kappa}{2}\,(x^2 - p^2)
+= \tfrac{\delta - \kappa}{2}\,x^2
+  + \tfrac{\delta + \kappa}{2}\,p^2,\]</p><p>where <span>$\delta$</span> is the detuning from half the pump, <span>$\kappa$</span> is the parametric drive strength, and <span>$[x, p] = i$</span> are canonical quadrature operators.  Below the threshold <span>$\kappa = \delta$</span> the oscillator is stable but its ground state is <strong>squeezed</strong>: one quadrature variance drops below <span>$\tfrac{1}{2}$</span> while the other grows above it, with the product saturating the Heisenberg bound.</p><p>This example showcases the <a href="../../API/#SecondQuantizedAlgebra.PhaseSpace"><code>PhaseSpace</code></a> hilbert space and the canonical-commutator engine: every step uses <a href="../../API/#SecondQuantizedAlgebra.Position"><code>Position</code></a> and <a href="../../API/#SecondQuantizedAlgebra.Momentum"><code>Momentum</code></a> directly, without ever invoking Fock ladder operators.</p><h2 id="Setup"><a class="docs-heading-anchor" href="#Setup">Setup</a><a id="Setup-1"></a><a class="docs-heading-anchor-permalink" href="#Setup" title="Permalink"></a></h2><pre><code class="language-julia hljs">using SecondQuantizedAlgebra
+
+hp = PhaseSpace(:osc)
+@qnumbers x::Position(hp) p::Momentum(hp)
+
+@variables δ κ</code></pre><p class="math-container">\[ \begin{equation}
+\left[
+\begin{array}{c}
+\delta \\
+\kappa \\
+\end{array}
+\right]
+\end{equation}
+ \]</p><p>Built-in canonical commutator:</p><pre><code class="language-julia hljs">commutator(x, p)</code></pre><p class="math-container">\[\mathit{i}\]</p><h2 id="Hamiltonian-and-Heisenberg-dynamics"><a class="docs-heading-anchor" href="#Hamiltonian-and-Heisenberg-dynamics">Hamiltonian and Heisenberg dynamics</a><a id="Hamiltonian-and-Heisenberg-dynamics-1"></a><a class="docs-heading-anchor-permalink" href="#Hamiltonian-and-Heisenberg-dynamics" title="Permalink"></a></h2><pre><code class="language-julia hljs">H = (δ - κ) / 2 * x^2 + (δ + κ) / 2 * p^2
+
+-1im * commutator(x, H)</code></pre><p class="math-container">\[\left(\delta + \kappa\right) \hat{p}\]</p><pre><code class="language-julia hljs">-1im * commutator(p, H)</code></pre><p class="math-container">\[\left( - \delta + \kappa\right) \hat{x}\]</p><p>Reading off,</p><p class="math-container">\[\dot x = (\delta + \kappa)\,p, \qquad
+\dot p = -(\delta - \kappa)\,x.\]</p><p>Combining, <span>$\ddot x = -(\delta^2 - \kappa^2)\,x$</span>: oscillation at <strong>normal-mode frequency</strong> <span>$\varepsilon = \sqrt{\delta^2 - \kappa^2}$</span>, which softens to zero at the <strong>parametric instability threshold</strong> <span>$\kappa = \delta$</span>.  Above threshold the system runs away exponentially, and the squeezing parameter diverges.</p><h2 id="Squeezed-state-variances"><a class="docs-heading-anchor" href="#Squeezed-state-variances">Squeezed-state variances</a><a id="Squeezed-state-variances-1"></a><a class="docs-heading-anchor-permalink" href="#Squeezed-state-variances" title="Permalink"></a></h2><p>Below threshold, the ground state is a single-mode squeezed vacuum. Mapping to ladder operators <span>$a = (x + i p)/\sqrt{2}$</span> and applying a Bogoliubov rotation gives, after a short calculation,</p><p class="math-container">\[\langle x^2 \rangle_0
+  = \tfrac{1}{2}\sqrt{\dfrac{\delta + \kappa}{\delta - \kappa}}, \qquad
+\langle p^2 \rangle_0
+  = \tfrac{1}{2}\sqrt{\dfrac{\delta - \kappa}{\delta + \kappa}},
+\qquad
+\langle x^2 \rangle_0\,\langle p^2 \rangle_0 = \tfrac{1}{4}.\]</p><p>The first variance grows without bound as <span>$\kappa \to \delta^-$</span> (anti-squeezed quadrature), the second shrinks to zero (squeezed quadrature), and the product stays pinned at the Heisenberg-uncertainty minimum.</p><h2 id="Numerical-verification"><a class="docs-heading-anchor" href="#Numerical-verification">Numerical verification</a><a id="Numerical-verification-1"></a><a class="docs-heading-anchor-permalink" href="#Numerical-verification" title="Permalink"></a></h2><p>The package&#39;s numerical backend maps <code>Position</code> and <code>Momentum</code> onto a Fock basis via <span>$x = (a + a^\dagger)/\sqrt 2$</span>, <span>$p = i(a^\dagger - a)/\sqrt 2$</span>.  We diagonalise <span>$H$</span> on a wide Fock basis and read off the ground-state variances directly.</p><pre><code class="language-julia hljs">using QuantumOpticsBase, LinearAlgebra, CairoMakie
+
+δ_val = 1.0
+n_max = 60
+b_fock = FockBasis(n_max)
+
+κs = range(0.0, 0.95 * δ_val, length = 30)
+var_x = Float64[]
+var_p = Float64[]
+for κ_val in κs
+    subs = Dict(δ =&gt; δ_val, κ =&gt; κ_val)
+    H_op = dense(to_numeric(substitute(H, subs), b_fock))
+    F = eigen(Hermitian(H_op.data))
+    ψ = Ket(b_fock, F.vectors[:, 1])
+    push!(var_x, real(numeric_average(x * x, ψ)))
+    push!(var_p, real(numeric_average(p * p, ψ)))
+end
+
+th_x(κ_val) = 0.5 * sqrt((δ_val + κ_val) / (δ_val - κ_val))
+th_p(κ_val) = 0.5 * sqrt((δ_val - κ_val) / (δ_val + κ_val))
+
+fig = Figure(size = (820, 360))
+ax1 = Axis(
+    fig[1, 1];
+    xlabel = L&quot;\kappa / \delta&quot;,
+    ylabel = &quot;quadrature variance&quot;,
+    title = &quot;Squeezing approaching threshold&quot;,
+    yscale = log10,
+)
+scatter!(ax1, collect(κs) ./ δ_val, var_x; label = L&quot;\langle x^2 \rangle&quot;, marker = :circle)
+scatter!(ax1, collect(κs) ./ δ_val, var_p; label = L&quot;\langle p^2 \rangle&quot;, marker = :diamond)
+lines!(ax1, collect(κs) ./ δ_val, th_x.(κs); linestyle = :dash, color = :black)
+lines!(ax1, collect(κs) ./ δ_val, th_p.(κs); linestyle = :dash, color = :black)
+hlines!(ax1, [0.5]; color = :gray, linestyle = :dot, label = &quot;vacuum SQL&quot;)
+axislegend(ax1; position = :lt)
+
+ax2 = Axis(
+    fig[1, 2];
+    xlabel = L&quot;\kappa / \delta&quot;,
+    ylabel = L&quot;\langle x^2 \rangle\,\langle p^2 \rangle&quot;,
+    title = &quot;Heisenberg uncertainty product&quot;,
+)
+scatter!(ax2, collect(κs) ./ δ_val, var_x .* var_p; label = &quot;numeric&quot;)
+hlines!(ax2, [0.25]; color = :gray, linestyle = :dash, label = &quot;1/4 (min)&quot;)
+ylims!(ax2, 0.24, 0.26)
+axislegend(ax2; position = :lt)
+fig</code></pre><img src="01ca3738.png" alt="Example block output"/><p>Both quadrature variances follow their closed-form predictions across the entire below-threshold range, and the uncertainty product (right) sits precisely at the Heisenberg-minimum <span>$\tfrac{1}{4}$</span> throughout, so the DPO ground state is a minimum-uncertainty squeezed vacuum.  As <span>$\kappa$</span> approaches <span>$\delta$</span>, <span>$\langle x^2\rangle$</span> diverges while <span>$\langle p^2\rangle$</span> collapses toward zero, the dynamical signature of the parametric instability.</p><h2 id="Phase-space-portrait"><a class="docs-heading-anchor" href="#Phase-space-portrait">Phase-space portrait</a><a id="Phase-space-portrait-1"></a><a class="docs-heading-anchor-permalink" href="#Phase-space-portrait" title="Permalink"></a></h2><p>All of the above is summarised cleanly in a single picture.  The <strong>classical phase portrait</strong> of the rotated-frame Hamiltonian is the family of level curves <span>$H(x, p) = \mathrm{const}$</span>, an ellipse below threshold that elongates along the squeezed axis as <span>$\kappa \to \delta$</span>.  Crossing threshold the coefficient <span>$(\delta - \kappa)/2$</span> of <span>$x^2$</span> flips sign, and the level curves become <strong>hyperbolas</strong>: bounded orbits give way to unbounded exponential trajectories.  The symbolic determinant computed earlier makes this transition exact:</p><p class="math-container">\[\mathrm{eig}(M) = \pm\sqrt{-\det M} = \pm\sqrt{\kappa^2 - \delta^2}
+= \begin{cases}
+  \pm i\,\sqrt{\delta^2 - \kappa^2} &amp; \text{(oscillation, } \kappa &lt; \delta\text{)}, \\
+  0 &amp; \text{(degenerate, } \kappa = \delta\text{)}, \\
+  \pm\sqrt{\kappa^2 - \delta^2} &amp; \text{(exponential, } \kappa &gt; \delta\text{)}.
+\end{cases}\]</p><p>Below threshold the <strong>ground-state Wigner function</strong> of the minimum-uncertainty squeezed vacuum is the Gaussian whose covariance matrix matches the analytic variances:</p><p class="math-container">\[W(x, p) = \frac{2}{\pi}\,
+  \exp\!\left[-\frac{x^2}{2\,\langle x^2\rangle_0}
+                 - \frac{p^2}{2\,\langle p^2\rangle_0}\right],
+\qquad
+\langle x^2\rangle_0 \langle p^2\rangle_0 = \tfrac{1}{4}.\]</p><p>Overlaying both objects in a four-panel sweep across the transition makes the squeezing and the instability immediately visible:</p><pre><code class="language-julia hljs">H_class(x_val, p_val, κ_val) =
+    (δ_val - κ_val) / 2 * x_val^2 + (δ_val + κ_val) / 2 * p_val^2
+W_gs(x_val, p_val, κ_val) =
+    (2 / π) * exp(
+    -x_val^2 / (2 * th_x(κ_val)) - p_val^2 / (2 * th_p(κ_val)),
+)
+
+κs_show = [0.0, 0.5, 0.95, 1.2]
+xs_plot = -3:0.04:3
+ps_plot = -3:0.04:3
+
+fig2 = Figure(size = (820, 760))
+for (i, κ_val) in enumerate(κs_show)
+    row, col = ((i - 1) ÷ 2) + 1, ((i - 1) % 2) + 1
+    local ax = Axis(
+        fig2[row, col]; aspect = 1, xlabel = &quot;x&quot;, ylabel = &quot;p&quot;,
+        title = &quot;κ/δ = $(κ_val)&quot;,
+    )
+    H_grid = [H_class(xv, pv, κ_val) for xv in xs_plot, pv in ps_plot]
+    if κ_val &lt; δ_val
+        W_grid = [W_gs(xv, pv, κ_val) for xv in xs_plot, pv in ps_plot]
+        heatmap!(ax, xs_plot, ps_plot, W_grid; colormap = :viridis)
+        contour!(
+            ax, xs_plot, ps_plot, H_grid;
+            levels = 10, color = (:white, 0.6), linewidth = 0.8
+        )
+    else
+        contour!(
+            ax, xs_plot, ps_plot, H_grid;
+            levels = vcat(-3:0.5:-0.5, 0.5:0.5:3),
+            color = :firebrick, linewidth = 0.9
+        )
+        contour!(
+            ax, xs_plot, ps_plot, H_grid; levels = [0.0],
+            color = :black, linewidth = 1.5
+        )
+        text!(
+            ax, 0, -2.6; text = &quot;unstable, no GS&quot;,
+            align = (:center, :center), color = :firebrick
+        )
+    end
+    limits!(ax, -3, 3, -3, 3)
+end
+fig2</code></pre><img src="ba47e8b3.png" alt="Example block output"/><p>Top-left (<span>$\kappa = 0$</span>): vacuum, circular Wigner blob, circular orbits. Top-right and bottom-left: the Wigner ellipse squeezes along <span>$p$</span> and stretches along <span>$x$</span> as <span>$\kappa$</span> climbs toward <span>$\delta$</span>, with the classical orbits doing the same.  Bottom-right (above threshold): the saddle separatrix <span>$H = 0$</span> (black) splits phase space into four hyperbolic sectors; the orbits run off to infinity along the unstable manifold.  Everything in this figure (the threshold condition, the variances, the Wigner shape) came out of a canonical <a href="../../API/#SecondQuantizedAlgebra.Position"><code>Position</code></a>/<a href="../../API/#SecondQuantizedAlgebra.Momentum"><code>Momentum</code></a> pair and the built-in commutator engine, with no manual translation to ladder operators required.</p><hr/><p><em>This page was generated using <a href="https://github.com/fredrikekre/Literate.jl">Literate.jl</a>.</em></p></article><nav class="docs-footer"><a class="docs-footer-prevpage" href="../two_atom/">« Two-Atom Dipole-Dipole</a><a class="docs-footer-nextpage" href="../tavis_cummings/">Tavis–Cummings Model »</a><div class="flexbox-break"></div><p class="footer-message">Powered by <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> and the <a href="https://julialang.org/">Julia Programming Language</a>.</p></nav></div><div class="modal" id="documenter-settings"><div class="modal-background"></div><div class="modal-card"><header class="modal-card-head"><p class="modal-card-title">Settings</p><button class="delete"></button></header><section class="modal-card-body"><p><label class="label">Theme</label><div class="select"><select id="documenter-themepicker"><option value="auto">Automatic (OS)</option><option value="documenter-light">documenter-light</option><option value="documenter-dark">documenter-dark</option><option value="catppuccin-latte">catppuccin-latte</option><option value="catppuccin-frappe">catppuccin-frappe</option><option value="catppuccin-macchiato">catppuccin-macchiato</option><option value="catppuccin-mocha">catppuccin-mocha</option></select></div></p><hr/><p>This document was generated with <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> version 1.17.0 on <span class="colophon-date" title="Wednesday 22 July 2026 17:55">Wednesday 22 July 2026</span>. Using Julia version 1.10.11.</p></section><footer class="modal-card-foot"></footer></div></div></div></body></html>
