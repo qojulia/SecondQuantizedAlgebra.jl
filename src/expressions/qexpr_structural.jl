@@ -6,7 +6,6 @@ function qexpr_rebuild(kind::QExprKind, coeff::CNum, args::Vector{QExprArg})
     elseif kind == QEXPR_MUL
         return qexpr_product(args, coeff)
     end
-    length(args) == 1 || error("formal function node must have exactly one argument")
     return qexpr_scale(qexpr_call(kind, only(args)), coeff)
 end
 
