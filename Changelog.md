@@ -6,30 +6,27 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
-##  [v0.12.0]
+## [v0.12.0]
+
+This is a breaking release for expression introspection. The exact unitary-transformation framework is also substantially extended.
 
 ### Added
 
-- Added `get_operators` and `get_variables` introspection for `QAdd` expressions, including filtered and buffer forms of the `Symbolics.get_variables` interface.
+- Exact affine unitary transformations with a shared representation for bosonic and phase-space displacements, general bosonic Bogoliubov maps, passive mode mixing, single- and two-mode squeezing, spin/Pauli rotations, N-level basis rotations, generator-derived exact transforms and rotating frames, Hamiltonian-derived displacement frames, composition, inversion, and moving-frame gauges.
+- `get_operators` and `get_variables` introspection for `QAdd` expressions, including filtered and buffer forms of the `Symbolics.get_variables` interface.
 
-### Changed
+### Changed (breaking)
 
-- Renamed expression accessors to `get_prefactor`, `get_operators`, and `get_variables`, and renamed adjoint-aware deduplication to `unique_up_to_adjoint`.
-
-
-##  [v0.11.1]
-
-### Added
-
-- Extend exact unitary transformations with a shared affine representation, general bosonic Bogoliubov maps, generator-derived exact transforms and rotating frames, overloaded `Rotation`/`Squeeze` APIs for passive mixing, two-mode squeezing, and N-level basis rotations, and Hamiltonian-derived displacement frames.
+- Renamed the expression accessors `prefactor` → `get_prefactor`, `operators` → `get_operators`, and `variables` → `get_variables`; renamed adjoint-aware deduplication `unique_ops` → `unique_up_to_adjoint`.
 
 ### Fixed
 
-- Make numeric conversion for QuantumToolbox.jl type-stable
+- Make numeric conversion for QuantumToolbox.jl type-stable.
 - Follow the QuantumInterface 0.4.4 tensor-product ownership change by importing `tensor` and `⊗` directly from TensorCore.
 - Tensor products of Hilbert spaces now require at least one space. Calling `tensor()` previously recursed into itself and overflowed the stack instead of raising a `MethodError`.
+- Standalone `Coeff` values now render correctly through `latexify` and the `text/latex` MIME display without exposing internal coefficient representations.
 
-##  [v0.11.0]
+## [v0.11.0]
 
 ### Fixed
 
@@ -381,6 +378,5 @@ These names keep their meaning across the migration. Code that only uses them sh
 [v0.10.0]: https://github.com/qojulia/SecondQuantizedAlgebra.jl/releases/tag/v0.10.0
 [v0.10.1]: https://github.com/qojulia/SecondQuantizedAlgebra.jl/releases/tag/v0.10.1
 [v0.11.0]: https://github.com/qojulia/SecondQuantizedAlgebra.jl/releases/tag/v0.11.0
-[v0.11.1]: https://github.com/qojulia/SecondQuantizedAlgebra.jl/releases/tag/v0.11.1
 [v0.12.0]: https://github.com/qojulia/SecondQuantizedAlgebra.jl/releases/tag/v0.12.0
 [#156]: https://github.com/qojulia/SecondQuantizedAlgebra.jl/issues/156
