@@ -117,8 +117,7 @@ end
 function taylor_function(kind::QExprKind, argument::QAdd, order::Int)::QAdd
     kind == QEXPR_COS && return taylor_cos(argument, order)
     kind == QEXPR_SIN && return taylor_sin(argument, order)
-    kind == QEXPR_EXPIM && return taylor_expim(argument, order)
-    error("Taylor lowering requested for non-function QExpr kind $kind")
+    return taylor_expim(argument, order)
 end
 
 lower_taylor_arg(q::QAdd, ::Int) = q
@@ -149,7 +148,8 @@ end
 Explicitly lower formal `sin`, `cos`, and `expim` nodes to Maclaurin polynomials.
 For the first operator-function API, `ns` must be a prefix range `0:n`.
 Coefficients remain exact and generated products use the ordinary canonical `QAdd`
-pipeline.
+pipeline. The cutoff is applied independently to each formal-function node, not as a
+global total-degree cutoff on the final polynomial.
 
 Each formal function must have a polynomial argument with no bound `QAdd` summation
 scope. Nested formal functions and powers of bound sums are rejected explicitly rather
