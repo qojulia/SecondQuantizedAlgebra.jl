@@ -19,6 +19,6 @@ to_numeric(::QExpr, ::Basis, ::AbstractDict{<:QSym}) = qexpr_numeric_error()
 to_numeric(::QExpr, ::Integer, ::AbstractDict{<:QSym}) = qexpr_numeric_error()
 to_numeric(::QExpr, ::AbstractVector{<:Integer}, ::AbstractDict{<:QSym}) =
     qexpr_numeric_error()
-to_numeric(
-    ::QExpr, ::Tuple{Vararg{T}}, ::AbstractDict{<:QSym},
-) where {T <: Integer} = qexpr_numeric_error()
+# QExpr is rejected before backend dimension validation, so no element type parameter is
+# needed here. Keeping the tuple unconstrained also avoids an Aqua unbound-typevar report.
+to_numeric(::QExpr, ::Tuple, ::AbstractDict{<:QSym}) = qexpr_numeric_error()
