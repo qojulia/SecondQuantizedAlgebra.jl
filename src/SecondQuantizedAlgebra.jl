@@ -1,7 +1,7 @@
 module SecondQuantizedAlgebra
 
 using SymbolicUtils: SymbolicUtils, simplify, substitute, add_worker
-using Symbolics: Symbolics, Num, expand, @variables, build_function, get_variables, symbolic_to_float
+using Symbolics: Symbolics, Num, expand, taylor, @variables, build_function, get_variables, symbolic_to_float
 using TermInterface: TermInterface
 
 import QuantumInterface
@@ -41,6 +41,7 @@ include("expressions/index.jl")
 include("algebra/algebra.jl")
 include("expressions/qexpr.jl")
 include("expressions/qexpr_structural.jl")
+include("expressions/qexpr_taylor.jl")
 include("algebra/mutable_arithmetics.jl")
 include("algebra/weyl.jl")
 include("algebra/unitary.jl")
@@ -122,7 +123,7 @@ export FockSpace, ProductSpace,
     normal_order, normal_to_symmetric, symmetric_to_normal,
     UnitaryTransform, RotatingFrame, Displace, DisplacementFrame, Rotation, Squeeze, Bogoliubov,
     transform, conjugate, gauge_term, generators,
-    simplify, expand, expand_completeness, assume_distinct_index, commutator, anticommutator,
+    simplify, expand, taylor, expim, expand_completeness, assume_distinct_index, commutator, anticommutator,
     to_numeric, numeric_average,
     NumericBackend, QuantumOpticsBackend, QuantumToolboxBackend,
     numeric_operator, numeric_basis, numeric_subbasis, numeric_embed,
@@ -145,7 +146,7 @@ export FockSpace, ProductSpace,
     set_acts_on, rename,
     transition_superscript, constraint_pairs,
     to_num, order_key, term_order_key, qadd_order_key,
-    expim, exponential_form, trigonometric_form, phase_terms
+    exponential_form, trigonometric_form, phase_terms
 
 include("precompile.jl")
 
