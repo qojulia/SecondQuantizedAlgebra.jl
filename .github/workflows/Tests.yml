@@ -46,7 +46,7 @@ jobs:
       fail-fast: false
       matrix:
         version:
-          - 'lts'
+          - 'min'
           - '1.13'
         os:
           - ubuntu-latest
@@ -69,11 +69,11 @@ jobs:
         with:
           name: coverage-lcov
           path: lcov.info
-        if: ${{ matrix.version == 'lts' }}
+        if: ${{ matrix.version == 'min' }}
       - uses: codecov/codecov-action@v7
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
           file: lcov.info
           name: codecov-umbrella
           fail_ci_if_error: false
-        if: ${{ matrix.version == 'lts' }}
+        if: ${{ matrix.version == 'min' }}
