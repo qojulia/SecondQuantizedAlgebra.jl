@@ -23,6 +23,8 @@ using Test
     @test latexify(2 * cN) == L"2 \cos\left( a^{\dagger}a \right)"
     @test latexify((a + a') * cN) ==
         L"\left( a + a^{\dagger} \right) \cos\left( a^{\dagger}a \right)"
-    @test latexify(expim(-θ * N)) == L"e^{i\left( -\theta a^{\dagger}a \right)}"
+    # Latexify spaces unary minus as an operator. The exact contract here is that the
+    # complete negative operator argument remains inside the exponential grouping.
+    @test latexify(expim(-θ * N)) == L"e^{i\left(  - \theta a^{\dagger}a \right)}"
     @test repr(MIME"text/latex"(), cN) == latexify(cN)
 end
