@@ -25,7 +25,7 @@ import SecondQuantizedAlgebra: QAdd
     @test !isequal(taylor(a * cos(A), 0:2), taylor(cos(A) * a, 0:2))
 
     @test_throws ArgumentError taylor(cos(A), 1:4)
-    @test_throws ArgumentError taylor(cos(A), 0:2:4)
+    @test_throws MethodError taylor(cos(A), 0:2:4)
     @test_throws ArgumentError taylor(cos(sin(A)), 0:4)
 
     i = Index(h, :i, 3, h)
