@@ -20,6 +20,7 @@ import SecondQuantizedAlgebra: QAdd, QExpr, expim
     @test 2 * cA + 3 * cA == 5 * cA
     @test iszero(cA - cA)
     @test cA + sA == sA + cA
+    @test one(QExpr) + 1 == 2 * one(QExpr)
 
     @test a * cA != cA * a
     @test (a * cA) * a == a * (cA * a)
