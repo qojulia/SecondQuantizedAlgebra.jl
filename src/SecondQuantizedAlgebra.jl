@@ -64,6 +64,7 @@ include("numeric/qexpr.jl")
 
 include("printing/printing.jl")
 include("printing/latexify_recipes.jl")
+include("printing/qexpr.jl")
 
 """
     @qnumbers ops...
