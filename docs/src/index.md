@@ -1,34 +1,62 @@
-# SecondQuantizedAlgebra
+```@raw html
+---
+layout: home
 
-[![docs](https://img.shields.io/badge/docs-online-blue.svg)](https://qojulia.github.io/SecondQuantizedAlgebra.jl/)
-[![codecov](https://codecov.io/gh/qojulia/SecondQuantizedAlgebra.jl/branch/main/graph/badge.svg)](https://app.codecov.io/gh/qojulia/SecondQuantizedAlgebra.jl)
-[![Benchmarks](https://github.com/qojulia/SecondQuantizedAlgebra.jl/actions/workflows/Benchmarks.yaml/badge.svg?branch=main)](https://qojulia.github.io/SecondQuantizedAlgebra.jl/benchmark/)
+hero:
+  name: SecondQuantizedAlgebra.jl
+  text: Symbolic algebra for quantum operators
+  tagline: Build and manipulate second-quantized operator expressions in Julia with canonical arithmetic, indexed sums, and exact transformations.
+  actions:
+    - theme: brand
+      text: Get started
+      link: implementation/
+    - theme: alt
+      text: Examples
+      link: examples/schrieffer_wolff/
+    - theme: alt
+      text: API
+      link: API/
+    - theme: alt
+      text: View on GitHub
+      link: https://github.com/qojulia/SecondQuantizedAlgebra.jl
+  image:
+    src: assets/logo.svg
+    alt: SecondQuantizedAlgebra.jl logo
 
-[![Code Style: Blue](https://img.shields.io/badge/blue%20style%20-%20blue-4495d1.svg)](https://github.com/JuliaDiff/BlueStyle)
-[![Aqua QA](https://raw.githubusercontent.com/JuliaTesting/Aqua.jl/master/badge.svg)](https://github.com/JuliaTesting/Aqua.jl)
-[![jet](https://img.shields.io/badge/%F0%9F%9B%A9%EF%B8%8F_tested_with-JET.jl-233f9a)](https://github.com/aviatesk/JET.jl)
+features:
+  - icon: "[,]"
+    title: Canonical operator algebra
+    details: Apply commutation relations, local identities, normal ordering, and simplification directly to symbolic operator expressions.
+  - icon: "⊗"
+    title: Multiple quantum algebras
+    details: Combine bosonic, N-level, Pauli, spin, and phase-space operators in composite Hilbert spaces.
+  - icon: "Σ"
+    title: Indexed many-body systems
+    details: Work with symbolic sums and indexed operator families, including automatic diagonal splitting and free-index constraints.
+  - icon: "↻"
+    title: Exact transformations
+    details: Construct displacement, rotation, squeezing, Bogoliubov, and generator-derived unitary transformations symbolically.
+  - icon: "→"
+    title: Numerical bridges
+    details: Convert symbolic operators to QuantumOpticsBase or QuantumToolbox representations when numerical evaluation is needed.
+---
+```
 
-A Julia package for symbolic manipulation and algebraic computation with second-quantized operators. SecondQuantizedAlgebra.jl provides a flexible framework for working with quantum operators, their commutation relations, and algebraic expressions common in quantum many-body theory and quantum optics.
+```@meta
+CurrentModule = SecondQuantizedAlgebra
+```
 
-The package provides:
-- Symbolic operators across Fock (`Destroy`, `Create`), N-level (`Transition`), Pauli (`Pauli`), spin (`Spin`), and phase-space (`Position`, `Momentum`) Hilbert spaces, composed via `⊗` into `ProductSpace`.
-- Eager canonical-form arithmetic: every `*` applies (anti-)commutation, local algebraic identities, and `NLevelSpace` completeness in one pass, so the return type is always a canonical `QAdd`.
-- Explicit pipeline functions when you want piecewise control: `normal_order`, `simplify`, `commutator`, `anticommutator`, `expand`, `expand_completeness`.
-- Symbolic summations via `Index` and `Σ` for indexed families, with automatic diagonal splitting and `assume_distinct_index` for free-index constraints.
-- Averaging to symbolic scalars via `average` / `undo_average`, and extensible numeric conversion via QuantumOpticsBase or QuantumToolbox with `to_numeric` / `numeric_average`.
-- Hermitian conjugation across mixed operator + symbolic expressions via `qadjoint` (aliased as `qconj`; `dagger` extends `QuantumInterface.dagger` for operators) and the average-aware `inner_adjoint`.
-- Extensible for custom operator types via five small hooks — see the developer docs.
+`SecondQuantizedAlgebra.jl` provides the noncommutative symbolic layer used to build and transform quantum-operator expressions before numerical simulation. The algebra originated in [`QuantumCumulants.jl`](https://github.com/qojulia/QuantumCumulants.jl) and was separated into a reusable package as its scope expanded [Plankensteiner2022](@cite).
 
-The code was refactored out of [QuantumCumulants.jl](https://github.com/qojulia/QuantumCumulants.jl).
+## Quick start
 
-### Installation
+Install the package with Julia's package manager:
 
-Install with Julia's package manager:
-```julia
+```julia-repl
 pkg> add SecondQuantizedAlgebra
 ```
 
-### Usage
+Construct a composite cavity–atom space and manipulate its operators directly:
 
 ```julia
 using SecondQuantizedAlgebra
@@ -41,21 +69,11 @@ h = hc ⊗ ha
 σ(i, j) = Transition(h, :σ, i, j, 2)
 
 @variables g Δ
-
 H = Δ * b' * b + g * (b * σ(2, 1) + b' * σ(1, 2))
-
-@show b * b'
-@show σ(2, 1) * σ(1, 1)
 
 simplify(commutator(H, b))
 ```
 
-See the [documentation](https://qojulia.github.io/SecondQuantizedAlgebra.jl/) for more details and advanced usage.
+The postfix `'` follows Julia's [`Base.adjoint`](@extref Julia) convention.
 
-## Contributing
-
-Contributions and suggestions are welcome! Please open issues or pull requests on [GitHub](https://github.com/qojulia/SecondQuantizedAlgebra.jl).
-
-## License
-
-This project is licensed under the MIT License.
+The [Implementation](implementation.md) guide introduces the algebraic model and canonicalization rules. The [examples](examples/schrieffer_wolff.md) show complete workflows, while the [API](API.md) collects the exported interface.
