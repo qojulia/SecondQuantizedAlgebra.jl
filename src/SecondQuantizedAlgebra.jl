@@ -39,6 +39,7 @@ include("algebra/pipelines.jl")
 include("expressions/index.jl")
 
 include("algebra/algebra.jl")
+include("expressions/qexpr.jl")
 include("algebra/mutable_arithmetics.jl")
 include("algebra/weyl.jl")
 include("algebra/unitary.jl")
@@ -138,7 +139,7 @@ export FockSpace, ProductSpace,
     NumericContext, expect,
     OP_DESTROY, OP_CREATE, OP_TRANSITION, OP_PAULI, OP_SPIN, OP_POSITION, OP_MOMENTUM,
     OP_COLLECTIVE_TRANSITION,
-    QAdd, QTerm, QTermDict, Coeff, CNum, PhaseTerm,
+    QAdd, QTerm, QTermDict, QExpr, Coeff, CNum, PhaseTerm,
     has_sum_metadata, get_sum_indices, get_sum_non_equal, get_sum_body, indexed_sum,
     set_acts_on, rename,
     transition_superscript, constraint_pairs,
