@@ -18,13 +18,10 @@ end
     )
 end
 
-function taylor_prefix_order(ns::AbstractRange{T})::Int where {T <: Integer}
+function taylor_prefix_order(ns::UnitRange{T})::Int where {T <: Integer}
     isempty(ns) && throw(ArgumentError("operator Taylor range must be non-empty"))
     first(ns) == 0 || throw(
         ArgumentError("operator Taylor range must start at 0, got $ns"),
-    )
-    step(ns) == 1 || throw(
-        ArgumentError("operator Taylor range must be a prefix range `0:n`, got $ns"),
     )
     last(ns) <= typemax(Int) || throw(
         ArgumentError("Taylor order is too large for this platform: $(last(ns))"),
@@ -147,7 +144,7 @@ function lower_taylor_qexpr(q::QExpr, order::Int)::QAdd
 end
 
 """
-    taylor(expr::QExpr, ns::AbstractRange{<:Integer}) -> QAdd
+    taylor(expr::QExpr, ns::UnitRange{<:Integer}) -> QAdd
 
 Explicitly lower formal `sin`, `cos`, and `expim` nodes to Maclaurin polynomials.
 For the first operator-function API, `ns` must be a prefix range `0:n`.
@@ -158,6 +155,6 @@ Each formal function must have a polynomial argument with no bound `QAdd` summat
 scope. Nested formal functions and powers of bound sums are rejected explicitly rather
 than assigned ambiguous implicit approximation or alpha-renaming semantics.
 """
-function Symbolics.taylor(q::QExpr, ns::AbstractRange{T})::QAdd where {T <: Integer}
+function Symbolics.taylor(q::QExpr, ns::UnitRange{T})::QAdd where {T <: Integer}
     return lower_taylor_qexpr(q, taylor_prefix_order(ns))
 end
