@@ -18,7 +18,7 @@ import SecondQuantizedAlgebra: QExpr, expim
     @test @inferred(substitute(expim(A), Dict(a => b))) == expim(B)
 
     @test get_operators(expr) == get_operators(A)
-    @test get_variables(expr) == get_variables(θ * A)
+    @test isequal(get_variables(expr), get_variables(θ * A))
     @test acts_on(expr) == acts_on(A)
     @test isempty(get_indices(expr))
 
@@ -38,4 +38,20 @@ import SecondQuantizedAlgebra: QExpr, expim
     @test @inferred(commutator(a, cos(A))) == a * cos(A) - cos(A) * a
     @test @inferred(commutator(cos(A), sin(B))) ==
         cos(A) * sin(B) - sin(B) * cos(A)
+    @test @inferred(commutator(cos(A), 2)) isa QExpr
+    @test iszero(commutator(cos(A), 2))
+    @test iszero(commutator(2, cos(A)))
+end
+
+@testset "Exact structural rewrites through formal functions" begin
+    h = NLevelSpace(:atom, 2)
+    σ11 = Transition(h, :σ, 1, 1)
+    @test expand_completeness(cos(σ11)) == cos(expand_completeness(σ11))
+
+    j = Index(h, :j, 3, h)
+    k = Index(h, :k, 3, h)
+    σ(i, m, idx) = IndexedOperator(Transition(h, :σ, i, m), idx)
+    polynomial = σ(2, 1, k) * σ(1, 2, j)
+    @test assume_distinct_index(cos(polynomial), [(j, k)]) ==
+        cos(assume_distinct_index(polynomial, [(j, k)]))
 end
