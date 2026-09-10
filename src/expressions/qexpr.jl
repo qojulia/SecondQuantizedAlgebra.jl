@@ -259,6 +259,7 @@ Base.:/(a::QExpr, b::Number) =
 Base.:/(a::QExpr, b::Coefficient) = qexpr_scale(a, inv(to_cnum(b)))
 Base.://(a::QExpr, b::Integer) = a * (1 // b)
 Base.://(a::QExpr, b::Coefficient) = a / b
+Base.inv(::QExpr) = throw(ArgumentError("Negative powers not supported"))
 
 function Base.:^(a::QExpr, n::Integer)
     n >= 0 || throw(ArgumentError("Negative powers not supported"))
@@ -320,9 +321,7 @@ function Base.adjoint(q::QExpr)
     elseif q.kind == QEXPR_SIN || q.kind == QEXPR_COS
         arg = qexpr_adjoint_arg(only(q.args))
         return qexpr_scale(qexpr_call(q.kind, arg), c)
-    elseif q.kind == QEXPR_EXPIM
-        arg = qexpr_adjoint_arg(only(q.args))
-        return qexpr_scale(qexpr_call(QEXPR_EXPIM, -arg), c)
     end
-    error("unknown QExpr kind $(q.kind)")
+    arg = qexpr_adjoint_arg(only(q.args))
+    return qexpr_scale(qexpr_call(QEXPR_EXPIM, -arg), c)
 end
