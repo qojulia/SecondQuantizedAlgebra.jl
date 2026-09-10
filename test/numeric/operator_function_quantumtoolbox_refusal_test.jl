@@ -11,6 +11,7 @@ using Test
     for thunk in (
             () -> to_numeric(expr, 6),
             () -> to_numeric(expr, 6, d),
+            () -> to_numeric(expr, [6], d),
             () -> to_numeric(expr, (6,), d),
         )
         err = try
