@@ -1,5 +1,5 @@
 using SecondQuantizedAlgebra
-using Symbolics: @variables
+using Symbolics: Symbolics, @variables
 using Test
 
 import SecondQuantizedAlgebra: QExpr, expim
@@ -7,7 +7,7 @@ import SecondQuantizedAlgebra: QExpr, expim
 @testset "Formal operator expression structural operations" begin
     h = FockSpace(:f)
     @qnumbers a::Destroy(h) b::Destroy(h)
-    @variables θ::Real
+    @variables θ::Real ϕ::Real
 
     A = a + a'
     B = b + b'
@@ -22,6 +22,19 @@ import SecondQuantizedAlgebra: QExpr, expim
     @test acts_on(expr) == acts_on(A)
     @test isempty(get_indices(expr))
 
+    vars_expr = θ * cos(ϕ * A) + sin(A)
+    expected_vars = Set(Symbolics.unwrap.([θ, ϕ]))
+    @test Set(get_variables(vars_expr)) == expected_vars
+    @test Set(get_variables(vars_expr, [ϕ])) == Set([Symbolics.unwrap(ϕ)])
+
+    buffer = Set{Any}()
+    @test Symbolics.get_variables!(buffer, vars_expr) === buffer
+    @test buffer == expected_vars
+
+    filtered_buffer = Set{Any}()
+    @test Symbolics.get_variables!(filtered_buffer, vars_expr, [ϕ]) === filtered_buffer
+    @test filtered_buffer == Set([Symbolics.unwrap(ϕ)])
+
     i = Index(h, :i, 3, h)
     j = Index(h, :j, 3, h)
     ai = IndexedOperator(a, i)
@@ -30,14 +43,23 @@ import SecondQuantizedAlgebra: QExpr, expim
     @test get_indices(indexed) == [i]
     @test change_index(indexed, i, j) == cos(aj + aj')
 
+    swapped = cos(ai + aj')
+    @test change_index(swapped, Dict(i => j, j => i)) == cos(aj + ai')
+
     @test normal_order(cos(a * a')) == cos(normal_order(a * a'))
     @test simplify(expr) == θ * cos(A) + sin(A)
     @test expand(expr) == θ * cos(A) + sin(A)
+
+    formal_product = cos(A) * sin(B)
+    @test normal_order(formal_product) == formal_product
+    @test simplify(formal_product) == formal_product
+    @test expand(formal_product) == formal_product
 
     @test @inferred(commutator(cos(A), a)) == cos(A) * a - a * cos(A)
     @test @inferred(commutator(a, cos(A))) == a * cos(A) - cos(A) * a
     @test @inferred(commutator(cos(A), sin(B))) ==
         cos(A) * sin(B) - sin(B) * cos(A)
+    @test @inferred(anticommutator(cos(A), a)) == cos(A) * a + a * cos(A)
     @test @inferred(commutator(cos(A), 2)) isa QExpr
     @test iszero(commutator(cos(A), 2))
     @test iszero(commutator(2, cos(A)))
