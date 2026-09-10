@@ -20,6 +20,21 @@ struct QExpr <: QField
     kind::QExprKind
     coeff::CNum
     args::Vector{Union{QAdd, QExpr}}
+    function QExpr(kind::QExprKind, coeff::CNum, args::Vector{Union{QAdd, QExpr}})
+        iszero_cnum(coeff) && throw(
+            ArgumentError("QExpr outer coefficient must be nonzero; use the canonical zero"),
+        )
+        if kind == QEXPR_ADD
+            isequal(coeff, CNUM_ONE) || throw(
+                ArgumentError("QExpr additive nodes require a unit outer coefficient"),
+            )
+        elseif kind == QEXPR_SIN || kind == QEXPR_COS || kind == QEXPR_EXPIM
+            length(args) == 1 || throw(
+                ArgumentError("formal function node must have exactly one argument"),
+            )
+        end
+        return new(kind, coeff, args)
+    end
 end
 
 const QExprArg = Union{QAdd, QExpr}
@@ -239,8 +254,10 @@ Base.:*(a::QSym, b::QExpr) = qexpr_product(QExprArg[+a, b])
 Base.:*(a::QExpr, b::Coefficient) = qexpr_scale(a, to_cnum(b))
 Base.:*(a::Coefficient, b::QExpr) = qexpr_scale(b, to_cnum(a))
 
+Base.:/(a::QExpr, b::Number) =
+    b isa Integer && !(b isa Bool) && !iszero(b) ? a * (1 // b) : a * inv(b)
 Base.:/(a::QExpr, b::Coefficient) = qexpr_scale(a, inv(to_cnum(b)))
-Base.://(a::QExpr, b::Integer) = a / b
+Base.://(a::QExpr, b::Integer) = a * (1 // b)
 Base.://(a::QExpr, b::Coefficient) = a / b
 
 function Base.:^(a::QExpr, n::Integer)
