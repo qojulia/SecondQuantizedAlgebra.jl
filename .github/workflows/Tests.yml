@@ -47,7 +47,7 @@ jobs:
       matrix:
         version:
           - 'min'
-          - '1.13'
+          - '1'
         os:
           - ubuntu-latest
         arch:
