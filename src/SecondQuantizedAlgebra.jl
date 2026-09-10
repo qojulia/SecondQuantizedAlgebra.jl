@@ -40,6 +40,7 @@ include("expressions/index.jl")
 
 include("algebra/algebra.jl")
 include("expressions/qexpr.jl")
+include("expressions/qexpr_structural.jl")
 include("algebra/mutable_arithmetics.jl")
 include("algebra/weyl.jl")
 include("algebra/unitary.jl")
