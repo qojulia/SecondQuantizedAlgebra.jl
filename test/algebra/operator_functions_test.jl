@@ -43,6 +43,8 @@ import SecondQuantizedAlgebra: QAdd, QExpr, expim
     @test cA^1 == cA
     @test cA^3 == cA * cA * cA
     @test_throws ArgumentError cA^(-1)
+    n = -2
+    @test_throws ArgumentError cA^n
     @test hash(cA) == hash(cos(A))
 
     @test @inferred(expim(A)) isa QExpr
