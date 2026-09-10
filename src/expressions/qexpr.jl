@@ -39,9 +39,19 @@ qexpr_arg(q::QSym) = +q
 qexpr_arg(q::QAdd) = q
 qexpr_arg(q::QExpr) = q
 
+function qexpr_scalar_coeff(q::QAdd)::Union{Nothing, CNum}
+    isempty(q.indices) || return nothing
+    length(q.arguments) == 1 || return nothing
+    term, coeff = first(q.arguments)
+    isempty(term.ops) || return nothing
+    isempty(term.ne) || return nothing
+    return coeff
+end
+
 function qexpr_from_qadd(q::QAdd)
     iszero(q) && return qexpr_zero()
-    isone(q) && return qexpr_one()
+    scalar = qexpr_scalar_coeff(q)
+    scalar === nothing || return QExpr(QEXPR_MUL, scalar, QExprArg[])
     return QExpr(QEXPR_MUL, CNUM_ONE, QExprArg[q])
 end
 
@@ -121,16 +131,25 @@ end
 
 function qexpr_push_product!(factors::Vector{QExprArg}, coeff::CNum, arg::QAdd)
     iszero(arg) && return (CNUM_ZERO, true)
-    isone(arg) && return (coeff, false)
+    scalar = qexpr_scalar_coeff(arg)
+    if scalar !== nothing
+        coeff = mul_cnum(coeff, scalar)
+        return (coeff, iszero_cnum(coeff))
+    end
     if !isempty(factors) && last(factors) isa QAdd
         left = pop!(factors)::QAdd
         merged = left * arg
         iszero(merged) && return (CNUM_ZERO, true)
-        isone(merged) || push!(factors, merged)
+        merged_scalar = qexpr_scalar_coeff(merged)
+        if merged_scalar === nothing
+            push!(factors, merged)
+        else
+            coeff = mul_cnum(coeff, merged_scalar)
+        end
     else
         push!(factors, arg)
     end
-    return (coeff, false)
+    return (coeff, iszero_cnum(coeff))
 end
 
 function qexpr_push_product!(factors::Vector{QExprArg}, coeff::CNum, arg::QExpr)
