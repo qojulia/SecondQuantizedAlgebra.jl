@@ -76,6 +76,10 @@ QAdd
 ```
 
 ```@docs
+QExpr
+```
+
+```@docs
 @qnumbers
 ```
 
@@ -196,6 +200,10 @@ anticommutator
 
 ```@docs
 expand
+```
+
+```@docs
+taylor
 ```
 
 ```@docs
