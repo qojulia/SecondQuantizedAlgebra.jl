@@ -65,24 +65,28 @@ jobs:
           using TOML
 
           # Downstream releases may not yet declare compatibility with this development
-          # version of SQA. Remove only that bound in the temporary CI clone so this job
-          # tests the downstream code against the checkout under review. All other compat
-          # constraints remain intact and any resolver or test failure is a real failure.
-          function relax_sqa_compat(project_file)
+          # version of SQA. Pin only that bound to the checkout's exact package version in
+          # the temporary CI clone. This lets Pkg resolve the checkout under review while
+          # preserving valid package metadata for downstream checks such as Aqua.
+          sqa_version = VersionNumber(TOML.parsefile("Project.toml")["version"])
+          sqa_compat = "=" * string(sqa_version)
+
+          function pin_sqa_compat(project_file, compat_spec)
             isfile(project_file) || return
             project = TOML.parsefile(project_file)
             compat = get(project, "compat", nothing)
             compat isa AbstractDict || return
-            previous = pop!(compat, "SecondQuantizedAlgebra", nothing)
+            previous = get(compat, "SecondQuantizedAlgebra", nothing)
             previous === nothing && return
-            @info "Temporarily removing downstream SQA compat" project_file previous
+            compat["SecondQuantizedAlgebra"] = compat_spec
+            @info "Temporarily pinning downstream SQA compat to checkout version" project_file previous compat_spec
             open(project_file, "w") do io
               TOML.print(io, project)
             end
           end
 
-          relax_sqa_compat(joinpath("downstream", "Project.toml"))
-          relax_sqa_compat(joinpath("downstream", "test", "Project.toml"))
+          pin_sqa_compat(joinpath("downstream", "Project.toml"), sqa_compat)
+          pin_sqa_compat(joinpath("downstream", "test", "Project.toml"), sqa_compat)
 
           Pkg.activate("downstream")
           Pkg.develop(PackageSpec(path=pwd()))
