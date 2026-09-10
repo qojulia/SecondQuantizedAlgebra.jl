@@ -35,6 +35,12 @@ import SecondQuantizedAlgebra: QAdd
     @test wrapped isa SecondQuantizedAlgebra.QExpr
     @test isequal(taylor(cos(wrapped), 0:2), 1 - (1 // 2) * A^2)
 
+    cold_a = cos(A) - cos(A) + a
+    cold_adjoint = sin(A) - sin(A) + a'
+    cold_sum = cold_a + cold_adjoint
+    @test cold_sum isa SecondQuantizedAlgebra.QExpr
+    @test iszero(simplify(taylor(cos(cold_sum), 0:2) - (1 - (1 // 2) * A^2)))
+
     local_order = 1 - (1 // 2) * A^2
     @test isequal(taylor(cos(A) * cos(A), 0:2), local_order * local_order)
 
