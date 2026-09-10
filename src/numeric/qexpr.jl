@@ -12,3 +12,13 @@ to_numeric_lazy(::QExpr, ::NumericContext) = qexpr_numeric_error()
 to_numeric_translated(
     ::QExpr, ::NumericContext, parameter, time_parameter, op_type,
 ) = qexpr_numeric_error()
+
+# Positional numeric routes bypass `to_numeric_translated`. Keep these strictly
+# three-argument so the existing two-argument keyword methods remain the selected surface.
+to_numeric(::QExpr, ::Basis, ::AbstractDict{<:QSym}) = qexpr_numeric_error()
+to_numeric(::QExpr, ::Integer, ::AbstractDict{<:QSym}) = qexpr_numeric_error()
+to_numeric(::QExpr, ::AbstractVector{<:Integer}, ::AbstractDict{<:QSym}) =
+    qexpr_numeric_error()
+to_numeric(
+    ::QExpr, ::Tuple{Vararg{T}}, ::AbstractDict{<:QSym},
+) where {T <: Integer} = qexpr_numeric_error()
