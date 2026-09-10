@@ -52,26 +52,43 @@ jobs:
           version: ${{ matrix.julia-version }}
           arch: x64
       - uses: julia-actions/cache@v3
-      - uses: julia-actions/julia-buildpkg@latest
+      - uses: julia-actions/julia-buildpkg@v1
       - name: Clone Downstream
         uses: actions/checkout@v7
         with:
           repository: ${{ matrix.package.user }}/${{ matrix.package.repo }}
           path: downstream
       - name: Load this and run the downstream tests
-        shell: julia --color=yes --project=downstream --depwarn=yes {0}
+        shell: julia --color=yes --project=@. --depwarn=yes {0}
         run: |
           using Pkg
-          try
-            # force it to use this PR's version of the package
-            Pkg.develop(PackageSpec(path="."))  # resolver may fail with main deps
-            Pkg.update()
-            Pkg.test(coverage=true)  # resolver may fail with test time deps
-          catch err
-            err isa Pkg.Resolve.ResolverError || rethrow()
-            # If we can't resolve that means this is incompatible by SemVer and this is fine
-            # It means we marked this as a breaking change, so we don't need to worry about
-            # Mistakenly introducing a breaking change, as we have intentionally made one
-            @info "Not compatible with this release. No problem." exception=err
-            exit(0)  # Exit immediately, as a success
+          using TOML
+
+          # Downstream releases may not yet declare compatibility with this development
+          # version of SQA. Pin only that bound to the checkout's exact package version in
+          # the temporary CI clone. This lets Pkg resolve the checkout under review while
+          # preserving valid package metadata for downstream checks such as Aqua.
+          sqa_version = VersionNumber(TOML.parsefile("Project.toml")["version"])
+          sqa_compat = "=" * string(sqa_version)
+
+          function pin_sqa_compat(project_file, compat_spec)
+            isfile(project_file) || return
+            project = TOML.parsefile(project_file)
+            compat = get(project, "compat", nothing)
+            compat isa AbstractDict || return
+            previous = get(compat, "SecondQuantizedAlgebra", nothing)
+            previous === nothing && return
+            compat["SecondQuantizedAlgebra"] = compat_spec
+            @info "Temporarily pinning downstream SQA compat to checkout version" project_file previous compat_spec
+            open(project_file, "w") do io
+              TOML.print(io, project)
+            end
           end
+
+          pin_sqa_compat(joinpath("downstream", "Project.toml"), sqa_compat)
+          pin_sqa_compat(joinpath("downstream", "test", "Project.toml"), sqa_compat)
+
+          Pkg.activate("downstream")
+          Pkg.develop(PackageSpec(path=pwd()))
+          Pkg.update()
+          Pkg.test(coverage=true)
