@@ -1,13 +1,3 @@
-"""
-    QExpr
-
-Cold-path representation for formal non-polynomial operator expressions.
-
-`QAdd` remains the canonical polynomial representation. A `QExpr` is entered only
-when an operation such as [`sin`](@ref), [`cos`](@ref), or [`expim`](@ref) cannot
-be represented by `QAdd` without an infinite expansion. Products preserve factor
-order and are never distributed over formal sums implicitly.
-"""
 @enum QExprKind::UInt8 begin
     QEXPR_ADD
     QEXPR_MUL
@@ -16,6 +6,16 @@ order and are never distributed over formal sums implicitly.
     QEXPR_EXPIM
 end
 
+"""
+    QExpr <: QField
+
+Cold-path representation for formal non-polynomial operator expressions.
+
+`QAdd` remains the canonical polynomial representation. A `QExpr` is entered only
+when an operation such as [`sin`](@ref), [`cos`](@ref), or [`expim`](@ref) cannot
+be represented by `QAdd` without an infinite expansion. Products preserve factor
+order and are never distributed over formal sums implicitly.
+"""
 struct QExpr <: QField
     kind::QExprKind
     coeff::CNum
