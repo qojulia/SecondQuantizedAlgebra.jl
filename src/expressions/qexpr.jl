@@ -12,7 +12,7 @@ end
 Cold-path representation for formal non-polynomial operator expressions.
 
 `QAdd` remains the canonical polynomial representation. A `QExpr` is entered only
-when an operation such as [`sin`](@ref), [`cos`](@ref), or [`expim`](@ref) cannot
+when an operation such as `sin`, `cos`, or [`expim`](@ref) cannot
 be represented by `QAdd` without an infinite expansion. Products preserve factor
 order and are never distributed over formal sums implicitly.
 """
