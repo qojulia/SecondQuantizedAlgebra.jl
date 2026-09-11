@@ -30,9 +30,9 @@ using Test
     expected =
         4 * E_C * n_zpf^2 * n2_normal -
         E_J * (
-            1 - (1 // 2) * φ_zpf^2 * X2_normal +
-                (1 // 24) * φ_zpf^4 * X4_normal
-        ) +
+        1 - (1 // 2) * φ_zpf^2 * X2_normal +
+            (1 // 24) * φ_zpf^4 * X4_normal
+    ) +
         ω * a' * a +
         im * g * n_zpf * (b' * a' + b' * a - b * a' - b * a)
 
