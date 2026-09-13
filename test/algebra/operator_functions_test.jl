@@ -2,7 +2,7 @@ using SecondQuantizedAlgebra
 using Symbolics: @variables, unwrap
 using Test
 
-import SecondQuantizedAlgebra: QAdd, QExpr, QUnaryArgs, expim
+import SecondQuantizedAlgebra: QAdd, QExpr, expim
 
 @testset "Formal operator expressions" begin
     h = FockSpace(:f)
@@ -15,12 +15,15 @@ import SecondQuantizedAlgebra: QAdd, QExpr, QUnaryArgs, expim
 
     @test cA isa QExpr
     @test sA isa QExpr
-    @test cA.args isa QUnaryArgs{QAdd}
-    @test sA.args isa QUnaryArgs{QAdd}
-    @test (2 * cA).args isa QUnaryArgs{QAdd}
-    @test cos(cA).args isa QUnaryArgs{QExpr}
-    @test (cA + sA).args isa Vector
-    @test (a * cA).args isa Vector
+    @test getfield(cA, :storage) isa QAdd
+    @test getfield(sA, :storage) isa QAdd
+    @test only(cA.args) isa QAdd
+    @test only(cos(cA).args) isa QExpr
+    @test getfield(cos(cA), :storage) isa QExpr
+    @test getfield(cA + sA, :storage) isa Vector
+    @test getfield(a * cA, :storage) isa Vector
+    @test propertynames(cA) == (:kind, :coeff, :args)
+    @test_throws ErrorException setfield!(cA, :coeff, cA.coeff)
     @test @inferred((a + a')^4) isa QAdd
 
     @test zero(cA) == zero(QExpr)
