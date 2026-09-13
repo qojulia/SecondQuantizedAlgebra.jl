@@ -2,6 +2,8 @@ using SecondQuantizedAlgebra
 using Symbolics: Symbolics, @variables, Num
 using SymbolicUtils: SymbolicUtils
 using Test
+using LinearAlgebra: I
+import SecondQuantizedAlgebra: Coeff, to_cnum
 
 @testset "Symbolic coefficients" begin
     h = FockSpace(:coefficients)
@@ -116,5 +118,36 @@ using Test
         @test iszero(simplify(opposite))
         @test iszero(simplify(collected - ((γ + β) / δ) * a))
         @test !iszero(simplify(collected))
+    end
+
+    @testset "additive and multiplicative identities" begin
+        @variables x y
+
+        @test one(Coeff) isa Coeff
+        @test zero(Coeff) isa Coeff
+        @test isone(one(Coeff))
+        @test iszero(zero(Coeff))
+        @test isequal(one(to_cnum(x)), one(Coeff))
+        @test isequal(zero(to_cnum(x)), zero(Coeff))
+        @test isequal(oneunit(Coeff), one(Coeff))
+
+        c = to_cnum(x)
+        @test isequal(c * one(Coeff), c)
+        @test isequal(c + zero(Coeff), c)
+
+        # `Coeff` is not a `Number`, so generic reductions need the identities above.
+        @test isequal(sum(Coeff[to_cnum(x), to_cnum(y)]), to_cnum(x + y))
+        @test isequal(prod(Coeff[to_cnum(x), to_cnum(y)]), to_cnum(x * y))
+        @test isequal(sum(Coeff[]), zero(Coeff))
+        @test isequal(prod(Coeff[]), one(Coeff))
+
+        # Array constructors reach for the identities; `I` goes through the type itself.
+        @test all(iszero, zeros(Coeff, 2, 2))
+        @test all(isone, ones(Coeff, 2, 2))
+        @test isequal(Coeff(2), to_cnum(2))
+        @test isequal(
+            Matrix{Coeff}(I, 2, 2),
+            Coeff[one(Coeff) zero(Coeff); zero(Coeff) one(Coeff)],
+        )
     end
 end

@@ -12,7 +12,7 @@ import QuantumToolbox as QTB
 import SciMLOperators as SO
 import SymbolicUtils: BasicSymbolic
 import SparseArrays: SparseMatrixCSC, nonzeros, nzrange, rowvals, sparse, spzeros
-# `mul!` is imported from its owner `LinearAlgebra` (a weakdep trigger of this extension);
+# `mul!` is imported from its owner `LinearAlgebra`;
 # `transpose`/`adjoint` come through Base.
 import LinearAlgebra: dot, mul!
 

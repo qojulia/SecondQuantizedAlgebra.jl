@@ -914,6 +914,52 @@ Base.convert(::Type{Coeff}, x::Coeff) = x
 Base.convert(::Type{Coeff}, x::Complex{Num}) = to_cnum(x)
 Base.convert(::Type{Coeff}, x::Number) = to_cnum(x)
 
+# `Matrix{Coeff}(I, n, n)` builds its diagonal through the type, not through `convert`.
+Coeff(x::Number) = to_cnum(x)
+
+# LinearAlgebra routes its scalar fallbacks through `::Number`, which `Coeff` is not, so each
+# hook a coefficient matrix or vector reaches is supplied here.
+
+LinearAlgebra.dot(a::Coeff, b::Coeff) = mul_cnum(conj_cnum(a), b)
+LinearAlgebra.dot(a::Coeff, b::Number) = LinearAlgebra.dot(a, to_cnum(b))
+LinearAlgebra.dot(a::Number, b::Coeff) = LinearAlgebra.dot(to_cnum(a), b)
+
+# `abs` is exact for native and pure-phase coefficients and throws otherwise, so a norm over
+# symbolic coefficients refuses rather than inventing a magnitude it cannot order.
+function LinearAlgebra.norm(c::Coeff, p::Real = 2)
+    p == 0 && return iszero(c) ? NUM_ZERO : NUM_ONE
+    return abs(c)
+end
+
+LinearAlgebra.symmetric(c::Coeff, ::Symbol = :U) = c
+LinearAlgebra.symmetric_type(::Type{Coeff}) = Coeff
+# A Hermitian matrix has a real diagonal, which is what the scalar hook enforces.
+LinearAlgebra.hermitian(c::Coeff, ::Symbol = :U) = to_cnum(real(c))
+LinearAlgebra.hermitian_type(::Type{Coeff}) = Coeff
+
+LinearAlgebra.rmul!(A::AbstractArray{Coeff}, b::Coeff) = (A .= A .* b)
+LinearAlgebra.lmul!(a::Coeff, B::AbstractArray{Coeff}) = (B .= a .* B)
+
+# A symbolic coefficient has no magnitude order, so the pivoted LU `det` would otherwise fall
+# back to cannot run. Expand by minors instead, as Symbolics does for `Num`.
+function LinearAlgebra.det(A::AbstractMatrix{Coeff})
+    LinearAlgebra.checksquare(A)
+    rows, cols = axes(A)
+    isempty(rows) && return CNUM_ONE
+    length(rows) == 1 && return A[first(rows), first(cols)]
+    if istriu(A) || istril(A)
+        return foldl((acc, ij) -> acc * A[ij[1], ij[2]], zip(rows, cols); init = CNUM_ONE)
+    end
+    top = first(rows)
+    rest = rows[(begin + 1):end]
+    acc = CNUM_ZERO
+    for (k, j) in enumerate(cols)
+        term = A[top, j] * LinearAlgebra.det(@view A[rest, filter(!=(j), cols)])
+        acc = isodd(k) ? acc + term : acc - term
+    end
+    return acc
+end
+
 function pure_phase_data(c::Coeff)::Union{Nothing, Tuple{CoeffScalar, Num, Float64}}
     tail = c.tail
     tail isa Poly || return nothing
@@ -1033,8 +1079,23 @@ Base.isequal(a::Number, b::Coeff) = isequal(to_cnum(a), b)
 Base.:(==)(a::Coeff, b::Number) = isequal(a, to_cnum(b))
 Base.:(==)(a::Number, b::Coeff) = isequal(to_cnum(a), b)
 
+# Without this a coefficient falls into the iterable branch of `broadcastable`, and every
+# array-scalar broadcast (`A .* c`) fails on `length(::Coeff)`.
+Base.broadcastable(c::Coeff) = Ref(c)
+# A coefficient is immutable. `matmul2x2!` on Julia 1.10 copies its operands.
+Base.copy(c::Coeff) = c
+
 Base.iszero(c::Coeff) = iszero_cnum(c)
+Base.isone(c::Coeff) = isequal(c, CNUM_ONE)
 Base.conj(c::Coeff) = conj_cnum(c)
+Base.adjoint(c::Coeff) = conj_cnum(c)
+Base.transpose(c::Coeff) = c
+Base.zero(::Type{Coeff}) = CNUM_ZERO
+Base.one(::Type{Coeff}) = CNUM_ONE
+Base.zero(::Coeff) = CNUM_ZERO
+Base.one(::Coeff) = CNUM_ONE
+Base.oneunit(::Type{Coeff}) = CNUM_ONE
+Base.oneunit(::Coeff) = CNUM_ONE
 
 function Base.inv(c::Coeff)::Coeff
     tail = c.tail

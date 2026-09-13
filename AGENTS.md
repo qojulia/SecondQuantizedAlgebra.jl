@@ -26,6 +26,7 @@ ext/SecondQuantizedAlgebraQuantumOpticsBaseExt.jl  # QuantumOpticsBase backend (
 ext/SecondQuantizedAlgebraQuantumToolboxExt.jl     # QuantumToolbox backend (VecSum over QobjEvo)
 
 src/expressions/cnum.jl             # CNum = Complex{Num} arithmetic, fast paths, constants
+src/expressions/coeff_linear_algebra.jl # LinearAlgebra hooks for Coeff (dot, norm, det, Symmetric/Hermitian)
 src/expressions/qterm.jl            # QTerm struct (ops, ne) — dict key for QAdd
 src/expressions/qadd.jl             # QAdd — dict-based sum (Dict{QTerm, CNum}); TermInterface
 src/expressions/index_types.jl      # Index type, NO_INDEX constant
@@ -191,6 +192,7 @@ Three distinct axes; keep them separate when reporting numbers.
 | Symbolics | Symbolic variables (`@variables`), `Num` type for CNum prefactors |
 | TermInterface | `iscall`, `operation`, `arguments` protocol |
 | Latexify | LaTeX rendering recipes |
+| LinearAlgebra | `det` on a `Matrix{Coeff}` via minor expansion; stdlib, already in the load closure |
 | PrecompileTools | `@setup_workload`/`@compile_workload` in `precompile.jl` |
 
 **Weak dependencies (numeric extensions):** `QuantumOpticsBase` (FockBasis/NLevelBasis/SpinBasis, vector `LazySum`/`TimeDependentSum`), `QuantumToolbox` + `SciMLOperators` (QuantumObject builders, the `VecSum` over `QobjEvo`). The numeric API errors until one backend is loaded.

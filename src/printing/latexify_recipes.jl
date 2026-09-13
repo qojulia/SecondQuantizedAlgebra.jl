@@ -65,42 +65,24 @@ end
     return Expr(:latexifymerge, body)
 end
 
-# Lower through the same public coefficient representation used by terminal display.
 function latex_prefactor(c::CNum)
-    d = to_num(c)
-    r_unwrap = SymbolicUtils.unwrap(real(d))
-    i_unwrap = SymbolicUtils.unwrap(imag(d))
-    r_val = Symbolics.value(r_unwrap)
-    i_val = Symbolics.value(i_unwrap)
-    # `iszero` on a BasicSymbolic returns a symbolic expression, not Bool, which
-    # blows up the `if` below on older Symbolics (Julia 1.10 CI). Use structural
-    # equality on the unwrapped form to get a Bool either way.
-    i_is_zero = isequal(i_unwrap, 0) || (i_val isa Number && iszero(i_val))
-    r_is_zero = isequal(r_unwrap, 0) || (r_val isa Number && iszero(r_val))
-    if i_is_zero
-        return r_val
-    elseif r_is_zero
-        # Pure imaginary: `complex(false, x)` only works for `x <: Real`, so on
-        # symbolic prefactors we fall through to the full `Complex{Num}` form below.
-        if i_val isa Real
-            return complex(false, i_val)
-        end
-        return d
+    re, im = realimag(c)
+    r_val = Symbolics.value(SymbolicUtils.unwrap(re))
+    i_val = Symbolics.value(SymbolicUtils.unwrap(im))
+    iszero_num(im) && return r_val
+    if iszero_num(re)
+
+        i_val isa Real && return complex(false, i_val)
     elseif r_val isa Real && i_val isa Real
         return complex(r_val, i_val)
-    else
-        return d
     end
+    return Complex(re, im)
 end
-latex_prefactor(c::Number) = c
 
-# Standalone coefficients use the same lowering as operator prefactors so their
-# representation tier remains an implementation detail of the coefficient algebra.
 @latexrecipe function f(c::Coeff)
-    return latex_prefactor(c)
+    return latex_term(c, Op[])
 end
 
-const LATEX_TERM = Union{Expr, Number, SymbolicUtils.BasicSymbolic}
 const LATEX_FRAGMENT = Union{String, Symbol, QSym, Number, SymbolicUtils.BasicSymbolic}
 
 # Check if a symbolic prefactor needs \left( \right) brackets when followed by operators.
@@ -114,12 +96,9 @@ function needs_pf_brackets(pf::SymbolicUtils.BasicSymbolic)
     return op === (/) || op === (+)
 end
 
-# Helper: render a single term (prefactor * operators) as LaTeX
 function latex_term(c::CNum, ops::Vector{Op})
     pf = latex_prefactor(c)
-    if isempty(ops)
-        return pf
-    end
+    isempty(ops) && return Expr(:latexifymerge, pf)
     parts = LATEX_FRAGMENT[]
     if pf isa Number && pf == -1
         push!(parts, :(-))
@@ -164,7 +143,7 @@ end
 
 function latex_sum_group(indices::Vector{Index}, ne_pairs::Vector{NonEqualPair}, terms::Vector{QAdd})
     prefix = latex_sum_prefix(indices, ne_pairs)
-    term_exprs = LATEX_TERM[
+    term_exprs = Expr[
         let
             ops, c, _ = term_signature(t)
             latex_term(c, ops)
@@ -223,7 +202,7 @@ end
     if !isempty(x.indices)
         # Split terms into index-dependent and index-independent
         dep_qadds = QAdd[]
-        terms_out = LATEX_TERM[]
+        terms_out = Expr[]
         for t in st
             ops, c, _ = term_signature(t)
             term_expr = latex_term(c, ops)
@@ -245,7 +224,7 @@ end
         end
         return Expr(:call, :+, terms_out...)
     end
-    terms = LATEX_TERM[
+    terms = Expr[
         let
             ops, c, _ = term_signature(t)
             latex_term(c, ops)
@@ -254,6 +233,6 @@ end
     return Expr(:call, :+, terms...)
 end
 
-const QLaTeX = Union{<:QField}
+const QLaTeX = Union{QField, Coeff}
 Base.show(io::IO, ::MIME"text/latex", x::QLaTeX) = write(io, latexify(x))
-Base.show(io::IO, ::MIME"text/latex", c::Coeff) = write(io, latexify(c))
+Base.show(io::IO, ::MIME"text/latex", x::AbstractArray{<:QLaTeX}) = write(io, latexify(x))

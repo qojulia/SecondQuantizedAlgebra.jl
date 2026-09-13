@@ -86,11 +86,9 @@ function show_prefactor(io::IO, c::CNum)
 end
 
 function show_display(io::IO, c::Complex{Num})
-    return if iszero(imag(c))
-        # A loose head here is parenthesized by `needs_pf_parens` at the call site,
-        # which also lets a standalone constant term print without parentheses.
+    return if iszero_num(imag(c))
         print(io, real(c))
-    elseif iszero(real(c))
+    elseif iszero_num(real(c))
         i = imag(c)
         if isone(i)
             write(io, "im")
@@ -129,20 +127,12 @@ function is_real_negative(c::CNum)
     t isa Poly && return all(m -> imag(m.scalar) == 0 && real(m.scalar) < 0, t.terms)
     return is_real_negative_sym(c)
 end
-# Cold path: a non-native coefficient is a real negative only for symbolic constants
-# that don't round-trip to `ComplexF64` (irrationals like `-π`, exact rationals).
-# Isolated so the hot native branch stays concrete. `::Bool` pins the result: `<` on
-# the abstract-typed `r` is unprovably `Bool` to inference (the Symbolics boundary),
-# and leaving it `Any` would poison the `show_terms` caller.
 @noinline function is_real_negative_sym(c::CNum)::Bool
     re, im = realimag(c)
     iszero_num(im) || return false
     r = Symbolics.value(SymbolicUtils.unwrap(re))
     return r isa Real && r < 0
 end
-
-# Only `show_prefactor`'s real-only branch can leave a loose head exposed at top level;
-# the pure-imaginary and mixed branches brace their own parts.
 needs_pf_parens(c::Complex{Num}) = iszero(imag(c)) && is_loose_head(real(c))
 
 function show_term(io::IO, c::CNum, ops::Vector{Op})
