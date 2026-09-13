@@ -1082,6 +1082,8 @@ Base.:(==)(a::Number, b::Coeff) = isequal(to_cnum(a), b)
 # Without this a coefficient falls into the iterable branch of `broadcastable`, and every
 # array-scalar broadcast (`A .* c`) fails on `length(::Coeff)`.
 Base.broadcastable(c::Coeff) = Ref(c)
+# A coefficient is immutable. `matmul2x2!` on Julia 1.10 copies its operands.
+Base.copy(c::Coeff) = c
 
 Base.iszero(c::Coeff) = iszero_cnum(c)
 Base.isone(c::Coeff) = isequal(c, CNUM_ONE)
