@@ -24,7 +24,7 @@ hero:
     alt: SecondQuantizedAlgebra.jl logo
 
 features:
-  - icon: "[,]"
+  - icon: "[·,·]"
     title: Canonical operator algebra
     details: Apply commutation relations, local identities, normal ordering, and simplification directly to symbolic operator expressions.
   - icon: "⊗"
@@ -33,10 +33,13 @@ features:
   - icon: "Σ"
     title: Indexed many-body systems
     details: Work with symbolic sums and indexed operator families, including automatic diagonal splitting and free-index constraints.
-  - icon: "↻"
-    title: Exact transformations
+  - icon: "🌀"
+    title: Unitary transformations
     details: Construct displacement, rotation, squeezing, Bogoliubov, and generator-derived unitary transformations symbolically.
-  - icon: "→"
+  - icon:
+      src: https://sciml.ai/assets/favicon.png
+      alt: SciML logo
+      wrap: true
     title: Numerical bridges
     details: Convert symbolic operators to QuantumOpticsBase or QuantumToolbox representations when numerical evaluation is needed.
 ---
@@ -74,6 +77,3 @@ H = Δ * b' * b + g * (b * σ(2, 1) + b' * σ(1, 2))
 simplify(commutator(H, b))
 ```
 
-The postfix `'` follows Julia's [`Base.adjoint`](@extref Julia) convention.
-
-The [Implementation](implementation.md) guide introduces the algebraic model and canonicalization rules. The [examples](examples/schrieffer_wolff.md) show complete workflows, while the [API](API.md) collects the exported interface.
