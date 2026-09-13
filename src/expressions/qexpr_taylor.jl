@@ -29,11 +29,8 @@ function taylor_prefix_order(ns::UnitRange{T})::Int where {T <: Integer}
     return Int(last(ns))
 end
 
-function taylor_inverse_factorial(n::Int)::CNum
-    denominator = factorial(big(n))
-    if denominator <= typemax(Int)
-        return to_cnum(1 // Int(denominator))
-    end
+function taylor_inverse_denominator(denominator::BigInt)::CNum
+    denominator <= typemax(Int) && return to_cnum(1 // Int(denominator))
     return to_cnum(big(1) // denominator)
 end
 
@@ -41,11 +38,11 @@ lower_polynomial_arg(q::QAdd) = q
 
 function lower_polynomial_arg(q::QExpr)::QAdd
     if q.kind == QEXPR_ADD
-        result = zero_qadd()
+        builder = QAddBuilder()
         for arg in q.args
-            result = result + lower_polynomial_arg(arg)
+            accumulate!(builder, lower_polynomial_arg(arg))
         end
-        return result * q.coeff
+        return build(builder) * q.coeff
     elseif q.kind == QEXPR_MUL
         result = single_qadd(q.coeff, EMPTY_OPS)
         for arg in q.args
@@ -63,43 +60,54 @@ function taylor_function_argument(arg::QExprArg)::QAdd
 end
 
 function taylor_cos(argument::QAdd, order::Int)::QAdd
-    result = single_qadd(CNUM_ONE, EMPTY_OPS)
-    order < 2 && return result
+    builder = QAddBuilder()
+    accumulate!(builder, CNUM_ONE)
+    order < 2 && return build(builder)
 
+    denominator = big(1)
     square = argument * argument
     power = square
     for n in 2:2:order
-        coefficient = taylor_inverse_factorial(n)
+        denominator *= n - 1
+        denominator *= n
+        coefficient = taylor_inverse_denominator(denominator)
         isodd(n ÷ 2) && (coefficient = neg_cnum(coefficient))
-        result = result + power * coefficient
+        accumulate!(builder, power, coefficient)
         n + 2 <= order && (power = power * square)
     end
-    return result
+    return build(builder)
 end
 
 function taylor_sin(argument::QAdd, order::Int)::QAdd
     order < 1 && return zero_qadd()
-    result = argument
-    order < 3 && return result
+    builder = QAddBuilder()
+    accumulate!(builder, argument)
+    order < 3 && return build(builder)
 
+    denominator = big(1)
     square = argument * argument
     power = argument * square
     for n in 3:2:order
-        coefficient = taylor_inverse_factorial(n)
+        denominator *= n - 1
+        denominator *= n
+        coefficient = taylor_inverse_denominator(denominator)
         isodd((n - 1) ÷ 2) && (coefficient = neg_cnum(coefficient))
-        result = result + power * coefficient
+        accumulate!(builder, power, coefficient)
         n + 2 <= order && (power = power * square)
     end
-    return result
+    return build(builder)
 end
 
 function taylor_expim(argument::QAdd, order::Int)::QAdd
-    result = single_qadd(CNUM_ONE, EMPTY_OPS)
-    order < 1 && return result
+    builder = QAddBuilder()
+    accumulate!(builder, CNUM_ONE)
+    order < 1 && return build(builder)
 
+    denominator = big(1)
     power = argument
     for n in 1:order
-        coefficient = taylor_inverse_factorial(n)
+        denominator *= n
+        coefficient = taylor_inverse_denominator(denominator)
         phase = mod(n, 4)
         if phase == 1
             coefficient = mul_cnum(coefficient, CNUM_IM)
@@ -108,10 +116,10 @@ function taylor_expim(argument::QAdd, order::Int)::QAdd
         elseif phase == 3
             coefficient = mul_cnum(coefficient, CNUM_NEG_IM)
         end
-        result = result + power * coefficient
+        accumulate!(builder, power, coefficient)
         n < order && (power = power * argument)
     end
-    return result
+    return build(builder)
 end
 
 function taylor_function(kind::QExprKind, argument::QAdd, order::Int)::QAdd
@@ -120,27 +128,37 @@ function taylor_function(kind::QExprKind, argument::QAdd, order::Int)::QAdd
     return taylor_expim(argument, order)
 end
 
-lower_taylor_arg(q::QAdd, ::Int) = q
-lower_taylor_arg(q::QExpr, order::Int) = lower_taylor_qexpr(q, order)
+lower_taylor_arg(q::QAdd, ::Int, ::Dict{QExpr, QAdd}) = q
+lower_taylor_arg(q::QExpr, order::Int, cache::Dict{QExpr, QAdd}) =
+    lower_taylor_qexpr(q, order, cache)
 
-function lower_taylor_qexpr(q::QExpr, order::Int)::QAdd
-    if q.kind == QEXPR_ADD
-        result = zero_qadd()
+function lower_taylor_qexpr(q::QExpr, order::Int, cache::Dict{QExpr, QAdd})::QAdd
+    cached = get(cache, q, nothing)
+    cached === nothing || return cached
+
+    result = if q.kind == QEXPR_ADD
+        builder = QAddBuilder()
         for arg in q.args
-            result = result + lower_taylor_arg(arg, order)
+            accumulate!(builder, lower_taylor_arg(arg, order, cache))
         end
-        return result * q.coeff
+        build(builder) * q.coeff
     elseif q.kind == QEXPR_MUL
-        result = single_qadd(q.coeff, EMPTY_OPS)
+        product = single_qadd(q.coeff, EMPTY_OPS)
         for arg in q.args
-            result = result * lower_taylor_arg(arg, order)
+            product = product * lower_taylor_arg(arg, order, cache)
         end
-        return result
+        product
+    else
+        argument = taylor_function_argument(getfield(q, :storage)::QExprArg)
+        taylor_function(q.kind, argument, order) * q.coeff
     end
 
-    argument = taylor_function_argument(only(q.args))
-    return taylor_function(q.kind, argument, order) * q.coeff
+    cache[q] = result
+    return result
 end
+
+lower_taylor_qexpr(q::QExpr, order::Int)::QAdd =
+    lower_taylor_qexpr(q, order, Dict{QExpr, QAdd}())
 
 """
     taylor(expr::QExpr, ns::UnitRange{<:Integer}) -> QAdd

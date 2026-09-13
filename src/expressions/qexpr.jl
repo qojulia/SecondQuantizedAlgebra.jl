@@ -122,51 +122,55 @@ function qexpr_scale(q::QExpr, c::CNum)
     return QExpr(q.kind, new_c, qexpr_copy_storage(q))
 end
 
-function qexpr_sum(raw::Vector{QExprArg})
-    flat = QExprArg[]
-    for arg in raw
-        if arg isa QAdd
-            iszero(arg) || push!(flat, arg)
-        elseif iszero(arg)
-            continue
-        elseif arg.kind == QEXPR_ADD
-            append!(flat, arg.args)
-        else
-            push!(flat, arg)
-        end
-    end
+function qexpr_collect_sum!(polynomial::QAddBuilder, formal::Vector{QExpr}, arg::QAdd)
+    iszero(arg) || accumulate!(polynomial, arg)
+    return nothing
+end
 
-    polynomial = zero(QAdd)
-    have_polynomial = false
-    formal = QExpr[]
-    for arg in flat
-        if arg isa QAdd
-            polynomial = have_polynomial ? polynomial + arg : arg
-            have_polynomial = true
-            continue
-        elseif qexpr_is_scalar(arg)
-            scalar = single_qadd(arg.coeff, Op[])
-            polynomial = have_polynomial ? polynomial + scalar : scalar
-            have_polynomial = true
-            continue
+function qexpr_collect_sum!(polynomial::QAddBuilder, formal::Vector{QExpr}, arg::QExpr)
+    iszero(arg) && return nothing
+    if arg.kind == QEXPR_ADD
+        for child in arg.args
+            qexpr_collect_sum!(polynomial, formal, child)
         end
-        found = findfirst(term -> qexpr_same_body(term, arg), formal)
-        if found === nothing
-            push!(formal, arg)
-            continue
-        end
-        old = formal[found]
-        new_c = add_cnum(old.coeff, arg.coeff)
-        if iszero_cnum(new_c)
-            deleteat!(formal, found)
-        else
-            formal[found] = QExpr(old.kind, new_c, qexpr_copy_storage(old))
-        end
+    elseif qexpr_is_scalar(arg)
+        accumulate!(polynomial, single_qadd(arg.coeff, EMPTY_OPS))
+    else
+        push!(formal, arg)
     end
+    return nothing
+end
 
+function qexpr_coalesce_formal(formal::Vector{QExpr})
+    isempty(formal) && return formal
     sort!(formal)
+    result = QExpr[]
+    sizehint!(result, length(formal))
+    for arg in formal
+        if isempty(result) || !qexpr_same_body(last(result), arg)
+            push!(result, arg)
+            continue
+        end
+        old = pop!(result)
+        new_c = add_cnum(old.coeff, arg.coeff)
+        iszero_cnum(new_c) ||
+            push!(result, QExpr(old.kind, new_c, qexpr_copy_storage(old)))
+    end
+    return result
+end
+
+function qexpr_sum(raw::Vector{QExprArg})
+    polynomial_builder = QAddBuilder()
+    formal = QExpr[]
+    sizehint!(formal, length(raw))
+    for arg in raw
+        qexpr_collect_sum!(polynomial_builder, formal, arg)
+    end
+
+    polynomial = build(polynomial_builder)
+    formal = qexpr_coalesce_formal(formal)
     args = QExprArg[]
-    have_polynomial && !iszero(polynomial) && push!(args, polynomial)
+    iszero(polynomial) || push!(args, polynomial)
     append!(args, formal)
 
     isempty(args) && return qexpr_zero()
@@ -221,6 +225,7 @@ end
 
 function qexpr_product(raw::Vector{QExprArg}, coefficient::CNum = CNUM_ONE)
     factors = QExprArg[]
+    sizehint!(factors, length(raw))
     coeff = coefficient
     for arg in raw
         coeff, stopped = qexpr_push_product!(factors, coeff, arg)
@@ -299,11 +304,10 @@ function Base.:^(a::QExpr, n::Integer)
     n >= 0 || throw(ArgumentError("Negative powers not supported"))
     n == 0 && return qexpr_one()
     n == 1 && return a
-    result = a
-    for _ in 2:n
-        result = result * a
-    end
-    return result
+    n <= typemax(Int) || throw(ArgumentError("Power is too large for this platform"))
+    factors = Vector{QExprArg}(undef, Int(n))
+    fill!(factors, a)
+    return qexpr_product(factors)
 end
 
 function Base.isequal(a::QExpr, b::QExpr)

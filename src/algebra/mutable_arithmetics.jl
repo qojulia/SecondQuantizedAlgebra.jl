@@ -27,6 +27,14 @@ function accumulate!(b::QAddBuilder, x::QAdd)
     isempty(x.indices) || merge_indices!(b.indices, x.indices)
     return b
 end
+function accumulate!(b::QAddBuilder, x::QAdd, scale::CNum)
+    iszero_cnum(scale) && return b
+    for (term, c) in x.arguments
+        addto_key!(b.args, copy_key(term), mul_cnum(c, scale))
+    end
+    isempty(x.indices) || merge_indices!(b.indices, x.indices)
+    return b
+end
 accumulate!(b::QAddBuilder, x::QSym) = (addto!(b.args, Op[x], CNUM_ONE); b)
 function accumulate!(b::QAddBuilder, x::Coefficient)
     x isa Number && iszero(x) && return b
