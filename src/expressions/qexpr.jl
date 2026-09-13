@@ -19,18 +19,35 @@ order and are never distributed over formal sums implicitly.
 struct QExpr <: QField
     kind::QExprKind
     coeff::CNum
-    args::Vector{Union{QAdd, QExpr}}
-    function QExpr(kind::QExprKind, coeff::CNum, args::Vector{Union{QAdd, QExpr}})
+    args::Union{
+        Tuple{Union{QAdd, QExpr}},
+        Vector{Union{QAdd, QExpr}},
+    }
+    function QExpr(
+            kind::QExprKind,
+            coeff::CNum,
+            args::Union{
+                Tuple{Union{QAdd, QExpr}},
+                Vector{Union{QAdd, QExpr}},
+            },
+        )
         iszero_cnum(coeff) && throw(
             ArgumentError("QExpr outer coefficient must be nonzero; use the canonical zero"),
         )
         if kind == QEXPR_ADD
+            args isa Vector || throw(
+                ArgumentError("QExpr additive nodes require dynamic argument storage"),
+            )
             isequal(coeff, CNUM_ONE) || throw(
                 ArgumentError("QExpr additive nodes require a unit outer coefficient"),
             )
-        elseif kind == QEXPR_SIN || kind == QEXPR_COS || kind == QEXPR_EXPIM
-            length(args) == 1 || throw(
-                ArgumentError("formal function node must have exactly one argument"),
+        elseif kind == QEXPR_MUL
+            args isa Vector || throw(
+                ArgumentError("QExpr product nodes require dynamic argument storage"),
+            )
+        else
+            args isa Tuple || throw(
+                ArgumentError("formal function nodes require static unary argument storage"),
             )
         end
         return new(kind, coeff, args)
@@ -38,6 +55,7 @@ struct QExpr <: QField
 end
 
 const QExprArg = Union{QAdd, QExpr}
+const QExprArgs = Union{Tuple{QExprArg}, Vector{QExprArg}}
 
 qexpr_zero() = QExpr(QEXPR_ADD, CNUM_ONE, QExprArg[])
 qexpr_one() = QExpr(QEXPR_MUL, CNUM_ONE, QExprArg[])
@@ -207,7 +225,7 @@ function qexpr_call(kind::QExprKind, arg::QExprArg)
         kind == QEXPR_SIN && return qexpr_zero()
         (kind == QEXPR_COS || kind == QEXPR_EXPIM) && return qexpr_one()
     end
-    return QExpr(kind, CNUM_ONE, QExprArg[arg])
+    return QExpr(kind, CNUM_ONE, (arg,))
 end
 
 Base.sin(q::QField) = qexpr_call(QEXPR_SIN, qexpr_arg(q))
@@ -288,7 +306,7 @@ function qexpr_arg_less(a::QExprArg, b::QExprArg)
     return isless(a::QExpr, b::QExpr)
 end
 
-function qexpr_args_less(a::Vector{QExprArg}, b::Vector{QExprArg})
+function qexpr_args_less(a::QExprArgs, b::QExprArgs)
     n = min(length(a), length(b))
     @inbounds for i in 1:n
         isequal(a[i], b[i]) && continue
