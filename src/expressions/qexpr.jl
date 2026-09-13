@@ -6,26 +6,6 @@
     QEXPR_EXPIM
 end
 
-# A one-slot heap object breaks the recursive QExpr layout without paying for a
-# dynamically sized Vector. The type parameter keeps the stored child concrete.
-mutable struct QUnaryArgs{T}
-    arg::T
-end
-
-Base.length(::QUnaryArgs) = 1
-Base.isempty(::QUnaryArgs) = false
-Base.first(args::QUnaryArgs) = args.arg
-Base.last(args::QUnaryArgs) = args.arg
-Base.only(args::QUnaryArgs) = args.arg
-Base.copy(args::QUnaryArgs) = QUnaryArgs(args.arg)
-Base.getindex(args::QUnaryArgs, i::Int) =
-    i == 1 ? args.arg : throw(BoundsError(args, i))
-Base.iterate(args::QUnaryArgs) = (args.arg, nothing)
-Base.iterate(::QUnaryArgs, ::Nothing) = nothing
-Base.isequal(a::QUnaryArgs, b::QUnaryArgs) = isequal(a.arg, b.arg)
-Base.:(==)(a::QUnaryArgs, b::QUnaryArgs) = isequal(a, b)
-Base.hash(args::QUnaryArgs, h::UInt) = hash(args.arg, hash(:QUnaryArgs, h))
-
 """
     QExpr <: QField
 
@@ -35,49 +15,59 @@ Cold-path representation for formal non-polynomial operator expressions.
 when an operation such as `sin`, `cos`, or [`expim`](@ref) cannot
 be represented by `QAdd` without an infinite expansion. Products preserve factor
 order and are never distributed over formal sums implicitly.
+
+`QExpr` is a reference node with const fields. This permits a unary formal node to
+store its single `QAdd` or `QExpr` child directly, while sums and products retain
+dynamic vector storage. The node is therefore externally immutable even though a
+mutable layout is used to break the recursive representation without an extra
+one-element container allocation.
 """
-struct QExpr <: QField
-    kind::QExprKind
-    coeff::CNum
-    args::Union{
-        QUnaryArgs{QAdd},
-        QUnaryArgs{QExpr},
-        Vector{Union{QAdd, QExpr}},
-    }
+mutable struct QExpr <: QField
+    const kind::QExprKind
+    const coeff::CNum
+    const storage::Union{QAdd, QExpr, Vector{Union{QAdd, QExpr}}}
     function QExpr(
             kind::QExprKind,
             coeff::CNum,
-            args::Union{
-                QUnaryArgs{QAdd},
-                QUnaryArgs{QExpr},
-                Vector{Union{QAdd, QExpr}},
-            },
+            storage::Union{QAdd, QExpr, Vector{Union{QAdd, QExpr}}},
         )
         iszero_cnum(coeff) && throw(
             ArgumentError("QExpr outer coefficient must be nonzero; use the canonical zero"),
         )
         if kind == QEXPR_ADD
-            args isa Vector || throw(
+            storage isa Vector || throw(
                 ArgumentError("QExpr additive nodes require dynamic argument storage"),
             )
             isequal(coeff, CNUM_ONE) || throw(
                 ArgumentError("QExpr additive nodes require a unit outer coefficient"),
             )
         elseif kind == QEXPR_MUL
-            args isa Vector || throw(
+            storage isa Vector || throw(
                 ArgumentError("QExpr product nodes require dynamic argument storage"),
             )
         else
-            args isa QUnaryArgs || throw(
-                ArgumentError("formal function nodes require static unary argument storage"),
+            storage isa Vector && throw(
+                ArgumentError("formal function nodes require direct unary argument storage"),
             )
         end
-        return new(kind, coeff, args)
+        return new(kind, coeff, storage)
     end
 end
 
 const QExprArg = Union{QAdd, QExpr}
-const QExprArgs = Union{QUnaryArgs{QAdd}, QUnaryArgs{QExpr}, Vector{QExprArg}}
+const QExprArgs = Union{Tuple{QExprArg}, Vector{QExprArg}}
+
+QExpr(kind::QExprKind, coeff::CNum, args::Tuple{QExprArg}) =
+    QExpr(kind, coeff, only(args))
+
+@inline function Base.getproperty(q::QExpr, name::Symbol)
+    name === :args || return getfield(q, name)
+    storage = getfield(q, :storage)
+    return storage isa Vector ? storage : (storage,)
+end
+
+Base.propertynames(::QExpr, private::Bool = false) =
+    private ? (:kind, :coeff, :args, :storage) : (:kind, :coeff, :args)
 
 qexpr_zero() = QExpr(QEXPR_ADD, CNUM_ONE, QExprArg[])
 qexpr_one() = QExpr(QEXPR_MUL, CNUM_ONE, QExprArg[])
@@ -247,7 +237,7 @@ function qexpr_call(kind::QExprKind, arg::QExprArg)
         kind == QEXPR_SIN && return qexpr_zero()
         (kind == QEXPR_COS || kind == QEXPR_EXPIM) && return qexpr_one()
     end
-    return QExpr(kind, CNUM_ONE, QUnaryArgs(arg))
+    return QExpr(kind, CNUM_ONE, arg)
 end
 
 Base.sin(q::QField) = qexpr_call(QEXPR_SIN, qexpr_arg(q))
