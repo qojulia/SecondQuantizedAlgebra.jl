@@ -45,7 +45,7 @@ function benchmark_operator_functions!(SUITE)
     A = a + a'
     cA = cos(A)
     eA = expim(A)
-    cA4 = cA^4
+    cA2 = cA^2
 
     group = SUITE["Formal operator functions"]
     group["Unary cos construction"] = @benchmarkable cos($A) seconds = 3 evals = 1
@@ -57,6 +57,6 @@ function benchmark_operator_functions!(SUITE)
     group["Formal power 16"] = @benchmarkable ($cA)^16 seconds = 3 evals = 1
     group["cos Taylor order 8"] = @benchmarkable taylor($cA, 0:8) seconds = 3 evals = 1
     group["expim Taylor order 8"] = @benchmarkable taylor($eA, 0:8) seconds = 3 evals = 1
-    group["Repeated-node Taylor order 8"] = @benchmarkable taylor($cA4, 0:8) seconds = 3 evals = 1
+    group["Repeated-node Taylor order 4"] = @benchmarkable taylor($cA2, 0:4) seconds = 3 evals = 1
     return SUITE
 end
