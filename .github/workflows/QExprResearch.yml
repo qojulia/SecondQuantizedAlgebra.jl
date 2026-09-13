@@ -7,6 +7,7 @@ on:
     paths:
       - '.github/workflows/QExprResearch.yml'
       - 'src/**'
+      - 'test/**'
       - 'benchmark/operator_functions.jl'
       - 'benchmark/run_qexpr_research.jl'
       - 'benchmark/compare_two.jl'
@@ -71,3 +72,25 @@ jobs:
           path: |
             target/benchmark/baseline.json
             target/benchmark/target.json
+
+  validate:
+    runs-on: ubuntu-latest
+    permissions:
+      actions: write
+      contents: read
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: julia-actions/setup-julia@v3
+        with:
+          show-versioninfo: true
+          version: '1'
+          arch: x64
+      - uses: julia-actions/cache@v3
+      - uses: julia-actions/julia-buildpkg@v1
+      - uses: julia-actions/julia-runtest@v1
+      - name: Set up JET environment
+        run: julia --project=test -e 'using Pkg; Pkg.develop(PackageSpec(path=pwd())); Pkg.instantiate()'
+      - name: Run JET analysis
+        run: julia --project=test test/quality/JET.jl
