@@ -31,6 +31,14 @@ function qexpr_collected_sum(cA, n)
     return result
 end
 
+function qexpr_mixed_polynomial_sum(a, cA, n)
+    result = zero(cA)
+    for i in 1:n
+        result += i * a + i * cA
+    end
+    return result
+end
+
 function benchmark_operator_functions!(SUITE)
     h = FockSpace(:qexpr)
     a = Destroy(h, :a)
@@ -44,6 +52,7 @@ function benchmark_operator_functions!(SUITE)
     group["Nested unary depth 8"] = @benchmarkable qexpr_nested($A, 8) seconds = 3 evals = 1
     group["Mixed formal expression"] = @benchmarkable qexpr_mixed_workflow($a, $A) seconds = 3 evals = 1
     group["Collect 32 identical formal terms"] = @benchmarkable qexpr_collected_sum($cA, 32) seconds = 3 evals = 1
+    group["Mixed polynomial/formal sum 32"] = @benchmarkable qexpr_mixed_polynomial_sum($a, $cA, 32) seconds = 3 evals = 1
     group["Formal power 16"] = @benchmarkable ($cA)^16 seconds = 3 evals = 1
     group["cos Taylor order 8"] = @benchmarkable taylor($cA, 0:8) seconds = 3 evals = 1
     group["expim Taylor order 8"] = @benchmarkable taylor($eA, 0:8) seconds = 3 evals = 1
