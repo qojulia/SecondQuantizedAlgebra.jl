@@ -67,6 +67,11 @@ end
 Base.propertynames(::QExpr, private::Bool = false) =
     private ? (:kind, :coeff, :args, :storage) : (:kind, :coeff, :args)
 
+@inline function qexpr_copy_storage(q::QExpr)
+    storage = getfield(q, :storage)
+    return storage isa Vector ? copy(storage) : storage
+end
+
 qexpr_zero() = QExpr(QEXPR_ADD, CNUM_ONE, QExprArg[])
 qexpr_one() = QExpr(QEXPR_MUL, CNUM_ONE, QExprArg[])
 qexpr_is_scalar(q::QExpr) = q.kind == QEXPR_MUL && isempty(q.args)
@@ -99,7 +104,7 @@ function qexpr_from_qadd(q::QAdd)
 end
 
 qexpr_same_body(a::QExpr, b::QExpr) =
-    a.kind == b.kind && isequal(a.args, b.args)
+    a.kind == b.kind && isequal(getfield(a, :storage), getfield(b, :storage))
 
 function qexpr_scale(q::QExpr, c::CNum)
     iszero_cnum(c) && return qexpr_zero()
@@ -114,7 +119,7 @@ function qexpr_scale(q::QExpr, c::CNum)
     end
     new_c = mul_cnum(q.coeff, c)
     iszero_cnum(new_c) && return qexpr_zero()
-    return QExpr(q.kind, new_c, copy(q.args))
+    return QExpr(q.kind, new_c, qexpr_copy_storage(q))
 end
 
 function qexpr_sum(raw::Vector{QExprArg})
@@ -155,7 +160,7 @@ function qexpr_sum(raw::Vector{QExprArg})
         if iszero_cnum(new_c)
             deleteat!(formal, found)
         else
-            formal[found] = QExpr(old.kind, new_c, copy(old.args))
+            formal[found] = QExpr(old.kind, new_c, qexpr_copy_storage(old))
         end
     end
 
@@ -208,7 +213,8 @@ function qexpr_push_product!(factors::Vector{QExprArg}, coeff::CNum, arg::QExpr)
     end
     coeff = mul_cnum(coeff, arg.coeff)
     iszero_cnum(coeff) && return (CNUM_ZERO, true)
-    bare = isequal(arg.coeff, CNUM_ONE) ? arg : QExpr(arg.kind, CNUM_ONE, copy(arg.args))
+    bare = isequal(arg.coeff, CNUM_ONE) ? arg :
+        QExpr(arg.kind, CNUM_ONE, qexpr_copy_storage(arg))
     push!(factors, bare)
     return (coeff, false)
 end
@@ -301,10 +307,12 @@ function Base.:^(a::QExpr, n::Integer)
 end
 
 function Base.isequal(a::QExpr, b::QExpr)
-    return a.kind == b.kind && isequal(a.coeff, b.coeff) && isequal(a.args, b.args)
+    return a.kind == b.kind && isequal(a.coeff, b.coeff) &&
+        isequal(getfield(a, :storage), getfield(b, :storage))
 end
 Base.:(==)(a::QExpr, b::QExpr) = isequal(a, b)
-Base.hash(q::QExpr, h::UInt) = hash(q.args, hash(q.coeff, hash(q.kind, hash(:QExpr, h))))
+Base.hash(q::QExpr, h::UInt) =
+    hash(getfield(q, :storage), hash(q.coeff, hash(q.kind, hash(:QExpr, h))))
 
 function qexpr_arg_less(a::QExprArg, b::QExprArg)
     isequal(a, b) && return false
@@ -325,9 +333,20 @@ function qexpr_args_less(a::QExprArgs, b::QExprArgs)
     return length(a) < length(b)
 end
 
+function qexpr_storage_less(a::QExpr, b::QExpr)
+    a_storage = getfield(a, :storage)
+    b_storage = getfield(b, :storage)
+    if a_storage isa Vector
+        return qexpr_args_less(a_storage, b_storage::Vector{QExprArg})
+    end
+    return qexpr_arg_less(a_storage::QExprArg, b_storage::QExprArg)
+end
+
 function Base.isless(a::QExpr, b::QExpr)
     a.kind != b.kind && return Int(a.kind) < Int(b.kind)
-    isequal(a.args, b.args) || return qexpr_args_less(a.args, b.args)
+    a_storage = getfield(a, :storage)
+    b_storage = getfield(b, :storage)
+    isequal(a_storage, b_storage) || return qexpr_storage_less(a, b)
     return isless(coeff_key(a.coeff), coeff_key(b.coeff))
 end
 
@@ -347,9 +366,9 @@ function Base.adjoint(q::QExpr)
         end
         return qexpr_product(args, c)
     elseif q.kind == QEXPR_SIN || q.kind == QEXPR_COS
-        arg = qexpr_adjoint_arg(only(q.args))
+        arg = qexpr_adjoint_arg(getfield(q, :storage)::QExprArg)
         return qexpr_scale(qexpr_call(q.kind, arg), c)
     end
-    arg = qexpr_adjoint_arg(only(q.args))
+    arg = qexpr_adjoint_arg(getfield(q, :storage)::QExprArg)
     return qexpr_scale(qexpr_call(QEXPR_EXPIM, -arg), c)
 end
