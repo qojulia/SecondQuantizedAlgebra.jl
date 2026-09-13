@@ -6,6 +6,14 @@ function qexpr_unary_batch(A, n)
     return out
 end
 
+function qexpr_nested(A, n)
+    result = cos(A)
+    for i in 2:n
+        result = isodd(i) ? cos(result) : sin(result)
+    end
+    return result
+end
+
 function qexpr_mixed_workflow(a, A)
     cA = cos(A)
     sA = sin(A)
@@ -33,6 +41,7 @@ function benchmark_operator_functions!(SUITE)
     group = SUITE["Formal operator functions"]
     group["Unary cos construction"] = @benchmarkable cos($A) seconds = 3 evals = 1
     group["64 unary function nodes"] = @benchmarkable qexpr_unary_batch($A, 64) seconds = 3 evals = 1
+    group["Nested unary depth 8"] = @benchmarkable qexpr_nested($A, 8) seconds = 3 evals = 1
     group["Mixed formal expression"] = @benchmarkable qexpr_mixed_workflow($a, $A) seconds = 3 evals = 1
     group["Collect 32 identical formal terms"] = @benchmarkable qexpr_collected_sum($cA, 32) seconds = 3 evals = 1
     group["Formal power 16"] = @benchmarkable ($cA)^16 seconds = 3 evals = 1
