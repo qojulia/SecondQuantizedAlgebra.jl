@@ -16,16 +16,14 @@ when an operation such as `sin`, `cos`, or [`expim`](@ref) cannot
 be represented by `QAdd` without an infinite expansion. Products preserve factor
 order and are never distributed over formal sums implicitly.
 
-`QExpr` is a reference node with const fields. This permits a unary formal node to
-store its single `QAdd` or `QExpr` child directly, while sums and products retain
-dynamic vector storage. The node is therefore externally immutable even though a
-mutable layout is used to break the recursive representation without an extra
-one-element container allocation.
+Unary formal nodes store their single `QAdd` or `QExpr` child directly; sums and
+products retain dynamic vector storage. This keeps `QExpr` immutable and
+non-parametric while avoiding a one-element heap container for unary nodes.
 """
-mutable struct QExpr <: QField
-    const kind::QExprKind
-    const coeff::CNum
-    const storage::Union{QAdd, QExpr, Vector{Union{QAdd, QExpr}}}
+struct QExpr <: QField
+    kind::QExprKind
+    coeff::CNum
+    storage::Union{QAdd, QExpr, Vector{Union{QAdd, QExpr}}}
     function QExpr(
             kind::QExprKind,
             coeff::CNum,
