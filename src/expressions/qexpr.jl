@@ -122,27 +122,45 @@ function qexpr_scale(q::QExpr, c::CNum)
     return QExpr(q.kind, new_c, qexpr_copy_storage(q))
 end
 
-function qexpr_collect_sum!(polynomial::QAddBuilder, formal::Vector{QExpr}, arg::QAdd)
-    iszero(arg) || accumulate!(polynomial, arg)
-    return nothing
+function qexpr_collect_sum!(
+        formal::Vector{QExpr}, polynomial::Union{Nothing, QAddBuilder}, arg::QAdd,
+    )
+    iszero(arg) && return polynomial
+    polynomial === nothing && (polynomial = QAddBuilder())
+    accumulate!(polynomial, arg)
+    return polynomial
 end
 
-function qexpr_collect_sum!(polynomial::QAddBuilder, formal::Vector{QExpr}, arg::QExpr)
-    iszero(arg) && return nothing
+function qexpr_collect_sum!(
+        formal::Vector{QExpr}, polynomial::Union{Nothing, QAddBuilder}, arg::QExpr,
+    )
+    iszero(arg) && return polynomial
     if arg.kind == QEXPR_ADD
         for child in arg.args
-            qexpr_collect_sum!(polynomial, formal, child)
+            polynomial = qexpr_collect_sum!(formal, polynomial, child)
         end
     elseif qexpr_is_scalar(arg)
+        polynomial === nothing && (polynomial = QAddBuilder())
         accumulate!(polynomial, single_qadd(arg.coeff, EMPTY_OPS))
     else
         push!(formal, arg)
     end
-    return nothing
+    return polynomial
 end
 
 function qexpr_coalesce_formal(formal::Vector{QExpr})
-    isempty(formal) && return formal
+    length(formal) <= 1 && return formal
+    if length(formal) == 2
+        a, b = formal
+        if qexpr_same_body(a, b)
+            new_c = add_cnum(a.coeff, b.coeff)
+            return iszero_cnum(new_c) ? QExpr[] :
+                QExpr[QExpr(a.kind, new_c, qexpr_copy_storage(a))]
+        end
+        isless(b, a) && ((formal[1], formal[2]) = (b, a))
+        return formal
+    end
+
     sort!(formal)
     result = QExpr[]
     sizehint!(result, length(formal))
@@ -160,17 +178,17 @@ function qexpr_coalesce_formal(formal::Vector{QExpr})
 end
 
 function qexpr_sum(raw::Vector{QExprArg})
-    polynomial_builder = QAddBuilder()
+    polynomial = nothing
     formal = QExpr[]
     sizehint!(formal, length(raw))
     for arg in raw
-        qexpr_collect_sum!(polynomial_builder, formal, arg)
+        polynomial = qexpr_collect_sum!(formal, polynomial, arg)
     end
 
-    polynomial = build(polynomial_builder)
+    polynomial_value = polynomial === nothing ? zero_qadd() : build(polynomial)
     formal = qexpr_coalesce_formal(formal)
     args = QExprArg[]
-    iszero(polynomial) || push!(args, polynomial)
+    iszero(polynomial_value) || push!(args, polynomial_value)
     append!(args, formal)
 
     isempty(args) && return qexpr_zero()
