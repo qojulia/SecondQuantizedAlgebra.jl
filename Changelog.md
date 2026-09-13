@@ -14,6 +14,7 @@ This is a breaking release for expression introspection. The exact unitary-trans
 
 - Exact affine unitary transformations with a shared representation for bosonic and phase-space displacements, general bosonic Bogoliubov maps, passive mode mixing, single- and two-mode squeezing, spin/Pauli rotations, N-level basis rotations, generator-derived exact transforms and rotating frames, Hamiltonian-derived displacement frames, composition, inversion, and moving-frame gauges.
 - `get_operators` collects the unique operators occurring anywhere in a `QAdd`, and `get_variables` collects scalar symbolic variables from its coefficients, including filtered and buffer forms of the `Symbolics.get_variables` interface.
+- Formal non-polynomial operator functions `sin(A)`, `cos(A)`, and Hermitian-only `expim(A)` use a cold-path `QExpr` representation without changing the canonical polynomial `QAdd` hot path. `taylor(expr, 0:n)` explicitly lowers formal functions to exact-coefficient `QAdd` polynomials; exact structural rewrites and exact `UnitaryTransform` conjugation recurse through `QExpr`, while direct numeric matrix functional calculus deliberately requires explicit lowering first. Resolves [#250](https://github.com/qojulia/SecondQuantizedAlgebra.jl/issues/250).
 
 ### Changed (breaking)
 

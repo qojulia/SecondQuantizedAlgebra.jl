@@ -1,7 +1,7 @@
 module SecondQuantizedAlgebra
 
 using SymbolicUtils: SymbolicUtils, simplify, substitute, add_worker
-using Symbolics: Symbolics, Num, expand, @variables, build_function, get_variables, symbolic_to_float
+using Symbolics: Symbolics, Num, expand, taylor, @variables, build_function, get_variables, symbolic_to_float
 using TermInterface: TermInterface
 
 import QuantumInterface
@@ -39,9 +39,13 @@ include("algebra/pipelines.jl")
 include("expressions/index.jl")
 
 include("algebra/algebra.jl")
+include("expressions/qexpr.jl")
+include("expressions/qexpr_structural.jl")
+include("expressions/qexpr_taylor.jl")
 include("algebra/mutable_arithmetics.jl")
 include("algebra/weyl.jl")
 include("algebra/unitary.jl")
+include("algebra/unitary_qexpr.jl")
 include("algebra/unitary_affine.jl")
 include("algebra/unitary_affine_provenance.jl")
 include("algebra/unitary_constructors.jl")
@@ -56,9 +60,11 @@ include("numeric/coeff.jl")
 include("numeric/core.jl")
 include("numeric/indexed.jl")
 include("numeric/api.jl")
+include("numeric/qexpr.jl")
 
 include("printing/printing.jl")
 include("printing/latexify_recipes.jl")
+include("printing/qexpr.jl")
 
 """
     @qnumbers ops...
@@ -120,7 +126,7 @@ export FockSpace, ProductSpace,
     normal_order, normal_to_symmetric, symmetric_to_normal,
     UnitaryTransform, RotatingFrame, Displace, DisplacementFrame, Rotation, Squeeze, Bogoliubov,
     transform, conjugate, gauge_term, generators,
-    simplify, expand, expand_completeness, assume_distinct_index, commutator, anticommutator,
+    simplify, expand, taylor, expim, expand_completeness, assume_distinct_index, commutator, anticommutator,
     to_numeric, numeric_average,
     NumericBackend, QuantumOpticsBackend, QuantumToolboxBackend,
     numeric_operator, numeric_basis, numeric_subbasis, numeric_embed,
@@ -138,12 +144,12 @@ export FockSpace, ProductSpace,
     NumericContext, expect,
     OP_DESTROY, OP_CREATE, OP_TRANSITION, OP_PAULI, OP_SPIN, OP_POSITION, OP_MOMENTUM,
     OP_COLLECTIVE_TRANSITION,
-    QAdd, QTerm, QTermDict, Coeff, CNum, PhaseTerm,
+    QAdd, QTerm, QTermDict, QExpr, Coeff, CNum, PhaseTerm,
     has_sum_metadata, get_sum_indices, get_sum_non_equal, get_sum_body, indexed_sum,
     set_acts_on, rename,
     transition_superscript, constraint_pairs,
     to_num, order_key, term_order_key, qadd_order_key,
-    expim, exponential_form, trigonometric_form, phase_terms
+    exponential_form, trigonometric_form, phase_terms
 
 include("precompile.jl")
 

@@ -111,17 +111,20 @@ function Base.:^(a::QAdd, n::Integer)
 end
 
 """
-    normal_order(expr::QField) -> QAdd
+    normal_order(expr::QField)
 
-Route every term of `expr` through the canonicalization pipeline.
+Route the polynomial parts of `expr` through the canonicalization pipeline.
 
-In practice this is the identity on anything built through public arithmetic:
+For `QSym` and `QAdd` inputs the result is a canonical [`QAdd`](@ref). For a formal
+[`QExpr`](@ref), `normal_order` recurses into its polynomial leaves and preserves the formal
+outer representation; it never introduces a series approximation.
+
+In practice this is the identity on polynomial expressions built through public arithmetic:
 `*`, `+`, `-`, `^`, [`commutator`](@ref), [`Σ`](@ref), [`substitute`](@ref),
-and `adjoint` all canonicalize eagerly, so the result of any such call is
-already normal-ordered. Reach for `normal_order` explicitly only when an
-expression was assembled through low-level internals that bypass the
-arithmetic, or when interfacing with code that expects a finalizer call.
-[`simplify`](@ref) uses it internally before simplifying coefficients.
+and `adjoint` all canonicalize eagerly. Reach for `normal_order` explicitly only when an
+expression was assembled through low-level internals that bypass the arithmetic, or when
+interfacing with code that expects a finalizer call. [`simplify`](@ref) uses it internally
+before simplifying coefficients.
 
 # Examples
 
@@ -195,21 +198,20 @@ function drop_unused_indices(d::QTermDict, indices::Vector{Index})
 end
 
 """
-    simplify(expr::QField) -> QAdd
+    simplify(expr::QField)
 
-Normal-order `expr`, then simplify each coefficient symbolically and drop
-summation indices that no surviving term depends on.
+Normal-order `expr`, then simplify its scalar coefficients symbolically. Polynomial inputs
+return a [`QAdd`](@ref); a formal [`QExpr`](@ref) is rebuilt recursively with the same formal
+function structure.
 
-The operator-level work (commutation, same-site composition, like-term
-collection) all happens inside [`normal_order`](@ref). What `simplify` adds
-on top is purely at the symbolic-coefficient layer: `Symbolics.expand`
-followed by `SymbolicUtils.simplify` runs on each surviving prefactor, and
-any term whose coefficient simplifies to zero is dropped. A final pass
-removes summation indices that no remaining term references.
+The operator-level work (commutation, same-site composition, like-term collection) happens
+inside [`normal_order`](@ref). On `QAdd`, `simplify` additionally runs symbolic coefficient
+simplification, drops terms whose coefficient becomes zero, and removes summation indices no
+remaining term references. The same coefficient simplification is applied recursively to the
+outer coefficients of a `QExpr` without Taylor-expanding its formal functions.
 
-That symbolic step is expensive, so reach for `simplify` as a finalizer
-when cancellations or accumulated symbolic factors need to be folded; use
-`normal_order` for intermediate steps.
+That symbolic step is expensive, so reach for `simplify` as a finalizer when cancellations or
+accumulated symbolic factors need to be folded; use `normal_order` for intermediate steps.
 
 # Examples
 
@@ -254,9 +256,11 @@ trigonometric_form(op::QSym) =
 trigonometric_form(q::QAdd) = map_coefficients(trigonometric_form, q)
 
 """
-    expand(expr::QField) -> QAdd
+    expand(expr::QField)
 
-Expand the symbolic prefactor of each term via `Symbolics.expand`.
+Expand scalar symbolic coefficients via `Symbolics.expand` without expanding formal operator
+functions. Polynomial inputs return a [`QAdd`](@ref); a [`QExpr`](@ref) is rebuilt
+recursively and remains formal.
 
 # Examples
 
@@ -271,7 +275,7 @@ julia> expand((x + y)^2 * a)
 (x^2 + 2x*y + y^2) * a
 ```
 
-See also [`simplify`](@ref).
+See also [`simplify`](@ref), [`taylor`](@ref).
 """
 function Symbolics.expand(s::QAdd; kwargs...)
     d = QTermDict()
@@ -377,9 +381,11 @@ const ZERO_QADD = QAdd(QTermDict(), Index[])
 zero_qadd() = ZERO_QADD
 
 """
-    commutator(a, b) -> QAdd
+    commutator(a, b)
 
-Return the commutator ``[a, b] = a\\,b - b\\,a`` as a [`QAdd`](@ref).
+Return the commutator ``[a, b] = a\\,b - b\\,a``. Polynomial inputs return a canonical
+[`QAdd`](@ref). If either operand is a formal [`QExpr`](@ref), the ordered products remain
+formal and the result is represented as `QExpr` until explicitly lowered.
 
 # Examples
 
@@ -392,7 +398,7 @@ julia> commutator(a, a')
 1
 ```
 
-See also [`anticommutator`](@ref), [`normal_order`](@ref).
+See also [`anticommutator`](@ref), [`normal_order`](@ref), [`taylor`](@ref).
 """
 function commutator end
 
@@ -488,9 +494,11 @@ function merge_into!(d::QTermDict, r::QAdd)
 end
 
 """
-    anticommutator(a, b) -> QAdd
+    anticommutator(a, b)
 
-Return the anticommutator ``\\{a, b\\} = a\\,b + b\\,a`` as a [`QAdd`](@ref).
+Return the anticommutator ``\\{a, b\\} = a\\,b + b\\,a``. Polynomial operator inputs
+produce a canonical [`QAdd`](@ref); formal [`QExpr`](@ref) operands preserve the formal outer
+representation.
 
 # Examples
 

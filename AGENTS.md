@@ -21,13 +21,17 @@ src/numeric/coeff.jl                # _to_complex family, constant folder, param
 src/numeric/core.jl                 # NumericContext, _numeric_leaf, _to_numeric_static/_td
 src/numeric/indexed.jl              # backend-neutral indexed unroll (sites, ne, sub_op/sub_coef)
 src/numeric/api.jl                  # public to_numeric / numeric_average / expect (QI types)
+src/numeric/qexpr.jl                # deliberate numeric refusal for unlowered QExpr
 
 ext/SecondQuantizedAlgebraQuantumOpticsBaseExt.jl  # QuantumOpticsBase backend (vector LazySum)
 ext/SecondQuantizedAlgebraQuantumToolboxExt.jl     # QuantumToolbox backend (VecSum over QobjEvo)
 
-src/expressions/cnum.jl             # CNum = Complex{Num} arithmetic, fast paths, constants
+src/expressions/cnum.jl             # concrete Coeff/CNum arithmetic, fast paths, constants
 src/expressions/qterm.jl            # QTerm struct (ops, ne) — dict key for QAdd
-src/expressions/qadd.jl             # QAdd — dict-based sum (Dict{QTerm, CNum}); TermInterface
+src/expressions/qadd.jl             # QAdd — canonical polynomial sum; TermInterface
+src/expressions/qexpr.jl            # QExpr — cold-path formal non-polynomial expressions
+src/expressions/qexpr_structural.jl # structural rewrites/introspection for QExpr
+src/expressions/qexpr_taylor.jl     # explicit exact-coefficient Taylor lowering to QAdd
 src/expressions/index_types.jl      # Index type, NO_INDEX constant
 src/expressions/index.jl            # IndexedVariable, DoubleIndexedVariable, Σ
 
@@ -44,9 +48,11 @@ src/algebra/algebra.jl              # normal_order(), simplify(), expand_complet
 src/algebra/passes.jl               # _partial_sort!, _reduce_ops, _commute_ops, _expand_gs_ops
 src/algebra/pipelines.jl            # _stream!, _canonicalize!, _emit_product!, _accumulate_with_diag!
 src/algebra/weyl.jl                 # normal_to_symmetric(), symmetric_to_normal()
+src/algebra/unitary_qexpr.jl        # exact UnitaryTransform recursion through QExpr
 
 src/printing/printing.jl            # Unicode display (†, σ subscripts, ℋ)
 src/printing/latexify_recipes.jl    # LaTeX rendering via Latexify.jl
+src/printing/qexpr.jl               # precedence-aware text/LaTeX rendering for QExpr
 ```
 
 ## Type hierarchy
@@ -55,7 +61,8 @@ src/printing/latexify_recipes.jl    # LaTeX rendering via Latexify.jl
 QField (abstract)
 ├── QSym (abstract): sole concrete leaf is `Op`; a `kind::OpKind` tag picks the role
 │   └── Op   (Destroy/Create Fock, Transition NLevel, Pauli, Spin, Position/Momentum Phase)
-└── QAdd                          (dict-based sum: Dict{QTerm, CNum})
+├── QAdd                          (canonical polynomial sum: Dict{QTerm, CNum})
+└── QExpr                         (cold-path formal non-polynomial expression)
 
 QTerm (struct, dict key)          # fields: ops::Vector{Op}, ne::Vector{NonEqualPair}, hash::UInt
 
@@ -70,15 +77,16 @@ HilbertSpace (abstract)
 
 ## Key design decisions
 
-- **Eager canonicalization**: every `*` immediately runs the full pipeline — sort operators to canonical order, reduce same-site pairs algebraically (`_reduce_ops`), commute non-canonical same-site pairs (`_commute_ops`), reduce again to catch any composition the commute residual produced. The result of `a * a'` is already `a'*a + 1`. `normal_order` and `simplify` are idempotent on expressions built via `*`.
+- **Eager canonicalization**: every polynomial `*` immediately runs the full pipeline — sort operators to canonical order, reduce same-site pairs algebraically (`_reduce_ops`), commute non-canonical same-site pairs (`_commute_ops`), reduce again to catch any composition the commute residual produced. The result of `a * a'` is already `a'*a + 1`. `normal_order` and `simplify` are idempotent on polynomial expressions built via `*`. Formal non-polynomial functions enter `QExpr` and do not change this hot path.
 - **Pipeline order is `reduce → commute → reduce`**: the first reduce handles Transition/Pauli same-site composition (these compose, not commute); commute handles Fock/Spin/PhaseSpace ladder pairs; the trailing reduce catches residuals. The Spin commutator emits a contracted-axis operator (e.g. `[Sy, Sx] = -i Sz`) via a uniform 4-tuple `(swap_b, swap_a, residual_coeff, residual_ops)`.
+- **`QAdd` is the polynomial compound representation; `QExpr` is the formal cold layer**: polynomial arithmetic stays in canonical `QAdd`. Calling formal `sin`, `cos`, or Hermitian operator `expim` produces a `QExpr`, which preserves ordered products and exact structural rewrites without changing the `QAdd` storage or canonicalization pipeline. Explicit `taylor(expr, 0:n)` lowers back to `QAdd` when a finite polynomial is required.
 - **`σᵍᵍ` is a canonical atom**: ground-state projectors stay atomic through `*`, `normal_order`, and `simplify`. The completeness identity `σᵍᵍ = 1 - Σ_{k≠g} σᵏᵏ` does not fire automatically. Call `expand_completeness(expr)` explicitly when you want it. This prevents exponential term blowup in dissipator-style expressions.
-- **Single concrete `Op` leaf**: all seven operator roles are one concrete `struct Op <: QSym` with a `kind::OpKind` tag and shared packed fields (`name`, `space_index`, `index`, and `l1,l2,g,nlev::Int32`). `QSym` stays abstract with `Op` as its only subtype so `::QSym` signatures resolve, but `QTerm.ops` is `Vector{Op}` (concrete eltype), so the per-operator hooks dispatch and inline statically. The role names `Destroy`/`Create`/`Transition`/`Pauli`/`Spin`/`Position`/`Momentum` are constructor functions; `is_destroy`/… and `optype` are the exported predicates replacing `isa`. Custom `hash`/`isequal` are mandatory (the default struct hash recurses through the `Index`'s `Num`s and is slower than the old hierarchy).
+- **Single concrete `Op` leaf**: all seven operator roles are one concrete `struct Op <: QSym` with a `kind::OpKind` tag and shared packed fields (`name_id`, `space_index`, `index`, and `l1,l2,g,nlev::Int32`). `QSym` stays abstract with `Op` as its only subtype so `::QSym` signatures resolve, but `QTerm.ops` is `Vector{Op}` (concrete eltype), so the per-operator hooks dispatch and inline statically. The role names `Destroy`/`Create`/`Transition`/`Pauli`/`Spin`/`Position`/`Momentum` are constructor functions; `is_destroy`/… and `optype` are the exported predicates replacing `isa`.
 - **`Transition` carries its own GS info**: the ground state and level count live in the packed `g`/`nlev` fields (with the bra/ket levels in `l1`/`l2`), keeping operators Hilbert-space-decoupled.
 - **`assume_distinct_index(q, pairs)`**: explicit escape hatch when two free indices semantically denote distinct sites but no `Σ` supplies the constraint. Takes a `Vector{Tuple{Index, Index}}` of inequality pairs, augments each term's `ne`, re-canonicalizes, and runs `expand_completeness`.
 - **Free indices outside `Σ` stay `Undetermined`**: two operators with different symbolic indices on the same space, neither bound by a sum, are left in physical order. No same-site collapse fires until `assume_distinct_index` or a `Σ`-driven diagonal split resolves the relationship.
-- **Dict-based term storage**: `QAdd` stores `Dict{QTerm, CNum}` where `QTerm` bundles `ops::Vector{QSym}` with `ne::Vector{NonEqualPair}` index-inequality scope, plus a cached `hash::UInt` (computed once at construction; the key is hashed repeatedly per dict insert/probe/rehash). Like terms are collected on construction.
-- **CNum prefactors**: prefactors are `Complex{Num}` (from Symbolics.jl), not parameterized. Dedicated fast paths in `cnum.jl` short-circuit for numeric (non-symbolic) cases.
+- **Dict-based term storage**: `QAdd` stores `Dict{QTerm, CNum}` where `QTerm` bundles `ops::Vector{Op}` with `ne::Vector{NonEqualPair}` index-inequality scope, plus a cached `hash::UInt` (computed once at construction; the key is hashed repeatedly per dict insert/probe/rehash). Like terms are collected on construction.
+- **CNum prefactors**: `CNum` is the package's concrete `Coeff` scalar layer. Native numbers, optimized parameter polynomials/phases, and a raw symbolic fallback share one concrete representation; `Complex{Num}` is used only at public/numeric boundaries where needed.
 - **Site-indexed operators**: each `Op` carries `space_index` and `index::Index`. Operators interact only if `_same_site(a, b)`.
 - **Five operator hooks**: `_site_compare`, `_can_commute`, `_commute_pair`, `_reduce_pair`, `_ground_state_expand` are each a single `(::Op, ::Op)` method (in `operators.jl`) that branches on `kind`. The algebra talks to operators exclusively through these. A sixth, defaulted hook `_may_reduce(a, b)::Bool` gates the reduce pass (`true` only for `Transition`/`Pauli` pairs). Adding a new operator role means adding an `OP_*` enum arm, a constructor, an `is_*` predicate, and a `kind` branch in each hook plus `adjoint`/`order_key`/`numeric_operator` (per backend extension)/printing. With the concrete `Op` eltype the hooks now infer concrete return types (`_commute_pair`/`_reduce_pair` return `Tuple{Op, …}`), so `_may_reduce`'s original boxing-avoidance role is moot; it remains as a cheap same-site skip.
 - **Concrete struct fields**: all struct fields are concretely typed (enforced by CheckConcreteStructs in tests).
@@ -171,7 +179,7 @@ Before merging any PR:
 - **Comments: compact, why not what.** Default to no comment; add one only for a non-obvious *why*. Keep it to a couple of lines.
 - **Changelog entries: short.** One to two sentences per entry. State what changed and where it matters, not the mechanism.
 - **Devdocs: rationale, not private-function tours.** Explain the design decision and its reason. Do not enumerate the private functions that implement it.
-- 
+-
 ## Performance terminology
 
 Three distinct axes; keep them separate when reporting numbers.
@@ -188,7 +196,7 @@ Three distinct axes; keep them separate when reporting numbers.
 | QuantumInterface | Lightweight owner of `expect`/`basis` and the `Basis`/`AbstractOperator`/`StateVector` types (hard dep) |
 | TensorCore | Owner of the shared `⊗`/`tensor` generic function, imported directly since QuantumInterface 0.4.4 (hard dep) |
 | SymbolicUtils | Symbolic tree traversal interface |
-| Symbolics | Symbolic variables (`@variables`), `Num` type for CNum prefactors |
+| Symbolics | Symbolic variables (`@variables`), `Num` type for scalar symbolic boundaries |
 | TermInterface | `iscall`, `operation`, `arguments` protocol |
 | Latexify | LaTeX rendering recipes |
 | PrecompileTools | `@setup_workload`/`@compile_workload` in `precompile.jl` |

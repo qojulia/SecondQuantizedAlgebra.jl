@@ -4,21 +4,24 @@ This page explains the internal architecture and design rationale of **SecondQua
 
 ## Type hierarchy
 
-```
+```text
 QField (abstract)
 ├── QSym (abstract): atomic operators (leaves)
 │   └── Op: the single concrete leaf; a `kind::OpKind` tag picks the role
 │           Destroy / Create (FockSpace), Transition (NLevelSpace),
 │           CollectiveTransition (CollectiveNLevelSpace),
 │           Pauli (PauliSpace), Spin (SpinSpace), Position / Momentum (PhaseSpace)
-└── QAdd: sum of QTerm products (the only compound type)
+├── QAdd: canonical polynomial sum of QTerm products
+└── QExpr: cold-path formal non-polynomial expression tree
 ```
 
-`QTerm` is the per-entry storage key (operator product + non-equal constraints) used as the dict key inside `QAdd`. There is no abstract `QTerm` supertype; `QAdd` is a `QField` directly.
+`QTerm` is the per-entry storage key (operator product + non-equal constraints) used as the dict key inside `QAdd`. There is no abstract `QTerm` supertype; both `QAdd` and `QExpr` are `QField`s directly.
 
 `QSym` stays abstract with `Op` as its sole subtype so external `::QSym` signatures keep resolving, while the operator *vector* `QTerm.ops` is `Vector{Op}` with a concrete element type. That concrete eltype is the point of the collapse: the per-operator hooks below dispatch and inline statically, where the former subtype hierarchy forced a dynamic dispatch (and a boxed result) on every per-operator call.
 
-**Why `QAdd` is the only compound type.** Earlier versions of the package had both `QMul` (products) and `QAdd` (sums). This created a two-level expression tree where dispatch needed to handle `QSym`, `QMul`, and `QAdd` at every level, and the return type of `*` was unpredictable (`QSym`, `QMul`, or `QAdd` depending on simplification). The redesign collapses this into a single `QAdd` whose internal dictionary is keyed by the full term identity `(ops, ne)` and stores only the prefactor as the value. Every multiplication immediately produces a `QAdd`, giving a uniform return type. This type stability is critical for performance — the Julia compiler can infer return types through chains of arithmetic, avoiding dynamic dispatch and heap-allocated boxes at every intermediate step. The exact-key representation also keeps like-term collection honest: only terms with the same operator string *and* the same scoped constraints are merged.
+**Why `QAdd` remains the polynomial hot path.** Earlier versions of the package had both `QMul` (products) and `QAdd` (sums). This created a two-level polynomial expression tree where dispatch needed to handle `QSym`, `QMul`, and `QAdd` at every level, and the return type of `*` was unpredictable (`QSym`, `QMul`, or `QAdd` depending on simplification). The redesign collapses polynomial algebra into a single `QAdd` whose internal dictionary is keyed by the full term identity `(ops, ne)` and stores only the prefactor as the value. Every ordinary polynomial multiplication immediately produces a `QAdd`, giving a uniform return type. This type stability is critical for performance — the Julia compiler can infer return types through chains of arithmetic, avoiding dynamic dispatch and heap-allocated boxes at every intermediate step. The exact-key representation also keeps like-term collection honest: only terms with the same operator string *and* the same scoped constraints are merged.
+
+`QExpr` does not undo that redesign. It is entered only for genuinely non-polynomial operations such as `sin`, `cos`, and `expim` that cannot be represented exactly by a finite `QAdd`. Formal products preserve noncommutative factor order and are not implicitly distributed. Structural operations recurse through this cold layer, while `taylor(expr, 0:n)` is the explicit lowering boundary back to the canonical `QAdd` algebra. The cutoff is applied independently at each formal-function node, not as a global total-degree cutoff across a whole expression.
 
 
 ## Operator struct layout
@@ -90,7 +93,7 @@ axis (1=x, 2=y, 3=z) from `l1`. `CollectiveTransition` also reads `l1`/`l2`,
 but leaves `g`/`nlev` zero because it has no completeness expansion. Fock and
 PhaseSpace operators ignore the packed fields entirely.
 
-**The five operator hooks.** The whole algebra talks to operators through five
+**The five operator hooks.** The whole polynomial algebra talks to operators through five
 methods. After the collapse each is a single `(::Op, ::Op)` method that branches
 on `kind` (in `operators/operators.jl`), rather than the former
 one-method-per-subtype-pair. They are the entire interface; everything else
@@ -209,6 +212,31 @@ end
 **Dead-NE invariant.** Every `QTerm.ne` pair must reference at least one index that the term can observe: either some operator in `term.ops` carries that index, the coefficient `c::CNum` depends on it (e.g. an `IndexedVariable` factor), or it appears in the enclosing `QAdd.indices` (sum scope). Pairs failing all three tests encode nothing observable, would only obstruct dict dedup, and so must not survive storage. The `QAdd` inner constructor enforces this by calling `_prune_dead_ne(arguments, indices)`: it walks every term, drops the dead pairs through `_addto_key!` (which performs the like-term merge if dead-stripped keys collide), and is idempotent on already-clean input (no rebuild, no allocation). Algebraic code that constructs `QAdd`s does not need to clean up NE manually; the constructor does it. The predicate is `_depends_on_index_term`, the same one used everywhere else NE/scope dependence is queried, so the rule stays consistent with `_canonicalize!` and `_emit_scaled_by_scope!`.
 
 
+## Formal `QExpr` layer
+
+`QExpr` is deliberately a cold-path wrapper above the canonical polynomial algebra:
+
+```julia
+@enum QExprKind::UInt8 QEXPR_ADD QEXPR_MUL QEXPR_SIN QEXPR_COS QEXPR_EXPIM
+
+struct QExpr <: QField
+    kind::QExprKind
+    coeff::CNum
+    args::Vector{Union{QAdd, QExpr}}
+end
+```
+
+A `QExpr` therefore never replaces a polynomial `QAdd`. Polynomial leaves stay as complete canonical `QAdd`s, while the formal tree records only the structure that cannot be represented finitely: sums/products involving formal nodes and the supported function applications. The outer coefficient remains the same `CNum` scalar layer used by `QAdd`; structurally identical formal terms can therefore collect and cancel without introducing a second scalar algebra.
+
+The representation keeps noncommutativity explicit. `QEXPR_MUL` preserves factor order, and multiplication does not distribute over a formal sum merely to obtain another tree shape. Polynomial work still flows through the ordinary `QAdd` canonicalization pipeline before it enters a formal node. Structural operations such as `adjoint`, `substitute`, `change_index`, `normal_order`, `simplify`, `expand`, `expand_completeness`, and index/operator introspection recurse through the formal tree and delegate polynomial leaves back to their existing implementations.
+
+`sin`, `cos`, and `expim` are the current public constructors into this layer. `expim` is accepted only for a provably Hermitian operator argument. Exact `UnitaryTransform` conjugation acts structurally, so `conjugate(f(A), U)` becomes `f(conjugate(A, U))` rather than invoking a BCH expansion.
+
+Taylor expansion is an explicit lowering operation, not an implicit property of `QExpr`: `taylor(expr, 0:n)` replaces each supported formal-function node by its Maclaurin polynomial through power `n` and returns canonical polynomial algebra. The `0:n` cutoff applies independently to every formal-function node; it is not a global total-degree truncation. Non-prefix ranges, nested formal-function arguments, and function arguments carrying bound `QAdd` summation scope are rejected deliberately rather than assigned hidden semantics.
+
+An unlowered `QExpr` is also a deliberate numeric boundary. Direct `to_numeric`, `numeric_average`, and `expect` refuse it and direct users to `taylor(expr, 0:n)`; exact backend matrix functional calculus is a separate feature. This keeps the finite polynomial hot path and the backend conversion contract unchanged.
+
+
 ## Additive reductions
 
 Folding many `QAdd`s with `Base.:+` is O(n²): every `+(QAdd, …)` first calls `_copy_args` to clone the whole backing dict before inserting, so `t1 + t2 + … + tn`, `sum`, and `reduce(+, …)` copy the growing accumulator on every step. `Base.:+` keeps that copy on purpose (value semantics: both operands are user-held, so a single op must not mutate them).
@@ -237,7 +265,6 @@ Sorting is driven by a three-way comparator. Two operators have one of three sit
 **Why a stable insertion sort.** `_partial_sort!` is the only function in the package that ever reorders `ops`. It swaps adjacent pairs only when `_site_compare` returns `Greater`; `Equal` and `Undetermined` are left in their incoming physical order (their order encodes non-commutative multiplication that the sibling passes will interpret). Insertion sort is stable by construction and `O(n)` on the near-sorted inputs the algebra produces in practice.
 
 For example, `[a_fock, σ²¹_i, b_fock, σ¹²_j]` with `i, j` symbolic indices on the same atom space and no `ne` constraint resolving them partial-sorts to `[a_fock, b_fock, σ²¹_i, σ¹²_j]`: the two Fock operators move to the front (they are distinct from the σs), the two σs stay in their physical order (undetermined relative to each other).
-
 
 ## The canonicalization pipeline
 
@@ -281,6 +308,8 @@ The pipeline establishes the **canonical-form invariant**: `ops` is in partial-c
 The package exposes four entry points that combine the pipeline above in different ways.
 
 `normal_order(expr)` re-streams each term through `_stream!`. Eager `*` already produces canonical form, so on the output of `*` it is idempotent; it earns its keep as a finalizer for hand-constructed expressions and as the second half of `simplify`. `simplify(expr)` runs `normal_order` and then walks the resulting terms once more, applying `Symbolics.simplify` to each coefficient and dropping summation indices that no surviving term depends on. The expensive per-coefficient simplification deliberately lives in this outer pass rather than inside the streaming pipeline: it runs once per surviving term, not on every dict insertion. `expand(expr)` distributes symbolic prefactors only — `(a + b)² → a² + 2ab + b²` — and leaves the operator structure untouched. `expand_completeness(expr)` applies the ground-state identity, described below.
+
+For `QExpr`, these entry points recurse structurally through the formal tree and invoke the ordinary `QAdd` implementation on polynomial leaves. They do not implicitly Taylor-expand a formal function or distribute a formal product into a new polynomial representation.
 
 `commutator(a, b)` is `a*b - b*a` in the general case, with a fast path on `QSym × QSym`: when exactly one direction of the pair is non-canonical, the commutator equals the residuals returned by `_commute_pair`, so the call short-circuits without running the full pipeline twice and a subtraction.
 
@@ -364,7 +393,7 @@ end
 
 ## Averaging
 
-`average(expr)` converts operator expressions into symbolic scalars (SymbolicUtils `Term` nodes):
+`average(expr)` converts polynomial operator expressions into symbolic scalars (SymbolicUtils `Term` nodes). Unlowered `QExpr` averaging/closure semantics are intentionally not defined; lower a formal expression explicitly before entering this layer.
 
 ```julia
 struct AvgFunc end                        # singleton callable, the "operation"
@@ -400,7 +429,9 @@ The scope rides as a `SumScope` *argument* of the `Term`, not as metadata, becau
 
 The backend-neutral core in `src/numeric/` never names a concrete numeric type.
 QuantumOpticsBase and QuantumToolbox support lives in package extensions under `ext/`, so
-the symbolic algebra can be loaded without either package.
+the symbolic algebra can be loaded without either package. Unlowered `QExpr` is refused at
+this boundary; use `taylor(expr, 0:n)` before numeric conversion until direct backend matrix
+functional calculus is implemented.
 
 ### [Adding a numeric backend](@id numeric-backend-interface)
 
@@ -511,6 +542,8 @@ Two exported helpers handle Hermitian conjugation on mixed operator/symbolic exp
 - **`qadjoint(x)`** (aliased as `qconj`): Hermitian conjugate that distributes through `SymbolicUtils.BasicSymbolic` trees and dispatches to `adjoint` on `QField` and `Number`. Distinct from `Base.conj`, which on a `BasicSymbolic` returns an opaque `conj(...)` wrapper instead of recursing into arguments; the distributed form is needed by downstream hashing and substitution machinery. `dagger` is *not* a plain alias: it is a `QField`-only method added to `QuantumInterface.dagger` (the adjoint verb the QuantumOptics ecosystem shares) so it resolves without qualification when both are loaded, forwarding to `qadjoint`. Scalar/symbolic adjoints go through `qadjoint`/`qconj`, never `dagger`.
 - **`inner_adjoint(x)`**: Pushes the adjoint *inside* `AvgFunc` nodes, rewriting `conj(⟨X⟩)` as `⟨X†⟩`. Used when building equations of motion where both sides must share the canonical "average-of-operator" form. Also collapses nested `conj(avg(...))` by recursing into the argument.
 
+For a formal `QExpr`, ordinary `adjoint`/`qadjoint` is structural: products reverse factor order, scalar coefficients conjugate, and the supported function nodes rebuild around the adjointed argument with the appropriate function identity. This stays exact and does not lower the expression.
+
 These cannot be wired directly to `Base.conj`/`Base.adjoint` on `SymbolicUtils.BasicSymbolic` because that would be type piracy — defining methods on `Base` functions for a type we don't own. Downstream packages (QuantumCumulants.jl, QuantumInputOutput.jl) call these explicitly.
 
 
@@ -526,8 +559,8 @@ SQA carries three orderings that must not be conflated, because each answers a d
 
 ## Printing and LaTeX
 
-**Terminal printing** uses Unicode: `†` for dagger, subscript digits (`₀`-`₉`) for Transition and CollectiveTransition levels, `σx`/`σy`/`σz` for Pauli axes. Summations render as `Σ(i=1:N)`.
+**Terminal printing** uses Unicode: `†` for dagger, subscript digits (`₀`-`₉`) for Transition and CollectiveTransition levels, `σx`/`σy`/`σz` for Pauli axes. Summations render as `Σ(i=1:N)`. `QExpr` rendering preserves formal-function and noncommutative-product precedence; function arguments that could be ambiguous are grouped explicitly.
 
-**`sorted_arguments`** ensures deterministic output order. The sort key is `(length(ops), full_op_keys...)` where `_full_op_key(op) = (_sort_key(op)..., _type_order(op), op.name)`. This gives: shorter terms first, then by site, then by type (Destroy < Create < Transition < Pauli < Spin < Position < Momentum < CollectiveTransition), then by name.
+**`sorted_arguments`** ensures deterministic `QAdd` output order. The sort key is `(length(ops), full_op_keys...)` where `_full_op_key(op) = (_sort_key(op)..., _type_order(op), op.name)`. This gives: shorter terms first, then by site, then by type (Destroy < Create < Transition < Pauli < Spin < Position < Momentum < CollectiveTransition), then by name.
 
-**LaTeX** uses Latexify.jl's `@latexrecipe` macro. `transition_superscript(::Bool)` toggles the global `transition_idx_script` `Ref` between `:^` and `:_`, controlling whether Transition and CollectiveTransition level indices render as superscripts (`{name}^{{ij}}`) or subscripts (`{name}_{{ij}}`).
+**LaTeX** uses Latexify.jl's `@latexrecipe` macro. `transition_superscript(::Bool)` toggles the global `transition_idx_script` `Ref` between `:^` and `:_`, controlling whether Transition and CollectiveTransition level indices render as superscripts (`{name}^{{ij}}`) or subscripts (`{name}_{{ij}}`). The QExpr recipe mirrors the text printer's precedence rules for formal functions and ordered products.
