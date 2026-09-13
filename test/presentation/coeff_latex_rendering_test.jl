@@ -40,7 +40,7 @@ end
     \end{equation}
     """
     @test String(latexify(M)) == matrix_tex
-    @test repr(MIME"text/latex"(), M) == matrix_tex
+    @test repr(MIME"text/latex"(), M) == "\$\$ " * matrix_tex * " \$\$"
 
     # One column per prefactor branch: pure imaginary, mixed, and native zero.
     v = [to_cnum(2im), to_cnum(E + im * γ), to_cnum(0)]
@@ -56,5 +56,5 @@ end
     \end{equation}
     """
     @test String(latexify(v)) == vector_tex
-    @test repr(MIME"text/latex"(), v) == vector_tex
+    @test repr(MIME"text/latex"(), v) == "\$\$ " * vector_tex * " \$\$"
 end

@@ -323,7 +323,7 @@ end
     \end{equation}
     """
     @test String(latexify(v)) == vector_tex
-    @test repr(MIME"text/latex"(), v) == vector_tex
+    @test repr(MIME"text/latex"(), v) == "\$\$ " * vector_tex * " \$\$"
 
     # An indexed `QAdd` reaches `latexraw` per element too, so its recipe must also
     # return an `Expr` rather than a bare symbolic value.
@@ -341,5 +341,5 @@ end
     \end{equation}
     """
     @test String(latexify(sum_v)) == sum_tex
-    @test repr(MIME"text/latex"(), sum_v) == sum_tex
+    @test repr(MIME"text/latex"(), sum_v) == "\$\$ " * sum_tex * " \$\$"
 end
