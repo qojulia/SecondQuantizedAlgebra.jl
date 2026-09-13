@@ -2,7 +2,7 @@ using SecondQuantizedAlgebra
 using Symbolics: @variables, unwrap
 using Test
 
-import SecondQuantizedAlgebra: QAdd, QExpr, expim
+import SecondQuantizedAlgebra: QAdd, QExpr, QUnaryArgs, expim
 
 @testset "Formal operator expressions" begin
     h = FockSpace(:f)
@@ -15,9 +15,10 @@ import SecondQuantizedAlgebra: QAdd, QExpr, expim
 
     @test cA isa QExpr
     @test sA isa QExpr
-    @test cA.args isa Tuple
-    @test sA.args isa Tuple
-    @test (2 * cA).args isa Tuple
+    @test cA.args isa QUnaryArgs{QAdd}
+    @test sA.args isa QUnaryArgs{QAdd}
+    @test (2 * cA).args isa QUnaryArgs{QAdd}
+    @test cos(cA).args isa QUnaryArgs{QExpr}
     @test (cA + sA).args isa Vector
     @test (a * cA).args isa Vector
     @test @inferred((a + a')^4) isa QAdd
