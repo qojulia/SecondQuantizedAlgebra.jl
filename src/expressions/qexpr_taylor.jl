@@ -34,6 +34,8 @@ function taylor_inverse_denominator(denominator::BigInt)::CNum
     return to_cnum(big(1) // denominator)
 end
 
+@inline taylor_scale(q::QAdd, c::CNum) = isequal(c, CNUM_ONE) ? q : q * c
+
 lower_polynomial_arg(q::QAdd) = q
 
 function lower_polynomial_arg(q::QExpr)::QAdd
@@ -42,11 +44,12 @@ function lower_polynomial_arg(q::QExpr)::QAdd
         for arg in q.args
             accumulate!(builder, lower_polynomial_arg(arg))
         end
-        return build(builder) * q.coeff
+        return build(builder)
     elseif q.kind == QEXPR_MUL
-        result = single_qadd(q.coeff, EMPTY_OPS)
-        for arg in q.args
-            result = result * lower_polynomial_arg(arg)
+        isempty(q.args) && return single_qadd(q.coeff, EMPTY_OPS)
+        result = taylor_scale(lower_polynomial_arg(first(q.args)), q.coeff)
+        @inbounds for i in 2:length(q.args)
+            result = result * lower_polynomial_arg(q.args[i])
         end
         return result
     end
@@ -141,24 +144,33 @@ function lower_taylor_qexpr(q::QExpr, order::Int, cache::Dict{QExpr, QAdd})::QAd
         for arg in q.args
             accumulate!(builder, lower_taylor_arg(arg, order, cache))
         end
-        build(builder) * q.coeff
+        build(builder)
     elseif q.kind == QEXPR_MUL
-        product = single_qadd(q.coeff, EMPTY_OPS)
-        for arg in q.args
-            product = product * lower_taylor_arg(arg, order, cache)
+        if isempty(q.args)
+            single_qadd(q.coeff, EMPTY_OPS)
+        else
+            product = taylor_scale(lower_taylor_arg(first(q.args), order, cache), q.coeff)
+            @inbounds for i in 2:length(q.args)
+                product = product * lower_taylor_arg(q.args[i], order, cache)
+            end
+            product
         end
-        product
     else
         argument = taylor_function_argument(getfield(q, :storage)::QExprArg)
-        taylor_function(q.kind, argument, order) * q.coeff
+        taylor_scale(taylor_function(q.kind, argument, order), q.coeff)
     end
 
     cache[q] = result
     return result
 end
 
-lower_taylor_qexpr(q::QExpr, order::Int)::QAdd =
-    lower_taylor_qexpr(q, order, Dict{QExpr, QAdd}())
+function lower_taylor_qexpr(q::QExpr, order::Int)::QAdd
+    if q.kind == QEXPR_SIN || q.kind == QEXPR_COS || q.kind == QEXPR_EXPIM
+        argument = taylor_function_argument(getfield(q, :storage)::QExprArg)
+        return taylor_scale(taylor_function(q.kind, argument, order), q.coeff)
+    end
+    return lower_taylor_qexpr(q, order, Dict{QExpr, QAdd}())
+end
 
 """
     taylor(expr::QExpr, ns::UnitRange{<:Integer}) -> QAdd
