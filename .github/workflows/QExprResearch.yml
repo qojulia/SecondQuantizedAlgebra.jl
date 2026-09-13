@@ -1,0 +1,73 @@
+name: QExpr Research A/B
+
+on:
+  push:
+    branches:
+      - 'research/qexpr-static-nodes'
+    paths:
+      - '.github/workflows/QExprResearch.yml'
+      - 'src/**'
+      - 'benchmark/operator_functions.jl'
+      - 'benchmark/run_qexpr_research.jl'
+      - 'benchmark/compare_two.jl'
+      - 'benchmark/Project.toml'
+      - 'Project.toml'
+
+jobs:
+  compare:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout research head
+        uses: actions/checkout@v7
+        with:
+          path: target
+
+      - name: Checkout PR 272 reference
+        uses: actions/checkout@v7
+        with:
+          ref: 3eda7be7573a3a32ae0f8f607f3bf5b7eef900af
+          path: baseline
+
+      - uses: julia-actions/setup-julia@v3
+        with:
+          version: 'lts'
+          arch: x64
+
+      - uses: julia-actions/cache@v3
+
+      - name: Instantiate benchmark environment
+        working-directory: target/benchmark
+        run: |
+          julia --project --threads=1 --gcthreads=1 --color=yes -e '
+            using Pkg
+            Pkg.develop(PackageSpec(path=abspath("../../baseline")))
+            Pkg.instantiate()'
+
+      - name: Benchmark PR 272 reference
+        working-directory: target/benchmark
+        run: |
+          julia --project --threads=1 --gcthreads=1 --color=yes \
+            run_qexpr_research.jl baseline.json
+
+      - name: Benchmark research head
+        working-directory: target/benchmark
+        run: |
+          julia --project --threads=1 --gcthreads=1 --color=yes -e '
+            using Pkg
+            Pkg.develop(PackageSpec(path=abspath("..")))'
+          julia --project --threads=1 --gcthreads=1 --color=yes \
+            run_qexpr_research.jl target.json
+
+      - name: Compare
+        working-directory: target/benchmark
+        run: |
+          julia --project --threads=1 --gcthreads=1 --color=yes \
+            compare_two.jl baseline.json target.json
+
+      - name: Upload raw results
+        uses: actions/upload-artifact@v4
+        with:
+          name: qexpr-research-benchmarks
+          path: |
+            target/benchmark/baseline.json
+            target/benchmark/target.json
