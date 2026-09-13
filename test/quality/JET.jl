@@ -74,6 +74,8 @@ end
         @variables θ::Real ω::Real t::Real
         U = Rotation(a, θ)
         Ut = Rotation(a, ω * t, t)
+        A = a + ad
+        F = cos(A)
 
         @variables u::Number v::Number
         bogo_matrix = [u v; conj(v) conj(u)]
@@ -112,9 +114,16 @@ end
                 # MutableArithmetics additive reductions
                 ("sum([a'*a, a*a', a'*a])", () -> sum([ad * a, a * ad, ad * a])),
                 ("reduce(+, [a'*a, a*a', a'*a])", () -> reduce(+, [ad * a, a * ad, ad * a])),
+                # Formal operator-expression cold path.
+                ("cos(a + a')", () -> cos(A)),
+                ("sin(a + a')", () -> sin(A)),
+                ("expim(a + a')", () -> expim(A)),
+                ("substitute(cos(A), Dict(a=>a'))", () -> substitute(F, Dict(a => ad))),
+                ("taylor(cos(A), 0:4)", () -> taylor(F, 0:4)),
                 # Exact unitary-transform public entry points.
                 ("Rotation(a, θ)", () -> Rotation(a, θ)),
                 ("conjugate(a, U)", () -> conjugate(a, U)),
+                ("conjugate(cos(A), U)", () -> conjugate(F, U)),
                 ("transform(a'*a, Ut)", () -> transform(ad * a, Ut)),
                 ("inv(U)", () -> inv(U)),
                 ("U * Ut", () -> U * Ut),
