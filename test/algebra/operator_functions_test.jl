@@ -12,16 +12,22 @@ import SecondQuantizedAlgebra: QAdd, QExpr, expim
     A = a + a'
     cA = @inferred cos(A)
     sA = @inferred sin(A)
+    ccA = @inferred cos(cA)
+    formal_pair = @inferred cA + sA
+    left_product = @inferred a * cA
 
     @test cA isa QExpr
     @test sA isa QExpr
+    @test ccA isa QExpr
+    @test formal_pair isa QExpr
+    @test left_product isa QExpr
     @test getfield(cA, :storage) isa QAdd
     @test getfield(sA, :storage) isa QAdd
     @test only(cA.args) isa QAdd
-    @test only(cos(cA).args) isa QExpr
-    @test getfield(cos(cA), :storage) isa QExpr
-    @test getfield(cA + sA, :storage) isa Vector
-    @test getfield(a * cA, :storage) isa Vector
+    @test only(ccA.args) isa QExpr
+    @test getfield(ccA, :storage) isa QExpr
+    @test getfield(formal_pair, :storage) isa Vector
+    @test getfield(left_product, :storage) isa Vector
     @test propertynames(cA) == (:kind, :coeff, :args)
     @test_throws ErrorException setfield!(cA, :coeff, cA.coeff)
     @test @inferred((a + a')^4) isa QAdd
@@ -74,6 +80,7 @@ import SecondQuantizedAlgebra: QAdd, QExpr, expim
     @test @inferred(expim(θ * A)) isa QExpr
     @test_throws ArgumentError expim(a)
 
+    @test @inferred(adjoint(cA)) isa QExpr
     @test adjoint(adjoint(cA)) == cA
     @test adjoint(adjoint(sA)) == sA
     @test adjoint(adjoint(expim(A))) == expim(A)
