@@ -14,6 +14,10 @@ on:
       - 'benchmark/Project.toml'
       - 'Project.toml'
 
+concurrency:
+  group: qexpr-research-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   compare:
     runs-on: ubuntu-latest
