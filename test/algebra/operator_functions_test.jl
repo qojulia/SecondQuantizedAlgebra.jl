@@ -15,6 +15,11 @@ import SecondQuantizedAlgebra: QAdd, QExpr, expim
 
     @test cA isa QExpr
     @test sA isa QExpr
+    @test cA.args isa Tuple
+    @test sA.args isa Tuple
+    @test (2 * cA).args isa Tuple
+    @test (cA + sA).args isa Vector
+    @test (a * cA).args isa Vector
     @test @inferred((a + a')^4) isa QAdd
 
     @test zero(cA) == zero(QExpr)
