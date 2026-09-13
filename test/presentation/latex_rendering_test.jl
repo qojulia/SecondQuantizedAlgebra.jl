@@ -307,3 +307,39 @@ adf = af'
             "\\begin{equation}\n\\underset{i{\\neq}j}{\\overset{N}{\\sum}}\\langle a_{i} \\rangle\\left( t \\right)\n\\end{equation}\n"
     end
 end
+
+@testset "Operator arrays render as LaTeX arrays" begin
+    @variables g N
+
+    v = [af, g * adf * af]
+    vector_tex = raw"""
+    \begin{equation}
+    \left[
+    \begin{array}{c}
+    a \\
+    g a^{\dagger}a \\
+    \end{array}
+    \right]
+    \end{equation}
+    """
+    @test String(latexify(v)) == vector_tex
+    @test repr(MIME"text/latex"(), v) == vector_tex
+
+    # An indexed `QAdd` reaches `latexraw` per element too, so its recipe must also
+    # return an `Expr` rather than a bare symbolic value.
+    h = FockSpace(:c)
+    i = Index(h, :i, 10, h)
+    ai = IndexedOperator(Destroy(h, :a), i)
+    sum_v = [Σ(g * ai' * ai, i)]
+    sum_tex = raw"""
+    \begin{equation}
+    \left[
+    \begin{array}{c}
+    \underset{i}{\overset{10}{\sum}}g a_{i}^{\dagger}a_{i} \\
+    \end{array}
+    \right]
+    \end{equation}
+    """
+    @test String(latexify(sum_v)) == sum_tex
+    @test repr(MIME"text/latex"(), sum_v) == sum_tex
+end

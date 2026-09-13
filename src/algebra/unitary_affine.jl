@@ -107,23 +107,8 @@ function reduce_affine(c::CNum, relations::Vector{ParamRelation}, scratch::Vecto
     return reduce_all(c, relations, true, scratch)
 end
 
-function dagger_linear(linear::Matrix{CNum})
-    n, m = size(linear)
-    out = Matrix{CNum}(undef, m, n)
-    for j in 1:m, i in 1:n
-        out[j, i] = conj_cnum(linear[i, j])
-    end
-    return out
-end
-
-function transpose_linear(linear::Matrix{CNum})
-    n, m = size(linear)
-    out = Matrix{CNum}(undef, m, n)
-    for j in 1:m, i in 1:n
-        out[j, i] = linear[i, j]
-    end
-    return out
-end
+dagger_linear(linear::Matrix{CNum}) = Matrix{CNum}(linear')
+transpose_linear(linear::Matrix{CNum}) = Matrix{CNum}(transpose(linear))
 
 function inverse_bosonic_nambu(linear::Matrix{CNum})
     n = size(linear, 1)
