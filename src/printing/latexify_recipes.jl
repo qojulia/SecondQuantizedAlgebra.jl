@@ -236,4 +236,4 @@ end
 const QLaTeX = Union{QField, Coeff}
 Base.show(io::IO, ::MIME"text/latex", x::QLaTeX) = write(io, latexify(x))
 Base.show(io::IO, ::MIME"text/latex", x::AbstractArray{<:QLaTeX}) =
-    print(io, "\$\$ ", latexify(x), " \$\$")
+    print(io, "\$\$ ", latexify(x; env = :raw), " \$\$")
