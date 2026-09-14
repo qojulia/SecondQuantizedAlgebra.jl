@@ -312,18 +312,16 @@ end
     @variables g N
 
     v = [af, g * adf * af]
-    vector_tex = raw"""
-    \begin{equation}
+    vector_body = raw"""
     \left[
     \begin{array}{c}
     a \\
     g a^{\dagger}a \\
     \end{array}
-    \right]
-    \end{equation}
-    """
+    \right]"""
+    vector_tex = "\\begin{equation}\n" * vector_body * "\n\\end{equation}\n"
     @test String(latexify(v)) == vector_tex
-    @test repr(MIME"text/latex"(), v) == "\$\$ " * vector_tex * " \$\$"
+    @test repr(MIME"text/latex"(), v) == "\$\$ " * vector_body * " \$\$"
 
     # An indexed `QAdd` reaches `latexraw` per element too, so its recipe must also
     # return an `Expr` rather than a bare symbolic value.
@@ -331,15 +329,13 @@ end
     i = Index(h, :i, 10, h)
     ai = IndexedOperator(Destroy(h, :a), i)
     sum_v = [Σ(g * ai' * ai, i)]
-    sum_tex = raw"""
-    \begin{equation}
+    sum_body = raw"""
     \left[
     \begin{array}{c}
     \underset{i}{\overset{10}{\sum}}g a_{i}^{\dagger}a_{i} \\
     \end{array}
-    \right]
-    \end{equation}
-    """
+    \right]"""
+    sum_tex = "\\begin{equation}\n" * sum_body * "\n\\end{equation}\n"
     @test String(latexify(sum_v)) == sum_tex
-    @test repr(MIME"text/latex"(), sum_v) == "\$\$ " * sum_tex * " \$\$"
+    @test repr(MIME"text/latex"(), sum_v) == "\$\$ " * sum_body * " \$\$"
 end

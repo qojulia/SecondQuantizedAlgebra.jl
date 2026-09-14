@@ -28,33 +28,29 @@ end
 
     M = fill(to_cnum(0), 3, 3)
     M[2, 2] = to_cnum(0.25 * E^4 * γ / ω^4)
-    matrix_tex = raw"""
-    \begin{equation}
+    matrix_body = raw"""
     \left[
     \begin{array}{ccc}
     0 & 0 & 0 \\
     0 & \frac{0.25 ~ E^{4} ~ \gamma}{\omega^{4}} & 0 \\
     0 & 0 & 0 \\
     \end{array}
-    \right]
-    \end{equation}
-    """
+    \right]"""
+    matrix_tex = "\\begin{equation}\n" * matrix_body * "\n\\end{equation}\n"
     @test String(latexify(M)) == matrix_tex
-    @test repr(MIME"text/latex"(), M) == "\$\$ " * matrix_tex * " \$\$"
+    @test repr(MIME"text/latex"(), M) == "\$\$ " * matrix_body * " \$\$"
 
     # One column per prefactor branch: pure imaginary, mixed, and native zero.
     v = [to_cnum(2im), to_cnum(E + im * γ), to_cnum(0)]
-    vector_tex = raw"""
-    \begin{equation}
+    vector_body = raw"""
     \left[
     \begin{array}{c}
     2\mathit{i} \\
     E + \gamma ~ \mathit{i} \\
     0 \\
     \end{array}
-    \right]
-    \end{equation}
-    """
+    \right]"""
+    vector_tex = "\\begin{equation}\n" * vector_body * "\n\\end{equation}\n"
     @test String(latexify(v)) == vector_tex
-    @test repr(MIME"text/latex"(), v) == "\$\$ " * vector_tex * " \$\$"
+    @test repr(MIME"text/latex"(), v) == "\$\$ " * vector_body * " \$\$"
 end
