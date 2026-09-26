@@ -137,7 +137,9 @@ explicit exponential/trigonometric conversion, and automatic coefficient identit
 
 ## Algebraic expressions and commutation relations
 
-All operator expressions are stored as [`QAdd`](@ref), a dictionary mapping operator sequences to prefactors. Commutation rules are applied **eagerly** at construction time: every `*` immediately normal-orders the result, applies algebraic identities (Transition composition, Pauli products), and expands ground-state completeness. The dict key always reflects the canonical form.
+Finite polynomial operator expressions are stored as [`QAdd`](@ref), a dictionary mapping canonical operator sequences to prefactors. Commutation rules are applied **eagerly** on this polynomial hot path: every `*` immediately normal-orders the result, applies algebraic identities (Transition composition, Pauli products), and expands ground-state completeness. The dict key always reflects the canonical form.
+
+Formal non-polynomial operator functions such as `sin(A)`, `cos(A)`, and `expim(A)` use the separate cold-path [`QExpr`](@ref) representation. They are not expanded implicitly. Call [`taylor`](@ref), for example `taylor(cos(A), 0:4)`, when a finite polynomial approximation is wanted; the result is again a canonical `QAdd`. See [Formal Operator Functions](operator_functions.md) for the exact/lowered boundary.
 
 ```@example ordering
 using SecondQuantizedAlgebra # hide
@@ -215,7 +217,7 @@ to_numeric(op, h, dims; backend = QuantumToolboxBackend())
 ```
 
 This Hilbert-space form is the portable API. Backend-native basis or dimension forms remain
-available as conveniences.
+available as conveniences. Direct matrix functional calculus for an unlowered `QExpr` is not part of the current numeric API: first call `taylor(expr, 0:n)` and convert the resulting `QAdd`.
 
 ### Direct conversion
 

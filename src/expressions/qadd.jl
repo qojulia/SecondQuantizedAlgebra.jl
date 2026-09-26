@@ -1,14 +1,18 @@
 """
     QAdd <: QField
 
-The sole compound expression type: a sum of eagerly-ordered operator products.
+Canonical polynomial expression type: a sum of eagerly ordered operator products.
 
-All arithmetic on [`QSym`](@ref) operators produces a `QAdd`. Iterating over a
-`QAdd` yields `Pair{QTerm, CNum}` entries; read `term.ops` for the operator
+All polynomial arithmetic on [`QSym`](@ref) operators produces a `QAdd`; this remains the
+hot path for finite second-quantized polynomials. Non-polynomial operator functions such as
+`sin(A)`, `cos(A)`, and `expim(A)` use the separate cold-path [`QExpr`](@ref) representation
+until explicitly lowered with [`taylor`](@ref).
+
+Iterating over a `QAdd` yields `Pair{QTerm, CNum}` entries; read `term.ops` for the operator
 sequence and `term.ne` for the scoped index constraints.
 
-See also [`QTerm`](@ref), [`get_prefactor`](@ref), [`get_operators`](@ref), [`Σ`](@ref),
-[`constraint_pairs`](@ref).
+See also [`QExpr`](@ref), [`QTerm`](@ref), [`get_prefactor`](@ref), [`get_operators`](@ref),
+[`Σ`](@ref), [`constraint_pairs`](@ref).
 """
 struct QAdd <: QField
     arguments::QTermDict

@@ -3,27 +3,30 @@
 
 Abstract supertype for all second-quantized operator expressions.
 
-Subtypes:
-- [`QSym`](@ref): leaf operators (e.g. [`Destroy`](@ref), [`Create`](@ref), [`Transition`](@ref))
-- [`QAdd`](@ref): compound expressions (a sum of [`QTerm`](@ref) products)
+Expression layers:
+- [`QSym`](@ref): atomic operator leaves; [`Op`](@ref) is the sole concrete subtype.
+- [`QAdd`](@ref): canonical polynomial expressions, stored as sums of [`QTerm`](@ref)
+  operator products. Ordinary polynomial arithmetic stays on this eager hot path.
+- [`QExpr`](@ref): cold-path formal non-polynomial expressions such as `sin(A)`, `cos(A)`,
+  and `expim(A)`. Formal functions are not expanded implicitly; use [`taylor`](@ref) to
+  lower them explicitly to a finite `QAdd` polynomial.
 
-Supports arithmetic (`+`, `-`, `*`, `^`, `/`), `adjoint`, and comparison via `==`/`isequal`.
-All arithmetic eagerly applies normal ordering and returns [`QAdd`](@ref).
+Supports arithmetic (`+`, `-`, `*`, `^`, `/`), `adjoint`, and comparison via
+`==`/`isequal`. Polynomial multiplication eagerly applies the canonical operator algebra;
+operations involving a formal function preserve a `QExpr` outer representation until an
+explicit lowering operation is requested.
 """
 abstract type QField end
 
 """
     QSym <: QField
 
-Abstract type for fundamental (leaf) operators in the expression tree.
+Abstract type for fundamental operator leaves.
 
-Every `QSym` carries three fields identifying its site:
-- `name::Symbol` — display name
-- `space_index::Int` — position in [`ProductSpace`](@ref) (1 for single spaces)
-- `index::Index` — symbolic summation index ([`Index`](@ref)), or `NO_INDEX`
-
-Concrete subtypes: [`Destroy`](@ref), [`Create`](@ref), [`Transition`](@ref),
-[`Pauli`](@ref), [`Spin`](@ref), [`Position`](@ref), [`Momentum`](@ref).
+[`Op`](@ref) is the sole concrete subtype. Its compact tagged representation stores the
+operator role (`Destroy`, `Create`, `Transition`, `Pauli`, `Spin`, `Position`, `Momentum`,
+etc.), display name, product-space slot, and optional symbolic index without introducing a
+runtime subtype hierarchy for individual operator roles.
 """
 abstract type QSym <: QField end
 
