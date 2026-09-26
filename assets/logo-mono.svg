@@ -1,10 +1,82 @@
-<svg xmlns="http://www.w3.org/2000/svg"
- viewBox="-4.16 -4.16 8.32 8.32">
-  <title>SecondQuantizedAlgebra.jl monochrome logo</title>
-  <desc>Monochrome commutator-inspired mark with two operator disks, a comma, and rounded gray brackets.</desc>
-  <path d="M -2.43060039 -1.78825048 L -3.26985152 -1.78825048 L -3.26985152 1.78825048 L -2.43060039 1.78825048" fill="none" stroke="#888888" stroke-width="0.58102001" stroke-linecap="round" stroke-linejoin="round"/>
-  <circle cx="-1.57843770" cy="0" r="1" fill="#222222"/>
-  <path d="M -0.043495 0.410290 C -0.108282 0.419160 -0.169588 0.445057 -0.214976 0.486878 C -0.260363 0.528698 -0.289833 0.586441 -0.303144 0.648518 C -0.316456 0.710596 -0.313609 0.777009 -0.294259 0.835583 C -0.274910 0.894157 -0.239058 0.944892 -0.183997 0.973269 C -0.128935 1.001646 -0.054665 1.007665 -0.036541 1.049131 C -0.018417 1.090597 -0.056440 1.167510 -0.111948 1.218403 C -0.167456 1.269295 -0.240450 1.294168 -0.258437 1.339695 C -0.276424 1.385222 -0.239405 1.451403 -0.188809 1.465441 C -0.138212 1.479480 -0.074039 1.441376 -0.018510 1.401180 C 0.037019 1.360984 0.083902 1.318697 0.124609 1.271408 C 0.165315 1.224119 0.199844 1.171828 0.226632 1.117088 C 0.253419 1.062348 0.272465 1.005159 0.286998 0.943959 C 0.301531 0.882760 0.311552 0.817550 0.311421 0.753523 C 0.311291 0.689496 0.301010 0.626651 0.273719 0.570884 C 0.246428 0.515116 0.202127 0.466426 0.145843 0.438002 C 0.089558 0.409578 0.021291 0.401420 -0.043495 0.410290 Z" fill="#222222"/>
-  <circle cx="1.57843770" cy="0" r="1" fill="#222222"/>
-  <path d="M 2.43060039 -1.78825048 L 3.26985152 -1.78825048 L 3.26985152 1.78825048 L 2.43060039 1.78825048" fill="none" stroke="#888888" stroke-width="0.58102001" stroke-linecap="round" stroke-linejoin="round"/>
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<svg
+   viewBox="-4.16 -4.16 7.1207235 4.1575209"
+   version="1.1"
+   id="svg3"
+   sodipodi:docname="logo-mono.svg"
+   width="7.1207232"
+   height="4.1575208"
+   inkscape:version="1.4.4 (dcaf3e7d9e, 2026-05-05)"
+   xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
+   xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
+   xmlns="http://www.w3.org/2000/svg"
+   xmlns:svg="http://www.w3.org/2000/svg"
+   xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"
+   xmlns:cc="http://creativecommons.org/ns#"
+   xmlns:dc="http://purl.org/dc/elements/1.1/">
+  <defs
+     id="defs3" />
+  <sodipodi:namedview
+     id="namedview3"
+     pagecolor="#ffffff"
+     bordercolor="#000000"
+     borderopacity="0.25"
+     inkscape:showpageshadow="2"
+     inkscape:pageopacity="0.0"
+     inkscape:pagecheckerboard="0"
+     inkscape:deskcolor="#d1d1d1"
+     inkscape:zoom="40.182215"
+     inkscape:cx="2.6255397"
+     inkscape:cy="2.3020134"
+     inkscape:window-width="1109"
+     inkscape:window-height="720"
+     inkscape:window-x="0"
+     inkscape:window-y="0"
+     inkscape:window-maximized="1"
+     inkscape:current-layer="svg3" />
+  <title
+     id="title1">SecondQuantizedAlgebra.jl monochrome logo</title>
+  <desc
+     id="desc1">Monochrome commutator-inspired mark with two operator disks, a comma, and rounded gray brackets.</desc>
+  <path
+     d="M -3.0302389,-3.86949 H -3.86949 v 3.57650098 h 0.8392511"
+     fill="none"
+     stroke="#888888"
+     stroke-width="0.58102"
+     stroke-linecap="round"
+     stroke-linejoin="round"
+     id="path1" />
+  <circle
+     cx="-2.1780763"
+     cy="-2.0812395"
+     r="1"
+     fill="#222222"
+     id="circle1" />
+  <path
+     d="m -0.64313348,-1.6709495 c -0.064787,0.00887 -0.126093,0.034767 -0.171481,0.076588 -0.045387,0.04182 -0.074857,0.099563 -0.088168,0.16164 -0.013312,0.062078 -0.010465,0.128491 0.008885,0.187065 0.019349,0.058574 0.055201,0.109309 0.110262,0.137686 0.055062,0.028377 0.129332,0.034396 0.147456,0.075862 0.018124,0.041466 -0.019899,0.11837898 -0.075407,0.16927198 -0.055508,0.050892 -0.128502,0.075765 -0.146489,0.121292 -0.017987,0.045527 0.019032,0.111708 0.069628,0.125746 0.050597,0.014039 0.11477,-0.024065 0.170299,-0.064261 0.055529,-0.040196 0.102412,-0.082483 0.143119,-0.129772 0.040706,-0.047289 0.075235,-0.09958 0.102023,-0.15432 0.026787,-0.05474 0.045833,-0.11192898 0.060366,-0.17312898 0.014533,-0.061199 0.024554,-0.126409 0.024423,-0.190436 -1.3e-4,-0.064027 -0.010411,-0.126872 -0.037702,-0.182639 -0.027291,-0.055768 -0.071592,-0.104458 -0.127876,-0.132882 -0.056285,-0.028424 -0.124552,-0.036582 -0.189338,-0.027712 z"
+     fill="#222222"
+     id="path2" />
+  <circle
+     cx="0.97879922"
+     cy="-2.0812395"
+     r="1"
+     fill="#222222"
+     id="circle2" />
+  <path
+     d="M 1.8309619,-3.86949 H 2.670213 v 3.57650098 H 1.8309619"
+     fill="none"
+     stroke="#888888"
+     stroke-width="0.58102"
+     stroke-linecap="round"
+     stroke-linejoin="round"
+     id="path3" />
+  <metadata
+     id="metadata3">
+    <rdf:RDF>
+      <cc:Work
+         rdf:about="">
+        <dc:title>SecondQuantizedAlgebra.jl monochrome logo</dc:title>
+      </cc:Work>
+    </rdf:RDF>
+  </metadata>
 </svg>
