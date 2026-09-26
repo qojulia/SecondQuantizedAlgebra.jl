@@ -20,8 +20,9 @@ using DocumenterCitations
 using DocumenterCodeBlocks
 using DocumenterInterLinks
 using DocumenterLandingPage
-using QuantumOpticsBase
-using SparseArrays
+
+using QuantumOpticsBase: QuantumOpticsBase
+using SparseArrays: SparseArrays
 
 using Plots
 gr()

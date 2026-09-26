@@ -37,7 +37,7 @@
   <title
      id="title1">SecondQuantizedAlgebra.jl monochrome logo</title>
   <desc
-     id="desc1">Monochrome commutator-inspired mark with two operator disks, a comma, and rounded gray brackets.</desc>
+     id="desc1">Monochrome commutator-inspired mark with two hatted operator disks, a comma, and rounded gray brackets.</desc>
   <path
      d="M -3.0302389,-3.86949 H -3.86949 v 3.57650098 h 0.8392511"
      fill="none"
@@ -70,6 +70,22 @@
      stroke-linecap="round"
      stroke-linejoin="round"
      id="path3" />
+  <path
+     d="M -2.7280763,-3.3012395 L -2.1780763,-3.7012395 L -1.6280763,-3.3012395"
+     fill="none"
+     stroke="#222222"
+     stroke-width="0.24"
+     stroke-linecap="round"
+     stroke-linejoin="round"
+     id="hat1" />
+  <path
+     d="M 0.4287992,-3.3012395 L 0.9787992,-3.7012395 L 1.5287992,-3.3012395"
+     fill="none"
+     stroke="#222222"
+     stroke-width="0.24"
+     stroke-linecap="round"
+     stroke-linejoin="round"
+     id="hat2" />
   <metadata
      id="metadata3">
     <rdf:RDF>
