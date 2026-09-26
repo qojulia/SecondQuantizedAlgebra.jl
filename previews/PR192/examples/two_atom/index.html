@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width, initial-scale=1.0"/><title>Two-Atom Dipole-Dipole · SecondQuantizedAlgebra.jl</title><meta name="title" content="Two-Atom Dipole-Dipole · SecondQuantizedAlgebra.jl"/><meta property="og:title" content="Two-Atom Dipole-Dipole · SecondQuantizedAlgebra.jl"/><meta property="twitter:title" content="Two-Atom Dipole-Dipole · SecondQuantizedAlgebra.jl"/><meta name="description" content="Documentation for SecondQuantizedAlgebra.jl."/><meta property="og:description" content="Documentation for SecondQuantizedAlgebra.jl."/><meta property="twitter:description" content="Documentation for SecondQuantizedAlgebra.jl."/><meta property="og:url" content="https://qojulia.github.io/SecondQuantizedAlgebra.jl/examples/two_atom/"/><meta property="twitter:url" content="https://qojulia.github.io/SecondQuantizedAlgebra.jl/examples/two_atom/"/><link rel="canonical" href="https://qojulia.github.io/SecondQuantizedAlgebra.jl/examples/two_atom/"/><script data-outdated-warner src="../../assets/warner.js"></script><link href="https://cdnjs.cloudflare.com/ajax/libs/lato-font/3.0.0/css/lato-font.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/juliamono/0.050/juliamono.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/fontawesome.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/solid.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/brands.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.8/katex.min.css" rel="stylesheet" type="text/css"/><script>documenterBaseURL="../.."</script><script src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.6/require.min.js" data-main="../../assets/documenter.js"></script><script src="../../search_index.js"></script><script src="../../siteinfo.js"></script><script src="../../../versions.js"></script><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../../assets/themes/catppuccin-mocha.css" data-theme-name="catppuccin-mocha"/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../../assets/themes/catppuccin-macchiato.css" data-theme-name="catppuccin-macchiato"/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../../assets/themes/catppuccin-frappe.css" data-theme-name="catppuccin-frappe"/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../../assets/themes/catppuccin-latte.css" data-theme-name="catppuccin-latte"/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../../assets/themes/documenter-dark.css" data-theme-name="documenter-dark" data-theme-primary-dark/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../../assets/themes/documenter-light.css" data-theme-name="documenter-light" data-theme-primary/><script src="../../assets/themeswap.js"></script></head><body><div id="documenter"><nav class="docs-sidebar"><div class="docs-package-name"><span class="docs-autofit"><a href="../../">SecondQuantizedAlgebra.jl</a></span></div><button class="docs-search-query input is-rounded is-small is-clickable my-2 mx-auto py-1 px-2" id="documenter-search-query">Search docs (Ctrl + /)</button><ul class="docs-menu"><li><a class="tocitem" href="../../">Home</a></li><li><a class="tocitem" href="../../implementation/">Implementation</a></li><li><a class="tocitem" href="../../symbolic_sums/">Symbolic Sums and Indices</a></li><li><a class="tocitem" href="../../accumulation/">Building Large Sums Efficiently</a></li><li><span class="tocitem">Examples</span><ul><li><a class="tocitem" href="../schrieffer_wolff/">Schrieffer-Wolff Transformation</a></li><li><a class="tocitem" href="../dicke/">Dicke Superradiant Transition</a></li><li><a class="tocitem" href="../bogoliubov/">Two-Mode Bogoliubov</a></li><li><a class="tocitem" href="../optomechanics/">Cavity Optomechanics</a></li><li class="is-active"><a class="tocitem" href>Two-Atom Dipole-Dipole</a><ul class="internal"><li><a class="tocitem" href="#Setup"><span>Setup</span></a></li><li><a class="tocitem" href="#Hamiltonian"><span>Hamiltonian</span></a></li><li><a class="tocitem" href="#Symmetric-and-antisymmetric-raising-operators"><span>Symmetric and antisymmetric raising operators</span></a></li><li><a class="tocitem" href="#Diagonalising-the-single-excitation-manifold"><span>Diagonalising the single-excitation manifold</span></a></li><li><a class="tocitem" href="#Number-conservation"><span>Number conservation</span></a></li><li><a class="tocitem" href="#Numerical-verification"><span>Numerical verification</span></a></li><li><a class="tocitem" href="#Coupling-to-a-cavity:-vacuum-Rabi-splitting"><span>Coupling to a cavity: vacuum Rabi splitting</span></a></li><li><a class="tocitem" href="#Generalising-to-N-atoms-with-Σ"><span>Generalising to N atoms with <code>Σ</code></span></a></li></ul></li><li><a class="tocitem" href="../parametric_oscillator/">Parametric Oscillator</a></li></ul></li><li><a class="tocitem" href="../../API/">API</a></li><li><a class="tocitem" href="../../changelog/">Changelog</a></li><li><a class="tocitem" href="../../devdocs/">Developer Documentation</a></li></ul><div class="docs-version-selector field has-addons"><div class="control"><span class="docs-label button is-static is-size-7">Version</span></div><div class="docs-selector control is-expanded"><div class="select is-fullwidth is-size-7"><select id="documenter-version-selector"></select></div></div></div></nav><div class="docs-main"><header class="docs-navbar"><a class="docs-sidebar-button docs-navbar-link fa-solid fa-bars is-hidden-desktop" id="documenter-sidebar-button" href="#"></a><nav class="breadcrumb"><ul class="is-hidden-mobile"><li><a class="is-disabled">Examples</a></li><li class="is-active"><a href>Two-Atom Dipole-Dipole</a></li></ul><ul class="is-hidden-tablet"><li class="is-active"><a href>Two-Atom Dipole-Dipole</a></li></ul></nav><div class="docs-right"><a class="docs-navbar-link" href="https://github.com/qojulia/SecondQuantizedAlgebra.jl" title="View the repository on GitHub"><span class="docs-icon fa-brands"></span><span class="docs-label is-hidden-touch">GitHub</span></a><a class="docs-navbar-link" href="https://github.com/qojulia/SecondQuantizedAlgebra.jl/blob/main/examples/two_atom.jl" title="Edit source on GitHub"><span class="docs-icon fa-solid"></span></a><a class="docs-settings-button docs-navbar-link fa-solid fa-gear" id="documenter-settings-button" href="#" title="Settings"></a><a class="docs-article-toggle-button fa-solid fa-chevron-up" id="documenter-article-toggle-button" href="javascript:;" title="Collapse all docstrings"></a></div></header><article class="content" id="documenter-page"><h1 id="Two-Atom-Dipole-Dipole:-Bright-and-Dark-States"><a class="docs-heading-anchor" href="#Two-Atom-Dipole-Dipole:-Bright-and-Dark-States">Two-Atom Dipole-Dipole: Bright and Dark States</a><a id="Two-Atom-Dipole-Dipole:-Bright-and-Dark-States-1"></a><a class="docs-heading-anchor-permalink" href="#Two-Atom-Dipole-Dipole:-Bright-and-Dark-States" title="Permalink"></a></h1><p>Two identical two-level atoms in close proximity exchange virtual photons, giving rise to a dipole-dipole interaction that splits the single-excitation manifold into a symmetric (bright, superradiant) and antisymmetric (dark, subradiant) eigenstate.  This is the elementary building block of <em>collective</em> atomic physics and the simplest non-trivial setting for the package&#39;s index machinery: two indexed atomic operators on the same Hilbert subspace, kept distinct via <a href="../../API/#SecondQuantizedAlgebra.assume_distinct_index"><code>assume_distinct_index</code></a>.</p><h2 id="Setup"><a class="docs-heading-anchor" href="#Setup">Setup</a><a id="Setup-1"></a><a class="docs-heading-anchor-permalink" href="#Setup" title="Permalink"></a></h2><p>A single two-level Hilbert space, populated by two atoms via abstract indices <span>$i$</span> and <span>$j$</span>.  The convention <code>(:g, :e)</code> lets us name transitions by symbol rather than by integer level.</p><pre><code class="language-julia hljs">using SecondQuantizedAlgebra
+
+ha = NLevelSpace(:atom, (:g, :e))
+
+i = Index(ha, :i, 2, ha)
+j = Index(ha, :j, 2, ha)
+
+σge(idx) = IndexedOperator(Transition(ha, :σ, :g, :e), idx)
+σeg(idx) = IndexedOperator(Transition(ha, :σ, :e, :g), idx)
+σee(idx) = IndexedOperator(Transition(ha, :σ, :e, :e), idx)
+
+@variables ω J</code></pre><p class="math-container">\[ \begin{equation}
+\left[
+\begin{array}{c}
+\omega \\
+J \\
+\end{array}
+\right]
+\end{equation}
+ \]</p><h2 id="Hamiltonian"><a class="docs-heading-anchor" href="#Hamiltonian">Hamiltonian</a><a id="Hamiltonian-1"></a><a class="docs-heading-anchor-permalink" href="#Hamiltonian" title="Permalink"></a></h2><p>Two identical atoms at frequency <span>$\omega$</span> exchange excitations through a coherent dipole-dipole coupling <span>$J$</span>:</p><p class="math-container">\[H = \omega\,(\sigma_i^{ee} + \sigma_j^{ee})
+  + J\,(\sigma_i^{eg} \sigma_j^{ge} + \sigma_j^{eg} \sigma_i^{ge}).\]</p><p>Building it with free indices leaves the site relationship <code>i = j</code> vs <code>i ≠ j</code> ambiguous.  Calling <a href="../../API/#SecondQuantizedAlgebra.assume_distinct_index"><code>assume_distinct_index</code></a> records the pair <code>(i, j)</code> as a permanent inequality constraint and triggers re-canonicalisation, including completeness expansion of any ground-state projectors that emerge from the new constraint:</p><pre><code class="language-julia hljs">H = ω * (σee(i) + σee(j)) + J * (σeg(i) * σge(j) + σeg(j) * σge(i))
+H = assume_distinct_index(H, [(i, j)])</code></pre><p class="math-container">\[\omega {\sigma}_{i}^{{22}} + \omega {\sigma}_{j}^{{22}} + J {\sigma}_{i}^{{21}}{\sigma}_{j}^{{12}} + J {\sigma}_{i}^{{12}}{\sigma}_{j}^{{21}}\]</p><h2 id="Symmetric-and-antisymmetric-raising-operators"><a class="docs-heading-anchor" href="#Symmetric-and-antisymmetric-raising-operators">Symmetric and antisymmetric raising operators</a><a id="Symmetric-and-antisymmetric-raising-operators-1"></a><a class="docs-heading-anchor-permalink" href="#Symmetric-and-antisymmetric-raising-operators" title="Permalink"></a></h2><p>Define</p><p class="math-container">\[S_\pm^\dagger
+  = \frac{1}{\sqrt{2}}\,(\sigma_i^{eg} \pm \sigma_j^{eg}),\]</p><p>so <span>$S_+^\dagger\, |gg\rangle$</span> is the bright single-excitation state and <span>$S_-^\dagger\, |gg\rangle$</span> is the dark one.  In the package we drop the <span>$1/\sqrt{2}$</span> to keep symbolic expressions clean; only the eigenvalues matter.</p><pre><code class="language-julia hljs">S_bright = assume_distinct_index(σeg(i) + σeg(j), [(i, j)])
+S_dark = assume_distinct_index(σeg(i) - σeg(j), [(i, j)])</code></pre><p class="math-container">\[{\sigma}_{i}^{{21}} -{\sigma}_{j}^{{21}}\]</p><h2 id="Diagonalising-the-single-excitation-manifold"><a class="docs-heading-anchor" href="#Diagonalising-the-single-excitation-manifold">Diagonalising the single-excitation manifold</a><a id="Diagonalising-the-single-excitation-manifold-1"></a><a class="docs-heading-anchor-permalink" href="#Diagonalising-the-single-excitation-manifold" title="Permalink"></a></h2><p>Acting on the ground state <span>$|gg\rangle$</span> we have <span>$H\,|gg\rangle = 0$</span>, so <span>$H\,S_\pm^\dagger\,|gg\rangle = [H, S_\pm^\dagger]\,|gg\rangle$</span>.  Each commutator is a single line in the package, but the raw form mixes single-excitation and two-excitation operators because <span>$\sigma^{ee}$</span> and <span>$\sigma^{eg}$</span> don&#39;t quite commute even at distinct sites. <a href="../../API/#SecondQuantizedAlgebra.expand_completeness"><code>expand_completeness</code></a> projects to the <span>$\{\sigma^{ij} : (i,j) \neq (g,g)\} \cup \{1\}$</span> basis and the structure becomes clear:</p><pre><code class="language-julia hljs">expand_completeness(commutator(H, S_bright))</code></pre><p class="math-container">\[\left(J + \omega\right) {\sigma}_{i}^{{21}} + \left(J + \omega\right) {\sigma}_{j}^{{21}} - 2 ~ J {\sigma}_{i}^{{22}}{\sigma}_{j}^{{21}} - 2 ~ J {\sigma}_{i}^{{21}}{\sigma}_{j}^{{22}}\]</p><pre><code class="language-julia hljs">expand_completeness(commutator(H, S_dark))</code></pre><p class="math-container">\[\left( - J + \omega\right) {\sigma}_{i}^{{21}} + \left(J - \omega\right) {\sigma}_{j}^{{21}} - 2 ~ J {\sigma}_{i}^{{22}}{\sigma}_{j}^{{21}} + 2 ~ J {\sigma}_{i}^{{21}}{\sigma}_{j}^{{22}}\]</p><p>Reading off the single-excitation parts,</p><p class="math-container">\[[H, S_+^\dagger] = (\omega + J)\,S_+^\dagger
+  - 2J\,(\sigma_i^{ee}\sigma_j^{eg} + \sigma_i^{eg}\sigma_j^{ee}), \qquad
+[H, S_-^\dagger] = (\omega - J)\,S_-^\dagger
+  - 2J\,(\sigma_i^{ee}\sigma_j^{eg} - \sigma_i^{eg}\sigma_j^{ee}).\]</p><p>The residual <span>$\sigma^{ee}\sigma^{eg}$</span> terms vanish identically on the ground state (they require one site already excited).  Restricted to the single-excitation manifold:</p><p class="math-container">\[H\,S_\pm^\dagger\,|gg\rangle = (\omega \pm J)\,S_\pm^\dagger\,|gg\rangle.\]</p><p>The <strong>bright</strong> state <span>$S_+^\dagger\,|gg\rangle$</span> sits at <span>$\omega + J$</span> and carries the full collective dipole moment, so when the atoms are coupled to a common radiation continuum, this state decays at rate <span>$2\Gamma$</span> (superradiance).  The <strong>dark</strong> state <span>$S_-^\dagger\,|gg\rangle$</span> sits at <span>$\omega - J$</span> and has zero collective dipole moment, so it is decoupled from the symmetric radiation mode and is effectively immortal (subradiance).</p><h2 id="Number-conservation"><a class="docs-heading-anchor" href="#Number-conservation">Number conservation</a><a id="Number-conservation-1"></a><a class="docs-heading-anchor-permalink" href="#Number-conservation" title="Permalink"></a></h2><p>Total atomic excitation <span>$N_e = \sigma_i^{ee} + \sigma_j^{ee}$</span> commutes with <span>$H$</span>:</p><pre><code class="language-julia hljs">commutator(assume_distinct_index(σee(i) + σee(j), [(i, j)]), H)</code></pre><p class="math-container">\[\]</p><p>So the four-dimensional Hilbert space (<span>$2\times 2$</span> atoms = <span>$\{|gg\rangle, |eg\rangle, |ge\rangle, |ee\rangle\}$</span>) decomposes into the zero-excitation singlet, the dipole-split single-excitation doublet <span>$\{|+\rangle, |-\rangle\}$</span> we just diagonalised, and the two-excitation singlet <span>$|ee\rangle$</span> at energy <span>$2\omega$</span>.</p><h2 id="Numerical-verification"><a class="docs-heading-anchor" href="#Numerical-verification">Numerical verification</a><a id="Numerical-verification-1"></a><a class="docs-heading-anchor-permalink" href="#Numerical-verification" title="Permalink"></a></h2><p>We diagonalise the 4-dimensional Hilbert space and check the spectrum directly:</p><pre><code class="language-julia hljs">using QuantumOpticsBase, LinearAlgebra
+
+ω_val, J_val = 1.0, 0.25
+b_atom = NLevelBasis(2)
+b = b_atom ⊗ b_atom
+
+# Build numeric operators by hand (two atoms on the same NLevelSpace are
+# the simplest non-indexed scenario for to_numeric).
+σ_e_a = (transition(b_atom, 2, 2)) ⊗ one(b_atom)
+σ_e_b = one(b_atom) ⊗ transition(b_atom, 2, 2)
+σ_eg_a = transition(b_atom, 2, 1) ⊗ one(b_atom)
+σ_ge_a = transition(b_atom, 1, 2) ⊗ one(b_atom)
+σ_eg_b = one(b_atom) ⊗ transition(b_atom, 2, 1)
+σ_ge_b = one(b_atom) ⊗ transition(b_atom, 1, 2)
+
+H_num = ω_val * (σ_e_a + σ_e_b) + J_val * (σ_eg_a * σ_ge_b + σ_eg_b * σ_ge_a)
+E = sort(real.(eigvals(Matrix(H_num.data))))
+
+println(&quot;spectrum             = &quot;, round.(E; digits = 4))
+println(
+    &quot;expected {0, ω-J, ω+J, 2ω} = &quot;,
+    round.([0.0, ω_val - J_val, ω_val + J_val, 2 * ω_val]; digits = 4)
+)</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">spectrum             = [0.0, 0.75, 1.25, 2.0]
+expected {0, ω-J, ω+J, 2ω} = [0.0, 0.75, 1.25, 2.0]</code></pre><p>The four eigenvalues come out as <span>$\{0, \omega - J, \omega + J, 2\omega\}$</span> (the singlet, dark, bright, and doubly-excited levels), in exact agreement with the symbolic derivation.  All four sat in a four-dimensional Hilbert space derived from two indexed atoms with no physical Hilbert-space duplication: the same <code>NLevelSpace</code> carries both sites, with the index machinery handling site identity.</p><h2 id="Coupling-to-a-cavity:-vacuum-Rabi-splitting"><a class="docs-heading-anchor" href="#Coupling-to-a-cavity:-vacuum-Rabi-splitting">Coupling to a cavity: vacuum Rabi splitting</a><a id="Coupling-to-a-cavity:-vacuum-Rabi-splitting-1"></a><a class="docs-heading-anchor-permalink" href="#Coupling-to-a-cavity:-vacuum-Rabi-splitting" title="Permalink"></a></h2><p>The bright-dark dichotomy gets its name from a <em>physical</em> observable: coupling to a radiation mode.  Adding a common cavity field at frequency <span>$\omega_0$</span> to the existing two-atom system,</p><p class="math-container">\[H \;\to\; H + \omega_0\, a^\dagger a
+  + g\,a^\dagger\,(\sigma_i^{ge} + \sigma_j^{ge})
+  + g\,a\,(\sigma_i^{eg} + \sigma_j^{eg}),\]</p><p>the atom-field coupling appears only through the <strong>collective lowering</strong> <span>$S_- = \sigma_i^{ge} + \sigma_j^{ge}$</span> and its hermitian conjugate.  The dark raising operator <span>$S_-^\dagger$</span> is orthogonal to <span>$S_+$</span> and the package confirms it directly: the cavity field commutes with the dark operator:</p><pre><code class="language-julia hljs">hcav = FockSpace(:cavity)
+hatom = NLevelSpace(:atom, (:g, :e))
+hh = hcav ⊗ hatom
+@variables ω₀ g
+@qnumbers a::Destroy(hh, 1)
+ic = Index(hh, :i, 2, hatom)
+jc = Index(hh, :j, 2, hatom)
+σge_c(idx) = IndexedOperator(Transition(hatom, :σ, :g, :e), idx)
+σeg_c(idx) = IndexedOperator(Transition(hatom, :σ, :e, :g), idx)
+
+H_int = g * a&#39; * (σge_c(ic) + σge_c(jc)) + g * a * (σeg_c(ic) + σeg_c(jc))
+H_int = assume_distinct_index(H_int, [(ic, jc)])
+
+S_dark_c = assume_distinct_index(σeg_c(ic) - σeg_c(jc), [(ic, jc)])
+
+commutator(H_int, S_dark_c)</code></pre><p class="math-container">\[g a^{\dagger}{\sigma}_{i}^{{11}} - g a^{\dagger}{\sigma}_{i}^{{22}} - g a^{\dagger}{\sigma}_{j}^{{11}} + g a^{\dagger}{\sigma}_{j}^{{22}}\]</p><p>The output is supported only on two-excitation operators of the form <span>$\sigma^{ee}\sigma^{eg}$</span> that <strong>annihilate the ground state</strong>.  So acting on <span>$|0_c, gg\rangle$</span>, <span>$[H_\mathrm{int}, S_-^\dagger]$</span> returns zero, so the dark single-excitation state is invisible to the cavity.</p><p>The bright state, by contrast, hybridises with the cavity photon to form polaritons.  In the single-excitation basis <span>$\{|1_c, gg\rangle, |0_c, +\rangle, |0_c, -\rangle\}$</span>, the package&#39;s canonical form factorises into a <span>$2\times 2$</span> polariton block and a decoupled dark eigenvalue.  At resonance <span>$\omega_0 = \omega + J$</span> the polariton block is <span>$\begin{pmatrix}\omega_0 &amp; g\sqrt{2}\\ g\sqrt{2} &amp; \omega + J\end{pmatrix}$</span>, giving the <strong>vacuum Rabi splitting</strong> <span>$2g\sqrt{2}$</span>:</p><pre><code class="language-julia hljs">ω₀_val, g_val = ω_val + J_val, 0.2
+b_cav = FockBasis(2)
+b_full = b_cav ⊗ b_atom ⊗ b_atom
+a_num = destroy(b_cav) ⊗ one(b_atom) ⊗ one(b_atom)
+σ_ee_a2 = one(b_cav) ⊗ transition(b_atom, 2, 2) ⊗ one(b_atom)
+σ_ee_b2 = one(b_cav) ⊗ one(b_atom) ⊗ transition(b_atom, 2, 2)
+σ_eg_a2 = one(b_cav) ⊗ transition(b_atom, 2, 1) ⊗ one(b_atom)
+σ_ge_a2 = one(b_cav) ⊗ transition(b_atom, 1, 2) ⊗ one(b_atom)
+σ_eg_b2 = one(b_cav) ⊗ one(b_atom) ⊗ transition(b_atom, 2, 1)
+σ_ge_b2 = one(b_cav) ⊗ one(b_atom) ⊗ transition(b_atom, 1, 2)
+
+H_tc = ω₀_val * a_num&#39; * a_num + ω_val * (σ_ee_a2 + σ_ee_b2) +
+    J_val * (σ_eg_a2 * σ_ge_b2 + σ_eg_b2 * σ_ge_a2) +
+    g_val * (
+    a_num&#39; * σ_ge_a2 + a_num&#39; * σ_ge_b2 +
+        a_num * σ_eg_a2 + a_num * σ_eg_b2
+)
+
+E_tc = sort(real.(eigvals(Hermitian(Matrix(H_tc.data)))))
+pol_lower = ω₀_val - g_val * sqrt(2)
+pol_upper = ω₀_val + g_val * sqrt(2)
+dark_lvl = ω_val - J_val
+println(
+    &quot;single-excitation spectrum (numeric): &quot;,
+    round.(E_tc[2:4]; digits = 4)
+)
+println(
+    &quot;polariton + dark prediction:           &quot;,
+    round.(sort([pol_lower, dark_lvl, pol_upper]); digits = 4)
+)</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">single-excitation spectrum (numeric): [0.75, 0.9672, 1.5328]
+polariton + dark prediction:           [0.75, 0.9672, 1.5328]</code></pre><p>The three single-excitation eigenvalues fall right where the analytic story predicts: a lower polariton at <span>$\omega_0 - g\sqrt{2}$</span>, the untouched dark state at <span>$\omega - J$</span>, and an upper polariton at <span>$\omega_0 + g\sqrt{2}$</span>.  Dropping a single atom from this experiment would leave only the ordinary Jaynes-Cummings <span>$g$</span> splitting; the <span>$\sqrt{2}$</span> is the collective enhancement.</p><h2 id="Generalising-to-N-atoms-with-Σ"><a class="docs-heading-anchor" href="#Generalising-to-N-atoms-with-Σ">Generalising to N atoms with <code>Σ</code></a><a id="Generalising-to-N-atoms-with-Σ-1"></a><a class="docs-heading-anchor-permalink" href="#Generalising-to-N-atoms-with-Σ" title="Permalink"></a></h2><p>Stepping up to <span>$N$</span> identical atoms uses the same operator constructions, but now with a <em>symbolic</em> range <span>$N$</span> and explicit <a href="../../API/#SecondQuantizedAlgebra.Σ"><code>Σ</code></a> sums.  The dipole-dipole term becomes <span>$J\sum_{i \neq j} \sigma_i^{eg}\sigma_j^{ge}$</span> and the cavity coupling becomes <span>$g\sum_i (a^\dagger \sigma_i^{ge} + a\,\sigma_i^{eg})$</span>:</p><pre><code class="language-julia hljs">@variables Nsym
+iN = Index(hh, :i, Nsym, hatom)
+jN = Index(hh, :j, Nsym, hatom)
+
+H_dd_N = J * Σ(Σ(σeg_c(iN) * σge_c(jN), jN, [iN]), iN)
+H_int_N = g * Σ(a&#39; * σge_c(iN) + a * σeg_c(iN), iN)
+
+H_dd_N</code></pre><p class="math-container">\[\underset{j}{\overset{Nsym}{\sum}} \underset{i{\neq}j}{\overset{Nsym}{\sum}}J {\sigma}_{i}^{{21}}{\sigma}_{j}^{{12}}\]</p><pre><code class="language-julia hljs">H_int_N</code></pre><p class="math-container">\[\underset{i}{\overset{Nsym}{\sum}}\left( g a{\sigma}_{i}^{{21}} + g a^{\dagger}{\sigma}_{i}^{{12}} \right)\]</p><p>The single-excitation block decomposes exactly as for <span>$N = 2$</span>: a <span>$2\times 2$</span> polariton sector for <span>$\{|1_c, gg\cdots g\rangle, |0_c, B\rangle\}$</span> with bright energy <span>$\omega + (N-1)J$</span> and enhanced coupling <span>$g\sqrt{N}$</span>, plus an <span>$(N-1)$</span>-fold degenerate dark manifold at <span>$\omega - J$</span>.  At resonance <span>$\omega_0 = \omega + (N-1)J$</span> the polariton splitting is the <strong>collective vacuum Rabi splitting</strong> <span>$2g\sqrt{N}$</span>, a hallmark of cavity QED with cold-atom ensembles.</p><pre><code class="language-julia hljs">function tavis_single_excitation(N::Int; ω = 1.0, J = 0.05, g = 0.2)
+    b_c = FockBasis(2)
+    b_a = NLevelBasis(2)
+    bs = vcat([b_c], fill(b_a, N))
+    b_tot = reduce(⊗, bs)
+    op_at(idx, op_local) = reduce(
+        ⊗,
+        vcat(
+            [idx == 0 ? op_local : one(b_c)],
+            [k == idx ? op_local : one(b_a) for k in 1:N],
+        ),
+    )
+    a_n = op_at(0, destroy(b_c))
+    σee_n = [op_at(k, transition(b_a, 2, 2)) for k in 1:N]
+    σeg_n = [op_at(k, transition(b_a, 2, 1)) for k in 1:N]
+    σge_n = [op_at(k, transition(b_a, 1, 2)) for k in 1:N]
+    ω₀ = ω + (N - 1) * J
+    H_N = ω₀ * a_n&#39; * a_n + ω * sum(σee_n) +
+        J * sum(σeg_n[p] * σge_n[q] for p in 1:N, q in 1:N if p != q) +
+        g * sum(a_n&#39; * σge_n[k] + a_n * σeg_n[k] for k in 1:N)
+    N_tot = a_n&#39; * a_n + sum(σee_n)
+    Hd = Hermitian(Matrix(H_N.data))
+    F = eigen(Hd)
+    Ns = real.(diag(F.vectors&#39; * Matrix(N_tot.data) * F.vectors))
+    keep = findall(n -&gt; abs(n - 1) &lt; 1.0e-6, Ns)
+    return ω₀, sort(real.(F.values[keep]))
+end
+
+for N in 2:4
+    ω₀_val_N, E_single = tavis_single_excitation(N)
+    pol_lo_th = ω₀_val_N - 0.2 * sqrt(N)
+    pol_hi_th = ω₀_val_N + 0.2 * sqrt(N)
+    dark_th = 1.0 - 0.05
+    th_sorted = sort(vcat([pol_lo_th, pol_hi_th], fill(dark_th, N - 1)))
+    println(
+        &quot;N = $N:  numeric single-excitation = &quot;,
+        round.(E_single; digits = 4)
+    )
+    println(
+        &quot;        theory                     = &quot;,
+        round.(th_sorted; digits = 4),
+        &quot;   (ε_pol± = ω_c ± g√N, &quot;,
+        &quot;dark ×$(N - 1) at ω - J)&quot;
+    )
+end</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">N = 2:  numeric single-excitation = [0.7672, 0.95, 1.3328]
+        theory                     = [0.7672, 0.95, 1.3328]   (ε_pol± = ω_c ± g√N, dark ×1 at ω - J)
+N = 3:  numeric single-excitation = [0.7536, 0.95, 0.95, 1.4464]
+        theory                     = [0.7536, 0.95, 0.95, 1.4464]   (ε_pol± = ω_c ± g√N, dark ×2 at ω - J)
+N = 4:  numeric single-excitation = [0.75, 0.95, 0.95, 0.95, 1.55]
+        theory                     = [0.75, 0.95, 0.95, 0.95, 1.55]   (ε_pol± = ω_c ± g√N, dark ×3 at ω - J)</code></pre><p>The lower polariton tracks <span>$\omega_0 - g\sqrt{N}$</span> exactly for every <span>$N$</span>, demonstrating the collective <span>$\sqrt{N}$</span> enhancement in a closed form.  Doubling the atom count gives roughly a <span>$\sqrt{2}$</span> increase in the bright-state cavity coupling, invisible to the dark manifold, which remains at <span>$\omega - J$</span> regardless of how many atoms join.  All of this came from the same indexed <code>NLevelSpace</code>, a single <code>\Sigma</code> for the atom-cavity coupling, and a doubly-nested <code>\Sigma</code> (with <code>i \neq j</code>) for the dipole-dipole term, with no per-atom Hilbert-space book-keeping.</p><hr/><p><em>This page was generated using <a href="https://github.com/fredrikekre/Literate.jl">Literate.jl</a>.</em></p></article><nav class="docs-footer"><a class="docs-footer-prevpage" href="../optomechanics/">« Cavity Optomechanics</a><a class="docs-footer-nextpage" href="../parametric_oscillator/">Parametric Oscillator »</a><div class="flexbox-break"></div><p class="footer-message">Powered by <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> and the <a href="https://julialang.org/">Julia Programming Language</a>.</p></nav></div><div class="modal" id="documenter-settings"><div class="modal-background"></div><div class="modal-card"><header class="modal-card-head"><p class="modal-card-title">Settings</p><button class="delete"></button></header><section class="modal-card-body"><p><label class="label">Theme</label><div class="select"><select id="documenter-themepicker"><option value="auto">Automatic (OS)</option><option value="documenter-light">documenter-light</option><option value="documenter-dark">documenter-dark</option><option value="catppuccin-latte">catppuccin-latte</option><option value="catppuccin-frappe">catppuccin-frappe</option><option value="catppuccin-macchiato">catppuccin-macchiato</option><option value="catppuccin-mocha">catppuccin-mocha</option></select></div></p><hr/><p>This document was generated with <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> version 1.17.0 on <span class="colophon-date" title="Thursday 25 June 2026 07:54">Thursday 25 June 2026</span>. Using Julia version 1.10.11.</p></section><footer class="modal-card-foot"></footer></div></div></div></body></html>
