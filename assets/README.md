@@ -1,21 +1,19 @@
 # SecondQuantizedAlgebra.jl logo
 
-`logo.svg` is the canonical package logo. `logo-mono.svg` is the monochrome
-companion, and `logo-small.svg` keeps identical geometry but uses a tighter
-square viewBox for small icons and favicons.
+`logo.svg` is the canonical package logo. `docs/src/assets/logo.svg` is an
+identical copy. `icon.svg` is the square favicon form, hinted to a 16-pixel grid.
 
-The mark is a commutator-inspired `[•,•]` construction:
+The mark is the commutator `[ô,ô]` drawn as an owl:
 
-- the operators are exact filled circles;
-- the brackets are constant-width strokes with round caps and joins;
-- the comma is a smooth vector reconstruction of the approved design reference;
-- the canonical colors are Julia purple `#9558B2`, green `#389826`, and red
-  `#CB3C33`, with neutral gray `#888888` brackets.
-
-The production comma path is a 16-segment cubic simplification of the approved
-high-resolution trace. It preserves 98.6% silhouette overlap with that smooth
-reference while reducing the path from 48 cubic segments.
+- the brackets are plain square brackets drawn as constant-width strokes with
+  round caps and joins, tall enough to enclose the hats;
+- the operators are exact filled circles (the eyes), each with a circumflex hat
+  in its own color and a small white catchlight at the same offset;
+- the comma, a smooth 16-segment cubic path, doubles as the beak;
+- the colors are Julia purple `#9558B2`, green `#389826`, and red `#CB3C33`,
+  with neutral gray `#888888` brackets.
 
 All logo assets are standalone SVGs: no fonts or raster images are embedded.
-The canonical logo is also used by Documenter as the sidebar logo and landing-page
-hero. The small SVG is the source for the generated documentation favicon.
+The canonical logo is used by Documenter as the sidebar logo and landing-page
+hero. `docs/src/assets/favicon.ico` (16, 32, 48 and 64 px) is rendered from
+`icon.svg`, since the wide logo does not survive at 16 px.
