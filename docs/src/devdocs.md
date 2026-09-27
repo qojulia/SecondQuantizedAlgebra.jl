@@ -156,6 +156,17 @@ fast path), and `RawSymbolicCoeff` stores an arbitrary scalar
 variant; `SymbolicUtils.symtype(expr)` separately records whether the represented value is
 `Real`, `Number`, or `Complex{Real}`.
 
+**Exact numbers have one representation each.** Integer and rational inputs of any width are
+exact; only an explicit floating-point input makes a coefficient inexact. `Native` holds an
+exact value only when it is a Gaussian integer within `2^53`, where every integer is a
+`Float64`, so native products and sums that leave that range are redone exactly rather than
+rounded. Every other exact value is a constant `Poly` monomial whose scalar is a
+`Complex{Rational{Int}}`, or a `Complex{Rational{BigInt}}` when it does not fit. Arithmetic
+that overflows the small form continues in the big one, and a big result that fits is
+demoted again. Like-term collection, `isequal` and `hash` therefore never see the same value
+in two forms, and intermediate growth (a Hori–Deprit recursion at high order) no longer
+throws `OverflowError` while the stored values stay small.
+
 The raw fallback is important for complex expressions. Mixed polynomial/non-polynomial
 arithmetic operates on one intact symbolic tree instead of first splitting it into real and
 imaginary `Num` components. This lets unit phases remain recognizable across radicals,

@@ -47,7 +47,7 @@ function replace_exps(m::Monomial, i::Int, ei::Rational{Int}, j::Int, ej::Ration
         push!(syms, m.syms[k])
         push!(exps, e)
     end
-    return Monomial(m.scalar, syms, exps)
+    return with_factors(m, syms, exps)
 end
 
 @inline reducible_power(m::Monomial, i::Int) =

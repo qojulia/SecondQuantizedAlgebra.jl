@@ -45,6 +45,45 @@ import SecondQuantizedAlgebra: Coeff, to_cnum
         @test iszero(simplify(((1 // 3) * a) * 3 - a))
     end
 
+    @testset "exact coefficients beyond 2^53 and Int64" begin
+        b = Destroy(FockSpace(:wide), :b)
+        exact_parts(c) = (Symbolics.value(real(c)), Symbolics.value(imag(c)))
+
+        # Integer products past 2^53 must not round in the native tier, including a
+        # complex product whose real part cancels to a small value.
+        re, _ = exact_parts(get_prefactor((3^17 * a) * 3^17))
+        @test re isa Integer && re == 3^34
+        re, ip = exact_parts(
+            get_prefactor(((2^27 + 1 + 2^27 * im) * a) * (2^27 + 1 + (2^27 + 2) * im)),
+        )
+        @test re == 1 && ip isa Integer && ip == 2 * (2^27 + 1)^2
+
+        # Wide integers and rationals stay exact rather than turning into floats.
+        re, _ = exact_parts(get_prefactor(2 * ((1 // big(3)^25) * b * a)))
+        @test re isa Rational && re == 2 // big(3)^25
+        re, _ = exact_parts(get_prefactor((1 // big(2)^40) * b * a))
+        @test re isa Rational && re == 1 // 2^40
+        re, _ = exact_parts(
+            get_prefactor((1 // Int128(3)^25) * b * a + (1 // Int128(2)^40) * b * a),
+        )
+        @test re isa Rational && re == 1 // big(3)^25 + 1 // big(2)^40
+        @test isequal(((1 // big(3)^25) * b * a) * big(3)^25, b * a)
+
+        # An intermediate sum whose denominator overflows Int64 returns to the small
+        # exact tier once it fits again, and then hashes like the directly built value.
+        wide = (1 // 3^39) * a + (1 // 2^40) * a
+        back = wide - (1 // 2^40) * a
+        @test isequal(back, (1 // 3^39) * a)
+        @test hash(back) == hash((1 // 3^39) * a)
+        @test SecondQuantizedAlgebra.term_scalar(only(stored_coefficient(back).tail.terms)) isa Complex{Rational{Int}}
+
+        # The real and imaginary parts of an exact unit phase keep exact amplitudes.
+        @variables θ
+        phase = SecondQuantizedAlgebra.expim(-θ) * to_cnum(Complex(3 // 5, 4 // 5))
+        @test isequal(real(phase), (3 // 5) * cos(θ) + (4 // 5) * sin(θ))
+        @test isequal(imag(phase), (4 // 5) * cos(θ) - (3 // 5) * sin(θ))
+    end
+
     @testset "conjugation and hash stability are observable" begin
         c = coefficient(2)
         @test isequal(conj(c), c)
