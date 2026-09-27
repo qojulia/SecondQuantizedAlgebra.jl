@@ -626,10 +626,38 @@ end
 # An unrecognized symbolic value, kept as one raw symbolic expression tree.
 @inline sym_leaf(x::SymbolicUtils.BasicSymbolic) = from_raw(x; normalize = false)
 
-# A fractional power `base^r`. Native only for a numeric base or a single-atom
+function exact_integer_root(n::Int, q::Int)::Union{Nothing, BigInt}
+    target = BigInt(n)
+    guess = round(BigInt, BigFloat(target)^(one(BigFloat) / q))
+    for m in (guess - 1, guess, guess + 1)
+        m >= 0 && m^q == target && return m
+    end
+    return nothing
+end
+
+function exact_rational_power(value::Rational{Int}, r::Rational{Int})::Union{Nothing, Rational{Int}}
+    q = denominator(r)
+    num = exact_integer_root(numerator(value), q)
+    num === nothing && return nothing
+    den = exact_integer_root(denominator(value), q)
+    den === nothing && return nothing
+    iszero(num) && numerator(r) < 0 && return nothing
+    root = (num // den)^numerator(r)
+    typemin(Int) <= numerator(root) <= typemax(Int) || return nothing
+    denominator(root) <= typemax(Int) || return nothing
+    return Rational{Int}(Int(numerator(root)), Int(denominator(root)))
+end
+
+# A fractional power `base^r`. Native only for a floating-point base or a single-atom
 # unit-scalar monomial (giving that atom a rational exponent); any other base would
 # need to distribute the radical (unsound), so it becomes a symbolic leaf.
 function rational_power(basearg, r::Rational{Int}, x)
+    value = const_value(basearg)
+    exact = value isa Int ? Rational{Int}(value) : value isa Rational{Int} ? value : nothing
+    if exact !== nothing && exact >= 0
+        root = exact_rational_power(exact, r)
+        return root === nothing ? sym_leaf(x) : to_cnum(root)
+    end
     base = recognize(basearg)
     is_native(base) && return native(base.z^r)
     if base.tail isa Poly && length(base.tail.terms) == 1
