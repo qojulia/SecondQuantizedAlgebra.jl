@@ -18,6 +18,8 @@ struct RawSymbolicCoeff
 end
 
 """
+    Coeff
+
 Coefficient representation for operator prefactors. A `Coeff` has three forms: a
 native `ComplexF64` (concrete numbers), a `Poly` parameter polynomial, and a raw
 SymbolicUtils fallback. The latter preserves a single complex expression tree and
