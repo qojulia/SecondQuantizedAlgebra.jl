@@ -94,6 +94,31 @@ import SecondQuantizedAlgebra: Coeff, to_cnum
         @test iszero(simplify(g^2 * a - g * g * a))
     end
 
+    @testset "radicals of exact numbers stay exact" begin
+        function contains_float(x)
+            x = SymbolicUtils.unwrap(x)
+            x isa AbstractFloat && return true
+            x isa Complex && return contains_float(real(x)) || contains_float(imag(x))
+            x isa Number && return false
+            SymbolicUtils.isconst(x) && return contains_float(x.val)
+            SymbolicUtils.iscall(x) || return false
+            return any(contains_float, SymbolicUtils.arguments(x))
+        end
+        exact(x) = !contains_float(coefficient(x))
+
+        root_two = sqrt(Num(2))
+        @test exact(root_two)
+        @test isequal(real(coefficient(root_two)), root_two)
+        @test exact(cbrt(Num(2)))
+
+        @test exact(get_prefactor(simplify(sqrt(Num(1 // 2)) * a)))
+        @test iszero(simplify(root_two * root_two * a - 2 * a))
+
+        @test coefficient(sqrt(Num(4))) == 2
+        @test isequal(coefficient(sqrt(Num(1 // 4))), Complex(Num(1 // 2), Num(0)))
+        @test coefficient(sqrt(Num(2.0))) ≈ sqrt(2.0)
+    end
+
     @testset "symbolic arithmetic stays faithful" begin
         @variables g κ r
         @test isequal(coefficient(g), Complex(Num(g), Num(0)))
