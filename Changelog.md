@@ -6,6 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [Unreleased]
+
+### Fixed
+
+- Radicals of exact numbers stay exact under arithmetic: `sqrt(Num(2)) * sqrt(Num(2)) == 2`, `(1/sqrt(Num(6)))^2 == 1//6`, and `sqrt(Num(2)) * sqrt(Num(3))` equals `sqrt(Num(6))`. They previously became floats as soon as two radicals met.
+
 ## [v0.12.1]
 
 ### Fixed

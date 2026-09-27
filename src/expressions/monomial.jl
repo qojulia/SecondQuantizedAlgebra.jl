@@ -52,6 +52,59 @@ end
 @inline scalar_add(a::ExactComplex, b::ExactComplex) = a + b
 @inline scalar_add(a::ComplexF64, b::ComplexF64) = normalize_scalar(a + b)
 
+# A numeric radical is a factor whose atom is the hashconsed `Const` of a prime, with an
+# exponent in `(0, 1)`. Integer parts live in the exact scalar, so `√2·√2 = 2` and
+# `1/√2 = √2/2` each have one representation; prime bases make `√2·√3` and `√6` equal.
+@inline is_radical_atom(s::SymbolicUtils.BasicSymbolic) =
+    SymbolicUtils.isconst(s) && s.val isa Int
+
+function radical_power(p::Int, n::Int)::CoeffScalar
+    magnitude = big(p)^abs(n)
+    if magnitude <= typemax(Int)
+        m = Int(magnitude)
+        return n >= 0 ? ExactComplex(m // 1, 0 // 1) : ExactComplex(1 // m, 0 // 1)
+    end
+    return ComplexF64(Float64(p)^n)
+end
+
+@inline function needs_radical_fold(
+        syms::Vector{SymbolicUtils.BasicSymbolic}, exps::Vector{Rational{Int}},
+    )
+    @inbounds for i in eachindex(syms)
+        is_radical_atom(syms[i]) || continue
+        e = exps[i]
+        (e <= 0 || e >= 1) && return true
+    end
+    return false
+end
+
+# The monomial `scalar * ∏ symsᵢ^expsᵢ` with every radical exponent reduced into `(0, 1)`.
+# Factor order is unchanged, since folding only removes atoms.
+function fold_radicals(
+        scalar::CoeffScalar,
+        syms::Vector{SymbolicUtils.BasicSymbolic},
+        exps::Vector{Rational{Int}},
+    )
+    needs_radical_fold(syms, exps) || return Monomial(scalar, syms, exps)
+    osyms = SymbolicUtils.BasicSymbolic[]
+    oexps = Rational{Int}[]
+    sizehint!(osyms, length(syms)); sizehint!(oexps, length(exps))
+    @inbounds for i in eachindex(syms)
+        s = syms[i]
+        e = exps[i]
+        if is_radical_atom(s)
+            q = fld(numerator(e), denominator(e))
+            if q != 0
+                scalar = scalar_mul(scalar, radical_power(s.val::Int, q))
+                e -= q
+            end
+            iszero(e) && continue
+        end
+        push!(osyms, s); push!(oexps, e)
+    end
+    return Monomial(scalar, osyms, oexps)
+end
+
 """
     Poly
 
@@ -122,7 +175,9 @@ function term_mul(a::Monomial, b::Monomial)
         if a.syms[phase_a] === b.syms[phase_b] &&
                 a.exps[phase_a] == -b.exps[phase_b]
             se = merge_factors(a.syms, a.exps, b.syms, b.exps)
-            return Monomial(scalar, se[1], se[2])
+            return fold_radicals(
+                scalar, se[1]::Vector{SymbolicUtils.BasicSymbolic}, se[2]::Vector{Rational{Int}},
+            )
         end
         if length(a.syms) == 1 && length(b.syms) == 1 &&
                 a.syms[phase_a] === b.syms[phase_b]
@@ -145,7 +200,9 @@ function term_mul(a::Monomial, b::Monomial)
         return canonical_phase_monomial(scalar, syms, exps)
     end
     se = merge_factors(a.syms, a.exps, b.syms, b.exps)
-    return Monomial(scalar, se[1], se[2])
+    return fold_radicals(
+        scalar, se[1]::Vector{SymbolicUtils.BasicSymbolic}, se[2]::Vector{Rational{Int}},
+    )
 end
 
 # Insertion sort by a strict-less predicate. The polynomial passes sort very short

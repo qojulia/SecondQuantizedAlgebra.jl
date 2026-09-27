@@ -119,6 +119,30 @@ import SecondQuantizedAlgebra: Coeff, to_cnum
         @test coefficient(sqrt(Num(2.0))) ≈ sqrt(2.0)
     end
 
+    @testset "numeric radicals multiply exactly" begin
+        inverse_root_six = 1 / sqrt(Num(6))
+        weighted = inverse_root_six * a
+        @test isequal(stored_coefficient(commutator(weighted, weighted')), to_cnum(1 // 6))
+
+        @test isequal(to_cnum(sqrt(Num(2))) * to_cnum(sqrt(Num(3))), to_cnum(sqrt(Num(6))))
+        @test hash(to_cnum(sqrt(Num(2))) * to_cnum(sqrt(Num(3)))) == hash(to_cnum(sqrt(Num(6))))
+        @test isequal(to_cnum(sqrt(Num(8))), 2 * to_cnum(sqrt(Num(2))))
+        @test isequal(to_cnum(1 / sqrt(Num(2))), to_cnum(sqrt(Num(2))) / 2)
+        @test isequal(to_cnum(cbrt(Num(2)))^3, to_cnum(2))
+
+        for c in (to_cnum(inverse_root_six), to_cnum(cbrt(Num(12))))
+            @test isequal(to_cnum(SecondQuantizedAlgebra.to_num(c)), c)
+        end
+        @variables g
+        raw = to_cnum(sin(g + 1))
+        half = to_cnum(1 / sqrt(Num(2)))
+        @test isequal((half * raw) * half, to_cnum(1 // 2) * raw)
+        @test isequal((raw / to_cnum(sqrt(Num(2)))) * to_cnum(sqrt(Num(2))), raw)
+
+        large_prime = 4611686018427387847
+        @test SecondQuantizedAlgebra.to_complex(to_cnum(sqrt(Num(large_prime)))) ≈ sqrt(large_prime)
+    end
+
     @testset "symbolic arithmetic stays faithful" begin
         @variables g κ r
         @test isequal(coefficient(g), Complex(Num(g), Num(0)))

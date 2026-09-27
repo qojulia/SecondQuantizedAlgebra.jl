@@ -437,6 +437,35 @@ function from_poly(terms::Vector{Monomial})
     return poly_coeff(Poly(terms))
 end
 
+# Radical atoms sharing an exponent lower as one radical of their product (`sqrt(6)`, not
+# `sqrt(3)*sqrt(2)`), ordered by exponent, so display does not depend on atom order.
+function radical_factors(m::Monomial)
+    factors = Tuple{Rational{Int}, Int}[]
+    @inbounds for i in eachindex(m.syms)
+        s = m.syms[i]
+        is_radical_atom(s) || continue
+        e = m.exps[i]
+        p = s.val::Int
+        k = findfirst(t -> t[1] == e, factors)
+        if k === nothing
+            push!(factors, (e, p))
+        else
+            product, overflow = Base.mul_with_overflow(factors[k][2], p)
+            overflow ? push!(factors, (e, p)) : (factors[k] = (e, product))
+        end
+    end
+    return insertion_sort!(factors, isless)
+end
+
+# `sqrt` and `cbrt` of a constant stay unevaluated in SymbolicUtils, while `^` with a constant
+# base evaluates to a float at construction; other exponents are built as an explicit term.
+function radical_expression(n::Int, f::Rational{Int})
+    base = SymbolicUtils.Const{SymbolicUtils.SymReal}(n)
+    f == 1 // 2 && return sqrt(base)
+    f == 1 // 3 && return cbrt(base)
+    return SymbolicUtils.term(^, base, f; type = Real)
+end
+
 # One monomial term -> Complex{Num}. The integer part of each exponent is built by
 # repeated multiply/divide (both infer `Num`, unlike `Num ^ Int` which infers `Any`).
 function term_to_num(m::Monomial)
@@ -444,6 +473,7 @@ function term_to_num(m::Monomial)
     @inbounds for i in eachindex(m.syms)
         s = m.syms[i]
         e = m.exps[i]
+        is_radical_atom(s) && continue
         # `exp(-im*x)` rather than `1 / exp(im*x)`: same value, and it keeps an inverse
         # phase readable. Re-recognising it lands back on this atom, since `recognize`
         # re-orients every `expim`.
@@ -470,6 +500,9 @@ function term_to_num(m::Monomial)
         elseif f != 0
             prod = prod * (base^f)::Num   # `::Num`: `Num ^ Rational` infers `Any`
         end
+    end
+    for (f, n) in radical_factors(m)
+        prod = prod * Num(radical_expression(n, f))
     end
     # Guard the zero halves: `0 * x` does not always fold for a complex-symtype factor,
     # and an unfolded `0*expim(...)` would survive all the way to display.
@@ -501,6 +534,7 @@ function term_to_raw(m::Monomial)
     @inbounds for i in eachindex(m.syms)
         symbol = m.syms[i]
         exponent = m.exps[i]
+        is_radical_atom(symbol) && continue
         factor = if denominator(exponent) == 1
             symbol^numerator(exponent)
         else
@@ -510,6 +544,9 @@ function term_to_raw(m::Monomial)
         # `real_slot` bit on the raw coefficient. Do not wrap the factor here: SymbolicUtils
         # simplifies `complex(z, 0)` back to `z` before the bit can be observed.
         result *= factor
+    end
+    for (f, n) in radical_factors(m)
+        result *= radical_expression(n, f)
     end
     return result
 end
@@ -648,6 +685,46 @@ function exact_rational_power(value::Rational{Int}, r::Rational{Int})::Union{Not
     return Rational{Int}(Int(numerator(root)), Int(denominator(root)))
 end
 
+# Primes below this bound are found by trial division; a cofactor left over is prime when it
+# is below the bound squared. Larger bases stay symbolic leaves rather than being factored.
+const RADICAL_TRIAL_BOUND = 1 << 16
+
+function prime_factorization!(factors::Vector{Tuple{Int, Int}}, n::Int)::Bool
+    p = 2
+    while p < RADICAL_TRIAL_BOUND && p * p <= n
+        k = 0
+        while n % p == 0
+            n = div(n, p); k += 1
+        end
+        k > 0 && push!(factors, (p, k))
+        p += p == 2 ? 1 : 2
+    end
+    n == 1 && return true
+    n < RADICAL_TRIAL_BOUND^2 || return false
+    push!(factors, (n, 1))
+    return true
+end
+
+# `value^r` for a positive rational `value` with an irrational root, as one exact monomial
+# over prime radical atoms, or `nothing` when a base cannot be factored.
+function radical_coeff(value::Rational{Int}, r::Rational{Int})::Union{Nothing, Coeff}
+    iszero(value) && return nothing
+    numerator_factors = Tuple{Int, Int}[]
+    denominator_factors = Tuple{Int, Int}[]
+    prime_factorization!(numerator_factors, numerator(value)) || return nothing
+    prime_factorization!(denominator_factors, denominator(value)) || return nothing
+    syms = SymbolicUtils.BasicSymbolic[]
+    exps = Rational{Int}[]
+    for (p, k) in numerator_factors
+        push!(syms, SymbolicUtils.Const{SymbolicUtils.SymReal}(p)); push!(exps, k * r)
+    end
+    for (p, k) in denominator_factors
+        push!(syms, SymbolicUtils.Const{SymbolicUtils.SymReal}(p)); push!(exps, -k * r)
+    end
+    sort_factors!(syms, exps)
+    return from_poly(Monomial[fold_radicals(ONE_R, syms, exps)])
+end
+
 # A fractional power `base^r`. Native only for a floating-point base or a single-atom
 # unit-scalar monomial (giving that atom a rational exponent); any other base would
 # need to distribute the radical (unsound), so it becomes a symbolic leaf.
@@ -656,7 +733,9 @@ function rational_power(basearg, r::Rational{Int}, x)
     exact = value isa Int ? Rational{Int}(value) : value isa Rational{Int} ? value : nothing
     if exact !== nothing && exact >= 0
         root = exact_rational_power(exact, r)
-        return root === nothing ? sym_leaf(x) : to_cnum(root)
+        root === nothing || return to_cnum(root)
+        radical = radical_coeff(exact, r)
+        return radical === nothing ? sym_leaf(x) : radical
     end
     base = recognize(basearg)
     is_native(base) && return native(base.z^r)
@@ -665,9 +744,7 @@ function rational_power(basearg, r::Rational{Int}, x)
         if length(m.syms) == 1 && (m.scalar == ONE_C || m.scalar == ONE_R)
             is_phase(only(m.syms)) &&
                 throw(ArgumentError("a unit phase cannot have a fractional power"))
-            return poly_coeff(
-                Poly(Monomial[Monomial(ONE_C, m.syms, Rational{Int}[m.exps[1] * r])])
-            )
+            return from_poly(Monomial[fold_radicals(ONE_C, m.syms, Rational{Int}[m.exps[1] * r])])
         end
     end
     return sym_leaf(x)
@@ -836,18 +913,14 @@ end
     ordinary_syms, ordinary_exps = merge_factor_list(ordinary_syms, ordinary_exps)
     phase = phase_coeff_expanded(angle)
     if phase.tail isa Native
-        return Monomial(
-            scalar_mul(scalar, phase.z), ordinary_syms, ordinary_exps,
-        )
+        return fold_radicals(scalar_mul(scalar, phase.z), ordinary_syms, ordinary_exps)
     end
     phase_poly = phase.tail::Poly
     phase_term = only(phase_poly.terms)
     append!(ordinary_syms, phase_term.syms)
     append!(ordinary_exps, phase_term.exps)
     sort_factors!(ordinary_syms, ordinary_exps)
-    return Monomial(
-        scalar_mul(scalar, phase_term.scalar), ordinary_syms, ordinary_exps,
-    )
+    return fold_radicals(scalar_mul(scalar, phase_term.scalar), ordinary_syms, ordinary_exps)
 end
 
 @noinline function scaled_phase_monomial(
@@ -932,7 +1005,7 @@ function recognize_prod(args)::Coeff
     phase_count = count(is_phase, syms)
     monomial = if phase_count <= 1
         ms, me = merge_factor_list(syms, exps)
-        Monomial(normalize_scalar(scalar), ms, me)
+        fold_radicals(normalize_scalar(scalar), ms, me)
     else
         canonical_phase_monomial(scalar, syms, exps)
     end
@@ -1136,11 +1209,7 @@ function Base.inv(c::Coeff)::Coeff
             return poly_coeff(
                 Poly(
                     Monomial[
-                        Monomial(
-                            scalar_inv(monomial.scalar),
-                            monomial.syms,
-                            -monomial.exps,
-                        ),
+                        fold_radicals(scalar_inv(monomial.scalar), monomial.syms, -monomial.exps),
                     ]
                 )
             )
@@ -1175,6 +1244,7 @@ function Base.:/(a::Coeff, b::Coeff)::Coeff
         elseif a.tail isa Poly
             return from_poly(poly_mul(a.tail.terms, inverse_tail.terms))
         end
+        any(is_radical_atom, only(inverse_tail.terms).syms) && return mul_cnum(a, inverse)
     end
     return from_raw(
         raw_expression(a) / raw_expression(b);
@@ -1334,9 +1404,125 @@ end
     elseif tb isa Poly && ta isa Native
         return from_poly(poly_scale(tb.terms, a.z))
     end
-    raw = (raw_expression(a) * raw_expression(b))::
-    SymbolicUtils.BasicSymbolic{SymbolicUtils.SymReal}
+    ra, rb = raw_expression(a), raw_expression(b)
+    raw = (
+        ra isa RawExpression && rb isa RawExpression ? raw_product(ra, rb) : ra * rb
+    )::SymbolicUtils.BasicSymbolic{SymbolicUtils.SymReal}
     return from_raw_arithmetic(raw, cnum_is_real(a) && cnum_is_real(b))
+end
+
+# A factor of a raw product that is a numeric radical, recognized into its exact monomial.
+const RawExpression = SymbolicUtils.BasicSymbolic{SymbolicUtils.SymReal}
+
+@inline function exact_number(x::RawExpression)::Union{Nothing, Rational{Int}}
+    v = const_value(x)
+    v isa Int && return Rational{Int}(v)
+    v isa Rational{Int} && return v
+    return nothing
+end
+
+function numeric_radical(n::Rational{Int}, r::Rational{Int})::Union{Nothing, Coeff}
+    root = exact_rational_power(n, r)
+    root === nothing || return to_cnum(root)
+    return radical_coeff(n, r)
+end
+
+function radical_monomial_power(c::Coeff, k::Int)::Union{Nothing, Coeff}
+    t = c.tail
+    t isa Native && return native(c.z^k)
+    (t isa Poly && length(t.terms) == 1) || return nothing
+    m = only(t.terms)
+    scalar = try
+        m.scalar^k
+    catch err
+        err isa OverflowError || rethrow()
+        return nothing
+    end
+    return from_poly(Monomial[fold_radicals(scalar, m.syms, m.exps .* k)])
+end
+
+# A factor of a raw product that is `sqrt(n)`, `cbrt(n)`, `n^r`, or an integer power of one of
+# these, for an exact number `n`, as its exact coefficient. It deliberately avoids `recognize`
+# so the raw product never re-enters the general recognizer.
+function radical_factor(x::RawExpression)::Union{Nothing, Coeff}
+    SymbolicUtils.iscall(x) || return nothing
+    op = SymbolicUtils.operation(x)
+    args = SymbolicUtils.arguments(x)
+    if (op === sqrt || op === cbrt) && length(args) == 1
+        arg = only(args)
+        arg isa RawExpression || return nothing
+        n = exact_number(arg)
+        (n === nothing || n < 0) && return nothing
+        return numeric_radical(n, op === sqrt ? 1 // 2 : 1 // 3)
+    elseif op === (^) && length(args) == 2
+        base = args[1]
+        exponent = args[2]
+        (base isa RawExpression && exponent isa RawExpression) || return nothing
+        k = const_value(exponent)
+        n = exact_number(base)
+        if n !== nothing
+            (k isa Rational{Int} && n >= 0) || return nothing
+            return numeric_radical(n, k)
+        end
+        k isa Int || return nothing
+        inner = radical_factor(base)
+        inner === nothing && return nothing
+        return radical_monomial_power(inner, k)
+    end
+    return nothing
+end
+
+
+# Product of two coefficients without a raw tail, as radical factors always are. Kept apart
+# from `mul_cnum` so that raw multiplication does not recurse into itself.
+function mul_exact(a::Coeff, b::Coeff)::Coeff
+    ta, tb = a.tail, b.tail
+    (ta isa Native && tb isa Native) && return native(a.z * b.z)
+    ta isa Native && return from_poly(poly_scale((tb::Poly).terms, a.z))
+    tb isa Native && return from_poly(poly_scale((ta::Poly).terms, b.z))
+    return from_poly(poly_mul((ta::Poly).terms, (tb::Poly).terms))
+end
+
+# The radical factors of a raw expression, multiplied exactly, and the remaining factors.
+function split_radicals(x::RawExpression)::Tuple{Coeff, Union{Nothing, RawExpression}}
+    single = radical_factor(x)
+    single === nothing || return (single, nothing)
+    (SymbolicUtils.iscall(x) && SymbolicUtils.operation(x) === (*)) || return (CNUM_ONE, x)
+    radicals = CNUM_ONE
+    rest = nothing
+    for f in SymbolicUtils.arguments(x)
+        f isa RawExpression || return (CNUM_ONE, x)
+        c = radical_factor(f)
+        if c === nothing
+            rest = rest === nothing ? f : (rest * f)::RawExpression
+        else
+            radicals = mul_exact(radicals, c)
+        end
+    end
+    return (radicals, rest)
+end
+
+# SymbolicUtils folds `sqrt(n)^2` to a float, so radical factors are multiplied in the
+# exact tier and only the remaining factors in the CAS.
+function raw_product(x::RawExpression, y::RawExpression)::RawExpression
+    rx, restx = split_radicals(x)
+    ry, resty = split_radicals(y)
+    (is_native(rx) && is_native(ry)) && return (x * y)::RawExpression
+    exact = exact_raw(mul_exact(rx, ry))
+    rest = restx === nothing ? resty : resty === nothing ? restx : (restx * resty)::RawExpression
+    rest === nothing && return exact
+    return (exact * rest)::RawExpression
+end
+
+# A coefficient without a raw tail as a raw factor, keeping integers and rationals exact.
+function exact_raw(c::Coeff)::RawExpression
+    t = c.tail
+    t isa Poly && return poly_to_raw(t)::RawExpression
+    z = c.z
+    if iszero(imag(z)) && isinteger(real(z)) && abs(real(z)) <= 9.007199254740992e15
+        return SymbolicUtils.Const{SymbolicUtils.SymReal}(Int(real(z)))
+    end
+    return SymbolicUtils.Const{SymbolicUtils.SymReal}(z)
 end
 
 @inline function neg_cnum(a::Coeff)

@@ -174,6 +174,12 @@ SymbolicUtils has no public registry for extending its default rules, so `simpli
 runs phase normalization, the standard simplifier, and phase normalization once more. Native
 and `Poly` fast paths still avoid the CAS.
 
+Radicals of exact numbers live in the `Poly` tier as prime atoms with exponents in `(0, 1)`;
+integer parts are folded into the exact scalar. SymbolicUtils cannot hold them: it folds
+`sqrt(2)^2` to the float `2.0`. Prime bases give one canonical form (`√8 = 2√2`,
+`√2·√3 = √6`, `1/√2 = √2/2`). For the same reason a raw product multiplies its numeric radical
+factors in the exact tier and leaves only the remaining factors to the CAS.
+
 
 ## QAdd internals
 
