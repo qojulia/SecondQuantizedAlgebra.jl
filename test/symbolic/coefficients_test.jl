@@ -119,6 +119,38 @@ import SecondQuantizedAlgebra: Coeff, to_cnum
         @test coefficient(sqrt(Num(2.0))) ≈ sqrt(2.0)
     end
 
+    @testset "radicals reduce to prime atoms and compose with the big tier" begin
+        # sqrt(6), sqrt(2)*sqrt(3) and sqrt(12)/2 all reduce to the same two prime
+        # radical atoms Const(2)^(1/2), Const(3)^(1/2) -- never a single Const(6) atom.
+        via_product = to_cnum(sqrt(Num(2))) * to_cnum(sqrt(Num(3)))
+        via_radicand = to_cnum(sqrt(Num(6)))
+        via_division = to_cnum(sqrt(Num(12))) / to_cnum(2)
+        @test isequal(via_product, via_radicand)
+        @test hash(via_product) == hash(via_radicand)
+        @test isequal(via_division, to_cnum(sqrt(Num(3))))
+        @test hash(via_division) == hash(to_cnum(sqrt(Num(3))))
+
+        # Folding a radical's integer exponent widens to the big tier instead of
+        # falling back to Float64 (I5).
+        small = to_cnum(sqrt(Num(2))) * to_cnum(2)^40
+        @test isequal(small^2, to_cnum(2)^81)
+        big_tier = to_cnum(sqrt(Num(2))) * to_cnum(2)^63
+        @test isequal(big_tier^2, to_cnum(2)^127)
+
+        # A BigInt radicand, or a BigInt-denominator radicand, that fully factors is
+        # recognized exactly rather than staying a symbolic leaf.
+        @test isequal(to_cnum(sqrt(Num(big(2)^71))), to_cnum(big(2))^35 * to_cnum(sqrt(Num(2))))
+        @test isequal(to_cnum(sqrt(Num(1 // big(2)^70))), to_cnum(1 // big(2)^35))
+
+        # Base.inv refolds a negated radical exponent back into (0, 1): 1/sqrt(2) = sqrt(2)/2,
+        # not a bare atom with a negative exponent.
+        @test isequal(inv(to_cnum(sqrt(Num(2)))), to_cnum(sqrt(Num(2))) / to_cnum(2))
+
+        # radical_monomial_power widens on overflow instead of falling through to a
+        # symbolic leaf.
+        @test isequal(to_cnum(sqrt(Num(2)))^200, to_cnum(2)^100)
+    end
+
     @testset "symbolic arithmetic stays faithful" begin
         @variables g κ r
         @test isequal(coefficient(g), Complex(Num(g), Num(0)))
