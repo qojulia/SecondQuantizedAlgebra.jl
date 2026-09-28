@@ -174,6 +174,66 @@ SymbolicUtils has no public registry for extending its default rules, so `simpli
 runs phase normalization, the standard simplifier, and phase normalization once more. Native
 and `Poly` fast paths still avoid the CAS.
 
+## Exact coefficients
+
+A `Monomial`'s scalar (`scalar * ∏ᵢ symsᵢ^expsᵢ`) is a Gaussian rational held in one of two
+tiers:
+
+```julia
+const ExactComplex    = Complex{Rational{Int}}
+const BigExactComplex = Complex{Rational{BigInt}}
+const CoeffScalar     = Union{ComplexF64, ExactComplex, BigExactComplex}
+const ExactScalar     = Union{ExactComplex, BigExactComplex}
+```
+
+`Monomial` stores the small tier (`ComplexF64` or `ExactComplex`) inline in `small`, and the
+big tier in a separate `wide::Union{Nothing, BigExactComplex}` field. A `BigInt` member would
+turn the small isbits union into a boxed pointer and allocate on every monomial of the fast
+path, so the two tiers get separate fields instead.
+
+The representation holds four invariants:
+
+- **One representation per value.** `wide !== nothing` implies the value it holds does not
+  fit `ExactComplex` (real or imaginary numerator or denominator beyond `typemax(Int)`).
+  Every arithmetic operation that can produce a big-tier result (`exact_mul`, `exact_add`,
+  `exact_inv`, and the `Monomial(z::BigExactComplex, syms, exps)` constructor) demotes back to
+  the small tier through `canonical_exact` before returning. This is what makes `hash`/
+  `isequal` sound across tiers: a value that fits `ExactComplex` is never accidentally left in
+  the big tier, so two monomials carrying the same mathematical scalar are never one small and
+  one big.
+- **The float tier is exact-input-free.** A `Monomial.small::ComplexF64` (with `wide ===
+  nothing`) denotes an inexact value reached only from genuinely floating-point user input, or
+  from native arithmetic provably still within `2^53` (`native_product_exact`/
+  `native_sum_exact`, gated by `MAX_EXACT_FLOAT = maxintfloat(Float64)`). No code path leaves
+  an exact integer or rational result sitting in the float tier: `integer_scalar` reclassifies
+  any Gaussian-integer-valued float within `MAX_EXACT_FLOAT` back to the exact tier before it
+  is trusted as "just a float", and any arithmetic beyond that bound routes through
+  `native_mul_wide`/`native_add_wide` instead of a raw `ComplexF64` operation.
+- **A radical atom's exponent stays in `(0, 1)`.** A radical atom is the hashconsed
+  `SymbolicUtils.Const{SymReal}(p::Int)` of a *prime* `p` (`is_radical_atom`). Radicands
+  always factor down to primes (`radical_coeff`/`prime_factorization!`, trial division below
+  `RADICAL_TRIAL_BOUND = 2^16`, with the leftover cofactor accepted as prime below the bound
+  squared); a composite radicand is never stored as one atom. `√6` is therefore
+  `Const(2)^(1/2) * Const(3)^(1/2)`, the same monomial `√2 * √3` and `√12/2` reduce to, so all
+  three compare `isequal` and hash identically. Any integer part of a radical's exponent is
+  folded into the scalar (`radical_power`), which is why `√2·√2` normalizes to the scalar `2`
+  rather than a monomial with exponent `1`.
+- **Radicals and the big tier compose.** `radical_power` folds a radical's integer exponent
+  by repeated squaring in the exact tier (`exact_pow`), so it widens to `BigExactComplex`
+  instead of overflowing or falling back to `Float64`. A `BigInt`-valued radicand (or
+  `Rational{BigInt}` denominator) that fully factors below the trial bound is recognized the
+  same way an `Int`-sized one is (`prime_factorization!` accepts any `Integer`); only a
+  radicand that cannot be fully factored stays an unevaluated symbolic leaf.
+
+`canonical_monomial(scalar, syms, exps)` is the only function allowed to see an arbitrary,
+not-yet-canonical `(scalar, syms, exps)` triple: it folds every radical exponent into `(0, 1)`
+and then dispatches to the tier-aware inner `Monomial` constructor on the resulting scalar.
+Every other scalar-arithmetic helper (`with_factors`, `mul_scalars`, `add_scalars`,
+`scale_monomial`, `conj_monomial`, `normalize_monomial`) requires its `syms`/`exps` to already
+be radical-canonical; a construction site only needs `canonical_monomial` when it hands in
+freshly merged or negated factors (a phase-argument fold, `term_mul`'s factor merge, or
+`Base.inv`'s exponent negation), not when it copies an existing monomial's own factors
+verbatim.
 
 ## QAdd internals
 
