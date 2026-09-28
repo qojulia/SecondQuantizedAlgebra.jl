@@ -126,6 +126,8 @@ exact_inv(a::BigExactComplex)::ExactScalar = canonical_exact(inv(a))
 # small tier promotes the running product rather than throwing (I5) — the same mechanism
 # `radical_power` below uses to fold a radical's integer exponent into the scalar exactly.
 function exact_pow(z::ExactScalar, n::Int)::ExactScalar
+    # `abs(typemin(Int))` wraps to a negative value, which would skip the loop and return 1.
+    n == typemin(Int) && throw(OverflowError("exact power with exponent typemin(Int)"))
     e = abs(n)
     result::ExactScalar = ExactComplex(1 // 1, 0 // 1)
     base::ExactScalar = z

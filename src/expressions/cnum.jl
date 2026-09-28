@@ -1301,6 +1301,8 @@ function Base.:/(a::Coeff, b::Coeff)::Coeff
     end
     if b.tail isa Poly && length(b.tail.terms) == 1
         inverse = inv(b)
+        # An integer reciprocal is demoted to the native tier (`inv(1//2) == 2`).
+        inverse.tail isa Poly || return mul_cnum(a, inverse)
         inverse_tail = inverse.tail::Poly
         if a.tail isa Native
             return from_poly(poly_scale(inverse_tail.terms, a.z))
