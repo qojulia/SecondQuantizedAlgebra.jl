@@ -120,6 +120,78 @@ import SecondQuantizedAlgebra: Coeff, to_cnum
         @test coefficient(sqrt(Num(2.0))) ≈ sqrt(2.0)
     end
 
+    @testset "exact coefficients beyond 2^53 and Int64" begin
+        b = Destroy(FockSpace(:wide), :b)
+        exact_parts(c) = (Symbolics.value(real(c)), Symbolics.value(imag(c)))
+
+        # Integer products past 2^53 must not round in the native tier, including a
+        # complex product whose real part cancels to a small value.
+        re, _ = exact_parts(get_prefactor((3^17 * a) * 3^17))
+        @test re isa Integer && re == 3^34
+        re, ip = exact_parts(
+            get_prefactor(((2^27 + 1 + 2^27 * im) * a) * (2^27 + 1 + (2^27 + 2) * im)),
+        )
+        @test re == 1 && ip isa Integer && ip == 2 * (2^27 + 1)^2
+
+        # Wide integers and rationals stay exact rather than turning into floats.
+        re, _ = exact_parts(get_prefactor(2 * ((1 // big(3)^25) * b * a)))
+        @test re isa Rational && re == 2 // big(3)^25
+        re, _ = exact_parts(get_prefactor((1 // big(2)^40) * b * a))
+        @test re isa Rational && re == 1 // 2^40
+        re, _ = exact_parts(
+            get_prefactor((1 // Int128(3)^25) * b * a + (1 // Int128(2)^40) * b * a),
+        )
+        @test re isa Rational && re == 1 // big(3)^25 + 1 // big(2)^40
+        @test isequal(((1 // big(3)^25) * b * a) * big(3)^25, b * a)
+
+        # An intermediate sum whose denominator overflows Int64 returns to the small
+        # exact tier once it fits again, and then hashes like the directly built value.
+        wide = (1 // 3^39) * a + (1 // 2^40) * a
+        back = wide - (1 // 2^40) * a
+        @test isequal(back, (1 // 3^39) * a)
+        @test hash(back) == hash((1 // 3^39) * a)
+        @test SecondQuantizedAlgebra.term_scalar(only(stored_coefficient(back).tail.terms)) isa Complex{Rational{Int}}
+
+        # Dividing exact integers stays exact; a float operand keeps float division.
+        @test isequal(to_cnum(1) / to_cnum(3), to_cnum(1 // 3))
+        @test isequal(inv(to_cnum(3 + 4im)), to_cnum(3 // 25 - 4 // 25 * im))
+        @test isequal(to_cnum(6) / to_cnum(3), to_cnum(2))
+        @test isequal(to_cnum(1.0) / to_cnum(0.3), to_cnum(1.0 / 0.3))
+        # A rational divisor whose reciprocal is an integer.
+        @test isequal(to_cnum(5) / to_cnum(1 // 3), to_cnum(15))
+        @test isequal(to_cnum(-1) / to_cnum(1 // 2), to_cnum(-2))
+
+        # The real and imaginary parts of an exact unit phase keep exact amplitudes.
+        @variables θ
+        phase = SecondQuantizedAlgebra.expim(-θ) * to_cnum(Complex(3 // 5, 4 // 5))
+        @test isequal(real(phase), (3 // 5) * cos(θ) + (4 // 5) * sin(θ))
+        @test isequal(imag(phase), (4 // 5) * cos(θ) - (3 // 5) * sin(θ))
+    end
+
+    @testset "numeric radicals multiply exactly" begin
+        inverse_root_six = 1 / sqrt(Num(6))
+        weighted = inverse_root_six * a
+        @test isequal(stored_coefficient(commutator(weighted, weighted')), to_cnum(1 // 6))
+
+        @test isequal(to_cnum(sqrt(Num(2))) * to_cnum(sqrt(Num(3))), to_cnum(sqrt(Num(6))))
+        @test hash(to_cnum(sqrt(Num(2))) * to_cnum(sqrt(Num(3)))) == hash(to_cnum(sqrt(Num(6))))
+        @test isequal(to_cnum(sqrt(Num(8))), 2 * to_cnum(sqrt(Num(2))))
+        @test isequal(to_cnum(1 / sqrt(Num(2))), to_cnum(sqrt(Num(2))) / 2)
+        @test isequal(to_cnum(cbrt(Num(2)))^3, to_cnum(2))
+
+        for c in (to_cnum(inverse_root_six), to_cnum(cbrt(Num(12))))
+            @test isequal(to_cnum(SecondQuantizedAlgebra.to_num(c)), c)
+        end
+        @variables g
+        raw = to_cnum(sin(g + 1))
+        half = to_cnum(1 / sqrt(Num(2)))
+        @test isequal((half * raw) * half, to_cnum(1 // 2) * raw)
+        @test isequal((raw / to_cnum(sqrt(Num(2)))) * to_cnum(sqrt(Num(2))), raw)
+
+        large_prime = 4611686018427387847
+        @test SecondQuantizedAlgebra.to_complex(to_cnum(sqrt(Num(large_prime)))) ≈ sqrt(large_prime)
+    end
+
     @testset "radicals reduce to prime atoms and compose with the big tier" begin
         # sqrt(6), sqrt(2)*sqrt(3) and sqrt(24)/2 all reduce to the same two prime
         # radical atoms Const(2)^(1/2), Const(3)^(1/2), never a single Const(6) atom;
