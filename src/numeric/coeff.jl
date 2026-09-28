@@ -241,6 +241,11 @@ function fold_const(x)::ComplexF64
                     fold_const(first(args)) - fold_const(last(args))
             elseif op === expim
                 return exp(im * fold_const(only(args)))
+            elseif op === sqrt
+                return sqrt(fold_const(only(args)))
+            elseif op === cbrt
+                z = fold_const(only(args))
+                iszero(imag(z)) && return ComplexF64(cbrt(real(z)))
             end
         elseif SymbolicUtils.isconst(x)
             return x.val
