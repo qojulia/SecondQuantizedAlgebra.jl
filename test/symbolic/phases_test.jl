@@ -170,7 +170,7 @@ import SecondQuantizedAlgebra: expim, exponential_form, phase_terms, to_num,
         @test 2 == native
         @test native != 3
         @test native^3 == stored_coefficient(8 * a)
-        @test native^(-2) == stored_coefficient((1 / 4) * a)
+        @test native^(-2) == stored_coefficient((1 // 4) * a)
 
         large = stored_coefficient(complex(big(2)^70, big(3)^70) * a)
         @test isequal(real(large), Num(big(2)^70))

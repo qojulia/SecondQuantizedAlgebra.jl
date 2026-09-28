@@ -1183,9 +1183,17 @@ Base.one(::Coeff) = CNUM_ONE
 Base.oneunit(::Type{Coeff}) = CNUM_ONE
 Base.oneunit(::Coeff) = CNUM_ONE
 
+# Two exact integers divide exactly; any float operand keeps the floating-point quotient,
+# and so does a zero divisor, which keeps IEEE `Inf`/`NaN` rather than throwing.
+function native_div(a::ComplexF64, b::ComplexF64)::Coeff
+    ea, eb = integer_scalar(a), integer_scalar(b)
+    (ea === nothing || eb === nothing || iszero(eb)) && return native(a / b)
+    return scalar_coeff(exact_mul(ea, exact_inv(eb)))
+end
+
 function Base.inv(c::Coeff)::Coeff
     tail = c.tail
-    tail isa Native && return native(inv(c.z))
+    tail isa Native && return native_div(one(ComplexF64), c.z)
     if tail isa Poly
         if length(tail.terms) == 1
             monomial = only(tail.terms)
@@ -1219,7 +1227,7 @@ Base.:*(a::Coeff, b::Coeff) = mul_cnum(a, b)
 Base.:*(a::Coeff, b::Number) = mul_cnum(a, to_cnum(b))
 Base.:*(a::Number, b::Coeff) = mul_cnum(to_cnum(a), b)
 function Base.:/(a::Coeff, b::Coeff)::Coeff
-    (is_native(a) && is_native(b)) && return native(a.z / b.z)
+    (is_native(a) && is_native(b)) && return native_div(a.z, b.z)
     if b.tail isa Native && a.tail isa Poly
         return from_poly(poly_scale(a.tail.terms, scalar_inv(b.z)))
     end

@@ -77,6 +77,12 @@ import SecondQuantizedAlgebra: Coeff, to_cnum
         @test hash(back) == hash((1 // 3^39) * a)
         @test SecondQuantizedAlgebra.term_scalar(only(stored_coefficient(back).tail.terms)) isa Complex{Rational{Int}}
 
+        # Dividing exact integers stays exact; a float operand keeps float division.
+        @test isequal(to_cnum(1) / to_cnum(3), to_cnum(1 // 3))
+        @test isequal(inv(to_cnum(3 + 4im)), to_cnum(3 // 25 - 4 // 25 * im))
+        @test isequal(to_cnum(6) / to_cnum(3), to_cnum(2))
+        @test isequal(to_cnum(1.0) / to_cnum(0.3), to_cnum(1.0 / 0.3))
+
         # The real and imaginary parts of an exact unit phase keep exact amplitudes.
         @variables θ
         phase = SecondQuantizedAlgebra.expim(-θ) * to_cnum(Complex(3 // 5, 4 // 5))

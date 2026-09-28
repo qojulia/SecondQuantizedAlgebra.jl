@@ -10,7 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
-- Exact coefficients no longer lose precision or overflow. Integer products and sums beyond `2^53` stay exact instead of rounding, `BigInt`, `Int128` and wide rationals stay exact instead of becoming floats, and rational arithmetic whose intermediates exceed `Int64` continues in `BigInt` instead of throwing `OverflowError`.
+- Exact coefficients no longer lose precision or overflow. Integer products and sums beyond `2^53` stay exact instead of rounding, `BigInt`, `Int128` and wide rationals stay exact instead of becoming floats, and rational arithmetic whose intermediates exceed `Int64` continues in `BigInt` instead of throwing `OverflowError`. Dividing or inverting exact integer coefficients (`to_cnum(1) / to_cnum(3)`) gives an exact rational instead of a float.
 - Arrays of coefficients and operators now render as a LaTeX array through `latexify` and the `text/latex` MIME display. They previously errored.
 - `one`, `zero`, `oneunit` and `isone` are defined on `Coeff`, so generic reductions over a coefficient array work: `sum`, `prod` and `tr`.
 - Linear algebra over coefficient arrays: `det` (by minor expansion, since a symbolic coefficient has no magnitude order for pivoting), `adjoint`, `transpose`, `dot`, `norm`, `Symmetric`, `Hermitian`, `rmul!` and `lmul!`. LinearAlgebra moves from a weak to a hard dependency; it is a stdlib already in the load closure, so nothing extra is loaded.
