@@ -12,6 +12,16 @@ import SecondQuantizedAlgebra: Coeff, to_cnum
     coefficient(x) = get_prefactor(x * a)
     stored_coefficient(x) = only(x).second
 
+    function contains_float(x)
+        x = SymbolicUtils.unwrap(x)
+        x isa AbstractFloat && return true
+        x isa Complex && return contains_float(real(x)) || contains_float(imag(x))
+        x isa Number && return false
+        SymbolicUtils.isconst(x) && return contains_float(x.val)
+        SymbolicUtils.iscall(x) || return false
+        return any(contains_float, SymbolicUtils.arguments(x))
+    end
+
     @testset "numeric and exact coefficients" begin
         @test coefficient(2) == 2
         @test coefficient(2 + 3im) == 2 + 3im
@@ -95,15 +105,6 @@ import SecondQuantizedAlgebra: Coeff, to_cnum
     end
 
     @testset "radicals of exact numbers stay exact" begin
-        function contains_float(x)
-            x = SymbolicUtils.unwrap(x)
-            x isa AbstractFloat && return true
-            x isa Complex && return contains_float(real(x)) || contains_float(imag(x))
-            x isa Number && return false
-            SymbolicUtils.isconst(x) && return contains_float(x.val)
-            SymbolicUtils.iscall(x) || return false
-            return any(contains_float, SymbolicUtils.arguments(x))
-        end
         exact(x) = !contains_float(coefficient(x))
 
         root_two = sqrt(Num(2))
@@ -149,6 +150,75 @@ import SecondQuantizedAlgebra: Coeff, to_cnum
         # radical_monomial_power widens on overflow instead of falling through to a
         # symbolic leaf.
         @test isequal(to_cnum(sqrt(Num(2)))^200, to_cnum(2)^100)
+    end
+
+    @testset "cross-tier stress: prime-radical sums forced through the big tier" begin
+        # `s` sums six distinct prime radicals. `s^2` folds each `sqrt(p)^2` into an
+        # integer (I2) and leaves 15 off-diagonal cross radicals `sqrt(p)*sqrt(q)` plus
+        # the diagonal integer `sum(primes)` -- all comfortably inside `ExactComplex`.
+        # Scaling by `2^70` then forces *every* term's scalar (diagonal and every
+        # cross-radical alike) past `typemax(Int)` in the same `canonical_monomial` call
+        # that also has to preserve each term's already-folded radical factors: this is
+        # exactly the interaction #284 (radical folding) and #285 (tier promotion) each
+        # got right in isolation but that a naive merge of the two reintroduces a bug in
+        # (see SPEC.md I5 and the "four conflict hunks" in `term_mul`/`Base.inv`).
+        #
+        # On #285 alone (no radical recognition at all), `sqrt(Num(p))` is not folded to
+        # an exact prime atom in the first place, so `s` is a sum of plain `Float64`
+        # coefficients and every assertion below that checks for an exact
+        # (`ExactComplex`/`BigExactComplex`) scalar fails outright (the value is a float).
+        # On #284 alone (no big-tier promotion), `to_cnum(2)^70` itself has nowhere to
+        # go once it exceeds `typemax(Int)`: #284's own `radical_power` documented
+        # fallback is to drop to `Float64` above `typemax(Int)` (I5), so `big_scale`
+        # either throws `OverflowError` from unchecked `Int` exponentiation or silently
+        # becomes an inexact `Float64`, and the exact-scalar checks below fail either way.
+        primes6 = [2, 3, 5, 7, 11, 13]
+        s = sum(to_cnum(sqrt(Num(p))) for p in primes6)
+        s2 = s^2
+        big_scale = to_cnum(2)^70
+        scaled = s2 * big_scale
+
+        poly = scaled.tail
+        @test poly isa SecondQuantizedAlgebra.Poly
+        @test length(poly.terms) == 16   # 1 diagonal + C(6,2) = 15 cross radicals
+        @test any(t -> SecondQuantizedAlgebra.term_scalar(t) isa SecondQuantizedAlgebra.BigExactComplex, poly.terms)
+
+        # Independently built (double sum over pairs, not via `^`/single `*`): the same
+        # mathematical value, `Σ_{p,q} 2^70 * sqrt(p) * sqrt(q)`, reached through a
+        # different sequence of `term_mul`/`canonical_monomial` calls.
+        built = sum(
+            to_cnum(2)^70 * (to_cnum(sqrt(Num(p))) * to_cnum(sqrt(Num(q))))
+                for p in primes6, q in primes6
+        )
+        @test isequal(scaled, built)
+        @test hash(scaled) == hash(built)
+
+        # The exact expected value of the diagonal (empty-factor) term, computed here as
+        # a `BigInt` sum -- not by calling SQA a second time.
+        diag = only(filter(t -> isempty(t.syms), poly.terms))
+        expected_diag = BigInt(2)^70 * sum(BigInt.(primes6))
+        @test real(SecondQuantizedAlgebra.term_scalar(diag)) == expected_diag // 1
+        @test iszero(imag(SecondQuantizedAlgebra.term_scalar(diag)))
+
+        # Dividing back out demotes every term back to the small tier and reproduces
+        # `s2` exactly (I3's round trip: a value that visits the big tier transiently
+        # and fits back in `ExactComplex` is never left stuck in the wide field).
+        back = scaled * inv(big_scale)
+        @test isequal(back, s2)
+        @test hash(back) == hash(s2)
+        @test all(t -> SecondQuantizedAlgebra.term_scalar(t) isa SecondQuantizedAlgebra.ExactComplex, back.tail.terms)
+
+        # The same stress at the operator level: a sum of six radical-weighted `a`
+        # operators, squared through `simplify`/normal ordering rather than raw `Coeff`
+        # arithmetic, stays exact end to end.
+        h = FockSpace(:coefficients_stress)
+        b = Destroy(h, :b)
+        op_sum = sum(sqrt(Num(p)) * b for p in primes6)
+        combined = simplify(op_sum * op_sum')
+        for term in combined
+            coeff = term.second
+            @test !contains_float(coeff)
+        end
     end
 
     @testset "symbolic arithmetic stays faithful" begin
