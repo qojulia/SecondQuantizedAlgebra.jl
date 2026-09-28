@@ -735,25 +735,10 @@ function exact_rational_power(
     return Rational{Int}(Int(numerator(root)), Int(denominator(root)))
 end
 
-# Primes below this bound are found by trial division; a cofactor left over is prime when it
-# is below the bound squared. Larger bases stay symbolic leaves rather than being factored.
-const RADICAL_TRIAL_BOUND = 1 << 16
-
-function prime_factorization!(factors::Vector{Tuple{Int, Int}}, n::Integer)::Bool
-    p = 2
-    while p < RADICAL_TRIAL_BOUND && p * p <= n
-        k = 0
-        while n % p == 0
-            n = div(n, p); k += 1
-        end
-        k > 0 && push!(factors, (p, k))
-        p += p == 2 ? 1 : 2
-    end
-    n == 1 && return true
-    n < big(RADICAL_TRIAL_BOUND)^2 || return false
-    push!(factors, (Int(n), 1))
-    return true
-end
+# `prime_factorization!`/`RADICAL_TRIAL_BOUND` live in `exact.jl` (pure integer logic, no
+# `Coeff` dependency); primes below the bound are found by trial division, and a cofactor
+# left over is prime when it is below the bound squared. Larger bases stay symbolic leaves
+# rather than being factored.
 
 # `value^r` for a positive rational `value` (of any integer width — a `BigInt` radicand
 # that fully factors over primes below the trial bound still lands in the exact tier, per
