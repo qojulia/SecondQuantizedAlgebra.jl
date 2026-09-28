@@ -249,6 +249,11 @@ end
             r"get_variables\(%\d+::Real\)::Any",
             r"SecondQuantizedAlgebra\.any\(%\d+::.*::Any\)::Any",
             r"SecondQuantizedAlgebra\.:// %\d+::Integer\)::Rational",
+            # `recognize`'s `(/)` branch divides by `const_value(args[2])::Any`, so the
+            # `1 // denominator` it builds is a `Rational` of unknown width; widening that
+            # into the exact tier (`Rational{BigInt}`, so a `BigInt` divisor is exact rather
+            # than a `MethodError`) is one more step on the same already-dynamic boundary.
+            r"::Rational\{BigInt\}\(.*\)::Rational\{BigInt\}\)",
             r"SecondQuantizedAlgebra\.collect_trig!\(%\d+::Vector\{SymbolicUtils\.BasicSymbolicImpl.*?, %\d+::Any\)::Any",
             r"SecondQuantizedAlgebra\.append!\(%\d+::Vector\{SymbolicUtils\.BasicSymbolicImpl.*?, %\d+::Any\)::Any",
             r"SecondQuantizedAlgebra\.has_symbolic_trig\(%\d+::Any\)::Bool",
