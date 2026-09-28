@@ -214,7 +214,7 @@ The representation holds four invariants:
   always factor down to primes (`radical_coeff`/`prime_factorization!`, trial division below
   `RADICAL_TRIAL_BOUND = 2^16`, with the leftover cofactor accepted as prime below the bound
   squared); a composite radicand is never stored as one atom. `√6` is therefore
-  `Const(2)^(1/2) * Const(3)^(1/2)`, the same monomial `√2 * √3` and `√12/2` reduce to, so all
+  `Const(2)^(1/2) * Const(3)^(1/2)`, the same monomial `√2 * √3` and `√24/2` reduce to, so all
   three compare `isequal` and hash identically. Any integer part of a radical's exponent is
   folded into the scalar (`radical_power`), which is why `√2·√2` normalizes to the scalar `2`
   rather than a monomial with exponent `1`.

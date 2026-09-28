@@ -121,10 +121,14 @@ import SecondQuantizedAlgebra: Coeff, to_cnum
     end
 
     @testset "radicals reduce to prime atoms and compose with the big tier" begin
-        # sqrt(6), sqrt(2)*sqrt(3) and sqrt(12)/2 all reduce to the same two prime
-        # radical atoms Const(2)^(1/2), Const(3)^(1/2) -- never a single Const(6) atom.
+        # sqrt(6), sqrt(2)*sqrt(3) and sqrt(24)/2 all reduce to the same two prime
+        # radical atoms Const(2)^(1/2), Const(3)^(1/2), never a single Const(6) atom;
+        # sqrt(12)/2 folds to sqrt(3).
         via_product = to_cnum(sqrt(Num(2))) * to_cnum(sqrt(Num(3)))
         via_radicand = to_cnum(sqrt(Num(6)))
+        via_folded = to_cnum(sqrt(Num(24))) / to_cnum(2)
+        @test isequal(via_folded, via_radicand)
+        @test hash(via_folded) == hash(via_radicand)
         via_division = to_cnum(sqrt(Num(12))) / to_cnum(2)
         @test isequal(via_product, via_radicand)
         @test hash(via_product) == hash(via_radicand)

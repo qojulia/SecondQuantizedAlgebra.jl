@@ -6,7 +6,7 @@ One term of a parameter polynomial: `scalar * ∏ symᵢ^expᵢ`. Factors are so
 atom merge (`sqrt(p)*sqrt(p) = p`). A radical atom (a hashconsed `Const{SymReal}`
 of a prime `Int`) always keeps its exponent in `(0, 1)`: any integer part is
 folded into `scalar` (`canonical_monomial`, `radical_power`), so `√2·√2`
-normalizes to the scalar `2`, and `√2·√3`/`√6`/`√12/2` all reduce to the same
+normalizes to the scalar `2`, and `√2·√3`/`√6`/`√24/2` all reduce to the same
 two prime atoms `Const(2)^(1/2)`, `Const(3)^(1/2)` and compare `isequal`.
 """
 # The scalar-tier type aliases (`ExactComplex`, `BigExactComplex`, `CoeffScalar`,
