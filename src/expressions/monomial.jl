@@ -250,15 +250,22 @@ function term_mul(a::Monomial, b::Monomial)
     phase_b = phase_factor_index(b.syms)
     if phase_a != 0 && phase_b != 0
         # The common inverse pair stays on the ordinary identity merge: no symbolic
+        # argument arithmetic and no additional allocation.
         if a.syms[phase_a] === b.syms[phase_b] &&
                 a.exps[phase_a] == -b.exps[phase_b]
-            se = merge_factors(a.syms, a.exps, b.syms, b.exps)
-            return canonical_monomial(scalar_mul(term_scalar(a), term_scalar(b)), se[1], se[2])
+            return merged_term_mul(a, b)
         end
         return phase_term_mul(a, b, phase_a, phase_b)
     end
+    return merged_term_mul(a, b)
+end
+
+@inline function merged_term_mul(a::Monomial, b::Monomial)
     se = merge_factors(a.syms, a.exps, b.syms, b.exps)
-    return canonical_monomial(scalar_mul(term_scalar(a), term_scalar(b)), se[1], se[2])
+    syms = se[1]::Vector{SymbolicUtils.BasicSymbolic}
+    exps = se[2]::Vector{Rational{Int}}
+    needs_radical_fold(syms, exps) || return mul_scalars(a, b, syms, exps)
+    return canonical_monomial(scalar_mul(term_scalar(a), term_scalar(b)), syms, exps)
 end
 
 # Insertion sort by a strict-less predicate. The polynomial passes sort very short
@@ -331,6 +338,7 @@ function poly_mul(p::Vector{Monomial}, q::Vector{Monomial})
     return canonical_terms!(out)
 end
 
+# Scale every term; preserves canonical order (factors unchanged).
 function poly_scale(p::Vector{Monomial}, z::SmallScalar)
     iszero(z) && return Monomial[]
     return Monomial[scale_monomial(t, z) for t in p]

@@ -414,6 +414,7 @@ to_cnum(x::Rational) = exact_complex(x, false)
 to_cnum(x::Complex{Bool}) = native(ComplexF64(x))
 to_cnum(x::Complex{<:Union{Integer, Rational}}) = exact_complex(real(x), imag(x))
 # Native only when the value round-trips through ComplexF64 with no loss; non-rational
+# values that cannot be represented faithfully (for example, large bignums) stay symbolic.
 function to_cnum(x::Real)
     z = ComplexF64(x)
     return z == x ? native(z) : symbolic(SymbolicUtils.unwrap(Num(x)))
@@ -743,6 +744,7 @@ end
 
 # A fractional power `base^r`. Native only for a floating-point base or a single-atom
 # unit-scalar monomial (giving that atom a rational exponent); any other base would
+# need to distribute the radical (unsound), so it becomes a symbolic leaf.
 function rational_power(basearg, r::Rational{Int}, x)
     value = const_value(basearg)
     exact = value isa Integer ? Rational{BigInt}(value) :
