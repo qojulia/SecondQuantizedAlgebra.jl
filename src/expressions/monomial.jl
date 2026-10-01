@@ -9,14 +9,7 @@ folded into `scalar` (`canonical_monomial`, `radical_power`), so `√2·√2`
 normalizes to the scalar `2`, and `√2·√3`/`√6`/`√24/2` all reduce to the same
 two prime atoms `Const(2)^(1/2)`, `Const(3)^(1/2)` and compare `isequal`.
 """
-# The scalar-tier type aliases (`ExactComplex`, `BigExactComplex`, `CoeffScalar`,
-# `ExactScalar`, `SmallScalar`, `MAX_EXACT_FLOAT`) and all scalar-only arithmetic
-# (checked small-tier ops, demotion/promotion, radical-folding primitives) live in
-# `exact.jl`, included immediately before this file. Everything below that takes or
-# returns a `Monomial` stays here, since `exact.jl` loads before `Monomial` exists.
 
-# The big scalar lives in its own field: a `BigInt` member would turn the small isbits union
-# into a boxed pointer and allocate on every monomial of the fast path.
 struct Monomial
     small::Union{ComplexF64, ExactComplex}
     wide::Union{Nothing, BigExactComplex}
@@ -36,13 +29,6 @@ end
     return wide === nothing ? m.small : wide
 end
 
-# Hot-path scalar arithmetic builds its result straight into a monomial. A local holding
-# the whole `CoeffScalar` union is boxed, since the union mixes isbits and `BigInt`
-# members, so these read the isbits `small` field and leave the big tier to a fallback.
-#
-# Precondition shared by every helper below except `canonical_monomial`: `syms`/`exps` are
-# already radical-canonical (I2 holds for every factor). Only `canonical_monomial` may see
-# an arbitrary, not-yet-canonical triple.
 @inline with_factors(m::Monomial, syms, exps) = Monomial(m.small, m.wide, syms, exps)
 @inline scalar_iszero(m::Monomial) = m.wide === nothing && iszero(m.small)
 @inline function scalar_is_real(m::Monomial)
@@ -104,9 +90,6 @@ end
     return exact_add_monomial(ex, ey, syms, exps)
 end
 
-# Product of the two scalars carrying the given factors. Precondition: `syms`/`exps`
-# already satisfy I2 (this does not fold radicals — use `canonical_monomial` when they
-# might not, e.g. after merging two operands' factor lists).
 @inline function mul_scalars(a::Monomial, b::Monomial, syms, exps)::Monomial
     x, y = a.small, b.small
     if a.wide === nothing && b.wide === nothing &&
@@ -120,8 +103,6 @@ end
     return Monomial(scalar_mul(term_scalar(a), term_scalar(b)), syms, exps)
 end
 
-# Sum of the scalars of two like terms, keeping the factors of `a`. Precondition: same as
-# `mul_scalars`.
 @inline function add_scalars(a::Monomial, b::Monomial)::Monomial
     x, y = a.small, b.small
     if a.wide === nothing && b.wide === nothing && x isa ComplexF64 && y isa ComplexF64
@@ -146,12 +127,6 @@ end
     (t.wide === nothing && !(z isa BigExactComplex)) && return mul_small(t.small, z, t.syms, t.exps)
     return Monomial(scalar_mul(term_scalar(t), z), t.syms, t.exps)
 end
-
-# === Radical folding (I2, generalized to compose with the big tier per I5) ===
-#
-# `is_radical_atom`/`radical_power`/`needs_radical_fold` live in `exact.jl` (they touch
-# only scalars and `SymbolicUtils` atoms, not `Monomial`); `canonical_monomial` below is
-# the point where that scalar-only machinery meets the `Monomial` constructor.
 
 """
     canonical_monomial(scalar, syms, exps) -> Monomial
@@ -247,8 +222,6 @@ function merge_factors(syma, expa, symb, expb)
     return (syms, exps)
 end
 
-# Two phase-bearing factors that do not simply cancel: the phase arguments combine
-# symbolically. Kept out of `term_mul` so its common path holds no boxed scalar.
 @noinline function phase_term_mul(a::Monomial, b::Monomial, phase_a::Int, phase_b::Int)
     scalar = scalar_mul(term_scalar(a), term_scalar(b))
     if length(a.syms) == 1 && length(b.syms) == 1 &&
@@ -277,9 +250,6 @@ function term_mul(a::Monomial, b::Monomial)
     phase_b = phase_factor_index(b.syms)
     if phase_a != 0 && phase_b != 0
         # The common inverse pair stays on the ordinary identity merge: no symbolic
-        # argument arithmetic and no additional allocation. The merge can still leave a
-        # shared radical atom's exponent outside `(0, 1)` (e.g. two factors each
-        # contributing a fractional power of the same prime), so this still folds.
         if a.syms[phase_a] === b.syms[phase_b] &&
                 a.exps[phase_a] == -b.exps[phase_b]
             se = merge_factors(a.syms, a.exps, b.syms, b.exps)
@@ -361,7 +331,6 @@ function poly_mul(p::Vector{Monomial}, q::Vector{Monomial})
     return canonical_terms!(out)
 end
 
-# Scale every term; preserves canonical order (factors unchanged, so tier-only).
 function poly_scale(p::Vector{Monomial}, z::SmallScalar)
     iszero(z) && return Monomial[]
     return Monomial[scale_monomial(t, z) for t in p]

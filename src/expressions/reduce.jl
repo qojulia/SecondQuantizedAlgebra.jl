@@ -71,8 +71,6 @@ function binomial_power(lo, sign::Int8, k::Int)
         c > typemax(Int) ÷ factor && return nothing
         c = c * factor ÷ j   # exact: the running binomial coefficient stays integral
         s = (sign < 0 && isodd(j)) ? -c : c
-        # A binomial coefficient beyond `2^53` no longer round-trips through `Float64`
-        # exactly; keep it in the exact tier instead of silently rounding.
         scalar = abs(s) <= MAX_EXACT_FLOAT ? complex(Float64(s)) : ExactComplex(s // 1, 0 // 1)
         out[j + 1] = Monomial(
             scalar, SymbolicUtils.BasicSymbolic[lo], Rational{Int}[2j],

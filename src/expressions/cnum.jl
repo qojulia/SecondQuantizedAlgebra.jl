@@ -370,15 +370,11 @@ end
 @inline native_integer(x::Rational{Int}) =
     denominator(x) == 1 && -MAX_EXACT_FLOAT <= numerator(x) <= MAX_EXACT_FLOAT
 
-# The native tier holds an exact value only when it is a Gaussian integer within `2^53`,
-# where every integer is a Float64; any other exact value stays a constant monomial.
 @inline function exact_coeff(x::ExactComplex)::Coeff
     re, im = real(x), imag(x)
     if native_integer(re) && native_integer(im)
         return native(ComplexF64(Int(numerator(re)), Int(numerator(im))))
     end
-    # The small tier never holds a `typemin(Int)` numerator: it is the one value whose
-    # negation overflows.
     (numerator(re) == typemin(Int) || numerator(im) == typemin(Int)) &&
         return exact_coeff(BigExactComplex(x))
     return poly_coeff(Poly(Monomial[Monomial(x, EMPTY_SYMS, EMPTY_EXPS)]))
@@ -413,13 +409,11 @@ end
     return exact_coeff(ExactComplex(re // 1, im // 1))
 end
 to_cnum(x::Union{Int8, Int16, Int32, UInt8, UInt16, UInt32}) = native(ComplexF64(x))
-# Integers and rationals of any width are exact: never a float, never a raw constant.
 to_cnum(x::Integer) = exact_complex(x, false)
 to_cnum(x::Rational) = exact_complex(x, false)
 to_cnum(x::Complex{Bool}) = native(ComplexF64(x))
 to_cnum(x::Complex{<:Union{Integer, Rational}}) = exact_complex(real(x), imag(x))
 # Native only when the value round-trips through ComplexF64 with no loss; non-rational
-# values that cannot be represented faithfully (for example, big floats) stay symbolic.
 function to_cnum(x::Real)
     z = ComplexF64(x)
     return z == x ? native(z) : symbolic(SymbolicUtils.unwrap(Num(x)))
@@ -480,11 +474,6 @@ function from_poly(terms::Vector{Monomial})
     return poly_coeff(Poly(terms))
 end
 
-# Radical atoms sharing an exponent lower as one radical of their product (`sqrt(6)`, not
-# `sqrt(3)*sqrt(2)`)... except `sqrt(6)` and `sqrt(2)*sqrt(3)` are already the *same* stored
-# monomial (both reduce to the two prime atoms `Const(2)^(1/2)`, `Const(3)^(1/2)` via
-# `radical_coeff`/`prime_factorization!` — see `is_radical_atom`); this only groups equal
-# radical *exponents* for display, ordered so it does not depend on atom order.
 function radical_factors(m::Monomial)
     factors = Tuple{Rational{Int}, Int}[]
     @inbounds for i in eachindex(m.syms)
@@ -503,8 +492,6 @@ function radical_factors(m::Monomial)
     return insertion_sort!(factors, isless)
 end
 
-# `sqrt` and `cbrt` of a constant stay unevaluated in SymbolicUtils, while `^` with a constant
-# base evaluates to a float at construction; other exponents are built as an explicit term.
 function radical_expression(n::Int, f::Rational{Int})
     base = SymbolicUtils.Const{SymbolicUtils.SymReal}(n)
     f == 1 // 2 && return sqrt(base)
@@ -735,15 +722,6 @@ function exact_rational_power(
     return Rational{Int}(Int(numerator(root)), Int(denominator(root)))
 end
 
-# `prime_factorization!`/`RADICAL_TRIAL_BOUND` live in `exact.jl` (pure integer logic, no
-# `Coeff` dependency); primes below the bound are found by trial division, and a cofactor
-# left over is prime when it is below the bound squared. Larger bases stay symbolic leaves
-# rather than being factored.
-
-# `value^r` for a positive rational `value` (of any integer width — a `BigInt` radicand
-# that fully factors over primes below the trial bound still lands in the exact tier, per
-# I5) with an irrational root, as one exact monomial over prime radical atoms, or `nothing`
-# when a base cannot be factored.
 function radical_coeff(value::Rational{<:Integer}, r::Rational{Int})::Union{Nothing, Coeff}
     iszero(value) && return nothing
     value > 0 || return nothing
@@ -765,8 +743,6 @@ end
 
 # A fractional power `base^r`. Native only for a floating-point base or a single-atom
 # unit-scalar monomial (giving that atom a rational exponent); any other base would
-# need to distribute the radical (unsound), so it becomes a symbolic leaf — unless the base
-# is itself an exact number with an irrational root, which folds through `radical_coeff`.
 function rational_power(basearg, r::Rational{Int}, x)
     value = const_value(basearg)
     exact = value isa Integer ? Rational{BigInt}(value) :
@@ -1253,8 +1229,6 @@ Base.one(::Coeff) = CNUM_ONE
 Base.oneunit(::Type{Coeff}) = CNUM_ONE
 Base.oneunit(::Coeff) = CNUM_ONE
 
-# Two exact integers divide exactly; any float operand keeps the floating-point quotient,
-# and so does a zero divisor, which keeps IEEE `Inf`/`NaN` rather than throwing.
 function native_div(a::ComplexF64, b::ComplexF64)::Coeff
     ea, eb = integer_scalar(a), integer_scalar(b)
     (ea === nothing || eb === nothing || iszero(eb)) && return native(a / b)
@@ -1267,8 +1241,6 @@ function Base.inv(c::Coeff)::Coeff
     if tail isa Poly
         if length(tail.terms) == 1
             monomial = only(tail.terms)
-            # Negating a radical exponent `e ∈ (0, 1)` gives `-e ∈ (-1, 0)`, which violates
-            # I2 and must refold (`1/√2 = √2/2`, not a bare negative-exponent atom).
             return from_poly(
                 Monomial[
                     canonical_monomial(
@@ -1301,7 +1273,6 @@ function Base.:/(a::Coeff, b::Coeff)::Coeff
     end
     if b.tail isa Poly && length(b.tail.terms) == 1
         inverse = inv(b)
-        # An integer reciprocal is demoted to the native tier (`inv(1//2) == 2`).
         inverse.tail isa Poly || return mul_cnum(a, inverse)
         inverse_tail = inverse.tail::Poly
         if a.tail isa Native
@@ -1485,7 +1456,6 @@ end
     return from_raw_arithmetic(raw, cnum_is_real(a) && cnum_is_real(b))
 end
 
-# A factor of a raw product that is a numeric radical, recognized into its exact monomial.
 const RawExpression = SymbolicUtils.BasicSymbolic{SymbolicUtils.SymReal}
 
 @inline function exact_number(x::RawExpression)::Union{Nothing, Rational{BigInt}}
@@ -1507,15 +1477,10 @@ function radical_monomial_power(c::Coeff, k::Int)::Union{Nothing, Coeff}
     (t isa Poly && length(t.terms) == 1) || return nothing
     m = only(t.terms)
     scalar = term_scalar(m)
-    # Repeated squaring in the exact tier (I5): a large `k` widens rather than overflowing,
-    # so there is no `nothing`/`OverflowError` fallback to a symbolic leaf here.
     powered = scalar isa ComplexF64 ? scalar^k : exact_pow(scalar, k)
     return from_poly(Monomial[canonical_monomial(powered, m.syms, m.exps .* k)])
 end
 
-# A factor of a raw product that is `sqrt(n)`, `cbrt(n)`, `n^r`, or an integer power of one of
-# these, for an exact number `n`, as its exact coefficient. It deliberately avoids `recognize`
-# so the raw product never re-enters the general recognizer.
 function radical_factor(x::RawExpression)::Union{Nothing, Coeff}
     SymbolicUtils.iscall(x) || return nothing
     op = SymbolicUtils.operation(x)
@@ -1544,8 +1509,6 @@ function radical_factor(x::RawExpression)::Union{Nothing, Coeff}
     return nothing
 end
 
-# Product of two coefficients without a raw tail, as radical factors always are. Kept apart
-# from `mul_cnum` so that raw multiplication does not recurse into itself.
 function mul_exact(a::Coeff, b::Coeff)::Coeff
     ta, tb = a.tail, b.tail
     (ta isa Native && tb isa Native) && return mul_native(a.z, b.z)
@@ -1554,7 +1517,6 @@ function mul_exact(a::Coeff, b::Coeff)::Coeff
     return from_poly(poly_mul((ta::Poly).terms, (tb::Poly).terms))
 end
 
-# The radical factors of a raw expression, multiplied exactly, and the remaining factors.
 function split_radicals(x::RawExpression)::Tuple{Coeff, Union{Nothing, RawExpression}}
     single = radical_factor(x)
     single === nothing || return (single, nothing)
@@ -1573,8 +1535,6 @@ function split_radicals(x::RawExpression)::Tuple{Coeff, Union{Nothing, RawExpres
     return (radicals, rest)
 end
 
-# SymbolicUtils folds `sqrt(n)^2` to a float, so radical factors are multiplied in the
-# exact tier and only the remaining factors in the CAS.
 function raw_product(x::RawExpression, y::RawExpression)::RawExpression
     rx, restx = split_radicals(x)
     ry, resty = split_radicals(y)
@@ -1585,7 +1545,6 @@ function raw_product(x::RawExpression, y::RawExpression)::RawExpression
     return (exact * rest)::RawExpression
 end
 
-# A coefficient without a raw tail as a raw factor, keeping integers and rationals exact.
 function exact_raw(c::Coeff)::RawExpression
     t = c.tail
     t isa Poly && return poly_to_raw(t)::RawExpression

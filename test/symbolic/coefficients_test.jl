@@ -124,8 +124,6 @@ import SecondQuantizedAlgebra: Coeff, to_cnum
         b = Destroy(FockSpace(:wide), :b)
         exact_parts(c) = (Symbolics.value(real(c)), Symbolics.value(imag(c)))
 
-        # Integer products past 2^53 must not round in the native tier, including a
-        # complex product whose real part cancels to a small value.
         re, _ = exact_parts(get_prefactor((3^17 * a) * 3^17))
         @test re isa Integer && re == 3^34
         re, ip = exact_parts(
@@ -133,7 +131,6 @@ import SecondQuantizedAlgebra: Coeff, to_cnum
         )
         @test re == 1 && ip isa Integer && ip == 2 * (2^27 + 1)^2
 
-        # Wide integers and rationals stay exact rather than turning into floats.
         re, _ = exact_parts(get_prefactor(2 * ((1 // big(3)^25) * b * a)))
         @test re isa Rational && re == 2 // big(3)^25
         re, _ = exact_parts(get_prefactor((1 // big(2)^40) * b * a))
@@ -144,24 +141,19 @@ import SecondQuantizedAlgebra: Coeff, to_cnum
         @test re isa Rational && re == 1 // big(3)^25 + 1 // big(2)^40
         @test isequal(((1 // big(3)^25) * b * a) * big(3)^25, b * a)
 
-        # An intermediate sum whose denominator overflows Int64 returns to the small
-        # exact tier once it fits again, and then hashes like the directly built value.
         wide = (1 // 3^39) * a + (1 // 2^40) * a
         back = wide - (1 // 2^40) * a
         @test isequal(back, (1 // 3^39) * a)
         @test hash(back) == hash((1 // 3^39) * a)
         @test SecondQuantizedAlgebra.term_scalar(only(stored_coefficient(back).tail.terms)) isa Complex{Rational{Int}}
 
-        # Dividing exact integers stays exact; a float operand keeps float division.
         @test isequal(to_cnum(1) / to_cnum(3), to_cnum(1 // 3))
         @test isequal(inv(to_cnum(3 + 4im)), to_cnum(3 // 25 - 4 // 25 * im))
         @test isequal(to_cnum(6) / to_cnum(3), to_cnum(2))
         @test isequal(to_cnum(1.0) / to_cnum(0.3), to_cnum(1.0 / 0.3))
-        # A rational divisor whose reciprocal is an integer.
         @test isequal(to_cnum(5) / to_cnum(1 // 3), to_cnum(15))
         @test isequal(to_cnum(-1) / to_cnum(1 // 2), to_cnum(-2))
 
-        # The real and imaginary parts of an exact unit phase keep exact amplitudes.
         @variables θ
         phase = SecondQuantizedAlgebra.expim(-θ) * to_cnum(Complex(3 // 5, 4 // 5))
         @test isequal(real(phase), (3 // 5) * cos(θ) + (4 // 5) * sin(θ))
@@ -193,9 +185,6 @@ import SecondQuantizedAlgebra: Coeff, to_cnum
     end
 
     @testset "radicals reduce to prime atoms and compose with the big tier" begin
-        # sqrt(6), sqrt(2)*sqrt(3) and sqrt(24)/2 all reduce to the same two prime
-        # radical atoms Const(2)^(1/2), Const(3)^(1/2), never a single Const(6) atom;
-        # sqrt(12)/2 folds to sqrt(3).
         via_product = to_cnum(sqrt(Num(2))) * to_cnum(sqrt(Num(3)))
         via_radicand = to_cnum(sqrt(Num(6)))
         via_folded = to_cnum(sqrt(Num(24))) / to_cnum(2)
@@ -207,47 +196,20 @@ import SecondQuantizedAlgebra: Coeff, to_cnum
         @test isequal(via_division, to_cnum(sqrt(Num(3))))
         @test hash(via_division) == hash(to_cnum(sqrt(Num(3))))
 
-        # Folding a radical's integer exponent widens to the big tier instead of
-        # falling back to Float64 (I5).
         small = to_cnum(sqrt(Num(2))) * to_cnum(2)^40
         @test isequal(small^2, to_cnum(2)^81)
         big_tier = to_cnum(sqrt(Num(2))) * to_cnum(2)^63
         @test isequal(big_tier^2, to_cnum(2)^127)
 
-        # A BigInt radicand, or a BigInt-denominator radicand, that fully factors is
-        # recognized exactly rather than staying a symbolic leaf.
         @test isequal(to_cnum(sqrt(Num(big(2)^71))), to_cnum(big(2))^35 * to_cnum(sqrt(Num(2))))
         @test isequal(to_cnum(sqrt(Num(1 // big(2)^70))), to_cnum(1 // big(2)^35))
 
-        # Base.inv refolds a negated radical exponent back into (0, 1): 1/sqrt(2) = sqrt(2)/2,
-        # not a bare atom with a negative exponent.
         @test isequal(inv(to_cnum(sqrt(Num(2)))), to_cnum(sqrt(Num(2))) / to_cnum(2))
 
-        # radical_monomial_power widens on overflow instead of falling through to a
-        # symbolic leaf.
         @test isequal(to_cnum(sqrt(Num(2)))^200, to_cnum(2)^100)
     end
 
     @testset "cross-tier stress: prime-radical sums forced through the big tier" begin
-        # `s` sums six distinct prime radicals. `s^2` folds each `sqrt(p)^2` into an
-        # integer (I2) and leaves 15 off-diagonal cross radicals `sqrt(p)*sqrt(q)` plus
-        # the diagonal integer `sum(primes)` -- all comfortably inside `ExactComplex`.
-        # Scaling by `2^70` then forces *every* term's scalar (diagonal and every
-        # cross-radical alike) past `typemax(Int)` in the same `canonical_monomial` call
-        # that also has to preserve each term's already-folded radical factors: this is
-        # exactly the interaction #284 (radical folding) and #285 (tier promotion) each
-        # got right in isolation but that a naive merge of the two reintroduces a bug in
-        # (see SPEC.md I5 and the "four conflict hunks" in `term_mul`/`Base.inv`).
-        #
-        # On #285 alone (no radical recognition at all), `sqrt(Num(p))` is not folded to
-        # an exact prime atom in the first place, so `s` is a sum of plain `Float64`
-        # coefficients and every assertion below that checks for an exact
-        # (`ExactComplex`/`BigExactComplex`) scalar fails outright (the value is a float).
-        # On #284 alone (no big-tier promotion), `to_cnum(2)^70` itself has nowhere to
-        # go once it exceeds `typemax(Int)`: #284's own `radical_power` documented
-        # fallback is to drop to `Float64` above `typemax(Int)` (I5), so `big_scale`
-        # either throws `OverflowError` from unchecked `Int` exponentiation or silently
-        # becomes an inexact `Float64`, and the exact-scalar checks below fail either way.
         primes6 = [2, 3, 5, 7, 11, 13]
         s = sum(to_cnum(sqrt(Num(p))) for p in primes6)
         s2 = s^2
@@ -256,12 +218,9 @@ import SecondQuantizedAlgebra: Coeff, to_cnum
 
         poly = scaled.tail
         @test poly isa SecondQuantizedAlgebra.Poly
-        @test length(poly.terms) == 16   # 1 diagonal + C(6,2) = 15 cross radicals
+        @test length(poly.terms) == 16
         @test any(t -> SecondQuantizedAlgebra.term_scalar(t) isa SecondQuantizedAlgebra.BigExactComplex, poly.terms)
 
-        # Independently built (double sum over pairs, not via `^`/single `*`): the same
-        # mathematical value, `Σ_{p,q} 2^70 * sqrt(p) * sqrt(q)`, reached through a
-        # different sequence of `term_mul`/`canonical_monomial` calls.
         built = sum(
             to_cnum(2)^70 * (to_cnum(sqrt(Num(p))) * to_cnum(sqrt(Num(q))))
                 for p in primes6, q in primes6
@@ -269,24 +228,16 @@ import SecondQuantizedAlgebra: Coeff, to_cnum
         @test isequal(scaled, built)
         @test hash(scaled) == hash(built)
 
-        # The exact expected value of the diagonal (empty-factor) term, computed here as
-        # a `BigInt` sum -- not by calling SQA a second time.
         diag = only(filter(t -> isempty(t.syms), poly.terms))
         expected_diag = BigInt(2)^70 * sum(BigInt.(primes6))
         @test real(SecondQuantizedAlgebra.term_scalar(diag)) == expected_diag // 1
         @test iszero(imag(SecondQuantizedAlgebra.term_scalar(diag)))
 
-        # Dividing back out demotes every term back to the small tier and reproduces
-        # `s2` exactly (I3's round trip: a value that visits the big tier transiently
-        # and fits back in `ExactComplex` is never left stuck in the wide field).
         back = scaled * inv(big_scale)
         @test isequal(back, s2)
         @test hash(back) == hash(s2)
         @test all(t -> SecondQuantizedAlgebra.term_scalar(t) isa SecondQuantizedAlgebra.ExactComplex, back.tail.terms)
 
-        # The same stress at the operator level: a sum of six radical-weighted `a`
-        # operators, squared through `simplify`/normal ordering rather than raw `Coeff`
-        # arithmetic, stays exact end to end.
         h = FockSpace(:coefficients_stress)
         b = Destroy(h, :b)
         op_sum = sum(sqrt(Num(p)) * b for p in primes6)
