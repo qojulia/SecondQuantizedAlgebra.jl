@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="-3.6 -2.6 7.2 4.8">
+  <title>SecondQuantizedAlgebra.jl logo</title>
+  <desc>The commutator [ô,ô] drawn as an owl: gray square brackets, a purple and a green hatted operator as the eyes, and a red comma as the beak.</desc>
+  <g fill="none" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M -2.3 1.9 H -3.3 V -2.3 H -2.3" stroke="#888888" stroke-width="0.5"/>
+    <path d="M 2.3 1.9 H 3.3 V -2.3 H 2.3" stroke="#888888" stroke-width="0.5"/>
+    <circle cx="-1.6" cy="0" r="1.1" fill="#9558B2"/>
+    <circle cx="-1.2" cy="-0.4" r="0.2" fill="#fff"/>
+    <path d="M -2.15 -1.5 L -1.6 -1.94 L -1.05 -1.5" stroke="#9558B2" stroke-width="0.44"/>
+    <circle cx="1.6" cy="0" r="1.1" fill="#389826"/>
+    <circle cx="2" cy="-0.4" r="0.2" fill="#fff"/>
+    <path d="M 1.05 -1.5 L 1.6 -1.94 L 2.15 -1.5" stroke="#389826" stroke-width="0.44"/>
+  </g>
+  <path d="M -0.094 0.413 C -0.175 0.424 -0.252 0.456 -0.309 0.509 C -0.365 0.561 -0.402 0.633 -0.419 0.711 C -0.436 0.788 -0.432 0.871 -0.408 0.944 C -0.384 1.018 -0.339 1.081 -0.27 1.117 C -0.201 1.152 -0.108 1.16 -0.086 1.211 C -0.063 1.263 -0.111 1.359 -0.18 1.423 C -0.249 1.487 -0.341 1.518 -0.363 1.575 C -0.386 1.632 -0.339 1.714 -0.276 1.732 C -0.213 1.749 -0.133 1.702 -0.063 1.651 C 0.006 1.601 0.065 1.548 0.116 1.489 C 0.167 1.43 0.21 1.365 0.243 1.296 C 0.277 1.228 0.301 1.156 0.319 1.08 C 0.337 1.003 0.349 0.922 0.349 0.842 C 0.349 0.762 0.336 0.683 0.302 0.614 C 0.268 0.544 0.213 0.483 0.142 0.448 C 0.072 0.412 -0.013 0.402 -0.094 0.413 Z" fill="#CB3C33"/>
+</svg>

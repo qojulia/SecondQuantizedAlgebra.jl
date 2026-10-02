@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width, initial-scale=1.0"/><title>Dicke Superradiant Transition · SecondQuantizedAlgebra.jl</title><meta name="title" content="Dicke Superradiant Transition · SecondQuantizedAlgebra.jl"/><meta property="og:title" content="Dicke Superradiant Transition · SecondQuantizedAlgebra.jl"/><meta property="twitter:title" content="Dicke Superradiant Transition · SecondQuantizedAlgebra.jl"/><meta name="description" content="Documentation for SecondQuantizedAlgebra.jl."/><meta property="og:description" content="Documentation for SecondQuantizedAlgebra.jl."/><meta property="twitter:description" content="Documentation for SecondQuantizedAlgebra.jl."/><meta property="og:url" content="https://qojulia.github.io/SecondQuantizedAlgebra.jl/examples/dicke/"/><meta property="twitter:url" content="https://qojulia.github.io/SecondQuantizedAlgebra.jl/examples/dicke/"/><link rel="canonical" href="https://qojulia.github.io/SecondQuantizedAlgebra.jl/examples/dicke/"/><script data-outdated-warner src="../../assets/warner.js"></script><link href="https://cdnjs.cloudflare.com/ajax/libs/lato-font/3.0.0/css/lato-font.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/juliamono/0.050/juliamono.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/fontawesome.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/solid.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/brands.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.8/katex.min.css" rel="stylesheet" type="text/css"/><script>documenterBaseURL="../.."</script><script src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.6/require.min.js" data-main="../../assets/documenter.js"></script><script src="../../search_index.js"></script><script src="../../siteinfo.js"></script><script src="../../../versions.js"></script><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../../assets/themes/catppuccin-mocha.css" data-theme-name="catppuccin-mocha"/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../../assets/themes/catppuccin-macchiato.css" data-theme-name="catppuccin-macchiato"/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../../assets/themes/catppuccin-frappe.css" data-theme-name="catppuccin-frappe"/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../../assets/themes/catppuccin-latte.css" data-theme-name="catppuccin-latte"/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../../assets/themes/documenter-dark.css" data-theme-name="documenter-dark" data-theme-primary-dark/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../../assets/themes/documenter-light.css" data-theme-name="documenter-light" data-theme-primary/><script src="../../assets/themeswap.js"></script></head><body><div id="documenter"><nav class="docs-sidebar"><div class="docs-package-name"><span class="docs-autofit"><a href="../../">SecondQuantizedAlgebra.jl</a></span></div><button class="docs-search-query input is-rounded is-small is-clickable my-2 mx-auto py-1 px-2" id="documenter-search-query">Search docs (Ctrl + /)</button><ul class="docs-menu"><li><a class="tocitem" href="../../">Home</a></li><li><a class="tocitem" href="../../implementation/">Implementation</a></li><li><a class="tocitem" href="../../symbolic_sums/">Symbolic Sums and Indices</a></li><li><a class="tocitem" href="../../accumulation/">Building Large Sums Efficiently</a></li><li><span class="tocitem">Examples</span><ul><li><a class="tocitem" href="../schrieffer_wolff/">Schrieffer-Wolff Transformation</a></li><li class="is-active"><a class="tocitem" href>Dicke Superradiant Transition</a><ul class="internal"><li><a class="tocitem" href="#Setup"><span>Setup</span></a></li><li><a class="tocitem" href="#Built-in-angular-momentum-algebra"><span>Built-in angular-momentum algebra</span></a></li><li><a class="tocitem" href="#Heisenberg-equations-of-motion"><span>Heisenberg equations of motion</span></a></li><li><a class="tocitem" href="#Holstein-Primakoff-bosonisation-in-the-normal-phase"><span>Holstein-Primakoff bosonisation in the normal phase</span></a></li><li><a class="tocitem" href="#Polariton-spectrum-from-a-Bogoliubov-de-Gennes-determinant"><span>Polariton spectrum from a Bogoliubov-de-Gennes determinant</span></a></li><li><a class="tocitem" href="#Critical-coupling-from-gap-closing"><span>Critical coupling from gap closing</span></a></li><li><a class="tocitem" href="#Numerical-verification"><span>Numerical verification</span></a></li></ul></li><li><a class="tocitem" href="../bogoliubov/">Two-Mode Bogoliubov</a></li><li><a class="tocitem" href="../optomechanics/">Cavity Optomechanics</a></li><li><a class="tocitem" href="../two_atom/">Two-Atom Dipole-Dipole</a></li><li><a class="tocitem" href="../parametric_oscillator/">Parametric Oscillator</a></li></ul></li><li><a class="tocitem" href="../../API/">API</a></li><li><a class="tocitem" href="../../changelog/">Changelog</a></li><li><a class="tocitem" href="../../devdocs/">Developer Documentation</a></li></ul><div class="docs-version-selector field has-addons"><div class="control"><span class="docs-label button is-static is-size-7">Version</span></div><div class="docs-selector control is-expanded"><div class="select is-fullwidth is-size-7"><select id="documenter-version-selector"></select></div></div></div></nav><div class="docs-main"><header class="docs-navbar"><a class="docs-sidebar-button docs-navbar-link fa-solid fa-bars is-hidden-desktop" id="documenter-sidebar-button" href="#"></a><nav class="breadcrumb"><ul class="is-hidden-mobile"><li><a class="is-disabled">Examples</a></li><li class="is-active"><a href>Dicke Superradiant Transition</a></li></ul><ul class="is-hidden-tablet"><li class="is-active"><a href>Dicke Superradiant Transition</a></li></ul></nav><div class="docs-right"><a class="docs-navbar-link" href="https://github.com/qojulia/SecondQuantizedAlgebra.jl" title="View the repository on GitHub"><span class="docs-icon fa-brands"></span><span class="docs-label is-hidden-touch">GitHub</span></a><a class="docs-navbar-link" href="https://github.com/qojulia/SecondQuantizedAlgebra.jl/blob/main/examples/dicke.jl" title="Edit source on GitHub"><span class="docs-icon fa-solid"></span></a><a class="docs-settings-button docs-navbar-link fa-solid fa-gear" id="documenter-settings-button" href="#" title="Settings"></a><a class="docs-article-toggle-button fa-solid fa-chevron-up" id="documenter-article-toggle-button" href="javascript:;" title="Collapse all docstrings"></a></div></header><article class="content" id="documenter-page"><h1 id="Dicke-Model-and-the-Superradiant-Transition"><a class="docs-heading-anchor" href="#Dicke-Model-and-the-Superradiant-Transition">Dicke Model and the Superradiant Transition</a><a id="Dicke-Model-and-the-Superradiant-Transition-1"></a><a class="docs-heading-anchor-permalink" href="#Dicke-Model-and-the-Superradiant-Transition" title="Permalink"></a></h1><p>The <a href="https://en.wikipedia.org/wiki/Dicke_model">Dicke model</a> describes <span>$N$</span> two-level atoms collectively coupled to a single cavity mode, retaining the counter-rotating terms that the Tavis-Cummings rotating-wave approximation drops.  In the thermodynamic limit <span>$N \to \infty$</span> it exhibits a quantum phase transition from a normal phase with <span>$\langle a\rangle = 0$</span> to a <em>superradiant</em> phase with a macroscopically occupied cavity at the critical coupling <span>$\lambda_c = \sqrt{\omega_0\,\omega_a}/2$</span>.</p><p>In the collective-spin form,</p><p class="math-container">\[H = \omega_0\, a^\dagger a + \omega_a\, S_z
+  + \frac{2\lambda}{\sqrt{N}}\,(a + a^\dagger)\,S_x,
+\qquad N = 2S,\]</p><p>the <span>$2/\sqrt{N}$</span> normalisation keeps <span>$\lambda_c$</span> finite as <span>$N\to\infty$</span>. This example walks through every step that turns the operator Hamiltonian into the textbook result: built-in SU(2) algebra, Heisenberg equations of motion, Holstein-Primakoff bosonisation in the normal phase, the resulting polariton spectrum from a symbolic Bogoliubov-de-Gennes determinant, the critical coupling from gap closing, and a numerical comparison at finite <span>$S$</span>.</p><h2 id="Setup"><a class="docs-heading-anchor" href="#Setup">Setup</a><a id="Setup-1"></a><a class="docs-heading-anchor-permalink" href="#Setup" title="Permalink"></a></h2><p>We bundle the rescaled coupling <span>$g \equiv 2\lambda/\sqrt{N}$</span> into a single symbolic variable so the algebra stays uncluttered:</p><pre><code class="language-julia hljs">using SecondQuantizedAlgebra
+
+hc = FockSpace(:cavity)
+hs = SpinSpace(:S)
+h = hc ⊗ hs
+
+@qnumbers a::Destroy(h, 1)
+
+Sx = Spin(h, :S, 1)
+Sy = Spin(h, :S, 2)
+Sz = Spin(h, :S, 3)
+
+@variables ω₀ ωₐ g
+
+H = ω₀ * a&#39; * a + ωₐ * Sz + g * (a + a&#39;) * Sx</code></pre><p class="math-container">\[\mathtt{\omega_a} {S}_{{z}} + g a{S}_{{x}} + \mathtt{\omega_0} a^{\dagger}a + g a^{\dagger}{S}_{{x}}\]</p><h2 id="Built-in-angular-momentum-algebra"><a class="docs-heading-anchor" href="#Built-in-angular-momentum-algebra">Built-in angular-momentum algebra</a><a id="Built-in-angular-momentum-algebra-1"></a><a class="docs-heading-anchor-permalink" href="#Built-in-angular-momentum-algebra" title="Permalink"></a></h2><p>Every product is eagerly canonicalised, so the SU(2) commutators fall out directly from <code>*</code>:</p><pre><code class="language-julia hljs">commutator(Sx, Sy)</code></pre><p class="math-container">\[\mathit{i} {S}_{{z}}\]</p><pre><code class="language-julia hljs">commutator(Sy, Sz)</code></pre><p class="math-container">\[\mathit{i} {S}_{{x}}\]</p><pre><code class="language-julia hljs">commutator(Sz, Sx)</code></pre><p class="math-container">\[\mathit{i} {S}_{{y}}\]</p><h2 id="Heisenberg-equations-of-motion"><a class="docs-heading-anchor" href="#Heisenberg-equations-of-motion">Heisenberg equations of motion</a><a id="Heisenberg-equations-of-motion-1"></a><a class="docs-heading-anchor-permalink" href="#Heisenberg-equations-of-motion" title="Permalink"></a></h2><p>The dynamics follow from <span>$\dot{O} = -i[O, H]$</span>.  No manual product rule or commutator table is needed:</p><pre><code class="language-julia hljs">-1im * commutator(a, H)</code></pre><p class="math-container">\[ - \mathtt{\omega_0} ~ \mathit{i} a - g ~ \mathit{i} {S}_{{x}}\]</p><pre><code class="language-julia hljs">-1im * commutator(Sx, H)</code></pre><p class="math-container">\[ - \mathtt{\omega_a} {S}_{{y}}\]</p><pre><code class="language-julia hljs">-1im * commutator(Sy, H)</code></pre><p class="math-container">\[\mathtt{\omega_a} {S}_{{x}} - g a{S}_{{z}} - g a^{\dagger}{S}_{{z}}\]</p><pre><code class="language-julia hljs">-1im * commutator(Sz, H)</code></pre><p class="math-container">\[g a{S}_{{y}} + g a^{\dagger}{S}_{{y}}\]</p><p>Reading these off:</p><p class="math-container">\[\begin{aligned}
+\dot a   &amp;= -i\,\omega_0\, a - i\, g\, S_x, \\
+\dot S_x &amp;= -\omega_a\, S_y, \\
+\dot S_y &amp;= \omega_a\, S_x - g\,(a + a^\dagger)\, S_z, \\
+\dot S_z &amp;= g\,(a + a^\dagger)\, S_y.
+\end{aligned}\]</p><h2 id="Holstein-Primakoff-bosonisation-in-the-normal-phase"><a class="docs-heading-anchor" href="#Holstein-Primakoff-bosonisation-in-the-normal-phase">Holstein-Primakoff bosonisation in the normal phase</a><a id="Holstein-Primakoff-bosonisation-in-the-normal-phase-1"></a><a class="docs-heading-anchor-permalink" href="#Holstein-Primakoff-bosonisation-in-the-normal-phase" title="Permalink"></a></h2><p>Around the normal-phase fixed point (all atoms in their ground state with <span>$\langle S_z\rangle = -S$</span>, and an empty cavity) we expand the spin in a new bosonic mode <span>$b$</span> via the <a href="https://en.wikipedia.org/wiki/Holstein-Primakoff_transformation">Holstein-Primakoff transformation</a>,</p><p class="math-container">\[S_+ \approx \sqrt{2 S}\, b, \quad
+S_- \approx \sqrt{2 S}\, b^\dagger, \quad
+S_z = b^\dagger b - S,\]</p><p>valid for low excitation <span>$\langle b^\dagger b \rangle \ll 2 S$</span>.  Then <span>$S_x = (S_+ + S_-)/2 \approx \sqrt{S/2}\,(b + b^\dagger)$</span> and inserting <span>$g = 2\lambda/\sqrt{2S}$</span> into the Dicke Hamiltonian yields the <strong>polariton Hamiltonian</strong></p><p class="math-container">\[H_\mathrm{pol}
+= \omega_0\, a^\dagger a + \omega_a\, b^\dagger b
+  + \lambda\,(a + a^\dagger)(b + b^\dagger),\]</p><p>which is quadratic in two bosonic modes, exactly the kind of model the <a href="../bogoliubov/">two-mode Bogoliubov example</a> solves.  We build it on a fresh two-mode Fock space:</p><pre><code class="language-julia hljs">ha2 = FockSpace(:a)
+hb2 = FockSpace(:b)
+h_pol = ha2 ⊗ hb2
+
+@qnumbers a_pol::Destroy(h_pol, 1)
+@qnumbers b_pol::Destroy(h_pol, 2)
+
+@variables λ
+H_pol = ω₀ * a_pol&#39; * a_pol + ωₐ * b_pol&#39; * b_pol +
+    λ * (a_pol + a_pol&#39;) * (b_pol + b_pol&#39;)</code></pre><p class="math-container">\[\lambda a_{\mathrm{pol}}b_{\mathrm{pol}} + \lambda a_{\mathrm{pol}}b_{\mathrm{pol}}^{\dagger} + \mathtt{\omega_0} a_{\mathrm{pol}}^{\dagger}a_{\mathrm{pol}} + \lambda a_{\mathrm{pol}}^{\dagger}b_{\mathrm{pol}} + \lambda a_{\mathrm{pol}}^{\dagger}b_{\mathrm{pol}}^{\dagger} + \mathtt{\omega_a} b_{\mathrm{pol}}^{\dagger}b_{\mathrm{pol}}\]</p><h2 id="Polariton-spectrum-from-a-Bogoliubov-de-Gennes-determinant"><a class="docs-heading-anchor" href="#Polariton-spectrum-from-a-Bogoliubov-de-Gennes-determinant">Polariton spectrum from a Bogoliubov-de-Gennes determinant</a><a id="Polariton-spectrum-from-a-Bogoliubov-de-Gennes-determinant-1"></a><a class="docs-heading-anchor-permalink" href="#Polariton-spectrum-from-a-Bogoliubov-de-Gennes-determinant" title="Permalink"></a></h2><p>The Heisenberg equations for <span>$\mathbf{v} = (a, b, a^\dagger, b^\dagger)^T$</span> close into a linear system <span>$\dot{\mathbf v} = M\,\mathbf v$</span>.  Each row comes from a single symbolic commutator:</p><pre><code class="language-julia hljs">-1im * commutator(a_pol, H_pol)</code></pre><p class="math-container">\[ - \mathtt{\omega_0} ~ \mathit{i} a_{\mathrm{pol}} - \lambda ~ \mathit{i} b_{\mathrm{pol}} - \lambda ~ \mathit{i} b_{\mathrm{pol}}^{\dagger}\]</p><pre><code class="language-julia hljs">-1im * commutator(b_pol, H_pol)</code></pre><p class="math-container">\[ - \lambda ~ \mathit{i} a_{\mathrm{pol}} - \lambda ~ \mathit{i} a_{\mathrm{pol}}^{\dagger} - \mathtt{\omega_a} ~ \mathit{i} b_{\mathrm{pol}}\]</p><p>Reading off the coefficients,</p><p class="math-container">\[M = i\begin{pmatrix}
+   -\omega_0 &amp; -\lambda &amp; 0 &amp; -\lambda \\
+   -\lambda &amp; -\omega_a &amp; -\lambda &amp; 0 \\
+    0 &amp; \lambda &amp; \omega_0 &amp; \lambda \\
+    \lambda &amp; 0 &amp; \lambda &amp; \omega_a
+\end{pmatrix}.\]</p><p>The polariton frequencies are the moduli of the eigenvalues of <span>$M$</span>.  Their characteristic polynomial is biquadratic and tractable symbolically:</p><pre><code class="language-julia hljs">using LinearAlgebra
+@variables x
+M = [
+    -1im * ω₀   -1im * λ     0          -1im * λ;
+    -1im * λ   -1im * ωₐ    -1im * λ       0;
+    0        1im * λ      1im * ω₀      1im * λ;
+    1im * λ    0          1im * λ       1im * ωₐ
+]
+
+simplify(det(M - x * I))</code></pre><p class="math-container">\[ \begin{equation}
+ - \left( x^{2} ~ \lambda - \left( x^{2} + \lambda^{2} - \mathtt{\omega_0} ~ \mathtt{\omega_a} \right) ~ \lambda + \lambda^{3} + \lambda ~ \mathtt{\omega_0} ~ \mathtt{\omega_a} \right) ~ \lambda + \left( x^{2} ~ \left( \mathtt{\omega_0} + \mathtt{\omega_a} \right) - \left( x^{2} + \lambda^{2} - \mathtt{\omega_0} ~ \mathtt{\omega_a} \right) ~ \mathtt{\omega_a} - \lambda^{2} ~ \mathtt{\omega_a} \right) ~ \mathtt{\omega_0} - x ~ \left(  - x ~ \left( x^{2} + \lambda^{2} - \mathtt{\omega_0} ~ \mathtt{\omega_a} \right) + \lambda^{2} ~ x - x ~ \left( \mathtt{\omega_0} + \mathtt{\omega_a} \right) ~ \mathtt{\omega_a} \right) + \left(  - x ~ \left( x^{2} ~ \left( \mathtt{\omega_0} + \mathtt{\omega_a} \right) - \left( x^{2} + \lambda^{2} - \mathtt{\omega_0} ~ \mathtt{\omega_a} \right) ~ \mathtt{\omega_a} - \lambda^{2} ~ \mathtt{\omega_a} \right) - \left(  - x ~ \left( x^{2} + \lambda^{2} - \mathtt{\omega_0} ~ \mathtt{\omega_a} \right) + \lambda^{2} ~ x - x ~ \left( \mathtt{\omega_0} + \mathtt{\omega_a} \right) ~ \mathtt{\omega_a} \right) ~ \mathtt{\omega_0} - \lambda^{2} ~ x ~ \left( \mathtt{\omega_0} + \mathtt{\omega_a} \right) + \left( x ~ \lambda ~ \mathtt{\omega_0} - x ~ \lambda ~ \mathtt{\omega_a} \right) ~ \lambda \right) ~ \mathit{i}
+\end{equation}
+ \]</p><p>So <span>$\det(M - x I) = x^4 + (\omega_a^2 + \omega_0^2)\,x^2 + \omega_a\omega_0\,(\omega_a\omega_0 - 4\lambda^2)$</span>.</p><p>Setting <span>$y = -x^2$</span> (so <span>$x = \pm i\,\varepsilon$</span> with <span>$\varepsilon = \sqrt{y}$</span>) gives the <strong>polariton dispersion</strong></p><p class="math-container">\[\varepsilon_\pm^2
+= \tfrac{1}{2}\Bigl[
+   (\omega_a^2 + \omega_0^2)
+   \mp \sqrt{(\omega_a^2 - \omega_0^2)^2 + 16\,\lambda^2\,\omega_a\,\omega_0}
+\Bigr].\]</p><h2 id="Critical-coupling-from-gap-closing"><a class="docs-heading-anchor" href="#Critical-coupling-from-gap-closing">Critical coupling from gap closing</a><a id="Critical-coupling-from-gap-closing-1"></a><a class="docs-heading-anchor-permalink" href="#Critical-coupling-from-gap-closing" title="Permalink"></a></h2><p>Demanding <span>$\varepsilon_- = 0$</span> reduces to <span>$(\omega_a^2 + \omega_0^2)^2 = (\omega_a^2 - \omega_0^2)^2 + 16\,\lambda^2\,\omega_a\,\omega_0$</span>, which simplifies to <span>$4\,\omega_a^2\,\omega_0^2 = 16\,\lambda^2\,\omega_a\,\omega_0$</span> and hence</p><p class="math-container">\[\boxed{\;\lambda_c = \tfrac{1}{2}\sqrt{\omega_a\,\omega_0}\;}\]</p><p>For <span>$\lambda &gt; \lambda_c$</span> the lower polariton frequency becomes imaginary and the normal-phase Holstein-Primakoff vacuum is dynamically unstable. The macroscopic occupation of the cavity that defines the superradiant phase arises precisely to restabilise the spectrum around a shifted fixed point.</p><h2 id="Numerical-verification"><a class="docs-heading-anchor" href="#Numerical-verification">Numerical verification</a><a id="Numerical-verification-1"></a><a class="docs-heading-anchor-permalink" href="#Numerical-verification" title="Permalink"></a></h2><p>We diagonalise the finite-<span>$S$</span> Dicke Hamiltonian (<span>$S = 5/2$</span>, <span>$N = 5$</span> atoms) using <a href="../../API/#SecondQuantizedAlgebra.numeric_average"><code>numeric_average</code></a> and <a href="../../API/#SymbolicUtils.substitute"><code>substitute</code></a>, and compare both observables to the analytical predictions: the cavity occupation against the mean-field order parameter, and the gap of the first excited state against the lower polariton frequency <span>$\varepsilon_-$</span>.</p><pre><code class="language-julia hljs">using QuantumOpticsBase, CairoMakie
+
+ω₀_val, ωa_val = 1.0, 1.0
+λc = sqrt(ω₀_val * ωa_val) / 2
+S_val = 5 // 2
+N_val = 2 * float(S_val)
+g_of_λ(λ_val) = 2 * λ_val / sqrt(N_val)
+
+n_max = 30
+b_cav = FockBasis(n_max)
+b_spin = SpinBasis(S_val)
+b = b_cav ⊗ b_spin
+
+# Closed-form curves
+ε_minus(λ_val) = sqrt(
+    max(
+        0.0,
+        0.5 * (
+            (ωa_val^2 + ω₀_val^2) -
+                sqrt((ωa_val^2 - ω₀_val^2)^2 + 16 * λ_val^2 * ωa_val * ω₀_val)
+        ),
+    ),
+)
+ε_plus(λ_val) = sqrt(
+    0.5 * (
+        (ωa_val^2 + ω₀_val^2) +
+            sqrt((ωa_val^2 - ω₀_val^2)^2 + 16 * λ_val^2 * ωa_val * ω₀_val)
+    ),
+)
+n_mf(λ_val) = λ_val &lt; λc ? 0.0 : (λ_val^2 / ω₀_val^2) * (1 - (λc / λ_val)^4)
+
+λs = range(0.0, 1.5 * λc, length = 30)
+n_over_N = Float64[]
+gap1 = Float64[]
+gap2 = Float64[]
+for λ_val in λs
+    subs = Dict(ω₀ =&gt; ω₀_val, ωₐ =&gt; ωa_val, g =&gt; g_of_λ(λ_val))
+    H_op = dense(to_numeric(substitute(H, subs), b))
+    E = eigvals(Hermitian(H_op.data))
+    ψ0 = Ket(b, eigvecs(Hermitian(H_op.data))[:, 1])
+    push!(n_over_N, real(numeric_average(a&#39; * a, ψ0)) / N_val)
+    push!(gap1, E[2] - E[1])
+    push!(gap2, E[3] - E[1])
+end
+
+fig = Figure(size = (820, 360))
+ax1 = Axis(
+    fig[1, 1];
+    xlabel = L&quot;\lambda / \lambda_c&quot;,
+    ylabel = L&quot;\langle a^\dagger a \rangle / N&quot;,
+    title = &quot;Superradiant order parameter&quot;,
+)
+scatter!(ax1, collect(λs) ./ λc, n_over_N; label = &quot;finite S = $(S_val)&quot;, marker = :circle)
+lines!(ax1, collect(λs) ./ λc, n_mf.(λs); label = &quot;mean field&quot;, linestyle = :dash)
+vlines!(ax1, [1.0]; color = :gray, linestyle = :dot, label = L&quot;\lambda_c&quot;)
+axislegend(ax1; position = :lt)
+
+ax2 = Axis(
+    fig[1, 2];
+    xlabel = L&quot;\lambda / \lambda_c&quot;,
+    ylabel = L&quot;\Delta E / \omega&quot;,
+    title = &quot;Polariton frequencies&quot;,
+)
+scatter!(ax2, collect(λs) ./ λc, gap1; label = L&quot;E_1 - E_0&quot;, marker = :circle)
+scatter!(ax2, collect(λs) ./ λc, gap2; label = L&quot;E_2 - E_0&quot;, marker = :diamond)
+lines!(ax2, collect(λs) ./ λc, ε_minus.(λs); label = L&quot;\varepsilon_-&quot;, linestyle = :dash)
+lines!(ax2, collect(λs) ./ λc, ε_plus.(λs); label = L&quot;\varepsilon_+&quot;, linestyle = :dash)
+vlines!(ax2, [1.0]; color = :gray, linestyle = :dot)
+axislegend(ax2; position = :rt)
+fig</code></pre><img src="fc832f7b.png" alt="Example block output"/><p>Both panels tell the same story.  The finite-<span>$S$</span> cavity occupation (left) rounds the order-parameter onset on a scale set by <span>$1/S$</span> and approaches the mean-field curve quickly thereafter.  The right panel overlays the analytical polariton frequencies (dashed) on the numerical excitation gaps (markers): below <span>$\lambda_c$</span> they coincide exactly, and the Holstein-Primakoff polariton spectrum <em>is</em> the low-lying excitation structure.  At <span>$\lambda_c$</span> the lower branch <span>$\varepsilon_-$</span> softens to zero, signalling the dynamical instability of the normal-phase vacuum. Above <span>$\lambda_c$</span> the analytical <span>$\varepsilon_-$</span> is undefined while <span>$E_1 - E_0$</span> collapses into the parity-tunnel splitting (vanishing only as <span>$S \to \infty$</span>) and <span>$E_2 - E_0$</span> reveals the re-opened polariton excitation around the displaced fixed point.  The entire story (SU(2) algebra, Heisenberg dynamics, polariton dispersion, and critical coupling) came out of a handful of <code>commutator</code> calls and a single <code>det</code>.</p><hr/><p><em>This page was generated using <a href="https://github.com/fredrikekre/Literate.jl">Literate.jl</a>.</em></p></article><nav class="docs-footer"><a class="docs-footer-prevpage" href="../schrieffer_wolff/">« Schrieffer-Wolff Transformation</a><a class="docs-footer-nextpage" href="../bogoliubov/">Two-Mode Bogoliubov »</a><div class="flexbox-break"></div><p class="footer-message">Powered by <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> and the <a href="https://julialang.org/">Julia Programming Language</a>.</p></nav></div><div class="modal" id="documenter-settings"><div class="modal-background"></div><div class="modal-card"><header class="modal-card-head"><p class="modal-card-title">Settings</p><button class="delete"></button></header><section class="modal-card-body"><p><label class="label">Theme</label><div class="select"><select id="documenter-themepicker"><option value="auto">Automatic (OS)</option><option value="documenter-light">documenter-light</option><option value="documenter-dark">documenter-dark</option><option value="catppuccin-latte">catppuccin-latte</option><option value="catppuccin-frappe">catppuccin-frappe</option><option value="catppuccin-macchiato">catppuccin-macchiato</option><option value="catppuccin-mocha">catppuccin-mocha</option></select></div></p><hr/><p>This document was generated with <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> version 1.17.0 on <span class="colophon-date" title="Sunday 12 July 2026 08:49">Sunday 12 July 2026</span>. Using Julia version 1.10.11.</p></section><footer class="modal-card-foot"></footer></div></div></div></body></html>
