@@ -125,7 +125,7 @@ function is_real_negative(c::CNum)
     # A polynomial coefficient with every scalar real and negative factors out as ` - `,
     # which is most of what a rotation or a squeeze produces.
     t isa Poly &&
-        return all(m -> imag(term_scalar(m)) == 0 && real(term_scalar(m)) < 0, t.terms)
+        return all(m -> imag(m.scalar) == 0 && real(m.scalar) < 0, t.terms)
     return is_real_negative_sym(c)
 end
 @noinline function is_real_negative_sym(c::CNum)::Bool

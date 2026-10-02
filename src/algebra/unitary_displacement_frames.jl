@@ -113,7 +113,7 @@ function bounded_harmonic_displacement(drive::CNum, frequency::CNum, t::Num)
     for monomial in tail.terms
         harmonic = harmonic_frequency(monomial, t)
         divisor = add_cnum(frequency, harmonic)
-        component = from_poly(Monomial[monomial])
+        component = from_poly([monomial])
         iszero_cnum(divisor) && unitary_error(
             "`DisplacementFrame` found a resonant drive component `$(to_num(component))`",
         )
@@ -346,7 +346,7 @@ function bounded_quadrature_drive(
 
     for monomial in tail.terms
         harmonic = harmonic_frequency(monomial, t)
-        component = from_poly(Monomial[monomial])
+        component = from_poly([monomial])
         response = axis === QUADRATURE_DRIVE_X ?
             quadrature_response_component(data, component, CNUM_ZERO, harmonic) :
             quadrature_response_component(data, CNUM_ZERO, component, harmonic)

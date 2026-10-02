@@ -1,168 +1,77 @@
 """
-    Monomial
+    Monomial{E}
 
 One term of a parameter polynomial: `scalar * ∏ symᵢ^expᵢ`. Factors are sorted by
 `objectid` and deduplicated; `Rational{Int}` exponents let radicals of a single
-atom merge (`sqrt(p)*sqrt(p) = p`). A radical atom (a hashconsed `Const{SymReal}`
-of a prime `Int`) always keeps its exponent in `(0, 1)`: any integer part is
-folded into `scalar` (`canonical_monomial`, `radical_power`), so `√2·√2`
-normalizes to the scalar `2`, and `√2·√3`/`√6`/`√24/2` all reduce to the same
-two prime atoms `Const(2)^(1/2)`, `Const(3)^(1/2)` and compare `isequal`.
+atom merge (`sqrt(p)*sqrt(p) = p`). An exact `scalar` has the type `E` of its tier,
+`ExactComplex` or `BigExactComplex`, and every term of one `Poly` shares that tier.
+A radical atom (a hashconsed `Const{SymReal}` of a prime `Int`) always keeps its
+exponent in `(0, 1)`: the constructor folds any integer part into `scalar`, so
+`√2·√2` normalizes to the scalar `2`, and `√2·√3`/`√6`/`√24/2` all reduce to the
+same two prime atoms `Const(2)^(1/2)`, `Const(3)^(1/2)` and compare `isequal`.
 """
-
-struct Monomial
-    small::Union{ComplexF64, ExactComplex}
-    wide::Union{Nothing, BigExactComplex}
+struct Monomial{E <: ExactScalar}
+    scalar::Union{ComplexF64, E}
     syms::Vector{SymbolicUtils.BasicSymbolic}   # sorted by objectid, distinct
     exps::Vector{Rational{Int}}                 # matching nonzero exponents
-end
 
-@inline Monomial(z::SmallScalar, syms, exps) = Monomial(z, nothing, syms, exps)
-function Monomial(z::BigExactComplex, syms, exps)
-    small = canonical_exact(z)
-    small isa ExactComplex && return Monomial(small, nothing, syms, exps)
-    return Monomial(zero(ComplexF64), small, syms, exps)
-end
-
-@inline function term_scalar(m::Monomial)::CoeffScalar
-    wide = m.wide
-    return wide === nothing ? m.small : wide
-end
-
-@inline with_factors(m::Monomial, syms, exps) = Monomial(m.small, m.wide, syms, exps)
-@inline scalar_iszero(m::Monomial) = m.wide === nothing && iszero(m.small)
-@inline function scalar_is_real(m::Monomial)
-    wide = m.wide
-    return wide === nothing ? iszero(imag(m.small)) : iszero(imag(wide))
-end
-@inline function scalar_isequal(a::Monomial, b::Monomial)
-    (a.wide === nothing && b.wide === nothing) && return isequal(a.small, b.small)
-    return isequal(term_scalar(a), term_scalar(b))
-end
-@inline function hash_scalar(m::Monomial, h::UInt)
-    wide = m.wide
-    return wide === nothing ? hash(m.small, h) : hash(wide, h)
-end
-@inline function normalize_monomial(m::Monomial)
-    small = m.small
-    (m.wide === nothing && small isa ComplexF64) || return m
-    return Monomial(normalize_scalar(small), nothing, m.syms, m.exps)
-end
-@inline function conj_monomial(m::Monomial, syms, exps)
-    small = m.small
-    (m.wide === nothing && small isa ComplexF64) &&
-        return Monomial(conj(small), nothing, syms, exps)
-    return Monomial(scalar_conj(term_scalar(m)), syms, exps)
-end
-
-@inline exact_operand(z::ComplexF64) = integer_scalar(z)
-@inline exact_operand(z::ExactComplex) = z
-
-@inline function exact_mul_monomial(x::ExactComplex, y::ExactComplex, syms, exps)::Monomial
-    z, overflow = checked_exact_mul(x, y)
-    overflow || return Monomial(z, nothing, syms, exps)
-    return Monomial(widen_exact(x) * widen_exact(y), syms, exps)
-end
-
-@inline function exact_add_monomial(x::ExactComplex, y::ExactComplex, syms, exps)::Monomial
-    z, overflow = checked_exact_add(x, y)
-    overflow || return Monomial(z, nothing, syms, exps)
-    return Monomial(widen_exact(x) + widen_exact(y), syms, exps)
-end
-
-@inline function mul_small(x::SmallScalar, y::SmallScalar, syms, exps)::Monomial
-    (x isa ComplexF64 && y isa ComplexF64) && return Monomial(native_mul_wide(x, y), syms, exps)
-    ex, ey = exact_operand(x), exact_operand(y)
-    if ex === nothing || ey === nothing
-        z = normalize_scalar(to_float_scalar(x) * to_float_scalar(y))
-        return Monomial(z, nothing, syms, exps)
-    end
-    return exact_mul_monomial(ex, ey, syms, exps)
-end
-
-@inline function add_small(x::SmallScalar, y::SmallScalar, syms, exps)::Monomial
-    (x isa ComplexF64 && y isa ComplexF64) && return Monomial(native_add_wide(x, y), syms, exps)
-    ex, ey = exact_operand(x), exact_operand(y)
-    if ex === nothing || ey === nothing
-        z = normalize_scalar(to_float_scalar(x) + to_float_scalar(y))
-        return Monomial(z, nothing, syms, exps)
-    end
-    return exact_add_monomial(ex, ey, syms, exps)
-end
-
-@inline function mul_scalars(a::Monomial, b::Monomial, syms, exps)::Monomial
-    x, y = a.small, b.small
-    if a.wide === nothing && b.wide === nothing &&
-            x isa ComplexF64 && y isa ComplexF64 && native_product_exact(x, y)
-        return Monomial(normalize_scalar(x * y), nothing, syms, exps)
-    end
-    return mul_scalars_slow(a, b, syms, exps)
-end
-@noinline function mul_scalars_slow(a::Monomial, b::Monomial, syms, exps)::Monomial
-    (a.wide === nothing && b.wide === nothing) && return mul_small(a.small, b.small, syms, exps)
-    return Monomial(scalar_mul(term_scalar(a), term_scalar(b)), syms, exps)
-end
-
-@inline function add_scalars(a::Monomial, b::Monomial)::Monomial
-    x, y = a.small, b.small
-    if a.wide === nothing && b.wide === nothing && x isa ComplexF64 && y isa ComplexF64
-        s = x + y
-        native_sum_exact(s) && return Monomial(normalize_scalar(s), nothing, a.syms, a.exps)
-    end
-    return add_scalars_slow(a, b)
-end
-@noinline function add_scalars_slow(a::Monomial, b::Monomial)::Monomial
-    (a.wide === nothing && b.wide === nothing) && return add_small(a.small, b.small, a.syms, a.exps)
-    return Monomial(scalar_add(term_scalar(a), term_scalar(b)), a.syms, a.exps)
-end
-
-@inline function scale_monomial(t::Monomial, z::SmallScalar)::Monomial
-    x = t.small
-    if t.wide === nothing && x isa ComplexF64 && z isa ComplexF64 && native_product_exact(x, z)
-        return Monomial(normalize_scalar(x * z), nothing, t.syms, t.exps)
-    end
-    return scale_monomial_slow(t, z)
-end
-@noinline function scale_monomial_slow(t::Monomial, z::CoeffScalar)::Monomial
-    (t.wide === nothing && !(z isa BigExactComplex)) && return mul_small(t.small, z, t.syms, t.exps)
-    return Monomial(scalar_mul(term_scalar(t), z), t.syms, t.exps)
-end
-
-"""
-    canonical_monomial(scalar, syms, exps) -> Monomial
-
-The one function allowed to receive an arbitrary, not-yet-canonical
-`(scalar, syms, exps)` triple. Folds every radical exponent into `(0, 1)`
-(I2), routing the extracted integer power through the exact scalar tier so it
-widens rather than overflowing or falling back to a float (I5), and then
-dispatches to the tier-aware inner `Monomial` constructor on the resulting
-scalar (I3). Every other scalar-only helper above requires `syms`/`exps` to
-already be radical-canonical.
-"""
-function canonical_monomial(
-        scalar::CoeffScalar,
-        syms::Vector{SymbolicUtils.BasicSymbolic},
-        exps::Vector{Rational{Int}},
-    )::Monomial
-    needs_radical_fold(syms, exps) || return Monomial(scalar, syms, exps)
-    osyms = SymbolicUtils.BasicSymbolic[]
-    oexps = Rational{Int}[]
-    sizehint!(osyms, length(syms)); sizehint!(oexps, length(exps))
-    @inbounds for i in eachindex(syms)
-        s = syms[i]
-        e = exps[i]
-        if is_radical_atom(s)
-            q = fld(numerator(e), denominator(e))
-            if q != 0
-                scalar = scalar_mul(scalar, radical_power(s.val::Int, q))
-                e -= q
+    # Every monomial is radical-canonical by construction: a radical atom's integer
+    # exponent part is folded into the scalar here, so no call site can store `√2·√2`.
+    function Monomial{E}(
+            scalar::Union{ComplexF64, E},
+            syms::Vector{SymbolicUtils.BasicSymbolic},
+            exps::Vector{Rational{Int}},
+        ) where {E <: ExactScalar}
+        needs_radical_fold(syms, exps) || return new{E}(scalar, syms, exps)
+        osyms = SymbolicUtils.BasicSymbolic[]
+        oexps = Rational{Int}[]
+        sizehint!(osyms, length(syms)); sizehint!(oexps, length(exps))
+        @inbounds for i in eachindex(syms)
+            s = syms[i]
+            e = exps[i]
+            if is_radical_atom(s)
+                q = fld(numerator(e), denominator(e))
+                if q != 0
+                    scalar = scalar_mul(E, scalar, radical_power(E, s.val::Int, q))
+                    e -= q
+                end
+                iszero(e) && continue
             end
-            iszero(e) && continue
+            push!(osyms, s); push!(oexps, e)
         end
-        push!(osyms, s); push!(oexps, e)
+        return new{E}(scalar, osyms, oexps)
     end
-    return Monomial(scalar, osyms, oexps)
 end
+
+Monomial{BigExactComplex}(scalar::ExactComplex, syms, exps) =
+    Monomial{BigExactComplex}(BigExactComplex(scalar), syms, exps)
+
+@inline as_tier(::Type{E}, m::Monomial{E}) where {E <: ExactScalar} = m
+@inline as_tier(::Type{E}, m::Monomial) where {E <: ExactScalar} =
+    Monomial{E}(as_tier(E, m.scalar), m.syms, m.exps)
+@inline as_tier(::Type{E}, terms::Vector{Monomial{E}}) where {E <: ExactScalar} = terms
+as_tier(::Type{E}, terms::Vector{<:Monomial}) where {E <: ExactScalar} =
+    Monomial{E}[as_tier(E, m) for m in terms]
+
+@inline with_factors(m::Monomial{E}, syms, exps) where {E} = Monomial{E}(m.scalar, syms, exps)
+@inline scalar_iszero(m::Monomial) = iszero(m.scalar)
+@inline scalar_is_real(m::Monomial) = iszero(imag(m.scalar))
+@inline scalar_isequal(a::Monomial, b::Monomial) = isequal(a.scalar, b.scalar)
+@inline hash_scalar(m::Monomial, h::UInt) = hash(m.scalar, h)
+@inline function normalize_monomial(m::Monomial{E}) where {E}
+    scalar = m.scalar
+    scalar isa ComplexF64 || return m
+    return Monomial{E}(normalize_scalar(scalar), m.syms, m.exps)
+end
+@inline conj_monomial(m::Monomial{E}, syms, exps) where {E} =
+    Monomial{E}(conj(m.scalar), syms, exps)
+
+@inline mul_scalars(a::Monomial{E}, b::Monomial{E}, syms, exps) where {E} =
+    Monomial{E}(scalar_mul(E, a.scalar, b.scalar), syms, exps)
+@inline add_scalars(a::Monomial{E}, b::Monomial{E}) where {E} =
+    Monomial{E}(scalar_add(E, a.scalar, b.scalar), a.syms, a.exps)
+@inline scale_monomial(t::Monomial{E}, z::Union{ComplexF64, E}) where {E} =
+    Monomial{E}(scalar_mul(E, t.scalar, z), t.syms, t.exps)
 
 """
     Poly
@@ -172,7 +81,7 @@ A sparse multivariate polynomial over named parameters (a sum of distinct
 and lowered to `Complex{Num}` only at the symbolic boundaries (see `poly_to_num`).
 """
 struct Poly
-    terms::Vector{Monomial}
+    terms::Union{Vector{Monomial{ExactComplex}}, Vector{Monomial{BigExactComplex}}}
 end
 
 # Factor identity key: SymbolicUtils hashconses, so `objectid`/`===` are exact and
@@ -222,15 +131,18 @@ function merge_factors(syma, expa, symb, expb)
     return (syms, exps)
 end
 
-@noinline function phase_term_mul(a::Monomial, b::Monomial, phase_a::Int, phase_b::Int)
-    scalar = scalar_mul(term_scalar(a), term_scalar(b))
+@noinline function phase_term_mul(
+        a::Monomial{E}, b::Monomial{E}, phase_a::Int, phase_b::Int,
+    )::Monomial{E} where {E}
+    scalar = scalar_mul(E, a.scalar, b.scalar)
     if length(a.syms) == 1 && length(b.syms) == 1 &&
             a.syms[phase_a] === b.syms[phase_b]
         exponent = a.exps[phase_a] + b.exps[phase_b]
-        return scaled_phase_monomial(scalar, Num(a.syms[phase_a]), exponent)
+        return scaled_phase_monomial(E, scalar, Num(a.syms[phase_a]), exponent)
     end
     if length(a.syms) == 1 && length(b.syms) == 1
         return merged_phase_monomial(
+            E,
             scalar,
             Num(a.syms[phase_a]),
             a.exps[phase_a],
@@ -240,10 +152,10 @@ end
     end
     syms = vcat(a.syms, b.syms)
     exps = vcat(a.exps, b.exps)
-    return canonical_phase_monomial(scalar, syms, exps)
+    return canonical_phase_monomial(E, scalar, syms, exps)
 end
 
-function term_mul(a::Monomial, b::Monomial)
+function term_mul(a::Monomial{E}, b::Monomial{E})::Monomial{E} where {E}
     isempty(a.syms) && return mul_scalars(a, b, b.syms, b.exps)
     isempty(b.syms) && return mul_scalars(a, b, a.syms, a.exps)
     phase_a = phase_factor_index(a.syms)
@@ -260,12 +172,11 @@ function term_mul(a::Monomial, b::Monomial)
     return merged_term_mul(a, b)
 end
 
-@inline function merged_term_mul(a::Monomial, b::Monomial)
+@inline function merged_term_mul(a::Monomial{E}, b::Monomial{E})::Monomial{E} where {E}
     se = merge_factors(a.syms, a.exps, b.syms, b.exps)
     syms = se[1]::Vector{SymbolicUtils.BasicSymbolic}
     exps = se[2]::Vector{Rational{Int}}
-    needs_radical_fold(syms, exps) || return mul_scalars(a, b, syms, exps)
-    return canonical_monomial(scalar_mul(term_scalar(a), term_scalar(b)), syms, exps)
+    return mul_scalars(a, b, syms, exps)
 end
 
 # Insertion sort by a strict-less predicate. The polynomial passes sort very short
@@ -285,7 +196,7 @@ function insertion_sort!(v::AbstractVector, lt::F) where {F}
 end
 
 # Sort terms into canonical order, merge like-factor terms, drop zero scalars.
-function canonical_terms!(terms::Vector{Monomial})
+function canonical_terms!(terms::Vector{Monomial{E}}) where {E}
     isempty(terms) && return terms
     insertion_sort!(terms, term_less)
     w = 0
@@ -305,8 +216,8 @@ end
 
 # Sorted merge of two canonical term lists, dropping zero-scalar terms so the result
 # stays canonical and zero-free (a stray zero would break Poly equality/hashing).
-function poly_add(p::Vector{Monomial}, q::Vector{Monomial})
-    out = Monomial[]
+function poly_add(p::Vector{Monomial{E}}, q::Vector{Monomial{E}}) where {E}
+    out = Monomial{E}[]
     sizehint!(out, length(p) + length(q))
     ip, iq = 1, 1
     np, nq = length(p), length(q)
@@ -326,11 +237,11 @@ function poly_add(p::Vector{Monomial}, q::Vector{Monomial})
     return out
 end
 
-function poly_mul(p::Vector{Monomial}, q::Vector{Monomial})
+function poly_mul(p::Vector{Monomial{E}}, q::Vector{Monomial{E}}) where {E}
     if length(p) == 1 && length(q) == 1
-        return Monomial[normalize_monomial(term_mul(p[1], q[1]))]
+        return Monomial{E}[normalize_monomial(term_mul(p[1], q[1]))]
     end
-    out = Monomial[]
+    out = Monomial{E}[]
     sizehint!(out, length(p) * length(q))
     for a in p, b in q
         push!(out, term_mul(a, b))
@@ -339,12 +250,15 @@ function poly_mul(p::Vector{Monomial}, q::Vector{Monomial})
 end
 
 # Scale every term; preserves canonical order (factors unchanged).
-function poly_scale(p::Vector{Monomial}, z::SmallScalar)
-    iszero(z) && return Monomial[]
-    return Monomial[scale_monomial(t, z) for t in p]
+function poly_scale(p::Vector{Monomial{E}}, z::Union{ComplexF64, E}) where {E}
+    iszero(z) && return Monomial{E}[]
+    return Monomial{E}[scale_monomial(t, z) for t in p]
 end
-poly_scale(p::Vector{Monomial}, z::BigExactComplex) =
-    Monomial[scale_monomial_slow(t, z) for t in p]
+
+# Entry points for `tiered`, which passes the exact tier first.
+poly_add(::Type{E}, p::Vector{Monomial{E}}, q::Vector{Monomial{E}}) where {E} = poly_add(p, q)
+poly_mul(::Type{E}, p::Vector{Monomial{E}}, q::Vector{Monomial{E}}) where {E} = poly_mul(p, q)
+poly_scale(::Type{E}, p::Vector{Monomial{E}}, z) where {E} = poly_scale(p, as_tier(E, z))
 
 function Base.isequal(a::Poly, b::Poly)
     length(a.terms) == length(b.terms) || return false

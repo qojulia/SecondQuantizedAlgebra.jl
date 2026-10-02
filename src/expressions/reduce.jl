@@ -59,30 +59,28 @@ end
 const MAX_RELATION_TERMS = 4096
 
 # Expanded rather than reached by `k` rounds of `poly_mul`, which is quadratic: each round
-# canonicalizes, so the accumulator grows by a term and is multiplied out again. `nothing`
-# means that an integer binomial coefficient overflowed and the caller must abandon the
-# whole rewrite.
-function binomial_power(lo, sign::Int8, k::Int)
-    out = Vector{Monomial}(undef, k + 1)
-    out[1] = Monomial(ONE_C, EMPTY_SYMS, EMPTY_EXPS)
-    c = 1
+# canonicalizes, so the accumulator grows by a term and is multiplied out again.
+function binomial_power(::Type{E}, lo, sign::Int8, k::Int) where {E}
+    out = Vector{Monomial{E}}(undef, k + 1)
+    out[1] = constant_term(E, ONE_C)
     for j in 1:k
-        factor = k - j + 1
-        c > typemax(Int) ÷ factor && return nothing
-        c = c * factor ÷ j   # exact: the running binomial coefficient stays integral
+        # Every binomial coefficient of `k <= 62` fits `Int`.
+        c = k <= 62 ? binomial(k, j) : binomial(big(k), j)
         s = (sign < 0 && isodd(j)) ? -c : c
-        scalar = abs(s) <= MAX_EXACT_FLOAT ? complex(Float64(s)) : ExactComplex(s // 1, 0 // 1)
-        out[j + 1] = Monomial(
-            scalar, SymbolicUtils.BasicSymbolic[lo], Rational{Int}[2j],
+        out[j + 1] = Monomial{E}(
+            binomial_scalar(E, s), SymbolicUtils.BasicSymbolic[lo], Rational{Int}[2j],
         )
     end
     return out
 end
 
+@inline binomial_scalar(::Type{E}, s::Integer) where {E} =
+    abs(s) <= MAX_EXACT_FLOAT ? ComplexF64(s) : as_tier(E, BigExactComplex(s, 0))
+
 # Project the raw number of terms before allocating a binomial. Canonicalization can make
 # this much shorter (and often reduces it to one), so the projection is only a safety gate;
 # the `gated` length decision is made on the canonical result afterwards.
-function projected_relation_terms(terms::Vector{Monomial}, hi)
+function projected_relation_terms(terms::Vector{<:Monomial}, hi)
     projected = 0
     for m in terms
         i = find_factor(m, hi)
@@ -99,7 +97,7 @@ end
 
 # `hi^e -> (1 + sign*lo^2)^(e ÷ 2) * hi^(e % 2)`, term by term. Only integer exponents
 # split; a radical of `hi` carries no such identity.
-function reduce_pythagorean(terms::Vector{Monomial}, hi, lo, sign::Int8)
+function reduce_pythagorean(terms::Vector{Monomial{E}}, hi, lo, sign::Int8) where {E}
     reducible = false
     for m in terms
         if reducible_power(m, find_factor(m, hi))
@@ -109,8 +107,8 @@ function reduce_pythagorean(terms::Vector{Monomial}, hi, lo, sign::Int8)
     end
     reducible || return (terms, false)
     projected_relation_terms(terms, hi) === nothing && return (terms, false)
-    out = Monomial[]
-    pow = Monomial[]
+    out = Monomial{E}[]
+    pow = Monomial{E}[]
     last_k = -1   # terms of one expression almost always share an exponent
     for m in terms
         i = find_factor(m, hi)
@@ -121,9 +119,7 @@ function reduce_pythagorean(terms::Vector{Monomial}, hi, lo, sign::Int8)
         n = numerator(m.exps[i])
         k = n ÷ 2
         if k != last_k
-            newpow = binomial_power(lo, sign, k)
-            newpow === nothing && return (terms, false)
-            pow = newpow
+            pow = binomial_power(E, lo, sign, k)
             last_k = k
         end
         base = replace_exps(m, i, Rational{Int}(n % 2), 0, 0 // 1)
@@ -134,7 +130,7 @@ function reduce_pythagorean(terms::Vector{Monomial}, hi, lo, sign::Int8)
     return (canonical_terms!(out), true)
 end
 
-apply_relation(terms::Vector{Monomial}, r::ParamRelation) = reduce_pythagorean(
+apply_relation(terms::Vector{<:Monomial}, r::ParamRelation) = reduce_pythagorean(
     terms, SymbolicUtils.unwrap(r.hi), SymbolicUtils.unwrap(r.lo), r.sign,
 )
 
@@ -147,7 +143,7 @@ const MAX_REDUCE_PASSES = 8
 # `gated` keeps a rewrite only when it shortens the term list, which is what display
 # wants but makes reduction non-monotone: the sole route to zero may pass through a
 # longer intermediate. Zero-testing therefore runs ungated.
-function reduce_terms(terms::Vector{Monomial}, rels::Vector{ParamRelation}, gated::Bool)
+function reduce_terms(terms::Vector{<:Monomial}, rels::Vector{ParamRelation}, gated::Bool)
     isempty(rels) && return terms
     cur = terms
     for _ in 1:MAX_REDUCE_PASSES
@@ -197,11 +193,11 @@ end
 # `cos^2 + sin^2 = 1` and `cosh^2 - sinh^2 = 1` hold unconditionally, so the pairs come
 # from the coefficient's own factors. Both members must carry the same `conj` wrapping:
 # `conj_atom` wraps `Number`-symtype atoms, and `conj(cos u)^2 + conj(sin u)^2 = 1` too.
-trig_relations(terms::Vector{Monomial}) = trig_relations!(ParamRelation[], terms)
+trig_relations(terms::Vector{<:Monomial}) = trig_relations!(ParamRelation[], terms)
 
 # Appends to `rels`, which may already hold the declared relations: a discovered pair whose
 # `hi` is already there would only be applied twice for the same fixpoint.
-function trig_relations!(rels::Vector{ParamRelation}, terms::Vector{Monomial})
+function trig_relations!(rels::Vector{ParamRelation}, terms::Vector{<:Monomial})
     from = length(rels) + 1
     lows = Dict{TrigKey, SymbolicUtils.BasicSymbolic}()
     heads = TrigHead[]
@@ -254,11 +250,11 @@ function sort_rels!(rels::Vector{ParamRelation}, from::Int)
     return nothing
 end
 
-function reduce_tail(t::Poly, rels::Vector{ParamRelation}, gated::Bool)
-    out = reduce_terms(t.terms, rels, gated)
-    out === t.terms && return poly_coeff(t)
-    return from_poly(out)   # empty -> `CNUM_ZERO`; a `Poly` never reports itself zero
-end
+# Empty -> `CNUM_ZERO`; a `Poly` never reports itself zero.
+reduce_tail(t::Poly, rels::Vector{ParamRelation}, gated::Bool) =
+    tiered(reduced_terms, t, rels, gated)
+@inline reduced_terms(::Type{E}, terms::Vector{Monomial{E}}, rels, gated::Bool) where {E} =
+    reduce_terms(terms, rels, gated)
 
 # Fold `cos^2 + sin^2` and `cosh^2 - sinh^2` factors of a coefficient.
 function reduce_trig(c::Coeff)
@@ -269,7 +265,7 @@ function reduce_trig(c::Coeff)
     return reduce_tail(t, rels, true)
 end
 
-function has_trig_factor(terms::Vector{Monomial})
+function has_trig_factor(terms::Vector{<:Monomial})
     @inbounds for mi in eachindex(terms)
         syms = terms[mi].syms
         for si in eachindex(syms)
