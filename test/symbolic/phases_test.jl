@@ -198,6 +198,22 @@ import SecondQuantizedAlgebra: expim, exponential_form, phase_terms, to_num,
         )
     end
 
+    @testset "native integer factors keep raw coefficients exact" begin
+        @variables ω::Real t::Real
+        # The phase argument `ω * t` is not a polynomial atom, so the drive is stored as a raw
+        # expression and a native factor is multiplied into the raw tree.
+        drive = stored_coefficient((2 // 5) * ((3 // 5) * cos(ω * t) - (4 // 5) * sin(ω * t)) * a)
+        @test drive.tail isa SecondQuantizedAlgebra.RawSymbolicCoeff
+        for factor in (-im, im, 2, -1)
+            product = convert(SecondQuantizedAlgebra.Coeff, factor) * drive
+            terms = phase_terms(product)
+            amplitude(phase) = only(term.amplitude for term in terms if isequal(term.phase, phase))
+            positive = (3 // 25) + (4 // 25) * im
+            @test isequal(amplitude(ω * t), SecondQuantizedAlgebra.exact_coeff(factor * positive))
+            @test isequal(amplitude(-ω * t), SecondQuantizedAlgebra.exact_coeff(factor * conj(positive)))
+        end
+    end
+
     @testset "public raw coefficient paths" begin
         @variables θ φ g z::Number
         ordinary = stored_coefficient(exp(1 + g) * a)
