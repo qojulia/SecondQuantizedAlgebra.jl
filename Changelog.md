@@ -6,6 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [Unreleased]
+
+### Fixed
+
+- A native Gaussian-integer factor such as `-im` multiplied into a raw symbolic coefficient now enters the expression as an exact integer. Exact rationals such as the `2//5` of `(2//5) * cos(x)` previously became floats (`0.4`), so `phase_terms` returned inexact `ComplexF64` amplitudes.
+
 ## [v0.12.1]
 
 ### Fixed

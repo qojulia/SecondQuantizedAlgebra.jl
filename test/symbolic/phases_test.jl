@@ -198,6 +198,21 @@ import SecondQuantizedAlgebra: expim, exponential_form, phase_terms, to_num,
         )
     end
 
+    @testset "native integer factors keep raw coefficients exact" begin
+        @variables x::Real
+        drive = stored_coefficient((2 // 5) * ((3 // 5) * cos(x) - (4 // 5) * sin(x)) * a)
+        for factor in (-im, im, 2, -1)
+            product = convert(SecondQuantizedAlgebra.Coeff, factor) * drive
+            for term in phase_terms(product)
+                scalars = [m.scalar for m in term.amplitude.tail.terms]
+                @test all(s -> s isa Complex{Rational{Int}}, scalars)
+            end
+        end
+        terms = phase_terms(convert(SecondQuantizedAlgebra.Coeff, -im) * drive)
+        amplitudes = Dict(Symbolics.simplify(t.phase - x) == 0 => t.amplitude for t in terms)
+        @test isequal(amplitudes[true], SecondQuantizedAlgebra.exact_coeff((4 // 25) - (3 // 25) * im))
+    end
+
     @testset "public raw coefficient paths" begin
         @variables θ φ g z::Number
         ordinary = stored_coefficient(exp(1 + g) * a)

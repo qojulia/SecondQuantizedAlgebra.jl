@@ -522,9 +522,18 @@ function poly_to_raw(p::Poly)
     return result
 end
 
+# A native Gaussian integer such as `-im` enters a raw expression as an exact integer, so that
+# multiplying it into `(2//5) * cos(x)` keeps `2//5` exact instead of folding it to `0.4`.
+@inline function raw_native(z::ComplexF64)
+    exact = integer_scalar(z)
+    exact === nothing && return z
+    re, im = numerator(real(exact)), numerator(imag(exact))
+    return iszero(im) ? re : Complex{Int}(re, im)
+end
+
 @inline function raw_expression(c::Coeff)
     tail = c.tail
-    tail isa Native && return c.z
+    tail isa Native && return raw_native(c.z)
     tail isa Poly && return poly_to_raw(tail)
     return tail.expr
 end
