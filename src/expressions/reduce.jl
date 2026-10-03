@@ -336,7 +336,7 @@ function reduce_raw_via_transient(
     reduced = reduce_tail(sub.tail, trels, gated)
     isequal(reduced, sub) && return c
     reduced.tail isa Native && return reduced
-    result = SymbolicUtils.unwrap(Symbolics.substitute(Num(raw_expression(reduced)), back))
+    result = SymbolicUtils.unwrap(Symbolics.substitute(Num(raw_tail(reduced)), back))
     value = const_value(result)
     value isa Number && return to_cnum(value)
     result isa SymbolicUtils.BasicSymbolic || return c

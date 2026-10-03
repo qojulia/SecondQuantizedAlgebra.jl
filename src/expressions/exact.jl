@@ -51,26 +51,12 @@ end
 @inline to_float_scalar(z::ComplexF64) = z
 @inline to_float_scalar(z::ExactScalar) = ComplexF64(z)
 
-for E in (ExactComplex, BigExactComplex)
-    @eval begin
-        @inline scalar_mul(::Type{$E}, a::$E, b::$E) = a * b
-        @inline scalar_add(::Type{$E}, a::$E, b::$E) = a + b
-        @inline scalar_inv(::Type{$E}, z::$E) = inv(z)
-    end
-end
-@inline scalar_mul(::Type{<:ExactScalar}, a::ComplexF64, b::ComplexF64) =
-    normalize_scalar(a * b)
-@inline scalar_mul(::Type{E}, a::E, b::ComplexF64) where {E <: ExactScalar} =
-    normalize_scalar(to_float_scalar(a) * b)
-@inline scalar_mul(::Type{E}, a::ComplexF64, b::E) where {E <: ExactScalar} =
-    normalize_scalar(a * to_float_scalar(b))
-@inline scalar_add(::Type{<:ExactScalar}, a::ComplexF64, b::ComplexF64) =
-    normalize_scalar(a + b)
-@inline scalar_add(::Type{E}, a::E, b::ComplexF64) where {E <: ExactScalar} =
-    normalize_scalar(to_float_scalar(a) + b)
-@inline scalar_add(::Type{E}, a::ComplexF64, b::E) where {E <: ExactScalar} =
-    normalize_scalar(a + to_float_scalar(b))
-@inline scalar_inv(::Type{<:ExactScalar}, z::ComplexF64) = inv(z)
+@inline scalar_mul(a::GaussianRational{T}, b::GaussianRational{T}) where {T} = a * b
+@inline scalar_mul(a::ComplexF64, b::CoeffScalar) = normalize_scalar(a * to_float_scalar(b))
+@inline scalar_mul(a::ExactScalar, b::ComplexF64) = normalize_scalar(to_float_scalar(a) * b)
+@inline scalar_add(a::GaussianRational{T}, b::GaussianRational{T}) where {T} = a + b
+@inline scalar_add(a::ComplexF64, b::CoeffScalar) = normalize_scalar(a + to_float_scalar(b))
+@inline scalar_add(a::ExactScalar, b::ComplexF64) = normalize_scalar(to_float_scalar(a) + b)
 
 @inline function is_radical_atom(s::SymbolicUtils.BasicSymbolic)
     s isa SymbolicUtils.BasicSymbolic{SymbolicUtils.SymReal} || return false

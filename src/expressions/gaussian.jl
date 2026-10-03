@@ -61,11 +61,6 @@ function GaussianRational{T}(re::Rational, im::Rational) where {T}
     overflow = o1 | o2 | o3 | is_edge(den) | is_edge(r) | is_edge(i)
     return overflow_result(overflow ? unsafe_gaussian(r, i, den) : normalized(r, i, den), overflow)
 end
-GaussianRational{T}(z::Complex{<:Integer}) where {T} = GaussianRational{T}(real(z), imag(z))
-GaussianRational{T}(z::Complex{<:Rational}) where {T} = GaussianRational{T}(real(z), imag(z))
-GaussianRational{T}(x::Union{Integer, Rational}) where {T} = GaussianRational{T}(x, zero(x))
-GaussianRational{T}(re::Integer, im::Rational) where {T} = GaussianRational{T}(re // 1, im)
-GaussianRational{T}(re::Rational, im::Integer) where {T} = GaussianRational{T}(re, im // 1)
 GaussianRational{BigInt}(z::GaussianRational{Int}) =
     unsafe_gaussian(BigInt(z.re), BigInt(z.im), BigInt(z.den))
 
@@ -80,24 +75,6 @@ Base.real(z::GaussianRational) = z.re // z.den
 Base.imag(z::GaussianRational) = z.im // z.den
 
 @inline function mul_checked(a::GaussianRational{T}, b::GaussianRational{T}) where {T}
-    (isone(a.den) && isone(b.den)) || return mul_checked_rational(a, b)
-    if iszero(a.im) && iszero(b.im)
-        re, o = Base.mul_with_overflow(a.re, b.re)
-        overflow = o | is_edge(re)
-        return (overflow ? a : unsafe_gaussian(re, zero(T), one(T)), overflow)
-    end
-    rr, o1 = Base.mul_with_overflow(a.re, b.re)
-    ii, o2 = Base.mul_with_overflow(a.im, b.im)
-    ri, o3 = Base.mul_with_overflow(a.re, b.im)
-    ir, o4 = Base.mul_with_overflow(a.im, b.re)
-    re, o5 = Base.sub_with_overflow(rr, ii)
-    im, o6 = Base.add_with_overflow(ri, ir)
-    overflow = o1 | o2 | o3 | o4 | o5 | o6 | is_edge(re) | is_edge(im)
-    return (overflow ? a : unsafe_gaussian(re, im, one(T)), overflow)
-end
-@noinline function mul_checked_rational(
-        a::GaussianRational{T}, b::GaussianRational{T},
-    ) where {T}
     rr, o1 = Base.mul_with_overflow(a.re, b.re)
     ii, o2 = Base.mul_with_overflow(a.im, b.im)
     ri, o3 = Base.mul_with_overflow(a.re, b.im)

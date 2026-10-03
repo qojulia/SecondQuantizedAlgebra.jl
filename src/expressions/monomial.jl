@@ -30,7 +30,7 @@ struct Monomial{E <: ExactScalar}
             if is_radical_atom(s)
                 q = fld(numerator(e), denominator(e))
                 if q != 0
-                    scalar = scalar_mul(E, scalar, radical_power(E, s.val::Int, q))
+                    scalar = scalar_mul(scalar, radical_power(E, s.val::Int, q))
                     e -= q
                 end
                 iszero(e) && continue
@@ -66,11 +66,11 @@ end
     Monomial{E}(conj(m.scalar), syms, exps)
 
 @inline mul_scalars(a::Monomial{E}, b::Monomial{E}, syms, exps) where {E} =
-    Monomial{E}(scalar_mul(E, a.scalar, b.scalar), syms, exps)
+    Monomial{E}(scalar_mul(a.scalar, b.scalar), syms, exps)
 @inline add_scalars(a::Monomial{E}, b::Monomial{E}) where {E} =
-    Monomial{E}(scalar_add(E, a.scalar, b.scalar), a.syms, a.exps)
+    Monomial{E}(scalar_add(a.scalar, b.scalar), a.syms, a.exps)
 @inline scale_monomial(t::Monomial{E}, z::Union{ComplexF64, E}) where {E} =
-    Monomial{E}(scalar_mul(E, t.scalar, z), t.syms, t.exps)
+    Monomial{E}(scalar_mul(t.scalar, z), t.syms, t.exps)
 
 """
     Poly
@@ -133,7 +133,7 @@ end
 @noinline function phase_term_mul(
         a::Monomial{E}, b::Monomial{E}, phase_a::Int, phase_b::Int,
     )::Monomial{E} where {E}
-    scalar = scalar_mul(E, a.scalar, b.scalar)
+    scalar = scalar_mul(a.scalar, b.scalar)
     if length(a.syms) == 1 && length(b.syms) == 1 &&
             a.syms[phase_a] === b.syms[phase_b]
         exponent = a.exps[phase_a] + b.exps[phase_b]

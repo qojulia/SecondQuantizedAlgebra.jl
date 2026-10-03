@@ -244,7 +244,7 @@ function substitute_cnum(
     # it before substitution so a complex replacement for either slot participates
     # in ordinary arithmetic instead of being passed back to SymbolicUtils' `complex`,
     # whose arguments must be provably real.
-    raw = lower_complex_slots(raw_expression(c))
+    raw = lower_complex_slots(raw_tail(c))
     new_raw = SymbolicUtils.substitute(raw, d)
     isequal(new_raw, raw) && return c
     return recognize(new_raw)
