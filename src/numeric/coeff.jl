@@ -254,7 +254,7 @@ function fold_const(x)::ComplexF64
     throw(ArgumentError("cannot reduce symbolic expression $x to a concrete number"))
 end
 
-to_complex(c::Coeff) = is_native(c) ? c.z : to_complex(to_num(c))
+to_complex(c::Coeff) = is_native(c) ? native_float(native_scalar(c)) : to_complex(to_num(c))
 
 # One method (union-split budget) routing every input through `convert ∘ Complex`,
 # the only pattern that infers to ComplexF64 from `Any` after `Symbolics.value`.

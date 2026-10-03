@@ -62,7 +62,7 @@ const MAX_RELATION_TERMS = 4096
 # canonicalizes, so the accumulator grows by a term and is multiplied out again.
 function binomial_power(::Type{E}, lo, sign::Int8, k::Int) where {E}
     out = Vector{Monomial{E}}(undef, k + 1)
-    out[1] = constant_term(E, ONE_C)
+    out[1] = constant_term(E, one(E))
     for j in 1:k
         # Every binomial coefficient of `k <= 62` fits `Int`.
         c = k <= 62 ? binomial(k, j) : binomial(big(k), j)
@@ -74,8 +74,8 @@ function binomial_power(::Type{E}, lo, sign::Int8, k::Int) where {E}
     return out
 end
 
-@inline binomial_scalar(::Type{E}, s::Integer) where {E} =
-    abs(s) <= MAX_EXACT_FLOAT ? ComplexF64(s) : as_tier(E, BigExactComplex(s, 0))
+@inline binomial_scalar(::Type{E}, s::Int) where {E} = E(s, 0)
+@inline binomial_scalar(::Type{E}, s::BigInt) where {E} = as_tier(E, BigExactComplex(s, 0))
 
 # Project the raw number of terms before allocating a binomial. Canonicalization can make
 # this much shorter (and often reduces it to one), so the projection is only a safety gate;

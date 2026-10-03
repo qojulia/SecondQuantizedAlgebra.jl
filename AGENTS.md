@@ -25,7 +25,8 @@ src/numeric/api.jl                  # public to_numeric / numeric_average / expe
 ext/SecondQuantizedAlgebraQuantumOpticsBaseExt.jl  # QuantumOpticsBase backend (vector LazySum)
 ext/SecondQuantizedAlgebraQuantumToolboxExt.jl     # QuantumToolbox backend (VecSum over QobjEvo)
 
-src/expressions/exact.jl            # Exact scalar tiers: ExactComplex/BigExactComplex arithmetic, as_tier, radical-folding primitives
+src/expressions/gaussian.jl         # GaussianRational{T}: exact (re + im*i)/den numbers, checked Int kernels
+src/expressions/exact.jl            # Exact scalar tiers: ExactComplex/BigExactComplex aliases, as_tier, radical-folding primitives
 src/expressions/monomial.jl         # Monomial{E}/Poly{E} structs (radical-canonical by construction), factor-list machinery
 src/expressions/cnum.jl             # CNum = Complex{Num} arithmetic, fast paths, constants
 src/expressions/coeff_linear_algebra.jl # LinearAlgebra hooks for Coeff (dot, norm, det, Symmetric/Hermitian)

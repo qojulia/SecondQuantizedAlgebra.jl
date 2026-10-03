@@ -120,14 +120,16 @@ end
 is_neg_unit(c::Number) = isequal(c, -1)
 
 function is_real_negative(c::CNum)
-    is_native(c) && return imag(c.z) == 0 && real(c.z) < 0
+    is_native(c) && return imag(native_scalar(c)) == 0 && real(native_scalar(c)) < 0
     t = c.tail
     # A polynomial coefficient with every scalar real and negative factors out as ` - `,
     # which is most of what a rotation or a squeeze produces.
     t isa Poly &&
-        return all(m -> imag(m.scalar) == 0 && real(m.scalar) < 0, t.terms)
+        return all_real_negative(t.terms)
     return is_real_negative_sym(c)
 end
+all_real_negative(terms::Vector{<:Monomial}) =
+    all(m -> imag(m.scalar) == 0 && real(m.scalar) < 0, terms)
 @noinline function is_real_negative_sym(c::CNum)::Bool
     re, im = realimag(c)
     iszero_num(im) || return false

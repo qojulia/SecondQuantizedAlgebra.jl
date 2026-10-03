@@ -209,8 +209,8 @@ import SecondQuantizedAlgebra: expim, exponential_form, phase_terms, to_num,
             terms = phase_terms(product)
             amplitude(phase) = only(term.amplitude for term in terms if isequal(term.phase, phase))
             positive = (3 // 25) + (4 // 25) * im
-            @test isequal(amplitude(ω * t), SecondQuantizedAlgebra.exact_coeff(factor * positive))
-            @test isequal(amplitude(-ω * t), SecondQuantizedAlgebra.exact_coeff(factor * conj(positive)))
+            @test isequal(amplitude(ω * t), SecondQuantizedAlgebra.to_cnum(factor * positive))
+            @test isequal(amplitude(-ω * t), SecondQuantizedAlgebra.to_cnum(factor * conj(positive)))
         end
     end
 

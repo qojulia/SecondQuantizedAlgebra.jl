@@ -260,21 +260,28 @@ poly_add(::Type{E}, p::Vector{Monomial{E}}, q::Vector{Monomial{E}}) where {E} = 
 poly_mul(::Type{E}, p::Vector{Monomial{E}}, q::Vector{Monomial{E}}) where {E} = poly_mul(p, q)
 poly_scale(::Type{E}, p::Vector{Monomial{E}}, z) where {E} = poly_scale(p, as_tier(E, z))
 
-function Base.isequal(a::Poly, b::Poly)
-    length(a.terms) == length(b.terms) || return false
-    @inbounds for i in eachindex(a.terms)
-        ta, tb = a.terms[i], b.terms[i]
+# `Poly.terms` is a union of the two tier vectors. Loops over the terms run behind a function
+# barrier on the concrete vector, so the scalar operations inside stay static.
+Base.isequal(a::Poly, b::Poly) = terms_isequal(a.terms, b.terms)
+Base.:(==)(a::Poly, b::Poly) = isequal(a, b)
+# A big-tier polynomial holds a scalar that no small-tier polynomial holds.
+function terms_isequal(a::Vector{Monomial{A}}, b::Vector{Monomial{B}}) where {A, B}
+    A === B || return false
+    length(a) == length(b) || return false
+    @inbounds for i in eachindex(a)
+        ta, tb = a[i], b[i]
         (scalar_isequal(ta, tb) && same_factors(ta, tb)) || return false
     end
     return true
 end
-Base.:(==)(a::Poly, b::Poly) = isequal(a, b)
-function Base.hash(p::Poly, h::UInt)
-    @inbounds for t in p.terms
+
+Base.hash(p::Poly, h::UInt) = hash(:Poly, hash_terms(p.terms, h))
+function hash_terms(terms::Vector{<:Monomial}, h::UInt)
+    @inbounds for t in terms
         h = hash_scalar(t, h)
         for i in eachindex(t.syms)
             h = hash(t.exps[i], hash(fkey(t.syms[i]), h))
         end
     end
-    return hash(:Poly, h)
+    return h
 end

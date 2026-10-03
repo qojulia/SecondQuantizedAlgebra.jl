@@ -1,4 +1,4 @@
-# Zero-size tag marking the native fast path (the value lives inline in `z`).
+# Zero-size tag marking the native fast path (the value lives inline in `slot`).
 struct Native end
 const NATIVE = Native()
 
@@ -21,41 +21,45 @@ end
     Coeff
 
 Coefficient representation for operator prefactors. A `Coeff` has three forms: a
-native `ComplexF64` (concrete numbers), a `Poly` parameter polynomial, and a raw
-SymbolicUtils fallback. The latter preserves a single complex expression tree and
-is lowered to `Complex{Num}` only at public boundaries (`to_num`).
+native number (a small exact `GaussianRational{Int}` or an inexact `ComplexF64`), a
+`Poly` parameter polynomial, and a raw SymbolicUtils fallback. The latter preserves a
+single complex expression tree and is lowered to `Complex{Num}` only at public boundaries
+(`to_num`).
 """
 struct Coeff
-    z::ComplexF64
+    slot::NativeSlot   # the value of a `Native` coefficient; zero for the other tails
     tail::Union{Native, Poly, RawSymbolicCoeff}
 end
 const CNum = Coeff
+const RawExpression = SymbolicUtils.BasicSymbolic{SymbolicUtils.SymReal}
 
 const NUM_ZERO = Num(0)
 const NUM_ONE = Num(1)
-const ONE_C = ComplexF64(1)
-const ONE_R = ExactComplex(1 // 1, 0 // 1)
+const ONE_R = one(ExactComplex)
+const IM_R = ExactComplex(0, 1)
+const NEG1_R = ExactComplex(-1, 0)
 const EMPTY_SYMS = SymbolicUtils.BasicSymbolic[]
 const EMPTY_EXPS = Rational{Int}[]
 
 # Adding 0.0+0.0im normalizes any signed zero (`-0.0 -> 0.0`) so that structurally
-# equal coefficients (e.g. `conj(2)` vs `2`) stay `isequal` and hash identically.
-@inline native(z::ComplexF64) = Coeff(z + complex(0.0, 0.0), NATIVE)
+# equal coefficients (e.g. `conj(2.0)` vs `2.0`) stay `isequal` and hash identically.
+@inline native(z::ComplexF64) = Coeff(NativeSlot(z + complex(0.0, 0.0)), NATIVE)
+@inline native(z::ExactComplex) = Coeff(NativeSlot(z), NATIVE)
+@inline native_scalar(c::Coeff) = native_scalar(c.slot)
+const ZERO_SLOT = NativeSlot(zero(ExactComplex))
 @inline symbolic(
     x::SymbolicUtils.BasicSymbolic{SymbolicUtils.SymReal}; real_slot::Bool = false,
-) = Coeff(zero(ComplexF64), RawSymbolicCoeff(x, real_slot))
-@inline poly_coeff(p::Poly) = Coeff(zero(ComplexF64), p)
+) = Coeff(ZERO_SLOT, RawSymbolicCoeff(x, real_slot))
+@inline poly_coeff(p::Poly) = Coeff(ZERO_SLOT, p)
 @inline is_native(c::Coeff) = c.tail isa Native
 @inline is_poly(c::Coeff) = c.tail isa Poly
 
-const CNUM_ZERO = native(zero(ComplexF64))
-const CNUM_ONE = native(one(ComplexF64))
-const CNUM_NEG1 = native(-one(ComplexF64))
-const CNUM_IM = native(ComplexF64(0, 1))
-const CNUM_NEG_IM = native(ComplexF64(0, -1))
-# This is an internal trigonometric constant, not user input. Keep it native so the
-# Euler expansion remains on the hot path; exact user-provided rationals still use Poly.
-const CNUM_HALF = native(ComplexF64(0.5))
+const CNUM_ZERO = native(zero(ExactComplex))
+const CNUM_ONE = native(ONE_R)
+const CNUM_NEG1 = native(NEG1_R)
+const CNUM_IM = native(IM_R)
+const CNUM_NEG_IM = native(ExactComplex(0, -1))
+const CNUM_HALF = native(ExactComplex(1 // 2, 0 // 1))
 
 """
     expim(x)
@@ -189,7 +193,7 @@ function phase_coeff_expanded(a::Num)
     v = const_value(u)
     # A phase over a literal is its value. Interning it instead would keep every coefficient
     # it touches off the native tier, so numerically cancelling terms would never fold.
-    v isa Real && return native(ComplexF64(exp(im * v)))
+    v isa Real && return iszero(v) ? CNUM_ONE : native(ComplexF64(exp(im * v)))
     v isa Number && return nonreal_phase_argument(a)
     (u isa SymbolicUtils.BasicSymbolic && SymbolicUtils.symtype(u) <: Real) ||
         return nonreal_phase_argument(a)
@@ -200,14 +204,11 @@ end
 
 phase_coeff(x) = phase_coeff_expanded(Num(expand(x)))
 
-# Exact value of an elementary function at argument `0`, or `nothing`. Folds the `exp(0)`
-# Symbolics leaves after Euler-expanding `exp(im*ω*t)`. Spelled as `===` (not `in` a tuple)
-# to stay statically resolved; user-registered functions (`pulse(t)`) return `nothing`.
-@inline function unary_at_zero(op)::Union{ComplexF64, Nothing}
-    (op === exp || op === cos || op === cosh) && return ONE_C
-    (op === sin || op === tan || op === sinh || op === tanh) && return zero(ComplexF64)
-    return nothing
-end
+# Elementary functions with an exact value at argument `0`. Folds the `exp(0)` Symbolics
+# leaves after Euler-expanding `exp(im*ω*t)`. Spelled as `===` (not `in` a tuple) to stay
+# statically resolved; user-registered functions (`pulse(t)`) have no value here.
+@inline is_one_at_zero(op) = op === exp || op === cos || op === cosh
+@inline is_zero_at_zero(op) = op === sin || op === tan || op === sinh || op === tanh
 
 # Concrete numeric content of an (unwrapped) symbolic value, else `nothing`
 # (`BasicSymbolic` constants from substitute/simplify count, keeping them native).
@@ -355,39 +356,30 @@ end
     x::SymbolicUtils.BasicSymbolic{SymbolicUtils.SymReal}, real_slot::Bool,
 )::Coeff = symbolic(x; real_slot)
 
-@inline function num_from_float(x::Float64)
-    return (isinteger(x) && abs(x) <= 9.007199254740992e15) ? Num(Int(x)) : Num(x)
-end
-
+@inline num_from_scalar(x::Int) = Num(x)
+@inline num_from_scalar(x::Float64) = Num(x)
 @inline num_from_scalar(x::Rational{Int}) =
     denominator(x) == 1 ? Num(Int(numerator(x))) : Num(x)
 function num_from_scalar(x::Rational{BigInt})
     fits_small(x) && return num_from_scalar(Rational{Int}(x))
     return denominator(x) == 1 ? Num(numerator(x)) : Num(x)
 end
-@inline num_from_scalar(x::Float64) = num_from_float(x)
-
-@inline native_integer(x::Rational{Int}) =
-    denominator(x) == 1 && -MAX_EXACT_FLOAT <= numerator(x) <= MAX_EXACT_FLOAT
 
 @inline function constant_term(::Type{E}, z)::Monomial{E} where {E <: ExactScalar}
-    return Monomial{E}(z, EMPTY_SYMS, EMPTY_EXPS)
+    return Monomial{E}(as_tier(E, z), EMPTY_SYMS, EMPTY_EXPS)
 end
 
-@inline function exact_coeff(x::ExactComplex)::Coeff
-    re, im = real(x), imag(x)
-    if native_integer(re) && native_integer(im)
-        return native(ComplexF64(Int(numerator(re)), Int(numerator(im))))
-    end
-    return poly_coeff(Poly(Monomial{ExactComplex}[constant_term(ExactComplex, x)]))
-end
+# An exact Gaussian integer is native; any other exact constant is a one-term `Poly`.
+@inline exact_coeff(x::ExactComplex)::Coeff = native(x)
+# A big exact constant that fits returns to the native tier; otherwise it is a one-term `Poly`.
 function exact_coeff(x::BigExactComplex)::Coeff
-    fits_small(x) && return exact_coeff(as_tier(ExactComplex, x))
+    fits_small(x) && return native(as_tier(ExactComplex, x))
     return poly_coeff(Poly(Monomial{BigExactComplex}[constant_term(BigExactComplex, x)]))
 end
 @inline scalar_coeff(x::ComplexF64) = native(x)
 @inline scalar_coeff(x::ExactScalar) = exact_coeff(x)
 
+@inline exact_value(::Type{E}, re, im) where {E <: ExactScalar} = E(re, im)
 @inline exact_rational(x::Integer) = Rational{BigInt}(x)
 @inline exact_rational(x::Rational) = Rational{BigInt}(x)
 @inline exact_complex(re::Union{Integer, Rational}, im::Union{Integer, Rational}) =
@@ -395,24 +387,15 @@ end
 
 to_cnum(x::Coeff) = x
 to_cnum(x::Num) = recognize(SymbolicUtils.unwrap(x))
-to_cnum(x::Rational{Int}) = exact_coeff(ExactComplex(x, 0 // 1))
+to_cnum(x::Rational{Int}) = tiered(exact_value, x, 0 // 1)
+to_cnum(x::Complex{Int}) = tiered(exact_value, real(x), imag(x))
 to_cnum(x::ExactComplex) = exact_coeff(x)
 to_cnum(x::BigExactComplex) = exact_coeff(x)
-to_cnum(x::Bool) = native(ComplexF64(x))
-@inline function to_cnum(x::Int)
-    -MAX_EXACT_FLOAT <= x <= MAX_EXACT_FLOAT && return native(ComplexF64(x))
-    return exact_coeff(ExactComplex(x // 1, 0 // 1))
-end
-@inline function to_cnum(x::Complex{Int})
-    re, im = real(x), imag(x)
-    (-MAX_EXACT_FLOAT <= re <= MAX_EXACT_FLOAT && -MAX_EXACT_FLOAT <= im <= MAX_EXACT_FLOAT) &&
-        return native(ComplexF64(x))
-    return exact_coeff(ExactComplex(re // 1, im // 1))
-end
-to_cnum(x::Union{Int8, Int16, Int32, UInt8, UInt16, UInt32}) = native(ComplexF64(x))
+@inline to_cnum(x::Int) = is_edge(x) ? exact_complex(x, false) : native(unsafe_gaussian(x, 0, 1))
+to_cnum(x::Union{Bool, Int8, Int16, Int32, UInt8, UInt16, UInt32}) = to_cnum(Int(x))
+to_cnum(x::Complex{Bool}) = native(ExactComplex(Int(real(x)), Int(imag(x))))
 to_cnum(x::Integer) = exact_complex(x, false)
 to_cnum(x::Rational) = exact_complex(x, false)
-to_cnum(x::Complex{Bool}) = native(ComplexF64(x))
 to_cnum(x::Complex{<:Union{Integer, Rational}}) = exact_complex(real(x), imag(x))
 # Native only when the value round-trips through ComplexF64 with no loss; non-rational
 # values that cannot be represented faithfully (for example, large bignums) stay symbolic.
@@ -442,16 +425,13 @@ function to_cnum(x::Complex{Num})
 end
 to_cnum(x::SymbolicUtils.BasicSymbolic) = recognize(x)
 
-# Keep symbolic Fourier amplitudes exact without changing the native numeric fast path used
-# by ordinary internal trigonometric calculations.
-const CNUM_HALF_EXACT = exact_coeff(ExactComplex(1 // 2, 0 // 1))
 
 # Canonicalizing constructor from real/imag `Num` parts (`re + im*i`), used by the
 # symbolic boundaries (substitute / conj / change_index) that may yield a polynomial.
 function mul_by_im(c::Coeff)::Coeff
     tail = c.tail
-    tail isa Native && return native(im * c.z)
-    tail isa Poly && return tiered(poly_scale, tail, ComplexF64(im))
+    tail isa Native && return mul_native(native_scalar(c), IM_R)
+    tail isa Poly && return tiered(poly_scale, tail, IM_R)
     raw = (im * tail.expr)::SymbolicUtils.BasicSymbolic{SymbolicUtils.SymReal}
     return from_raw_arithmetic(raw, false)
 end
@@ -592,7 +572,7 @@ function radical_factors(m::Monomial)
     return insertion_sort!(factors, isless)
 end
 
-function radical_expression(n::Int, f::Rational{Int})
+function radical_expression(n::Int, f::Rational{Int})::RawExpression
     base = SymbolicUtils.Const{SymbolicUtils.SymReal}(n)
     f == 1 // 2 && return sqrt(base)
     f == 1 // 3 && return cbrt(base)
@@ -647,64 +627,136 @@ function term_to_num(m::Monomial)
 end
 
 # Sum the terms; the only place a polynomial lowers to SymbolicUtils.
-function poly_to_num(p::Poly)
-    isempty(p.terms) && return Complex(NUM_ZERO, NUM_ZERO)
-    acc = term_to_num(p.terms[1])
-    @inbounds for i in 2:length(p.terms)
-        acc = acc + term_to_num(p.terms[i])
+poly_to_num(p::Poly) = terms_to_num(p.terms)
+function terms_to_num(terms::Vector{<:Monomial})
+    isempty(terms) && return Complex(NUM_ZERO, NUM_ZERO)
+    acc = term_to_num(terms[1])
+    @inbounds for i in 2:length(terms)
+        acc = acc + term_to_num(terms[i])
     end
     return acc
 end
 
-function term_to_raw(m::Monomial)
-    scalar = m.scalar
-    result = if scalar isa ExactScalar
-        re, im = real(scalar), imag(scalar)
-        re_num = num_from_scalar(re)
-        im_num = num_from_scalar(im)
-        iszero(im) ? SymbolicUtils.unwrap(re_num) : raw_complex(re_num, im_num)
-    else
-        scalar
+# An exact scalar enters a raw expression as a number, not as a symbolic `complex(re, im)`
+# call: `substitute` rebuilds such a call without its scalar shape.
+@inline raw_rational(x::Rational) = isone(denominator(x)) ? numerator(x) : x
+@inline function raw_scalar(z::ExactComplex)
+    re, im = raw_rational(real(z)), raw_rational(imag(z))
+    return iszero(im) ? re : complex(re, im)
+end
+@inline raw_scalar(z::BigExactComplex) =
+    fits_small(z) ? raw_scalar(as_tier(ExactComplex, z)) :
+    (iszero(imag(z)) ? real(z) : Complex(real(z), imag(z)))
+@inline raw_scalar(z::ComplexF64) = z
+
+# The initial value of a raw accumulator before its first factor or term.
+const RAW_UNIT = SymbolicUtils.Const{SymbolicUtils.SymReal}(1)
+
+# `g(v)` for the plain number `v` that `raw_scalar(z)` embeds, one branch per number type so
+# that every call is static. A number, not a `Const` node: SymbolicUtils builds a different
+# tree from `Const(1) * x` than from `1 * x`.
+@inline function with_raw_number(g::G, z::ExactComplex)::RawExpression where {G}
+    if iszero(z.im)
+        isone(z.den) && return g(z.re)::RawExpression
+        return g(z.re // z.den)::RawExpression
     end
+    isone(z.den) && return g(Complex(z.re, z.im))::RawExpression
+    return g(Complex(z.re // z.den, z.im // z.den))::RawExpression
+end
+@inline function with_raw_number(g::G, z::BigExactComplex)::RawExpression where {G}
+    fits_small(z) && return with_raw_number(g, as_tier(ExactComplex, z))
+    iszero(z.im) && return g(real(z))::RawExpression
+    return g(Complex(real(z), imag(z)))::RawExpression
+end
+@inline with_raw_number(g::G, z::ComplexF64) where {G} = g(z)::RawExpression
+
+# The symbolic factors of a non-constant monomial, without its scalar. Each step is a `RawExpression`: an
+# untyped accumulator would dispatch every product at runtime, and inference would reach this
+# package's `Number * Coeff` methods, making lowering recursive with `mul_cnum`.
+function factors_to_raw(m::Monomial)::RawExpression
+    result = RAW_UNIT
+    started = false
     @inbounds for i in eachindex(m.syms)
-        symbol = m.syms[i]
+        symbol = m.syms[i]::RawExpression
         exponent = m.exps[i]
         is_radical_atom(symbol) && continue
         factor = if denominator(exponent) == 1
             symbol^numerator(exponent)
         else
             symbol^exponent
-        end
+        end::RawExpression
         # The polynomial convention for a non-real-symtype atom is carried by the
         # `real_slot` bit on the raw coefficient. Do not wrap the factor here: SymbolicUtils
         # simplifies `complex(z, 0)` back to `z` before the bit can be observed.
-        result *= factor
+        result = started ? (result * factor)::RawExpression : factor
+        started = true
     end
     for (f, n) in radical_factors(m)
-        result *= radical_expression(n, f)
+        factor = radical_expression(n, f)
+        result = started ? (result * factor)::RawExpression : factor
+        started = true
     end
     return result
 end
 
-function poly_to_raw(p::Poly)
-    result = term_to_raw(first(p.terms))
-    @inbounds for i in 2:length(p.terms)
-        result += term_to_raw(p.terms[i])
-    end
-    return result
+# A non-constant monomial; a constant enters `terms_to_raw` as a number.
+function term_to_raw(m::Monomial)::RawExpression
+    factors = factors_to_raw(m)
+    isone(m.scalar) && return factors
+    return with_raw_number(v -> v * factors, m.scalar)
 end
 
-# A native Gaussian integer such as `-im` enters a raw expression as an exact integer, so that
-# multiplying it into `(2//5) * cos(ω * t)` keeps `2//5` exact instead of folding it to `0.4`.
-@inline function raw_native(z::ComplexF64)
-    is_exact_float(z) || return z
-    re, im = Int(real(z)), Int(imag(z))
-    return iszero(im) ? re : Complex{Int}(re, im)
+is_constant_term(m::Monomial) = isempty(m.syms)
+
+poly_to_raw(p::Poly) = terms_to_raw(p.terms)
+function terms_to_raw(terms::Vector{<:Monomial})::RawExpression
+    result = RAW_UNIT
+    started = false
+    constant = 0
+    @inbounds for i in eachindex(terms)
+        m = terms[i]
+        if is_constant_term(m)
+            constant = i
+            continue
+        end
+        term = term_to_raw(m)
+        result = started ? (result + term)::RawExpression : term
+        started = true
+    end
+    iszero(constant) && return result
+    scalar = terms[constant].scalar
+    started ||
+        return with_raw_number(v -> SymbolicUtils.Const{SymbolicUtils.SymReal}(v), scalar)
+    total = result   # not reassigned, so the closure does not box it
+    return with_raw_number(v -> total + v, scalar)
+end
+
+# The raw expression of a coefficient. `raw_binary` embeds a native operand as a number
+# instead, so the constant node here only completes the function.
+@inline function raw_tail(c::Coeff)::RawExpression
+    tail = c.tail
+    tail isa Poly && return poly_to_raw(tail)
+    tail isa RawSymbolicCoeff && return tail.expr
+    return with_raw_number(SymbolicUtils.Const{SymbolicUtils.SymReal}, native_scalar(c))
+end
+
+# `f(a, b)` on raw expressions, a native operand entering as its plain number. The other
+# operand is lowered before the closure: lowering inside it would nest `with_raw_number` calls,
+# which inference reads as recursion and stops optimizing.
+@inline function raw_binary(f::F, a::Coeff, b::Coeff)::RawExpression where {F}
+    if is_native(a)
+        y = raw_tail(b)
+        return with_raw_number(v -> f(v, y), native_scalar(a))
+    elseif is_native(b)
+        x = raw_tail(a)
+        return with_raw_number(v -> f(x, v), native_scalar(b))
+    end
+    return f(raw_tail(a), raw_tail(b))::RawExpression
 end
 
 @inline function raw_expression(c::Coeff)
     tail = c.tail
-    tail isa Native && return raw_native(c.z)
+    tail isa Native && return raw_scalar(native_scalar(c))
     tail isa Poly && return poly_to_raw(tail)
     return tail.expr
 end
@@ -740,13 +792,8 @@ function raw_realimag(x)
             return (re, im)
         elseif op === (/) && length(args) == 2 &&
                 SymbolicUtils.symtype(args[2]) <: Real
-            numerator = args[1]
-            if SymbolicUtils.iscall(numerator) &&
-                    SymbolicUtils.operation(numerator) === complex
-                slots = SymbolicUtils.arguments(numerator)
-                length(slots) == 2 || return (real(x), imag(x))
-                return (slots[1] / args[2], slots[2] / args[2])
-            end
+            re, im = raw_realimag(args[1])
+            return (re / args[2], im / args[2])
         elseif op === conj
             re, im = raw_realimag(only(args))
             return (re, -im)
@@ -758,8 +805,9 @@ function raw_realimag(x)
     return (real(x), imag(x))
 end
 
-function poly_is_real(p::Poly)
-    for monomial in p.terms
+poly_is_real(p::Poly) = terms_are_real(p.terms)
+function terms_are_real(terms::Vector{<:Monomial})
+    for monomial in terms
         scalar_is_real(monomial) || return false
         for symbol in monomial.syms
             (is_phase(symbol) || is_imaginary_unit(symbol)) && return false
@@ -773,7 +821,7 @@ end
 
 @inline function cnum_is_real(c::Coeff)
     t = c.tail
-    t isa Native && return iszero(imag(c.z))
+    t isa Native && return iszero(imag(native_scalar(c)))
     t isa Poly && return poly_is_real(t)
     return raw_is_real(t)
 end
@@ -804,7 +852,7 @@ end
 @inline atom_coeff(x::SymbolicUtils.BasicSymbolic) = poly_coeff(
     Poly(
         Monomial{ExactComplex}[
-            Monomial{ExactComplex}(ONE_C, SymbolicUtils.BasicSymbolic[x], Rational{Int}[1]),
+            Monomial{ExactComplex}(ONE_R, SymbolicUtils.BasicSymbolic[x], Rational{Int}[1]),
         ],
     ),
 )
@@ -842,14 +890,15 @@ end
 
 # `value^r` for a nonnegative exact `value`. It is rational when the root is exact, and
 # otherwise a product of prime radical atoms. A radicand that does not factor below the trial
-# bound stays the symbolic leaf `x`.
+# bound stays the real raw leaf `x`, built directly: `from_raw` would recognize it again and
+# make radical folding recursive with coefficient multiplication.
 function numeric_radical(value::Rational{BigInt}, r::Rational{Int}, x)::Coeff
     is_rational_power(value, r) && return to_cnum(rational_power_value(value, r))
-    value > 0 || return sym_leaf(x)
+    value > 0 || return radical_leaf(x)
     numerator_factors = Tuple{Int, Int}[]
     denominator_factors = Tuple{Int, Int}[]
-    prime_factorization!(numerator_factors, numerator(value)) || return sym_leaf(x)
-    prime_factorization!(denominator_factors, denominator(value)) || return sym_leaf(x)
+    prime_factorization!(numerator_factors, numerator(value)) || return radical_leaf(x)
+    prime_factorization!(denominator_factors, denominator(value)) || return radical_leaf(x)
     syms = SymbolicUtils.BasicSymbolic[]
     exps = Rational{Int}[]
     for (p, k) in numerator_factors
@@ -861,6 +910,9 @@ function numeric_radical(value::Rational{BigInt}, r::Rational{Int}, x)::Coeff
     sort_factors!(syms, exps)
     return tiered(monomial_terms, ONE_R, syms, exps)
 end
+
+@inline radical_leaf(x::SymbolicUtils.BasicSymbolic{SymbolicUtils.SymReal}) =
+    symbolic(x; real_slot = true)
 
 @inline function is_exact_number(x)
     value = const_value(x)
@@ -877,13 +929,13 @@ function rational_power(basearg, r::Rational{Int}, x)
         value >= 0 && return numeric_radical(value, r, x)
     end
     base = recognize(basearg)
-    is_native(base) && return native(base.z^r)
+    is_native(base) && return native(native_float(native_scalar(base))^r)
     if base.tail isa Poly && length(base.tail.terms) == 1
         m = only(base.tail.terms)
         if length(m.syms) == 1 && isone(m.scalar)
             is_phase(only(m.syms)) &&
                 throw(ArgumentError("a unit phase cannot have a fractional power"))
-            return tiered(monomial_terms, ONE_C, m.syms, Rational{Int}[m.exps[1] * r])
+            return tiered(monomial_terms, ONE_R, m.syms, Rational{Int}[m.exps[1] * r])
         end
     end
     return sym_leaf(x)
@@ -930,7 +982,7 @@ function recognize(x::SymbolicUtils.BasicSymbolic)::Coeff
         # Fold conj of a constant (e.g. conj(0.0) left by substituting a complex
         # parameter to a real value) so the coefficient can collapse to zero.
         inner = recognize(args[1])
-        is_native(inner) && return native(conj(inner.z))
+        is_native(inner) && return native(conj(native_scalar(inner)))
         # Without this, `conj(expim(x))` interns as a fresh atom that never cancels against
         # the phase it came from.
         is_phase(args[1]) && return conj_cnum(inner)
@@ -954,12 +1006,9 @@ function recognize(x::SymbolicUtils.BasicSymbolic)::Coeff
         return sym_leaf(x)
     end
     # Fold an elementary function of a literal zero (`exp(0) -> 1`, `sin(0) -> 0`, ...).
-    if length(args) == 1
-        v = unary_at_zero(op)
-        if v !== nothing
-            a1 = recognize(only(args))
-            (is_native(a1) && iszero(a1.z)) && return native(v)
-        end
+    if length(args) == 1 && (is_one_at_zero(op) || is_zero_at_zero(op))
+        a1 = recognize(only(args))
+        (is_native(a1) && iszero(native_scalar(a1))) && return is_one_at_zero(op) ? CNUM_ONE : CNUM_ZERO
     end
     # Irreducible one-arg call on an atom (`exp`, `sin`, `real`, `imag`, ...): keep it
     # native as an opaque integer-exponent atom. Radicals are handled above instead.
@@ -994,7 +1043,7 @@ function summed_terms(::Type{E}, parts::Vector{Coeff}) where {E}
     for c in parts
         t = c.tail
         if t isa Native
-            push!(terms, constant_term(E, c.z))
+            push!(terms, constant_term(E, native_scalar(c)))
         else
             append!(terms, poly_terms(E, t::Poly))
         end
@@ -1067,7 +1116,7 @@ end
     ordinary_syms, ordinary_exps = merge_factor_list(ordinary_syms, ordinary_exps)
     phase = phase_coeff_expanded(angle)
     if phase.tail isa Native
-        return Monomial{E}(scalar_mul(E, scalar, phase.z), ordinary_syms, ordinary_exps)
+        return Monomial{E}(scalar_mul(E, scalar, as_tier(E, native_scalar(phase))), ordinary_syms, ordinary_exps)
     end
     phase_term = only(poly_terms(E, phase.tail::Poly))
     append!(ordinary_syms, phase_term.syms)
@@ -1088,7 +1137,7 @@ end
         throw(ArgumentError("a unit phase cannot have a fractional power"))
     argument = Num(only(SymbolicUtils.arguments(SymbolicUtils.unwrap(symbol))))
     phase = phase_coeff_expanded(scale_expanded(argument, numerator(exponent)))
-    phase.tail isa Native && return constant_term(E, scalar_mul(E, scalar, phase.z))
+    phase.tail isa Native && return constant_term(E, scalar_mul(E, scalar, as_tier(E, native_scalar(phase))))
     phase_term = only(poly_terms(E, phase.tail::Poly))
     return Monomial{E}(
         scalar_mul(E, scalar, phase_term.scalar),
@@ -1119,7 +1168,7 @@ end
     angle = scale_expanded(left_argument, left_power) +
         scale_expanded(right_argument, right_power)
     phase = phase_coeff_expanded(angle)
-    phase.tail isa Native && return constant_term(E, scalar_mul(E, scalar, phase.z))
+    phase.tail isa Native && return constant_term(E, scalar_mul(E, scalar, as_tier(E, native_scalar(phase))))
     phase_term = only(poly_terms(E, phase.tail::Poly))
     exponents = common_negative ? -phase_term.exps : phase_term.exps
     return Monomial{E}(
@@ -1149,13 +1198,13 @@ end
 
 # The single monomial product of native and single-monomial coefficients.
 function product_terms(::Type{E}, factors::Vector{Coeff}) where {E}
-    scalar::Union{ComplexF64, E} = ONE_C
+    scalar::Union{ComplexF64, E} = one(E)
     syms = SymbolicUtils.BasicSymbolic[]
     exps = Rational{Int}[]
     for c in factors
         t = c.tail
         if t isa Native
-            scalar = scalar_mul(E, scalar, c.z)
+            scalar = scalar_mul(E, scalar, as_tier(E, native_scalar(c)))
         else
             m = only(poly_terms(E, t::Poly))
             scalar = scalar_mul(E, scalar, m.scalar)
@@ -1220,7 +1269,7 @@ function LinearAlgebra.det(A::AbstractMatrix{Coeff})
 end
 
 @inline unit_modulus(z::ComplexF64) = abs2(z) == 1.0
-@inline unit_modulus(z::ExactScalar) = abs2(as_tier(BigExactComplex, z)) == 1
+@inline unit_modulus(z::ExactScalar) = isone(abs2(z))
 
 # A unit-modulus scalar times one integer power of a phase atom.
 function is_pure_phase(c::Coeff)::Bool
@@ -1257,7 +1306,7 @@ end
 end
 
 function Base.real(c::Coeff)::Num
-    is_native(c) && return num_from_float(real(c.z))
+    is_native(c) && return num_from_scalar(real(native_scalar(c)))
     if !is_pure_phase(c)
         c.tail isa Poly && return real(poly_to_num(c.tail))
         expr = normalize_phase(raw_expression(c))
@@ -1270,7 +1319,7 @@ function Base.real(c::Coeff)::Num
 end
 
 function Base.imag(c::Coeff)::Num
-    is_native(c) && return num_from_float(imag(c.z))
+    is_native(c) && return num_from_scalar(imag(native_scalar(c)))
     if !is_pure_phase(c)
         c.tail isa Poly && return imag(poly_to_num(c.tail))
         expr = normalize_phase(raw_expression(c))
@@ -1283,19 +1332,19 @@ function Base.imag(c::Coeff)::Num
 end
 
 function Base.abs(c::Coeff)::Num
-    is_native(c) && return num_from_float(abs(c.z))
+    is_native(c) && return num_from_scalar(abs(native_scalar(c)))
     is_pure_phase(c) || throw(MethodError(abs, (c,)))
     return NUM_ONE
 end
 
 function Base.abs2(c::Coeff)::Num
-    is_native(c) && return num_from_float(abs2(c.z))
+    is_native(c) && return num_from_scalar(abs2(native_scalar(c)))
     is_pure_phase(c) || throw(MethodError(abs2, (c,)))
     return NUM_ONE
 end
 
 @inline function realimag(c::Coeff)
-    is_native(c) && return (num_from_float(real(c.z)), num_from_float(imag(c.z)))
+    is_native(c) && return (num_from_scalar(real(native_scalar(c))), num_from_scalar(imag(native_scalar(c))))
     cn = to_num(c)
     return (real(cn), imag(cn))
 end
@@ -1309,7 +1358,7 @@ when iterating a [`QAdd`](@ref).
 """
 function to_num(c::Coeff)
     t = c.tail
-    t isa Native && return Complex(num_from_float(real(c.z)), num_from_float(imag(c.z)))
+    t isa Native && return Complex(num_from_scalar(real(native_scalar(c))), num_from_scalar(imag(native_scalar(c))))
     t isa Poly && return poly_to_num(t)
     expr = normalize_phase(t.expr)
     re, im = cnum_is_real(c) ? (expr, 0) : raw_realimag(expr)
@@ -1322,7 +1371,7 @@ Base.show(io::IO, c::Coeff) = show(io, to_num(c))
 function Base.isequal(a::Coeff, b::Coeff)
     ta, tb = a.tail, b.tail
     if ta isa Native
-        return tb isa Native && isequal(a.z, b.z)
+        return tb isa Native && isequal(native_scalar(a), native_scalar(b))
     elseif ta isa Poly
         return tb isa Poly && isequal(ta, tb)
     else
@@ -1333,7 +1382,7 @@ end
 Base.:(==)(a::Coeff, b::Coeff) = isequal(a, b)
 function Base.hash(c::Coeff, h::UInt)
     t = c.tail
-    t isa Native && return hash(c.z, hash(:CoeffNative, h))
+    t isa Native && return hash(native_scalar(c), hash(:CoeffNative, h))
     t isa Poly && return hash(t, hash(:CoeffSym, h))
     return hash(t.real_slot, hash(t.expr, hash(:CoeffRaw, h)))
 end
@@ -1363,23 +1412,26 @@ Base.one(::Coeff) = CNUM_ONE
 Base.oneunit(::Type{Coeff}) = CNUM_ONE
 Base.oneunit(::Coeff) = CNUM_ONE
 
-function native_div(a::ComplexF64, b::ComplexF64)::Coeff
-    (is_exact_float(a) && is_exact_float(b) && !iszero(b)) || return native(a / b)
-    return tiered(exact_quotient, a, b)
+# A quotient of Gaussian integers is an exact Gaussian rational. Division by an exact zero
+# keeps the floating-point convention (`Inf`/`NaN`) rather than throwing.
+function native_div(a::NativeScalar, b::NativeScalar)::Coeff
+    if a isa ExactComplex && b isa ExactComplex && !iszero(b)
+        return tiered(exact_quotient, a, b)
+    end
+    return native(native_float(a) / native_float(b))
 end
-@inline exact_quotient(::Type{E}, a::ComplexF64, b::ComplexF64) where {E} =
-    exact_integer(E, a) * inv(exact_integer(E, b))
+@inline exact_quotient(::Type{E}, a::E, b::E) where {E} = a * inv(b)
 
 function inverse_terms(::Type{E}, terms::Vector{Monomial{E}}) where {E}
     monomial = only(terms)
     return monomial_terms(E, scalar_inv(E, monomial.scalar), monomial.syms, -monomial.exps)
 end
-@inline divided_terms(::Type{E}, terms::Vector{Monomial{E}}, z::ComplexF64) where {E} =
-    poly_scale(terms, scalar_inv(E, z))
+@inline divided_terms(::Type{E}, terms::Vector{Monomial{E}}, z::CoeffScalar) where {E} =
+    poly_scale(terms, scalar_inv(E, as_tier(E, z)))
 
 function Base.inv(c::Coeff)::Coeff
     tail = c.tail
-    tail isa Native && return native_div(one(ComplexF64), c.z)
+    tail isa Native && return native_div(ONE_R, native_scalar(c))
     if tail isa Poly
         length(tail.terms) == 1 && return tiered(inverse_terms, tail)
         return CNUM_ONE / c
@@ -1400,22 +1452,22 @@ Base.:*(a::Coeff, b::Coeff) = mul_cnum(a, b)
 Base.:*(a::Coeff, b::Number) = mul_cnum(a, to_cnum(b))
 Base.:*(a::Number, b::Coeff) = mul_cnum(to_cnum(a), b)
 function Base.:/(a::Coeff, b::Coeff)::Coeff
-    (is_native(a) && is_native(b)) && return native_div(a.z, b.z)
+    (is_native(a) && is_native(b)) && return native_div(native_scalar(a), native_scalar(b))
     ta, tb = a.tail, b.tail
-    tb isa Native && ta isa Poly && return tiered(divided_terms, ta, b.z)
+    tb isa Native && ta isa Poly && return tiered(divided_terms, ta, native_scalar(b))
     if tb isa Poly && length(tb.terms) == 1
         inverse = inv(b)
         inverse_tail = inverse.tail
         inverse_tail isa Poly || return mul_cnum(a, inverse)
         if ta isa Native
-            return tiered(poly_scale, inverse_tail, a.z)
+            return tiered(poly_scale, inverse_tail, native_scalar(a))
         elseif ta isa Poly
             return tiered(poly_mul, ta, inverse_tail)
         end
         any(is_radical_atom, only(inverse_tail.terms).syms) && return mul_cnum(a, inverse)
     end
     return from_raw(
-        raw_expression(a) / raw_expression(b);
+        raw_binary(/, a, b);
         real_slot = cnum_is_real(a) && cnum_is_real(b),
     )
 end
@@ -1490,7 +1542,7 @@ end
 
 @inline function conj_cnum(c::Coeff)
     t = c.tail
-    t isa Native && return native(conj(c.z))
+    t isa Native && return native(conj(native_scalar(c)))
     t isa Poly && return conj_poly(t)
     return from_raw(raw_conj(t.expr); real_slot = t.real_slot)
 end
@@ -1502,7 +1554,7 @@ end
 end
 
 @inline function iszero_cnum(c::Coeff)
-    is_native(c) && return iszero(c.z)
+    is_native(c) && return iszero(native_scalar(c))
     c.tail isa Poly && return false   # a canonical Poly never sums to zero
     value = const_value(c.tail.expr)
     return value isa Number && iszero(value)
@@ -1559,15 +1611,32 @@ end
     )
 end
 
-@inline function mul_native(a::ComplexF64, b::ComplexF64)::Coeff
-    native_product_exact(a, b) && return native(a * b)
-    return native_product_wide(a, b)
+# Native arithmetic. Gaussian integers stay exact through checked `Int` arithmetic and move to
+# the exact tiers on overflow; a float operand makes the result a float.
+@inline native_float(z::NativeScalar) = z isa ComplexF64 ? z : ComplexF64(z)
+
+@noinline wide_product(a::ExactComplex, b::ExactComplex)::Coeff =
+    exact_coeff(BigExactComplex(a) * BigExactComplex(b))
+@noinline wide_sum(a::ExactComplex, b::ExactComplex)::Coeff =
+    exact_coeff(BigExactComplex(a) + BigExactComplex(b))
+
+@inline function mul_native(a::NativeScalar, b::NativeScalar)::Coeff
+    if a isa ExactComplex && b isa ExactComplex
+        z, overflow = mul_checked(a, b)
+        return overflow ? wide_product(a, b) : native(z)
+    end
+    return native(native_float(a) * native_float(b))
 end
-@noinline native_product_wide(a::ComplexF64, b::ComplexF64)::Coeff = tiered(scalar_mul, a, b)
-@noinline native_sum_wide(a::ComplexF64, b::ComplexF64)::Coeff = tiered(scalar_add, a, b)
+@inline function add_native(a::NativeScalar, b::NativeScalar)::Coeff
+    if a isa ExactComplex && b isa ExactComplex
+        z, overflow = add_checked(a, b)
+        return overflow ? wide_sum(a, b) : native(z)
+    end
+    return native(native_float(a) + native_float(b))
+end
 
 @inline function mul_cnum(a::Coeff, b::Coeff)
-    (is_native(a) && is_native(b)) && return mul_native(a.z, b.z)
+    (is_native(a) && is_native(b)) && return mul_native(native_scalar(a), native_scalar(b))
     return mul_cnum_slow(a, b)
 end
 
@@ -1577,18 +1646,17 @@ end
     if ta isa Poly && tb isa Poly
         return tiered(poly_mul, ta, tb)
     elseif ta isa Poly && tb isa Native
-        return tiered(poly_scale, ta, b.z)
+        return tiered(poly_scale, ta, native_scalar(b))
     elseif tb isa Poly && ta isa Native
-        return tiered(poly_scale, tb, a.z)
+        return tiered(poly_scale, tb, native_scalar(a))
     end
-    ra, rb = raw_expression(a), raw_expression(b)
-    raw = (
-        ra isa RawExpression && rb isa RawExpression ? raw_product(ra, rb) : ra * rb
-    )::SymbolicUtils.BasicSymbolic{SymbolicUtils.SymReal}
+    raw = if is_native(a) || is_native(b)
+        raw_binary(*, a, b)
+    else
+        raw_product(raw_tail(a), raw_tail(b))
+    end
     return from_raw_arithmetic(raw, cnum_is_real(a) && cnum_is_real(b))
 end
-
-const RawExpression = SymbolicUtils.BasicSymbolic{SymbolicUtils.SymReal}
 
 # Whether `x` is a power of an exact number that `radical_factor` folds: `sqrt` or `cbrt`
 # of a nonnegative exact number, a rational power of one, or an integer power of such a factor.
@@ -1612,23 +1680,46 @@ end
 # The coefficient of a numeric radical (see `is_numeric_radical`). It is exact unless the
 # radicand does not factor below the trial bound.
 function radical_factor(x::RawExpression)::Coeff
-    op = SymbolicUtils.operation(x)
-    args = SymbolicUtils.arguments(x)
-    (op === sqrt || op === cbrt) &&
-        return numeric_radical(exact_number(only(args)), op === sqrt ? 1 // 2 : 1 // 3, x)
-    base = args[1]::RawExpression
-    k = const_value(args[2])
-    is_exact_number(base) && return numeric_radical(exact_number(base), k::Rational{Int}, x)
-    return pow_cnum_integer(radical_factor(base), k::Int)
+    # Peel the integer powers `(...)^k` down to the innermost radical, then apply their
+    # product once: a nested power is rare, and a loop keeps this non-recursive.
+    y, k = x, 1
+    while SymbolicUtils.operation(y) === (^) && !is_exact_number(SymbolicUtils.arguments(y)[1])
+        args = SymbolicUtils.arguments(y)
+        k = Base.checked_mul(k, const_value(args[2])::Int)
+        y = args[1]::RawExpression
+    end
+    op = SymbolicUtils.operation(y)
+    args = SymbolicUtils.arguments(y)
+    c = if op === sqrt || op === cbrt
+        numeric_radical(exact_number(only(args)), op === sqrt ? 1 // 2 : 1 // 3, y)
+    else
+        numeric_radical(exact_number(args[1]), const_value(args[2])::Rational{Int}, y)
+    end
+    return isone(k) ? c : radical_power_coeff(c, k, x)
+end
+
+# An integer power of a folded radical, a native or one-term coefficient. Computed on the
+# monomial directly rather than through `pow_cnum_integer`, whose `mul_cnum` would make
+# radical recognition recursive with coefficient multiplication.
+function radical_power_coeff(c::Coeff, k::Int, x::RawExpression)::Coeff
+    t = c.tail
+    t isa Native && return tiered(exact_power, native_scalar(c)::ExactComplex, k)
+    t isa Poly || return radical_leaf(x)
+    return tiered(monomial_power, t, k)
+end
+@inline exact_power(::Type{E}, z, k::Int) where {E} = as_tier(E, z)^k
+function monomial_power(::Type{E}, terms::Vector{Monomial{E}}, k::Int) where {E}
+    m = only(terms)
+    return Monomial{E}[Monomial{E}(m.scalar^k, m.syms, m.exps .* k)]
 end
 
 @inline is_exact_coeff(c::Coeff) = !(c.tail isa RawSymbolicCoeff)
 
 function mul_exact(a::Coeff, b::Coeff)::Coeff
     ta, tb = a.tail, b.tail
-    (ta isa Native && tb isa Native) && return mul_native(a.z, b.z)
-    ta isa Native && return tiered(poly_scale, tb::Poly, a.z)
-    tb isa Native && return tiered(poly_scale, ta::Poly, b.z)
+    (ta isa Native && tb isa Native) && return mul_native(native_scalar(a), native_scalar(b))
+    ta isa Native && return tiered(poly_scale, tb::Poly, native_scalar(a))
+    tb isa Native && return tiered(poly_scale, ta::Poly, native_scalar(b))
     return tiered(poly_mul, ta::Poly, tb::Poly)
 end
 
@@ -1669,31 +1760,23 @@ end
 function exact_raw(c::Coeff)::RawExpression
     t = c.tail
     t isa Poly && return poly_to_raw(t)::RawExpression
-    z = c.z
-    if iszero(imag(z)) && isinteger(real(z)) && abs(real(z)) <= 9.007199254740992e15
-        return SymbolicUtils.Const{SymbolicUtils.SymReal}(Int(real(z)))
-    end
-    return SymbolicUtils.Const{SymbolicUtils.SymReal}(z)
+    return SymbolicUtils.Const{SymbolicUtils.SymReal}(raw_scalar(native_scalar(c)))
 end
 
 @inline function neg_cnum(a::Coeff)
     t = a.tail
-    t isa Native && return native(-a.z)
-    t isa Poly && return tiered(poly_scale, t, -ONE_C)
+    t isa Native && return native(-native_scalar(a))
+    t isa Poly && return tiered(poly_scale, t, NEG1_R)
     raw = (-t.expr)::SymbolicUtils.BasicSymbolic{SymbolicUtils.SymReal}
     return from_raw_arithmetic(raw, t.real_slot)
 end
 
 @inline function add_cnum(a::Coeff, b::Coeff)
-    if is_native(a) && is_native(b)
-        s = a.z + b.z
-        native_sum_exact(s) && return native(s)
-        return native_sum_wide(a.z, b.z)
-    end
+    (is_native(a) && is_native(b)) && return add_native(native_scalar(a), native_scalar(b))
     # Skip add-by-zero: `recognize` folds every sum from `CNUM_ZERO`, so without this each
     # fold would splice a throwaway zero `Monomial` into the Poly and merge it away.
-    is_native(a) && iszero(a.z) && return b
-    is_native(b) && iszero(b.z) && return a
+    is_native(a) && iszero(native_scalar(a)) && return b
+    is_native(b) && iszero(native_scalar(b)) && return a
     # Raw symbolic addition deliberately avoids a CAS round-trip. Recover the common exact
     # cancellation case here, which is needed by scalar identities such as the off-diagonal
     # entries of a symbolic orthogonal matrix product.
@@ -1710,16 +1793,15 @@ end
     if ta isa Poly && tb isa Poly
         return tiered(poly_add, ta, tb)
     elseif ta isa Poly && tb isa Native
-        return tiered(constant_added_terms, ta, b.z)
+        return tiered(constant_added_terms, ta, native_scalar(b))
     elseif tb isa Poly && ta isa Native
-        return tiered(constant_added_terms, tb, a.z)
+        return tiered(constant_added_terms, tb, native_scalar(a))
     end
-    raw = (raw_expression(a) + raw_expression(b))::
-    SymbolicUtils.BasicSymbolic{SymbolicUtils.SymReal}
+    raw = raw_binary(+, a, b)
     return from_raw_arithmetic(raw, cnum_is_real(a) && cnum_is_real(b))
 end
 
-@inline constant_added_terms(::Type{E}, terms::Vector{Monomial{E}}, z::ComplexF64) where {E} =
+@inline constant_added_terms(::Type{E}, terms::Vector{Monomial{E}}, z::CoeffScalar) where {E} =
     poly_add(terms, Monomial{E}[constant_term(E, z)])
 
 @inline function pow_cnum_nonnegative(base::Coeff, n::Int)
@@ -1727,14 +1809,14 @@ end
     while n > 0
         if isodd(n)
             result = if is_native(result) && is_native(base)
-                mul_native(result.z, base.z)
+                mul_native(native_scalar(result), native_scalar(base))
             else
                 mul_cnum_slow(result, base)
             end
         end
         n >>= 1
         if n > 0
-            base = is_native(base) ? mul_native(base.z, base.z) : mul_cnum_slow(base, base)
+            base = is_native(base) ? mul_native(native_scalar(base), native_scalar(base)) : mul_cnum_slow(base, base)
         end
     end
     return result
@@ -1777,17 +1859,17 @@ function Symbolics.derivative(c::Coeff, var; simplify = false, kwargs...)::Coeff
 end
 
 @inline factor_cnum(s::SymbolicUtils.BasicSymbolic, e::Rational{Int}) =
-    tiered(monomial_terms, ONE_C, SymbolicUtils.BasicSymbolic[s], Rational{Int}[e])
+    tiered(monomial_terms, ONE_R, SymbolicUtils.BasicSymbolic[s], Rational{Int}[e])
 
 @inline function euler_cos(argument)
     phase = phase_coeff(argument)
-    return mul_cnum(CNUM_HALF_EXACT, add_cnum(phase, conj_cnum(phase)))
+    return mul_cnum(CNUM_HALF, add_cnum(phase, conj_cnum(phase)))
 end
 
 @inline function euler_sin(argument)
     phase = phase_coeff(argument)
     difference = add_cnum(phase, neg_cnum(conj_cnum(phase)))
-    return mul_cnum(mul_cnum(CNUM_NEG_IM, CNUM_HALF_EXACT), difference)
+    return mul_cnum(mul_cnum(CNUM_NEG_IM, CNUM_HALF), difference)
 end
 
 function phase_from_exponential_argument(argument)::Union{Coeff, Nothing}
@@ -1863,7 +1945,7 @@ function exponential_cnum(c::Coeff)
     tail = c.tail
     tail isa Native && return c
     if tail isa Poly
-        result = native(c.z)
+        result = CNUM_ZERO
         for monomial in tail.terms
             result = add_cnum(result, exponential_monomial(monomial))
         end
@@ -1918,7 +2000,7 @@ function trigonometric_cnum(c::Coeff)
             simplify_raw(expanded); normalize = false,
         )
     end
-    result = native(c.z)
+    result = CNUM_ZERO
     for monomial in tail.terms
         result = add_cnum(result, trigonometric_monomial(monomial))
     end

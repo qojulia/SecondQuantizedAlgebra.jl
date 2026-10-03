@@ -144,11 +144,24 @@ import SecondQuantizedAlgebra: Coeff, to_cnum, Monomial, ExactComplex, BigExactC
         back = wide - (1 // 2^40) * a
         @test isequal(back, (1 // 3^39) * a)
         @test hash(back) == hash((1 // 3^39) * a)
-        # A result that fits `Rational{Int}` returns to the small tier.
-        @test stored_coefficient(back).tail.terms isa Vector{Monomial{ExactComplex}}
+        # A constant that fits the small tier returns to the native tier.
+        @test SecondQuantizedAlgebra.is_native(stored_coefficient(back))
         # Conjugating a `typemin(Int)` imaginary part overflows `Rational{Int}`.
         edge = to_cnum(Complex(1 // 3, typemin(Int) // 1))
         @test isequal(conj(edge), to_cnum(Complex(big(1) // 3, -big(typemin(Int)) // 1)))
+
+        # Native Gaussian integers overflow into the exact tiers instead of wrapping.
+        top = typemax(Int)
+        @test isequal(to_cnum(top) * 2, to_cnum(2 * big(top)))
+        @test isequal(to_cnum(top) + 1, to_cnum(big(top) + 1))
+        @test isequal(-to_cnum(typemin(Int)), to_cnum(-big(typemin(Int))))
+        @test isequal(conj(to_cnum(Complex(0, typemin(Int)))), to_cnum(Complex(0, -big(typemin(Int)))))
+        @test isequal(to_cnum(top) / to_cnum(3 + im), to_cnum(Complex(3 * big(top) // 10, -big(top) // 10)))
+        # A big-tier polynomial combined with a native integer.
+        @variables g
+        big_poly = to_cnum(g) * to_cnum(1 // big(3)^40)
+        @test isequal((big_poly + 5) - big_poly, to_cnum(5))
+        @test isequal(big_poly / 5, to_cnum(g) * to_cnum(1 // (5 * big(3)^40)))
 
         @test isequal(to_cnum(1) / to_cnum(3), to_cnum(1 // 3))
         @test isequal(inv(to_cnum(3 + 4im)), to_cnum(3 // 25 - 4 // 25 * im))

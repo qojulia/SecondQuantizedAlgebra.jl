@@ -144,13 +144,18 @@ separate roles because they use different basis conventions and numeric paths
 const CNum = Coeff
 
 struct Coeff
-    z::ComplexF64
+    slot::NativeSlot   # the value of a `Native` coefficient
     tail::Union{Native, Poly, RawSymbolicCoeff}
 end
 ```
 
-Every prefactor is promoted to the one concrete `Coeff` type. `Native` stores ordinary
-numbers inline, `Poly` stores sparse parameter polynomials (including the optimized unit-phase
+Every prefactor is promoted to the one concrete `Coeff` type. `Native` stores a number
+inline: a small exact Gaussian rational, or an inexact float as `ComplexF64`. The slot holds
+either one with a concrete layout: the Gaussian rational's `(re, im, den)`, or with
+`den == 0` the bit patterns of the float. `native_scalar(c)` unpacks it to
+`Union{ComplexF64, GaussianRational{Int}}`. A union-typed field instead would carry a type
+selector through every copy and call of a `Coeff`, which slows operator normal ordering by
+about 40%. A native coefficient never allocates. `Poly` stores sparse parameter polynomials (including the optimized unit-phase
 fast path), and `RawSymbolicCoeff` stores an arbitrary scalar
 `BasicSymbolic{SymbolicUtils.SymReal}` expression. Here `SymReal` is the symbolic tree
 variant; `SymbolicUtils.symtype(expr)` separately records whether the represented value is
@@ -176,12 +181,26 @@ and `Poly` fast paths still avoid the CAS.
 
 ## Exact coefficients
 
-An exact `Monomial` scalar (`scalar * ∏ᵢ symsᵢ^expsᵢ`) is a Gaussian rational in one of two
-tiers:
+An exact number is a `GaussianRational{T}`: `(re + im*i) / den` with one positive common
+denominator and `gcd(re, im, den) == 1` (`gaussian.jl`). Normalized fields make each value's
+representation unique, so `isequal` compares fields. A Gaussian integer has `den == 1`, and
+its products and sums skip the denominator arithmetic and the `gcd`. Compared with
+`Complex{Rational{Int}}`, which normalizes the two parts separately, a product needs one
+normalization instead of about ten `gcd`s. Small-tier arithmetic is checked: the operators
+throw `OverflowError`, and the kernels `mul_checked`/`add_checked` return the overflow as a
+flag for the native fast path. No field of a small-tier value is `typemin(Int)`, so negation
+and conjugation never overflow.
+
+`GaussianRational` is a storage type, not a `Number`. Methods of a new `Number` subtype on
+`==`, `hash` and the arithmetic operators invalidate SymbolicUtils code that dispatches on
+abstract `Number` arguments, which slowed its `simplify` by about a fifth. An exact value
+enters a symbolic expression as an `Int`, `Rational` or `Complex` instead. Mixing the two
+tiers has no method, and the exact scalar operations are defined once per tier, so that
+analysis of a method on its own sees concrete fields.
 
 ```julia
-const ExactComplex    = Complex{Rational{Int}}
-const BigExactComplex = Complex{Rational{BigInt}}
+const ExactComplex    = GaussianRational{Int}
+const BigExactComplex = GaussianRational{BigInt}
 
 struct Monomial{E <: Union{ExactComplex, BigExactComplex}}
     scalar::Union{ComplexF64, E}
@@ -201,8 +220,7 @@ rather than a `Poly` parameter so that `Coeff.tail` stays a three-member union, 
 still splits.
 
 **Overflow.** Every function that builds an exact scalar takes the tier `E` as its first
-argument. Small-tier arithmetic is Base's checked `Rational{Int}` arithmetic, which throws
-`OverflowError`. `tiered(f, args...)` runs `f(ExactComplex, args...)`, and when that throws it
+argument. `tiered(f, args...)` runs `f(ExactComplex, args...)`, and when that throws it
 runs `f(BigExactComplex, args...)` on the big-tier views of the same arguments. `f` must not
 mutate its arguments. `as_tier(E, x)` gives the view of `x` in tier `E`; narrowing a value that
 does not fit `ExactComplex` throws the same `OverflowError`, so a computation that meets a
@@ -213,17 +231,18 @@ through `tiered`.
 The representation holds four invariants:
 
 - **One tier per value.** `from_poly` returns a big-tier result to the small tier when every
-  scalar fits `Rational{Int}`. A big-tier polynomial therefore always holds a scalar that does
-  not fit, and a constant that fits becomes `Native` or a small-tier `Poly` as usual. Julia's
-  `isequal` and `hash` compare `Rational{Int}` and `Rational{BigInt}` by value, so equality does
-  not depend on this invariant. It keeps arithmetic on the fast tier and makes the `Native`
-  classification of a constant independent of the route that produced it.
-- **The float tier is exact-input-free.** A `ComplexF64` scalar denotes an inexact value
-  reached only from floating-point user input, or from native arithmetic provably still within
-  `2^53` (`native_product_exact`/`native_sum_exact`, gated by
-  `MAX_EXACT_FLOAT = maxintfloat(Float64)`). `is_exact_float` recognizes a Gaussian-integer
-  float within that bound, and `scalar_mul`/`scalar_add` convert it with `exact_integer` before
-  combining it with an exact scalar or before a product or sum leaves the bound.
+  scalar fits `Int`. A big-tier polynomial therefore always holds a scalar that does not fit,
+  so a small-tier and a big-tier polynomial are never equal, and an exact constant that fits
+  is `Native` whatever route produced it. `hash` agrees with the `Complex{Rational}` of the
+  same value in both tiers.
+- **Exactness is a type.** An exact value is a `GaussianRational`; a `ComplexF64` is always
+  inexact and arises only from floating-point input. Exact with exact stays exact, and
+  anything combined with a float is a float, so no operation inspects a value to decide
+  whether it is exact. Native exact arithmetic (`mul_native`, `add_native`) uses the flagged
+  kernels and moves to a big-tier constant on overflow. An exact constant that fits the small
+  tier is native; a big one is a one-term big-tier `Poly`. Internal constants such as
+  `CNUM_HALF` are exact. An exact scalar enters a raw expression tree as a number
+  (`raw_scalar`), never as a symbolic `complex(re, im)` call.
 - **A radical atom's exponent stays in `(0, 1)`.** A radical atom is the hashconsed
   `SymbolicUtils.Const{SymReal}(p::Int)` of a *prime* `p` (`is_radical_atom`). Radicands
   always factor down to primes (`numeric_radical`/`prime_factorization!`, trial division below

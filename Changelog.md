@@ -6,12 +6,20 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
-## [v0.12.1]
+## [v0.13.0]
+
+This is a breaking release for coefficient exactness: whether a number is exact is now a property of its type.
+
+### Changed (breaking)
+
+- Exact input stays exact by type, and a `ComplexF64` coefficient arises only from floating-point input. An integer-valued float such as `2.0` used to count as the exact `2` and combined exactly with rationals; it now stays a float, so `(2.0 * a) * (1//3)` has a float coefficient. Equality is unchanged, since `isequal` and `hash` compare coefficients by value.
+- Exact numbers are stored as Gaussian rationals `(re + im*i) / den` with one common denominator. Small exact constants, including rationals such as `1//2`, are native and allocation-free. The field `Coeff.z` is replaced by `Coeff.slot`, a concrete `NativeSlot` that stores either a `GaussianRational{Int}` or a `ComplexF64`; `native_scalar(c)` returns the value. Internal constants such as the `1/2` of the Euler expansion are exact, so trigonometric and unitary rewrites of exact input no longer introduce floats.
 
 ### Fixed
 
 - Coefficient scalars stay exact end to end instead of falling back to a `Float64` once a computation leaves the range a native machine integer or `Int`-denominator rational can hold. A numeric radical (`sqrt`/`cbrt`/a rational power of an exact number) now folds into the coefficient exactly, reducing to prime radical atoms (`√6` and `√2·√3` compare `isequal` and hash identically, since both reduce to `Const(2)^(1/2)*Const(3)^(1/2)`); a coefficient product, sum, division, or inverse that would overflow a machine `Int` widens to an arbitrary-precision Gaussian rational instead of overflowing or losing precision, and demotes back to the machine-sized representation whenever the result fits, so every exact value has exactly one stored representation. This also fixes a `BigInt` divisor or radicand (for example `sqrt(Num(big(2)^71))` or `1 // big(3)^70`) not being recognized as exact.
 - A native Gaussian-integer factor such as `-im` multiplied into a raw symbolic coefficient now enters the expression as an exact integer. Exact rationals such as the `2//5` of `(2//5) * cos(ω * t)` previously became floats (`0.4`), so `phase_terms` returned inexact `ComplexF64` amplitudes.
+- An exact non-real scalar such as `1//2 + im/3` enters a raw expression tree as a number. It used to become a symbolic `complex(re, im)` call, which `substitute` rebuilt without its scalar shape, so `conjugate` with a moving frame threw a `MethodError` on such a coefficient.
 - Arrays of coefficients and operators now render as a LaTeX array through `latexify` and the `text/latex` MIME display. They previously errored.
 - `one`, `zero`, `oneunit` and `isone` are defined on `Coeff`, so generic reductions over a coefficient array work: `sum`, `prod` and `tr`.
 - Linear algebra over coefficient arrays: `det` (by minor expansion, since a symbolic coefficient has no magnitude order for pivoting), `adjoint`, `transpose`, `dot`, `norm`, `Symmetric`, `Hermitian`, `rmul!` and `lmul!`. LinearAlgebra moves from a weak to a hard dependency; it is a stdlib already in the load closure, so nothing extra is loaded.
