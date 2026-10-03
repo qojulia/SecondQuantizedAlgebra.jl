@@ -271,6 +271,8 @@ import SecondQuantizedAlgebra: expim, exponential_form
         @test iszero(
             simplify(conjugate(weighted_number, moving_beamsplitter) - weighted_number),
         )
+        exact_weighted = (Complex(1 // 2, 1 // 3) * z) * number
+        @test iszero(simplify(conjugate(exact_weighted, moving_beamsplitter) - exact_weighted))
         @test iszero(
             simplify(conjugate(number^2, moving_beamsplitter) - number^2),
         )

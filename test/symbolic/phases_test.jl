@@ -170,7 +170,8 @@ import SecondQuantizedAlgebra: expim, exponential_form, phase_terms, to_num,
         @test 2 == native
         @test native != 3
         @test native^3 == stored_coefficient(8 * a)
-        @test native^(-2) == stored_coefficient((1 / 4) * a)
+        @test native^(-2) == stored_coefficient((1 // 4) * a)
+        @test Symbolics.value(real(native^(-2))) isa Rational
 
         large = stored_coefficient(complex(big(2)^70, big(3)^70) * a)
         @test isequal(real(large), Num(big(2)^70))
@@ -196,6 +197,20 @@ import SecondQuantizedAlgebra: expim, exponential_form, phase_terms, to_num,
             to_num(Symbolics.derivative(raw, z)),
             Complex(Num(1), Num(1)),
         )
+    end
+
+    @testset "native integer factors keep raw coefficients exact" begin
+        @variables ω::Real t::Real
+        drive = stored_coefficient((2 // 5) * ((3 // 5) * cos(ω * t) - (4 // 5) * sin(ω * t)) * a)
+        @test drive.tail isa SecondQuantizedAlgebra.RawSymbolicCoeff
+        for factor in (-im, im, 2, -1)
+            product = convert(SecondQuantizedAlgebra.Coeff, factor) * drive
+            terms = phase_terms(product)
+            amplitude(phase) = only(term.amplitude for term in terms if isequal(term.phase, phase))
+            positive = (3 // 25) + (4 // 25) * im
+            @test isequal(amplitude(ω * t), SecondQuantizedAlgebra.to_cnum(factor * positive))
+            @test isequal(amplitude(-ω * t), SecondQuantizedAlgebra.to_cnum(factor * conj(positive)))
+        end
     end
 
     @testset "public raw coefficient paths" begin

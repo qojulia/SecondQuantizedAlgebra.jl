@@ -6,10 +6,21 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
-## [v0.12.1]
+## [v0.13.0]
+
+This is a breaking release for coefficient exactness: whether a number is exact is now a property of its type.
+
+### Changed (breaking)
+
+- An integer-valued float such as `2.0` stays a float and no longer combines exactly with rationals, so `(2.0 * a) * (1//3)` has a float coefficient. A `ComplexF64` coefficient now arises only from floating-point input or division by an exact zero.
+- The internal coefficient layout changed: `Coeff.z` is replaced by `Coeff.slot`, read through `native_scalar(c)`, and `Monomial` is parametric in its exact tier. Code that builds `Monomial` or reads `Coeff` fields directly must be updated.
 
 ### Fixed
 
+- Exact coefficients stay exact when an intermediate exceeds `Int`, in products, sums, divisions and inverses, instead of overflowing or falling back to `Float64`. This affected high-order expansions with rational coefficients.
+- Numeric radicals of exact numbers are exact and canonical: `√6`, `√2·√3` and `√24/2` compare equal, `cbrt(-8)` is `-2`, `sqrt(-4)` is `2im`, and `BigInt` radicands such as `sqrt(Num(big(2)^71))` are recognized.
+- Exact rationals in raw symbolic coefficients, such as the `2//5` of `-im * (2//5) * cos(ω * t)`, no longer become floats, so `phase_terms` returns exact amplitudes.
+- `conjugate` with a moving frame no longer throws on an exact non-real scalar such as `1//2 + im/3`.
 - Arrays of coefficients and operators now render as a LaTeX array through `latexify` and the `text/latex` MIME display. They previously errored.
 - `one`, `zero`, `oneunit` and `isone` are defined on `Coeff`, so generic reductions over a coefficient array work: `sum`, `prod` and `tr`.
 - Linear algebra over coefficient arrays: `det` (by minor expansion, since a symbolic coefficient has no magnitude order for pivoting), `adjoint`, `transpose`, `dot`, `norm`, `Symmetric`, `Hermitian`, `rmul!` and `lmul!`. LinearAlgebra moves from a weak to a hard dependency; it is a stdlib already in the load closure, so nothing extra is loaded.

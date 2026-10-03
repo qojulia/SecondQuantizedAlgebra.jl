@@ -391,12 +391,12 @@ function commute_pair(a::Op, b::Op)
     if ka === OP_DESTROY && kb === OP_CREATE
         return (b, a, CNUM_ONE, EMPTY_OPS, CNUM_ZERO, EMPTY_OPS) # aa† = a†a + 1
     elseif ka === OP_MOMENTUM && kb === OP_POSITION
-        return (b, a, to_cnum(-im), EMPTY_OPS, CNUM_ZERO, EMPTY_OPS) # P·X = X·P - i·I
+        return (b, a, CNUM_NEG_IM, EMPTY_OPS, CNUM_ZERO, EMPTY_OPS) # P·X = X·P - i·I
     elseif ka === OP_SPIN && kb === OP_SPIN
         # [Sj, Sk] = iϵⱼₖₗSl; the residual is the contracted spin on the third axis.
         eps = levi_civita[a.l1][b.l1]
         contracted = Op(OP_SPIN, a.name_id, a.space_index, a.index, 6 - a.l1 - b.l1, 0, 0, 0)
-        return (b, a, mul_cnum(to_cnum(im * eps), CNUM_ONE), Op[contracted], CNUM_ZERO, EMPTY_OPS)
+        return (b, a, levi_civita_coeff(eps), Op[contracted], CNUM_ZERO, EMPTY_OPS)
     elseif ka === OP_COLLECTIVE_TRANSITION && kb === OP_COLLECTIVE_TRANSITION
         # [Sⁱʲ,Sᵏˡ] = δⱼₖSⁱˡ - δₗᵢSᵏʲ.
         c1 = a.l2 == b.l1 ? CNUM_ONE : CNUM_ZERO
@@ -408,6 +408,8 @@ function commute_pair(a::Op, b::Op)
         return (b, a, CNUM_ZERO, EMPTY_OPS, CNUM_ZERO, EMPTY_OPS)
     end
 end
+
+@inline levi_civita_coeff(eps::Int) = eps == 1 ? CNUM_IM : (eps == -1 ? CNUM_NEG_IM : CNUM_ZERO)
 
 # Reduce-pass gate: only Transition·Transition and Pauli·Pauli compose locally,
 # so non-reducing pairs skip the field checks below.
@@ -436,7 +438,7 @@ function reduce_pair(a::Op, b::Op)
         else
             eps = levi_civita[a.l1][b.l1]
             new = Op(OP_PAULI, a.name_id, a.space_index, a.index, 6 - a.l1 - b.l1, 0, 0, 0)
-            return (OpReduction, new, mul_cnum(to_cnum(im * eps), CNUM_ONE))
+            return (OpReduction, new, levi_civita_coeff(eps))
         end
     else
         return (NoReduction, a, CNUM_ZERO)
