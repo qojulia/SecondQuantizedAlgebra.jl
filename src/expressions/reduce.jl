@@ -60,22 +60,19 @@ const MAX_RELATION_TERMS = 4096
 
 # Expanded rather than reached by `k` rounds of `poly_mul`, which is quadratic: each round
 # canonicalizes, so the accumulator grows by a term and is multiplied out again.
-function binomial_power(::Type{E}, lo, sign::Int8, k::Int) where {E}
+function binomial_power(
+        ::Type{E}, lo::SymbolicUtils.BasicSymbolic, sign::Int8, k::Int,
+    ) where {E <: ExactScalar}
     out = Vector{Monomial{E}}(undef, k + 1)
     out[1] = constant_term(E, one(E))
+    c = one(E)
     for j in 1:k
-        # Every binomial coefficient of `k <= 62` fits `Int`.
-        c = k <= 62 ? binomial(k, j) : binomial(big(k), j)
+        c = c * E(k - j + 1, 0) * inv(E(j, 0))
         s = (sign < 0 && isodd(j)) ? -c : c
-        out[j + 1] = Monomial{E}(
-            binomial_scalar(E, s), SymbolicUtils.BasicSymbolic[lo], Rational{Int}[2j],
-        )
+        out[j + 1] = Monomial{E}(s, SymbolicUtils.BasicSymbolic[lo], Rational{Int}[2j])
     end
     return out
 end
-
-@inline binomial_scalar(::Type{E}, s::Int) where {E} = E(s, 0)
-@inline binomial_scalar(::Type{E}, s::BigInt) where {E} = as_tier(E, BigExactComplex(s, 0))
 
 # Project the raw number of terms before allocating a binomial. Canonicalization can make
 # this much shorter (and often reduces it to one), so the projection is only a safety gate;

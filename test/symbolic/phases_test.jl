@@ -171,6 +171,7 @@ import SecondQuantizedAlgebra: expim, exponential_form, phase_terms, to_num,
         @test native != 3
         @test native^3 == stored_coefficient(8 * a)
         @test native^(-2) == stored_coefficient((1 // 4) * a)
+        @test Symbolics.value(real(native^(-2))) isa Rational
 
         large = stored_coefficient(complex(big(2)^70, big(3)^70) * a)
         @test isequal(real(large), Num(big(2)^70))
@@ -200,8 +201,6 @@ import SecondQuantizedAlgebra: expim, exponential_form, phase_terms, to_num,
 
     @testset "native integer factors keep raw coefficients exact" begin
         @variables ω::Real t::Real
-        # The phase argument `ω * t` is not a polynomial atom, so the drive is stored as a raw
-        # expression and a native factor is multiplied into the raw tree.
         drive = stored_coefficient((2 // 5) * ((3 // 5) * cos(ω * t) - (4 // 5) * sin(ω * t)) * a)
         @test drive.tail isa SecondQuantizedAlgebra.RawSymbolicCoeff
         for factor in (-im, im, 2, -1)

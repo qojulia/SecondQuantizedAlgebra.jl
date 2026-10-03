@@ -271,8 +271,6 @@ import SecondQuantizedAlgebra: expim, exponential_form
         @test iszero(
             simplify(conjugate(weighted_number, moving_beamsplitter) - weighted_number),
         )
-        # An exact non-real scalar such as `1//2 + im/3` used to lower to a symbolic
-        # `complex(re, im)` call, which `substitute` rebuilt without its scalar shape.
         exact_weighted = (Complex(1 // 2, 1 // 3) * z) * number
         @test iszero(simplify(conjugate(exact_weighted, moving_beamsplitter) - exact_weighted))
         @test iszero(

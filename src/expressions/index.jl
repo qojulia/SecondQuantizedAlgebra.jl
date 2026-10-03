@@ -309,8 +309,6 @@ function collect_identical_zeros!(acc, x)
     return acc
 end
 
-# Whether the leaf `v` occurs in the tree `x`: what `isequal(v, ·)` over `get_variables(x)`
-# answers for a leaf, without collecting the variables into a set.
 function contains_leaf(x::RawExpression, v::RawExpression)::Bool
     isequal(x, v) && return true
     SymbolicUtils.iscall(x) || return false

@@ -1,3 +1,5 @@
+struct Unchecked end
+
 """
     GaussianRational{T}
 
@@ -16,14 +18,11 @@ expression as a `Rational` or `Complex{Rational}` instead.
 instead. No field of a small-tier value is `typemin(Int)`, so negation and conjugation
 never overflow. `T = BigInt` is the big tier.
 """
-struct Unchecked end
-
 struct GaussianRational{T <: Union{Int, BigInt}}
     re::T
     im::T
     den::T
 
-    # For fields that already satisfy the invariants; `unsafe_gaussian` is the entry point.
     GaussianRational{T}(::Unchecked, re::T, im::T, den::T) where {T <: Union{Int, BigInt}} =
         new{T}(re, im, den)
 end
@@ -34,7 +33,6 @@ end
 @inline is_edge(x::Int) = x == typemin(Int)
 @inline is_edge(::BigInt) = false
 
-# Divide out the common content. `den > 0` and no field is an edge value.
 @inline function normalized(re::T, im::T, den::T) where {T}
     isone(den) && return unsafe_gaussian(re, im, den)
     g = gcd(gcd(re, im), den)
@@ -45,7 +43,6 @@ end
 @inline overflow_result(z::GaussianRational, overflow::Bool) =
     overflow ? throw(OverflowError("Gaussian rational exceeds Int")) : z
 
-# An integer as a field of tier `T`; a value outside the small tier throws `OverflowError`.
 @inline function field(::Type{Int}, x::Integer)
     typemin(Int) < x <= typemax(Int) || throw(OverflowError("Gaussian rational exceeds Int"))
     return Int(x)
@@ -55,6 +52,7 @@ end
 GaussianRational{T}(re::Integer, im::Integer) where {T} =
     unsafe_gaussian(field(T, re), field(T, im), one(T))
 function GaussianRational{T}(re::Rational, im::Rational) where {T}
+    (iszero(denominator(re)) || iszero(denominator(im))) && throw(DivideError())
     a, b = field(T, denominator(re)), field(T, denominator(im))
     g = gcd(a, b)
     den, o1 = Base.mul_with_overflow(div(a, g), b)
@@ -81,11 +79,9 @@ Base.isreal(z::GaussianRational) = iszero(z.im)
 Base.real(z::GaussianRational) = z.re // z.den
 Base.imag(z::GaussianRational) = z.im // z.den
 
-# Checked kernels: the result and whether an `Int` operation overflowed. Gaussian integers,
-# the common case, skip the denominator arithmetic and the normalization.
 @inline function mul_checked(a::GaussianRational{T}, b::GaussianRational{T}) where {T}
     (isone(a.den) && isone(b.den)) || return mul_checked_rational(a, b)
-    if iszero(a.im) && iszero(b.im)   # real integers: one product
+    if iszero(a.im) && iszero(b.im)
         re, o = Base.mul_with_overflow(a.re, b.re)
         overflow = o | is_edge(re)
         return (overflow ? a : unsafe_gaussian(re, zero(T), one(T)), overflow)
@@ -144,8 +140,6 @@ end
 @inline Base.:-(a::GaussianRational{T}, b::GaussianRational{T}) where {T} = a + (-b)
 @inline Base.conj(z::GaussianRational) = unsafe_gaussian(z.re, -z.im, z.den)
 
-# One method per tier, so that analysis of the method on its own sees concrete fields: a
-# `where {T}` signature widens each field to `Union{Int, BigInt}` independently.
 for T in (Int, BigInt)
     @eval function Base.inv(z::GaussianRational{$T})
         iszero(z) && throw(DivideError())
@@ -159,8 +153,6 @@ for T in (Int, BigInt)
     end
 end
 
-# Square and multiply. The base is squared only while bits remain, so a power that fits never
-# overflows on a discarded square.
 function Base.:^(z::GaussianRational, n::Integer)
     n == typemin(n) && throw(OverflowError("exact power with exponent typemin"))
     n < 0 && return inv(z)^(-n)
@@ -175,8 +167,6 @@ function Base.:^(z::GaussianRational, n::Integer)
     return result
 end
 
-# Normalized fields make equality a field comparison. A float scalar of the same polynomial
-# compares by value, and `hash` agrees with the `Complex{Rational}` of the same value.
 Base.:(==)(a::GaussianRational, b::GaussianRational) =
     a.re == b.re && a.im == b.im && a.den == b.den
 Base.isequal(a::GaussianRational, b::GaussianRational) = a == b
@@ -184,8 +174,6 @@ Base.:(==)(a::GaussianRational, b::ComplexF64) = Complex(real(a), imag(a)) == b
 Base.:(==)(a::ComplexF64, b::GaussianRational) = b == a
 Base.isequal(a::GaussianRational, b::ComplexF64) = isequal(Complex(real(a), imag(a)), b)
 Base.isequal(a::ComplexF64, b::GaussianRational) = isequal(b, a)
-# A Gaussian integer hashes like the `Complex{Int}` of its value, which equals the hash of the
-# `Complex{Rational}`; only a proper fraction needs the reduced parts.
 Base.hash(z::GaussianRational, h::UInt) =
     isone(z.den) ? hash(Complex(z.re, z.im), h) : hash(Complex(real(z), imag(z)), h)
 

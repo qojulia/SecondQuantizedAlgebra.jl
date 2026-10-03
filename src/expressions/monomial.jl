@@ -15,8 +15,6 @@ struct Monomial{E <: ExactScalar}
     syms::Vector{SymbolicUtils.BasicSymbolic}   # sorted by objectid, distinct
     exps::Vector{Rational{Int}}                 # matching nonzero exponents
 
-    # Every monomial is radical-canonical by construction: a radical atom's integer
-    # exponent part is folded into the scalar here, so no call site can store `√2·√2`.
     function Monomial{E}(
             scalar::Union{ComplexF64, E},
             syms::Vector{SymbolicUtils.BasicSymbolic},
@@ -43,9 +41,6 @@ struct Monomial{E <: ExactScalar}
     end
 end
 
-Monomial{BigExactComplex}(scalar::ExactComplex, syms, exps) =
-    Monomial{BigExactComplex}(BigExactComplex(scalar), syms, exps)
-
 @inline as_tier(::Type{E}, m::Monomial{E}) where {E <: ExactScalar} = m
 @inline as_tier(::Type{E}, m::Monomial) where {E <: ExactScalar} =
     Monomial{E}(as_tier(E, m.scalar), m.syms, m.exps)
@@ -53,7 +48,9 @@ Monomial{BigExactComplex}(scalar::ExactComplex, syms, exps) =
 as_tier(::Type{E}, terms::Vector{<:Monomial}) where {E <: ExactScalar} =
     Monomial{E}[as_tier(E, m) for m in terms]
 
-@inline with_factors(m::Monomial{E}, syms, exps) where {E} = Monomial{E}(m.scalar, syms, exps)
+@inline with_factors(
+    m::Monomial{E}, syms::Vector{SymbolicUtils.BasicSymbolic}, exps::Vector{Rational{Int}},
+) where {E} = Monomial{E}(m.scalar, syms, exps)
 @inline scalar_iszero(m::Monomial) = iszero(m.scalar)
 @inline scalar_is_real(m::Monomial) = iszero(imag(m.scalar))
 @inline scalar_isequal(a::Monomial, b::Monomial) = isequal(a.scalar, b.scalar)
@@ -63,7 +60,9 @@ as_tier(::Type{E}, terms::Vector{<:Monomial}) where {E <: ExactScalar} =
     scalar isa ComplexF64 || return m
     return Monomial{E}(normalize_scalar(scalar), m.syms, m.exps)
 end
-@inline conj_monomial(m::Monomial{E}, syms, exps) where {E} =
+@inline conj_monomial(
+    m::Monomial{E}, syms::Vector{SymbolicUtils.BasicSymbolic}, exps::Vector{Rational{Int}},
+) where {E} =
     Monomial{E}(conj(m.scalar), syms, exps)
 
 @inline mul_scalars(a::Monomial{E}, b::Monomial{E}, syms, exps) where {E} =
@@ -239,7 +238,8 @@ end
 
 function poly_mul(p::Vector{Monomial{E}}, q::Vector{Monomial{E}}) where {E}
     if length(p) == 1 && length(q) == 1
-        return Monomial{E}[normalize_monomial(term_mul(p[1], q[1]))]
+        product = normalize_monomial(term_mul(p[1], q[1]))
+        return scalar_iszero(product) ? Monomial{E}[] : Monomial{E}[product]
     end
     out = Monomial{E}[]
     sizehint!(out, length(p) * length(q))
@@ -252,19 +252,15 @@ end
 # Scale every term; preserves canonical order (factors unchanged).
 function poly_scale(p::Vector{Monomial{E}}, z::Union{ComplexF64, E}) where {E}
     iszero(z) && return Monomial{E}[]
-    return Monomial{E}[scale_monomial(t, z) for t in p]
+    return filter!(!scalar_iszero, Monomial{E}[scale_monomial(t, z) for t in p])
 end
 
-# Entry points for `tiered`, which passes the exact tier first.
 poly_add(::Type{E}, p::Vector{Monomial{E}}, q::Vector{Monomial{E}}) where {E} = poly_add(p, q)
 poly_mul(::Type{E}, p::Vector{Monomial{E}}, q::Vector{Monomial{E}}) where {E} = poly_mul(p, q)
 poly_scale(::Type{E}, p::Vector{Monomial{E}}, z) where {E} = poly_scale(p, as_tier(E, z))
 
-# `Poly.terms` is a union of the two tier vectors. Loops over the terms run behind a function
-# barrier on the concrete vector, so the scalar operations inside stay static.
 Base.isequal(a::Poly, b::Poly) = terms_isequal(a.terms, b.terms)
 Base.:(==)(a::Poly, b::Poly) = isequal(a, b)
-# A big-tier polynomial holds a scalar that no small-tier polynomial holds.
 function terms_isequal(a::Vector{Monomial{A}}, b::Vector{Monomial{B}}) where {A, B}
     A === B || return false
     length(a) == length(b) || return false

@@ -409,7 +409,6 @@ function commute_pair(a::Op, b::Op)
     end
 end
 
-# `i * ε` for a Levi-Civita sign `ε ∈ (-1, 0, 1)`, an exact constant.
 @inline levi_civita_coeff(eps::Int) = eps == 1 ? CNUM_IM : (eps == -1 ? CNUM_NEG_IM : CNUM_ZERO)
 
 # Reduce-pass gate: only Transition·Transition and Pauli·Pauli compose locally,
