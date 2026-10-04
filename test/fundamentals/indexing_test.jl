@@ -387,4 +387,13 @@ import SecondQuantizedAlgebra: constraint_pairs
         @inferred get_indices(ai)
         @inferred commutator(ai, ai')
     end
+
+    @testset "a sum depends on an index carried only by its coefficient" begin
+        i = Index(hf, :i, 10, hf)
+        a = Destroy(hf, :a)
+        @variables g
+        gi = IndexedVariable(:g, i)
+        @test !isequal(Σ(gi * a, i), 10 * gi * a)
+        @test isequal(Σ(g * a, i), 10 * g * a)
+    end
 end
