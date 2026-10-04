@@ -6,10 +6,25 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
-## [v0.12.1]
+## [v0.13.0]
+
+This is a breaking release for coefficient exactness: whether a number is exact is now a property of its type.
+
+### Added
+
+- Formal operator functions `sin(A)`, `cos(A)` and Hermitian-only `expim(A)` return a new `QExpr` type that stays unexpanded until `taylor(expr, 0:n)` lowers it to a `QAdd` with exact coefficients ([#250](https://github.com/qojulia/SecondQuantizedAlgebra.jl/issues/250)).
+
+### Changed (breaking)
+
+- An integer-valued float such as `2.0` stays a float and no longer combines exactly with rationals, so `(2.0 * a) * (1//3)` has a float coefficient. A `ComplexF64` coefficient now arises only from floating-point input or division by an exact zero.
+- The internal coefficient layout changed: `Coeff.z` is replaced by `Coeff.slot`, read through `native_scalar(c)`, and `Monomial` is parametric in its exact tier. Code that builds `Monomial` or reads `Coeff` fields directly must be updated.
 
 ### Fixed
 
+- Exact coefficients stay exact when an intermediate exceeds `Int`, in products, sums, divisions and inverses, instead of overflowing or falling back to `Float64`. This affected high-order expansions with rational coefficients.
+- Numeric radicals of exact numbers are exact and canonical when every prime factor of the radicand is below `2^32`: `√6`, `√2·√3` and `√24/2` compare equal, `cbrt(-8)` is `-2`, `sqrt(-4)` is `2im`, and `BigInt` radicands such as `sqrt(Num(big(2)^71))` are recognized. A larger prime factor leaves the radical a symbolic leaf ([#291]).
+- Exact rationals in raw symbolic coefficients, such as the `2//5` of `-im * (2//5) * cos(ω * t)`, no longer become floats, so `phase_terms` returns exact amplitudes.
+- `conjugate` with a moving frame no longer throws on an exact non-real scalar such as `1//2 + im/3`.
 - Arrays of coefficients and operators now render as a LaTeX array through `latexify` and the `text/latex` MIME display. They previously errored.
 - `one`, `zero`, `oneunit` and `isone` are defined on `Coeff`, so generic reductions over a coefficient array work: `sum`, `prod` and `tr`.
 - Linear algebra over coefficient arrays: `det` (by minor expansion, since a symbolic coefficient has no magnitude order for pivoting), `adjoint`, `transpose`, `dot`, `norm`, `Symmetric`, `Hermitian`, `rmul!` and `lmul!`. LinearAlgebra moves from a weak to a hard dependency; it is a stdlib already in the load closure, so nothing extra is loaded.
@@ -23,7 +38,6 @@ This is a breaking release for expression introspection. The exact unitary-trans
 
 - Exact affine unitary transformations with a shared representation for bosonic and phase-space displacements, general bosonic Bogoliubov maps, passive mode mixing, single- and two-mode squeezing, spin/Pauli rotations, N-level basis rotations, generator-derived exact transforms and rotating frames, Hamiltonian-derived displacement frames, composition, inversion, and moving-frame gauges.
 - `get_operators` collects the unique operators occurring anywhere in a `QAdd`, and `get_variables` collects scalar symbolic variables from its coefficients, including filtered and buffer forms of the `Symbolics.get_variables` interface.
-- Formal non-polynomial operator functions `sin(A)`, `cos(A)`, and Hermitian-only `expim(A)` use a cold-path `QExpr` representation without changing the canonical polynomial `QAdd` hot path. `taylor(expr, 0:n)` explicitly lowers formal functions to exact-coefficient `QAdd` polynomials; exact structural rewrites and exact `UnitaryTransform` conjugation recurse through `QExpr`, while direct numeric matrix functional calculus deliberately requires explicit lowering first. Resolves [#250](https://github.com/qojulia/SecondQuantizedAlgebra.jl/issues/250).
 
 ### Changed (breaking)
 
@@ -390,5 +404,6 @@ These names keep their meaning across the migration. Code that only uses them sh
 [v0.10.1]: https://github.com/qojulia/SecondQuantizedAlgebra.jl/releases/tag/v0.10.1
 [v0.11.0]: https://github.com/qojulia/SecondQuantizedAlgebra.jl/releases/tag/v0.11.0
 [v0.12.0]: https://github.com/qojulia/SecondQuantizedAlgebra.jl/releases/tag/v0.12.0
-[v0.12.1]: https://github.com/qojulia/SecondQuantizedAlgebra.jl/releases/tag/v0.12.1
+[v0.13.0]: https://github.com/qojulia/SecondQuantizedAlgebra.jl/releases/tag/v0.13.0
 [#156]: https://github.com/qojulia/SecondQuantizedAlgebra.jl/issues/156
+[#291]: https://github.com/qojulia/SecondQuantizedAlgebra.jl/issues/291

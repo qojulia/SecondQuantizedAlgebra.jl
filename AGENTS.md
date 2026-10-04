@@ -26,7 +26,10 @@ src/numeric/qexpr.jl                # deliberate numeric refusal for unlowered Q
 ext/SecondQuantizedAlgebraQuantumOpticsBaseExt.jl  # QuantumOpticsBase backend (vector LazySum)
 ext/SecondQuantizedAlgebraQuantumToolboxExt.jl     # QuantumToolbox backend (VecSum over QobjEvo)
 
-src/expressions/cnum.jl             # concrete Coeff/CNum arithmetic, fast paths, constants
+src/expressions/gaussian.jl         # GaussianRational{T}: exact (re + im*i)/den numbers, checked Int kernels
+src/expressions/exact.jl            # Exact scalar tiers, the NativeSlot layout, radical-folding primitives
+src/expressions/monomial.jl         # Monomial{E}/Poly structs (radical-canonical by construction), factor-list machinery
+src/expressions/cnum.jl             # Coeff (CNum) arithmetic, recognition, raw lowering, constants
 src/expressions/coeff_linear_algebra.jl # LinearAlgebra hooks for Coeff (dot, norm, det, Symmetric/Hermitian)
 src/expressions/qterm.jl            # QTerm struct (ops, ne) — dict key for QAdd
 src/expressions/qadd.jl             # QAdd — canonical polynomial sum; TermInterface
@@ -87,7 +90,7 @@ HilbertSpace (abstract)
 - **`assume_distinct_index(q, pairs)`**: explicit escape hatch when two free indices semantically denote distinct sites but no `Σ` supplies the constraint. Takes a `Vector{Tuple{Index, Index}}` of inequality pairs, augments each term's `ne`, re-canonicalizes, and runs `expand_completeness`.
 - **Free indices outside `Σ` stay `Undetermined`**: two operators with different symbolic indices on the same space, neither bound by a sum, are left in physical order. No same-site collapse fires until `assume_distinct_index` or a `Σ`-driven diagonal split resolves the relationship.
 - **Dict-based term storage**: `QAdd` stores `Dict{QTerm, CNum}` where `QTerm` bundles `ops::Vector{Op}` with `ne::Vector{NonEqualPair}` index-inequality scope, plus a cached `hash::UInt` (computed once at construction; the key is hashed repeatedly per dict insert/probe/rehash). Like terms are collected on construction.
-- **CNum prefactors**: `CNum` is the package's concrete `Coeff` scalar layer. Native numbers, optimized parameter polynomials/phases, and a raw symbolic fallback share one concrete representation; `Complex{Num}` is used only at public/numeric boundaries where needed.
+- **CNum prefactors**: prefactors are the concrete `Coeff` type: a native number, a parameter polynomial, or a raw symbolic expression. `Complex{Num}` appears only at public boundaries. Dedicated fast paths in `cnum.jl` short-circuit for native numbers.
 - **Site-indexed operators**: each `Op` carries `space_index` and `index::Index`. Operators interact only if `_same_site(a, b)`.
 - **Five operator hooks**: `_site_compare`, `_can_commute`, `_commute_pair`, `_reduce_pair`, `_ground_state_expand` are each a single `(::Op, ::Op)` method (in `operators.jl`) that branches on `kind`. The algebra talks to operators exclusively through these. A sixth, defaulted hook `_may_reduce(a, b)::Bool` gates the reduce pass (`true` only for `Transition`/`Pauli` pairs). Adding a new operator role means adding an `OP_*` enum arm, a constructor, an `is_*` predicate, and a `kind` branch in each hook plus `adjoint`/`order_key`/`numeric_operator` (per backend extension)/printing. With the concrete `Op` eltype the hooks now infer concrete return types (`_commute_pair`/`_reduce_pair` return `Tuple{Op, …}`), so `_may_reduce`'s original boxing-avoidance role is moot; it remains as a cheap same-site skip.
 - **Concrete struct fields**: all struct fields are concretely typed (enforced by CheckConcreteStructs in tests).

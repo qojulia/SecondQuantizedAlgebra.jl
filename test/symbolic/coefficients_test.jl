@@ -3,7 +3,7 @@ using Symbolics: Symbolics, @variables, Num
 using SymbolicUtils: SymbolicUtils
 using Test
 using LinearAlgebra: I
-import SecondQuantizedAlgebra: Coeff, to_cnum
+import SecondQuantizedAlgebra: Coeff, to_cnum, Monomial, ExactComplex, BigExactComplex, expim
 
 @testset "Symbolic coefficients" begin
     h = FockSpace(:coefficients)
@@ -92,6 +92,229 @@ import SecondQuantizedAlgebra: Coeff, to_cnum
         @test iszero(simplify(g^(1 // 2) * g^(1 // 2) - g))
         @test iszero(simplify(sqrt(4) * a - 2 * a))
         @test iszero(simplify(g^2 * a - g * g * a))
+    end
+
+    @testset "radicals of exact numbers stay exact" begin
+        function contains_float(x)
+            x = SymbolicUtils.unwrap(x)
+            x isa AbstractFloat && return true
+            x isa Complex && return contains_float(real(x)) || contains_float(imag(x))
+            x isa Number && return false
+            SymbolicUtils.isconst(x) && return contains_float(x.val)
+            SymbolicUtils.iscall(x) || return false
+            return any(contains_float, SymbolicUtils.arguments(x))
+        end
+        exact(x) = !contains_float(coefficient(x))
+
+        root_two = sqrt(Num(2))
+        @test exact(root_two)
+        @test isequal(real(coefficient(root_two)), root_two)
+        @test exact(cbrt(Num(2)))
+
+        @test exact(get_prefactor(simplify(sqrt(Num(1 // 2)) * a)))
+        @test iszero(simplify(root_two * root_two * a - 2 * a))
+
+        @test coefficient(sqrt(Num(4))) == 2
+        @test isequal(coefficient(sqrt(Num(1 // 4))), Complex(Num(1 // 2), Num(0)))
+        @test coefficient(sqrt(Num(2.0))) ≈ sqrt(2.0)
+        @test isequal(to_cnum(cbrt(Num(-8))), to_cnum(-2))
+        @test isequal(to_cnum(sqrt(Num(-4))), to_cnum(2im))
+        @test isequal(to_cnum(sqrt(Num(-2)))^2, to_cnum(-2))
+    end
+
+    @testset "exact coefficients beyond 2^53 and Int64" begin
+        b = Destroy(FockSpace(:wide), :b)
+        exact_parts(c) = (Symbolics.value(real(c)), Symbolics.value(imag(c)))
+
+        re, _ = exact_parts(get_prefactor((3^17 * a) * 3^17))
+        @test re isa Integer && re == 3^34
+        re, ip = exact_parts(
+            get_prefactor(((2^27 + 1 + 2^27 * im) * a) * (2^27 + 1 + (2^27 + 2) * im)),
+        )
+        @test re == 1 && ip isa Integer && ip == 2 * (2^27 + 1)^2
+
+        re, _ = exact_parts(get_prefactor(2 * ((1 // big(3)^25) * b * a)))
+        @test re isa Rational && re == 2 // big(3)^25
+        re, _ = exact_parts(get_prefactor((1 // big(2)^40) * b * a))
+        @test re isa Rational && re == 1 // 2^40
+        re, _ = exact_parts(
+            get_prefactor((1 // Int128(3)^25) * b * a + (1 // Int128(2)^40) * b * a),
+        )
+        @test re isa Rational && re == 1 // big(3)^25 + 1 // big(2)^40
+        @test isequal(((1 // big(3)^25) * b * a) * big(3)^25, b * a)
+
+        wide = (1 // 3^39) * a + (1 // 2^40) * a
+        back = wide - (1 // 2^40) * a
+        @test isequal(back, (1 // 3^39) * a)
+        @test hash(back) == hash((1 // 3^39) * a)
+        edge = to_cnum(Complex(1 // 3, typemin(Int) // 1))
+        @test isequal(conj(edge), to_cnum(Complex(big(1) // 3, -big(typemin(Int)) // 1)))
+
+        top = typemax(Int)
+        @test isequal(to_cnum(top) * 2, to_cnum(2 * big(top)))
+        @test isequal(to_cnum(top) + 1, to_cnum(big(top) + 1))
+        @test isequal(-to_cnum(typemin(Int)), to_cnum(-big(typemin(Int))))
+        @test isequal(conj(to_cnum(Complex(0, typemin(Int)))), to_cnum(Complex(0, -big(typemin(Int)))))
+        @test isequal(to_cnum(top) / to_cnum(3 + im), to_cnum(Complex(3 * big(top) // 10, -big(top) // 10)))
+        @variables g
+        big_poly = to_cnum(g) * to_cnum(1 // big(3)^40)
+        @test isequal((big_poly + 5) - big_poly, to_cnum(5))
+        @test isequal(big_poly / 5, to_cnum(g) * to_cnum(1 // (5 * big(3)^40)))
+
+        @test isequal(to_cnum(1) / to_cnum(3), to_cnum(1 // 3))
+        @test isequal(inv(to_cnum(3 + 4im)), to_cnum(3 // 25 - 4 // 25 * im))
+        re, _ = exact_parts(to_cnum(5) / to_cnum(1 // 3))
+        @test re isa Integer && re == 15
+
+        @variables θ
+        phase = SecondQuantizedAlgebra.expim(-θ) * to_cnum(Complex(3 // 5, 4 // 5))
+        @test isequal(real(phase), (3 // 5) * cos(θ) + (4 // 5) * sin(θ))
+        @test isequal(imag(phase), (4 // 5) * cos(θ) - (3 // 5) * sin(θ))
+    end
+
+    @testset "floats stay floats and exact values stay exact" begin
+        exact_parts(c) = (Symbolics.value(real(c)), Symbolics.value(imag(c)))
+        @test exact_parts(to_cnum(2.0) * to_cnum(1 // 3))[1] isa AbstractFloat
+        @test exact_parts(to_cnum(2) * to_cnum(1 // 3))[1] isa Rational
+        for x in (Inf, -Inf, NaN, 1.0e-300, -0.0)
+            @test isequal(SecondQuantizedAlgebra.to_complex(to_cnum(x)), ComplexF64(x) + 0.0)
+        end
+        @test isequal(to_cnum(1 // 0), to_cnum(Inf))
+        @test isequal(to_cnum(-1 // 0), to_cnum(-Inf))
+        @test isequal(ExactComplex(2, 1)^-2, ExactComplex(3 // 25, -4 // 25))
+        @test isequal(ExactComplex(2, 0)^62, ExactComplex(2^62, 0))
+        @test_throws OverflowError ExactComplex(2, 0)^63
+    end
+
+    @testset "numeric radicals multiply exactly" begin
+        inverse_root_six = 1 / sqrt(Num(6))
+        weighted = inverse_root_six * a
+        @test isequal(stored_coefficient(commutator(weighted, weighted')), to_cnum(1 // 6))
+
+        @test isequal(to_cnum(sqrt(Num(2))) * to_cnum(sqrt(Num(3))), to_cnum(sqrt(Num(6))))
+        @test hash(to_cnum(sqrt(Num(2))) * to_cnum(sqrt(Num(3)))) == hash(to_cnum(sqrt(Num(6))))
+        @test isequal(to_cnum(sqrt(Num(8)))^2, to_cnum(8))
+        @test isequal(to_cnum(1 / sqrt(Num(2))), to_cnum(sqrt(Num(2))) / 2)
+        @test isequal(to_cnum(cbrt(Num(2)))^3, to_cnum(2))
+
+        @variables g
+        raw = to_cnum(sin(g + 1))
+        half = to_cnum(1 / sqrt(Num(2)))
+        @test isequal((half * raw) * half, to_cnum(1 // 2) * raw)
+
+        large_prime = 4611686018427387847
+        @test SecondQuantizedAlgebra.to_complex(to_cnum(sqrt(Num(large_prime)))) ≈ sqrt(large_prime)
+    end
+
+    @testset "radicals reduce to prime atoms and compose with the big tier" begin
+        via_product = to_cnum(sqrt(Num(2))) * to_cnum(sqrt(Num(3)))
+        via_radicand = to_cnum(sqrt(Num(6)))
+        via_folded = to_cnum(sqrt(Num(24))) / to_cnum(2)
+        @test isequal(via_folded, via_radicand)
+        @test hash(via_folded) == hash(via_radicand)
+        via_division = to_cnum(sqrt(Num(12))) / to_cnum(2)
+        @test isequal(via_division, to_cnum(sqrt(Num(3))))
+        @test hash(via_division) == hash(to_cnum(sqrt(Num(3))))
+
+        small = to_cnum(sqrt(Num(2))) * to_cnum(2)^40
+        @test isequal(small^2, to_cnum(2)^81)
+        big_tier = to_cnum(sqrt(Num(2))) * to_cnum(2)^63
+        @test isequal(big_tier^2, to_cnum(2)^127)
+
+        @test isequal(to_cnum(sqrt(Num(big(2)^71))), to_cnum(big(2))^35 * to_cnum(sqrt(Num(2))))
+
+        @test isequal(inv(to_cnum(sqrt(Num(2)))), to_cnum(sqrt(Num(2))) / to_cnum(2))
+
+        @test isequal(to_cnum(sqrt(Num(2)))^200, to_cnum(2)^100)
+    end
+
+    @testset "cross-tier stress: prime-radical sums forced through the big tier" begin
+        primes6 = [2, 3, 5, 7, 11, 13]
+        s = sum(to_cnum(sqrt(Num(p))) for p in primes6)
+        s2 = s^2
+        big_scale = to_cnum(2)^70
+        scaled = s2 * big_scale
+
+        @test scaled.tail.terms isa Vector{Monomial{BigExactComplex}}
+
+        built = sum(
+            to_cnum(2)^70 * (to_cnum(sqrt(Num(p))) * to_cnum(sqrt(Num(q))))
+                for p in primes6, q in primes6
+        )
+        @test isequal(scaled, built)
+        @test hash(scaled) == hash(built)
+
+        @test isequal(scaled * inv(big_scale), s2)
+    end
+
+    @testset "exact radicals and tiers survive lowering and public arithmetic" begin
+        @variables g k
+        roundtrip(e) = isequal(get_prefactor(e) * a, e)
+
+        # Radicals lower to one grouped root per exponent and rebuild the same coefficient.
+        six = sqrt(Num(2)) * sqrt(Num(3)) * a
+        @test string(real(get_prefactor(six))) == "sqrt(6)"
+        @test roundtrip(six)
+        mixed = sqrt(Num(2)) * cbrt(Num(9)) * a
+        @test string(real(get_prefactor(mixed))) == "(3^(2//3))*sqrt(2)"
+        @test roundtrip(mixed)
+
+        # Two radical primes whose product exceeds Int stay separate roots.
+        p, q = 4294967291, 4294967279
+        wide = sqrt(Num(p)) * sqrt(Num(q)) * a
+        @test string(real(get_prefactor(wide))) == "sqrt($p)*sqrt($q)"
+        @test roundtrip(wide)
+        @test get_prefactor(wide * wide) == big(p) * q
+
+        # Integer parts folded out of a radical overflow into the big tier.
+        root = sqrt(Num(big(2)^127)) * a
+        @test isequal(root, big(2)^63 * sqrt(Num(2)) * a)
+        @test get_prefactor(root * root) == big(2)^127
+        @test roundtrip(root)
+        product = sqrt(Num(2^61)) * sqrt(Num(big(3)^61)) * g * a
+        @test isequal(product, big(6)^30 * sqrt(Num(6)) * g * a)
+        @test roundtrip(product)
+
+        # A big Gaussian constant times a non-polynomial coefficient.
+        huge = big(3)^50
+        left = (huge * im * a) * (cos(g + k) * a)
+        @test isequal(left, (cos(g + k) * a) * (huge * im * a))
+        @test isequal(get_prefactor(left), Complex(Num(0), huge * cos(g + k)))
+        @test isequal(get_prefactor(left) * a * a, left)
+        both = ((huge + 2im) * a) * (cos(g + k) * a)
+        @test isequal(get_prefactor(both) * a * a, both)
+
+        # Roots of a negative radicand that cannot be factored.
+        P = big(2)^127 - 1
+        real_root = cbrt(Num(-P)) * a
+        @test isequal(get_prefactor(real_root), Complex(cbrt(Num(-P)), Num(0)))
+        @test roundtrip(real_root)
+        @test get_prefactor(sqrt(Num(-P)) * a) ≈ im * sqrt(Float64(P))
+
+        # An unfactorable radical raised to a power stays a symbolic factor of the product.
+        leaf = sqrt(Num(P)) * cos(g + k) * a
+        partner = sin(g + k) * a
+        @test isequal(leaf^3 * partner, partner * leaf^3)
+        @test isequal(get_prefactor(leaf^3 * partner), get_prefactor(leaf^3) * sin(g + k))
+
+        # Cube roots inside non-polynomial coefficients still combine exactly.
+        root2 = cbrt(Num(2)) * cos(g + k) * a
+        root4 = cbrt(Num(4)) * cos(g + k) * a
+        @test isequal(root2 * root4, 2 * cos(g + k)^2 * a * a)
+        @test isequal(root4 * root4, 2 * cbrt(Num(2)) * cos(g + k)^2 * a * a)
+
+        # Only a unit-modulus phase has a magnitude, in either tier.
+        @test abs(stored_coefficient((0.6 + 0.8im) * expim(g) * a)) == 1
+        @test abs2(stored_coefficient((0.6 + 0.8im) * expim(g) * a)) == 1
+        @test_throws MethodError abs(stored_coefficient(huge * expim(g) * a))
+
+        # Floats combine with exact values in either order.
+        half = stored_coefficient(0.5 * a)
+        @test half / 2.0 == 0.25
+        @test inv(half) == 2
+        @test isequal(g * a / 3 + 0.5 * g * a, 0.5 * g * a + g * a / 3)
+        mixed_sum = get_prefactor(substitute(g * a / 3 + 0.5 * g * a, Dict(g => 1)))
+        @test Symbolics.value(real(mixed_sum)) ≈ 5 / 6
     end
 
     @testset "symbolic arithmetic stays faithful" begin

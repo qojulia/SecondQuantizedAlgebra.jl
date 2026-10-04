@@ -147,13 +147,18 @@ separate roles because they use different basis conventions and numeric paths
 const CNum = Coeff
 
 struct Coeff
-    z::ComplexF64
+    slot::NativeSlot   # the value of a `Native` coefficient
     tail::Union{Native, Poly, RawSymbolicCoeff}
 end
 ```
 
-Every prefactor is promoted to the one concrete `Coeff` type. `Native` stores ordinary
-numbers inline, `Poly` stores sparse parameter polynomials (including the optimized unit-phase
+Every prefactor is promoted to the one concrete `Coeff` type. `Native` stores a number
+inline: a small exact Gaussian rational, or an inexact float as `ComplexF64`. The slot holds
+either one with a concrete layout: the Gaussian rational's `(re, im, den)`, or with
+`den == 0` the bit patterns of the float, and unpacks to
+`Union{ComplexF64, GaussianRational{Int}}`. A union-typed field instead would carry a type
+selector through every copy and call of a `Coeff`, which slows operator normal ordering by
+about 40%. A native coefficient never allocates. `Poly` stores sparse parameter polynomials (including the optimized unit-phase
 fast path), and `RawSymbolicCoeff` stores an arbitrary scalar
 `BasicSymbolic{SymbolicUtils.SymReal}` expression. Here `SymReal` is the symbolic tree
 variant; `SymbolicUtils.symtype(expr)` separately records whether the represented value is
@@ -177,6 +182,78 @@ SymbolicUtils has no public registry for extending its default rules, so `simpli
 runs phase normalization, the standard simplifier, and phase normalization once more. Native
 and `Poly` fast paths still avoid the CAS.
 
+## Exact coefficients
+
+An exact number is a `GaussianRational{T}`: `(re + im*i) / den` with one positive common
+denominator and `gcd(re, im, den) == 1`. Normalized fields make each value's representation
+unique, so equality compares fields. A Gaussian integer has `den == 1`, and its products and
+sums skip the denominator arithmetic. Compared with `Complex{Rational{Int}}`, which normalizes
+the two parts separately, a product needs one normalization instead of about ten `gcd`s.
+Small-tier arithmetic is checked and reports overflow instead of wrapping. No field of a
+small-tier value is `typemin(Int)`, so negation and conjugation never overflow.
+
+`GaussianRational` is a storage type, not a `Number`. Methods of a new `Number` subtype on
+`==`, `hash` and the arithmetic operators invalidate SymbolicUtils code that dispatches on
+abstract `Number` arguments, which slowed its `simplify` by about a fifth. An exact value
+enters a symbolic expression as an `Int`, `Rational` or `Complex` instead. Arithmetic between
+the two tiers has no method; equality and hashing compare values across tiers.
+
+```julia
+const ExactComplex    = GaussianRational{Int}
+const BigExactComplex = GaussianRational{BigInt}
+
+struct Monomial{E <: Union{ExactComplex, BigExactComplex}}
+    scalar::Union{ComplexF64, E}
+    syms::Vector{SymbolicUtils.BasicSymbolic}
+    exps::Vector{Rational{Int}}
+end
+
+struct Poly
+    terms::Union{Vector{Monomial{ExactComplex}}, Vector{Monomial{BigExactComplex}}}
+end
+```
+
+The tier belongs to the whole polynomial, not to a term: every exact scalar of one `Poly`
+has the same type `E`. In the small tier `Union{ComplexF64, ExactComplex}` is an isbits union,
+so the scalar is stored inline and the fast path does not allocate. The tier is a field type
+rather than a `Poly` parameter so that `Coeff.tail` stays a three-member union, which inference
+still splits.
+
+**Overflow.** An operation that combines polynomial terms runs in the small tier and, when an
+`Int` operation overflows, is redone in the big tier on the same inputs, so its steps must not
+mutate their arguments. An input already in the big tier skips the small attempt. Products,
+sums, division, inversion, conjugation, recognition and trigonometric reduction all work this
+way.
+
+The representation holds four invariants:
+
+- **One tier per value.** A big-tier result returns to the small tier when every scalar fits
+  `Int`. A big-tier polynomial therefore always holds a scalar that does not fit, so a
+  small-tier and a big-tier polynomial are never equal, and an exact constant that fits is
+  `Native` whatever route produced it. `hash` agrees with the `Complex{Rational}` of the same
+  value in both tiers.
+- **Exactness is a type.** An exact value is a `GaussianRational`; a `ComplexF64` is inexact
+  and arises only from floating-point input, or from division by an exact zero and an infinite
+  rational such as `1//0`, which follow Julia's `Inf`/`NaN` convention. Exact with exact stays
+  exact, and anything combined with a float is a float, so no operation inspects a value to
+  decide whether it is exact. Internal constants such as the `1/2` of the Euler expansion are
+  exact.
+- **A radical atom's exponent stays in `(0, 1)`.** A radical atom is the hashconsed
+  `SymbolicUtils.Const{SymReal}(p::Int)` of a *prime* `p`. Radicands always factor down to
+  primes by trial division below `2^16`, with the leftover cofactor accepted as prime below
+  the bound squared; a composite radicand is never stored as one atom. `√6` is therefore
+  `Const(2)^(1/2) * Const(3)^(1/2)`, the same monomial `√2 * √3` and `√24/2` reduce to, so all
+  three compare `isequal` and hash identically. Constructing a monomial folds any integer part
+  of a radical's exponent into the scalar, so no construction site can store `√2·√2` with
+  exponent `1`. A negative radicand folds through `cbrt(-x) = -cbrt(x)` and
+  `(-x)^(p/2) = i^p x^(p/2)`; other fractional powers of a negative number stay floats.
+- **Radicals and the big tier compose.** The folded integer power is computed in the tier of
+  the monomial, so an overflowing fold moves to the big tier instead of falling back to
+  `Float64`. A `BigInt` radicand that fully factors below the trial bound is recognized the
+  same way an `Int`-sized one is; only a radicand that cannot be fully factored stays an
+  unevaluated symbolic leaf. Such a leaf lives in the raw tier, which has no canonical form,
+  so equal products of it need not compare `isequal` or cancel
+  ([#291](https://github.com/qojulia/SecondQuantizedAlgebra.jl/issues/291)).
 
 ## QAdd internals
 

@@ -34,16 +34,21 @@ function fock_displacement_gauge(
 end
 
 """
-    Displace(a, α[, t])
+    Displace(a, α)
 
-Displace a Fock mode by the scalar amplitude `α`, so `a ↦ a + α`. The timed form
-stores the complete c-number gauge of the moving displacement.
+Displace a Fock mode by the scalar amplitude `α`, so `a ↦ a + α`.
 """
 function Displace(a::Op, α::Coefficient)
     d = fock_or_throw(a, "`Displace`")
     return fock_displacement(d, to_cnum(α))
 end
 
+"""
+    Displace(a, α, t)
+
+Moving Fock displacement `a ↦ a + α(t)`. Stores the complete c-number gauge of the
+moving displacement.
+"""
 function Displace(a::Op, α::Coefficient, t::Num)
     d = fock_or_throw(a, "`Displace`")
     tt = time_or_throw(t)
@@ -60,10 +65,8 @@ end
 
 """
     Rotation(a, θ)
-    Rotation(a, θ, t)
 
-Rotate a Fock mode by `exp(-im*θ*a'a)`, so `a ↦ exp(-im*θ)*a`. The positional timed
-form requires a symbolic moving angle and a symbolic time variable.
+Rotate a Fock mode by `exp(-im*θ*a'a)`, so `a ↦ exp(-im*θ)*a`.
 """
 function Rotation(a::Op, θ::Real)
     d = fock_or_throw(a, "`Rotation`")
@@ -78,6 +81,12 @@ function Rotation(a::Op, θ::Real)
     return canonical_transform(action)
 end
 
+"""
+    Rotation(a, θ, t)
+
+Moving Fock rotation `a ↦ exp(-im*θ(t))*a`. Requires a symbolic moving angle and a
+symbolic time variable.
+"""
 function Rotation(a::Op, θ::Num, t::Num)
     d = fock_or_throw(a, "`Rotation`")
     tt = time_or_throw(t)
@@ -86,10 +95,8 @@ end
 
 """
     Squeeze(a, r, ϕ = 0)
-    Squeeze(a, r, ϕ, t)
 
-Single-mode squeezing with `a ↦ cosh(r)*a + exp(im*ϕ)*sinh(r)*a'`. The timed form
-supports both a moving magnitude and a moving phase.
+Single-mode squeezing with `a ↦ cosh(r)*a + exp(im*ϕ)*sinh(r)*a'`.
 """
 function Squeeze(a::Op, r::Real, ϕ::Real = 0)
     d = fock_or_throw(a, "`Squeeze`")
@@ -134,6 +141,12 @@ function squeeze_gauge(d::Op, r::Real, ϕ::Real, t::Num)
     )
 end
 
+"""
+    Squeeze(a, r, ϕ, t)
+
+Moving single-mode squeezing. Supports both a moving magnitude `r(t)` and a moving
+phase `ϕ(t)`.
+"""
 function Squeeze(a::Op, r::Real, ϕ::Real, t::Num)
     d = fock_or_throw(a, "`Squeeze`")
     tt = time_or_throw(t)
@@ -196,17 +209,20 @@ end
 
 """
     Rotation(a, b, θ)
-    Rotation(a, b, θ, t)
 
-For two distinct Fock modes, apply the passive mixing
-`a ↦ cos(θ)*a + sin(θ)*b`, `b ↦ -sin(θ)*a + cos(θ)*b`.
-For a canonical `(Position, Momentum)` pair `(x, p)`, apply
-`x ↦ cos(θ)*x + sin(θ)*p`, `p ↦ -sin(θ)*x + cos(θ)*p`.
-The timed form carries the corresponding exact moving-frame gauge.
+Mix two distinct Fock modes or rotate a canonical `(Position, Momentum)` pair. For Fock
+modes, apply `a ↦ cos(θ)*a + sin(θ)*b`, `b ↦ -sin(θ)*a + cos(θ)*b`.
+For a pair `(x, p)`, apply `x ↦ cos(θ)*x + sin(θ)*p`, `p ↦ -sin(θ)*x + cos(θ)*p`.
 """
 Rotation(a::Op, b::Op, θ::Real) =
     is_phase_space(a) ? quadrature_rotation(a, b, θ) : fock_mode_rotation(a, b, θ)
 
+"""
+    Rotation(a, b, θ, t)
+
+Moving form of `Rotation(a, b, θ)`. Carries the exact moving-frame gauge of the mode
+mixing or quadrature rotation.
+"""
 function Rotation(a::Op, b::Op, θ::Real, t::Num)
     tt = time_or_throw(t)
     if is_phase_space(a)
@@ -254,17 +270,21 @@ end
 
 """
     Squeeze(a, b, r)
-    Squeeze(a, b, r, t)
 
-For two distinct Fock modes, apply
+Two-mode squeezing of distinct Fock modes, or quadrature squeezing of a canonical
+`(Position, Momentum)` pair. For Fock modes, apply
 `a ↦ cosh(r)*a + sinh(r)*b'`, `b ↦ cosh(r)*b + sinh(r)*a'`.
-For a canonical `(Position, Momentum)` pair `(x, p)`, apply
-`x ↦ exp(r)*x`, `p ↦ exp(-r)*p`.
-The timed form carries the corresponding exact moving-frame gauge.
+For a pair `(x, p)`, apply `x ↦ exp(r)*x`, `p ↦ exp(-r)*p`.
 """
 Squeeze(a::Op, b::Op, r::Real) =
     is_phase_space(a) ? quadrature_squeeze(a, b, r) : fock_two_mode_squeeze(a, b, r)
 
+"""
+    Squeeze(a, b, r, t)
+
+Moving form of `Squeeze(a, b, r)`. Carries the exact moving-frame gauge of the two-mode
+or quadrature squeezing.
+"""
 function Squeeze(a::Op, b::Op, r::Real, t::Num)
     tt = time_or_throw(t)
     if is_phase_space(a)
@@ -308,17 +328,21 @@ end
 
 """
     Displace(x, p, dx, dp)
-    Displace(x, p, dx, dp, t)
 
 Translate a canonical `(Position, Momentum)` pair by real scalar shifts,
-`x ↦ x + dx` and `p ↦ p + dp`. The timed form carries the exact Weyl moving-frame gauge,
-including its scalar phase term.
+`x ↦ x + dx` and `p ↦ p + dp`.
 """
 function Displace(x::Op, p::Op, dx::Real, dp::Real)
     phase_pair(x, p, "`Displace`")
     return quadrature_displacement(x, p, to_cnum(dx), to_cnum(dp))
 end
 
+"""
+    Displace(x, p, dx, dp, t)
+
+Moving quadrature translation `x ↦ x + dx(t)`, `p ↦ p + dp(t)`. Carries the exact Weyl
+moving-frame gauge, including its scalar phase term.
+"""
 function Displace(x::Op, p::Op, dx::Real, dp::Real, t::Num)
     phase_pair(x, p, "`Displace`")
     tt = time_or_throw(t)
@@ -349,12 +373,10 @@ end
 
 """
     Rotation(S, axis, θ)
-    Rotation(S, axis, θ, t)
 
 Rotate a Pauli or spin triple by `θ` around `axis ∈ 1:3`. If `(u, v)` are the two cyclic
 components following the fixed axis, the map is
 `u ↦ cos(θ)*u - sin(θ)*v`, `v ↦ sin(θ)*u + cos(θ)*v`; the selected axis is unchanged.
-The timed form uses the corresponding spin generator, with the Pauli `1/2` convention.
 """
 function Rotation(S::Op, axis::Integer, θ::Real)
     triple_or_throw(S)
@@ -377,6 +399,12 @@ function Rotation(S::Op, axis::Integer, θ::Real)
     return canonical_transform(action)
 end
 
+"""
+    Rotation(S, axis, θ, t)
+
+Moving Pauli or spin rotation by `θ(t)` around `axis`. The gauge uses the corresponding
+spin generator, with the Pauli `1/2` convention.
+"""
 function Rotation(S::Op, axis::Integer, θ::Real, t::Num)
     triple_or_throw(S)
     tt = time_or_throw(t)
@@ -449,13 +477,11 @@ end
 
 """
     Rotation(σ, W)
-    Rotation(σ, W, t)
 
 Transform an ordinary N-level matrix-unit basis by `σᵢⱼ ↦ W' * σᵢⱼ * W` for a square
 matrix `W`. `W` is required by contract to be unitary (`W'W = I`); satisfying that
 mathematical precondition is the caller's responsibility. The constructor validates only the
-transition family and matrix dimensions. The timed form derives the Hamiltonian gauge
-`im*Ẇ'W` entrywise with respect to `t`.
+transition family and matrix dimensions.
 """
 function Rotation(σ::Op, W::AbstractMatrix)
     U, _ = nlevel_rotation(σ, W)
@@ -483,6 +509,12 @@ function nlevel_gauge(σ::Op, W::Matrix{Coeff}, t::Num)
     return QAdd(gauge, EMPTY_INDICES)
 end
 
+"""
+    Rotation(σ, W, t)
+
+Moving N-level basis change with a time-dependent unitary `W(t)`. Derives the
+Hamiltonian gauge `im*Ẇ'W` entrywise with respect to `t`.
+"""
 function Rotation(σ::Op, W::AbstractMatrix, t::Num)
     tt = time_or_throw(t)
     U, coefficients = nlevel_rotation(σ, W)

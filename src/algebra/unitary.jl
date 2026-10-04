@@ -200,10 +200,18 @@ transform(q::QAdd, U::UnitaryTransform{DynamicTime}) = conjugate(q, U) + U.gauge
 transform(o::QSym, U::UnitaryTransform) =
     transform(single_qadd(CNUM_ONE, Op[o]), U)
 
-"""Return the Hamiltonian gauge term stored by `U`."""
+"""
+    gauge_term(U::UnitaryTransform)
+
+Return the Hamiltonian gauge term stored by `U`.
+"""
 gauge_term(U::UnitaryTransform) = U.gauge
 
-"""Return the fundamental operators transformed by `U`, in canonical order."""
+"""
+    generators(U::UnitaryTransform)
+
+Return the fundamental operators transformed by `U`, in canonical order.
+"""
 generators(U::UnitaryTransform) = copy(U.generators)
 
 function Base.inv(U::UnitaryTransform{T}) where {T}
