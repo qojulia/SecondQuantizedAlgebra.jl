@@ -89,6 +89,17 @@ import SecondQuantizedAlgebra: expim, exponential_form, phase_terms, to_num,
                     trigonometric_form(expression)
             )
         )
+
+        # A big-tier amplitude converts in both directions without leaving the exact tier.
+        huge = big(3)^50
+        phase = huge * expim(ω * t) * a
+        @test isequal(exponential_form(trigonometric_form(phase)), phase)
+        oscillation = (huge * cos(ω * t)) * a
+        @test isequal(
+            exponential_form(oscillation),
+            (huge // 2) * expim(ω * t) * a + (huge // 2) * expim(-ω * t) * a
+        )
+        @test isequal(trigonometric_form(exponential_form(oscillation)), oscillation)
     end
 
     @testset "public coefficient boundaries remain inferable" begin
