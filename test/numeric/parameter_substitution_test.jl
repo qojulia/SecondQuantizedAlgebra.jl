@@ -1,7 +1,7 @@
 using SecondQuantizedAlgebra
 import SecondQuantizedAlgebra: QSym, get_prefactor
 using QuantumOpticsBase
-using Symbolics: @variables, substitute
+using Symbolics: @variables, Num, substitute
 using Test
 
 dat(x) = dense(x).data
@@ -56,6 +56,8 @@ dat(x) = dense(x).data
 
         @test dat(to_numeric(substitute(sqrt(x) * a, Dict(x => 2.0)), b)) ≈ sqrt(2.0) * dat(A)
         @test dat(to_numeric(substitute(exp(im * ϕ) * a, Dict(ϕ => 0.5)), b)) ≈ exp(0.5im) * dat(A)
+        @test dat(to_numeric(cbrt(Num(2)) * a, b)) ≈ cbrt(2.0) * dat(A)
+        @test dat(to_numeric(cbrt(Num(-2)) * a, b)) ≈ -cbrt(2.0) * dat(A)
 
         @test dat(to_numeric(sqrt(x) * a, b; parameter = Dict(x => 2.0))) ≈ sqrt(2.0) * dat(A)
         @test dat(to_numeric(exp(im * ϕ) * a, b; parameter = Dict(ϕ => 0.5))) ≈ exp(0.5im) * dat(A)

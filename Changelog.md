@@ -18,7 +18,7 @@ This is a breaking release for coefficient exactness: whether a number is exact 
 ### Fixed
 
 - Exact coefficients stay exact when an intermediate exceeds `Int`, in products, sums, divisions and inverses, instead of overflowing or falling back to `Float64`. This affected high-order expansions with rational coefficients.
-- Numeric radicals of exact numbers are exact and canonical: `√6`, `√2·√3` and `√24/2` compare equal, `cbrt(-8)` is `-2`, `sqrt(-4)` is `2im`, and `BigInt` radicands such as `sqrt(Num(big(2)^71))` are recognized.
+- Numeric radicals of exact numbers are exact and canonical when every prime factor of the radicand is below `2^32`: `√6`, `√2·√3` and `√24/2` compare equal, `cbrt(-8)` is `-2`, `sqrt(-4)` is `2im`, and `BigInt` radicands such as `sqrt(Num(big(2)^71))` are recognized. A larger prime factor leaves the radical a symbolic leaf ([#291]).
 - Exact rationals in raw symbolic coefficients, such as the `2//5` of `-im * (2//5) * cos(ω * t)`, no longer become floats, so `phase_terms` returns exact amplitudes.
 - `conjugate` with a moving frame no longer throws on an exact non-real scalar such as `1//2 + im/3`.
 - Arrays of coefficients and operators now render as a LaTeX array through `latexify` and the `text/latex` MIME display. They previously errored.
@@ -400,5 +400,6 @@ These names keep their meaning across the migration. Code that only uses them sh
 [v0.10.1]: https://github.com/qojulia/SecondQuantizedAlgebra.jl/releases/tag/v0.10.1
 [v0.11.0]: https://github.com/qojulia/SecondQuantizedAlgebra.jl/releases/tag/v0.11.0
 [v0.12.0]: https://github.com/qojulia/SecondQuantizedAlgebra.jl/releases/tag/v0.12.0
-[v0.12.1]: https://github.com/qojulia/SecondQuantizedAlgebra.jl/releases/tag/v0.12.1
+[v0.13.0]: https://github.com/qojulia/SecondQuantizedAlgebra.jl/releases/tag/v0.13.0
 [#156]: https://github.com/qojulia/SecondQuantizedAlgebra.jl/issues/156
+[#291]: https://github.com/qojulia/SecondQuantizedAlgebra.jl/issues/291

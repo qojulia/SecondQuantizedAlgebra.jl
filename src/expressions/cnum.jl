@@ -387,7 +387,6 @@ to_cnum(x::Num) = recognize(SymbolicUtils.unwrap(x))
 to_cnum(x::Rational{Int}) = isinf(x) ? native(ComplexF64(x)) : tiered(exact_value, x, 0 // 1)
 to_cnum(x::Complex{Int}) = tiered(exact_value, real(x), imag(x))
 to_cnum(x::ExactComplex) = scalar_coeff(x)
-to_cnum(x::BigExactComplex) = scalar_coeff(x)
 @inline to_cnum(x::Int) = is_edge(x) ? exact_complex(x, 0) : native(unsafe_gaussian(x, 0, 1))
 to_cnum(x::Union{Bool, Int8, Int16, Int32, UInt8, UInt16, UInt32}) = to_cnum(Int(x))
 to_cnum(x::Complex{Bool}) = native(ExactComplex(Int(real(x)), Int(imag(x))))
@@ -1619,41 +1618,18 @@ function is_numeric_radical(x::RawExpression)::Bool
     elseif op === (^) && length(args) == 2
         base, exponent = args[1], args[2]
         (base isa RawExpression && exponent isa RawExpression) || return false
-        k = const_value(exponent)
-        is_exact_number(base) && return k isa Rational{Int} && exact_number(base) >= 0
-        return k isa Int && is_numeric_radical(base)
+        return is_exact_number(base) && const_value(exponent) isa Rational{Int} &&
+            exact_number(base) >= 0
     end
     return false
 end
 
 function radical_factor(x::RawExpression)::Coeff
-    y, k = x, 1
-    while SymbolicUtils.operation(y) === (^) && !is_exact_number(SymbolicUtils.arguments(y)[1])
-        args = SymbolicUtils.arguments(y)
-        k = Base.checked_mul(k, const_value(args[2])::Int)
-        y = args[1]::RawExpression
-    end
-    op = SymbolicUtils.operation(y)
-    args = SymbolicUtils.arguments(y)
-    c = if op === sqrt || op === cbrt
-        numeric_radical(exact_number(only(args)), op === sqrt ? 1 // 2 : 1 // 3, y)
-    else
-        numeric_radical(exact_number(args[1]), const_value(args[2])::Rational{Int}, y)
-    end
-    return isone(k) ? c : radical_power_coeff(c, k, x)
-end
-
-function radical_power_coeff(c::Coeff, k::Int, x::RawExpression)::Coeff
-    t = c.tail
-    t isa Native && return tiered(exact_power, native_scalar(c)::ExactComplex, k)
-    t isa Poly || return radical_leaf(x)
-    return tiered(monomial_power, t, k)
-end
-@inline exact_power(::Type{E}, z::ExactScalar, k::Int) where {E <: ExactScalar} =
-    as_tier(E, z)^k
-function monomial_power(::Type{E}, terms::Vector{Monomial{E}}, k::Int) where {E}
-    m = only(terms)
-    return Monomial{E}[Monomial{E}(m.scalar^k, m.syms, m.exps .* k)]
+    op = SymbolicUtils.operation(x)
+    args = SymbolicUtils.arguments(x)
+    op === sqrt && return numeric_radical(exact_number(only(args)), 1 // 2, x)
+    op === cbrt && return numeric_radical(exact_number(only(args)), 1 // 3, x)
+    return numeric_radical(exact_number(args[1]), const_value(args[2])::Rational{Int}, x)
 end
 
 @inline is_polynomial_coeff(c::Coeff) = !(c.tail isa RawSymbolicCoeff)

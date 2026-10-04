@@ -3,7 +3,7 @@ using Symbolics: Symbolics, @variables, Num
 using SymbolicUtils: SymbolicUtils
 using Test
 using LinearAlgebra: I
-import SecondQuantizedAlgebra: Coeff, to_cnum, Monomial, ExactComplex, BigExactComplex
+import SecondQuantizedAlgebra: Coeff, to_cnum, Monomial, ExactComplex, BigExactComplex, expim
 
 @testset "Symbolic coefficients" begin
     h = FockSpace(:coefficients)
@@ -245,6 +245,76 @@ import SecondQuantizedAlgebra: Coeff, to_cnum, Monomial, ExactComplex, BigExactC
         @test hash(scaled) == hash(built)
 
         @test isequal(scaled * inv(big_scale), s2)
+    end
+
+    @testset "exact radicals and tiers survive lowering and public arithmetic" begin
+        @variables g k
+        roundtrip(e) = isequal(get_prefactor(e) * a, e)
+
+        # Radicals lower to one grouped root per exponent and rebuild the same coefficient.
+        six = sqrt(Num(2)) * sqrt(Num(3)) * a
+        @test string(real(get_prefactor(six))) == "sqrt(6)"
+        @test roundtrip(six)
+        mixed = sqrt(Num(2)) * cbrt(Num(9)) * a
+        @test string(real(get_prefactor(mixed))) == "(3^(2//3))*sqrt(2)"
+        @test roundtrip(mixed)
+
+        # Two radical primes whose product exceeds Int stay separate roots.
+        p, q = 4294967291, 4294967279
+        wide = sqrt(Num(p)) * sqrt(Num(q)) * a
+        @test string(real(get_prefactor(wide))) == "sqrt($p)*sqrt($q)"
+        @test roundtrip(wide)
+        @test get_prefactor(wide * wide) == big(p) * q
+
+        # Integer parts folded out of a radical overflow into the big tier.
+        root = sqrt(Num(big(2)^127)) * a
+        @test isequal(root, big(2)^63 * sqrt(Num(2)) * a)
+        @test get_prefactor(root * root) == big(2)^127
+        @test roundtrip(root)
+        product = sqrt(Num(2^61)) * sqrt(Num(big(3)^61)) * g * a
+        @test isequal(product, big(6)^30 * sqrt(Num(6)) * g * a)
+        @test roundtrip(product)
+
+        # A big Gaussian constant times a non-polynomial coefficient.
+        huge = big(3)^50
+        left = (huge * im * a) * (cos(g + k) * a)
+        @test isequal(left, (cos(g + k) * a) * (huge * im * a))
+        @test isequal(get_prefactor(left), Complex(Num(0), huge * cos(g + k)))
+        @test isequal(get_prefactor(left) * a * a, left)
+        both = ((huge + 2im) * a) * (cos(g + k) * a)
+        @test isequal(get_prefactor(both) * a * a, both)
+
+        # Roots of a negative radicand that cannot be factored.
+        P = big(2)^127 - 1
+        real_root = cbrt(Num(-P)) * a
+        @test isequal(get_prefactor(real_root), Complex(cbrt(Num(-P)), Num(0)))
+        @test roundtrip(real_root)
+        @test get_prefactor(sqrt(Num(-P)) * a) ≈ im * sqrt(Float64(P))
+
+        # An unfactorable radical raised to a power stays a symbolic factor of the product.
+        leaf = sqrt(Num(P)) * cos(g + k) * a
+        partner = sin(g + k) * a
+        @test isequal(leaf^3 * partner, partner * leaf^3)
+        @test isequal(get_prefactor(leaf^3 * partner), get_prefactor(leaf^3) * sin(g + k))
+
+        # Cube roots inside non-polynomial coefficients still combine exactly.
+        root2 = cbrt(Num(2)) * cos(g + k) * a
+        root4 = cbrt(Num(4)) * cos(g + k) * a
+        @test isequal(root2 * root4, 2 * cos(g + k)^2 * a * a)
+        @test isequal(root4 * root4, 2 * cbrt(Num(2)) * cos(g + k)^2 * a * a)
+
+        # Only a unit-modulus phase has a magnitude, in either tier.
+        @test abs(stored_coefficient((0.6 + 0.8im) * expim(g) * a)) == 1
+        @test abs2(stored_coefficient((0.6 + 0.8im) * expim(g) * a)) == 1
+        @test_throws MethodError abs(stored_coefficient(huge * expim(g) * a))
+
+        # Floats combine with exact values in either order.
+        half = stored_coefficient(0.5 * a)
+        @test half / 2.0 == 0.25
+        @test inv(half) == 2
+        @test isequal(g * a / 3 + 0.5 * g * a, 0.5 * g * a + g * a / 3)
+        mixed_sum = get_prefactor(substitute(g * a / 3 + 0.5 * g * a, Dict(g => 1)))
+        @test Symbolics.value(real(mixed_sum)) ≈ 5 / 6
     end
 
     @testset "symbolic arithmetic stays faithful" begin

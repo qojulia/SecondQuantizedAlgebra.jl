@@ -248,7 +248,9 @@ The representation holds four invariants:
   the monomial, so an overflowing fold moves to the big tier instead of falling back to
   `Float64`. A `BigInt` radicand that fully factors below the trial bound is recognized the
   same way an `Int`-sized one is; only a radicand that cannot be fully factored stays an
-  unevaluated symbolic leaf.
+  unevaluated symbolic leaf. Such a leaf lives in the raw tier, which has no canonical form,
+  so equal products of it need not compare `isequal` or cancel
+  ([#291](https://github.com/qojulia/SecondQuantizedAlgebra.jl/issues/291)).
 
 ## QAdd internals
 
