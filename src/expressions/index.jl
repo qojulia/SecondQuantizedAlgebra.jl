@@ -309,6 +309,15 @@ function collect_identical_zeros!(acc, x)
     return acc
 end
 
+function contains_leaf(x::RawExpression, v::RawExpression)::Bool
+    isequal(x, v) && return true
+    SymbolicUtils.iscall(x) || return false
+    for a in SymbolicUtils.arguments(x)
+        a isa RawExpression && contains_leaf(a, v) && return true
+    end
+    return false
+end
+
 function depends_on_index_term(c::CNum, ops::Vector{Op}, idx::Index)
     for op in ops
         op.index == idx && return true
@@ -319,9 +328,7 @@ function depends_on_index_term(c::CNum, ops::Vector{Op}, idx::Index)
     # instead of materializing the whole coefficient to a `Complex{Num}` first.
     if c.tail isa Poly
         for m in c.tail.terms, s in m.syms
-            # wrap the atom in `Num` so `get_variables` hits its type-stable method
-            # (the abstract-`BasicSymbolic` overload dispatches dynamically)
-            any(v -> isequal(v, isym), Symbolics.get_variables(Num(s))) && return true
+            contains_leaf(s::RawExpression, isym::RawExpression) && return true
         end
         return false
     end
