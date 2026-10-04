@@ -9,6 +9,13 @@
 
 to_numeric_lazy(::QExpr, ::NumericContext) = qexpr_numeric_error()
 
+average(::QExpr) = throw(
+    ArgumentError(
+        "averages of formal operator functions are not defined; " *
+            "call `taylor(expr, 0:n)` first and average the resulting `QAdd`",
+    ),
+)
+
 to_numeric_translated(
     ::QExpr, ::NumericContext, parameter, time_parameter, op_type,
 ) = qexpr_numeric_error()
