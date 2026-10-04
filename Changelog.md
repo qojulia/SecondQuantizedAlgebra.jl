@@ -10,6 +10,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 This is a breaking release for coefficient exactness: whether a number is exact is now a property of its type.
 
+### Added
+
+- Formal operator functions `sin(A)`, `cos(A)` and Hermitian-only `expim(A)` return a new `QExpr` type that stays unexpanded until `taylor(expr, 0:n)` lowers it to a `QAdd` with exact coefficients ([#250](https://github.com/qojulia/SecondQuantizedAlgebra.jl/issues/250)).
+
 ### Changed (breaking)
 
 - An integer-valued float such as `2.0` stays a float and no longer combines exactly with rationals, so `(2.0 * a) * (1//3)` has a float coefficient. A `ComplexF64` coefficient now arises only from floating-point input or division by an exact zero.
