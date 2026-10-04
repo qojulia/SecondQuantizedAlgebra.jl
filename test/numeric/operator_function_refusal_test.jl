@@ -16,6 +16,7 @@ using Test
             () -> to_numeric(expr, ψ),
             () -> numeric_average(expr, ψ),
             () -> SecondQuantizedAlgebra.expect(expr, ψ),
+            () -> average(expr),
         )
         err = try
             thunk()

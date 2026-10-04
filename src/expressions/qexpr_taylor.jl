@@ -179,7 +179,8 @@ Explicitly lower formal `sin`, `cos`, and `expim` nodes to Maclaurin polynomials
 For the first operator-function API, `ns` must be a prefix range `0:n`.
 Coefficients remain exact and generated products use the ordinary canonical `QAdd`
 pipeline. The cutoff is applied independently to each formal-function node, not as a
-global total-degree cutoff on the final polynomial.
+global total-degree cutoff on the final polynomial, so `taylor(sin(A)^2, 0:1)` is `A^2`
+and `taylor(sin(A)^2 + cos(A)^2, 0:n)` is not `1`.
 
 Each formal function must have a polynomial argument with no bound `QAdd` summation
 scope. Nested formal functions and powers of bound sums are rejected explicitly rather
