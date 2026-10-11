@@ -108,10 +108,8 @@ function Base.isone(q::QAdd)
     length(q.arguments) == 1 || return false
     (term, c) = first(q.arguments)
     isempty(term.ops) || return false
-    re, im = realimag(c)
-    iszero_num(im) || return false
-    v = SymbolicUtils.unwrap(re)
-    return (v isa Number && isone(v)) || isequal(re, NUM_ONE)
+    is_native(c) && return isone(native_scalar(c))
+    return isone(c)
 end
 
 # `indices` is a multiset of bound sum indices (`Σ_iΣ_j ≡ Σ_jΣ_i`); compare/hash it

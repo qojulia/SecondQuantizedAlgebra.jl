@@ -1317,8 +1317,11 @@ function to_num(c::Coeff)
     t isa Poly && return poly_to_num(t)
     expr = normalize_phase(t.expr)
     re, im = cnum_is_real(c) ? (expr, 0) : raw_realimag(expr)
-    return Complex(Num(normalize_phase(re)), Num(normalize_phase(im)))
+    return Complex(raw_part_num(re), raw_part_num(im))
 end
+
+raw_part_num(x::RawExpression) = Num(normalize_phase(x))
+raw_part_num(x::Real) = Num(x)
 
 Base.show(io::IO, c::Coeff) = show(io, to_num(c))
 
