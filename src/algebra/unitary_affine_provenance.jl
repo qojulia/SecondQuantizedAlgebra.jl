@@ -69,7 +69,7 @@ function validate_transform_substitution_rules(rules::AbstractDict)
                 "operator substitutions belong on the transformed expression",
         )
     end
-    return nothing
+    return rules
 end
 
 # Keep scalar substitutions closed under conjugation so exact rational/complex values replace

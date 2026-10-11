@@ -134,7 +134,7 @@ function check_time_variables(c::Complex{Num}, basevars)
     for v in vars
         any(b -> isequal(v, b), base_unwrapped) || push!(missing, v)
     end
-    isempty(missing) && return nothing
+    isempty(missing) && return c
     throw(
         ArgumentError(
             "time-dependent coefficient `$c` depends on variables without time values: " *

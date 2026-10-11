@@ -169,7 +169,7 @@ function phase_pair(x::Op, p::Op, what::AbstractString)
     site_key(x) == site_key(p) || unitary_error(
         "$what expects both quadratures on the same site",
     )
-    return nothing
+    return (x, p)
 end
 
 function fock_mode_rotation(a::Op, b::Op, θ::Real)
@@ -368,7 +368,7 @@ function triple_or_throw(S::Op)
     (is_pauli(S) || is_spin(S)) || unitary_error(
         "`Rotation` expects a Pauli or Spin operator, got $(S.kind)",
     )
-    return nothing
+    return S
 end
 
 """

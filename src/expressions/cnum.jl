@@ -1094,7 +1094,7 @@ function sort_factors!(syms::Vector{RawExpression}, exps::Vector{Rational{Int}})
         end
         syms[j + 1] = s; exps[j + 1] = e
     end
-    return nothing
+    return syms
 end
 
 function merge_factor_list(syms::Vector{RawExpression}, exps::Vector{Rational{Int}})
@@ -1847,12 +1847,13 @@ end
 
 Base.:^(base::Coeff, n::Integer) = pow_cnum_integer(base, Int(n))
 
+# Rewriters return `x` itself when no identity applies.
 @inline function rewrite_complex_slots(x)
-    x isa SymbolicUtils.BasicSymbolic || return nothing
-    SymbolicUtils.iscall(x) || return nothing
-    SymbolicUtils.operation(x) === complex || return nothing
+    x isa SymbolicUtils.BasicSymbolic || return x
+    SymbolicUtils.iscall(x) || return x
+    SymbolicUtils.operation(x) === complex || return x
     args = SymbolicUtils.arguments(x)
-    length(args) == 2 || return nothing
+    length(args) == 2 || return x
     return args[1] + im * args[2]
 end
 
@@ -1889,14 +1890,12 @@ end
     return mul_cnum(mul_cnum(CNUM_NEG_IM, CNUM_HALF), difference)
 end
 
-function phase_from_exponential_argument(argument)
-    exponent = recognize(argument)
-    real_part, imaginary_part = realimag(exponent)
-    iszero_num(real_part) || return nothing
-    imaginary = SymbolicUtils.unwrap(imaginary_part)
-    SymbolicUtils.symtype(imaginary) <: Real || return nothing
-    return phase_coeff(imaginary_part)
+# `exp(argument)` is a unit phase when the argument is `im` times a real expression.
+function is_exponential_phase(argument)
+    real_part, imaginary_part = realimag(recognize(argument))
+    return iszero_num(real_part) && SymbolicUtils.symtype(SymbolicUtils.unwrap(imaginary_part)) <: Real
 end
+phase_from_exponential_argument(argument) = phase_coeff(last(realimag(recognize(argument))))
 
 function exponential_tree(x)
     u = SymbolicUtils.unwrap(x)
@@ -1906,8 +1905,7 @@ function exponential_tree(x)
     op = SymbolicUtils.operation(u)
     args = SymbolicUtils.arguments(u)
     if op === exp && length(args) == 1
-        phase = phase_from_exponential_argument(only(args))
-        phase === nothing || return phase
+        is_exponential_phase(only(args)) && return phase_from_exponential_argument(only(args))
         return recognize(u)
     elseif op === cis && length(args) == 1
         return phase_coeff(only(args))
@@ -1999,7 +1997,7 @@ function trigonometric_monomial(m::Monomial)
 end
 
 @inline function rewrite_phase_to_trig(x)
-    is_phase(x) || return nothing
+    is_phase(x) || return x
     argument = only(SymbolicUtils.arguments(x))
     return cos(argument) + im * sin(argument)
 end

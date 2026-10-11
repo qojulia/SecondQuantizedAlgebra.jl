@@ -163,7 +163,7 @@ end
 function SQA.numeric_materialize(
         ::QuantumOpticsBackend,
         op::QOB.LazySum{BL, BR, Vector{ComplexF64}, Vector{QOB.AbstractOperator}},
-        ::Nothing,
+        ::SQA.EagerOperator,
     ) where {BL, BR}
     rows, cols, vals = Int[], Int[], ComplexF64[]
     for (factor, term) in zip(op.factors, op.operators)
@@ -183,7 +183,7 @@ function append_scaled!(
     end
     return rows
 end
-SQA.numeric_materialize(::QuantumOpticsBackend, op, ::Nothing) = QOB.sparse(op)
+SQA.numeric_materialize(::QuantumOpticsBackend, op, ::SQA.EagerOperator) = QOB.sparse(op)
 SQA.numeric_materialize(::QuantumOpticsBackend, op, op_type) = op_type(op)
 
 # --- expectation -----------------------------------------------------------------------

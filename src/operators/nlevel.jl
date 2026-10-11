@@ -51,8 +51,8 @@ Look up the integer index for a symbolic level name.
 """
 function level_index(h::NLevelSpace, s::Symbol)
     isempty(h.levels) && throw(ArgumentError("NLevelSpace $(h.name) has no symbolic levels"))
-    idx = findfirst(==(s), h.levels)
-    idx === nothing && throw(ArgumentError("Level :$s not found in $(h.levels)"))
+    idx = position_of(==(s), h.levels)
+    iszero(idx) && throw(ArgumentError("Level :$s not found in $(h.levels)"))
     return idx
 end
 
@@ -89,8 +89,8 @@ Base.hash(a::CollectiveNLevelSpace, h::UInt) =
 
 function level_index(h::CollectiveNLevelSpace, s::Symbol)
     isempty(h.levels) && throw(ArgumentError("CollectiveNLevelSpace $(h.name) has no symbolic levels"))
-    idx = findfirst(==(s), h.levels)
-    idx === nothing && throw(ArgumentError("Level :$s not found in $(h.levels)"))
+    idx = position_of(==(s), h.levels)
+    iszero(idx) && throw(ArgumentError("Level :$s not found in $(h.levels)"))
     return idx
 end
 

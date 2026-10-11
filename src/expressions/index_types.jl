@@ -102,16 +102,16 @@ function (i::Index)(k::Integer)
 end
 
 """
-    index_slot(x) -> Union{Int, Nothing}
-    index_slot(idx::Index) -> Union{Int, Nothing}
+    index_slot(x) -> Int
+    index_slot(idx::Index) -> Int
 
-Concrete slot integer of a per-slot index, or `nothing` for an abstract index.
+Concrete slot integer of a per-slot index, or `0` for an abstract index.
 On an [`Index`](@ref) reads the `slot` field directly; on a symbol reads the
 `IndexSlot` metadata minted by `(i::Index)(k)`, so consumers can recover the
 position `k` without parsing the symbol's name.
 """
-index_slot(idx::Index) = idx.slot == 0 ? nothing : Int(idx.slot)
-index_slot(x) = SymbolicUtils.getmetadata(SymbolicUtils.unwrap(x), IndexSlot, nothing)
+index_slot(idx::Index) = Int(idx.slot)
+index_slot(x) = SymbolicUtils.getmetadata(SymbolicUtils.unwrap(x), IndexSlot, 0)
 
 """
     rename(idx::Index, name::Symbol) -> Index

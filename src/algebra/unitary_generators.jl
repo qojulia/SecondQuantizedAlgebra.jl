@@ -8,13 +8,13 @@ function hermitian_generator_or_throw(G::QAdd)
 end
 
 function phase_space_site_basis(operators::Vector{Op})
-    position_index = findfirst(is_position, operators)
-    momentum_index = findfirst(is_momentum, operators)
-    position_index === nothing && unitary_error(
+    position_index = position_of(is_position, operators)
+    momentum_index = position_of(is_momentum, operators)
+    iszero(position_index) && unitary_error(
         "`UnitaryTransform(G, θ)` cannot infer a missing position rule for a phase-space " *
             "site; include both canonical quadratures in the generator",
     )
-    momentum_index === nothing && unitary_error(
+    iszero(momentum_index) && unitary_error(
         "`UnitaryTransform(G, θ)` cannot infer a missing momentum rule for a phase-space " *
             "site; include both canonical quadratures in the generator",
     )
@@ -32,7 +32,7 @@ function closed_adjoint_basis(G::QAdd)
             "`UnitaryTransform(G, θ)` does not support constrained generator terms",
         )
         for operator in term.ops
-            (has_index(operator.index) && index_slot(operator.index) === nothing) &&
+            (has_index(operator.index) && iszero(index_slot(operator.index))) &&
                 unitary_error(
                 "`UnitaryTransform(G, θ)` does not yet support free indexed families",
             )
@@ -64,11 +64,11 @@ function closed_adjoint_basis(G::QAdd)
         positions = sort!(Op[operator for operator in raw if is_position(operator)])
         momenta = Op[]
         for position in positions
-            found = findfirst(
+            found = position_of(
                 operator -> is_momentum(operator) &&
                     site_key(operator) == site_key(position), raw,
             )
-            found === nothing && unitary_error(
+            iszero(found) && unitary_error(
                 "closed-adjoint basis lost the momentum paired with `$position`",
             )
             push!(momenta, raw[found])
@@ -195,16 +195,12 @@ function push_exact_relation!(
             isequal(existing.lo, relation.lo) && existing.sign == relation.sign,
         relations,
     ) || push!(relations, relation)
-    return nothing
+    return relations
 end
 
-function real_scale_and_unit_phase(c::CNum)
-    terms = phase_terms(c)
-    length(terms) == 1 || return nothing
-    term = only(terms)
-    coefficient_is_real(term.amplitude) || return nothing
-    return term.amplitude, phase(term.phase)
-end
+# A single phase term with a real amplitude: `rate * expim(φ)`.
+is_real_scaled_phase(terms::Vector{PhaseTerm}) =
+    length(terms) == 1 && coefficient_is_real(only(terms).amplitude)
 
 function exact_two_by_two_flow!(
         result::Matrix{CNum}, flow::Matrix{CNum}, i::Int, j::Int, θ::Real,
@@ -225,7 +221,7 @@ function exact_two_by_two_flow!(
         result[i, j] = sine
         result[j, i] = neg_cnum(sine)
         result[j, j] = cosine
-        return nothing
+        return result
     end
 
     if coefficient_equal(lower, conj_cnum(upper))
@@ -238,7 +234,7 @@ function exact_two_by_two_flow!(
             result[i, j] = mul_cnum(upper, sh)
             result[j, i] = mul_cnum(lower, sh)
             result[j, j] = ch
-            return nothing
+            return result
         elseif coefficient_is_real(upper) && coefficient_equal(lower, upper)
             angle = exact_real_argument(upper, θ)
             ch = to_cnum(cosh(angle))
@@ -248,12 +244,12 @@ function exact_two_by_two_flow!(
             result[i, j] = sh
             result[j, i] = sh
             result[j, j] = ch
-            return nothing
+            return result
         end
 
-        scaled_phase = real_scale_and_unit_phase(upper)
-        if scaled_phase !== nothing
-            rate, direction = scaled_phase
+        terms = phase_terms(upper)
+        if is_real_scaled_phase(terms)
+            rate, direction = only(terms).amplitude, phase(only(terms).phase)
             angle = exact_real_argument(rate, θ)
             ch = to_cnum(cosh(angle))
             sh = to_cnum(sinh(angle))
@@ -262,7 +258,7 @@ function exact_two_by_two_flow!(
             result[i, j] = mul_cnum(direction, sh)
             result[j, i] = mul_cnum(conj_cnum(direction), sh)
             result[j, j] = ch
-            return nothing
+            return result
         end
     end
 
@@ -328,7 +324,7 @@ function operator_affine_structure(o::Op)
     is_phase_space(o) && return AFFINE_SYMPLECTIC_PHASE_SPACE
     (is_pauli(o) || is_spin(o)) && return AFFINE_ORTHOGONAL
     is_transition(o) && return AFFINE_UNITARY_LINEAR
-    return nothing
+    return AFFINE_NONE
 end
 
 function generator_structure_parts(G::QAdd)
@@ -337,7 +333,7 @@ function generator_structure_parts(G::QAdd)
     for (term, coefficient) in G
         isempty(term.ops) && continue
         structure = operator_affine_structure(first(term.ops))
-        structure === nothing && return QAdd[G]
+        structure === AFFINE_NONE && return QAdd[G]
         for operator in term.ops
             operator_affine_structure(operator) === structure || return QAdd[G]
         end
@@ -353,8 +349,7 @@ function generator_structure_parts(G::QAdd)
             AFFINE_ORTHOGONAL,
             AFFINE_UNITARY_LINEAR,
         )
-        terms = get(groups, structure, nothing)
-        terms === nothing || push!(parts, QAdd(terms, EMPTY_INDICES))
+        haskey(groups, structure) && push!(parts, QAdd(groups[structure], EMPTY_INDICES))
     end
     return parts
 end

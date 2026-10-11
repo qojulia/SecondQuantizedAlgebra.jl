@@ -168,8 +168,9 @@ the result is zero. Zero coefficients are never stored, so the dict never needs
 a separate cleanup pass.
 """
 function addto_key!(d::QTermDict, term::QTerm, c::CNum)
-    existing = get(d, term, nothing)
-    if existing === nothing
+    # Zero is never stored, so it doubles as the "absent" default.
+    existing = get(d, term, CNUM_ZERO)
+    if existing === CNUM_ZERO
         iszero_cnum(c) && return d
         d[term] = c
         return d

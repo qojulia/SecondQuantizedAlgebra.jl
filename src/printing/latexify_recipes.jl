@@ -39,10 +39,8 @@ end
 # operator and the trailing characters render as stray italic letters.
 function latex_name(name)
     s = string(name)
-    idx = findfirst('_', s)
-    idx === nothing && return s
-    head = s[1:prevind(s, idx)]
-    rest = s[nextind(s, idx):end]
+    occursin('_', s) || return s
+    head, rest = split(s, '_'; limit = 2)
     rest_escaped = replace(rest, '_' => "\\_")
     return string(head, "_{\\mathrm{", rest_escaped, "}}")
 end

@@ -18,7 +18,7 @@ residual (e.g. a Spin commutator's contracted op meeting a same-site neighbor).
             end
         end
     end
-    return nothing
+    return out
 end
 
 """
@@ -31,7 +31,7 @@ Re-establish canonical form: sort, then run the pipeline.
     )
     partial_sort!(ops, ne)
     stream!(out, ops, c, ne)
-    return nothing
+    return out
 end
 
 """
@@ -58,7 +58,7 @@ indices may collapse).
     else
         canonicalize!(out, ops, c, ne)
     end
-    return nothing
+    return out
 end
 
 function distinct_op_indices(ops::Vector{Op})
@@ -80,7 +80,7 @@ function depends_on_index_ops(c::CNum, ops::Vector{Op}, idx::Index)
 end
 
 """
-    accumulate_with_diag!(out, ops, c, sum_indices, ne) -> nothing
+    accumulate_with_diag!(out, ops, c, sum_indices, ne) -> out
 
 When summing over indices that may coincide with another operator's index, emit
 both the off-diagonal contribution (under `ne ∪ {(sum_idx, ext_idx)}` enforcing
@@ -95,7 +95,7 @@ function accumulate_with_diag!(
     distinct = distinct_op_indices(ops)
     if length(distinct) < 2
         canonicalize!(out, copy(ops), c, ne)
-        return nothing
+        return out
     end
 
     # When both indices are bound, the two directions (i→j and j→i) describe
@@ -118,7 +118,7 @@ function accumulate_with_diag!(
 
     if isempty(diag_pairs)
         canonicalize!(out, copy(ops), c, ne)
-        return nothing
+        return out
     end
 
     # Off-diagonal: canonicalize under ne augmented with every (sum, ext) pair,
@@ -157,7 +157,7 @@ function accumulate_with_diag!(
             canonicalize!(out, sub_ops, sub_c, sub_ne)
         end
     end
-    return nothing
+    return out
 end
 
 """
@@ -182,7 +182,7 @@ function emit_scaled_by_scope!(
         end
         addto_key!(out, copy_key(term), coef)
     end
-    return nothing
+    return out
 end
 
 function Base.:*(a::QSym, b::QSym)

@@ -58,7 +58,7 @@ function validate_fock_frame_time(data::FockLinearReference, t::Num)
         "`DisplacementFrame` requires a time-independent oscillator frequency; " *
             "got `$(to_num(data.frequency))`",
     )
-    return nothing
+    return data
 end
 
 function harmonic_frequency(monomial::Monomial, t::Num)
@@ -280,7 +280,7 @@ function validate_quadrature_frame_time(data::QuadratureLinearReference, t::Num)
                 "got `$(to_num(coefficient))`",
         )
     end
-    return nothing
+    return data
 end
 
 @noinline function quadrature_resonance_error(

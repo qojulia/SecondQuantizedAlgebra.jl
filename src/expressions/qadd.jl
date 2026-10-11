@@ -239,10 +239,12 @@ Look up the prefactor for a given operator sequence. Returns zero if absent.
 Throws if more than one constrained term shares the same operator sequence.
 """
 function Base.getindex(q::QAdd, key::AbstractVector{<:QSym})
-    found = nothing
+    found = CNUM_ZERO
+    matches = 0
     for (term, c) in q.arguments
         term.ops == key || continue
-        found === nothing || throw(
+        matches += 1
+        matches > 1 && throw(
             ArgumentError(
                 "operator sequence has multiple constrained terms; iterate `q.arguments` " *
                     "or `sorted_arguments(q)` to inspect them explicitly"
@@ -250,7 +252,6 @@ function Base.getindex(q::QAdd, key::AbstractVector{<:QSym})
         )
         found = c
     end
-    found === nothing && return to_num(CNUM_ZERO)
     return to_num(found)
 end
 

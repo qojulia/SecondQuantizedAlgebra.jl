@@ -77,7 +77,7 @@ end
 # Project the raw number of terms before allocating a binomial. Canonicalization can make
 # this much shorter (and often reduces it to one), so the projection is only a safety gate;
 # the `gated` length decision is made on the canonical result afterwards.
-function projected_relation_terms(terms::Vector{<:Monomial}, hi)
+function exceeds_relation_budget(terms::Vector{<:Monomial}, hi)
     projected = 0
     for m in terms
         i = find_factor(m, hi)
@@ -86,10 +86,10 @@ function projected_relation_terms(terms::Vector{<:Monomial}, hi)
         else
             1
         end
-        add > MAX_RELATION_TERMS - projected && return nothing
+        add > MAX_RELATION_TERMS - projected && return true
         projected += add
     end
-    return projected
+    return false
 end
 
 # `hi^e -> (1 + sign*lo^2)^(e ÷ 2) * hi^(e % 2)`, term by term. Only integer exponents
@@ -103,7 +103,7 @@ function reduce_pythagorean(terms::Vector{Monomial{E}}, hi, lo, sign::Int8) wher
         end
     end
     reducible || return (terms, false)
-    projected_relation_terms(terms, hi) === nothing && return (terms, false)
+    exceeds_relation_budget(terms, hi) && return (terms, false)
     out = Monomial{E}[]
     pow = Monomial{E}[]
     last_k = -1   # terms of one expression almost always share an exponent
@@ -163,13 +163,9 @@ end
     return (s, false)
 end
 
-# The sole argument of a one-argument call, else `nothing`.
-@inline function unary_arg(x)
-    (x isa SymbolicUtils.BasicSymbolic && SymbolicUtils.iscall(x)) || return nothing
-    args = SymbolicUtils.arguments(x)
-    length(args) == 1 || return nothing
-    return args[1]
-end
+@inline is_unary_call(x) =
+    x isa SymbolicUtils.BasicSymbolic && SymbolicUtils.iscall(x) &&
+    length(SymbolicUtils.arguments(x)) == 1
 
 struct TrigKey
     arg_id::UInt
@@ -200,8 +196,8 @@ function trig_relations!(rels::Vector{ParamRelation}, terms::Vector{<:Monomial})
     heads = TrigHead[]
     for m in terms, s in m.syms
         core, wrapped = strip_conj(s)
-        arg = unary_arg(core)
-        arg isa SymbolicUtils.BasicSymbolic || continue
+        is_unary_call(core) || continue
+        arg = only(SymbolicUtils.arguments(core))
         op = SymbolicUtils.operation(core)
         family = (op === cos || op === sin) ? UInt8(1) :
             ((op === cosh || op === sinh) ? UInt8(2) : UInt8(0))
@@ -243,7 +239,7 @@ function sort_rels!(rels::Vector{ParamRelation}, from::Int)
         end
         rels[j + 1] = r
     end
-    return nothing
+    return rels
 end
 
 # Empty -> `CNUM_ZERO`; a `Poly` never reports itself zero.
@@ -376,8 +372,8 @@ function raw_uses_trig_relation(x, r::ParamRelation)
 end
 
 function collect_trig!(store::Vector{RawExpression}, x)
-    x isa SymbolicUtils.BasicSymbolic || return nothing
-    SymbolicUtils.iscall(x) || return nothing
+    x isa SymbolicUtils.BasicSymbolic || return store
+    SymbolicUtils.iscall(x) || return store
     args = SymbolicUtils.arguments(x)
     op = SymbolicUtils.operation(x)
     if length(args) == 1 && (op === cos || op === sin || op === cosh || op === sinh)
@@ -389,12 +385,12 @@ function collect_trig!(store::Vector{RawExpression}, x)
             end
         end
         duplicate || push!(store, x)
-        return nothing
+        return store
     end
     for arg in args
         collect_trig!(store, arg)
     end
-    return nothing
+    return store
 end
 
 function sym_trig_relations!(rels::Vector{ParamRelation}, c::Coeff)

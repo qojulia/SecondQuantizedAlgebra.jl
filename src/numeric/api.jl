@@ -21,10 +21,10 @@ The representation contract is independent of the expression shape:
 
 | Input | `op_type` | Result |
 |:--|:--|:--|
-| static | `nothing` (default) | ordinary eager backend operator |
+| static | `EagerOperator()` (default) | ordinary eager backend operator |
 | static | `identity` | backend's lazy assembly |
 | static | another callable | backend-defined representation |
-| time-dependent | `nothing` or `identity` | native time-dependent operator |
+| time-dependent | `EagerOperator()` or `identity` | native time-dependent operator |
 
 Both bundled backends use sparse storage for the default static result. Examples of explicit
 conversions are `dense` for QuantumOptics and `QuantumToolbox.to_dense` for QuantumToolbox.
@@ -45,7 +45,7 @@ Keyword arguments:
 - `operators=Dict()`: replacements for individual symbolic operators. Missing adjoints are
   inferred when `adjoint_ops=true` (the default). Positional `d` supplies exact replacements
   without this inference.
-- `op_type=nothing`: representation selection as described above.
+- `op_type=EagerOperator()`: representation selection as described above.
 
 `dims` follows the symbolic space convention: a Fock value is a cutoff, so `5` creates a
 six-dimensional space. In contrast, QuantumToolbox's native `to_numeric(op, dims)`
@@ -77,20 +77,20 @@ function to_numeric end
 # The positional forms always materialize `sparse` (`op_type` is only on the keyword form).
 
 to_numeric(op::Op, b::Basis, d::AbstractDict{<:QSym} = NO_SUBS) =
-    numeric_materialize(QuantumOpticsBackend(), numeric_leaf(op, NumericContext(QuantumOpticsBackend(), b, d)), nothing)
+    numeric_materialize(QuantumOpticsBackend(), numeric_leaf(op, NumericContext(QuantumOpticsBackend(), b, d)), EagerOperator())
 
 to_numeric(q::QAdd, b::Basis, d::AbstractDict{<:QSym} = NO_SUBS) =
-    numeric_materialize(QuantumOpticsBackend(), to_numeric_static(q, NumericContext(QuantumOpticsBackend(), b, d)), nothing)
+    numeric_materialize(QuantumOpticsBackend(), to_numeric_static(q, NumericContext(QuantumOpticsBackend(), b, d)), EagerOperator())
 
 to_numeric(x::Number, b::Basis, ::AbstractDict{<:QSym} = NO_SUBS) =
-    numeric_materialize(QuantumOpticsBackend(), to_complex(x) * numeric_identity(QuantumOpticsBackend(), b), nothing)
+    numeric_materialize(QuantumOpticsBackend(), to_complex(x) * numeric_identity(QuantumOpticsBackend(), b), EagerOperator())
 
 # --- keyword form on an explicit basis -------------------------------------------------
 
 function to_numeric(
         op::QField, b::Basis;
         parameter = Dict(), time_parameter = NO_TIME_PARAMETER,
-        operators = Dict{QSym, Any}(), adjoint_ops = true, op_type = nothing,
+        operators = Dict{QSym, Any}(), adjoint_ops = true, op_type = EagerOperator(),
     )
     return to_numeric_kw(QuantumOpticsBackend(), op, b; parameter, time_parameter, operators, adjoint_ops, op_type)
 end
@@ -98,7 +98,7 @@ end
 function to_numeric(
         x::Union{Number, SymbolicUtils.BasicSymbolic}, b::Basis;
         parameter = Dict(), time_parameter = NO_TIME_PARAMETER,
-        operators = Dict{QSym, Any}(), adjoint_ops = true, op_type = nothing,
+        operators = Dict{QSym, Any}(), adjoint_ops = true, op_type = EagerOperator(),
     )
     return to_numeric_kw(QuantumOpticsBackend(), x, b; parameter, time_parameter, operators, adjoint_ops, op_type)
 end
@@ -109,7 +109,7 @@ function to_numeric(
         op, h::H, dims;
         backend::B = default_backend(),
         parameter = Dict(), time_parameter = NO_TIME_PARAMETER,
-        operators = Dict{QSym, Any}(), adjoint_ops = true, op_type = nothing,
+        operators = Dict{QSym, Any}(), adjoint_ops = true, op_type = EagerOperator(),
     ) where {H <: HilbertSpace, B <: NumericBackend}
     b = numeric_basis(backend, h, dims)
     return to_numeric_kw(backend, op, b; parameter, time_parameter, operators, adjoint_ops, op_type)

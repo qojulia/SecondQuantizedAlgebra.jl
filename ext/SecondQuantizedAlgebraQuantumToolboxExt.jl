@@ -282,11 +282,11 @@ end
 # materialization (op_type applied once at the top of `to_numeric`)
 # =======================================================================================
 
-# The default (`nothing`) has the same semantics as QuantumOptics: return an eager sparse
+# The default (`EagerOperator()`) has the same semantics as QuantumOptics: return an eager sparse
 # backend operator. `op_type = identity` is the explicit opt-in to the lazily assembled
 # `QobjEvo`/`VecSum`. Other callables are applied to an eager `QuantumObject`;
 # `SciMLOperators.concretize` is special-cased to return its raw matrix as advertised.
-SQA.numeric_materialize(::QuantumToolboxBackend, op, ::Nothing) = QTB.to_sparse(qtb_eager(op))
+SQA.numeric_materialize(::QuantumToolboxBackend, op, ::SQA.EagerOperator) = QTB.to_sparse(qtb_eager(op))
 function SQA.numeric_materialize(::QuantumToolboxBackend, op, op_type)
     op_type === identity && return op
     eager = qtb_eager(op)
@@ -411,19 +411,19 @@ SQA.to_numeric(op::Op, dims::QTBDims, d::AbstractDict{<:SQA.QSym} = SQA.NO_SUBS)
         SQA.single_qadd(SQA.CNUM_ONE, Op[op]),
         SQA.NumericContext(QuantumToolboxBackend(), dims, d),
     ),
-    nothing,
+    SQA.EagerOperator(),
 )
 SQA.to_numeric(q::SQA.QAdd, dims::QTBDims, d::AbstractDict{<:SQA.QSym} = SQA.NO_SUBS) =
     SQA.numeric_materialize(
     QuantumToolboxBackend(),
     SQA.to_numeric_static(q, SQA.NumericContext(QuantumToolboxBackend(), dims, d)),
-    nothing,
+    SQA.EagerOperator(),
 )
 SQA.to_numeric(x::Number, dims::QTBDims, ::AbstractDict{<:SQA.QSym} = SQA.NO_SUBS) =
     SQA.numeric_materialize(
     QuantumToolboxBackend(),
     SQA.to_complex(x) * SQA.numeric_identity(QuantumToolboxBackend(), dims),
-    nothing,
+    SQA.EagerOperator(),
 )
 
 # Indexed positional dims form (the QTB analog of `to_numeric(q, basis, sites, …)`).
@@ -438,14 +438,14 @@ SQA.to_numeric(
 function SQA.to_numeric(
         op::SQA.QField, dims::QTBDims;
         parameter = Dict(), time_parameter = SQA.NO_TIME_PARAMETER,
-        operators = Dict{SQA.QSym, Any}(), adjoint_ops = true, op_type = nothing,
+        operators = Dict{SQA.QSym, Any}(), adjoint_ops = true, op_type = SQA.EagerOperator(),
     )
     return SQA.to_numeric_kw(QuantumToolboxBackend(), op, dims; parameter, time_parameter, operators, adjoint_ops, op_type)
 end
 function SQA.to_numeric(
         x::Union{Number, BasicSymbolic}, dims::QTBDims;
         parameter = Dict(), time_parameter = SQA.NO_TIME_PARAMETER,
-        operators = Dict{SQA.QSym, Any}(), adjoint_ops = true, op_type = nothing,
+        operators = Dict{SQA.QSym, Any}(), adjoint_ops = true, op_type = SQA.EagerOperator(),
     )
     return SQA.to_numeric_kw(QuantumToolboxBackend(), x, dims; parameter, time_parameter, operators, adjoint_ops, op_type)
 end

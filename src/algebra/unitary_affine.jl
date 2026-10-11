@@ -175,10 +175,10 @@ function canonical_block_basis(structure::AffineStructure, raw::Vector{Op})
         positions = sort!(unique(Op[generator for generator in raw if is_position(generator)]))
         momenta = Op[]
         for x in positions
-            found = findfirst(
+            found = position_of(
                 p -> is_momentum(p) && site_key(p) == site_key(x), raw,
             )
-            found === nothing && unitary_error(
+            iszero(found) && unitary_error(
                 "phase-space affine composition lost the momentum paired with `$x`",
             )
             push!(momenta, raw[found])
@@ -220,15 +220,9 @@ function extend_blocks(blocks::Vector{AffineBlock}, basis::Vector{Op})
     return linear, shift
 end
 
-function subset_positions(subset::Vector{Op}, superset::Vector{Op})
-    positions = Vector{Int}(undef, length(subset))
-    for i in eachindex(subset)
-        position = findfirst(==(subset[i]), superset)
-        position === nothing && return nothing
-        positions[i] = position
-    end
-    return positions
-end
+is_subset_basis(subset::Vector{Op}, superset::Vector{Op}) = all(in(superset), subset)
+subset_positions(subset::Vector{Op}, superset::Vector{Op}) =
+    Int[position_of(==(operator), superset) for operator in subset]
 
 function is_identity_affine_linear(linear::Matrix{CNum})
     n, m = size(linear)
@@ -336,8 +330,9 @@ function compose_overlapping_block(
         "overlapping affine blocks must describe the same canonical algebra",
     )
 
-    positions = subset_positions(second.basis, first.basis)
-    positions === nothing || return compose_subset_block(first, second, positions, relations)
+    is_subset_basis(second.basis, first.basis) && return compose_subset_block(
+        first, second, subset_positions(second.basis, first.basis), relations,
+    )
 
     raw = copy(second.basis)
     append!(raw, first.basis)

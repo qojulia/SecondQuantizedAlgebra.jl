@@ -47,7 +47,7 @@ function to_numeric_indexed(
     for (term, c) in q.arguments
         accumulate_indexed_term!(terms, term, c, q.indices, ctx, sub_re, sub_im, has_imag)
     end
-    return numeric_materialize(be, numeric_assemble(be, basis, terms), nothing)
+    return numeric_materialize(be, numeric_assemble(be, basis, terms), EagerOperator())
 end
 
 function validate_sites(be::NumericBackend, basis, sites)
@@ -69,7 +69,7 @@ function validate_sites(be::NumericBackend, basis, sites)
             push!(seen, slot)
         end
     end
-    return nothing
+    return sites
 end
 
 function numeric_leaf_indexed(op::Op, ctx::NumericContext)
@@ -128,8 +128,8 @@ function violates_ne(ne::Vector{NonEqualPair}, sub::Dict{Index, Index})
         rb = get(sub, b, b)
         va = index_slot(ra)
         vb = index_slot(rb)
-        va === nothing && continue
-        vb === nothing && continue
+        iszero(va) && continue
+        iszero(vb) && continue
         ra.space_index == rb.space_index || continue
         va == vb && return true
     end
@@ -144,7 +144,7 @@ function resolve_slot(op::QSym, sites::AbstractDict{Int, Vector{Int}})
     end
     if has_index(op.index)
         v = index_slot(op.index)
-        if v !== nothing && 1 <= v <= length(slots)
+        if 1 <= v <= length(slots)
             return slots[v]
         end
     end

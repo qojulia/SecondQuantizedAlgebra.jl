@@ -1,5 +1,5 @@
 """
-    fundamental_operators(h::HilbertSpace; names=nothing) -> Vector{Op}
+    fundamental_operators(h::HilbertSpace; names=Symbol[]) -> Vector{Op}
 
 Return the minimal generating set of operators for Hilbert space `h`.
 
@@ -10,8 +10,8 @@ diagonals, excluding the ground-state projector); all `n²`
 three [`Pauli`](@ref) or
 [`Spin`](@ref) operators per [`PauliSpace`](@ref)/[`SpinSpace`](@ref); one
 [`Position`](@ref) and one [`Momentum`](@ref) per [`PhaseSpace`](@ref); and the
-concatenation of the above for a [`ProductSpace`](@ref). Pass `names` to override
-the auto-generated operator names.
+concatenation of the above for a [`ProductSpace`](@ref). Pass a non-empty `names` to
+override the auto-generated operator names.
 
 # Examples
 
@@ -24,13 +24,13 @@ julia> length(fundamental_operators(h))
 
 See also [`find_operators`](@ref), [`unique_up_to_adjoint`](@ref).
 """
-function fundamental_operators(h::FockSpace, si::Int = 1; names::Union{Nothing, AbstractVector} = nothing)
-    name = names === nothing ? :a : names[si]
+function fundamental_operators(h::FockSpace, si::Int = 1; names::AbstractVector = Symbol[])
+    name = isempty(names) ? :a : names[si]
     return Op[Destroy(name, si)]
 end
 
-function fundamental_operators(h::NLevelSpace, si::Int = 1; names::Union{Nothing, AbstractVector} = nothing)
-    name = names === nothing ? :σ : names[si]
+function fundamental_operators(h::NLevelSpace, si::Int = 1; names::AbstractVector = Symbol[])
+    name = isempty(names) ? :σ : names[si]
     ops = Op[]
     for i in 1:(h.n)
         for j in i:(h.n)
@@ -41,27 +41,30 @@ function fundamental_operators(h::NLevelSpace, si::Int = 1; names::Union{Nothing
     return ops
 end
 
-function fundamental_operators(h::CollectiveNLevelSpace, si::Int = 1; names::Union{Nothing, AbstractVector} = nothing)
-    name = names === nothing ? :S : names[si]
+function fundamental_operators(h::CollectiveNLevelSpace, si::Int = 1; names::AbstractVector = Symbol[])
+    name = isempty(names) ? :S : names[si]
     return Op[CollectiveTransition(name, i, j, si) for i in 1:h.n for j in 1:h.n]
 end
 
-function fundamental_operators(h::PauliSpace, si::Int = 1; names::Union{Nothing, AbstractVector} = nothing)
-    name = names === nothing ? :σ : names[si]
+function fundamental_operators(h::PauliSpace, si::Int = 1; names::AbstractVector = Symbol[])
+    name = isempty(names) ? :σ : names[si]
     return Op[Pauli(name, 1, si), Pauli(name, 2, si), Pauli(name, 3, si)]
 end
 
-function fundamental_operators(h::SpinSpace, si::Int = 1; names::Union{Nothing, AbstractVector} = nothing)
-    name = names === nothing ? :S : names[si]
+function fundamental_operators(h::SpinSpace, si::Int = 1; names::AbstractVector = Symbol[])
+    name = isempty(names) ? :S : names[si]
     return Op[Spin(name, 1, si), Spin(name, 2, si), Spin(name, 3, si)]
 end
 
-function fundamental_operators(h::PhaseSpace, si::Int = 1; names::Union{Nothing, AbstractVector} = nothing)
-    name_pair = names === nothing ? (:x, :p) : names[si]
-    return Op[Position(name_pair[1], si), Momentum(name_pair[2], si)]
+function fundamental_operators(h::PhaseSpace, si::Int = 1; names::AbstractVector = Symbol[])
+    x, p = isempty(names) ? (:x, :p) : phase_space_names(names[si])
+    return Op[Position(x, si), Momentum(p, si)]
 end
 
-function fundamental_operators(h::ProductSpace; names::Union{Nothing, AbstractVector} = nothing)
+phase_space_names(n::Union{Tuple, AbstractVector}) = (n[1], n[2])
+phase_space_names(n) = throw(ArgumentError("a PhaseSpace names entry must be a (position, momentum) pair, got $n"))
+
+function fundamental_operators(h::ProductSpace; names::AbstractVector = Symbol[])
     ops = Op[]
     for (i, space) in enumerate(h.spaces)
         space_ops = fundamental_operators(space, i; names = names)
@@ -136,7 +139,7 @@ function unique_up_to_adjoint!(ops::AbstractVector{<:QField})
 end
 
 """
-    find_operators(h::HilbertSpace, order::Int; names=nothing) -> Vector
+    find_operators(h::HilbertSpace, order::Int; names=Symbol[]) -> Vector
 
 Generate all unique operator products up to `order` factors for Hilbert space `h`.
 
@@ -157,9 +160,9 @@ julia> length(find_operators(h, 1))
 
 See also [`fundamental_operators`](@ref), [`unique_up_to_adjoint`](@ref).
 """
-function find_operators(h::HilbertSpace, order::Int; names::Union{Nothing, AbstractVector} = nothing)
+function find_operators(h::HilbertSpace, order::Int; names::AbstractVector = Symbol[])
     # Auto-generate names when ProductSpace has duplicate space types
-    if names === nothing && h isa ProductSpace
+    if isempty(names) && h isa ProductSpace
         space_types = typeof.(h.spaces)
         if length(unique(space_types)) != length(space_types)
             alph = 'a':'z'

@@ -47,7 +47,7 @@ Fold adjacent provably-same-site pairs via `reduce_pair`. Single output per
 input. Mutates `ops` in place; sink receives the same Vector.
 
 Pre: `ops` is in canonical partial-sort order. Post: no adjacent provably-
-same-site pair `(a, b)` for which `reduce_pair(a, b)` returns non-`nothing`.
+same-site pair `(a, b)` for which `reduce_pair(a, b)` returns a reduction.
 """
 @inline function reduce_ops(sink::F, ops::Vector{Op}, c::CNum) where {F}
     n = length(ops)

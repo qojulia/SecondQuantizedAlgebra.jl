@@ -498,7 +498,7 @@ static-only backend needs the following methods:
 `numeric_assemble` may return a lazy object. `numeric_materialize` must give `op_type` these
 backend-neutral meanings:
 
-- `nothing`: return the backend's ordinary eager operator;
+- `EagerOperator()`: return the backend's ordinary eager operator;
 - `identity`: return `assembled` unchanged;
 - any other callable: a backend-defined explicit conversion.
 
@@ -520,7 +520,7 @@ SQA.numeric_operator(::MyBackend, op::SQA.Op, subbasis) = error("construct a lea
 SQA.numeric_embed(::MyBackend, basis, slot::Int, leaf) = error("embed a leaf")
 SQA.numeric_identity(::MyBackend, basis) = error("construct the identity")
 SQA.numeric_assemble(::MyBackend, basis, terms) = error("assemble terms")
-SQA.numeric_materialize(::MyBackend, assembled, ::Nothing) =
+SQA.numeric_materialize(::MyBackend, assembled, ::SQA.EagerOperator) =
     error("make an eager operator")
 SQA.numeric_materialize(::MyBackend, assembled, ::typeof(identity)) = assembled
 ```
@@ -556,7 +556,7 @@ new symbolic operator role through this interface.
 - `numeric_average` calls `numeric_expect` on the lazy assembly directly. It therefore does
   not build an eager matrix merely to compute an expectation value.
 - A non-empty `time_parameter` uses `numeric_assemble_td` and returns the native
-  `TimeDependentSum` or `QobjEvo`. Only `op_type=nothing` and `identity` are accepted because
+  `TimeDependentSum` or `QobjEvo`. Only `op_type=EagerOperator()` and `identity` are accepted because
   a time-varying operator cannot be materialized once during conversion.
 - **p-aware coefficients (differentiable control).** A `time_parameter` value may be a
   two-argument function `(p, t) -> value` of the solver parameter vector `p`. Detection is by

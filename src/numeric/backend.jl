@@ -109,11 +109,18 @@ operator.
 function numeric_assemble_td end
 
 """
+    EagerOperator()
+
+The default `op_type`: request the backend's ordinary eager operator.
+"""
+struct EagerOperator end
+
+"""
     numeric_materialize(be, op, op_type)
 
 Materialize a static lazily assembled operator `op` according to `op_type`, applied exactly
-once at the public boundary. Implementations must treat `nothing` as a request for their
-ordinary eager operator and `identity` as a request for `op` unchanged. Other callables are
+once at the public boundary. Implementations must treat [`EagerOperator`](@ref) as a request
+for their ordinary eager operator and `identity` as a request for `op` unchanged. Other callables are
 backend-defined. The eager representation need not be sparse, although both bundled
 backends choose sparse storage.
 
@@ -175,8 +182,8 @@ loaded backend extension, erroring helpfully when zero or both are loaded.
 """
 function default_backend()
     m = @__MODULE__
-    qob = Base.get_extension(m, :SecondQuantizedAlgebraQuantumOpticsBaseExt) !== nothing
-    qtb = Base.get_extension(m, :SecondQuantizedAlgebraQuantumToolboxExt) !== nothing
+    qob = Base.get_extension(m, :SecondQuantizedAlgebraQuantumOpticsBaseExt) isa Module
+    qtb = Base.get_extension(m, :SecondQuantizedAlgebraQuantumToolboxExt) isa Module
     qob && !qtb && return QuantumOpticsBackend()
     qtb && !qob && return QuantumToolboxBackend()
     if qob && qtb

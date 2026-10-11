@@ -120,8 +120,6 @@ function to_numeric_kw(be::NumericBackend, op, b; parameter, time_parameter, ope
     tp = normalize_time_parameter(time_parameter)
     ops = numeric_operator_dict(operators, adjoint_ops)
     ctx = NumericContext(be, b, ops)
-    op_type === nothing && return to_numeric_translated(op, ctx, param, tp, nothing)
-    op_type === identity && return to_numeric_translated(op, ctx, param, tp, identity)
     return to_numeric_translated(op, ctx, param, tp, op_type)
 end
 
@@ -129,8 +127,8 @@ end
 to_numeric_translated(op::QSym, ctx::NumericContext, parameter, time_parameter, op_type) =
     to_numeric_translated(single_qadd(CNUM_ONE, Op[op]), ctx, parameter, time_parameter, op_type)
 
-# Static path materializes via `op_type` (`nothing` requests the backend's ordinary eager
-# operator); the time-dependent path returns the backend's native TD operator.
+# Static path materializes via `op_type` (`EagerOperator()` requests the backend's ordinary
+# eager operator); the time-dependent path returns the backend's native TD operator.
 function to_numeric_translated(op::QAdd, ctx::NumericContext, parameter, time_parameter, op_type)
     op_ = substitute(op, parameter)
     isempty(time_parameter) && return numeric_materialize(ctx.backend, to_numeric_static(op_, ctx), op_type)
@@ -158,7 +156,7 @@ function to_numeric_translated(arg, ctx::NumericContext, parameter, time_paramet
 end
 
 function check_td_op_type(op_type)
-    (op_type === nothing || op_type === identity) && return nothing
+    (op_type isa EagerOperator || op_type === identity) && return op_type
     throw(
         ArgumentError(
             "op_type is not supported when time_parameter is non-empty; native " *

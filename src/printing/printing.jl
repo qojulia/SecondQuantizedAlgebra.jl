@@ -208,8 +208,8 @@ function group_dep_terms(dep_qadds, indices::Vector{Index})
     for q in dep_qadds
         _, _, ne = term_signature(q)
         used = term_used_indices(q, indices)
-        slot = findfirst(g -> isequal(g[1], used) && isequal(g[2], ne), groups)
-        if slot === nothing
+        slot = position_of(g -> isequal(g[1], used) && isequal(g[2], ne), groups)
+        if iszero(slot)
             push!(groups, (used, copy_ne(ne), QAdd[q]))
         else
             push!(groups[slot][3], q)
@@ -236,7 +236,7 @@ function show_sum_prefix(io::IO, indices::Vector{Index}, ne_pairs::Vector{NonEqu
         end
         write(io, ")")
     end
-    return nothing
+    return io
 end
 
 function show_sum_group(io::IO, terms::Vector{QAdd}, indices::Vector{Index}, ne_pairs::Vector{NonEqualPair})
@@ -249,7 +249,7 @@ function show_sum_group(io::IO, terms::Vector{QAdd}, indices::Vector{Index}, ne_
     else
         show_terms(io, terms)
     end
-    return nothing
+    return io
 end
 
 # `expim(x)` reads as `exp(im*x)`, with a leading minus pulled onto the `im` so an inverse
@@ -266,7 +266,7 @@ function SymbolicUtils.show_call(io::IO, ::typeof(expim), x::SymbolicUtils.Basic
     print(io, body)
     paren && write(io, ")")
     write(io, ")")
-    return nothing
+    return io
 end
 
 function SymbolicUtils.show_call(io::IO, ::SumFunc, x::SymbolicUtils.BasicSymbolic; kw...)
@@ -277,7 +277,7 @@ function SymbolicUtils.show_call(io::IO, ::SumFunc, x::SymbolicUtils.BasicSymbol
     paren && write(io, "(")
     print(io, body)
     paren && write(io, ")")
-    return nothing
+    return io
 end
 
 function SymbolicUtils.show_metadata(
@@ -399,5 +399,5 @@ function Base.show(io::IO, ::MIME"text/plain", U::UnitaryTransform)
         write(io, "\n\nGauge:\n  ")
         show(io, U.gauge)
     end
-    return nothing
+    return io
 end
