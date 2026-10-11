@@ -168,7 +168,7 @@ function make_time_dependent(x, iv)
         new_args[k] = na
         changed |= na !== args[k]
     end
-    changed || return x   # nothing rewritten: keep the node (and its identity) intact
+    changed || return x
     return TermInterface.maketerm(typeof(x), SymbolicUtils.operation(x), new_args, TermInterface.metadata(x))
 end
 
@@ -184,11 +184,6 @@ function lift_average(leaf, iv)
     return SymbolicUtils.setmetadata(v, AverageOperator, op)
 end
 
-# Deterministic, structurally injective name for a lifted variable. Identity rests on this
-# name: Symbolics `isequal`/`hash` ignore the `AverageOperator` metadata, so the name must
-# be 1:1 with the operator. `hash(op)` is a digest (collisions silently merge two distinct
-# unknowns); `string(op)` alone drops the subspace (`a` on different spaces prints alike),
-# so the per-operator token prepends `space_index` to the faithful operator rendering.
 function avg_var_name(op::QAdd)
     io = IOBuffer()
     print(io, "avg")
@@ -237,17 +232,13 @@ function average(op::QAdd)
     BS = SymbolicUtils.BasicSymbolic{SymbolicUtils.SymReal}
     shared = isempty(op.indices) ? Index[] : op.indices
     GroupKey = Tuple{Vector{Index}, Vector{NonEqualPair}}
-    flat_bodies = BS[]                   # ungrouped contributions
+    flat_bodies = BS[]
     group_keys = GroupKey[]
-    group_bodies = Vector{BS}[]          # one buffer per summation scope
-    group_slot = Dict{GroupKey, Int}()   # scope -> index into group_bodies (O(1) lookup)
+    group_bodies = Vector{BS}[]
+    group_slot = Dict{GroupKey, Int}()
     for (term, c) in op.arguments
         used = Index[idx for idx in shared if depends_on_index_term(c, term.ops, idx)]
         contrib = Num(0)
-        # A raw coefficient can be genuinely complex, but splitting it into
-        # `real(raw)` and `imag(raw)` prevents Symbolics from recognizing the original
-        # scalar expression. Carry raw coefficients as one scalar here unless the root is
-        # an explicit complex constructor, whose slots should remain component-wise.
         opaque_raw = c.tail isa RawSymbolicCoeff &&
             !(
             SymbolicUtils.iscall(c.tail.expr) &&
@@ -297,7 +288,6 @@ function average(op::QAdd)
     return add_worker(SymbolicUtils.SymReal, flat_bodies)
 end
 
-# Uniform-return wrappers (all return QAdd).
 to_qadd(x::QAdd) = x
 to_qadd(x::QSym) = single_qadd(CNUM_ONE, Op[x])
 to_qadd(x::SymbolicUtils.BasicSymbolic) = single_qadd(to_cnum(x), Op[])
@@ -311,9 +301,6 @@ function rebuild_indexed_sum(inner::QAdd, indices::Vector{Index}, ne::Vector{Non
     return QAdd(new_args, indices)
 end
 
-# The `+` fold is O(n²) by repeated `Base.:+` (each copies the growing dict); the
-# in-place accumulator behind `sum` makes it O(n) and is byte-identical. The `*`
-# fold stays as repeated `*` (the product path has no in-place win; see devdocs).
 fold_qadds(::typeof(+), args::Vector{QAdd}, empty::QAdd) = isempty(args) ? empty : sum(args)
 function fold_qadds(op::F, args::Vector{QAdd}, empty::QAdd) where {F}
     isempty(args) && return empty
@@ -523,8 +510,6 @@ function indexed_sum(body, indices::Vector{Index}; non_equal::Vector{NonEqualPai
     return indexed_sum(SymbolicUtils.unwrap(body), indices, non_equal)
 end
 
-# Seals: recursive calls go through `Any`-typed inputs; isa-narrow restores
-# the typed accumulator without a return annotation.
 idx_seal(v) = v isa Vector{Index} ? v : Index[]
 aon_seal(v) = v isa Vector{Int} ? v : Int[]
 

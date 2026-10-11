@@ -1,13 +1,3 @@
-# Internal affine representation for exact total canonical transformations.
-#
-# Exact actions are stored as algebra-homogeneous blocks. `UnitaryTransform` keeps the
-# compiled rules used by `conjugate` and `transform`, but affine metadata is the semantic
-# source for inversion and composition. Published blocks/actions are never mutated; unchanged
-# basis, matrix, shift, and relation storage may therefore be shared safely.
-
-# Physical/raw construction enters through this checked boundary. Internal composition,
-# inversion, and substitution construct `AffineBlock`s directly after preserving these
-# invariants algebraically.
 function checked_affine_block(
         structure::AffineStructure, basis::Vector{Op}, linear::Matrix{CNum},
         shift::Vector{CNum},
@@ -303,8 +293,6 @@ function compose_affine_data(
     shift = Vector{CNum}(undef, n)
     scratch = ParamRelation[]
 
-    # `first * second` agrees with sequential conjugation: substitute the second map into
-    # the first image, A₁(A₂z + b₂) + b₁.
     for j in 1:n, i in 1:n
         value = CNUM_ZERO
         for k in 1:n

@@ -32,7 +32,7 @@ hooks dispatch statically. See `docs/src/devdocs.md`.
 """
 struct Op <: QSym
     kind::OpKind
-    name_id::Int32        # interned name (see intern.jl)
+    name_id::Int32
     space_index::Int32
     index::Index
     l1::Int32
@@ -41,13 +41,6 @@ struct Op <: QSym
     nlev::Int32
 end
 
-# All fields are isbits, so `Op` is isbits and `Vector{Op}` stores inline with no
-# GC scanning. hash/isequal compare the interned ids as pure integers. The custom
-# methods are kept for explicit field ordering and the `Index` `===` short-circuit
-# (NO_INDEX is a shared const).
-# Hashing the shared `NO_INDEX` const recurses through its `Num` fields on every
-# call; non-indexed operators are the common case, so fold it to a precomputed
-# sentinel and only hash a real `Index` when one is present (~5% off products).
 const NOIDX_H = hash(NO_INDEX, zero(UInt))
 function Base.hash(o::Op, h::UInt)
     h = hash(o.kind, h)
@@ -170,5 +163,4 @@ rename(o::Op, name::Symbol) =
     Op(o.kind, intern_name(name), o.space_index, o.index, o.l1, o.l2, o.g, o.nlev)
 rename(o::Op, name::AbstractString) = name_must_be_symbol(name)
 
-# Shared sentinel for empty operator vectors on hot paths. Never mutated.
 const EMPTY_OPS = Op[]

@@ -18,7 +18,6 @@ struct QAdd <: QField
     end
 end
 
-# Strip NE pairs that reference no op index, coefficient index, or scope index.
 function prune_dead_ne(args::QTermDict, indices::Vector{Index})
     needs_rebuild = false
     for (term, c) in args
@@ -112,9 +111,6 @@ function Base.isone(q::QAdd)
     return isone(c)
 end
 
-# `indices` is a multiset of bound sum indices (`Σ_iΣ_j ≡ Σ_jΣ_i`); compare/hash it
-# order-insensitively but multiplicity-faithfully. A plain subset test is asymmetric
-# and the XOR hash collapses repeated indices, so both use per-element multiplicity.
 function same_index_set(a::Vector{Index}, b::Vector{Index})
     length(a) == length(b) || return false
     for idx in a
@@ -129,7 +125,6 @@ function Base.isequal(a::QAdd, b::QAdd)
 end
 Base.:(==)(a::QAdd, b::QAdd) = isequal(a, b)
 function Base.hash(q::QAdd, h::UInt)
-    # `+` (not `⊻`) so repeated indices contribute, matching `same_index_set`.
     ih = foldl((acc, idx) -> acc + hash(idx), q.indices; init = zero(UInt))
     return hash(:QAdd, hash(q.arguments, hash(ih, hash(length(q.indices), h))))
 end
@@ -149,10 +144,6 @@ Base.eltype(::Type{QAdd}) = Pair{QTerm, CNum}
 
 ne_sort_key(ne::Vector{NonEqualPair}) = Tuple(ne)
 
-# Type-stable display order. Compares operator sequences field-by-field (each
-# `full_op_key` is a fixed-length concrete tuple), then the constraint set. This
-# replaces `isless` on the variable-length `Vararg` tuples the `_*sort_key`
-# helpers build, which inference cannot resolve concretely (a print-path cost).
 function ne_less(a::Vector{NonEqualPair}, b::Vector{NonEqualPair})
     la, lb = length(a), length(b)
     @inbounds for i in 1:min(la, lb)
@@ -196,8 +187,6 @@ function sorted_arguments(q::QAdd)
     return QAdd[single_qadd(c, term.ops, term.ne) for (term, c) in pairs]
 end
 
-# Total: without the packed level/axis fields two axes of one spin triple (or two levels of
-# one transition set) tie, and the display order falls back to dict iteration order.
 full_op_key(op::QSym) = (
     sort_key(op)..., type_order(op), name_rank(op.name_id),
     Int(op.l1), Int(op.l2), Int(op.g), Int(op.nlev),

@@ -1,5 +1,3 @@
-# === General exact bosonic Bogoliubov transformations ===
-
 function bogoliubov_modes(modes::AbstractVector{Op})
     isempty(modes) && unitary_error("`Bogoliubov` needs at least one Fock mode")
     lowering_modes = Op[]

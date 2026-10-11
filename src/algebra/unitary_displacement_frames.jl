@@ -1,5 +1,3 @@
-# === Hamiltonian-derived bosonic displacement frames ===
-
 struct FockLinearReference
     frequency::CNum
     drive::CNum

@@ -57,7 +57,6 @@ function Spin(h::ProductSpace, name::Symbol, axis::Int, idx::Int)
     return Spin(name, axis, idx)
 end
 
-# Auto-detect subspace when the ProductSpace contains exactly one SpinSpace.
 Spin(h::ProductSpace, name::Symbol, axis::Int) =
     Spin(h, name, axis, unique_subspace_index(h, SpinSpace))
 

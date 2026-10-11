@@ -26,10 +26,10 @@ See also [`has_index`](@ref), [`IndexedOperator`](@ref), [`Σ`](@ref),
 [`change_index`](@ref).
 """
 struct Index
-    name_id::Int32       # interned name (see intern.jl); 0 == anonymous concrete site / NO_INDEX
-    range_id::Int32      # interned range Num; 0 == no range
+    name_id::Int32
+    range_id::Int32
     space_index::Int32
-    slot::Int32          # 0 == abstract; k>0 == concrete site k
+    slot::Int32
 end
 
 const NO_INDEX = Index(Int32(0), Int32(0), Int32(0), Int32(0))
@@ -51,17 +51,11 @@ attached index.
 """
 has_index(idx::Index) = idx.space_index != 0
 
-# A pair of indices `(α, β)` meaning `α ≠ β`.
 const NonEqualPair = Tuple{Index, Index}
 
-# Shared sentinels for empty vectors on hot paths. Never mutated.
-# `EMPTY_OPS` lives in `operators/op.jl` (needs `Op`, defined after `Index`).
 const EMPTY_NE = NonEqualPair[]
 const EMPTY_INDICES = Index[]
 
-# Equality compares the interned ids (pure integers). `slot` is excluded, exactly
-# as the old equality excluded the per-slot `sym`: concrete sites are distinguished
-# out-of-band (numeric reads `slot` via `index_slot`), never via `Index ==`.
 function Base.:(==)(a::Index, b::Index)
     a === b && return true
     return a.name_id == b.name_id && a.space_index == b.space_index && a.range_id == b.range_id
@@ -69,11 +63,8 @@ end
 function Base.hash(a::Index, h::UInt)
     return hash(:Index, hash(a.name_id, hash(a.space_index, h)))
 end
-# Order by lexicographic name rank (not raw id, which is insertion-order), so
-# canonical form stays alphabetical and deterministic across sessions.
 Base.isless(a::Index, b::Index) = (a.space_index, name_rank(a.name_id)) < (b.space_index, name_rank(b.name_id))
 
-# Ordering key for an index; mirrors isless's (space_index, name rank) (range excluded).
 index_key(idx::Index) = (idx.space_index, name_rank(idx.name_id))
 
 function Index(h::HilbertSpace, name::Symbol, range::Union{Int, Num}, space::HilbertSpace)
@@ -165,7 +156,7 @@ resolved-site convention.
 """
 function index_sym(idx::Index)
     idx.name_id == 0 && return Num(Int(idx.slot))
-    base = base_sym_from_id(idx.name_id)            # cached name-only Sym (hot path: cached read)
+    base = base_sym_from_id(idx.name_id)
     idx.slot == 0 && return base
     return Num(SymbolicUtils.setmetadata(SymbolicUtils.unwrap(base), IndexSlot, Int(idx.slot)))
 end

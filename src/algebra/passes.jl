@@ -1,8 +1,3 @@
-# Passes: the low-level building blocks of the canonicalization pipeline.
-# Each pass takes a `sink::F` first (so `do` blocks work), an `ops::Vector{Op}`
-# and a `c::CNum`. Forking passes may invoke the sink multiple times; folding
-# passes invoke it once. Aliasing contracts are documented per pass.
-
 """
     partial_sort!(ops::Vector{Op}, ne::Vector{NonEqualPair})
 
@@ -13,7 +8,6 @@ physical order so the sibling passes can interpret them.
 function partial_sort!(ops::Vector{Op}, ne::Vector{NonEqualPair})
     n = length(ops)
     n < 2 && return ops
-    # Insertion sort: stable, O(n²) worst case, n is small in practice.
     for i in 2:n
         j = i
         while j > 1
@@ -55,7 +49,7 @@ same-site pair `(a, b)` for which `reduce_pair(a, b)` returns a reduction.
     i = 1
     while i < length(ops)
         a, b = ops[i], ops[i + 1]
-        if !may_reduce(a, b)  # skip the boxing reduce_pair call; only Transition/Pauli reduce
+        if !may_reduce(a, b)
             i += 1
             continue
         end
@@ -66,9 +60,8 @@ same-site pair `(a, b)` for which `reduce_pair(a, b)` returns a reduction.
             iszero_cnum(factor) && return
             c = mul_cnum(c, factor)
             if kind === ScalarReduction
-                # Pair contracts to a scalar (e.g. σⁱʲσʲᵏ when j≠k yielding 0, or Pauli δ).
                 deleteat!(ops, i:(i + 1))
-            else  # OpReduction
+            else
                 ops[i] = new_op
                 deleteat!(ops, i + 1)
             end
@@ -104,14 +97,10 @@ function commute_ops_at(sink::F, ops::Vector{Op}, c::CNum, start::Int) where {F}
         if cmp === Equal && !can_commute(a, b)
             sw_b, sw_a, residual_coeff, residual_ops, residual2_coeff, residual2_ops =
                 commute_pair(a, b)
-            # Swap branch: stepping back to i-1 because ops[i-1] may now form
-            # a new non-canonical pair with sw_b.
             swapped = copy(ops)
             swapped[i] = sw_b
             swapped[i + 1] = sw_a
             commute_ops_at(sink, swapped, c, max(i - 1, 1))
-            # Second residual gets an independent branch before the first
-            # residual continues in-place.
             new_c2 = mul_cnum(c, residual2_coeff)
             if !iszero_cnum(new_c2)
                 residual2 = copy(ops)
@@ -121,7 +110,6 @@ function commute_ops_at(sink::F, ops::Vector{Op}, c::CNum, start::Int) where {F}
                 end
                 iszero_cnum(residual2_coeff) || commute_ops_at(sink, residual2, new_c2, max(i - 1, 1))
             end
-            # First residual branch: replace pair in-place (empty or one op).
             new_c = mul_cnum(c, residual_coeff)
             iszero_cnum(new_c) && return
             deleteat!(ops, i:(i + 1))
@@ -240,10 +228,6 @@ function substitute_cnum(
     isempty(d) && return c
     is_native(c) && return c
     validate_phase_substitutions(c, phase_rules)
-    # An explicit `complex(re, im)` node records coefficient-slot semantics. Lower
-    # it before substitution so a complex replacement for either slot participates
-    # in ordinary arithmetic instead of being passed back to SymbolicUtils' `complex`,
-    # whose arguments must be provably real.
     raw = lower_complex_slots(raw_tail(c))
     new_raw = SymbolicUtils.substitute(raw, d)
     isequal(new_raw, raw) && return c

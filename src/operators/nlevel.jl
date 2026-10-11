@@ -151,7 +151,6 @@ function Transition(h::ProductSpace, name::Symbol, i::Symbol, j::Symbol, idx::In
     return Transition(name, level_index(space, i), level_index(space, j), idx, NO_INDEX, space.ground_state, space.n)
 end
 
-# Auto-detect subspace when the ProductSpace contains exactly one NLevelSpace.
 Transition(h::ProductSpace, name::Symbol, i::Int, j::Int) =
     Transition(h, name, i, j, unique_subspace_index(h, NLevelSpace))
 Transition(h::ProductSpace, name::Symbol, i::Symbol, j::Symbol) =

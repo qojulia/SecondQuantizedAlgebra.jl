@@ -1,12 +1,3 @@
-# Numeric backends and the open extension surface.
-#
-# `to_numeric`/`numeric_average` are backend-neutral in `src/`; every place that would
-# name a concrete numeric type (a `Basis`, a lazy operator, an `expect`) goes through a
-# generic hook whose methods live in a package extension (`ext/`). A backend is selected
-# by a zero-field singleton so dispatch is static and the backend axis is free for
-# inference. Loading `QuantumOpticsBase` or `QuantumToolbox` activates the matching
-# extension, which adds the methods below.
-
 """
     NumericBackend
 
@@ -34,11 +25,6 @@ Select [QuantumToolbox.jl](https://github.com/qutip/QuantumToolbox.jl). Active a
 `using QuantumToolbox`.
 """
 struct QuantumToolboxBackend <: NumericBackend end
-
-# --- Open extension hooks (bare generic functions; methods defined in ext/) ------------
-#
-# `be` is always a backend singleton. `basis` is opaque to the core: a `Basis` for
-# QuantumOptics, integer dims (`Int`/`Vector{Int}`) for QuantumToolbox.
 
 """
     numeric_operator(be, op::Op, subbasis)
@@ -145,8 +131,6 @@ for their state types to support [`numeric_average`](@ref) and state-based [`to_
 """
 function numeric_backend end
 
-# The one-argument `numeric_basis(state)` is the public state-to-basis counterpart of the
-# three-argument Hilbert-space builder declared above.
 """
     numeric_basis(state)
 

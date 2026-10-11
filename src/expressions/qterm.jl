@@ -16,7 +16,7 @@ struct QTerm
     ne::Vector{NonEqualPair}
     hash::UInt
     QTerm(ops::Vector{Op}, ne::Vector{NonEqualPair}) = new(ops, ne, qterm_hash(ops, ne))
-    QTerm(ops::Vector{Op}, ne::Vector{NonEqualPair}, h::UInt) = new(ops, ne, h)  # trusted: h == qterm_hash(ops, ne)
+    QTerm(ops::Vector{Op}, ne::Vector{NonEqualPair}, h::UInt) = new(ops, ne, h)
 end
 
 @inline qterm_hash(ops::Vector{Op}, ne::Vector{NonEqualPair}) =
@@ -168,7 +168,6 @@ the result is zero. Zero coefficients are never stored, so the dict never needs
 a separate cleanup pass.
 """
 function addto_key!(d::QTermDict, term::QTerm, c::CNum)
-    # Zero is never stored, so it doubles as the "absent" default.
     existing = get(d, term, CNUM_ZERO)
     if existing === CNUM_ZERO
         iszero_cnum(c) && return d

@@ -3,19 +3,9 @@ struct OrderedTerm
     ops::Vector{Op}
 end
 
-# A Heisenberg pair at one site, with `m` left-operators and `n` right-operators
-# satisfying `[right, left] = K` (c-number). The conversion formula reads
-#
-#   A^m B^n = sum_{k=0}^{min(m,n)} C(m,k) C(n,k) k! (K α)^k Sym(A^{m-k} B^{n-k})
-#
-# with `α = -1/2` for normal → symmetric and `α = +1/2` for symmetric → normal.
-const WEYL_K_FOCK = CNUM_ONE       # [Destroy, Create] = 1
-const WEYL_K_PHASE = CNUM_NEG_IM   # [Momentum, Position] = -i
+const WEYL_K_FOCK = CNUM_ONE
+const WEYL_K_PHASE = CNUM_NEG_IM
 
-# Each entry describes one (m, n) group on a single site, ready to feed into
-# the combinatorial expansion. Fock pairs distinguish multiple ladder modes on
-# the same Hilbert subspace by `op.name`; phase pairs collapse by site, since
-# every PhaseSpace subsystem carries one canonical (x, p) pair.
 const FockSite = Tuple{Int, Symbol, Symbol, Int, Int}
 const PhaseSite = Tuple{Int, Symbol, Int, Int}
 

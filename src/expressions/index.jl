@@ -129,7 +129,6 @@ function change_index(x::CNum, from::Index, to::Index)
     return cnum(re, im)
 end
 
-# Rebuild with a new site index; kind-agnostic since all other fields carry over.
 with_index(op::Op, i::Index) = IndexedOperator(op, i)
 
 function change_index(op::QSym, from::Index, to::Index)
@@ -140,8 +139,6 @@ function change_index(s::QAdd, from::Index, to::Index)
     out = QTermDict()
     needs = !isempty(s.indices)
     for (term, c) in s.arguments
-        # A term whose NE constraint becomes contradictory under the rename
-        # carries weight zero and must be dropped, not relaxed.
         ne_becomes_contradictory(term.ne, from, to) && continue
         new_c = change_index(c, from, to)
         new_ops = Op[change_index(op, from, to) for op in term.ops]
@@ -294,7 +291,6 @@ function collect_identical_zeros!(acc, x)
     if SymbolicUtils.hasmetadata(x, NotIdentical) &&
             length(SymbolicUtils.arguments(x)) == 2
         a1, a2 = SymbolicUtils.arguments(x)
-        # The args are indices, so a matched node holds no nested NotIdentical node.
         isequal(a1, a2) && (acc[x] = 0; return acc)
     end
     for a in SymbolicUtils.arguments(x)
@@ -382,7 +378,6 @@ function Σ(expr::QAdd, i::Index, non_equal::Vector{Index} = Index[])
     for (term, c) in expr.arguments
         depends_on_i = depends_on_index_term(c, term.ops, i)
 
-        # User-supplied non_equal constraints apply when the term depends on i.
         ne_aug = term.ne
         if depends_on_i
             for j in non_equal
@@ -390,7 +385,6 @@ function Σ(expr::QAdd, i::Index, non_equal::Vector{Index} = Index[])
             end
         end
 
-        # Identify (i, ext_idx) pairs that need diagonal contributions.
         distinct = distinct_op_indices(term.ops)
         diag_pairs = Tuple{Index, Index}[]
         if depends_on_i
@@ -402,15 +396,10 @@ function Σ(expr::QAdd, i::Index, non_equal::Vector{Index} = Index[])
             end
         end
 
-        # Off-diagonal: canonicalize under ne_aug augmented with every diag pair,
-        # so partial_sort can use those inequalities.
         full_ne = ne_aug
         for (a, b) in diag_pairs
             full_ne = merge_ne_pair(full_ne, a, b)
         end
-        # Σ_i: bake `i.range` into emitted entries whose final ops lose their
-        # i-dependence (e.g. the `+1` residual from `a_i*a_i' = a_i'*a_i + 1`),
-        # so per-term scope matches the explicit `Σ_i` written by the user.
         if depends_on_i
             emit_scaled_by_scope!(off_diag, copy(term.ops), c, full_ne, Index[i])
         else
@@ -423,8 +412,6 @@ function Σ(expr::QAdd, i::Index, non_equal::Vector{Index} = Index[])
         for (_, ext_idx) in diag_pairs
             sub_ops = Op[change_index(o, i, ext_idx) for o in term.ops]
             sub_c = change_index(c, i, ext_idx)
-            # Propagate NE onto the diagonal (i≠β becomes ext_idx≠β); dropping it
-            # lets a later sum re-admit ext_idx=β and double-count the diagonal.
             sub_ne = substitute_ne(ne_aug, i, ext_idx)
             canonicalize!(diag, sub_ops, sub_c, sub_ne)
         end

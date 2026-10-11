@@ -12,8 +12,8 @@ same two prime atoms `Const(2)^(1/2)`, `Const(3)^(1/2)` and compare `isequal`.
 """
 struct Monomial{E <: ExactScalar}
     scalar::Union{ComplexF64, E}
-    syms::Vector{RawExpression}   # sorted by objectid, distinct
-    exps::Vector{Rational{Int}}                 # matching nonzero exponents
+    syms::Vector{RawExpression}
+    exps::Vector{Rational{Int}}
 
     function Monomial{E}(
             scalar::Union{ComplexF64, E},
@@ -83,8 +83,6 @@ struct Poly
     terms::Union{Vector{Monomial{ExactComplex}}, Vector{Monomial{BigExactComplex}}}
 end
 
-# Factor identity key: SymbolicUtils hashconses, so `objectid`/`===` are exact and
-# type-stable factor identity (unlike `hash`/`isequal` on abstract `BasicSymbolic`).
 @inline fkey(s::SymbolicUtils.BasicSymbolic) = objectid(s)
 
 @inline function same_factors(a::Monomial, b::Monomial)
@@ -96,8 +94,6 @@ end
     return true
 end
 
-# Total order on monomial factor sets (factors are pre-sorted by objectid within
-# each monomial), giving a canonical term order for `Poly` equality / hashing.
 function term_less(a::Monomial, b::Monomial)
     la, lb = length(a.syms), length(b.syms)
     la != lb && return la < lb
@@ -109,7 +105,6 @@ function term_less(a::Monomial, b::Monomial)
     return false
 end
 
-# Merge two sorted factor lists, summing exponents and dropping cancellations.
 function merge_factors(syma, expa, symb, expb)
     ia, ib = 1, 1
     na, nb = length(syma), length(symb)
@@ -160,8 +155,6 @@ function term_mul(a::Monomial{E}, b::Monomial{E}) where {E}
     phase_a = phase_factor_index(a.syms)
     phase_b = phase_factor_index(b.syms)
     if phase_a != 0 && phase_b != 0
-        # The common inverse pair stays on the ordinary identity merge: no symbolic
-        # argument arithmetic and no additional allocation.
         if a.syms[phase_a] === b.syms[phase_b] &&
                 a.exps[phase_a] == -b.exps[phase_b]
             return merged_term_mul(a, b)
@@ -176,9 +169,6 @@ end
     return mul_scalars(a, b, syms, exps)
 end
 
-# Insertion sort by a strict-less predicate. The polynomial passes sort very short
-# vectors; this keeps the whole `Base.Sort` machinery (ScratchQuickSort, partition!,
-# issorted, ...) out of inference, which is a large chunk of first-call latency.
 function insertion_sort!(v::AbstractVector, lt::F) where {F}
     @inbounds for i in 2:length(v)
         x = v[i]
@@ -192,7 +182,6 @@ function insertion_sort!(v::AbstractVector, lt::F) where {F}
     return v
 end
 
-# Sort terms into canonical order, merge like-factor terms, drop zero scalars.
 function canonical_terms!(terms::Vector{Monomial{E}}) where {E}
     isempty(terms) && return terms
     insertion_sort!(terms, term_less)
@@ -211,8 +200,6 @@ function canonical_terms!(terms::Vector{Monomial{E}}) where {E}
     return terms
 end
 
-# Sorted merge of two canonical term lists, dropping zero-scalar terms so the result
-# stays canonical and zero-free (a stray zero would break Poly equality/hashing).
 function poly_add(p::Vector{Monomial{E}}, q::Vector{Monomial{E}}) where {E}
     out = Monomial{E}[]
     sizehint!(out, length(p) + length(q))
@@ -225,7 +212,7 @@ function poly_add(p::Vector{Monomial{E}}, q::Vector{Monomial{E}}) where {E}
         elseif ip > np || term_less(q[iq], p[ip])
             t = q[iq]; iq += 1
             scalar_iszero(t) || push!(out, t)
-        else   # same factor set: sum scalars, drop exact cancellations
+        else
             s = add_scalars(p[ip], q[iq])
             scalar_iszero(s) || push!(out, s)
             ip += 1; iq += 1
@@ -247,7 +234,6 @@ function poly_mul(p::Vector{Monomial{E}}, q::Vector{Monomial{E}}) where {E}
     return canonical_terms!(out)
 end
 
-# Scale every term; preserves canonical order (factors unchanged).
 function poly_scale(p::Vector{Monomial{E}}, z::Union{ComplexF64, E}) where {E}
     iszero(z) && return Monomial{E}[]
     return filter!(!scalar_iszero, Monomial{E}[scale_monomial(t, z) for t in p])

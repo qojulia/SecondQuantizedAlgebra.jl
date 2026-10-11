@@ -49,7 +49,6 @@ Outcome tag for `reduce_pair`:
 """
 @enum ReduceKind::UInt8 NoReduction ScalarReduction OpReduction
 
-# First position in `v` satisfying `pred`, or `0` when none does.
 function position_of(pred::F, v::AbstractVector) where {F}
     for i in eachindex(v)
         pred(v[i]) && return i

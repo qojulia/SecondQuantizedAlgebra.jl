@@ -98,10 +98,6 @@ function accumulate_with_diag!(
         return out
     end
 
-    # When both indices are bound, the two directions (i→j and j→i) describe
-    # the same diagonal slice; keeping one (later→earlier) avoids double-counting
-    # constant residuals (the `+1` from `a*a' = a'a + 1`) and keeps the survivor
-    # invariant under factor order so `Σa * Σa'` and `Σa' * Σa` agree.
     diag_pairs = Tuple{Index, Index}[]
     for sum_idx in sum_indices
         depends_on_index_ops(c, ops, sum_idx) || continue
@@ -121,8 +117,6 @@ function accumulate_with_diag!(
         return out
     end
 
-    # Off-diagonal: canonicalize under ne augmented with every (sum, ext) pair,
-    # so that partial_sort can use those inequalities when ordering operators.
     augmented_ne = ne
     for (a, b) in diag_pairs
         augmented_ne = merge_ne_pair(augmented_ne, a, b)
@@ -132,17 +126,7 @@ function accumulate_with_diag!(
     for (sum_idx, ext_idx) in diag_pairs
         sub_ops = Op[change_index(o, sum_idx, ext_idx) for o in ops]
         sub_c = change_index(c, sum_idx, ext_idx)
-        # Rewrite (not drop) the collapsed index in the constraints: a
-        # `sum_idx ≠ β` becomes `ext_idx ≠ β` on the diagonal, exactly as the
-        # `Σ` diagonal split does. Dropping it lets a sibling sum index re-admit
-        # the excluded value: a coefficient-only-index term `Σ_k u(l,k)·σ_l`
-        # (constraint k≠l from the off-diagonal split) would otherwise merge
-        # with a genuine diagonal `u(l,l)·σ_l` under the same key and over-count.
         sub_ne = substitute_ne(ne, sum_idx, ext_idx)
-        # Sibling diagonal slices for the same sum must be mutually exclusive;
-        # without ext_idx ≠ other_ext, the i=j and i=k branches both contain
-        # i=j=k and the canonical sort cannot collapse same-index operators
-        # separated by a sibling-index operator.
         sibling_ne = NonEqualPair[]
         for (other_sum, other_ext) in diag_pairs
             other_sum == sum_idx || continue
@@ -249,11 +233,6 @@ function Base.:*(a::QAdd, b::QAdd)
     return QAdd(out, absorb_pinned_sums(sum_indices, a, b))
 end
 
-# Drop summation indices pinned by the product: a bound `.indices` entry
-# of one factor that every term of the other factor carries as a free op
-# index is no longer ranging, so the sum scope must not survive. The
-# uniformity check (`every_term_has_op_index`) is what guarantees the
-# result still has consistent `.indices` semantics across every term.
 function absorb_pinned_sums(
         sum_indices::Vector{Index}, a::Union{QAdd, QSym}, b::Union{QAdd, QSym}
     )

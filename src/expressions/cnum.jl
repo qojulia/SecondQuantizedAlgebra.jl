@@ -1,4 +1,3 @@
-# Zero-size tag marking the native fast path (the value lives inline in `slot`).
 struct Native end
 const NATIVE = Native()
 
@@ -40,8 +39,6 @@ const EXACT_NEG1 = ExactComplex(-1, 0)
 const EMPTY_SYMS = RawExpression[]
 const EMPTY_EXPS = Rational{Int}[]
 
-# Adding 0.0+0.0im normalizes any signed zero (`-0.0 -> 0.0`) so that structurally
-# equal coefficients (e.g. `conj(2.0)` vs `2.0`) stay `isequal` and hash identically.
 @inline native(z::ComplexF64) = Coeff(NativeSlot(normalize_scalar(z)), NATIVE)
 @inline native(z::ExactComplex) = Coeff(NativeSlot(z), NATIVE)
 @inline native_scalar(c::Coeff) = native_scalar(c.slot)
@@ -96,9 +93,6 @@ expim(x::SymbolicUtils.BasicSymbolic) = phase_coeff(x)
     throw(ArgumentError("`expim` requires a provably real argument; got `$x`"))
 end
 
-# A complex number is never accepted merely because its current imaginary part happens to
-# be zero. The atom promises unit modulus structurally, so its domain has to be real by type,
-# not by a value-dependent test.
 expim(x::Number) = nonreal_phase_argument(x)
 
 @inline is_phase(b) =
@@ -115,8 +109,6 @@ expim(x::Number) = nonreal_phase_argument(x)
     return 0
 end
 
-# The explicit scalar `shape` matters: without it the term is shaped `Unknown` and every
-# later `Complex{Num}` addition it takes part in fails on a shape mismatch.
 const SCALAR_SHAPE = UnitRange{Int}[]
 raw_complex(re, im) = SymbolicUtils.term(
     complex, SymbolicUtils.unwrap(re), SymbolicUtils.unwrap(im);
@@ -125,21 +117,14 @@ raw_complex(re, im) = SymbolicUtils.term(
 expim_expanded(x) = SymbolicUtils.term(
     expim, SymbolicUtils.unwrap(x); type = Complex{Real}, shape = SCALAR_SHAPE,
 )
-# `expand` first: `(ω + 2J)*t` and `ω*t + 2J*t` are one phase and must intern to one atom.
 expim_symbolic(x) = expim_expanded(expand(x))
 
-# `type` and `shape` take part in hash-consing, so without these every `maketerm` rebuild
-# (each `substitute`, each `Postwalk`) recomputes them from the generic fallbacks and mints
-# a *different* atom, one whose symtype is `Real` and whose `conj` is therefore the identity.
 SymbolicUtils.promote_symtype(::typeof(expim), ::SymbolicUtils.TypeT) = Complex{Real}
 SymbolicUtils.promote_shape(::typeof(expim), ::SymbolicUtils.ShapeT) =
     SymbolicUtils.ShapeVecT()
 
-# Without a rule `expand_derivatives` hits the global `nothing` fallback and leaves an inert
-# `Differential` node. The body must yield a bare `BasicSymbolic`, hence `expim`.
 Symbolics.@register_derivative expim(x) 1 im * expim_symbolic(x)
 
-# Sign of the leading literal factor; `0` when there is none (a printer may pass any argument).
 leading_sign(v) = 0
 leading_sign(v::Num) = leading_sign(SymbolicUtils.unwrap(v))
 leading_sign(v::Real) = isnan(v) ? 0 : Int(sign(v))
@@ -159,10 +144,6 @@ function leading_sign(u::RawExpression)
     return const_sign(u)
 end
 
-# Never route this through `Symbolics.wrap`: `Num` cannot hold a complex symtype, so wrapping
-# splits the phase into `real`/`imag` halves and loses the single factor everything below
-# depends on. The argument is oriented so `expim(-x)` interns as `expim(x)` at exponent `-1`;
-# without that, two modes rotating at opposite rates carry unrelated atoms and never cancel.
 function negate_expanded(a::Num)
     raw = SymbolicUtils.unwrap(a)
     if SymbolicUtils.iscall(raw) && SymbolicUtils.operation(raw) === (+)
@@ -191,8 +172,6 @@ end
 
 function phase_coeff_expanded(a::Num)
     u = SymbolicUtils.unwrap(a)
-    # A phase over a literal is its value. Interning it instead would keep every coefficient
-    # it touches off the native tier, so numerically cancelling terms would never fold.
     if is_real_const(u)
         v = real_const_float(u)
         return iszero(v) ? CNUM_ONE : native(cis(v))
@@ -205,16 +184,9 @@ end
 
 phase_coeff(x) = phase_coeff_expanded(Num(expand(x)))
 
-# Elementary functions with an exact value at argument `0`. Folds the `exp(0)` Symbolics
-# leaves after Euler-expanding `exp(im*ω*t)`. Spelled as `===` (not `in` a tuple) to stay
-# statically resolved; user-registered functions (`pulse(t)`) have no value here.
 @inline is_one_at_zero(op) = op === exp || op === cos || op === cosh
 @inline is_zero_at_zero(op) = op === sin || op === tan || op === sinh || op === tanh
 
-# A constant's payload (`Const.val`) is `::Any`. Each reader below pairs an `is_*` predicate
-# with an extractor that branches on the concrete scalar types SymbolicUtils folds constants
-# to, so the arithmetic after it dispatches statically. A payload outside a set fails the
-# predicate and is treated as symbolic: less canonical, never wrong.
 const RAW_ZERO = SymbolicUtils.Const{SymbolicUtils.SymReal}(0)
 const RAW_ONE = SymbolicUtils.Const{SymbolicUtils.SymReal}(1)
 
@@ -260,7 +232,6 @@ function real_const_float(x::RawExpression)
     return Float64(exact_number(x))
 end
 
-# Sign of a real constant; `0` for anything else, including a symbolic value.
 function const_sign(x::RawExpression)
     is_real_const(x) || return 0
     v = real_const_float(x)
@@ -287,8 +258,6 @@ function const_coeff(x::RawExpression)
     throw(ArgumentError("not a literal constant: $x"))
 end
 
-# Numeric evaluation (`SymbolicUtils.evaluate`) can also leave a Base irrational. Each
-# `Irrational{sym}` is its own type, so they are named one by one.
 const ConstIrrational = Union{
     Irrational{:π}, Irrational{:ℯ}, Irrational{:γ}, Irrational{:φ}, Irrational{:catalan},
 }
@@ -314,24 +283,18 @@ function const_complex(x::RawExpression)
     throw(ArgumentError("not a literal constant: $x"))
 end
 
-# `expim(θ)` or `expim(θ)^n` with a literal integer `n`.
 @inline function is_phase_power(x::RawExpression)
     is_phase(x) && return true
     SymbolicUtils.iscall(x) && SymbolicUtils.operation(x) === (^) || return false
     args = SymbolicUtils.arguments(x)
     return length(args) == 2 && is_phase(args[1]) && is_const_int(args[2])
 end
-# `(θ, n)` of a factor accepted by `is_phase_power`.
 @inline function phase_power(x::RawExpression)
     is_phase(x) && return (only(SymbolicUtils.arguments(x)), 1)
     args = SymbolicUtils.arguments(x)
     return (only(SymbolicUtils.arguments(args[1])), const_int(args[2]))
 end
 
-# One bottom-up rewrite step for the identities SymbolicUtils cannot infer for the
-# package-local `expim` operation. Multiplication is handled as one AC node so phase
-# collection is independent of factor order and tree grouping. Returns `x` itself when no
-# identity applies, which `Fixpoint` reads as converged.
 function rewrite_phase(x::RawExpression)
     SymbolicUtils.iscall(x) || return x
     op = SymbolicUtils.operation(x)
@@ -391,14 +354,9 @@ function rewrite_phase(x::RawExpression)
         (phase_factors >= 2 || changed) || return x
         expanded_angle = SymbolicUtils.expand(angle)
         no_phase = is_const_zero(expanded_angle)
-        # Build the real amplitude before attaching the complex phase.  Multiplying the
-        # phase by an exact real rational first makes SymbolicUtils promote `1//2` to a
-        # floating-point complex constant.
         isempty(ordinary) && return no_phase ? RAW_ONE : expim_expanded(expanded_angle)
         amplitude = foldl(*, ordinary; init = RAW_ONE)
         no_phase && return amplitude
-        # Keep the real amplitude in an explicit complex slot while rebuilding sums: a
-        # real term and a complex phase term otherwise get promoted together as Float64.
         return raw_complex(amplitude, 0 // 1) * expim_expanded(expanded_angle)
     elseif op === (^) && length(args) == 2 && is_phase(args[1])
         is_const_int(args[2]) || return x
@@ -425,9 +383,6 @@ function from_raw(x::RawExpression; normalize::Bool = true, real_slot::Bool = fa
     is_numeric_const(x) && return const_coeff(x)
     expr = normalize ? normalize_phase(x) : x
     is_numeric_const(expr) && return const_coeff(expr)
-    # Complex-valued intermediate expressions can acquire an explicit zero imaginary
-    # slot while expanding exact rational coefficients.  Canonicalize that case back to
-    # the real symbolic tree so equivalent expressions do not differ only by `complex(..., 0)`.
     real_part, imaginary_part = raw_realimag(expr)
     if is_const_zero(imaginary_part)
         is_numeric_const(real_part) && return const_coeff(real_part)
@@ -482,8 +437,6 @@ function to_cnum(x::Complex{<:Union{Integer, Rational}})
     (isinf(real(x)) || isinf(imag(x))) && return native(ComplexF64(x))
     return exact_complex(real(x), imag(x))
 end
-# Native only when the value round-trips through ComplexF64 with no loss; non-rational
-# values that cannot be represented faithfully (for example, large bignums) stay symbolic.
 function to_cnum(x::Real)
     z = ComplexF64(x)
     return z == x ? native(z) : symbolic(SymbolicUtils.unwrap(Num(x)))
@@ -501,17 +454,10 @@ function to_cnum(x::Complex{Num})
     if is_phase(raw_re) && is_const_zero(raw_im)
         return phase_coeff(only(SymbolicUtils.arguments(raw_re)))
     end
-    # The fields of `Complex{Num}` are explicit real and imaginary coefficient slots,
-    # even when a contained symbolic atom has the conservative `Number` symtype.
-    # Canonicalize both through the coefficient algebra so materializing and then
-    # rebuilding a coefficient does not switch between Raw and Poly tiers.
     return cnum(re, im)
 end
 to_cnum(x::RawExpression) = recognize(x)
 
-
-# Canonicalizing constructor from real/imag `Num` parts (`re + im*i`), used by the
-# symbolic boundaries (substitute / conj / change_index) that may yield a polynomial.
 function mul_by_im(c::Coeff)
     tail = c.tail
     tail isa Native && return mul_native(native_scalar(c), EXACT_IM)
@@ -522,13 +468,6 @@ end
 cnum(re::Num, im::Num) =
     add_cnum(recognize(SymbolicUtils.unwrap(re)), mul_by_im(recognize(SymbolicUtils.unwrap(im))))
 
-# === Parameter-polynomial tier: folding, materialization, recognition ===
-
-# Polynomial monomial scalars retain exact Gaussian rationals; only an explicitly
-# floating-point input or an operation involving one enters the ComplexF64 path.
-
-# Fold a canonical term list into a Coeff: empty -> zero, one constant term ->
-# native, else a Poly. Inputs are already canonical, so no re-sort here.
 function from_poly(terms::Vector{Monomial{ExactComplex}})
     isempty(terms) && return CNUM_ZERO
     length(terms) == 1 && isempty(terms[1].syms) && return scalar_coeff(terms[1].scalar)
@@ -655,23 +594,18 @@ function radical_expression(n::Int, f::Rational{Int})
     return SymbolicUtils.term(^, base, f; type = Real)
 end
 
-# One monomial term -> Complex{Num}. The integer part of each exponent is built by
-# repeated multiply/divide (both infer `Num`, unlike `Num ^ Int` which infers `Any`).
 function term_to_num(m::Monomial)
     prod = NUM_ONE
     @inbounds for i in eachindex(m.syms)
         s = m.syms[i]
         e = m.exps[i]
         is_radical_atom(s) && continue
-        # `exp(-im*x)` rather than `1 / exp(im*x)`: same value, and it keeps an inverse
-        # phase readable. Re-recognising it lands back on this atom, since `recognize`
-        # re-orients every `expim`.
         if e < 0 && is_phase(s)
             s = expim_symbolic(-only(SymbolicUtils.arguments(s)))
             e = -e
         end
         base = Num(s)
-        q = div(numerator(e), denominator(e))   # integer part, toward zero
+        q = div(numerator(e), denominator(e))
         if q >= 0
             for _ in 1:q
                 prod = prod * base
@@ -687,15 +621,12 @@ function term_to_num(m::Monomial)
         elseif f == -1 // 2
             prod = prod / sqrt(base)
         elseif f != 0
-            # Raised on the raw expression: `Num ^ Rational` infers `Any`.
             prod = prod * Num(SymbolicUtils.unwrap(base)^f)
         end
     end
     for (f, n) in radical_factors(m)
         prod = prod * Num(radical_expression(n, f))
     end
-    # Guard the zero halves: `0 * x` does not always fold for a complex-symtype factor,
-    # and an unfolded `0*expim(...)` would survive all the way to display.
     scalar = m.scalar
     real_scalar, imag_scalar = real(scalar), imag(scalar)
     re = iszero(real_scalar) ? NUM_ZERO : num_from_scalar(real_scalar) * prod
@@ -703,7 +634,6 @@ function term_to_num(m::Monomial)
     return Complex(re, imag_)
 end
 
-# Sum the terms; the only place a polynomial lowers to SymbolicUtils.
 poly_to_num(p::Poly) = terms_to_num(p.terms)
 function terms_to_num(terms::Vector{<:Monomial})
     isempty(terms) && return Complex(NUM_ZERO, NUM_ZERO)
@@ -742,9 +672,6 @@ function factors_to_raw(m::Monomial)
     @inbounds for i in eachindex(m.syms)
         symbol = m.syms[i]
         is_radical_atom(symbol) && continue
-        # The polynomial convention for a non-real-symtype atom is carried by the
-        # `real_slot` bit on the raw coefficient. Do not wrap the factor here: SymbolicUtils
-        # simplifies `complex(z, 0)` back to `z` before the bit can be observed.
         push!(factors, raw_power(symbol, m.exps[i]))
     end
     for (f, n) in radical_factors(m)
@@ -792,7 +719,6 @@ end
     return f(raw_tail(a), raw_tail(b))
 end
 
-
 function raw_realimag(x::RawExpression)
     SymbolicUtils.isconst(x) && return (real(x), imag(x))
     is_imaginary_unit(x) && return (RAW_ZERO, RAW_ONE)
@@ -829,9 +755,6 @@ function raw_realimag(x::RawExpression)
             return (re, -im)
         end
     end
-    # An opaque Number-symtype expression may itself be complex-valued. Preserve the
-    # public `real`/`imag` semantics here; the polynomial tier makes its real-slot
-    # convention explicit in `term_to_raw` before this fallback is reached.
     return (real(x), imag(x))
 end
 
@@ -856,19 +779,12 @@ end
     return raw_is_real(t)
 end
 
-# An "atom" is an irreducible scalar the polynomial tier treats as one opaque
-# variable: a symbol, an array index (`ω[i]`), or a non-algebraic one-arg call on an
-# atom (`real(g)`, `imag(g)`, `sqrt`, `exp`, `conj`, ...). Algebraic ops (`+ * ^ /`,
-# `complex`) are decomposed by `recognize` instead, keeping their structure native.
 @inline function is_atom(b)
     b isa SymbolicUtils.BasicSymbolic || return false
     SymbolicUtils.issym(b) && return true
     SymbolicUtils.iscall(b) || return false
     op = SymbolicUtils.operation(b)
     op === getindex && return true
-    # Atomic whatever its argument. The "argument must itself be an atom" rule below keeps
-    # `cos(ω*t)` on the symbolic tail where the CAS can fold it; an `expim` has nothing for
-    # the CAS to fold, and holding it off the polynomial tier breaks phase cancellation.
     op === expim && return true
     (op === (+) || op === (*) || op === (^) || op === (/) || op === complex) &&
         return false
@@ -876,9 +792,6 @@ end
     return length(args) == 1 && is_atom(only(args))
 end
 
-# Keep the identity scalar native for ordinary symbolic products; explicit rational
-# inputs enter through `scalar_coeff` and remain exact when they are combined later.
-# A bare atom (symbol / array index / `conj(atom)`) as a single-monomial Coeff.
 @inline atom_coeff(x::SymbolicUtils.BasicSymbolic) = poly_coeff(
     Poly(
         Monomial{ExactComplex}[
@@ -886,7 +799,6 @@ end
         ],
     ),
 )
-# An unrecognized symbolic value, kept as one raw symbolic expression tree.
 @inline sym_leaf(x::RawExpression) = from_raw(x; normalize = false)
 
 function integer_root(n::Integer, q::Int)
@@ -939,10 +851,6 @@ end
 @inline radical_leaf(x::SymbolicUtils.BasicSymbolic{SymbolicUtils.SymReal}) =
     symbolic(x; real_slot = true)
 
-
-# A fractional power `base^r`. Native only for a floating-point base or a single-atom
-# unit-scalar monomial (giving that atom a rational exponent); any other base would
-# need to distribute the radical (unsound), so it becomes a symbolic leaf.
 function negative_radical(value::Rational{BigInt}, r::Rational{Int}, x, real_root::Bool)
     magnitude = numeric_radical(-value, r, x)
     if magnitude.tail isa RawSymbolicCoeff
@@ -974,10 +882,6 @@ function rational_power(basearg, r::Rational{Int}, x)
     return sym_leaf(x)
 end
 
-# Total recognizer: evaluate a symbolic expression tree in the Coeff algebra.
-# Numbers/atoms map to native/Poly; `+ * ^(int) /` compose through the coefficient
-# arithmetic; radicals fold to rational exponents; everything else is a symbolic
-# leaf. Always returns a `Coeff` (no `nothing` sentinel).
 recognize(x::Number) = to_cnum(x)
 recognize(x::Num) = recognize(SymbolicUtils.unwrap(x))
 recognize(x) = to_cnum(x)
@@ -1001,18 +905,11 @@ function recognize(x::RawExpression)
     elseif op === getindex
         return atom_coeff(x)
     elseif op === expim
-        # Through `phase_coeff`, not `atom_coeff`: a phase recovered from a lowered
-        # expression has to orient the same way as one built directly, or the two spellings
-        # become unrelated atoms and stop cancelling.
         length(args) == 1 && return phase_coeff(only(args))
         return sym_leaf(x)
     elseif op === conj
-        # Fold conj of a constant (e.g. conj(0.0) left by substituting a complex
-        # parameter to a real value) so the coefficient can collapse to zero.
         inner = recognize(args[1])
         is_native(inner) && return native(conj(native_scalar(inner)))
-        # Without this, `conj(expim(x))` interns as a fresh atom that never cancels against
-        # the phase it came from.
         is_phase(args[1]) && return conj_cnum(inner)
         return is_atom(x) ? atom_coeff(x) : sym_leaf(x)
     elseif op === (/)
@@ -1034,13 +931,10 @@ function recognize(x::RawExpression)
         end
         return rational_power(radicand, 1 // 3, x)
     end
-    # Fold an elementary function of a literal zero (`exp(0) -> 1`, `sin(0) -> 0`, ...).
     if length(args) == 1 && (is_one_at_zero(op) || is_zero_at_zero(op))
         a1 = recognize(only(args))
         (is_native(a1) && iszero(native_scalar(a1))) && return is_one_at_zero(op) ? CNUM_ONE : CNUM_ZERO
     end
-    # Irreducible one-arg call on an atom (`exp`, `sin`, `real`, `imag`, ...): keep it
-    # native as an opaque integer-exponent atom. Radicals are handled above instead.
     return is_atom(x) ? atom_coeff(x) : sym_leaf(x)
 end
 
@@ -1081,9 +975,6 @@ function summed_terms(::Type{E}, parts::Vector{Coeff}) where {E}
     return canonical_terms!(terms)
 end
 
-# Insertion-sort a factor list (syms + matching exps) in place by objectid key.
-# Avoids Base's `sortperm` machinery for the abstract `BasicSymbolic` eltype, whose
-# inference is a nontrivial slice of first-call latency; these lists are tiny.
 function sort_factors!(syms::Vector{RawExpression}, exps::Vector{Rational{Int}})
     @inbounds for i in 2:length(syms)
         s = syms[i]; e = exps[i]; k = fkey(s)
@@ -1259,18 +1150,12 @@ Base.convert(::Type{Coeff}, x::Coeff) = x
 Base.convert(::Type{Coeff}, x::Complex{Num}) = to_cnum(x)
 Base.convert(::Type{Coeff}, x::Number) = to_cnum(x)
 
-# `Matrix{Coeff}(I, n, n)` builds its diagonal through the type, not through `convert`.
 Coeff(x::Number) = to_cnum(x)
-
-# LinearAlgebra routes its scalar fallbacks through `::Number`, which `Coeff` is not, so each
-# hook a coefficient matrix or vector reaches is supplied here.
 
 LinearAlgebra.dot(a::Coeff, b::Coeff) = mul_cnum(conj_cnum(a), b)
 LinearAlgebra.dot(a::Coeff, b::Number) = LinearAlgebra.dot(a, to_cnum(b))
 LinearAlgebra.dot(a::Number, b::Coeff) = LinearAlgebra.dot(to_cnum(a), b)
 
-# `abs` is exact for native and pure-phase coefficients and throws otherwise, so a norm over
-# symbolic coefficients refuses rather than inventing a magnitude it cannot order.
 function LinearAlgebra.norm(c::Coeff, p::Real = 2)
     p == 0 && return iszero(c) ? NUM_ZERO : NUM_ONE
     return abs(c)
@@ -1278,15 +1163,12 @@ end
 
 LinearAlgebra.symmetric(c::Coeff, ::Symbol = :U) = c
 LinearAlgebra.symmetric_type(::Type{Coeff}) = Coeff
-# A Hermitian matrix has a real diagonal, which is what the scalar hook enforces.
 LinearAlgebra.hermitian(c::Coeff, ::Symbol = :U) = to_cnum(real(c))
 LinearAlgebra.hermitian_type(::Type{Coeff}) = Coeff
 
 LinearAlgebra.rmul!(A::AbstractArray{Coeff}, b::Coeff) = (A .= A .* b)
 LinearAlgebra.lmul!(a::Coeff, B::AbstractArray{Coeff}) = (B .= a .* B)
 
-# A symbolic coefficient has no magnitude order, so the pivoted LU `det` would otherwise fall
-# back to cannot run. Expand by minors instead, as Symbolics does for `Num`.
 function LinearAlgebra.det(A::AbstractMatrix{Coeff})
     LinearAlgebra.checksquare(A)
     rows, cols = axes(A)
@@ -1418,7 +1300,6 @@ raw_part_num(x::RawExpression) = Num(normalize_phase(x))
 
 Base.show(io::IO, c::Coeff) = show(io, to_num(c))
 
-# Branch on the tail type so each `isequal` / `hash` call sees a concrete operand.
 function Base.isequal(a::Coeff, b::Coeff)
     ta, tb = a.tail, b.tail
     if ta isa Native
@@ -1438,17 +1319,12 @@ function Base.hash(c::Coeff, h::UInt)
     return hash(t.real_slot, hash(t.expr, hash(:CoeffRaw, h)))
 end
 
-# Coefficients are routinely compared against plain numbers / `Complex{Num}`
-# (e.g. `get_prefactor(x) == 2`, `q[key] == CNUM_ONE`); promote the number side.
 Base.isequal(a::Coeff, b::Number) = isequal(a, to_cnum(b))
 Base.isequal(a::Number, b::Coeff) = isequal(to_cnum(a), b)
 Base.:(==)(a::Coeff, b::Number) = isequal(a, to_cnum(b))
 Base.:(==)(a::Number, b::Coeff) = isequal(to_cnum(a), b)
 
-# Without this a coefficient falls into the iterable branch of `broadcastable`, and every
-# array-scalar broadcast (`A .* c`) fails on `length(::Coeff)`.
 Base.broadcastable(c::Coeff) = Ref(c)
-# A coefficient is immutable. `matmul2x2!` on Julia 1.10 copies its operands.
 Base.copy(c::Coeff) = c
 
 Base.iszero(c::Coeff) = iszero_cnum(c)
@@ -1488,8 +1364,6 @@ function Base.inv(c::Coeff)
     return from_raw(inv(tail.expr); real_slot = tail.real_slot)
 end
 
-# Coefficients flow through downstream code (and tests) as numbers; support the
-# usual scalar arithmetic, promoting any `Number` operand into a `Coeff` first.
 Base.:-(c::Coeff) = neg_cnum(c)
 Base.:+(a::Coeff, b::Coeff) = add_cnum(a, b)
 Base.:+(a::Coeff, b::Number) = add_cnum(a, to_cnum(b))
@@ -1500,8 +1374,6 @@ Base.:-(a::Number, b::Coeff) = add_cnum(to_cnum(a), neg_cnum(b))
 Base.:*(a::Coeff, b::Coeff) = mul_cnum(a, b)
 Base.:*(a::Coeff, b::Number) = mul_cnum(a, to_cnum(b))
 Base.:*(a::Number, b::Coeff) = mul_cnum(to_cnum(a), b)
-# Named rather than `/` inside the coefficient recursion: inference widens a recursive call's
-# argument types, and a widened generic `/` would match unrelated polynomial methods.
 function div_cnum(a::Coeff, b::Coeff)
     (is_native(a) && is_native(b)) && return native_div(native_scalar(a), native_scalar(b))
     ta, tb = a.tail, b.tail
@@ -1526,8 +1398,6 @@ Base.:/(a::Coeff, b::Coeff) = div_cnum(a, b)
 Base.:/(a::Coeff, b::Number) = a / to_cnum(b)
 Base.:/(a::Number, b::Coeff) = to_cnum(a) / b
 
-# `conj(conj(x)) == x`, so unwrap an existing `conj(...)` rather than nesting a
-# second one (which never folds and survives downstream).
 is_conj_call(x) =
     SymbolicUtils.iscall(x) && SymbolicUtils.operation(x) === conj
 
@@ -1551,17 +1421,12 @@ function raw_conj(x)
     return conj(x)
 end
 
-# Conjugate an atom factor: real-symtype atoms are self-conjugate, an existing
-# `conj(...)` unwraps (involution), else wrap in `conj(...)` (still an atom to
-# `is_atom`).
 @inline function conj_atom(s::SymbolicUtils.BasicSymbolic)
     SymbolicUtils.symtype(s) <: Real && return s
     is_conj_call(s) && return SymbolicUtils.arguments(s)[1]
     return SymbolicUtils.unwrap(conj(s))
 end
 
-# Native conjugation of a Poly: conjugate each scalar and atom, re-sort the rekeyed
-# factors by `objectid`, re-canonicalize. Avoids the `to_num` round-trip per term.
 conj_poly(p::Poly) = tiered(conj_terms, p)
 
 function conj_terms(::Type{E}, source::Vector{Monomial{E}}) where {E}
@@ -1577,8 +1442,6 @@ function conj_terms(::Type{E}, source::Vector{Monomial{E}}) where {E}
         nexps = copy(m.exps)
         for i in 1:n
             s = m.syms[i]
-            # Unimodular: conjugation flips the exponent and keeps the atom, which is what
-            # lets `p * conj(p)` cancel instead of growing a second unrelated factor.
             if is_phase(s)
                 nsyms[i] = s
                 nexps[i] = -nexps[i]
@@ -1607,11 +1470,10 @@ end
 
 @inline function iszero_cnum(c::Coeff)
     is_native(c) && return iszero(native_scalar(c))
-    c.tail isa Poly && return false   # a canonical Poly never sums to zero
+    c.tail isa Poly && return false
     return is_const_zero(c.tail.expr)
 end
 
-# Structural `a == -b`, used to recognize exact cancellation without a CAS round-trip.
 @inline function raw_is_negative_of(
         positive::SymbolicUtils.BasicSymbolic, negative::SymbolicUtils.BasicSymbolic,
     )
@@ -1687,7 +1549,6 @@ end
     return mul_cnum_slow(a, b)
 end
 
-# Native and polynomial fast paths first, then multiply the intact raw expressions.
 @noinline function mul_cnum_slow(a::Coeff, b::Coeff)
     ta, tb = a.tail, b.tail
     if ta isa Poly && tb isa Poly
@@ -1788,21 +1649,14 @@ end
 
 @inline function add_cnum(a::Coeff, b::Coeff)
     (is_native(a) && is_native(b)) && return add_native(native_scalar(a), native_scalar(b))
-    # Skip add-by-zero: `recognize` folds every sum from `CNUM_ZERO`, so without this each
-    # fold would splice a throwaway zero `Monomial` into the Poly and merge it away.
     is_native(a) && iszero(native_scalar(a)) && return b
     is_native(b) && iszero(native_scalar(b)) && return a
-    # Raw symbolic addition deliberately avoids a CAS round-trip. Recover the common exact
-    # cancellation case here, which is needed by scalar identities such as the off-diagonal
-    # entries of a symbolic orthogonal matrix product.
     if a.tail isa RawSymbolicCoeff && b.tail isa RawSymbolicCoeff
         isneg_cnum(a.tail, b.tail) && return CNUM_ZERO
     end
     return add_cnum_slow(a, b)
 end
 
-# Polynomial addition is a native merge (no escalation): this is what makes the
-# tier pay off on sum-heavy workloads, where the single-monomial design regressed.
 @noinline function add_cnum_slow(a::Coeff, b::Coeff)
     ta, tb = a.tail, b.tail
     if ta isa Poly && tb isa Poly
@@ -1839,7 +1693,6 @@ end
 
 function pow_cnum_integer(base::Coeff, n::Int)
     n >= 0 && return pow_cnum_nonnegative(base, n)
-    # `-typemin(Int)` overflows, so peel one factor off.
     n == typemin(Int) &&
         return div_cnum(CNUM_ONE, mul_cnum(pow_cnum_nonnegative(base, typemax(Int)), base))
     return div_cnum(CNUM_ONE, pow_cnum_nonnegative(base, -n))
@@ -1847,7 +1700,6 @@ end
 
 Base.:^(base::Coeff, n::Integer) = pow_cnum_integer(base, Int(n))
 
-# Rewriters return `x` itself when no identity applies.
 @inline function rewrite_complex_slots(x)
     x isa SymbolicUtils.BasicSymbolic || return x
     SymbolicUtils.iscall(x) || return x
@@ -1890,7 +1742,6 @@ end
     return mul_cnum(mul_cnum(CNUM_NEG_IM, CNUM_HALF), difference)
 end
 
-# `exp(argument)` is a unit phase when the argument is `im` times a real expression.
 function is_exponential_phase(argument)
     real_part, imaginary_part = realimag(recognize(argument))
     return iszero_num(real_part) && SymbolicUtils.symtype(SymbolicUtils.unwrap(imaginary_part)) <: Real

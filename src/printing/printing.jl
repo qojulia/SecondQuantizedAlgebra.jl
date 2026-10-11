@@ -56,16 +56,11 @@ function Base.show(io::IO, x::Op)
     return
 end
 
-# The `im` suffix is juxtaposition, so every call has to be braced, not just the loose heads:
-# `x^2` reads as `x^(2im)`, `x*y` merges into the identifier `yim`, `sqrt(x)im` is a syntax
-# error.
 function needs_im_parens(v::Num)
     u = SymbolicUtils.unwrap(v)
     return u isa SymbolicUtils.BasicSymbolic && SymbolicUtils.iscall(u)
 end
 
-# A `/` or `+` head has looser precedence than the ` * ops` that follows a prefactor, so
-# such a part has to be parenthesized.
 function is_loose_head(v::Num)
     needs_im_parens(v) || return false
     op = SymbolicUtils.operation(SymbolicUtils.unwrap(v))
@@ -101,7 +96,7 @@ function show_display(io::IO, c::Complex{Num})
     else
         re, i = real(c), imag(c)
         write(io, "(")
-        show_part(io, re, is_loose_head(re))   # followed by ` + `, not by the suffix
+        show_part(io, re, is_loose_head(re))
         write(io, " + ")
         show_part(io, i, needs_im_parens(i))
         write(io, "im)")
@@ -122,8 +117,6 @@ is_neg_unit(c::Number) = isequal(c, -1)
 function is_real_negative(c::CNum)
     is_native(c) && return imag(native_scalar(c)) == 0 && real(native_scalar(c)) < 0
     t = c.tail
-    # A polynomial coefficient with every scalar real and negative factors out as ` - `,
-    # which is most of what a rotation or a squeeze produces.
     t isa Poly &&
         return all_real_negative(t.terms)
     return is_real_negative_sym(c)
@@ -155,7 +148,6 @@ function show_term(io::IO, c::CNum, ops::Vector{Op})
             print(io, expr)
             brace && write(io, ")")
         else
-            # Lower once so the parenthesis decision and rendering inspect the same expression.
             d = to_num(c)
             brace = !is_native(c) && needs_pf_parens(d)
             brace && write(io, "(")
@@ -252,14 +244,10 @@ function show_sum_group(io::IO, terms::Vector{QAdd}, indices::Vector{Index}, ne_
     return io
 end
 
-# `expim(x)` reads as `exp(im*x)`, with a leading minus pulled onto the `im` so an inverse
-# phase shows as `exp(-im*ω*t)` rather than `exp(im*(-ω*t))`.
 function SymbolicUtils.show_call(io::IO, ::typeof(expim), x::SymbolicUtils.BasicSymbolic; kw...)
     arg = only(SymbolicUtils.arguments(x))
     neg = leading_sign(arg) < 0
     write(io, neg ? "exp(-im*" : "exp(im*")
-    # Negate on the `BasicSymbolic` itself: wrapping in `Num` first is a method error for a
-    # non-`SymReal` vartype, which is what the argument of a phase can be.
     body = neg ? SymbolicUtils.unwrap(expand(-arg)) : arg
     paren = SymbolicUtils.iscall(body) && SymbolicUtils.operation(body) === (+)
     paren && write(io, "(")
@@ -328,8 +316,6 @@ function Base.show(io::IO, x::QAdd)
     return
 end
 
-# An N-level transform on 5 levels holds 25 rules of up to 25 terms each, so the full form is
-# unreadable at a REPL prompt. `:limit` is what the REPL sets and a file write does not.
 const SHOW_RULE_LIMIT = 4
 
 function show_unitary_rule(io::IO, U::UnitaryTransform, generator::Op)

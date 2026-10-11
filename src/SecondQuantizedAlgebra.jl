@@ -96,14 +96,12 @@ macro qnumbers(qs...)
         op_type = f.args[1]
         op_args = f.args[2:end]
         name_quoted = Expr(:quote, name)
-        # Insert name as second argument: Op(hilbert, name, extra_args...)
         construction = Expr(:call, esc(op_type), esc(op_args[1]), name_quoted, map(esc, op_args[2:end])...)
         push!(ex.args, :($(esc(name)) = $(construction)))
     end
     push!(ex.args, Expr(:tuple, map(esc, qnames)...))
     return ex
 end
-
 
 export FockSpace, ProductSpace,
     NLevelSpace, Transition, CollectiveNLevelSpace, CollectiveTransition,
@@ -134,9 +132,6 @@ export FockSpace, ProductSpace,
     Op, operator_name, operator_index, is_destroy, is_create, is_transition, is_collective_transition,
     is_pauli, is_spin, is_position, is_momentum, optype
 
-
-# Public API that is intentionally NOT exported — accessed as
-# `SecondQuantizedAlgebra.symbol`.
 @public HilbertSpace, QField, QSym, OpKind,
     NumericContext, expect,
     OP_DESTROY, OP_CREATE, OP_TRANSITION, OP_PAULI, OP_SPIN, OP_POSITION, OP_MOMENTUM,

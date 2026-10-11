@@ -1,5 +1,3 @@
-# === Fock transformations ===
-
 function fock_displacement(d::Op, c::CNum)
     action = AffineAction(
         Op[d, adjoint(d)],
@@ -152,8 +150,6 @@ function Squeeze(a::Op, r::Real, ϕ::Real, t::Num)
     tt = time_or_throw(t)
     return timed_transform(Squeeze(a, r, ϕ), squeeze_gauge(d, r, ϕ, tt), tt)
 end
-
-# === Two-mode and phase-space transformations ===
 
 function two_modes(a::Op, b::Op, what::AbstractString)
     x = fock_or_throw(a, what)
@@ -357,8 +353,6 @@ function Displace(x::Op, p::Op, dx::Real, dp::Real, t::Num)
     return timed_transform(quadrature_displacement(x, p, cx, cp), gauge, tt)
 end
 
-# === Pauli and spin transformations ===
-
 axis_or_throw(axis::Integer) = 1 <= axis <= 3 ? Int32(axis) :
     unitary_error("axis must be 1, 2, or 3, got $axis")
 axis_op(o::Op, axis::Integer) =
@@ -413,8 +407,6 @@ function Rotation(S::Op, axis::Integer, θ::Real, t::Num)
         scaled(CNUM_ONE, fixed)
     return timed_transform(Rotation(S, axis, θ), gauge(generator, θ, tt), tt)
 end
-
-# === Ordinary N-level basis transformations ===
 
 transition_op(o::Op, i::Integer, j::Integer) =
     Op(OP_TRANSITION, o.name_id, o.space_index, o.index, Int32(i), Int32(j), o.g, o.nlev)

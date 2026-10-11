@@ -161,7 +161,6 @@ julia> length(find_operators(h, 1))
 See also [`fundamental_operators`](@ref), [`unique_up_to_adjoint`](@ref).
 """
 function find_operators(h::HilbertSpace, order::Int; names::AbstractVector = Symbol[])
-    # Auto-generate names when ProductSpace has duplicate space types
     if isempty(names) && h isa ProductSpace
         space_types = typeof.(h.spaces)
         if length(unique(space_types)) != length(space_types)
@@ -177,7 +176,6 @@ function find_operators(h::HilbertSpace, order::Int; names::AbstractVector = Sym
         for c in with_replacement_combinations(fund_ops, i)
             c_ = prod(reverse(c))
             iszero(c_) && continue
-            # With eager ordering, c_ is QAdd. Keep only single-term products.
             if c_ isa QAdd && length(c_.arguments) == 1
                 push!(all_ops, c_)
             elseif c_ isa QSym
@@ -189,9 +187,6 @@ function find_operators(h::HilbertSpace, order::Int; names::AbstractVector = Sym
     unique_up_to_adjoint!(all_ops)
     return all_ops
 end
-
-
-# Hermitian conjugation
 
 """
     qadjoint(x)
@@ -207,20 +202,11 @@ Aliased as `qconj`. See also [`dagger`](@ref), which extends
 `QuantumInterface.dagger` for `QField` and forwards here.
 """
 function qadjoint(v::SymbolicUtils.BasicSymbolic)
-    # TODO `Symbolics.IM` (used by `average(::QAdd)` to avoid `Complex{Num}`)
-    # has no `conj` fold yet upstream; do it here.
-    # https://github.com/JuliaSymbolics/SymbolicUtils.jl/pull/924
     v === Symbolics.IM && return -Symbolics.IM
     if SymbolicUtils.iscall(v)
         f = SymbolicUtils.operation(v)
         args = SymbolicUtils.arguments(v)
-        # adjoint of a scalar `conj(x)` is `x`; fold rather than nesting into
-        # `conj(conj(x))`, which does not simplify and survives downstream (e.g.
-        # leaving dead time-dependent terms after a coupling is substituted to 0).
-        # Mirrors the `f === conj` case already handled in `inner_adjoint`.
         f === conj && return args[1]
-        # A phase conjugates by negating its argument, not by conjugating it, so the generic
-        # rebuild below would produce `expim(conj(x))` and lose the cancellation.
         f === expim && return expim_symbolic(-only(args))
         return TermInterface.maketerm(
             typeof(v), f, map(qadjoint, args), TermInterface.metadata(v),
@@ -256,11 +242,8 @@ the canonical "average-of-operator" form for substitution and hashing.
 On non-average sub-expressions, behaves like [`qadjoint`](@ref).
 """
 function inner_adjoint(v::SymbolicUtils.BasicSymbolic)
-    # TODO See `qadjoint`: upstream `conj(IM)` doesn't fold yet. https://github.com/JuliaSymbolics/SymbolicUtils.jl/pull/924
     v === Symbolics.IM && return -Symbolics.IM
     if SymbolicUtils.hasmetadata(v, AverageOperator)
-        # Lifted average ⟨X⟩(iv): the inside-adjoint is ⟨X†⟩(iv), still a function of the
-        # same iv. Re-lift the adjoint so time-dependence is preserved.
         op = SymbolicUtils.getmetadata(v, AverageOperator)
         iv = SymbolicUtils.arguments(v)[1]
         return lift_average(average(adjoint(op)), iv)
@@ -278,7 +261,6 @@ function inner_adjoint(v::SymbolicUtils.BasicSymbolic)
         elseif f === conj
             return inner_adjoint(args[1])
         elseif f === expim
-            # See `qadjoint`: negate the argument, do not conjugate it.
             return expim_symbolic(-only(args))
         else
             return TermInterface.maketerm(
@@ -293,9 +275,6 @@ inner_adjoint(x::Number) = conj(x)
 inner_adjoint(x::Num) = inner_adjoint(SymbolicUtils.unwrap(x))
 inner_adjoint(x::QField) = adjoint(x)
 
-
-# Adjoint, ordering, ladder
-
 function Base.adjoint(o::Op)
     k = o.kind
     if k === OP_DESTROY
@@ -303,14 +282,12 @@ function Base.adjoint(o::Op)
     elseif k === OP_CREATE
         return Op(OP_DESTROY, o.name_id, o.space_index, o.index, o.l1, o.l2, o.g, o.nlev)
     elseif k === OP_TRANSITION || k === OP_COLLECTIVE_TRANSITION
-        # |i⟩⟨j|† = |j⟩⟨i|: swap the packed levels.
         return Op(k, o.name_id, o.space_index, o.index, o.l2, o.l1, o.g, o.nlev)
     else
-        return o   # Pauli, Spin, Position, Momentum are Hermitian
+        return o
     end
 end
 
-# Instance form used by `full_op_key`; the enum value is the cross-type order.
 type_order(o::Op) = Int(o.kind)
 
 """
@@ -334,17 +311,9 @@ operator product sequences.
 """
 ladder(o::Op) = (o.kind === OP_DESTROY || o.kind === OP_MOMENTUM) ? 1 : 0
 
-
-# Operator hooks (single concrete methods branching on `kind`)
-
-# Kept next to `site_compare` so the two cannot drift: that function skips the name
-# comparison for a `Position`/`Momentum` cross-role pair, so this drops the name there too.
 site_key(o::Op) =
     (o.space_index, o.index, (is_position(o) || is_momentum(o)) ? Int32(0) : o.name_id)
 
-# Site family: Fock {Destroy,Create} and PhaseSpace {Position,Momentum} compare
-# cross-role within the family; the others are singleton families. Distinct
-# families fall back to the `kind` integer order (= the old `type_order`).
 @inline site_family(k::OpKind) =
     (k === OP_DESTROY || k === OP_CREATE) ? 0x00 :
     (k === OP_POSITION || k === OP_MOMENTUM) ? 0x05 :
@@ -355,13 +324,10 @@ function site_compare(a::Op, b::Op, ne::Vector{NonEqualPair})
     a.space_index == b.space_index || return a.space_index < b.space_index ? Less : Greater
     fa = site_family(ka)
     fa === site_family(kb) || return UInt8(ka) < UInt8(kb) ? Less : Greater
-    # PhaseSpace x-vs-p ignores name (conjugate variables on one site); every
-    # other same-family pair distinguishes by name.
     if !(fa === 0x05 && ka !== kb)
         a.name_id == b.name_id || return name_rank(a.name_id) < name_rank(b.name_id) ? Less : Greater
     end
     a.index == b.index && return Equal
-    # PhaseSpace never consults `ne`; Fock/Transition/Pauli/Spin do.
     fa === 0x05 && return Undetermined
     ne_contains(ne, a.index, b.index) && return a.index < b.index ? Less : Greater
     return Undetermined
@@ -370,38 +336,34 @@ end
 function can_commute(a::Op, b::Op)
     ka = a.kind; kb = b.kind
     if ka === OP_DESTROY && kb === OP_CREATE
-        return false                 # a·a† carries the identity residual
+        return false
     elseif ka === OP_TRANSITION && kb === OP_TRANSITION
-        return false                 # always compose
+        return false
     elseif ka === OP_PAULI && kb === OP_PAULI
-        return false                 # always compose
+        return false
     elseif ka === OP_SPIN && kb === OP_SPIN
-        return a.l1 <= b.l1          # commute only in ascending axis order
+        return a.l1 <= b.l1
     elseif ka === OP_COLLECTIVE_TRANSITION && kb === OP_COLLECTIVE_TRANSITION
         a.name_id == b.name_id || return true
         return a.l1 > b.l1 || (a.l1 == b.l1 && a.l2 >= b.l2)
     elseif ka === OP_MOMENTUM && kb === OP_POSITION
-        return false                 # P·X = X·P - i
+        return false
     else
         return true
     end
 end
 
-# `commute_pair` returns the swapped pair followed by two residual
-# `(coefficient, operators)` slots. Existing roles use only the first slot.
 function commute_pair(a::Op, b::Op)
     ka = a.kind; kb = b.kind
     if ka === OP_DESTROY && kb === OP_CREATE
-        return (b, a, CNUM_ONE, EMPTY_OPS, CNUM_ZERO, EMPTY_OPS) # aa† = a†a + 1
+        return (b, a, CNUM_ONE, EMPTY_OPS, CNUM_ZERO, EMPTY_OPS)
     elseif ka === OP_MOMENTUM && kb === OP_POSITION
-        return (b, a, CNUM_NEG_IM, EMPTY_OPS, CNUM_ZERO, EMPTY_OPS) # P·X = X·P - i·I
+        return (b, a, CNUM_NEG_IM, EMPTY_OPS, CNUM_ZERO, EMPTY_OPS)
     elseif ka === OP_SPIN && kb === OP_SPIN
-        # [Sj, Sk] = iϵⱼₖₗSl; the residual is the contracted spin on the third axis.
         eps = levi_civita[a.l1][b.l1]
         contracted = Op(OP_SPIN, a.name_id, a.space_index, a.index, 6 - a.l1 - b.l1, 0, 0, 0)
         return (b, a, levi_civita_coeff(eps), Op[contracted], CNUM_ZERO, EMPTY_OPS)
     elseif ka === OP_COLLECTIVE_TRANSITION && kb === OP_COLLECTIVE_TRANSITION
-        # [Sⁱʲ,Sᵏˡ] = δⱼₖSⁱˡ - δₗᵢSᵏʲ.
         c1 = a.l2 == b.l1 ? CNUM_ONE : CNUM_ZERO
         c2 = b.l2 == a.l1 ? CNUM_NEG1 : CNUM_ZERO
         r1 = iszero_cnum(c1) ? EMPTY_OPS : Op[Op(ka, a.name_id, a.space_index, NO_INDEX, a.l1, b.l2, 0, 0)]
@@ -414,8 +376,6 @@ end
 
 @inline levi_civita_coeff(eps::Int) = eps == 1 ? CNUM_IM : (eps == -1 ? CNUM_NEG_IM : CNUM_ZERO)
 
-# Reduce-pass gate: only Transition·Transition and Pauli·Pauli compose locally,
-# so non-reducing pairs skip the field checks below.
 may_reduce(a::Op, b::Op) =
     (a.kind === OP_TRANSITION && b.kind === OP_TRANSITION) ||
     (a.kind === OP_PAULI && b.kind === OP_PAULI)
@@ -423,21 +383,19 @@ may_reduce(a::Op, b::Op) =
 function reduce_pair(a::Op, b::Op)
     ka = a.kind
     if ka === OP_TRANSITION && b.kind === OP_TRANSITION
-        # σⁱʲ · σᵏˡ = δⱼₖ σⁱˡ.
         (a.name_id == b.name_id && a.space_index == b.space_index && a.index == b.index) ||
             return (NoReduction, a, CNUM_ZERO)
         if a.l2 == b.l1
             new = Op(OP_TRANSITION, a.name_id, a.space_index, a.index, a.l1, b.l2, a.g, a.nlev)
             return (OpReduction, new, CNUM_ONE)
         else
-            return (ScalarReduction, a, CNUM_ZERO)    # δ_{j,k} = 0
+            return (ScalarReduction, a, CNUM_ZERO)
         end
     elseif ka === OP_PAULI && b.kind === OP_PAULI
-        # σⱼ·σₖ = δⱼₖI + iϵⱼₖₗσₗ.
         (a.name_id == b.name_id && a.space_index == b.space_index && a.index == b.index) ||
             return (NoReduction, a, CNUM_ZERO)
         if a.l1 == b.l1
-            return (ScalarReduction, a, CNUM_ONE)     # σⱼ² = 1
+            return (ScalarReduction, a, CNUM_ONE)
         else
             eps = levi_civita[a.l1][b.l1]
             new = Op(OP_PAULI, a.name_id, a.space_index, a.index, 6 - a.l1 - b.l1, 0, 0, 0)
@@ -448,7 +406,6 @@ function reduce_pair(a::Op, b::Op)
     end
 end
 
-# Ground-state expansion: σᵍᵍ -> 1 - Σ_{k≠g} σᵏᵏ (Transition only).
 function ground_state_expand(op::Op)
     op.kind === OP_TRANSITION || return (false, 0, 0, 0)
     (op.l1 == op.g && op.l2 == op.g) || return (false, 0, 0, 0)

@@ -1,27 +1,11 @@
-# Global intern tables backing the isbits `Op`/`Index` (issue #137).
-#
-# Names/ranges are stored as `Int32` ids so `Op`/`Index` are `isbits`. The
-# id->object tables are append-only `Vector`s (bounds-checked reads on the hot
-# path); the object->id tables are `Dict`s mutated only at construction under
-# `INTERN_LOCK`. `NAME_RANK` holds each id's lexicographic position so
-# canonical ordering stays name-sorted and deterministic across sessions.
-#
-# Ids are insertion-order: NEVER serialized (`Index`/`Op` are not
-# `Serialization`-stable; reads bounds-check so a stale id throws, not corrupts).
-# Construction is the only writer and is NOT thread-safe; populate the tables
-# from one thread before any concurrent canonicalization.
-
 const INTERN_LOCK = ReentrantLock()
 
-# Name interning.
-const NAME_BY_ID = Symbol[]              # id (1-based) -> Symbol
-const NAME_TO_ID = Dict{Symbol, Int32}() # Symbol -> id
-const NAME_RANK = Int32[]                # id -> lexicographic position
-const SYM_BY_ID = Num[]                 # id -> cached Num(Sym(name)); lazy (see base_sym_from_id)
-# Placeholder for a slot whose sym is not built yet; compared by identity.
+const NAME_BY_ID = Symbol[]
+const NAME_TO_ID = Dict{Symbol, Int32}()
+const NAME_RANK = Int32[]
+const SYM_BY_ID = Num[]
 const UNBUILT_SYM = Num(SymbolicUtils.Sym{SymbolicUtils.SymReal}(:__unbuilt_index_sym__; type = Int))
 
-# id 0 is the reserved sentinel (NO_INDEX / no name).
 name_from_id(id::Int32) = id == 0 ? :_ : NAME_BY_ID[id]
 name_rank(id::Int32) = id == 0 ? Int32(0) : NAME_RANK[id]
 
@@ -35,7 +19,7 @@ end
 
 @noinline function build_base_sym(id::Int32)
     return lock(INTERN_LOCK) do
-        while length(SYM_BY_ID) < length(NAME_BY_ID)  # defensive lockstep
+        while length(SYM_BY_ID) < length(NAME_BY_ID)
             push!(SYM_BY_ID, UNBUILT_SYM)
         end
         cached = SYM_BY_ID[id]
@@ -46,10 +30,6 @@ end
     end
 end
 
-# get-or-push with a lock-free fast path for the common already-interned case;
-# `on_new(id)` runs under the lock for a freshly assigned id. `F` is a sink
-# type-parameter so the callback specializes; explicit lock/try (not a `do`
-# closure) keeps the fast path allocation-free.
 function intern!(by_id::Vector{T}, to_id::Dict{T, Int32}, x::T, on_new::F) where {T, F}
     id = get(to_id, x, Int32(0))
     id != 0 && return id
@@ -67,8 +47,6 @@ function intern!(by_id::Vector{T}, to_id::Dict{T, Int32}, x::T, on_new::F) where
     end
 end
 
-# Freshly interned name: add its lazy `index_sym` slot, then splice its
-# lexicographic rank in place (shift later ranks by one) instead of re-sorting.
 function new_name!(id::Int32)
     push!(SYM_BY_ID, UNBUILT_SYM)
     s = NAME_BY_ID[id]
@@ -81,13 +59,10 @@ function new_name!(id::Int32)
 end
 
 intern_name(s::Symbol) = intern!(NAME_BY_ID, NAME_TO_ID, s, new_name!)
-# Constructor name argument: always a `Symbol`, interned to its id. Internal
-# rebuilds forward an existing `name_id` by constructing `Op` directly.
 name_id(s::Symbol) = intern_name(s)
 
-# Range interning.
-const RANGE_BY_ID = Num[]               # id (1-based) -> Num
-const RANGE_TO_ID = Dict{Num, Int32}()  # Num -> id (dedup by isequal)
+const RANGE_BY_ID = Num[]
+const RANGE_TO_ID = Dict{Num, Int32}()
 
 range_from_id(id::Int32) = id == 0 ? Num(0) : RANGE_BY_ID[id]
 

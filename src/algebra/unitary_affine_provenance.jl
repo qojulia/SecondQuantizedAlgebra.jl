@@ -1,7 +1,3 @@
-# Proof-preserving helpers for affine actions that are canonical by construction or by API
-# contract. No generic symbolic matrix inversion is used: each homogeneous affine block has a
-# structural inverse formula determined by its algebra.
-
 function canonical_block_inverse(block::AffineBlock, relations::Vector{ParamRelation})
     linear = inverse_linear(block.linear, block.structure)
     n = length(block.basis)
@@ -21,7 +17,6 @@ function canonical_affine_inverse(action::AffineAction)
     blocks = AffineBlock[
         canonical_block_inverse(block, action.relations) for block in action.blocks
     ]
-    # Structural inversion preserves block disjointness and does not mutate parameter relations.
     return AffineAction(blocks, action.relations)
 end
 
@@ -72,8 +67,6 @@ function validate_transform_substitution_rules(rules::AbstractDict)
     return rules
 end
 
-# Keep scalar substitutions closed under conjugation so exact rational/complex values replace
-# both a symbolic coefficient and its conjugate before the affine map is recompiled.
 function conjugation_closed_substitutions(rules::AbstractDict)
     isempty(rules) && return rules
     closed = Dict{Any, Any}(rules)

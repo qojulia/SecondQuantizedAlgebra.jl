@@ -8,15 +8,12 @@ struct DynamicTime
     variable::Num
 end
 
-# Exact actions are partitioned into algebra-homogeneous affine blocks. These types live next
-# to `UnitaryTransform` so every transform can carry concrete affine metadata directly. Their
-# container fields are immutable by convention after construction and may be shared safely.
 @enum AffineStructure::UInt8 begin
     AFFINE_BOSONIC_NAMBU
     AFFINE_SYMPLECTIC_PHASE_SPACE
     AFFINE_ORTHOGONAL
     AFFINE_UNITARY_LINEAR
-    AFFINE_NONE  # an operator outside every affine algebra above
+    AFFINE_NONE
 end
 
 struct AffineBlock
@@ -409,7 +406,6 @@ function Base.:*(
     return compose(first, second, first.time)
 end
 
-# Rule-building primitives used by affine compilation and gauge construction.
 function rule_qadd(pairs::Vector{Tuple{CNum, Vector{Op}}})
     out = QTermDict()
     for (coefficient, operators) in pairs

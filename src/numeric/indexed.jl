@@ -1,9 +1,3 @@
-# Indexed numeric conversion. The unroll logic (which bound indices a term depends on,
-# the `ne` diagonal filter, the `sub_op`/`sub_coef` dual substitution) is backend-neutral
-# and kept verbatim; only the leaf emission is routed through the backend hooks at the
-# resolved site, so every combination becomes one entry of the same term list the static
-# path assembles.
-
 """
     to_numeric(q::QAdd, basis, sites::Dict{Int, Vector{Int}}[, d[, scalar_subs]])
 
@@ -31,9 +25,6 @@ function to_numeric(
     return to_numeric_indexed(QuantumOpticsBackend(), b, q, sites, d, scalar_subs)
 end
 
-# Backend-neutral indexed conversion. Every place that would name a numeric type goes
-# through the hooks, so this drives both backends; the `Basis`/QTB-dims entry points only
-# pick the backend singleton and hand off here.
 function to_numeric_indexed(
         be::NumericBackend, basis, q::QAdd,
         sites::AbstractDict{Int, Vector{Int}},
@@ -107,9 +98,6 @@ function accumulate_indexed_term!(
             kpos = (rem % lens[k]) + 1
             rem ÷= lens[k]
             idx = dep_indices[k]
-            # Operators keep the index name (slot kpos drives routing / ne checks and
-            # lets a resolved op still match a user `d` key); coefficients use the
-            # anonymous name_id-0 form so `index_sym` is Num(kpos), resolving g(i)→g(k).
             sub_op[idx] = Index(idx.name_id, idx.range_id, idx.space_index, Int32(kpos))
             sub_coef[idx] = Index(Int32(0), idx.range_id, idx.space_index, Int32(kpos))
         end

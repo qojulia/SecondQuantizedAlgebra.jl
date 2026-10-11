@@ -1,10 +1,3 @@
-# Backend-neutral core: walk a canonical `QAdd` into a backend-neutral term list and hand
-# it to the backend's lazy assembler. The core never does operator arithmetic and never
-# names a concrete numeric type; everything numeric goes through the hooks in `backend.jl`.
-
-# `Union{}` value keeps the haskey-fallback branch concrete-typed (a real op_subs dict
-# widens the leaf to `Any`, which only the kwargs/dict paths use and which are not on the
-# `@inferred` contract).
 const NO_SUBS = Dict{QSym, Union{}}()
 const EMPTY_SITES = Dict{Int, Vector{Int}}()
 
@@ -27,16 +20,8 @@ end
 NumericContext(be::NumericBackend, basis, op_subs::AbstractDict = NO_SUBS) =
     NumericContext(be, basis, op_subs, NO_SCALAR_SUBS, EMPTY_SITES)
 
-# --- backend resolution for QuantumOptics states (QI types, so it lives here) -----------
-# A `Basis` is inherently QuantumOptics, so the Basis-form `to_numeric` hardcodes
-# `QuantumOpticsBackend()`. The QuantumToolbox extension adds its state method.
 numeric_backend(::Union{StateVector, AbstractOperator}) = QuantumOpticsBackend()
 
-# --- leaf / term construction ----------------------------------------------------------
-
-# The numeric leaf for one operator: a custom override from `op_subs`, else the backend
-# operator embedded at its slot. With `op_subs = NO_SUBS` the override branch has value
-# type `Union{}` and contributes nothing, so the inferred type is exactly the embed type.
 function numeric_leaf(op::Op, ctx::NumericContext)
     haskey(ctx.op_subs, op) && return ctx.op_subs[op]
     slot = Int(op.space_index)
@@ -47,27 +32,14 @@ end
 
 term_factors(ops::Vector{Op}, ctx::NumericContext) = [numeric_leaf(op, ctx) for op in ops]
 
-# --- static assembly -------------------------------------------------------------------
-
-# Build the (ComplexF64, factors) term list and assemble. Coefficients must already be
-# concrete (the kwargs path substitutes `parameter` before calling this); `to_complex`
-# throws `ArgumentError` for a still-symbolic coefficient.
 function to_numeric_static(q::QAdd, ctx::NumericContext)
     terms = [(to_complex(c), term_factors(term.ops, ctx)) for (term, c) in q.arguments]
     return numeric_assemble(ctx.backend, ctx.basis, terms)
 end
 
-# Lazy builders used by `numeric_average`/`expect`: assemble but never materialize, so a
-# `LazyKet` state works and no concrete matrix is built just to take an expectation value.
 to_numeric_lazy(op::Op, ctx::NumericContext) = numeric_leaf(op, ctx)
 to_numeric_lazy(q::QAdd, ctx::NumericContext) = to_numeric_static(q, ctx)
 
-# --- time-dependent assembly -----------------------------------------------------------
-
-# Each coefficient becomes a `ComplexF64` (constant term) or a `t -> ComplexF64` closure
-# (genuinely time-dependent), reusing the kept coefficient machinery. Factors are stored
-# behind `Vector{Any}` because the TD path is not on the `@inferred` contract and the
-# backend assembler only needs to iterate them.
 const TDTerm = Tuple{Union{ComplexF64, Function, PControlCoeff}, Vector{Any}}
 
 function td_coeff(c::Complex{Num}, basevars, valuefuncs, p_aware::Bool)
@@ -97,8 +69,6 @@ function to_numeric_td(q::QAdd, ctx::NumericContext, time_parameter)
     return numeric_assemble_td(ctx.backend, ctx.basis, td_terms)
 end
 
-# --- keyword translation boundary ------------------------------------------------------
-
 function numeric_operator_dict(operators, adjoint_ops::Bool)
     out = Dict{QSym, Any}()
     for (k, v) in operators
@@ -123,12 +93,9 @@ function to_numeric_kw(be::NumericBackend, op, b; parameter, time_parameter, ope
     return to_numeric_translated(op, ctx, param, tp, op_type)
 end
 
-# QSym: wrap as a one-term QAdd and reuse the QAdd path.
 to_numeric_translated(op::QSym, ctx::NumericContext, parameter, time_parameter, op_type) =
     to_numeric_translated(single_qadd(CNUM_ONE, Op[op]), ctx, parameter, time_parameter, op_type)
 
-# Static path materializes via `op_type` (`EagerOperator()` requests the backend's ordinary
-# eager operator); the time-dependent path returns the backend's native TD operator.
 function to_numeric_translated(op::QAdd, ctx::NumericContext, parameter, time_parameter, op_type)
     op_ = substitute(op, parameter)
     isempty(time_parameter) && return numeric_materialize(ctx.backend, to_numeric_static(op_, ctx), op_type)
@@ -136,7 +103,6 @@ function to_numeric_translated(op::QAdd, ctx::NumericContext, parameter, time_pa
     return to_numeric_td(op_, ctx, time_parameter)
 end
 
-# Bare scalar: static -> scaled identity; time-dependent -> native TD over identity.
 function to_numeric_translated(arg, ctx::NumericContext, parameter, time_parameter, op_type)
     arg_sub = substitute(arg, parameter)
     c = as_cnum(arg_sub)

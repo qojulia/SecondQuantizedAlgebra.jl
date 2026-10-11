@@ -1,19 +1,9 @@
-# Coefficient lowering: reduce a (possibly symbolic) `CNum`/`Num` prefactor to a concrete
-# `ComplexF64`, split user parameter/time substitutions, and compile time-dependent
-# coefficient functions. Entirely backend-independent.
-
 const NO_SCALAR_SUBS = Dict{Num, Any}()
-# An immutable empty value lets the static numeric path prove that no TD assembly is needed.
 const NO_TIME_PARAMETER = ()
 
-# A p-aware coefficient closure `(p, t) -> Complex`: backends dispatch on it (QuantumToolbox
-# threads `p` into the `ScalarOperator`, QuantumOptics rejects it). Parametric field for
-# concreteness.
 struct PControlCoeff{F}
     f::F
 end
-
-# --- parameter / time-parameter normalisation -----------------------------------------
 
 function expand_parameter(parameter)
     isempty(parameter) && return parameter
@@ -39,9 +29,6 @@ function normalize_time_parameter(time_parameter)
     return out
 end
 
-# Does a value function read `p`? Arity 2 (`(p, t)`) yes, arity 1 (`t`) no. Checks every
-# method (`nargs - 1` drops the function/self slot, so closures, typed functions, and functors
-# all work) rather than the first, and rejects variadic/conflicting/out-of-range arities.
 function tp_reads_p(f)
     arities = Set{Int}()
     for m in methods(f)
@@ -70,14 +57,10 @@ function tp_reads_p(f)
     )
 end
 
-# In p-aware mode lift a t-only value function to `(p, t)` arity; a `(p, t)` function is kept.
 lift_pt(f) = tp_reads_p(f) ? f : ((p, t) -> f(t))
 
-# conj wrapper preserving arity (the value function is already lifted in p-aware mode).
 conj_vf(f, p_aware::Bool) = p_aware ? ((p, t) -> conj(f(p, t))) : (t -> conj(f(t)))
 
-# p-aware iff any value function reads `p`; then all are lifted to `(p, t)` arity so `td_coeff`
-# maps over them with one signature.
 function time_basis(time_parameter)
     p_aware = any(tp_reads_p, values(time_parameter))
     basevars = Any[]
@@ -151,11 +134,6 @@ function compile_coeff(c::Complex{Num}, vars...)
     return (vals...) -> g_re(vals...) + im * g_im(vals...)
 end
 
-# --- indexed scalar substitutions (used by the indexed unroll) ------------------------
-
-# Split user-supplied scalar substitutions into real and imag legs once per
-# `to_numeric` call. A complex RHS `re + im*ii` propagates as separate real
-# and imaginary substitutions, preserving the `Complex{Num}` invariant.
 function split_scalar_subs(scalar_subs::AbstractDict)
     sub_re = Dict{Any, Any}()
     sub_im = Dict{Any, Any}()
@@ -185,15 +163,12 @@ function apply_scalar_subs(c::CNum, sub_re::Dict, sub_im::Dict, has_imag::Bool)
             Num(Symbolics.substitute(im_part, sub_re)),
         )
     end
-    # (re + i*im) -> (re|sub_re - im|sub_im) + i*(re|sub_im + im|sub_re)
     new_re = Symbolics.substitute(re_part, sub_re) -
         Symbolics.substitute(im_part, sub_im)
     new_im = Symbolics.substitute(re_part, sub_im) +
         Symbolics.substitute(im_part, sub_re)
     return cnum(Num(new_re), Num(new_im))
 end
-
-# --- concrete reduction ----------------------------------------------------------------
 
 function reduce_const(n::Num)
     x = SymbolicUtils.unwrap(n)
@@ -257,8 +232,6 @@ end
 
 to_complex(c::Coeff) = is_native(c) ? native_float(native_scalar(c)) : to_complex(to_num(c))
 
-# One method (union-split budget) routing every input through `convert ∘ Complex`,
-# the only pattern that infers to ComplexF64 from `Any` after `Symbolics.value`.
 function to_complex(x)
     x isa ComplexF64   && return x
     x isa Complex{Num} && return reduce_const(real(x)) + im * reduce_const(imag(x))
