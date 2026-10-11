@@ -24,35 +24,50 @@ numeric_backend(::Union{StateVector, AbstractOperator}) = QuantumOpticsBackend()
 
 function numeric_leaf(op::Op, ctx::NumericContext)
     haskey(ctx.op_subs, op) && return ctx.op_subs[op]
-    slot = Int(op.space_index)
+    slot = resolve_slot(op, ctx.sites)
     sub = numeric_subbasis(ctx.backend, ctx.basis, slot)
     leaf = numeric_operator(ctx.backend, op, sub)
     return numeric_embed(ctx.backend, ctx.basis, slot, leaf)
 end
 
-term_factors(ops::Vector{Op}, ctx::NumericContext) = [numeric_leaf(op, ctx) for op in ops]
-
-function to_numeric_static(q::QAdd, ctx::NumericContext)
-    terms = [(to_complex(c), term_factors(term.ops, ctx)) for (term, c) in q.arguments]
-    return numeric_assemble(ctx.backend, ctx.basis, terms)
+function term_factors(ops::Vector{Op}, ctx::C) where {C <: NumericContext}
+    factors = Vector{Base.promote_op(numeric_leaf, Op, C)}(undef, length(ops))
+    for (k, op) in enumerate(ops)
+        factors[k] = numeric_leaf(op, ctx)
+    end
+    return factors
 end
+
+const OpTerm = Tuple{ComplexF64, Vector{Op}}
+
+op_terms(q::QAdd) = OpTerm[(to_complex(c), term.ops) for (term, c) in q.arguments]
+
+function assemble_op_terms(terms::Vector{OpTerm}, ctx::NumericContext)
+    numeric_terms = [(c, term_factors(ops, ctx)) for (c, ops) in terms]
+    isempty(numeric_terms) && push!(numeric_terms, (0.0im, term_factors(Op[], ctx)))
+    return numeric_assemble(ctx.backend, ctx.basis, numeric_terms)
+end
+
+to_numeric_static(q::QAdd, ctx::NumericContext) = assemble_op_terms(op_terms(q), ctx)
+
+static_operator(terms::Vector{OpTerm}, ctx::NumericContext, op_type) =
+    numeric_materialize(ctx.backend, assemble_op_terms(terms, ctx), op_type)
+static_operator(q::QAdd, ctx::NumericContext, op_type) = static_operator(op_terms(q), ctx, op_type)
 
 to_numeric_lazy(op::Op, ctx::NumericContext) = numeric_leaf(op, ctx)
 to_numeric_lazy(q::QAdd, ctx::NumericContext) = to_numeric_static(q, ctx)
 
-const TDTerm = Tuple{Union{ComplexF64, Function, PControlCoeff}, Vector{Any}}
+const TDCoeff = Union{ComplexF64, Function}
 
-function td_coeff(c::Complex{Num}, basevars, valuefuncs, p_aware::Bool)
+function td_coeff(c::Complex{Num}, basevars::Vector{Num}, @nospecialize(valuefuncs), p_aware::Bool)
     if coeff_is_const(c)
         return const_coeff(c)
     end
     check_time_variables(c, basevars)
     pref = compile_coeff(c, basevars...)
-    p_aware && return PControlCoeff(
-        let pref = pref, valuefuncs = valuefuncs
-            (p, t) -> pref(map(f -> f(p, t), valuefuncs)...)
-        end
-    )
+    p_aware && return let pref = pref, valuefuncs = valuefuncs
+        (p, t) -> pref(map(f -> f(p, t), valuefuncs)...)
+    end
     return let pref = pref, valuefuncs = valuefuncs
         t -> pref(map(f -> f(t), valuefuncs)...)
     end
@@ -60,51 +75,64 @@ end
 
 function to_numeric_td(q::QAdd, ctx::NumericContext, time_parameter)
     basevars, valuefuncs, p_aware = time_basis(time_parameter)
-    td_terms = TDTerm[]
+    no_factors = term_factors(Op[], ctx)
+    td_terms = Tuple{TDCoeff, typeof(no_factors)}[]
     for (term, c_) in q.arguments
         coef = td_coeff(to_num(c_), basevars, valuefuncs, p_aware)
-        push!(td_terms, (coef, collect(Any, term_factors(term.ops, ctx))))
+        push!(td_terms, (coef, term_factors(term.ops, ctx)))
     end
-    isempty(td_terms) && push!(td_terms, (0.0im, Any[]))
+    isempty(td_terms) && push!(td_terms, (0.0im, no_factors))
     return numeric_assemble_td(ctx.backend, ctx.basis, td_terms)
 end
 
-function numeric_operator_dict(operators, adjoint_ops::Bool)
-    out = Dict{QSym, Any}()
-    for (k, v) in operators
-        k isa QSym || throw(ArgumentError("operator substitution key `$k` is not a QSym"))
-        out[k] = v
-    end
-    if adjoint_ops
-        for (k, v) in operators
-            k isa QSym || continue
-            k_adj = Base.adjoint(k)
-            haskey(out, k_adj) || (out[k_adj] = Base.adjoint(v))
-        end
-    end
-    return out
+numeric_operator_dict(::NumericBackend, operators::Dict{QSym, Union{}}, ::Bool) = operators
+function numeric_operator_dict(be::NumericBackend, operators::AbstractDict, adjoint_ops::Bool)
+    explicit = Dict(operator_key(k) => v for (k, v) in operators)
+    adjoints = Dict(Base.adjoint(k) => operator_adjoint(be, v) for (k, v) in explicit if adjoint_ops)
+    out = Dict{Op, Union{valtype(explicit), valtype(adjoints)}}()
+    return merge!(out, adjoints, explicit)
 end
 
+operator_adjoint(::NumericBackend, v) = Base.adjoint(v)
+
+operator_key(k::Op) = k
+operator_key(k) = throw(ArgumentError("operator substitution key `$k` is not a QSym"))
+
 function to_numeric_kw(be::NumericBackend, op, b; parameter, time_parameter, operators, adjoint_ops, op_type)
-    param = expand_parameter(parameter)
+    rules = expand_parameter(parameter)
     tp = normalize_time_parameter(time_parameter)
-    ops = numeric_operator_dict(operators, adjoint_ops)
+    ops = numeric_operator_dict(be, operators, adjoint_ops)
     ctx = NumericContext(be, b, ops)
-    return to_numeric_translated(op, ctx, param, tp, op_type)
+    return to_numeric_translated(op, ctx, rules, tp, op_type)
 end
+
+apply_parameter(q::QAdd, (op_rules, scalar_rules)::Tuple{OpRules, ScalarRules}) =
+    isempty(op_rules) && isempty(scalar_rules) ? q : substitute_split(q, op_rules, scalar_rules)
+
+apply_parameter(x::Complex{Num}, (_, scalar_rules)::Tuple{OpRules, ScalarRules}) =
+    isempty(scalar_rules) ? x : Complex{Num}(
+        Num(SymbolicUtils.substitute(raw_rule(real(x)), scalar_rules)),
+        Num(SymbolicUtils.substitute(raw_rule(imag(x)), scalar_rules)),
+    )
+apply_parameter(x::Number, (_, scalar_rules)::Tuple{OpRules, ScalarRules}) =
+    isempty(scalar_rules) ? x : SymbolicUtils.substitute(raw_rule(x), scalar_rules)
+apply_parameter(x::SymbolicUtils.BasicSymbolic, (_, scalar_rules)::Tuple{OpRules, ScalarRules}) =
+    isempty(scalar_rules) ? x : SymbolicUtils.substitute(x, scalar_rules)
 
 to_numeric_translated(op::QSym, ctx::NumericContext, parameter, time_parameter, op_type) =
     to_numeric_translated(single_qadd(CNUM_ONE, Op[op]), ctx, parameter, time_parameter, op_type)
 
 function to_numeric_translated(op::QAdd, ctx::NumericContext, parameter, time_parameter, op_type)
-    op_ = substitute(op, parameter)
-    isempty(time_parameter) && return numeric_materialize(ctx.backend, to_numeric_static(op_, ctx), op_type)
+    op_ = apply_parameter(op, parameter)
+    isempty(time_parameter) && return static_operator(op_, ctx, op_type)
     check_td_op_type(op_type)
     return to_numeric_td(op_, ctx, time_parameter)
 end
 
-function to_numeric_translated(arg, ctx::NumericContext, parameter, time_parameter, op_type)
-    arg_sub = substitute(arg, parameter)
+function to_numeric_translated(
+        arg::Union{Number, SymbolicUtils.BasicSymbolic}, ctx::NumericContext, parameter, time_parameter, op_type,
+    )
+    arg_sub = apply_parameter(arg, parameter)
     c = as_cnum(arg_sub)
     if isempty(time_parameter)
         coeff_is_const(c) || throw(
@@ -118,7 +146,8 @@ function to_numeric_translated(arg, ctx::NumericContext, parameter, time_paramet
     check_td_op_type(op_type)
     basevars, valuefuncs, p_aware = time_basis(time_parameter)
     coef = td_coeff(c, basevars, valuefuncs, p_aware)
-    return numeric_assemble_td(ctx.backend, ctx.basis, TDTerm[(coef, Any[])])
+    no_factors = term_factors(Op[], ctx)
+    return numeric_assemble_td(ctx.backend, ctx.basis, Tuple{TDCoeff, typeof(no_factors)}[(coef, no_factors)])
 end
 
 function check_td_op_type(op_type)

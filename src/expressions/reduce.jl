@@ -246,8 +246,8 @@ end
 
 function fresh_transient!(occupied::Vector{RawExpression})
     while true
-        candidate = Symbolics.variable(gensym(:sqa_rel))
-        raw = SymbolicUtils.unwrap(candidate)
+        raw = SymbolicUtils.Sym{SymbolicUtils.SymReal}(gensym(:sqa_rel); type = Real)
+        candidate = Num(raw)
         collision = false
         for s in occupied
             if isequal(s, raw)

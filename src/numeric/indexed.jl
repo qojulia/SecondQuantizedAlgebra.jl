@@ -34,11 +34,11 @@ function to_numeric_indexed(
     validate_sites(be, basis, sites)
     ctx = NumericContext(be, basis, d, scalar_subs, Dict{Int, Vector{Int}}(sites))
     sub_re, sub_im, has_imag = split_scalar_subs(scalar_subs)
-    terms = Tuple{ComplexF64, Vector{Any}}[]
+    terms = OpTerm[]
     for (term, c) in q.arguments
         accumulate_indexed_term!(terms, term, c, q.indices, ctx, sub_re, sub_im, has_imag)
     end
-    return numeric_materialize(be, numeric_assemble(be, basis, terms), EagerOperator())
+    return static_operator(terms, ctx, EagerOperator())
 end
 
 function validate_sites(be::NumericBackend, basis, sites)
@@ -63,28 +63,19 @@ function validate_sites(be::NumericBackend, basis, sites)
     return sites
 end
 
-function numeric_leaf_indexed(op::Op, ctx::NumericContext)
-    haskey(ctx.op_subs, op) && return ctx.op_subs[op]
-    slot = resolve_slot(op, ctx.sites)
-    sub = numeric_subbasis(ctx.backend, ctx.basis, slot)
-    leaf = numeric_operator(ctx.backend, op, sub)
-    return numeric_embed(ctx.backend, ctx.basis, slot, leaf)
-end
-
-function push_indexed_combo!(terms, ops::Vector{Op}, c::CNum, ctx::NumericContext)
-    factors = Any[numeric_leaf_indexed(op, ctx) for op in ops]
-    push!(terms, (to_complex(c), factors))
+function push_indexed_combo!(terms::Vector{OpTerm}, ops::Vector{Op}, c::CNum)
+    push!(terms, (to_complex(c), ops))
     return terms
 end
 
 function accumulate_indexed_term!(
-        terms, term::QTerm, c::CNum, indices::Vector{Index},
-        ctx::NumericContext, sub_re::Dict, sub_im::Dict, has_imag::Bool,
+        terms::Vector{OpTerm}, term::QTerm, c::CNum, indices::Vector{Index},
+        ctx::NumericContext, sub_re::ScalarRules, sub_im::ScalarRules, has_imag::Bool,
     )
     dep_indices = Index[idx for idx in indices if depends_on_index_term(c, term.ops, idx)]
     if isempty(dep_indices)
         c_resolved = apply_scalar_subs(c, sub_re, sub_im, has_imag)
-        return push_indexed_combo!(terms, term.ops, c_resolved, ctx)
+        return push_indexed_combo!(terms, term.ops, c_resolved)
     end
     lens = Int[length(ctx.sites[Int(idx.space_index)]) for idx in dep_indices]
     total = prod(lens)
@@ -105,7 +96,7 @@ function accumulate_indexed_term!(
         new_ops = Op[change_index(op, sub_op) for op in term.ops]
         new_c = change_index(c, sub_coef)
         new_c = apply_scalar_subs(new_c, sub_re, sub_im, has_imag)
-        push_indexed_combo!(terms, new_ops, new_c, ctx)
+        push_indexed_combo!(terms, new_ops, new_c)
     end
     return terms
 end

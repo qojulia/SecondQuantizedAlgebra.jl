@@ -57,18 +57,16 @@ end
     return Expr(:latexifymerge, body)
 end
 
-function latex_prefactor(c::CNum)
-    re, im = realimag(c)
-    r_val = Symbolics.value(SymbolicUtils.unwrap(re))
-    i_val = Symbolics.value(SymbolicUtils.unwrap(im))
-    iszero_num(im) && return r_val
-    if iszero_num(re)
+latex_real(x::Int) = x
+latex_real(x::Float64) = x
+latex_real(x::Rational{Int}) = isone(denominator(x)) ? numerator(x) : x
 
-        i_val isa Real && return complex(false, i_val)
-    elseif r_val isa Real && i_val isa Real
-        return complex(r_val, i_val)
-    end
-    return Complex(re, im)
+function latex_native_term(z::Union{ComplexF64, GaussianRational{Int}}, ops::Vector{Op})
+    r = latex_real(real(z))
+    i = latex_real(imag(z))
+    iszero(imag(z)) && return latex_pf_term(r, ops)
+    iszero(real(z)) && return latex_pf_term(complex(false, i), ops)
+    return latex_pf_term(complex(r, i), ops)
 end
 
 @latexrecipe function f(c::Coeff)
@@ -87,7 +85,13 @@ function needs_pf_brackets(pf::SymbolicUtils.BasicSymbolic)
 end
 
 function latex_term(c::CNum, ops::Vector{Op})
-    pf = latex_prefactor(c)
+    is_native(c) && return latex_native_term(native_scalar(c), ops)
+    re, im = realimag(c)
+    iszero_num(im) && return latex_pf_term(SymbolicUtils.unwrap(re), ops)
+    return latex_pf_term(Complex(re, im), ops)
+end
+
+function latex_pf_term(pf, ops::Vector{Op})
     isempty(ops) && return Expr(:latexifymerge, pf)
     parts = LATEX_FRAGMENT[]
     if pf isa Number && pf == -1

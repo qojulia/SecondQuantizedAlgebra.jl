@@ -1,7 +1,9 @@
 using SecondQuantizedAlgebra
 using Test
 using JET
-using QuantumOpticsBase: FockBasis, NLevelBasis, SpinBasis, basisstate
+using QuantumOpticsBase: FockBasis, NLevelBasis, SpinBasis, LazyKet, basisstate, destroy, fockstate, nlevelstate
+using Latexify: latexify
+using QuantumToolbox: QuantumToolbox
 
 report_text(report) = sprint(show, MIME("text/plain"), report)
 
@@ -15,27 +17,23 @@ end
 
 @static if isempty(VERSION.prerelease)
     @testset "JET report_package (correctness)" begin
-        # report_package finds actual type errors (method-not-found, etc.).
-        # `ignore_missing_comparison = true
-        # silences `Missing` union-split warnings that bubble up from Symbolics.
-        # report_opt is checked separately (below) on selected hot paths.
         result = JET.report_package(
             SecondQuantizedAlgebra;
             target_modules = (SecondQuantizedAlgebra,),
-            ignore_missing_comparison = true,
         )
         test_no_reports(result)
     end
 
+    @testset "JET report_package ($ext)" for ext in (
+            :SecondQuantizedAlgebraQuantumOpticsBaseExt,
+            :SecondQuantizedAlgebraQuantumToolboxExt,
+        )
+        m = Base.get_extension(SecondQuantizedAlgebra, ext)
+        @test m isa Module
+        test_no_reports(JET.report_package(m; target_modules = (m,)))
+    end
+
     @testset "JET report_call on entry points (no errors)" begin
-        # @report_call catches actual MethodError/UndefVar issues at runtime.
-        # Entries are grouped by what they exercise: per-family products and
-        # commutators, multi-body and mixed-space products, and the canonicalisation /
-        # average / substitute / expand_completeness pipelines.
-        #
-        # `a^n` is skipped because JET descends through Symbolics' `Num^Integer`
-        # and surfaces hundreds of macro-generated UndefVarError reports from
-        # SymbolicUtils' BasicSymbolic internals — outside our control.
         hf = FockSpace(:f); a = Destroy(hf, :a); ad = Create(hf, :a)
         hn = NLevelSpace(:atom, 3); σ12 = Transition(hn, :σ, 1, 2); σ21 = Transition(hn, :σ, 2, 1)
         hp = PauliSpace(:s); px = Pauli(hp, :σ, 1); py = Pauli(hp, :σ, 2)
@@ -68,6 +66,8 @@ end
                 # QAdd-QAdd commutator and multi-body products
                 ("commutator(a*a', a'*a)", () -> commutator(a * ad, ad * a)),
                 ("a * a' * a", () -> a * ad * a),
+                ("a^3", () -> a^3),
+                ("a'^2 * a", () -> ad^2 * a),
                 ("(a + a') * (a - a')", () -> (a + ad) * (a - ad)),
                 # Mixed ProductSpace (Jaynes-Cummings setup)
                 ("a' * σ12 (Fock ⊗ NLevel)", () -> ajc * σjc),
@@ -132,17 +132,21 @@ end
                     () -> substitute(B, Dict(u => 5 // 3, v => 4 // 3)),
                 ),
             ]
-            rep = JET.@report_call target_modules = (SecondQuantizedAlgebra,) ignore_missing_comparison = true expr()
+            rep = JET.@report_call target_modules = (SecondQuantizedAlgebra,) expr()
             @testset "$name" begin
-                @test isempty(JET.get_reports(rep))
+                test_no_reports(rep)
             end
         end
     end
 
-    @testset "JET report_opt on selected hot paths" begin
-        # Every entry is strict: zero runtime dispatch inside the package. The symbolic
-        # walks stay inferred because coefficient atoms are typed `RawExpression` and a
-        # constant's `::Any` payload is read only through the narrowing helpers in `cnum.jl`.
+    @testset "JET report_opt (no runtime dispatch)" begin
+        # Every entry is strict: zero runtime dispatch inside the package and both backend
+        # extensions.
+        targets = (
+            SecondQuantizedAlgebra,
+            Base.get_extension(SecondQuantizedAlgebra, :SecondQuantizedAlgebraQuantumOpticsBaseExt),
+            Base.get_extension(SecondQuantizedAlgebra, :SecondQuantizedAlgebraQuantumToolboxExt),
+        )
         hf = FockSpace(:f); a = Destroy(hf, :a); ad = Create(hf, :a)
         hn = NLevelSpace(:atom, 3); σ12 = Transition(hn, :σ, 1, 2); σ21 = Transition(hn, :σ, 2, 1)
         hp = PauliSpace(:s); px = Pauli(hp, :σ, 1); py = Pauli(hp, :σ, 2)
@@ -153,6 +157,33 @@ end
         bn = NLevelBasis(3)
         bs = SpinBasis(1 // 2)
         ψ = basisstate(b, 1)
+
+        hjc = FockSpace(:c) ⊗ NLevelSpace(:atom, 2)
+        ajc = Destroy(hjc, :a, 1); σjc = Transition(hjc, :σ, 1, 2, 2)
+        Hjc = ajc' * σjc + ajc * σjc'
+        ψjc = basisstate(FockBasis(3) ⊗ NLevelBasis(2), 1)
+        ψq = QuantumToolbox.fock(8, 1)
+        ψqjc = QuantumToolbox.tensor(QuantumToolbox.fock(4, 0), QuantumToolbox.basis(2, 1))
+
+        @variables g::Real Δ::Real θ::Real α::Number
+        Hp = Δ * ad * a + g * (a + ad)
+        U = Rotation(a, θ)
+        D = Displace(a, α)
+
+        hi = FockSpace(:cavity) ⊗ NLevelSpace(:atom, 2)
+        ai = Destroy(hi, :a, 1)
+        σi(k, l, m) = IndexedOperator(Transition(hi, :σ, k, l, 2), m)
+        i = Index(hi, :i, 3, NLevelSpace(:atom, 2)); j = Index(hi, :j, 3, NLevelSpace(:atom, 2))
+        Hi = -Δ * ai' * ai + Σ(g * (ai' * σi(1, 2, i) + ai * σi(2, 1, i)), i)
+        bi = FockBasis(3) ⊗ NLevelBasis(2) ⊗ NLevelBasis(2) ⊗ NLevelBasis(2)
+        sites = Dict{Int, Vector{Int}}(1 => [1], 2 => [2, 3, 4])
+        Hin = substitute(Hi, Dict(g => 1.0, Δ => 0.5))
+        custom = 2.0 * destroy(b)
+        @variables t::Real ω::Real r::Real ϕ::Real u::Number v::Number
+        H0 = ω * ajc' * ajc
+        hc = CollectiveNLevelSpace(:atom, 3); S12 = CollectiveTransition(hc, :S, 1, 2)
+        B = Bogoliubov(a, [u v; conj(v) conj(u)])
+        ψl = LazyKet(FockBasis(3) ⊗ NLevelBasis(2), (fockstate(FockBasis(3), 1), nlevelstate(NLevelBasis(2), 1)))
 
         for (name, thunk) in [
                 # Per-family to_numeric on a leaf
@@ -183,6 +214,7 @@ end
                 # QAdd-QAdd commutator and multi-body products
                 ("commutator(a*a', a'*a)", () -> commutator(a * ad, ad * a)),
                 ("a*a'*a", () -> a * ad * a),
+                ("a^3", () -> a^3),
                 ("(a + a')*(a - a')", () -> (a + ad) * (a - ad)),
                 # Canonicalisation pipelines on QAdd
                 ("normal_order(a)", () -> normal_order(a)),
@@ -191,11 +223,76 @@ end
                 # Average/undo_average round trip
                 ("average(a*a')", () -> average(a * ad)),
                 ("undo_average(average(a))", () -> undo_average(average(a))),
-                # Numeric conversion of a QAdd and of an average
+                # Substitution, unitary transforms, Weyl ordering
+                ("substitute(a, Dict(a => a'))", () -> substitute(a, Dict(a => ad))),
+                ("substitute(Hp, Dict(g => 1.0, Δ => 2.0))", () -> substitute(Hp, Dict(g => 1.0, Δ => 2.0))),
+                ("substitute(Hp, Dict(a => a + 1))", () -> substitute(Hp, Dict(a => a + 1))),
+                ("substitute(U, Dict(θ => 0.5))", () -> substitute(U, Dict(θ => 0.5))),
+                ("transform(a'*a, Displace(a, α))", () -> transform(ad * a, D)),
+                ("conjugate(a, Rotation(a, θ))", () -> conjugate(a, U)),
+                ("normal_to_symmetric(a'*a)", () -> normal_to_symmetric(ad * a)),
+                ("symmetric_to_normal(a'*a)", () -> symmetric_to_normal(ad * a)),
+                ("transform(a'*a, Squeeze(a, r, ϕ))", () -> transform(ad * a, Squeeze(a, r, ϕ))),
+                ("transform(a'*a, Bogoliubov)", () -> transform(ad * a, B)),
+                ("RotatingFrame(H0, t)", () -> RotatingFrame(H0, t)),
+                ("DisplacementFrame(a, ω a'a)", () -> DisplacementFrame(a, ω * ad * a)),
+                ("gauge_term(RotatingFrame(H0, t))", () -> gauge_term(RotatingFrame(H0, t))),
+                (
+                    "trigonometric_form(expim(ω*t)*a)",
+                    () -> SecondQuantizedAlgebra.trigonometric_form(SecondQuantizedAlgebra.expim(ω * t) * a),
+                ),
+                ("anticommutator(a, a')", () -> anticommutator(a, ad)),
+                ("find_operators(hjc, 2)", () -> find_operators(hjc, 2)),
+                ("S12 * S12'", () -> S12 * S12'),
+                # Printing
+                ("repr(Hp)", () -> repr(Hp)),
+                ("latexify(Hp)", () -> latexify(Hp)),
+                ("latexify(average(indexed H))", () -> latexify(average(Hi))),
+                # Indexed sums
+                ("Σ(σ21_i) * Σ(σ12_j)", () -> Σ(σi(2, 1, i), i) * Σ(σi(1, 2, j), j)),
+                ("simplify(indexed H)", () -> simplify(Hi)),
+                ("average(indexed H)", () -> average(Hi)),
+                ("change_index(indexed H, i, j)", () -> change_index(Hi, i, j)),
+                ("assume_distinct_index(σ21_i σ12_j)", () -> assume_distinct_index(σi(2, 1, i) * σi(1, 2, j), [(i, j)])),
+                ("make_time_dependent(average(indexed H), t)", () -> make_time_dependent(average(Hi), t)),
+                # QuantumOptics numeric conversion and expectation values
                 ("to_numeric(a' * a, b)", () -> to_numeric(ad * a, b)),
+                ("to_numeric(a' * a, b; op_type = identity)", () -> to_numeric(ad * a, b; op_type = identity)),
+                ("to_numeric(Hp, b; parameter)", () -> to_numeric(Hp, b; parameter = Dict(g => 1.0, Δ => 0.5))),
+                ("to_numeric(2.0, b)", () -> to_numeric(2.0, b)),
+                ("to_numeric([a, a'], b)", () -> to_numeric([a, ad], b)),
+                (
+                    "to_numeric(a' * a, hf, 7; QuantumOpticsBackend)",
+                    () -> to_numeric(ad * a, hf, 7; backend = QuantumOpticsBackend()),
+                ),
+                ("to_numeric(Hjc, bjc)", () -> to_numeric(Hjc, FockBasis(3) ⊗ NLevelBasis(2))),
+                ("to_numeric(indexed H, b, sites)", () -> to_numeric(Hin, bi, sites)),
+                ("to_numeric(a' * a, b; operators)", () -> to_numeric(ad * a, b; operators = Dict(a => custom))),
+                (
+                    "to_numeric(α * a + h.c., b; time_parameter)",
+                    () -> to_numeric(α * a + conj(α) * ad, b; time_parameter = Dict(α => t -> 1 + im * t)),
+                ),
                 ("numeric_average(average(a), ψ)", () -> numeric_average(average(a), ψ)),
+                ("numeric_average(a' * a, [ψ, ψ])", () -> numeric_average(ad * a, [ψ, ψ])),
+                ("numeric_average(Hjc, ψjc)", () -> numeric_average(Hjc, ψjc)),
+                ("numeric_average(Hjc, LazyKet)", () -> numeric_average(Hjc, ψl)),
+                # QuantumToolbox numeric conversion and expectation values
+                ("to_numeric(a' * a, 8)", () -> to_numeric(ad * a, 8)),
+                ("to_numeric(Hjc, (4, 2))", () -> to_numeric(Hjc, (4, 2))),
+                (
+                    "to_numeric(α * a + h.c., 8; time_parameter)",
+                    () -> to_numeric(α * a + conj(α) * ad, 8; time_parameter = Dict(α => t -> 1 + im * t)),
+                ),
+                (
+                    "to_numeric(Hjc, hjc, (3, 2); QuantumToolboxBackend)",
+                    () -> to_numeric(Hjc, hjc, (3, 2); backend = QuantumToolboxBackend()),
+                ),
+                ("numeric_average(a' * a, ψq)", () -> numeric_average(ad * a, ψq)),
+                ("numeric_average(average(a), ψq)", () -> numeric_average(average(a), ψq)),
+                ("numeric_average(Hjc, ψqjc)", () -> numeric_average(Hjc, ψqjc)),
+                ("numeric_average(a' * a, [ψq, ψq])", () -> numeric_average(ad * a, [ψq, ψq])),
             ]
-            rep = JET.@report_opt target_modules = (SecondQuantizedAlgebra,) thunk()
+            rep = JET.@report_opt target_modules = targets thunk()
             @testset "$name" begin
                 test_no_reports(rep)
             end

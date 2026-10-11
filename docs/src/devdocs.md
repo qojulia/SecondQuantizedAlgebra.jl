@@ -545,10 +545,20 @@ new symbolic operator role through this interface.
   operator arithmetic.
 - The internal assembled type must not depend on the number of terms. QuantumOptics uses
   the five-argument, vector-backed `LazySum`; QuantumToolbox uses the extension's
-  vector-backed `VecSum` inside `QobjEvo`. Tests enforce inference stability.
-- QuantumOpticsBase's `sparse(::LazySum)` folds an abstract-operator vector and widens its
-  inferred return, so the extension narrows the fixed `ComplexF64` sparse `Operator` at the
-  materialization boundary.
+  vector-backed `VecSum` inside `QobjEvo`. Both carry the term type as an element type, and
+  the empty-product term is a sparse identity, so uniform terms give a concrete vector and
+  `report_opt` finds no runtime dispatch.
+- A composite QuantumOptics basis keeps lazily embedded `LazyTensor` terms for
+  `op_type = identity` and `numeric_average`, because the lazy form is what makes `LazyKet`
+  states and large systems affordable. Their types depend on the slots each term touches, so
+  they live in an `AbstractOperator` vector. Eager conversion skips that vector: it embeds each
+  factor as a sparse `kron` and sums the products, which is dispatch-free and faster than
+  `sparse(::LazySum)`.
+- Time-dependent coefficients are user closures. A coefficient that reads the solver
+  parameters is a two-argument closure, and backends detect it by arity rather than by a
+  wrapper type, so no constructor has to dispatch on the closure type.
+- A substitution dict typed `Dict{Any, Any}` carries no element types, so splitting it into
+  operator and scalar rules dispatches per entry. Typed dicts are dispatch-free.
 - The QuantumToolbox `ProductSpace` path uses a tuple internally so the tensor arity remains in
   the `Dimensions` type. Runtime vectors are still accepted by the convenience API, but cannot
   carry a value-dependent tensor arity in their Julia type and therefore are not the

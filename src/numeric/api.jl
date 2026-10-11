@@ -29,8 +29,8 @@ cannot apply a one-time materializer, so other `op_type` values are rejected.
 
 Keyword arguments:
 
-- `parameter=Dict()`: substitutions for scalar symbolic coefficients.
-- `time_parameter=Dict()`: scalar values or functions of time. A non-empty mapping selects
+- `parameter`: substitutions for scalar symbolic coefficients (default: none).
+- `time_parameter`: scalar values or functions of time (default: none). A non-empty mapping selects
   time-dependent conversion (`TimeDependentSum` for QuantumOptics, `QobjEvo` for
   QuantumToolbox). A value may also be a two-argument function `(p, t) -> value` of the solver
   parameter vector `p` and time `t`; the resulting `QobjEvo` is then differentiable with
@@ -38,7 +38,7 @@ Keyword arguments:
   QuantumToolbox-only; QuantumOptics has no solver parameter and raises an `ArgumentError`. If
   any value function reads `p`, one-argument entries `t -> f(t)` and scalars are lifted to
   `(p, t)` form automatically.
-- `operators=Dict()`: replacements for individual symbolic operators. Missing adjoints are
+- `operators`: replacements for individual symbolic operators (default: none). Missing adjoints are
   inferred when `adjoint_ops=true` (the default). Positional `d` supplies exact replacements
   without this inference.
 - `op_type=EagerOperator()`: representation selection as described above.
@@ -71,25 +71,27 @@ function to_numeric end
 
 to_numeric(op::Op, b::Basis, d::AbstractDict{<:QSym} = NO_SUBS) =
     numeric_materialize(QuantumOpticsBackend(), numeric_leaf(op, NumericContext(QuantumOpticsBackend(), b, d)), EagerOperator())
+to_numeric(op::Op, b::CompositeBasis, d::AbstractDict{<:QSym} = NO_SUBS) =
+    static_operator(single_qadd(CNUM_ONE, Op[op]), NumericContext(QuantumOpticsBackend(), b, d), EagerOperator())
 
 to_numeric(q::QAdd, b::Basis, d::AbstractDict{<:QSym} = NO_SUBS) =
-    numeric_materialize(QuantumOpticsBackend(), to_numeric_static(q, NumericContext(QuantumOpticsBackend(), b, d)), EagerOperator())
+    static_operator(q, NumericContext(QuantumOpticsBackend(), b, d), EagerOperator())
 
 to_numeric(x::Number, b::Basis, ::AbstractDict{<:QSym} = NO_SUBS) =
     numeric_materialize(QuantumOpticsBackend(), to_complex(x) * numeric_identity(QuantumOpticsBackend(), b), EagerOperator())
 
 function to_numeric(
         op::QField, b::Basis;
-        parameter = Dict(), time_parameter = NO_TIME_PARAMETER,
-        operators = Dict{QSym, Any}(), adjoint_ops = true, op_type = EagerOperator(),
+        parameter = NO_PARAMETER, time_parameter = NO_TIME_PARAMETER,
+        operators = NO_SUBS, adjoint_ops = true, op_type = EagerOperator(),
     )
     return to_numeric_kw(QuantumOpticsBackend(), op, b; parameter, time_parameter, operators, adjoint_ops, op_type)
 end
 
 function to_numeric(
         x::Union{Number, SymbolicUtils.BasicSymbolic}, b::Basis;
-        parameter = Dict(), time_parameter = NO_TIME_PARAMETER,
-        operators = Dict{QSym, Any}(), adjoint_ops = true, op_type = EagerOperator(),
+        parameter = NO_PARAMETER, time_parameter = NO_TIME_PARAMETER,
+        operators = NO_SUBS, adjoint_ops = true, op_type = EagerOperator(),
     )
     return to_numeric_kw(QuantumOpticsBackend(), x, b; parameter, time_parameter, operators, adjoint_ops, op_type)
 end
@@ -97,8 +99,8 @@ end
 function to_numeric(
         op, h::H, dims;
         backend::B = default_backend(),
-        parameter = Dict(), time_parameter = NO_TIME_PARAMETER,
-        operators = Dict{QSym, Any}(), adjoint_ops = true, op_type = EagerOperator(),
+        parameter = NO_PARAMETER, time_parameter = NO_TIME_PARAMETER,
+        operators = NO_SUBS, adjoint_ops = true, op_type = EagerOperator(),
     ) where {H <: HilbertSpace, B <: NumericBackend}
     b = numeric_basis(backend, h, dims)
     return to_numeric_kw(backend, op, b; parameter, time_parameter, operators, adjoint_ops, op_type)

@@ -37,12 +37,11 @@ end
         @variables E::Number
         Htd = to_numeric(E * a + conj(E) * a', h, 5; backend = QTBB, time_parameter = Dict(E => t -> 1 + im * t))
 
-        # The vector-backed VecSum gives ONE concrete type for any term count and for static
-        # vs time-dependent (the property the custom VecSum buys over SciMLOperators'
-        # Tuple-locked AddedOperator).
+        # The vector-backed VecSum gives one concrete type for any term count (the property the
+        # custom VecSum buys over SciMLOperators' Tuple-locked AddedOperator).
         @test H2 isa QTB.QuantumObjectEvolution
         @test typeof(H2) === typeof(H3)
-        @test typeof(H2) === typeof(Htd)
+        @test Htd isa QTB.QuantumObjectEvolution
         # Static defaults are eager and sparse on both direct and uniform forms; lazy is
         # an explicit representation choice.
         @test to_numeric(a, 5) isa QTB.QuantumObject

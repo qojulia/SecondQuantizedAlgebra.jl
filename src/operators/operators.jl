@@ -171,7 +171,7 @@ function find_operators(h::HilbertSpace, order::Int; names::AbstractVector = Sym
     fund_ops = fundamental_operators(h; names = names)
     fund_ops = unique(vcat(fund_ops, adjoint.(fund_ops)))
 
-    all_ops = QField[]
+    all_ops = Union{Op, QAdd}[]
     for i in 1:order
         for c in with_replacement_combinations(fund_ops, i)
             c_ = prod(reverse(c))

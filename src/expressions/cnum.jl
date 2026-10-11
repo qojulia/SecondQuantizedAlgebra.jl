@@ -96,7 +96,7 @@ end
 expim(x::Number) = nonreal_phase_argument(x)
 
 @inline is_phase(b) =
-    b isa SymbolicUtils.BasicSymbolic &&
+    b isa RawExpression &&
     SymbolicUtils.iscall(b) &&
     SymbolicUtils.operation(b) === expim
 

@@ -6,7 +6,7 @@ using TermInterface: TermInterface
 
 import QuantumInterface
 import QuantumInterface: expect, basis, dagger
-using QuantumInterface: AbstractOperator, StateVector, Basis
+using QuantumInterface: AbstractOperator, StateVector, Basis, CompositeBasis
 import TensorCore: ⊗, tensor
 
 using Combinatorics: with_replacement_combinations

@@ -126,8 +126,7 @@ all_real_negative(terms::Vector{<:Monomial}) =
 @noinline function is_real_negative_sym(c::CNum)
     re, im = realimag(c)
     iszero_num(im) || return false
-    r = Symbolics.value(SymbolicUtils.unwrap(re))
-    return r isa Real && r < 0
+    return const_sign(SymbolicUtils.unwrap(re)) < 0
 end
 needs_pf_parens(c::Complex{Num}) = iszero(imag(c)) && is_loose_head(real(c))
 

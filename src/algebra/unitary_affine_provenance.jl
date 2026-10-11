@@ -68,26 +68,23 @@ function validate_transform_substitution_rules(rules::AbstractDict)
 end
 
 function conjugation_closed_substitutions(rules::AbstractDict)
-    isempty(rules) && return rules
-    closed = Dict{Any, Any}(rules)
+    closed = ScalarRules()
     sizehint!(closed, 2 * length(rules))
     for (from, to) in rules
-        raw_from = if from isa Num
-            SymbolicUtils.unwrap(from)
-        elseif from isa SymbolicUtils.BasicSymbolic
-            from
-        else
-            continue
-        end
-        conjugated_from = raw_conj(raw_from)
-        isequal(conjugated_from, raw_from) && continue
-        conjugated_to = if to isa Number || to isa Num || to isa SymbolicUtils.BasicSymbolic
-            conj(to)
-        else
-            continue
-        end
-        closed[conjugated_from] = conjugated_to
+        add_scalar_rule!(closed, from, to)
     end
+    for (from, to) in rules
+        add_conjugate_rule!(closed, from, to)
+    end
+    return closed
+end
+
+add_conjugate_rule!(closed::ScalarRules, from, to) = closed
+function add_conjugate_rule!(closed::ScalarRules, from::Union{Num, RawExpression}, to::Union{Number, RawExpression})
+    raw_from = raw_rule(from)
+    conjugated_from = raw_conj(raw_from)
+    isequal(conjugated_from, raw_from) && return closed
+    closed[conjugated_from] = raw_rule(conj(to))
     return closed
 end
 

@@ -1,35 +1,43 @@
-const NO_SCALAR_SUBS = Dict{Num, Any}()
+const NO_SCALAR_SUBS = ScalarRules()
 const NO_TIME_PARAMETER = ()
+const NO_PARAMETER = ScalarRules()
 
-struct PControlCoeff{F}
-    f::F
-end
-
-function expand_parameter(parameter)
-    isempty(parameter) && return parameter
-    out = Dict{Any, Any}()
+function expand_parameter(parameter::AbstractDict)
+    op_rules = OpRules()
+    scalar_rules = ScalarRules()
     for (k, v) in parameter
-        if k isa Complex
-            out[real(k)] = real(v)
-            ik = imag(k)
-            SymbolicUtils.unwrap(ik) isa Number || (out[ik] = imag(v))
-        else
-            out[k] = v
-        end
+        add_parameter_rule!(op_rules, scalar_rules, k, v)
     end
-    return out
+    add_adjoint_rules!(op_rules)
+    return op_rules, scalar_rules
 end
+
+function add_parameter_rule!(op_rules::OpRules, scalar_rules::ScalarRules, k::Complex, v)
+    scalar_rules[raw_rule(real(k))] = raw_rule(real(v))
+    ik = raw_rule(imag(k))
+    SymbolicUtils.isconst(ik) || (scalar_rules[ik] = raw_rule(imag(v)))
+    return op_rules
+end
+add_parameter_rule!(op_rules::OpRules, scalar_rules::ScalarRules, k, v) =
+    add_substitution_rule!(op_rules, scalar_rules, k, v)
 
 function normalize_time_parameter(time_parameter)
     isempty(time_parameter) && return time_parameter
-    out = Dict{Any, Any}()
+    out = Dict{Num, Any}()
     for (k, v) in time_parameter
-        out[k] = v isa Number ? (t -> v) : v
+        out[time_key(k)] = time_value(v)
     end
     return out
 end
 
-function tp_reads_p(f)
+time_key(k::Num) = k
+time_key(k::RawExpression) = Num(k)
+time_key(k) = throw(ArgumentError("time_parameter key `$k` must be a symbolic variable"))
+
+time_value(v::Number) = t -> v
+time_value(v) = v
+
+function tp_reads_p(@nospecialize(f))
     arities = Set{Int}()
     for m in methods(f)
         m.isva && throw(
@@ -57,13 +65,22 @@ function tp_reads_p(f)
     )
 end
 
-lift_pt(f) = tp_reads_p(f) ? f : ((p, t) -> f(t))
+function lift_pt(@nospecialize(f))
+    tp_reads_p(f) && return f
+    return let f = f
+        (p, t) -> f(t)
+    end
+end
 
-conj_vf(f, p_aware::Bool) = p_aware ? ((p, t) -> conj(f(p, t))) : (t -> conj(f(t)))
+function conj_vf(@nospecialize(f), p_aware::Bool)
+    return let f = f
+        p_aware ? ((p, t) -> conj(f(p, t))) : (t -> conj(f(t)))
+    end
+end
 
-function time_basis(time_parameter)
+function time_basis(time_parameter::Dict{Num, Any})
     p_aware = any(tp_reads_p, values(time_parameter))
-    basevars = Any[]
+    basevars = Num[]
     valuefuncs = Any[]
     for (k, f) in time_parameter
         g = p_aware ? lift_pt(f) : f
@@ -73,15 +90,14 @@ function time_basis(time_parameter)
             push!(valuefuncs, g)
             continue
         end
-        vs = collect(Symbolics.get_variables(k))
+        vs = raw_variables(uk)
         length(vs) == 1 || throw(
             ArgumentError(
                 "time_parameter key `$k` must depend on exactly one variable, got $(length(vs)).",
             ),
         )
-        wv = Symbolics.wrap(vs[1])
-        if isequal(uk, SymbolicUtils.unwrap(conj(wv)))
-            push!(basevars, wv)
+        if isequal(uk, conj(vs[1]))
+            push!(basevars, Num(vs[1]))
             push!(valuefuncs, conj_vf(g, p_aware))
         else
             throw(
@@ -102,26 +118,32 @@ const_coeff(c::Complex{Num}) = to_complex(c)
 as_cnum(x::Complex) = Complex{Num}(Num(real(x)), Num(imag(x)))
 as_cnum(x) = Complex{Num}(Num(x), Num(false))
 
+function raw_variables(x::RawExpression)
+    vars = RawExpression[]
+    for v in Symbolics.get_variables(x)
+        push!(vars, v)
+    end
+    return vars
+end
+
 function coefficient_variables(c::Complex{Num})
-    vars = Any[]
-    append!(vars, Symbolics.get_variables(real(c)))
-    append!(vars, Symbolics.get_variables(imag(c)))
+    vars = raw_variables(SymbolicUtils.unwrap(real(c)))
+    append!(vars, raw_variables(SymbolicUtils.unwrap(imag(c))))
     unique!(vars)
     return vars
 end
 
-function check_time_variables(c::Complex{Num}, basevars)
+function check_time_variables(c::Complex{Num}, basevars::Vector{Num})
     vars = coefficient_variables(c)
-    base_unwrapped = SymbolicUtils.unwrap.(basevars)
-    missing = Any[]
+    missing = RawExpression[]
     for v in vars
-        any(b -> isequal(v, b), base_unwrapped) || push!(missing, v)
+        any(b -> isequal(v, SymbolicUtils.unwrap(b)), basevars) || push!(missing, v)
     end
     isempty(missing) && return c
     throw(
         ArgumentError(
             "time-dependent coefficient `$c` depends on variables without time values: " *
-                join(string.(missing), ", "),
+                join(map(string, missing), ", "),
         ),
     )
 end
@@ -135,24 +157,27 @@ function compile_coeff(c::Complex{Num}, vars...)
 end
 
 function split_scalar_subs(scalar_subs::AbstractDict)
-    sub_re = Dict{Any, Any}()
-    sub_im = Dict{Any, Any}()
+    sub_re = ScalarRules()
+    sub_im = ScalarRules()
     has_imag = false
     for (k, v) in scalar_subs
-        kraw = SymbolicUtils.unwrap(k)
-        if v isa Complex
-            sub_re[kraw] = real(v)
-            sub_im[kraw] = imag(v)
-            iszero(imag(v)) || (has_imag = true)
-        else
-            sub_re[kraw] = v
-            sub_im[kraw] = 0
-        end
+        has_imag |= add_split_scalar_sub!(sub_re, sub_im, raw_rule(k), v)
     end
     return sub_re, sub_im, has_imag
 end
 
-function apply_scalar_subs(c::CNum, sub_re::Dict, sub_im::Dict, has_imag::Bool)
+function add_split_scalar_sub!(sub_re::ScalarRules, sub_im::ScalarRules, k::RawExpression, v::Complex)
+    sub_re[k] = raw_rule(real(v))
+    sub_im[k] = raw_rule(imag(v))
+    return !iszero(imag(v))
+end
+function add_split_scalar_sub!(sub_re::ScalarRules, sub_im::ScalarRules, k::RawExpression, v)
+    sub_re[k] = raw_rule(v)
+    sub_im[k] = RAW_ZERO
+    return false
+end
+
+function apply_scalar_subs(c::CNum, sub_re::ScalarRules, sub_im::ScalarRules, has_imag::Bool)
     (isempty(sub_re) || is_native(c)) && return c
     re, im = realimag(c)
     re_part = SymbolicUtils.unwrap(re)

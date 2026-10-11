@@ -179,52 +179,74 @@ end
     return false
 end
 
-const EMPTY_PHASE_SUBSTITUTIONS = Pair{Any, Any}[]
+const ScalarRules = Dict{RawExpression, RawExpression}
+const PhaseRules = Vector{Pair{RawExpression, RawExpression}}
 
-function nonreal_phase_substitutions(d)
-    isempty(d) && return EMPTY_PHASE_SUBSTITUTIONS
-    rules = Pair{Any, Any}[]
+const EMPTY_SCALAR_RULES = ScalarRules()
+const EMPTY_PHASE_SUBSTITUTIONS = PhaseRules()
+
+raw_rule(x::RawExpression) = x
+raw_rule(x::Num) = raw_rule(SymbolicUtils.unwrap(x))
+raw_rule(x::Coeff) = lower_complex_slots(raw_tail(x))
+raw_rule(x::Number) = SymbolicUtils.Const{SymbolicUtils.SymReal}(x)
+raw_rule(x) = throw(ArgumentError("unsupported scalar substitution `$x` of type $(typeof(x))"))
+
+scalar_substitution_rules(d::ScalarRules) = d
+function scalar_substitution_rules(d::AbstractDict)
+    out = ScalarRules()
     for (from, to) in d
-        provably_real_replacement(to) && continue
-        (from isa Num || from isa SymbolicUtils.BasicSymbolic) || continue
-        push!(rules, SymbolicUtils.unwrap(from) => to)
+        add_scalar_rule!(out, from, to)
+    end
+    return out
+end
+
+function add_scalar_rule!(rules::ScalarRules, from::Union{Number, RawExpression}, to)
+    rules[raw_rule(from)] = raw_rule(to)
+    return rules
+end
+add_scalar_rule!(rules::ScalarRules, from, to) = rules
+
+function nonreal_phase_substitutions(d::ScalarRules)
+    isempty(d) && return EMPTY_PHASE_SUBSTITUTIONS
+    rules = PhaseRules()
+    for (from, to) in d
+        provably_real_replacement(to) || push!(rules, from => to)
     end
     return rules
 end
 
-@noinline function validate_phase_substitutions(
-        c::Coeff, phase_rules::Vector{Pair{Any, Any}},
-    )
-    isempty(phase_rules) && return
+function collect_phase_arguments!(out::Vector{RawExpression}, x::RawExpression)
+    if is_phase(x)
+        push!(out, only(SymbolicUtils.arguments(x)))
+        return out
+    end
+    SymbolicUtils.iscall(x) || return out
+    for argument in SymbolicUtils.arguments(x)
+        collect_phase_arguments!(out, argument)
+    end
+    return out
+end
+
+@noinline function validate_phase_substitutions(c::Coeff, phase_rules::PhaseRules)
+    isempty(phase_rules) && return c
     tail = c.tail
-    phase_arguments = Any[]
+    phase_arguments = RawExpression[]
     if tail isa Poly
         for monomial in tail.terms, symbol in monomial.syms
             is_phase(symbol) && push!(phase_arguments, only(SymbolicUtils.arguments(symbol)))
         end
     elseif tail isa RawSymbolicCoeff
-        function collect_phases(x)
-            x isa SymbolicUtils.BasicSymbolic || return
-            if is_phase(x)
-                push!(phase_arguments, only(SymbolicUtils.arguments(x)))
-                return
-            end
-            SymbolicUtils.iscall(x) || return
-            return foreach(collect_phases, SymbolicUtils.arguments(x))
-        end
-        collect_phases(tail.expr)
+        collect_phase_arguments!(phase_arguments, tail.expr)
     end
     for argument in phase_arguments
         for (from, to) in phase_rules
             raw_depends_on(argument, from) && nonreal_phase_argument(to)
         end
     end
-    return
+    return c
 end
 
-function substitute_cnum(
-        c::CNum, d, phase_rules::Vector{Pair{Any, Any}} = nonreal_phase_substitutions(d),
-    )
+function substitute_cnum(c::CNum, d::ScalarRules, phase_rules::PhaseRules = nonreal_phase_substitutions(d))
     isempty(d) && return c
     is_native(c) && return c
     validate_phase_substitutions(c, phase_rules)
@@ -233,5 +255,6 @@ function substitute_cnum(
     isequal(new_raw, raw) && return c
     return recognize(new_raw)
 end
+substitute_cnum(c::CNum, d::AbstractDict) = substitute_cnum(c, scalar_substitution_rules(d))
 
 SymbolicUtils.substitute(c::Coeff, rules::AbstractDict) = substitute_cnum(c, rules)

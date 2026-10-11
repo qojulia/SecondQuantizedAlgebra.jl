@@ -30,9 +30,7 @@ struct QuantumToolboxBackend <: NumericBackend end
     numeric_operator(be, op::Op, subbasis)
 
 Map a single-site operator `op` to its numeric matrix on `subbasis` (the subsystem basis
-for `op`'s slot). The main extension method is a closed `k === OP_*` value-branch on
-`op.kind`; the separate extension point `numeric_operator(be, ::Val{kind}, op, subbasis)`
-is the fallthrough for adding backend support for an existing role and throws by default.
+for `op`'s slot). Backends implement it as a closed `k === OP_*` value-branch on `op.kind`.
 """
 function numeric_operator end
 
@@ -89,7 +87,8 @@ function numeric_assemble end
     numeric_assemble_td(be, basis, td_terms)
 
 Like [`numeric_assemble`](@ref) but each coefficient is `Union{ComplexF64, Function}`
-(a constant or a `t -> ComplexF64`), producing the backend's native time-dependent
+(a constant, a `t -> ComplexF64`, or a solver-parameter-aware `(p, t) -> ComplexF64`),
+producing the backend's native time-dependent
 operator.
 """
 function numeric_assemble_td end
