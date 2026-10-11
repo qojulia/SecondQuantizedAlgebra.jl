@@ -11,9 +11,9 @@ end
 
 function substitute_qexpr_split(
         q::QExpr,
-        op_rules::AbstractDict,
-        scalar_rules::AbstractDict,
-        phase_rules::Vector{Pair{Any, Any}},
+        op_rules::OpRules,
+        scalar_rules::ScalarRules,
+        phase_rules::PhaseRules,
     )
     new_coeff = substitute_cnum(q.coeff, scalar_rules, phase_rules)
     iszero_cnum(new_coeff) && return qexpr_zero()

@@ -44,6 +44,9 @@ struct QExpr <: QField
             storage isa Vector || throw(
                 ArgumentError("QExpr product nodes require dynamic argument storage"),
             )
+            # A lone polynomial factor keeps its scale inside the `QAdd` (one representation).
+            length(storage) == 1 && only(storage) isa QAdd && !isequal(coeff, CNUM_ONE) &&
+                throw(ArgumentError("a single-polynomial product requires a unit outer coefficient"))
         else
             storage isa Vector && throw(
                 ArgumentError("formal function nodes require direct unary argument storage"),
@@ -121,7 +124,7 @@ function qexpr_scale(q::QExpr, c::CNum)
     iszero_cnum(c) && return qexpr_zero()
     isequal(c, CNUM_ONE) && return q
     body = qexpr_polynomial_body(q)
-    body === nothing || return qexpr_from_qadd(body * mul_cnum(q.coeff, c))
+    body === nothing || return qexpr_from_qadd(body * c)
     if q.kind == QEXPR_ADD
         args = QExprArg[]
         sizehint!(args, length(q.args))
@@ -157,7 +160,7 @@ function qexpr_collect_sum!(
         accumulate!(polynomial, single_qadd(arg.coeff, EMPTY_OPS))
     elseif (body = qexpr_polynomial_body(arg)) !== nothing
         polynomial === nothing && (polynomial = QAddBuilder())
-        accumulate!(polynomial, body, arg.coeff)
+        accumulate!(polynomial, body)
     else
         push!(formal, arg)
     end
@@ -215,11 +218,45 @@ function qexpr_sum(raw::Vector{QExprArg})
     return QExpr(QEXPR_ADD, CNUM_ONE, args)
 end
 
-# A scalar can sit in the outer coefficient or inside a polynomial factor, so `(θa) * f` and
-# `θ * (a * f)` would differ. Polynomial factors therefore hand their content to the outer
-# coefficient: a coefficient shared by every term, else a native leading coefficient (exact to
-# divide by). A factor with non-uniform symbolic coefficients and a symbolic leading term is
-# left as is, since symbolic division is not exact.
+# Polynomial factors hand their content to the outer coefficient, so `(θa) * f` and
+# `θ * (a * f)` are one term. Content is the shared coefficient, else the leading scalar
+# times each parameter's lowest power across the terms. A bound index never leaves its sum.
+# Leading scalar times each parameter's lowest power across all coefficients, so dividing
+# by it stays exact. `nothing` for a raw symbolic lead, which has no canonical scalar.
+function monomial_content(lead::CNum, coeffs)::Union{Nothing, CNum}
+    is_native(lead) && return lead
+    lead.tail isa Poly || return nothing
+    m = first(lead.tail.terms)
+    syms = copy(m.syms)
+    exps = copy(m.exps)
+    for c in coeffs
+        c.tail isa Poly || (empty!(syms); break)
+        for term in c.tail.terms
+            common_powers!(syms, exps, term)
+        end
+        isempty(syms) && break
+    end
+    scalar = scalar_coeff(m.scalar)
+    isempty(syms) && return scalar
+    return mul_cnum(scalar, tiered(monomial_terms, EXACT_ONE, syms, exps))
+end
+
+# Keep only parameters `term` also carries, at the lower of the two powers.
+function common_powers!(
+        syms::Vector{RawExpression}, exps::Vector{Rational{Int}}, term::Monomial,
+    )
+    for k in reverse(eachindex(syms))
+        j = findfirst(t -> t === syms[k], term.syms)
+        if j === nothing
+            deleteat!(syms, k)
+            deleteat!(exps, k)
+        else
+            exps[k] = min(exps[k], term.exps[j])
+        end
+    end
+    return syms
+end
+
 function qexpr_split_content(q::QAdd)::Tuple{CNum, QAdd}
     content = CNUM_ONE
     uniform = true
@@ -233,17 +270,56 @@ function qexpr_split_content(q::QAdd)::Tuple{CNum, QAdd}
     end
     if !uniform
         lead = argmin(term_order_key, keys(q.arguments))
-        content = q.arguments[lead]
-        is_native(content) || return (CNUM_ONE, q)
+        found = monomial_content(q.arguments[lead], values(q.arguments))
+        found === nothing && return (CNUM_ONE, q)
+        content = found
     end
     isequal(content, CNUM_ONE) && return (CNUM_ONE, q)
+    any(idx -> depends_on_index_term(content, EMPTY_OPS, idx), q.indices) && return (CNUM_ONE, q)
     scale = uniform ? CNUM_ONE : inv(content)
+    if !uniform && is_native(scale)
+        z = native_scalar(scale)
+        z isa ComplexF64 && !isfinite(z) && return (CNUM_ONE, q)
+    end
     d = QTermDict()
     sizehint!(d, length(q.arguments))
     for (term, c) in q.arguments
-        d[copy_key(term)] = uniform ? CNUM_ONE : mul_cnum(c, scale)
+        normalized = uniform ? CNUM_ONE : mul_cnum(c, scale)
+        isequal(mul_cnum(content, normalized), c) || return (CNUM_ONE, q)
+        d[copy_key(term)] = normalized
     end
     return (content, QAdd(d, q.indices))
+end
+
+# Recover tensor factors from polynomial leaves, including leaves multiplied before entering
+# the formal layer. Exact reconstruction prevents introducing a factorization by rounding.
+function qexpr_tensor_factors(q::QAdd)::Vector{QAdd}
+    spaces = acts_on(q)
+    length(spaces) > 1 || return QAdd[q]
+    isempty(q.indices) || return QAdd[q]
+    any(term -> !isempty(term.ne), keys(q.arguments)) && return QAdd[q]
+    pivot = argmin(term_order_key, keys(q.arguments))
+    pivot_coeff = q.arguments[pivot]
+    for n in 1:div(length(spaces), 2), partition in combinations(spaces, n)
+        left_key = QTerm(filter(op -> op.space_index in partition, pivot.ops), EMPTY_NE)
+        right_key = QTerm(filter(op -> op.space_index ∉ partition, pivot.ops), EMPTY_NE)
+        left = QTermDict()
+        right = QTermDict()
+        for (term, c) in q.arguments
+            l = QTerm(filter(op -> op.space_index in partition, term.ops), EMPTY_NE)
+            r = QTerm(filter(op -> op.space_index ∉ partition, term.ops), EMPTY_NE)
+            if isequal(r, right_key)
+                left[l] = isequal(c, pivot_coeff) ? CNUM_ONE : c / pivot_coeff
+            end
+            isequal(l, left_key) && (right[r] = c)
+        end
+        lpoly = QAdd(left, EMPTY_INDICES)
+        rpoly = QAdd(right, EMPTY_INDICES)
+        if isequal(lpoly * rpoly, q)
+            return vcat(qexpr_tensor_factors(lpoly), qexpr_tensor_factors(rpoly))
+        end
+    end
+    return QAdd[q]
 end
 
 function qexpr_push_product!(factors::Vector{QExprArg}, coeff::CNum, arg::QAdd)
@@ -253,15 +329,22 @@ function qexpr_push_product!(factors::Vector{QExprArg}, coeff::CNum, arg::QAdd)
         coeff = mul_cnum(coeff, scalar)
         return (coeff, iszero_cnum(coeff))
     end
-    if !isempty(factors) && last(factors) isa QAdd
+    parts = qexpr_tensor_factors(arg)
+    if length(parts) > 1
+        for part in parts
+            coeff, stopped = qexpr_push_product!(factors, coeff, part)
+            stopped && return (CNUM_ZERO, true)
+        end
+        return (coeff, false)
+    end
+    if !isempty(factors) && last(factors) isa QAdd &&
+            !isdisjoint(acts_on(last(factors)), acts_on(arg))
         left = pop!(factors)::QAdd
         merged = left * arg
         iszero(merged) && return (CNUM_ZERO, true)
         merged_scalar = qexpr_scalar_coeff(merged)
         if merged_scalar === nothing
-            content, merged = qexpr_split_content(merged)
-            coeff = mul_cnum(coeff, content)
-            push!(factors, merged)
+            return qexpr_push_product!(factors, coeff, merged)
         else
             coeff = mul_cnum(coeff, merged_scalar)
         end
@@ -292,10 +375,8 @@ function qexpr_push_product!(factors::Vector{QExprArg}, coeff::CNum, arg::QExpr)
     return (coeff, false)
 end
 
-# Factors acting on disjoint spaces commute, since no operator kind is fermionic. Choosing the
-# lexicographically least ordering among the commutation-equivalent ones (the trace-monoid
-# normal form) makes `b * f(a)` and `f(a) * b` the same term. Factors sharing a space keep
-# their relative order.
+# Disjoint-space factors commute (no kind is fermionic); the lexicographically least
+# commutation-equivalent order makes `b * f(a)` and `f(a) * b` one term.
 function qexpr_lex_order(factors::Vector{QExprArg})::Vector{Int}
     spaces = [acts_on(f) for f in factors]
     remaining = collect(eachindex(factors))
@@ -319,8 +400,8 @@ function qexpr_lex_order(factors::Vector{QExprArg})::Vector{Int}
     return order
 end
 
-# Reordering can make two polynomial factors adjacent; they merge through `QAdd`
-# multiplication, which may enable a further reordering, so iterate to a fixed point.
+# Reordering can bring overlapping polynomial factors together. Their product may expose
+# new tensor factors, so iterate to a fixed point while keeping disjoint factors separate.
 function qexpr_commuting_order(factors::Vector{QExprArg}, coeff::CNum)
     while length(factors) > 1
         order = qexpr_lex_order(factors)
@@ -328,12 +409,23 @@ function qexpr_commuting_order(factors::Vector{QExprArg}, coeff::CNum)
         reordered = QExprArg[]
         sizehint!(reordered, length(factors))
         for i in order
-            coeff, stopped = qexpr_push_product!(reordered, coeff, factors[i])
+            coeff, stopped = qexpr_push_reordered!(reordered, coeff, factors[i])
             stopped && return (factors, CNUM_ZERO, true)
         end
         factors = reordered
     end
     return (factors, coeff, false)
+end
+
+# Factors are already normalized (content extracted, tensor factors split, products
+# flattened); only a polynomial landing next to an overlapping one needs the full push.
+function qexpr_push_reordered!(factors::Vector{QExprArg}, coeff::CNum, arg::QExprArg)
+    if arg isa QAdd && !isempty(factors) && last(factors) isa QAdd &&
+            !isdisjoint(acts_on(last(factors)), acts_on(arg))
+        return qexpr_push_product!(factors, coeff, arg)
+    end
+    push!(factors, arg)
+    return (coeff, false)
 end
 
 function qexpr_product(raw::Vector{QExprArg}, coefficient::CNum = CNUM_ONE)
@@ -349,10 +441,14 @@ function qexpr_product(raw::Vector{QExprArg}, coefficient::CNum = CNUM_ONE)
     stopped && return qexpr_zero()
 
     isempty(factors) && return QExpr(QEXPR_MUL, coeff, QExprArg[])
-    if length(factors) == 1
-        factor = only(factors)
-        return factor isa QExpr ? qexpr_scale(factor, coeff) : qexpr_from_qadd(factor * coeff)
+    if all(factor -> factor isa QAdd, factors)
+        polynomial = single_qadd(coeff, EMPTY_OPS)
+        for factor in factors
+            polynomial = polynomial * (factor::QAdd)
+        end
+        return qexpr_from_qadd(polynomial)
     end
+    length(factors) == 1 && return qexpr_scale(only(factors)::QExpr, coeff)
     return QExpr(QEXPR_MUL, coeff, factors)
 end
 

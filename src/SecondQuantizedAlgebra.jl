@@ -1,7 +1,7 @@
 module SecondQuantizedAlgebra
 
 using SymbolicUtils: SymbolicUtils, simplify, substitute, add_worker
-using Symbolics: Symbolics, Num, expand, taylor, @variables, build_function, get_variables, symbolic_to_float
+using Symbolics: Symbolics, Num, expand, taylor, @variables, build_function, get_variables
 using TermInterface: TermInterface
 
 import QuantumInterface
@@ -9,7 +9,7 @@ import QuantumInterface: expect, basis, dagger
 using QuantumInterface: AbstractOperator, StateVector, Basis, CompositeBasis
 import TensorCore: ⊗, tensor
 
-using Combinatorics: with_replacement_combinations
+using Combinatorics: combinations, with_replacement_combinations
 using Latexify: Latexify, latexify, @latexrecipe
 using LinearAlgebra: LinearAlgebra, istriu, istril
 using PrecompileTools: @setup_workload, @compile_workload

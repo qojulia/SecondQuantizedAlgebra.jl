@@ -28,6 +28,23 @@ import SecondQuantizedAlgebra: QExpr
         @test (θ * x) * cos(y) == θ * (x * cos(y))
         @test (2a + 4a') * cos(x) == 2 * ((a + 2a') * cos(x))
         @test iszero((θ * a) * cos(x) - θ * (a * cos(x)))
+        @test (θ * a + θ^2 * a') * cos(y) == θ * ((a + θ * a') * cos(y))
+        @test (2θ * a + 4θ * a') * cos(y) == 2θ * ((a + 2a') * cos(y))
+        @test ((θ + θ^2) * a + θ * a') * cos(y) == θ * (((1 + θ) * a + a') * cos(y))
+        @test iszero((θ * a + θ^2 * a') * cos(y) - θ * ((a + θ * a') * cos(y)))
+        # No common parameter: nothing is divided out.
+        @test ((θ * a + a') * cos(y)).coeff == 1
+    end
+
+    @testset "Bound-index content stays inside its sum" begin
+        hs = h ⊗ NLevelSpace(:s, 2)
+        as = Destroy(hs, :a, 1)
+        i = Index(hs, :i, 3, 3)
+        σ = IndexedOperator(Transition(hs, :σ, 1, 2, 3), i)
+        g = IndexedVariable(:g, i)
+        expr = Σ(g * σ, i) * cos(as + as')
+        @test expr.coeff == 1
+        @test taylor(expr, 0:0) == Σ(g * σ, i)
     end
 
     @testset "Factors on disjoint spaces commute" begin
@@ -38,6 +55,40 @@ import SecondQuantizedAlgebra: QExpr
         @test iszero(commutator(sin(x), y))
         @test a * cos(y) * a' == a * a' * cos(y)
         @test b * sin(x) * b' * sin(x) == b * b' * sin(x) * sin(x)
+    end
+
+    @testset "Polynomial merging preserves tensor commutation" begin
+        C = cos(x)
+        for local_factor in (a, a' * a, x, 2a + 4a'),
+                remote_factor in (b, b' * b, y, 3b + b')
+            lhs = (C * remote_factor) * local_factor
+            rhs = C * (remote_factor * local_factor)
+            @test lhs == rhs
+            @test hash(lhs) == hash(rhs)
+            @test iszero(lhs - rhs)
+            @test (local_factor * remote_factor) * C == local_factor * (remote_factor * C)
+            @test taylor(lhs, 0:2) == taylor(rhs, 0:2)
+        end
+        @test (C * b) * (a * a') == C * (b * (a * a'))
+        @test C * (a + b) != (a + b) * C
+        h4 = h ⊗ FockSpace(:c) ⊗ FockSpace(:d)
+        c = Destroy(h4, :c, 3)
+        d = Destroy(h4, :d, 4)
+        local_pair = a + b
+        remote_pair = c + d
+        @test (C * remote_pair) * local_pair == C * (remote_pair * local_pair)
+        @test iszero((C * remote_pair) * local_pair - C * (remote_pair * local_pair))
+    end
+
+    @testset "Floating content normalization preserves finite coefficients" begin
+        for scale in (1.0e-320, 1.0e-308, 1.0e-200, 1.0e200),
+                phase in (1, im)
+            P = (phase * scale) * a + (phase * (2scale)) * a'
+            @test taylor(P * cos(x), 0:0) == P
+            @test taylor(cos(x) * P, 0:0) == P
+        end
+        P = 1.0e-320 * a + 1.0e300 * a'
+        @test taylor(P * cos(x), 0:0) == P
     end
 
     @testset "Factors on a shared space keep their order" begin

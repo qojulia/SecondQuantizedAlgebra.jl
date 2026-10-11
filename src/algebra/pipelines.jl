@@ -79,6 +79,47 @@ function depends_on_index_ops(c::CNum, ops::Vector{Op}, idx::Index)
     return depends_on_index_term(c, ops, idx)
 end
 
+# When both indices are bound, the two directions (i→j and j→i) describe
+# the same diagonal slice; keeping one (later→earlier) avoids double-counting
+# constant residuals (the `+1` from `a*a' = a'a + 1`) and keeps the survivor
+# invariant under factor order so `Σa * Σa'` and `Σa' * Σa` agree.
+function diagonal_pairs(
+        ops::Vector{Op}, c::CNum, sum_indices::Vector{Index},
+        ne::Vector{NonEqualPair}, distinct::Vector{Index},
+    )
+    diag_pairs = Tuple{Index, Index}[]
+    for sum_idx in sum_indices
+        depends_on_index_ops(c, ops, sum_idx) || continue
+        for ext_idx in distinct
+            may_coincide(sum_idx, ext_idx, ne) || continue
+            # Keep one direction of a bound-bound pair.
+            if ext_idx in sum_indices
+                name_rank(sum_idx.name_id) > name_rank(ext_idx.name_id) || continue
+            end
+            push!(diag_pairs, (sum_idx, ext_idx))
+        end
+    end
+    return diag_pairs
+end
+
+# Two distinct indices on the same space, not already constrained apart.
+function may_coincide(sum_idx::Index, ext_idx::Index, ne::Vector{NonEqualPair})
+    ext_idx == sum_idx && return false
+    ext_idx.space_index == sum_idx.space_index || return false
+    return !ne_contains(ne, sum_idx, ext_idx)
+end
+
+function sibling_exclusions(diag_pairs::Vector{Tuple{Index, Index}}, sum_idx::Index, ext_idx::Index)
+    sibling_ne = NonEqualPair[]
+    for (other_sum, other_ext) in diag_pairs
+        other_sum == sum_idx || continue
+        other_ext == ext_idx && continue
+        other_ext.space_index == ext_idx.space_index || continue
+        push!(sibling_ne, (ext_idx, other_ext))
+    end
+    return sibling_ne
+end
+
 """
     accumulate_with_diag!(out, ops, c, sum_indices, ne) -> out
 
@@ -98,19 +139,7 @@ function accumulate_with_diag!(
         return out
     end
 
-    diag_pairs = Tuple{Index, Index}[]
-    for sum_idx in sum_indices
-        depends_on_index_ops(c, ops, sum_idx) || continue
-        for ext_idx in distinct
-            ext_idx == sum_idx && continue
-            ext_idx.space_index == sum_idx.space_index || continue
-            ne_contains(ne, sum_idx, ext_idx) && continue
-            if ext_idx in sum_indices
-                name_rank(sum_idx.name_id) > name_rank(ext_idx.name_id) || continue
-            end
-            push!(diag_pairs, (sum_idx, ext_idx))
-        end
-    end
+    diag_pairs = diagonal_pairs(ops, c, sum_indices, ne, distinct)
 
     if isempty(diag_pairs)
         canonicalize!(out, copy(ops), c, ne)
@@ -127,13 +156,7 @@ function accumulate_with_diag!(
         sub_ops = Op[change_index(o, sum_idx, ext_idx) for o in ops]
         sub_c = change_index(c, sum_idx, ext_idx)
         sub_ne = substitute_ne(ne, sum_idx, ext_idx)
-        sibling_ne = NonEqualPair[]
-        for (other_sum, other_ext) in diag_pairs
-            other_sum == sum_idx || continue
-            other_ext == ext_idx && continue
-            other_ext.space_index == ext_idx.space_index || continue
-            push!(sibling_ne, (ext_idx, other_ext))
-        end
+        sibling_ne = sibling_exclusions(diag_pairs, sum_idx, ext_idx)
         isempty(sibling_ne) || (sub_ne = merge_ne(sub_ne, sibling_ne))
         if ext_idx in sum_indices
             emit_scaled_by_scope!(out, sub_ops, sub_c, sub_ne, Index[ext_idx])

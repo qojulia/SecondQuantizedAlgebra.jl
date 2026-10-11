@@ -94,6 +94,18 @@ function latex_term(c::CNum, ops::Vector{Op})
     return latex_pf_term(Complex(re, im), ops)
 end
 
+function latex_prefactor(c::CNum)
+    if is_native(c)
+        z = native_scalar(c)
+        iszero(imag(z)) && return latex_real(real(z))
+        iszero(real(z)) && return complex(false, latex_real(imag(z)))
+        return complex(latex_real(real(z)), latex_real(imag(z)))
+    end
+    re, im = realimag(c)
+    iszero_num(im) && return SymbolicUtils.unwrap(re)
+    return Complex(re, im)
+end
+
 function latex_pf_term(pf, ops::Vector{Op})
     isempty(ops) && return Expr(:latexifymerge, pf)
     parts = LATEX_FRAGMENT[]

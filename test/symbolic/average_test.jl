@@ -388,4 +388,15 @@ import SecondQuantizedAlgebra:
         coherence = indexed_sum(0.5im, [ks])
         @test !(symtype(SymbolicUtils.unwrap(coherence)) <: Real)
     end
+
+    @testset "formal operator functions are refused" begin
+        err = try
+            average(cos(a + ad))
+            nothing
+        catch e
+            e
+        end
+        @test err isa ArgumentError
+        @test occursin("taylor(expr, 0:n)", sprint(showerror, err))
+    end
 end

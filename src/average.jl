@@ -236,6 +236,12 @@ average(op::QSym) = average_leaf(op)
 average(x::Number) = x
 average(x::SymbolicUtils.BasicSymbolic) = x
 average(x::Num) = average(SymbolicUtils.unwrap(x))
+average(::QExpr) = throw(
+    ArgumentError(
+        "averages of formal operator functions are not defined; " *
+            "call `taylor(expr, 0:n)` first and average the resulting `QAdd`",
+    ),
+)
 
 function average(op::QAdd)
     BS = SymbolicUtils.BasicSymbolic{SymbolicUtils.SymReal}
@@ -247,35 +253,7 @@ function average(op::QAdd)
     group_slot = Dict{GroupKey, Int}()
     for (term, c) in op.arguments
         used = Index[idx for idx in shared if depends_on_index_term(c, term.ops, idx)]
-        contrib = Num(0)
-        opaque_raw = c.tail isa RawSymbolicCoeff &&
-            !(
-            SymbolicUtils.iscall(c.tail.expr) &&
-                SymbolicUtils.operation(c.tail.expr) === complex
-        )
-        if opaque_raw
-            raw = Num(c.tail.expr)
-            if isempty(term.ops)
-                iszero(raw) || (contrib += raw)
-            else
-                inner = length(term.ops) == 1 ? only(term.ops) :
-                    single_qadd(CNUM_ONE, term.ops, term.ne)
-                avg = average_leaf(inner)
-                iszero(raw) || (contrib += raw * avg)
-            end
-        elseif isempty(term.ops)
-            r, i = realimag(c)
-            iszero(r) || (contrib += r)
-            iszero(i) || (contrib += i * Symbolics.IM)
-        else
-            r, i = realimag(c)
-            inner = length(term.ops) == 1 ? only(term.ops) :
-                single_qadd(CNUM_ONE, term.ops, term.ne)
-            avg = average_leaf(inner)
-            iszero(r) || (contrib += r * avg)
-            iszero(i) || (contrib += i * Symbolics.IM * avg)
-        end
-        body = SymbolicUtils.unwrap(contrib)
+        body = average_term(c, term)
         if isempty(used)
             push!(flat_bodies, body)
         else
@@ -295,6 +273,31 @@ function average(op::QAdd)
     end
     isempty(flat_bodies) && return SymbolicUtils.unwrap(Num(0))
     return add_worker(SymbolicUtils.SymReal, flat_bodies)
+end
+
+function average_term(c::CNum, term::QTerm)
+    contrib = Num(0)
+    if c.tail isa RawSymbolicCoeff && !is_call_of(c.tail.expr, complex)
+        raw = Num(c.tail.expr)
+        iszero(raw) && return SymbolicUtils.unwrap(contrib)
+        contrib += isempty(term.ops) ? raw : raw * average_term_ops(term)
+        return SymbolicUtils.unwrap(contrib)
+    end
+    r, i = realimag(c)
+    if isempty(term.ops)
+        iszero(r) || (contrib += r)
+        iszero(i) || (contrib += i * Symbolics.IM)
+    else
+        avg = average_term_ops(term)
+        iszero(r) || (contrib += r * avg)
+        iszero(i) || (contrib += i * Symbolics.IM * avg)
+    end
+    return SymbolicUtils.unwrap(contrib)
+end
+
+function average_term_ops(term::QTerm)
+    inner = length(term.ops) == 1 ? only(term.ops) : single_qadd(CNUM_ONE, term.ops, term.ne)
+    return average_leaf(inner)
 end
 
 to_qadd(x::QAdd) = x

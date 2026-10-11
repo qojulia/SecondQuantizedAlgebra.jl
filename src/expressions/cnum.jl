@@ -95,6 +95,9 @@ end
 
 expim(x::Number) = nonreal_phase_argument(x)
 
+@inline is_call_of(x::RawExpression, op::F) where {F} =
+    SymbolicUtils.iscall(x) && SymbolicUtils.operation(x) === op
+
 @inline is_phase(b) =
     b isa RawExpression &&
     SymbolicUtils.iscall(b) &&
