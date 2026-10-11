@@ -5,20 +5,11 @@ using QuantumOpticsBase: FockBasis, NLevelBasis, SpinBasis, basisstate
 
 report_text(report) = sprint(show, MIME("text/plain"), report)
 
-# Collected rather than asserted one by one so the failure can name the offender: a bare
-# `@test any(occursin, allowed)` prints only the predicate.
-matches_allowed(text, needle::AbstractString) = occursin(needle, text)
-matches_allowed(text, needle::Regex) = occursin(needle, text)
-
-unmatched(report, allowed::AbstractVector) = filter(
-    text -> !any(needle -> matches_allowed(text, needle), allowed),
-    map(report_text, JET.get_reports(report)),
-)
-
-function test_allowed_only(report, allowed::AbstractVector)
-    left = unmatched(report, allowed)
-    isempty(left) || @info "unmatched JET reports" left
-    @test isempty(left)
+# Prints the offending reports on failure: a bare `@test isempty(...)` shows only the count.
+function test_no_reports(report)
+    reports = map(report_text, JET.get_reports(report))
+    isempty(reports) || @info "unexpected JET reports" reports
+    @test isempty(reports)
     return
 end
 
@@ -27,31 +18,13 @@ end
         # report_package finds actual type errors (method-not-found, etc.).
         # `ignore_missing_comparison = true
         # silences `Missing` union-split warnings that bubble up from Symbolics.
-        # report_opt is checked separately (below) on selected hot paths; collapsing
-        # the operators to a concrete `Vector{Op}` removed the per-leaf dynamic
-        # dispatch the abstract hierarchy used to force, leaving only the `Coeff`
-        # materialization and numeric/average conversion boundaries.
+        # report_opt is checked separately (below) on selected hot paths.
         result = JET.report_package(
             SecondQuantizedAlgebra;
             target_modules = (SecondQuantizedAlgebra,),
             ignore_missing_comparison = true,
         )
-        # `Symbolics` defines `Num` only for the `SymReal` variant, so every
-        # `Num(x::BasicSymbolic)` reads as a possible `MethodError` on the `TreeReal` arm.
-        # Nothing here produces one: `unwrap(r)`, `unwrap(cosh(r))` and `unwrap(ω*t)` are all
-        # `SymReal`. Narrowing the callees only relocates the report, since the widening
-        # starts at `recognize(::BasicSymbolic)`, and `Symbolics.wrap` infers `Any`. Spelled
-        # out in full so a SymbolicUtils rename re-fires the gate — both renderings, since
-        # JET qualifies the type parameter only when the running session lacks the binding.
-        test_allowed_only(
-            result,
-            [
-                "Num(::SymbolicUtils.BasicSymbolicImpl.var\"typeof(BasicSymbolicImpl)\"" *
-                    "{SymbolicUtils.TreeReal})",
-                "Num(::SymbolicUtils.BasicSymbolicImpl.var\"typeof(BasicSymbolicImpl)\"" *
-                    "{TreeReal})",
-            ],
-        )
+        test_no_reports(result)
     end
 
     @testset "JET report_call on entry points (no errors)" begin
@@ -167,19 +140,9 @@ end
     end
 
     @testset "JET report_opt on selected hot paths" begin
-        # Three buckets:
-        #
-        #  1. Strict (leaf-level operations). Fully inferred, zero dispatch reports.
-        #     With the concrete `Vector{Op}` storage the per-operator hooks and
-        #     leaf-level `to_numeric` infer statically, so these stay clean.
-        #
-        #  2. Hot-path allowed. QAdd-level pipelines whose only residual dispatch is
-        #     the `Coeff` materialization boundary, plus `undo_average`'s rebuild from
-        #     a Symbolics `average` node (see the allowlists below).
-        #
-        #  3. Numeric allowed. `to_numeric` / `numeric_average` on QAdd inputs, which
-        #     additionally cross the `Any → ComplexF64` numeric-conversion boundary
-        #     and call into QuantumOpticsBase.
+        # Every entry is strict: zero runtime dispatch inside the package. The symbolic
+        # walks stay inferred because coefficient atoms are typed `RawExpression` and a
+        # constant's `::Any` payload is read only through the narrowing helpers in `cnum.jl`.
         hf = FockSpace(:f); a = Destroy(hf, :a); ad = Create(hf, :a)
         hn = NLevelSpace(:atom, 3); σ12 = Transition(hn, :σ, 1, 2); σ21 = Transition(hn, :σ, 2, 1)
         hp = PauliSpace(:s); px = Pauli(hp, :σ, 1); py = Pauli(hp, :σ, 2)
@@ -191,7 +154,6 @@ end
         bs = SpinBasis(1 // 2)
         ψ = basisstate(b, 1)
 
-        # Bucket 1: strict (zero dispatch reports)
         for (name, thunk) in [
                 # Per-family to_numeric on a leaf
                 ("to_numeric(a, b)", () -> to_numeric(a, b)),
@@ -211,134 +173,6 @@ end
                 ("is_average(a)", () -> is_average(a)),
                 ("is_average(average(a))", () -> is_average(average(a))),
                 ("has_sum_metadata(average(a))", () -> SecondQuantizedAlgebra.has_sum_metadata(average(a))),
-            ]
-            rep = JET.@report_opt target_modules = (SecondQuantizedAlgebra,) thunk()
-            @testset "$name" begin
-                @test isempty(JET.get_reports(rep))
-            end
-        end
-
-        # Collapsing the operators to a concrete `Vector{Op}` removed the former
-        # per-leaf operator dispatch (`site_compare`/`can_commute`/`commute_pair`),
-        # so those reports are gone. Two residual `report_opt` boundaries remain, both
-        # independent of the operator type:
-        #
-        # (a) Coefficient materialization. Constructing an operator builds its
-        #     `Coeff`; the recognizer (`recognize`) and the numeric fold read a
-        #     heterogeneous Symbolics expression whose `BasicSymbolic.val` is `::Any`,
-        #     so the reduction (`+`/`*`/`==`/`ComplexF64`/`convert`) is dynamic. The
-        #     Hermitian-symtype probe (`avg_symtype`) reaches the same boundary from
-        #     the other side: `adjoint` conjugates each coefficient via `conj_atom`,
-        #     which reads that same `::Any` symbolic tail.
-        # The extra entries below are deliberately type-shaped: a new function name alone
-        # must not silence every future report from that function.
-        allowed_coeff_reports = Any[
-            "SecondQuantizedAlgebra.recognize(",
-            r"SecondQuantizedAlgebra\.raw_complex\(%\d+::Any, %\d+::Any\)",
-            r"Core\.kwcall\(%\d+::@NamedTuple\{(?:normalize::Bool, )?real_slot::Bool\},",
-            r"SecondQuantizedAlgebra\.to_cnum\(%\d+::Number\)::Any",
-            r"SecondQuantizedAlgebra\.to_cnum\(%\d+::Any\)::Any",
-            r"SecondQuantizedAlgebra\.to_cnum\(%\d+::Rational\)::(?:SecondQuantizedAlgebra\.)?Coeff",
-            r"SecondQuantizedAlgebra\.to_cnum\(%\d+::Complex\)::(?:SecondQuantizedAlgebra\.)?Coeff",
-            r"SecondQuantizedAlgebra\.normalize_phase\(%\d+::Any\)::Any",
-            r"SecondQuantizedAlgebra\.Complex\(%\d+::Any, %\d+::Any\)::Complex",
-            r"SecondQuantizedAlgebra\.imag\(%\d+::Number\)::Real",
-            r"SecondQuantizedAlgebra\.real\(%\d+::Number\)::Real",
-            r"\(%\d+::Any SecondQuantizedAlgebra\.:/ %\d+::Any\)::Any",
-            r"\(%\d+::SymbolicUtils\.BasicSymbolicImpl.*SecondQuantizedAlgebra\.:/ %\d+::Any\)::Any",
-            r"\(%\d+::Any SecondQuantizedAlgebra\.:/ %\d+::SymbolicUtils\.BasicSymbolicImpl.*\)::Any",
-            r"\(%\d+::Any SecondQuantizedAlgebra\.:- %\d+::Any\)::Any",
-            r"get_variables\(%\d+::Real\)::Any",
-            r"SecondQuantizedAlgebra\.any\(%\d+::.*::Any\)::Any",
-            r"SecondQuantizedAlgebra\.:// %\d+::Integer\)::Rational",
-            r"::Rational\{BigInt\}\(%\d+::Union\{Integer, Rational\}\)::Rational\{BigInt\}\)",
-            r"::Rational\{BigInt\}\(x::Rational\)::Rational\{BigInt\}\)",
-            r"SecondQuantizedAlgebra\.collect_trig!\(%\d+::Vector\{SymbolicUtils\.BasicSymbolicImpl.*?, %\d+::Any\)::Any",
-            r"SecondQuantizedAlgebra\.append!\(%\d+::Vector\{SymbolicUtils\.BasicSymbolicImpl.*?, %\d+::Any\)::Any",
-            r"SecondQuantizedAlgebra\.has_symbolic_trig\(%\d+::Any\)::Bool",
-            "SecondQuantizedAlgebra.ComplexF64(",
-            "convert(SecondQuantizedAlgebra.Coeff",
-            "SecondQuantizedAlgebra.:*",
-            "SecondQuantizedAlgebra.:+",
-            "SecondQuantizedAlgebra.:(==)",
-            "SecondQuantizedAlgebra.conj_atom(",
-            ".val::Any",
-        ]
-        # (a2) The same `::Any` boundary further downstream. `BasicSymbolic` is a UnionAll, so
-        #     `operation`/`arguments` on one return `Any` and every call after that inherits
-        #     it. Two cold walks reach it: `qadjoint(::Num)` unwraps to the field before its
-        #     phase and sign arms run, and the trig discovery in `reduce.jl` iterates
-        #     `Monomial.syms`, whose eltype is that same UnionAll. Neither is fixable here:
-        #     the type is already lost at the caller, and the eltype is SymbolicUtils' choice.
-        allowed_symbolic_walk_reports = Any[
-            "BasicSymbolicImpl)\"{T} where T)",
-            "operation(",   # the two SymbolicUtils accessors that start the widening
-            "arguments(",
-            "SecondQuantizedAlgebra.strip_conj(",
-            "SecondQuantizedAlgebra.only(",
-            "SecondQuantizedAlgebra.expim_symbolic(",
-            "SecondQuantizedAlgebra.sign(",
-            "SecondQuantizedAlgebra.exp(",
-            "SecondQuantizedAlgebra.:!(",
-            "SecondQuantizedAlgebra.:<",
-            "SecondQuantizedAlgebra.:-(",
-            "SecondQuantizedAlgebra.unary_arg(",
-            "SecondQuantizedAlgebra.find_partner(",
-            "SecondQuantizedAlgebra.TrigHead(",
-            "SecondQuantizedAlgebra.length(",
-            "SecondQuantizedAlgebra.isequal(",
-            "Dict{SecondQuantizedAlgebra.TrigKey",
-            "Dict{Symbolics.Num, Symbolics.Num}",
-            "Dict{Num, Num}",
-            "unwrap(",
-            ")[1]::Any",
-            "SecondQuantizedAlgebra.Num(",
-            "SecondQuantizedAlgebra.ParamRelation(",
-            r"SecondQuantizedAlgebra\.simplify_raw_component\(%\d+::Any\)::Any",
-        ]
-        # (b) `undo_average` rebuilds a QAdd from a Symbolics `average` node, reading
-        #     its `Any`-typed arguments/metadata (`average`, `to_qadd`) and folding
-        #     the rebuilt terms through generic iteration.
-        allowed_hotpath_reports = vcat(
-            allowed_coeff_reports, allowed_symbolic_walk_reports, [
-                "SecondQuantizedAlgebra.average(",
-                "SecondQuantizedAlgebra.to_qadd(",
-                "SecondQuantizedAlgebra.iszero(",
-                "SecondQuantizedAlgebra.:^",
-                "Base.indexed_iterate",
-                "iterate(",
-            ],
-        )
-        # (c) Numeric conversion seals `Any → ComplexF64` (`to_complex` /
-        #     `reduce_const` / `fold_const` walking a Symbolics tree) and calls into
-        #     QuantumOpticsBase (`to_numeric` / `expect` / `numeric_average`). This
-        #     boundary is independent of the operator collapse and was always
-        #     allowlisted.
-        # (d) The `reduce_const` fallback. A variable-free symbolic constant that
-        #     `fold_const` cannot reduce (e.g. `sqrt(2)`, `exp` of a constant) is
-        #     evaluated through `Symbolics.symbolic_to_float`, whose result is typed
-        #     `Any`, so the final `convert`/`ComplexF64` to a concrete `ComplexF64` is
-        #     dynamic. This is the same `Any → ComplexF64` boundary as the entries
-        #     above, reached through `compile_const`.
-        allowed_numeric_reports = vcat(
-            allowed_hotpath_reports, [
-                "SecondQuantizedAlgebra.to_complex(",
-                "SecondQuantizedAlgebra.reduce_const(",
-                "SecondQuantizedAlgebra.fold_const(",
-                "SecondQuantizedAlgebra.compile_const(",
-                "SecondQuantizedAlgebra.numeric_average(",
-                "SecondQuantizedAlgebra.numeric_average_impl(",
-                "SecondQuantizedAlgebra.Complex(",
-                "SecondQuantizedAlgebra.convert(",
-                "convert(SecondQuantizedAlgebra.ComplexF64",
-                "to_numeric(",
-                "expect(",
-                "string(",
-            ],
-        )
-
-        # Bucket 2: hot-path allowed
-        for (name, thunk) in [
                 # Leaf-pair commutators with a `commute_pair` fast path.
                 ("commutator(a, a')", () -> commutator(a, ad)),
                 ("commutator(x, p)", () -> commutator(xx, pp)),
@@ -357,21 +191,13 @@ end
                 # Average/undo_average round trip
                 ("average(a*a')", () -> average(a * ad)),
                 ("undo_average(average(a))", () -> undo_average(average(a))),
-            ]
-            rep = JET.@report_opt target_modules = (SecondQuantizedAlgebra,) thunk()
-            @testset "$name" begin
-                test_allowed_only(rep, allowed_hotpath_reports)
-            end
-        end
-
-        # Bucket 3: numeric allowed
-        for (name, thunk) in [
+                # Numeric conversion of a QAdd and of an average
                 ("to_numeric(a' * a, b)", () -> to_numeric(ad * a, b)),
                 ("numeric_average(average(a), ψ)", () -> numeric_average(average(a), ψ)),
             ]
             rep = JET.@report_opt target_modules = (SecondQuantizedAlgebra,) thunk()
             @testset "$name" begin
-                test_allowed_only(rep, allowed_numeric_reports)
+                test_no_reports(rep)
             end
         end
     end

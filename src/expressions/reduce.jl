@@ -37,7 +37,7 @@ end
 # `poly_add` require.
 function replace_exps(m::Monomial, i::Int, ei::Rational{Int}, j::Int, ej::Rational{Int})
     n = length(m.syms)
-    syms = SymbolicUtils.BasicSymbolic[]
+    syms = RawExpression[]
     exps = Rational{Int}[]
     sizehint!(syms, n)
     sizehint!(exps, n)
@@ -69,7 +69,7 @@ function binomial_power(
     for j in 1:k
         c = c * E(k - j + 1, 0) * inv(E(j, 0))
         s = (sign < 0 && isodd(j)) ? -c : c
-        out[j + 1] = Monomial{E}(s, SymbolicUtils.BasicSymbolic[lo], Rational{Int}[2j])
+        out[j + 1] = Monomial{E}(s, RawExpression[lo], Rational{Int}[2j])
     end
     return out
 end
@@ -181,8 +181,8 @@ Base.isequal(a::TrigKey, b::TrigKey) =
     a.arg_id == b.arg_id && a.wrapped == b.wrapped && a.family == b.family
 Base.hash(k::TrigKey, h::UInt) = hash(k.family, hash(k.wrapped, hash(k.arg_id, h)))
 
-struct TrigHead{F}
-    factor::F
+struct TrigHead
+    factor::RawExpression
     key::TrigKey
     sign::Int8
 end
@@ -196,7 +196,7 @@ trig_relations(terms::Vector{<:Monomial}) = trig_relations!(ParamRelation[], ter
 # `hi` is already there would only be applied twice for the same fixpoint.
 function trig_relations!(rels::Vector{ParamRelation}, terms::Vector{<:Monomial})
     from = length(rels) + 1
-    lows = Dict{TrigKey, SymbolicUtils.BasicSymbolic}()
+    lows = Dict{TrigKey, RawExpression}()
     heads = TrigHead[]
     for m in terms, s in m.syms
         core, wrapped = strip_conj(s)
@@ -222,9 +222,8 @@ function trig_relations!(rels::Vector{ParamRelation}, terms::Vector{<:Monomial})
             end
         end
         duplicate && continue
-        lo = get(lows, head.key, nothing)
-        lo === nothing && continue
-        push!(rels, ParamRelation(Num(head.factor), Num(lo), head.sign))
+        haskey(lows, head.key) || continue
+        push!(rels, ParamRelation(Num(head.factor), Num(lows[head.key]), head.sign))
     end
     # `fkey` is `objectid`, so factor order within a monomial is address-derived. Sort by
     # the structural hash instead, keeping the result independent of allocation order. Only
@@ -255,7 +254,8 @@ reduce_tail(t::Poly, rels::Vector{ParamRelation}, gated::Bool) =
 
 # Fold `cos^2 + sin^2` and `cosh^2 - sinh^2` factors of a coefficient.
 function reduce_trig(c::Coeff)
-    t = c.tail::Poly
+    t = c.tail
+    t isa Poly || return c
     has_trig_factor(t.terms) || return c   # common path allocates nothing
     rels = trig_relations(t.terms)
     isempty(rels) && return c
@@ -287,7 +287,7 @@ end
 # Create a genuinely fresh stand-in and check it against every symbol already present in
 # the coefficient. The explicit check is intentional: these atoms participate in global
 # SymbolicUtils interning, so relying on a human-chosen prefix is never sound.
-function fresh_transient!(occupied::Vector{SymbolicUtils.BasicSymbolic})
+function fresh_transient!(occupied::Vector{RawExpression})
     while true
         candidate = Symbolics.variable(gensym(:sqa_rel))
         raw = SymbolicUtils.unwrap(candidate)
@@ -313,12 +313,13 @@ end
 function reduce_raw_via_transient(
         c::Coeff, rels::Vector{ParamRelation}, gated::Bool,
     )
-    tail = c.tail::RawSymbolicCoeff
+    tail = c.tail
+    tail isa RawSymbolicCoeff || return c
     raw = tail.expr
     fwd = Dict{Num, Num}()
     back = Dict{Num, Num}()
     trels = ParamRelation[]
-    occupied = SymbolicUtils.BasicSymbolic[]
+    occupied = RawExpression[]
     append!(occupied, Symbolics.get_variables(Num(raw)))
     for r in rels
         haskey(fwd, r.hi) && continue
@@ -337,9 +338,8 @@ function reduce_raw_via_transient(
     isequal(reduced, sub) && return c
     reduced.tail isa Native && return reduced
     result = SymbolicUtils.unwrap(Symbolics.substitute(Num(raw_tail(reduced)), back))
-    value = const_value(result)
-    value isa Number && return to_cnum(value)
-    result isa SymbolicUtils.BasicSymbolic || return c
+    result isa RawExpression || return c
+    is_numeric_const(result) && return const_coeff(result)
     return from_raw_arithmetic(result, tail.real_slot)
 end
 
@@ -375,7 +375,7 @@ function raw_uses_trig_relation(x, r::ParamRelation)
     return false
 end
 
-function collect_trig!(store::Vector{SymbolicUtils.BasicSymbolic}, x)
+function collect_trig!(store::Vector{RawExpression}, x)
     x isa SymbolicUtils.BasicSymbolic || return nothing
     SymbolicUtils.iscall(x) || return nothing
     args = SymbolicUtils.arguments(x)
@@ -398,14 +398,14 @@ function collect_trig!(store::Vector{SymbolicUtils.BasicSymbolic}, x)
 end
 
 function sym_trig_relations!(rels::Vector{ParamRelation}, c::Coeff)
-    store = SymbolicUtils.BasicSymbolic[]
+    store = RawExpression[]
     collect_trig!(store, c.tail.expr)
     return sym_trig_relations!(rels, store)
 end
 
-function sym_trig_relations!(rels::Vector{ParamRelation}, store::Vector{SymbolicUtils.BasicSymbolic})
+function sym_trig_relations!(rels::Vector{ParamRelation}, store::Vector{RawExpression})
     isempty(store) && return rels
-    lows = Dict{TrigKey, SymbolicUtils.BasicSymbolic}()
+    lows = Dict{TrigKey, RawExpression}()
     heads = TrigHead[]
     for factor in store
         op = SymbolicUtils.operation(factor)
@@ -420,9 +420,8 @@ function sym_trig_relations!(rels::Vector{ParamRelation}, store::Vector{Symbolic
         end
     end
     for head in heads
-        lo = get(lows, head.key, nothing)
-        lo === nothing && continue
-        push!(rels, ParamRelation(Num(head.factor), Num(lo), head.sign))
+        haskey(lows, head.key) || continue
+        push!(rels, ParamRelation(Num(head.factor), Num(lows[head.key]), head.sign))
     end
     return rels
 end

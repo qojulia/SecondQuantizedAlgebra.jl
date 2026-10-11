@@ -220,7 +220,7 @@ function extend_blocks(blocks::Vector{AffineBlock}, basis::Vector{Op})
     return linear, shift
 end
 
-function subset_positions(subset::Vector{Op}, superset::Vector{Op})::Union{Nothing, Vector{Int}}
+function subset_positions(subset::Vector{Op}, superset::Vector{Op})
     positions = Vector{Int}(undef, length(subset))
     for i in eachindex(subset)
         position = findfirst(==(subset[i]), superset)

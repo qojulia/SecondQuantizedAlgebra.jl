@@ -130,7 +130,7 @@ function is_real_negative(c::CNum)
 end
 all_real_negative(terms::Vector{<:Monomial}) =
     all(m -> imag(m.scalar) == 0 && real(m.scalar) < 0, terms)
-@noinline function is_real_negative_sym(c::CNum)::Bool
+@noinline function is_real_negative_sym(c::CNum)
     re, im = realimag(c)
     iszero_num(im) || return false
     r = Symbolics.value(SymbolicUtils.unwrap(re))

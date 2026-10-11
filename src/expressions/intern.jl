@@ -20,10 +20,10 @@ const NAME_RANK = Int32[]                # id -> lexicographic position
 const SYM_BY_ID = Union{Nothing, Num}[]  # id -> cached Num(Sym(name)); lazy (see base_sym_from_id)
 
 # id 0 is the reserved sentinel (NO_INDEX / no name).
-name_from_id(id::Int32)::Symbol = id == 0 ? :_ : NAME_BY_ID[id]
-name_rank(id::Int32)::Int32 = id == 0 ? Int32(0) : NAME_RANK[id]
+name_from_id(id::Int32) = id == 0 ? :_ : NAME_BY_ID[id]
+name_rank(id::Int32) = id == 0 ? Int32(0) : NAME_RANK[id]
 
-function base_sym_from_id(id::Int32)::Num
+function base_sym_from_id(id::Int32)
     if 1 <= id <= length(SYM_BY_ID)
         cached = SYM_BY_ID[id]
         cached === nothing || return cached
@@ -31,7 +31,7 @@ function base_sym_from_id(id::Int32)::Num
     return build_base_sym(id)
 end
 
-@noinline function build_base_sym(id::Int32)::Num
+@noinline function build_base_sym(id::Int32)
     return lock(INTERN_LOCK) do
         while length(SYM_BY_ID) < length(NAME_BY_ID)  # defensive lockstep
             push!(SYM_BY_ID, nothing)
@@ -48,7 +48,7 @@ end
 # `on_new(id)` runs under the lock for a freshly assigned id. `F` is a sink
 # type-parameter so the callback specializes; explicit lock/try (not a `do`
 # closure) keeps the fast path allocation-free.
-function intern!(by_id::Vector{T}, to_id::Dict{T, Int32}, x::T, on_new::F)::Int32 where {T, F}
+function intern!(by_id::Vector{T}, to_id::Dict{T, Int32}, x::T, on_new::F) where {T, F}
     id = get(to_id, x, Int32(0))
     id != 0 && return id
     lock(INTERN_LOCK)
@@ -78,17 +78,17 @@ function new_name!(id::Int32)
     return nothing
 end
 
-intern_name(s::Symbol)::Int32 = intern!(NAME_BY_ID, NAME_TO_ID, s, new_name!)
+intern_name(s::Symbol) = intern!(NAME_BY_ID, NAME_TO_ID, s, new_name!)
 # Constructor name argument: always a `Symbol`, interned to its id. Internal
 # rebuilds forward an existing `name_id` by constructing `Op` directly.
-name_id(s::Symbol)::Int32 = intern_name(s)
+name_id(s::Symbol) = intern_name(s)
 
 # Range interning.
 const RANGE_BY_ID = Num[]               # id (1-based) -> Num
 const RANGE_TO_ID = Dict{Num, Int32}()  # Num -> id (dedup by isequal)
 
-range_from_id(id::Int32)::Num = id == 0 ? Num(0) : RANGE_BY_ID[id]
+range_from_id(id::Int32) = id == 0 ? Num(0) : RANGE_BY_ID[id]
 
 no_init(::Int32) = nothing
-intern_range(r::Num)::Int32 = intern!(RANGE_BY_ID, RANGE_TO_ID, r, no_init)
+intern_range(r::Num) = intern!(RANGE_BY_ID, RANGE_TO_ID, r, no_init)
 intern_range(r::Integer) = intern_range(Num(r))

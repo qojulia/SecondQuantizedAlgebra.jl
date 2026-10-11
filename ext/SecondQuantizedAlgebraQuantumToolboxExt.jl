@@ -11,7 +11,7 @@ using SecondQuantizedAlgebra: QuantumToolboxBackend, Op
 import QuantumToolbox as QTB
 import SciMLOperators as SO
 import SymbolicUtils: BasicSymbolic
-import SparseArrays: SparseMatrixCSC, nonzeros, nzrange, rowvals, sparse, spzeros
+import SparseArrays: SparseMatrixCSC, nonzeros, nzrange, rowvals, sparse
 # `mul!` is imported from its owner `LinearAlgebra`;
 # `transpose`/`adjoint` come through Base.
 import LinearAlgebra: dot, mul!
@@ -36,7 +36,7 @@ struct VecSum{T} <: SO.AbstractSciMLOperator{T}
 end
 VecSum(coeffs, ops) = VecSum{ComplexF64}(coeffs, ops)
 
-@inline cv(c)::ComplexF64 = ComplexF64(convert(Number, c))
+@inline cv(c) = ComplexF64(convert(Number, c))
 
 Base.size(L::VecSum) = size(L.ops[1])
 Base.size(L::VecSum, i::Int) = size(L.ops[1], i)
@@ -75,13 +75,23 @@ end
 (L::VecSum)(w, v, u, p, t) = (SO.update_coefficients!(L, u, p, t); mul!(w, L, v))
 (L::VecSum)(w, v, u, p, t, α, β) = (SO.update_coefficients!(L, u, p, t); mul!(w, L, v, α, β))
 
-function SO.concretize(L::VecSum{T})::SparseMatrixCSC{T, Int} where {T}
-    data = spzeros(T, size(L)...)
+# Terms are abstract operators, so each one is visited behind the `append_scaled!` barrier
+# and only its entries are collected; the assembled matrix is built once with known types.
+function SO.concretize(L::VecSum{T}) where {T}
+    rows, cols, vals = Int[], Int[], T[]
     for i in eachindex(L.ops)
         # Individual terms may be dense or lazy, but the assembled representation is sparse.
-        data += convert(T, cv(L.coeffs[i])) * sparse(SO.concretize(L.ops[i]))
+        append_scaled!(rows, cols, vals, convert(T, cv(L.coeffs[i])), sparse(SO.concretize(L.ops[i])))
     end
-    return data
+    return sparse(rows, cols, vals, size(L)...)
+end
+
+function append_scaled!(rows::Vector{Int}, cols::Vector{Int}, vals::Vector{T}, c::T, m::SparseMatrixCSC) where {T}
+    rv, nz = rowvals(m), nonzeros(m)
+    for j in axes(m, 2), k in nzrange(m, j)
+        push!(rows, rv[k]); push!(cols, j); push!(vals, c * nz[k])
+    end
+    return rows
 end
 Base.convert(::Type{AbstractMatrix}, L::VecSum) = SO.concretize(L)
 # `::AbstractVecOrMat` avoids an ambiguity with the SciMLOperators fallback.
@@ -322,12 +332,18 @@ function trace_product(A::AbstractMatrix, ρ::AbstractMatrix)
     end
     return value
 end
+# The terms are stored abstractly, so each is contracted behind the `add_trace!` barrier,
+# where its coefficient and operator types are known, into a `ComplexF64` accumulator.
 function expect_density(L::VecSum, data::AbstractMatrix)
-    value = 0.0im
+    acc = Ref(0.0im)
     for i in eachindex(L.ops)
-        value += cv(L.coeffs[i]) * cv(trace_product(SO.concretize(L.ops[i]), data))
+        add_trace!(acc, L.coeffs[i], L.ops[i], data)
     end
-    return ComplexF64(value)
+    return acc[]
+end
+function add_trace!(acc::Base.RefValue{ComplexF64}, c::SO.ScalarOperator, op, data::AbstractMatrix)
+    acc[] += cv(c) * trace_product(SO.concretize(op), data)
+    return acc
 end
 
 # QTB's generic path sees an abstract QuantumObject and therefore cannot infer VecSum.data.

@@ -198,7 +198,7 @@ function push_exact_relation!(
     return nothing
 end
 
-function real_scale_and_unit_phase(c::CNum)::Union{Nothing, Tuple{CNum, CNum}}
+function real_scale_and_unit_phase(c::CNum)
     terms = phase_terms(c)
     length(terms) == 1 || return nothing
     term = only(terms)
@@ -323,7 +323,7 @@ function exact_closed_adjoint_action(
     )
 end
 
-function operator_affine_structure(o::Op)::Union{Nothing, AffineStructure}
+function operator_affine_structure(o::Op)
     is_fock(o) && return AFFINE_BOSONIC_NAMBU
     is_phase_space(o) && return AFFINE_SYMPLECTIC_PHASE_SPACE
     (is_pauli(o) || is_spin(o)) && return AFFINE_ORTHOGONAL
@@ -331,7 +331,7 @@ function operator_affine_structure(o::Op)::Union{Nothing, AffineStructure}
     return nothing
 end
 
-function generator_structure_parts(G::QAdd)::Vector{QAdd}
+function generator_structure_parts(G::QAdd)
     isempty(G.indices) || return QAdd[G]
     groups = Dict{AffineStructure, QTermDict}()
     for (term, coefficient) in G

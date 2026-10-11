@@ -177,13 +177,19 @@ numeric_average_impl(x::Num, state, d::AbstractDict{<:QSym}) =
 
 # `arguments(::BasicSymbolic)` is statically `Any`; the `to_complex` wraps reseal each
 # recursive result to `ComplexF64`.
-function numeric_average_impl(avg::SymbolicUtils.BasicSymbolic, state, d::AbstractDict{<:QSym})
+function numeric_average_impl(avg::RawExpression, state, d::AbstractDict{<:QSym})
     if SymbolicUtils.hasmetadata(avg, AverageOperator) ||
             (SymbolicUtils.iscall(avg) && SymbolicUtils.operation(avg) isa AvgFunc) ||
             is_indexed_sum(avg)
         return to_complex(numeric_average_impl(undo_average(avg), state, d))
     end
-    SymbolicUtils.isconst(avg) && return to_complex(numeric_average_impl(avg.val, state, d))
+    if SymbolicUtils.isconst(avg)
+        # The payload is `::Any`; name each kind a constant node can carry.
+        v = avg.val
+        v isa Op && return to_complex(numeric_average_impl(v, state, d))
+        v isa QAdd && return to_complex(numeric_average_impl(v, state, d))
+        return to_complex(avg)
+    end
     SymbolicUtils.iscall(avg) || throw(ArgumentError("numeric_average not implemented for $(typeof(avg))"))
     f, args = SymbolicUtils.operation(avg), SymbolicUtils.arguments(avg)
     f === (^) && return to_complex(numeric_average_impl(args[1], state, d))^to_complex(args[2])

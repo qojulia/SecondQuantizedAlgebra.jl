@@ -120,11 +120,8 @@ function change_index(x::CNum, from::Index, to::Index)
         raw = change_index(Num(tail.expr), from, to)
         isequal(raw, Num(tail.expr)) && return x
         result = SymbolicUtils.unwrap(raw)
-        value = const_value(result)
-        value isa Number && return to_cnum(value)
-        return from_raw_arithmetic(
-            result::SymbolicUtils.BasicSymbolic{SymbolicUtils.SymReal}, tail.real_slot,
-        )
+        is_numeric_const(result) && return const_coeff(result)
+        return from_raw_arithmetic(result, tail.real_slot)
     end
     raw_re, raw_im = realimag(x)
     re = change_index(raw_re, from, to)
@@ -197,11 +194,8 @@ function change_index(x::CNum, pairs::AbstractDict{Index, Index})
         raw = change_index(Num(tail.expr), pairs)
         isequal(raw, Num(tail.expr)) && return x
         result = SymbolicUtils.unwrap(raw)
-        value = const_value(result)
-        value isa Number && return to_cnum(value)
-        return from_raw_arithmetic(
-            result::SymbolicUtils.BasicSymbolic{SymbolicUtils.SymReal}, tail.real_slot,
-        )
+        is_numeric_const(result) && return const_coeff(result)
+        return from_raw_arithmetic(result, tail.real_slot)
     end
     raw_re, raw_im = realimag(x)
     re = change_index(raw_re, pairs)
@@ -309,7 +303,7 @@ function collect_identical_zeros!(acc, x)
     return acc
 end
 
-function contains_leaf(x::RawExpression, v::RawExpression)::Bool
+function contains_leaf(x::RawExpression, v::RawExpression)
     isequal(x, v) && return true
     SymbolicUtils.iscall(x) || return false
     for a in SymbolicUtils.arguments(x)
@@ -324,19 +318,15 @@ function depends_on_index_term(c::CNum, ops::Vector{Op}, idx::Index)
     end
     is_native(c) && return false
     isym = SymbolicUtils.unwrap(index_sym(idx))
-    # A `Poly` coefficient carries its parameters as opaque atoms; scan them directly
-    # instead of materializing the whole coefficient to a `Complex{Num}` first.
-    if c.tail isa Poly
-        for m in c.tail.terms, s in m.syms
-            contains_leaf(s::RawExpression, isym::RawExpression) && return true
+    tail = c.tail
+    if tail isa Poly
+        for m in tail.terms, s in m.syms
+            contains_leaf(s, isym) && return true
         end
         return false
     end
-    for part in realimag(c)
-        vars = Symbolics.get_variables(part)
-        any(v -> isequal(v, isym), vars) && return true
-    end
-    return false
+    tail isa RawSymbolicCoeff || return false
+    return contains_leaf(tail.expr, isym)
 end
 
 function any_depends_on_index(s::QAdd, idx::Index)

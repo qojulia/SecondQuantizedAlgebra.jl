@@ -294,7 +294,7 @@ function compose_rules(first::Dict{Op, QAdd}, second::Dict{Op, QAdd})
     return out
 end
 
-function add_gauges(left::QAdd, right::QAdd)::QAdd
+function add_gauges(left::QAdd, right::QAdd)
     if isempty(left.indices) && isempty(right.indices) &&
             length(left.arguments) == length(right.arguments) == 1
         first_term, first_coefficient = first(left.arguments)

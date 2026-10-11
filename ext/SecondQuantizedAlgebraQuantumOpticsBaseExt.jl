@@ -7,7 +7,7 @@ module SecondQuantizedAlgebraQuantumOpticsBaseExt
 import SecondQuantizedAlgebra as SQA
 using SecondQuantizedAlgebra: QuantumOpticsBackend, Op
 import QuantumOpticsBase as QOB
-import SparseArrays: SparseMatrixCSC
+import SparseArrays: SparseMatrixCSC, nonzeros, nzrange, rowvals, sparse
 
 const QOBState = Union{QOB.StateVector, QOB.AbstractOperator}
 
@@ -156,15 +156,32 @@ end
 
 # --- materialization (op_type applied once at the top of `to_numeric`) ------------------
 
-# QOB's `sparse(::LazySum)` folds an abstract-operator vector and widens its inferred return;
-# the static assembly shape here is fixed, so narrow that result at this boundary. Any
-# explicit `op_type` (`sparse`, `dense`, `identity`) is still applied as a plain callable.
+# QOB's `sparse(::LazySum)` folds an abstract-operator vector and widens its inferred return,
+# so the sum is assembled here: each term's entries are collected behind the
+# `append_scaled!` barrier and the matrix is built once with known types. Any explicit
+# `op_type` (`sparse`, `dense`, `identity`) is still applied as a plain callable.
 function SQA.numeric_materialize(
         ::QuantumOpticsBackend,
         op::QOB.LazySum{BL, BR, Vector{ComplexF64}, Vector{QOB.AbstractOperator}},
         ::Nothing,
     ) where {BL, BR}
-    return QOB.sparse(op)::QOB.Operator{BL, BR, SparseMatrixCSC{ComplexF64, Int}}
+    rows, cols, vals = Int[], Int[], ComplexF64[]
+    for (factor, term) in zip(op.factors, op.operators)
+        append_scaled!(rows, cols, vals, factor, QOB.sparse(term).data)
+    end
+    data = sparse(rows, cols, vals, length(op.basis_l), length(op.basis_r))
+    return QOB.Operator(op.basis_l, op.basis_r, data)
+end
+
+function append_scaled!(
+        rows::Vector{Int}, cols::Vector{Int}, vals::Vector{ComplexF64}, c::ComplexF64,
+        m::SparseMatrixCSC,
+    )
+    rv, nz = rowvals(m), nonzeros(m)
+    for j in axes(m, 2), k in nzrange(m, j)
+        push!(rows, rv[k]); push!(cols, j); push!(vals, c * nz[k])
+    end
+    return rows
 end
 SQA.numeric_materialize(::QuantumOpticsBackend, op, ::Nothing) = QOB.sparse(op)
 SQA.numeric_materialize(::QuantumOpticsBackend, op, op_type) = op_type(op)

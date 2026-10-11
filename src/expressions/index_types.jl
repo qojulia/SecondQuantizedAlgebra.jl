@@ -110,7 +110,7 @@ On an [`Index`](@ref) reads the `slot` field directly; on a symbol reads the
 `IndexSlot` metadata minted by `(i::Index)(k)`, so consumers can recover the
 position `k` without parsing the symbol's name.
 """
-index_slot(idx::Index)::Union{Int, Nothing} = idx.slot == 0 ? nothing : Int(idx.slot)
+index_slot(idx::Index) = idx.slot == 0 ? nothing : Int(idx.slot)
 index_slot(x) = SymbolicUtils.getmetadata(SymbolicUtils.unwrap(x), IndexSlot, nothing)
 
 """
@@ -144,14 +144,14 @@ rename(idx::Index, name::AbstractString) = name_must_be_symbol(name)
 The summation range of `idx` (the user's `Num`, recovered from the intern table).
 Returns `Num(0)` for the sentinel `NO_INDEX`.
 """
-index_range(idx::Index)::Num = range_from_id(idx.range_id)
+index_range(idx::Index) = range_from_id(idx.range_id)
 
 """
     index_name(idx::Index) -> Symbol
 
 The display name of `idx` (recovered from the intern table).
 """
-index_name(idx::Index)::Symbol = name_from_id(idx.name_id)
+index_name(idx::Index) = name_from_id(idx.name_id)
 
 """
     index_sym(idx::Index) -> Num
@@ -163,7 +163,7 @@ and `get_variables` are unaffected. An anonymous concrete site (`name_id == 0`,
 `slot == k`) reconstructs to the integer `Num(k)`, matching `to_numeric`'s
 resolved-site convention.
 """
-function index_sym(idx::Index)::Num
+function index_sym(idx::Index)
     idx.name_id == 0 && return Num(Int(idx.slot))
     base = base_sym_from_id(idx.name_id)            # cached name-only Sym (hot path: cached read)
     idx.slot == 0 && return base

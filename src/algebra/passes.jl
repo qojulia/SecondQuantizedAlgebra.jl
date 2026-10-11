@@ -236,7 +236,7 @@ end
 
 function substitute_cnum(
         c::CNum, d, phase_rules::Vector{Pair{Any, Any}} = nonreal_phase_substitutions(d),
-    )::Coeff
+    )
     isempty(d) && return c
     is_native(c) && return c
     validate_phase_substitutions(c, phase_rules)

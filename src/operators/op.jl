@@ -68,7 +68,7 @@ Base.isequal(a::Op, b::Op) =
 
 The display name of `op` (recovered from the intern table).
 """
-operator_name(o::Op)::Symbol = name_from_id(o.name_id)
+operator_name(o::Op) = name_from_id(o.name_id)
 Base.:(==)(a::Op, b::Op) = isequal(a, b)
 
 """

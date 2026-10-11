@@ -42,7 +42,7 @@ end
 # Does a value function read `p`? Arity 2 (`(p, t)`) yes, arity 1 (`t`) no. Checks every
 # method (`nargs - 1` drops the function/self slot, so closures, typed functions, and functors
 # all work) rather than the first, and rejects variadic/conflicting/out-of-range arities.
-function tp_reads_p(f)::Bool
+function tp_reads_p(f)
     arities = Set{Int}()
     for m in methods(f)
         m.isva && throw(
@@ -195,8 +195,8 @@ end
 
 # --- concrete reduction ----------------------------------------------------------------
 
-function reduce_const(n::Num)::ComplexF64
-    x = Symbolics.value(n)
+function reduce_const(n::Num)
+    x = SymbolicUtils.unwrap(n)
     try
         return fold_const(x)
     catch err
@@ -206,50 +206,51 @@ function reduce_const(n::Num)::ComplexF64
     end
 end
 
-compile_const(n::Num)::ComplexF64 = ComplexF64(symbolic_to_float(n))
+function compile_const(n::Num)
+    x = SymbolicUtils.evaluate(SymbolicUtils.unwrap(n))
+    is_float_const(x) && return const_complex(x)
+    throw(ArgumentError("cannot reduce symbolic expression $x to a concrete number"))
+end
 
-function fold_const(x)::ComplexF64
-    x isa Number && return x
-    if x isa SymbolicUtils.BasicSymbolic
-        if SymbolicUtils.iscall(x)
-            op = SymbolicUtils.operation(x)
-            args = SymbolicUtils.arguments(x)
-            if op === (+)
-                acc = zero(ComplexF64)
-                for a in args
-                    acc += fold_const(a)
-                end
-                return acc
-            elseif op === (*)
-                acc = one(ComplexF64)
-                for a in args
-                    acc *= fold_const(a)
-                end
-                return acc
-            elseif op === conj
-                return conj(fold_const(first(args)))
-            elseif op === real
-                return real(fold_const(first(args)))
-            elseif op === imag
-                return imag(fold_const(first(args)))
-            elseif op === (/)
-                return fold_const(first(args)) / fold_const(last(args))
-            elseif op === (^)
-                return fold_const(first(args))^fold_const(last(args))
-            elseif op === (-)
-                return length(args) == 1 ? -fold_const(first(args)) :
-                    fold_const(first(args)) - fold_const(last(args))
-            elseif op === expim
-                return exp(im * fold_const(only(args)))
-            elseif op === sqrt
-                return sqrt(fold_const(only(args)))
-            elseif op === cbrt
-                z = fold_const(only(args))
-                iszero(imag(z)) && return ComplexF64(cbrt(real(z)))
+function fold_const(x::RawExpression)
+    if SymbolicUtils.iscall(x)
+        op = SymbolicUtils.operation(x)
+        args = SymbolicUtils.arguments(x)
+        if op === (+)
+            acc = zero(ComplexF64)
+            for a in args
+                acc += fold_const(a)
             end
-        elseif SymbolicUtils.isconst(x)
-            return x.val
+            return acc
+        elseif op === (*)
+            acc = one(ComplexF64)
+            for a in args
+                acc *= fold_const(a)
+            end
+            return acc
+        elseif op === conj
+            return conj(fold_const(first(args)))
+        elseif op === real
+            return real(fold_const(first(args)))
+        elseif op === imag
+            return imag(fold_const(first(args)))
+        elseif op === (/)
+            return fold_const(first(args)) / fold_const(last(args))
+        elseif op === (^)
+            return fold_const(first(args))^fold_const(last(args))
+        elseif op === (-)
+            return length(args) == 1 ? -fold_const(first(args)) :
+                fold_const(first(args)) - fold_const(last(args))
+        elseif op === expim
+            return exp(im * fold_const(only(args)))
+        elseif op === sqrt
+            return sqrt(fold_const(only(args)))
+        elseif op === cbrt
+            z = fold_const(only(args))
+            iszero(imag(z)) && return ComplexF64(cbrt(real(z)))
         end
+    elseif is_float_const(x)
+        return const_complex(x)
     end
     throw(ArgumentError("cannot reduce symbolic expression $x to a concrete number"))
 end
@@ -264,8 +265,9 @@ function to_complex(x)
     x isa Complex      && return convert(ComplexF64, x)
     x isa Num          && return reduce_const(x)
     if x isa SymbolicUtils.BasicSymbolic
-        SymbolicUtils.isconst(x) || throw(ArgumentError("cannot reduce symbolic expression $x to a concrete number"))
-        return convert(ComplexF64, Complex(x.val, false))
+        (x isa RawExpression && is_float_const(x)) ||
+            throw(ArgumentError("cannot reduce symbolic expression $x to a concrete number"))
+        return const_complex(x)
     end
     return convert(ComplexF64, Complex(x, false))
 end

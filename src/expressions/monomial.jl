@@ -12,16 +12,16 @@ same two prime atoms `Const(2)^(1/2)`, `Const(3)^(1/2)` and compare `isequal`.
 """
 struct Monomial{E <: ExactScalar}
     scalar::Union{ComplexF64, E}
-    syms::Vector{SymbolicUtils.BasicSymbolic}   # sorted by objectid, distinct
+    syms::Vector{RawExpression}   # sorted by objectid, distinct
     exps::Vector{Rational{Int}}                 # matching nonzero exponents
 
     function Monomial{E}(
             scalar::Union{ComplexF64, E},
-            syms::Vector{SymbolicUtils.BasicSymbolic},
+            syms::Vector{RawExpression},
             exps::Vector{Rational{Int}},
         ) where {E <: ExactScalar}
         needs_radical_fold(syms, exps) || return new{E}(scalar, syms, exps)
-        osyms = SymbolicUtils.BasicSymbolic[]
+        osyms = RawExpression[]
         oexps = Rational{Int}[]
         sizehint!(osyms, length(syms)); sizehint!(oexps, length(exps))
         @inbounds for i in eachindex(syms)
@@ -49,7 +49,7 @@ as_tier(::Type{E}, terms::Vector{<:Monomial}) where {E <: ExactScalar} =
     Monomial{E}[as_tier(E, m) for m in terms]
 
 @inline with_factors(
-    m::Monomial{E}, syms::Vector{SymbolicUtils.BasicSymbolic}, exps::Vector{Rational{Int}},
+    m::Monomial{E}, syms::Vector{RawExpression}, exps::Vector{Rational{Int}},
 ) where {E} = Monomial{E}(m.scalar, syms, exps)
 @inline scalar_iszero(m::Monomial) = iszero(m.scalar)
 @inline scalar_is_real(m::Monomial) = iszero(imag(m.scalar))
@@ -61,7 +61,7 @@ as_tier(::Type{E}, terms::Vector{<:Monomial}) where {E <: ExactScalar} =
     return Monomial{E}(normalize_scalar(scalar), m.syms, m.exps)
 end
 @inline conj_monomial(
-    m::Monomial{E}, syms::Vector{SymbolicUtils.BasicSymbolic}, exps::Vector{Rational{Int}},
+    m::Monomial{E}, syms::Vector{RawExpression}, exps::Vector{Rational{Int}},
 ) where {E} =
     Monomial{E}(conj(m.scalar), syms, exps)
 
@@ -113,7 +113,7 @@ end
 function merge_factors(syma, expa, symb, expb)
     ia, ib = 1, 1
     na, nb = length(syma), length(symb)
-    syms = SymbolicUtils.BasicSymbolic[]
+    syms = RawExpression[]
     exps = Rational{Int}[]
     sizehint!(syms, na + nb); sizehint!(exps, na + nb)
     @inbounds while ia <= na || ib <= nb
@@ -132,7 +132,7 @@ end
 
 @noinline function phase_term_mul(
         a::Monomial{E}, b::Monomial{E}, phase_a::Int, phase_b::Int,
-    )::Monomial{E} where {E}
+    ) where {E}
     scalar = scalar_mul(a.scalar, b.scalar)
     if length(a.syms) == 1 && length(b.syms) == 1 &&
             a.syms[phase_a] === b.syms[phase_b]
@@ -154,7 +154,7 @@ end
     return canonical_phase_monomial(E, scalar, syms, exps)
 end
 
-function term_mul(a::Monomial{E}, b::Monomial{E})::Monomial{E} where {E}
+function term_mul(a::Monomial{E}, b::Monomial{E}) where {E}
     isempty(a.syms) && return mul_scalars(a, b, b.syms, b.exps)
     isempty(b.syms) && return mul_scalars(a, b, a.syms, a.exps)
     phase_a = phase_factor_index(a.syms)
@@ -171,10 +171,8 @@ function term_mul(a::Monomial{E}, b::Monomial{E})::Monomial{E} where {E}
     return merged_term_mul(a, b)
 end
 
-@inline function merged_term_mul(a::Monomial{E}, b::Monomial{E})::Monomial{E} where {E}
-    se = merge_factors(a.syms, a.exps, b.syms, b.exps)
-    syms = se[1]::Vector{SymbolicUtils.BasicSymbolic}
-    exps = se[2]::Vector{Rational{Int}}
+@inline function merged_term_mul(a::Monomial{E}, b::Monomial{E}) where {E}
+    syms, exps = merge_factors(a.syms, a.exps, b.syms, b.exps)
     return mul_scalars(a, b, syms, exps)
 end
 

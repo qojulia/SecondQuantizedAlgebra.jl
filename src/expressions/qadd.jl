@@ -356,7 +356,7 @@ julia> length(get_variables(ω * a' * a + g * a))
 2
 ```
 """
-function Symbolics.get_variables(s::QAdd; kwargs...)::Vector{SymbolicUtils.BasicSymbolic}
+function Symbolics.get_variables(s::QAdd; kwargs...)
     vars = SymbolicUtils.BasicSymbolic[]
     for c in values(s.arguments)
         append!(vars, Symbolics.get_variables(real(c); kwargs...))
@@ -372,7 +372,7 @@ function Symbolics.get_variables(
         varlist;
         is_atomic = SymbolicUtils.default_is_atomic,
         kwargs...,
-    )::Vector{SymbolicUtils.BasicSymbolic}
+    )
     vars = SymbolicUtils.BasicSymbolic[]
     for c in values(s.arguments)
         append!(

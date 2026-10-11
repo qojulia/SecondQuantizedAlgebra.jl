@@ -71,7 +71,11 @@ indexed_sum(body, indices::Vector{Index}, ne::Vector{NonEqualPair}) =
     SymbolicUtils.Term{SymbolicUtils.SymReal}(sym_sum, Any[body, SumScope(indices, ne)]; type = sum_symtype(body))
 
 scope_of(s::SumScope) = s
-scope_of(s::SymbolicUtils.BasicSymbolic) = s.val::SumScope
+function scope_of(s::SymbolicUtils.BasicSymbolic)
+    scope = s.val
+    scope isa SumScope && return scope
+    throw(ArgumentError("expected an indexed-sum scope, got $s"))
+end
 sum_body(x::SymbolicUtils.BasicSymbolic) = SymbolicUtils.arguments(x)[1]
 sum_scope(x::SymbolicUtils.BasicSymbolic) = scope_of(SymbolicUtils.arguments(x)[2])
 sum_indices(x::SymbolicUtils.BasicSymbolic) = sum_scope(x).indices
@@ -290,7 +294,7 @@ function average(op::QAdd)
         push!(flat_bodies, indexed_sum(add_worker(SymbolicUtils.SymReal, bodies), gk[1], gk[2]))
     end
     isempty(flat_bodies) && return SymbolicUtils.unwrap(Num(0))
-    return add_worker(SymbolicUtils.SymReal, flat_bodies)::BS
+    return add_worker(SymbolicUtils.SymReal, flat_bodies)
 end
 
 # Uniform-return wrappers (all return QAdd).
