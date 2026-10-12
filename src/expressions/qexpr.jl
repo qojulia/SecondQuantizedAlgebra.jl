@@ -200,7 +200,7 @@ function monomial_content(lead::CNum, coeffs)
         end
         isempty(syms) && break
     end
-    scalar = scalar_coeff(m.scalar)
+    scalar = scalar_coeff(monomial_scalar(m))
     isempty(syms) && return scalar
     return mul_cnum(scalar, tiered(monomial_terms, EXACT_ONE, syms, exps))
 end

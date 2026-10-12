@@ -473,7 +473,7 @@ cnum(re::Num, im::Num) =
 
 function from_poly(terms::Vector{Monomial{ExactComplex}})
     isempty(terms) && return CNUM_ZERO
-    length(terms) == 1 && isempty(terms[1].syms) && return scalar_coeff(terms[1].scalar)
+    length(terms) == 1 && isempty(terms[1].syms) && return scalar_coeff(monomial_scalar(terms[1]))
     return poly_coeff(Poly(terms))
 end
 function from_poly(terms::Vector{Monomial{BigExactComplex}})
@@ -481,7 +481,7 @@ function from_poly(terms::Vector{Monomial{BigExactComplex}})
     return poly_coeff(Poly(terms))
 end
 @inline function fits_small(m::Monomial{BigExactComplex})
-    scalar = m.scalar
+    scalar = monomial_scalar(m)
     return scalar isa ComplexF64 || fits_small(scalar)
 end
 
@@ -630,7 +630,7 @@ function term_to_num(m::Monomial)
     for (f, n) in radical_factors(m)
         prod = prod * Num(radical_expression(n, f))
     end
-    scalar = m.scalar
+    scalar = monomial_scalar(m)
     real_scalar, imag_scalar = real(scalar), imag(scalar)
     re = iszero(real_scalar) ? NUM_ZERO : num_from_scalar(real_scalar) * prod
     imag_ = iszero(imag_scalar) ? NUM_ZERO : num_from_scalar(imag_scalar) * prod
@@ -685,8 +685,9 @@ end
 
 function term_to_raw(m::Monomial)
     factors = factors_to_raw(m)
-    isone(m.scalar) && return factors
-    return with_raw_number(v -> v * factors, m.scalar)
+    scalar = monomial_scalar(m)
+    isone(scalar) && return factors
+    return with_raw_number(v -> v * factors, scalar)
 end
 
 is_constant_term(m::Monomial) = isempty(m.syms)
@@ -697,7 +698,7 @@ raw_sum(terms::Vector{Monomial{E}}, range::AbstractUnitRange{Int}) where {E} =
 poly_to_raw(p::Poly) = terms_to_raw(p.terms)
 function terms_to_raw(terms::Vector{Monomial{E}}) where {E}
     is_constant_term(first(terms)) || return raw_sum(terms, eachindex(terms))
-    constant = first(terms).scalar
+    constant = monomial_scalar(first(terms))
     length(terms) == 1 &&
         return with_raw_number(SymbolicUtils.Const{SymbolicUtils.SymReal}, constant)
     variable = raw_sum(terms, 2:lastindex(terms))
@@ -876,7 +877,7 @@ function rational_power(basearg, r::Rational{Int}, x)
     is_native(base) && return native(native_float(native_scalar(base))^r)
     if base.tail isa Poly && length(base.tail.terms) == 1
         m = only(base.tail.terms)
-        if length(m.syms) == 1 && isone(m.scalar)
+        if length(m.syms) == 1 && isone(monomial_scalar(m))
             is_phase(only(m.syms)) &&
                 throw(ArgumentError("a unit phase cannot have a fractional power"))
             return tiered(monomial_terms, EXACT_ONE, m.syms, Rational{Int}[m.exps[1] * r])
@@ -1049,7 +1050,7 @@ end
     append!(ordinary_exps, phase_term.exps)
     sort_factors!(ordinary_syms, ordinary_exps)
     return Monomial{E}(
-        scalar_mul(scalar, phase_term.scalar), ordinary_syms, ordinary_exps,
+        scalar_mul(scalar, monomial_scalar(phase_term)), ordinary_syms, ordinary_exps,
     )
 end
 
@@ -1068,7 +1069,7 @@ end
     phase_tail isa Poly || throw(ArgumentError("expected a polynomial coefficient"))
     phase_term = only(poly_terms(E, phase_tail))
     return Monomial{E}(
-        scalar_mul(scalar, phase_term.scalar),
+        scalar_mul(scalar, monomial_scalar(phase_term)),
         phase_term.syms,
         phase_term.exps,
     )
@@ -1102,7 +1103,7 @@ end
     phase_term = only(poly_terms(E, phase_tail))
     exponents = common_negative ? -phase_term.exps : phase_term.exps
     return Monomial{E}(
-        scalar_mul(scalar, phase_term.scalar),
+        scalar_mul(scalar, monomial_scalar(phase_term)),
         phase_term.syms,
         exponents,
     )
@@ -1136,7 +1137,7 @@ function product_terms(::Type{E}, factors::Vector{Coeff}) where {E}
             scalar = scalar_mul(scalar, as_tier(E, native_scalar(c)))
         elseif t isa Poly
             m = only(poly_terms(E, t))
-            scalar = scalar_mul(scalar, m.scalar)
+            scalar = scalar_mul(scalar, monomial_scalar(m))
             append!(syms, m.syms)
             append!(exps, m.exps)
         else
@@ -1204,14 +1205,14 @@ function is_pure_phase(tail::Poly)
     monomial = only(tail.terms)
     (length(monomial.syms) == 1 && is_phase(only(monomial.syms))) || return false
     denominator(only(monomial.exps)) == 1 || return false
-    return unit_modulus(monomial.scalar)
+    return unit_modulus(monomial_scalar(monomial))
 end
 
 function pure_phase_parts(tail::Poly)
     monomial = only(tail.terms)
     symbol = only(monomial.syms)
     exponent = only(monomial.exps)
-    scalar = monomial.scalar
+    scalar = monomial_scalar(monomial)
     argument = Num(only(SymbolicUtils.arguments(symbol)))
     angle = scale_expanded(argument, numerator(exponent))
     flip_sine = false
@@ -1352,7 +1353,7 @@ end
 
 function inverse_terms(::Type{E}, terms::Vector{Monomial{E}}) where {E}
     monomial = only(terms)
-    return monomial_terms(E, inv(monomial.scalar), monomial.syms, -monomial.exps)
+    return monomial_terms(E, inv(monomial_scalar(monomial)), monomial.syms, -monomial.exps)
 end
 @inline divided_terms(::Type{E}, terms::Vector{Monomial{E}}, z::CoeffScalar) where {E} =
     poly_scale(terms, inv(as_tier(E, z)))
@@ -1653,7 +1654,7 @@ function raw_product(x::RawExpression, y::RawExpression)
 end
 
 @inline negated_terms(terms::Vector{Monomial{E}}) where {E} =
-    Monomial{E}[Monomial{E}(normalize_scalar(-m.scalar), m.syms, m.exps) for m in terms]
+    Monomial{E}[with_scalar(m, normalize_scalar(-monomial_scalar(m))) for m in terms]
 
 @inline function neg_cnum(a::Coeff)
     t = a.tail
@@ -1802,7 +1803,7 @@ function exponential_tree(x)
 end
 
 function exponential_monomial(m::Monomial)
-    result = to_cnum(m.scalar)
+    result = to_cnum(monomial_scalar(m))
     @inbounds for i in eachindex(m.syms)
         symbol = m.syms[i]
         exponent = m.exps[i]
@@ -1848,7 +1849,7 @@ end
 end
 
 function trigonometric_monomial(m::Monomial)
-    result = to_cnum(m.scalar)
+    result = to_cnum(monomial_scalar(m))
     @inbounds for i in eachindex(m.syms)
         symbol = m.syms[i]
         exponent = m.exps[i]
