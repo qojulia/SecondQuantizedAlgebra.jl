@@ -5,7 +5,7 @@ One term of a parameter polynomial: `scalar * ∏ symᵢ^expᵢ`. Factors are so
 `objectid` and deduplicated; `Rational{Int}` exponents let radicals of a single
 atom merge (`sqrt(p)*sqrt(p) = p`). An exact `scalar` has the type `E` of its tier,
 `ExactComplex` or `BigExactComplex`, and every term of one `Poly` shares that tier.
-A radical atom (a hashconsed `Const{SymReal}` of a prime `Int`) always keeps its
+A radical atom (a hashconsed `Const{SymReal}` of a prime, see `radical_atom`) always keeps its
 exponent in `(0, 1)`: the constructor folds any integer part into `scalar`, so
 `√2·√2` normalizes to the scalar `2`, and `√2·√3`/`√6`/`√24/2` all reduce to the
 same two prime atoms `Const(2)^(1/2)`, `Const(3)^(1/2)` and compare `isequal`.
@@ -30,7 +30,7 @@ struct Monomial{E <: ExactScalar}
             if is_radical_atom(s)
                 q = fld(numerator(e), denominator(e))
                 if q != 0
-                    scalar = scalar_mul(scalar, radical_power(E, s.val::Int, q))
+                    scalar = scalar_mul(scalar, radical_power(E, s.val::RadicalPrime, q))
                     e -= q
                 end
                 iszero(e) && continue

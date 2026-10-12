@@ -567,30 +567,26 @@ end
 end
 
 function radical_factors(m::Monomial)
-    factors = Tuple{Rational{Int}, Int}[]
+    factors = Tuple{Rational{Int}, RadicalPrime}[]
     @inbounds for i in eachindex(m.syms)
         s = m.syms[i]
         is_radical_atom(s) || continue
         e = m.exps[i]
-        p = const_int(s)
-        k = 0
-        for j in eachindex(factors)
-            if factors[j][1] == e
-                k = j
-                break
-            end
-        end
-        if k == 0
+        p = s.val::RadicalPrime
+        k = p isa Int ? findfirst(f -> f[1] == e && f[2] isa Int, factors) : nothing
+        if k === nothing
             push!(factors, (e, p))
         else
-            product, overflow = Base.mul_with_overflow(factors[k][2], p)
+            product, overflow = Base.mul_with_overflow(factors[k][2]::Int, p::Int)
             overflow ? push!(factors, (e, p)) : (factors[k] = (e, product))
         end
     end
-    return insertion_sort!(factors, isless)
+    return insertion_sort!(factors, radical_factor_less)
 end
+@inline radical_factor_less(a::Tuple{Rational{Int}, RadicalPrime}, b::Tuple{Rational{Int}, RadicalPrime}) =
+    a[1] == b[1] ? a[2] < b[2] : a[1] < b[1]
 
-function radical_expression(n::Int, f::Rational{Int})
+function radical_expression(n::RadicalPrime, f::Rational{Int})
     base = SymbolicUtils.Const{SymbolicUtils.SymReal}(n)
     f == 1 // 2 && return sqrt(base)
     f == 1 // 3 && return cbrt(base)
@@ -835,17 +831,17 @@ end
 function numeric_radical(value::Rational{BigInt}, r::Rational{Int}, x)
     is_rational_power(value, r) && return to_cnum(rational_power_value(value, r))
     value > 0 || return radical_leaf(x)
-    numerator_factors = Tuple{Int, Int}[]
-    denominator_factors = Tuple{Int, Int}[]
+    numerator_factors = Tuple{RadicalPrime, Int}[]
+    denominator_factors = Tuple{RadicalPrime, Int}[]
     prime_factorization!(numerator_factors, numerator(value)) || return radical_leaf(x)
     prime_factorization!(denominator_factors, denominator(value)) || return radical_leaf(x)
     syms = RawExpression[]
     exps = Rational{Int}[]
     for (p, k) in numerator_factors
-        push!(syms, SymbolicUtils.Const{SymbolicUtils.SymReal}(p)); push!(exps, k * r)
+        push!(syms, radical_atom(p)); push!(exps, k * r)
     end
     for (p, k) in denominator_factors
-        push!(syms, SymbolicUtils.Const{SymbolicUtils.SymReal}(p)); push!(exps, -k * r)
+        push!(syms, radical_atom(p)); push!(exps, -k * r)
     end
     sort_factors!(syms, exps)
     return tiered(monomial_terms, EXACT_ONE, syms, exps)
