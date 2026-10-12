@@ -168,8 +168,7 @@ function trig_relations!(rels::Vector{ParamRelation}, terms::Vector{<:Monomial})
         is_unary_call(core) || continue
         arg = only(SymbolicUtils.arguments(core))
         op = SymbolicUtils.operation(core)
-        family = (op === cos || op === sin) ? UInt8(1) :
-            ((op === cosh || op === sinh) ? UInt8(2) : UInt8(0))
+        family = trig_family(op)
         iszero(family) && continue
         key = TrigKey(objectid(arg), wrapped, family)
         if op === sin || op === sinh
@@ -193,6 +192,10 @@ function trig_relations!(rels::Vector{ParamRelation}, terms::Vector{<:Monomial})
     sort_rels!(rels, from)
     return rels
 end
+
+# 1 for the circular pair `cos`/`sin`, 2 for the hyperbolic pair, 0 otherwise.
+trig_family(op)::UInt8 = (op === cos || op === sin) ? UInt8(1) :
+    ((op === cosh || op === sinh) ? UInt8(2) : UInt8(0))
 
 function sort_rels!(rels::Vector{ParamRelation}, from::Int)
     @inbounds for i in (from + 1):length(rels)

@@ -21,8 +21,8 @@ end
 add_parameter_rule!(op_rules::OpRules, scalar_rules::ScalarRules, k, v) =
     add_substitution_rule!(op_rules, scalar_rules, k, v)
 
-function normalize_time_parameter(time_parameter)
-    isempty(time_parameter) && return time_parameter
+normalize_time_parameter(::Tuple{}) = NO_TIME_PARAMETER
+function normalize_time_parameter(time_parameter::AbstractDict)
     out = Dict{Num, Any}()
     for (k, v) in time_parameter
         out[time_key(k)] = time_value(v)

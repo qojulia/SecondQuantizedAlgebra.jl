@@ -236,6 +236,12 @@ average(op::QSym) = average_leaf(op)
 average(x::Number) = x
 average(x::SymbolicUtils.BasicSymbolic) = x
 average(x::Num) = average(SymbolicUtils.unwrap(x))
+average(::QExpr) = throw(
+    ArgumentError(
+        "averages of formal operator functions are not defined; " *
+            "call `taylor(expr, 0:n)` first and average the resulting `QAdd`",
+    ),
+)
 
 function average(op::QAdd)
     BS = SymbolicUtils.BasicSymbolic{SymbolicUtils.SymReal}
@@ -247,35 +253,7 @@ function average(op::QAdd)
     group_slot = Dict{GroupKey, Int}()
     for (term, c) in op.arguments
         used = Index[idx for idx in shared if depends_on_index_term(c, term.ops, idx)]
-        contrib = Num(0)
-        opaque_raw = c.tail isa RawSymbolicCoeff &&
-            !(
-            SymbolicUtils.iscall(c.tail.expr) &&
-                SymbolicUtils.operation(c.tail.expr) === complex
-        )
-        if opaque_raw
-            raw = Num(c.tail.expr)
-            if isempty(term.ops)
-                iszero(raw) || (contrib += raw)
-            else
-                inner = length(term.ops) == 1 ? only(term.ops) :
-                    single_qadd(CNUM_ONE, term.ops, term.ne)
-                avg = average_leaf(inner)
-                iszero(raw) || (contrib += raw * avg)
-            end
-        elseif isempty(term.ops)
-            r, i = realimag(c)
-            iszero(r) || (contrib += r)
-            iszero(i) || (contrib += i * Symbolics.IM)
-        else
-            r, i = realimag(c)
-            inner = length(term.ops) == 1 ? only(term.ops) :
-                single_qadd(CNUM_ONE, term.ops, term.ne)
-            avg = average_leaf(inner)
-            iszero(r) || (contrib += r * avg)
-            iszero(i) || (contrib += i * Symbolics.IM * avg)
-        end
-        body = SymbolicUtils.unwrap(contrib)
+        body = average_term(c, term)
         if isempty(used)
             push!(flat_bodies, body)
         else
@@ -295,6 +273,31 @@ function average(op::QAdd)
     end
     isempty(flat_bodies) && return SymbolicUtils.unwrap(Num(0))
     return add_worker(SymbolicUtils.SymReal, flat_bodies)
+end
+
+function average_term(c::CNum, term::QTerm)
+    contrib = Num(0)
+    if c.tail isa RawSymbolicCoeff && !is_call_of(c.tail.expr, complex)
+        raw = Num(c.tail.expr)
+        iszero(raw) && return SymbolicUtils.unwrap(contrib)
+        contrib += isempty(term.ops) ? raw : raw * average_term_ops(term)
+        return SymbolicUtils.unwrap(contrib)
+    end
+    r, i = realimag(c)
+    if isempty(term.ops)
+        iszero(r) || (contrib += r)
+        iszero(i) || (contrib += i * Symbolics.IM)
+    else
+        avg = average_term_ops(term)
+        iszero(r) || (contrib += r * avg)
+        iszero(i) || (contrib += i * Symbolics.IM * avg)
+    end
+    return SymbolicUtils.unwrap(contrib)
+end
+
+function average_term_ops(term::QTerm)
+    inner = length(term.ops) == 1 ? only(term.ops) : single_qadd(CNUM_ONE, term.ops, term.ne)
+    return average_leaf(inner)
 end
 
 to_qadd(x::QAdd) = x
@@ -519,23 +522,36 @@ function indexed_sum(body, indices::Vector{Index}; non_equal::Vector{NonEqualPai
     return indexed_sum(SymbolicUtils.unwrap(body), indices, non_equal)
 end
 
-idx_seal(v) = v isa Vector{Index} ? v : Index[]
-aon_seal(v) = v isa Vector{Int} ? v : Int[]
+function symbolic_indices(@nospecialize(x))
+    x isa RawExpression && return get_indices(x)
+    x isa Op && return get_indices(x)
+    x isa QAdd && return get_indices(x)
+    x isa QExpr && return get_indices(x)
+    return Index[]
+end
+
+function symbolic_acts_on(@nospecialize(x))
+    x isa RawExpression && return acts_on(x)
+    x isa Op && return acts_on(x)
+    x isa QAdd && return acts_on(x)
+    x isa QExpr && return acts_on(x)
+    return Int[]
+end
 
 function get_indices(x::SymbolicUtils.BasicSymbolic)
-    SymbolicUtils.isconst(x) && return idx_seal(get_indices(x.val))
+    SymbolicUtils.isconst(x) && return symbolic_indices(x.val)
     SymbolicUtils.hasmetadata(x, AverageOperator) &&
-        return idx_seal(get_indices(SymbolicUtils.getmetadata(x, AverageOperator)))
-    is_indexed_sum(x) && return idx_seal(get_indices(sum_body(x)))
+        return symbolic_indices(SymbolicUtils.getmetadata(x, AverageOperator))
+    is_indexed_sum(x) && return symbolic_indices(sum_body(x))
     SymbolicUtils.iscall(x) || return Index[]
     f = SymbolicUtils.operation(x)
     if f isa AvgFunc
         arg = SymbolicUtils.arguments(x)[1]
         inner = SymbolicUtils.isconst(arg) ? arg.val : arg
-        return idx_seal(get_indices(inner))
+        return symbolic_indices(inner)
     end
     inds = Index[]
-    for arg in SymbolicUtils.arguments(x), idx in idx_seal(get_indices(arg))
+    for arg in SymbolicUtils.arguments(x), idx in symbolic_indices(arg)
         idx ∉ inds && push!(inds, idx)
     end
     return inds
@@ -588,16 +604,16 @@ function acts_on(op::QAdd)
 end
 
 function acts_on(s::SymbolicUtils.BasicSymbolic)
-    SymbolicUtils.isconst(s) && return aon_seal(acts_on(s.val))
+    SymbolicUtils.isconst(s) && return symbolic_acts_on(s.val)
     SymbolicUtils.hasmetadata(s, AverageOperator) &&
-        return aon_seal(acts_on(SymbolicUtils.getmetadata(s, AverageOperator)))
-    is_indexed_sum(s) && return aon_seal(acts_on(sum_body(s)))
+        return symbolic_acts_on(SymbolicUtils.getmetadata(s, AverageOperator))
+    is_indexed_sum(s) && return symbolic_acts_on(sum_body(s))
     SymbolicUtils.iscall(s) || return Int[]
     f = SymbolicUtils.operation(s)
-    f isa AvgFunc && return aon_seal(acts_on(SymbolicUtils.arguments(s)[1]))
+    f isa AvgFunc && return symbolic_acts_on(SymbolicUtils.arguments(s)[1])
     aon = Int[]
     for arg in SymbolicUtils.arguments(s)
-        append!(aon, aon_seal(acts_on(arg)))
+        append!(aon, symbolic_acts_on(arg))
     end
     unique!(sort!(aon))
     return aon

@@ -284,33 +284,32 @@ end
 function Base.show(io::IO, x::QAdd)
     st = sorted_arguments(x)
     isempty(st) && return write(io, "0")
-
-    if !isempty(x.indices)
-        dep = eltype(st)[]
-        indep = eltype(st)[]
-        for t in st
-            ops, c, _ = term_signature(t)
-            if any(idx -> depends_on_index_term(c, ops, idx), x.indices)
-                push!(dep, t)
-            else
-                push!(indep, t)
-            end
-        end
-        if !isempty(indep)
-            show_terms(io, indep)
-            if !isempty(dep)
-                write(io, " + ")
-            end
-        end
-        if !isempty(dep)
-            groups = group_dep_terms(dep, x.indices)
-            for (k, (used, ne_pairs, terms)) in enumerate(groups)
-                k > 1 && write(io, " + ")
-                show_sum_group(io, terms, used, ne_pairs)
-            end
-        end
-    else
+    if isempty(x.indices)
         show_terms(io, st)
+        return
+    end
+    dep, indep = split_index_dependent(st, x.indices)
+    isempty(indep) || show_terms(io, indep)
+    isempty(indep) || isempty(dep) || write(io, " + ")
+    isempty(dep) || show_sum_groups(io, dep, x.indices)
+    return
+end
+
+function split_index_dependent(st::Vector{QAdd}, indices::Vector{Index})
+    dep = QAdd[]
+    indep = QAdd[]
+    for t in st
+        ops, c, _ = term_signature(t)
+        dependent = any(idx -> depends_on_index_term(c, ops, idx), indices)
+        push!(dependent ? dep : indep, t)
+    end
+    return dep, indep
+end
+
+function show_sum_groups(io::IO, dep::Vector{QAdd}, indices::Vector{Index})
+    for (k, (used, ne_pairs, terms)) in enumerate(group_dep_terms(dep, indices))
+        k > 1 && write(io, " + ")
+        show_sum_group(io, terms, used, ne_pairs)
     end
     return
 end

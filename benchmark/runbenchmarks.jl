@@ -9,12 +9,14 @@ include("simplify_and_normal_order.jl")
 include("indexing.jl")
 include("accumulation.jl")
 include("unitary.jl")
+include("operator_functions.jl")
 
 benchmark_commutator!(SUITE)
 benchmark_simplify_and_normal_order!(SUITE)
 benchmark_indexing!(SUITE)
 benchmark_accumulation!(SUITE)
 benchmark_unitary!(SUITE)
+benchmark_operator_functions!(SUITE)
 
 BenchmarkTools.DEFAULT_PARAMETERS.samples = 10000
 

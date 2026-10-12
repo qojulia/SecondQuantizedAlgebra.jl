@@ -180,7 +180,7 @@ function change_index(x::Num, pairs::AbstractDict{Index, Index})
         sub[SymbolicUtils.unwrap(index_sym(from))] = SymbolicUtils.unwrap(index_sym(to))
     end
     vars = Symbolics.get_variables(raw)
-    any(v -> any(s -> isequal(v, s), keys(sub)), vars) || return x
+    any(v -> haskey(sub, v), vars) || return x
     result = Symbolics.substitute(raw, sub)
     return check_not_identical(result)
 end
@@ -376,50 +376,57 @@ function Σ(expr::QAdd, i::Index, non_equal::Vector{Index} = Index[])
     diag = QTermDict()
 
     for (term, c) in expr.arguments
-        depends_on_i = depends_on_index_term(c, term.ops, i)
-
-        ne_aug = term.ne
-        if depends_on_i
-            for j in non_equal
-                ne_aug = merge_ne_pair(ne_aug, i, j)
-            end
-        end
-
-        distinct = distinct_op_indices(term.ops)
-        diag_pairs = Tuple{Index, Index}[]
-        if depends_on_i
-            for ext_idx in distinct
-                ext_idx == i && continue
-                ext_idx.space_index == i.space_index || continue
-                ne_contains(ne_aug, i, ext_idx) && continue
-                push!(diag_pairs, (i, ext_idx))
-            end
-        end
-
-        full_ne = ne_aug
-        for (a, b) in diag_pairs
-            full_ne = merge_ne_pair(full_ne, a, b)
-        end
-        if depends_on_i
-            emit_scaled_by_scope!(off_diag, copy(term.ops), c, full_ne, Index[i])
-        else
-            canonicalize!(
-                off_diag, copy(term.ops),
-                mul_cnum(c, to_cnum(index_range(i))), full_ne,
-            )
-        end
-
-        for (_, ext_idx) in diag_pairs
-            sub_ops = Op[change_index(o, i, ext_idx) for o in term.ops]
-            sub_c = change_index(c, i, ext_idx)
-            sub_ne = substitute_ne(ne_aug, i, ext_idx)
-            canonicalize!(diag, sub_ops, sub_c, sub_ne)
-        end
+        sigma_term!(off_diag, diag, term, c, i, non_equal)
     end
 
     result = QAdd(off_diag, vcat(expr.indices, [i]))
     isempty(diag) && return result
     return result + QAdd(diag, Index[])
+end
+
+# Split one term of `Σ_i` into its off-diagonal part (`i` distinct from every other index
+# on its space) and one diagonal part per index `i` may coincide with.
+function sigma_term!(
+        off_diag::QTermDict, diag::QTermDict, term::QTerm, c::CNum,
+        i::Index, non_equal::Vector{Index},
+    )
+    if !depends_on_index_term(c, term.ops, i)
+        canonicalize!(off_diag, copy(term.ops), mul_cnum(c, to_cnum(index_range(i))), term.ne)
+        return nothing
+    end
+
+    # User-supplied non_equal constraints apply when the term depends on i.
+    ne_aug = term.ne
+    for j in non_equal
+        ne_aug = merge_ne_pair(ne_aug, i, j)
+    end
+
+    # Identify (i, ext_idx) pairs that need diagonal contributions.
+    diag_pairs = Tuple{Index, Index}[]
+    for ext_idx in distinct_op_indices(term.ops)
+        may_coincide(i, ext_idx, ne_aug) && push!(diag_pairs, (i, ext_idx))
+    end
+
+    # Off-diagonal: canonicalize under ne_aug augmented with every diag pair,
+    # so partial_sort can use those inequalities.
+    full_ne = ne_aug
+    for (a, b) in diag_pairs
+        full_ne = merge_ne_pair(full_ne, a, b)
+    end
+    # Σ_i: bake `i.range` into emitted entries whose final ops lose their
+    # i-dependence (e.g. the `+1` residual from `a_i*a_i' = a_i'*a_i + 1`),
+    # so per-term scope matches the explicit `Σ_i` written by the user.
+    emit_scaled_by_scope!(off_diag, copy(term.ops), c, full_ne, Index[i])
+
+    for (_, ext_idx) in diag_pairs
+        sub_ops = Op[change_index(o, i, ext_idx) for o in term.ops]
+        sub_c = change_index(c, i, ext_idx)
+        # Propagate NE onto the diagonal (i≠β becomes ext_idx≠β); dropping it
+        # lets a later sum re-admit ext_idx=β and double-count the diagonal.
+        sub_ne = substitute_ne(ne_aug, i, ext_idx)
+        canonicalize!(diag, sub_ops, sub_c, sub_ne)
+    end
+    return nothing
 end
 
 function Σ(expr::QSym, i::Index, non_equal::Vector{Index} = Index[])
