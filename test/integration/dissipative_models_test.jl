@@ -37,6 +37,28 @@ heisenberg(M, A) = transpose(reshape(transpose(M) * vec(transpose(A)), size(A)))
         @test heisenberg(Ln.data, Matrix(A)) ≈ D
     end
 
+    @testset "rate equations" begin
+        # Thermal bath: d⟨n⟩/dt = -(κ₋ - κ₊)⟨n⟩ + κ₊ and d⟨a⟩/dt = -(iω + (κ₋ - κ₊)/2)⟨a⟩.
+        h = FockSpace(:c)
+        @qnumbers a::Destroy(h)
+        @variables ω κm κp
+        L = hamiltonian_action(ω * a' * a) + κm * dissipator(a) + κp * dissipator(a')
+        n_rate = -(κm - κp) * a' * a + κp
+        a_rate = -im * ω * a - (1 // 2) * (κm - κp) * a
+        @test transpose(L)(a' * a) == n_rate
+        @test transpose(L)(a) == a_rate
+        @test isequal(average(transpose(L)(a' * a)), average(n_rate))
+        @test isequal(average(transpose(L)(a)), average(a_rate))
+        # Two-level atom with decay γ and incoherent pump P: d⟨σ₂₂⟩/dt = P⟨σ₁₁⟩ - γ⟨σ₂₂⟩.
+        ha = NLevelSpace(:atom, 2)
+        σ(x, y) = Transition(ha, :σ, x, y)
+        @variables γ P
+        La = γ * dissipator(σ(1, 2)) + P * dissipator(σ(2, 1))
+        pop_rate = P * σ(1, 1) - γ * σ(2, 2)
+        @test transpose(La)(σ(2, 2)) == pop_rate
+        @test isequal(average(transpose(La)(σ(2, 2))), average(pop_rate))
+    end
+
     @testset "superradiant ensemble" begin
         ha = NLevelSpace(:atom, 2)
         @variables N

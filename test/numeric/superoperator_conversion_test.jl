@@ -2,11 +2,12 @@
 
 using SecondQuantizedAlgebra
 import QuantumOpticsBase as QOB
+import QuantumOptics as QO
 import QuantumToolbox as QTB
 import SciMLOperators as SO
 using SymbolicUtils: SymbolicUtils
 using Symbolics: @variables, Num
-import LinearAlgebra: tr, I
+import LinearAlgebra: tr, I, exp
 using Test
 
 import SecondQuantizedAlgebra: SuperOperator, sprepost, spre, spost, liouvillian, to_numeric_master
@@ -28,7 +29,8 @@ apply_numeric(S, ρ::AbstractMatrix) = reshape(S * vec(ρ), size(ρ))
         L = hamiltonian_action(2 * a' * a) + (1 // 2) * dissipator(a)
         ref = QOB.liouvillian(2 * QOB.dagger(an) * an, [an]; rates = [0.5])
         Ln = to_numeric(L, b)
-        @test Ln isa QOB.SuperOperator
+        @test Ln isa QOB.SparseSuperOpType
+        @test to_numeric(L, b; op_type = identity) isa QOB.SparseSuperOpType
         @test Ln.data ≈ ref.data
         @test to_numeric(SuperOperator(L), b).data ≈ ref.data
         @test to_numeric(sprepost(a, a'), b).data ≈ QOB.sprepost(an, QOB.dagger(an)).data
@@ -114,6 +116,25 @@ apply_numeric(S, ρ::AbstractMatrix) = reshape(S * vec(ρ), size(ρ))
         Hd, cd = to_numeric_master(Ld, hp, (2, 2); backend = QOBB)
         @test length(cd) == 2
         @test to_numeric(Ld, hp, (2, 2); backend = QOBB).data ≈ QOB.liouvillian(Hd, cd).data
+    end
+
+    @testset "QuantumOptics master equation" begin
+        # Driven damped cavity: compare timeevolution.master on the solver inputs with the
+        # exact propagator exp(Lt) of the converted superoperator. A heating jump a† is left
+        # out: the solver forms a a† in the truncated space, where it differs from the
+        # normal-ordered a†a + 1 at the cutoff.
+        par = Dict(Δ => 0.7, γ => 0.4)
+        L = hamiltonian_action(Δ * a' * a + (1 // 5) * (a + a')) + γ * dissipator(a) + (1 // 10) * dissipator(a' * a)
+        H, c_ops = to_numeric_master(L, h, 4; backend = QOBB, parameter = par)
+        ρ0 = QOB.dm(QOB.fockstate(b, 2))
+        tout, ρt = QO.timeevolution.master([0.0, 1.5], ρ0, H, c_ops; abstol = 1.0e-10, reltol = 1.0e-10)
+        Ln = to_numeric(L, b; parameter = par).data
+        exact = reshape(exp(1.5 * Matrix(Ln)) * vec(Matrix(ρ0.data)), n, n)
+        @test ρt[end].data ≈ exact rtol = 1.0e-6
+        # Pure loss: ⟨n⟩ = n₀ e^{-γt}.
+        Hl, cl = to_numeric_master(γ * dissipator(a), h, 4; backend = QOBB, parameter = Dict(γ => 0.4))
+        _, ρl = QO.timeevolution.master([0.0, 1.5], ρ0, Hl, cl; abstol = 1.0e-10, reltol = 1.0e-10)
+        @test real(QOB.expect(QOB.dagger(an) * an, ρl[end])) ≈ 2 * exp(-0.4 * 1.5) rtol = 1.0e-6
     end
 
     @testset "QuantumToolbox" begin

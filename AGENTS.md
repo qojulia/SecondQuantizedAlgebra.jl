@@ -208,4 +208,4 @@ Three distinct axes; keep them separate when reporting numbers.
 
 **Weak dependencies (numeric extensions):** `QuantumOpticsBase` (FockBasis/NLevelBasis/SpinBasis, vector `LazySum`/`TimeDependentSum`), `QuantumToolbox` + `SciMLOperators` (QuantumObject builders, the `VecSum` over `QobjEvo`). The numeric API errors until one backend is loaded.
 
-**Test dependencies:** Aqua, JET, CheckConcreteStructs, ExplicitImports, LaTeXStrings, QuantumOpticsBase, QuantumToolbox, SciMLOperators, LinearAlgebra
+**Test dependencies:** Aqua, JET, CheckConcreteStructs, ExplicitImports, LaTeXStrings, QuantumOptics (master-equation solver checks), QuantumOpticsBase, QuantumToolbox, SciMLOperators, LinearAlgebra

@@ -1,4 +1,5 @@
-import SecondQuantizedAlgebra: SuperOperator, liouvillian
+import SecondQuantizedAlgebra: SuperOperator, liouvillian, to_numeric_master
+import QuantumOpticsBase as QOB
 
 function benchmark_superoperators!(SUITE)
     M = 4
@@ -24,5 +25,17 @@ function benchmark_superoperators!(SUITE)
     group["Apply L(ρ)"] = @benchmarkable $L($ρ) seconds = 3 evals = 1
     group["Heisenberg drift"] = @benchmarkable transpose($S)($ρ) seconds = 3 evals = 1
     group["Collective dissipator"] = @benchmarkable dissipator($σ12, $Γ, $i => $j) seconds = 3 evals = 1
+
+    # Numeric conversion: 4 modes with cutoff 3 give a 256-dimensional Hilbert space.
+    par = Dict(Δ => 0.5, κ => 0.2, J => 0.1)
+    b = QOB.FockBasis(3)^M
+    hc = FockSpace(:c)
+    c = Destroy(hc, :c)
+    Lc = hamiltonian_action(c' * c) + dissipator(c)
+    group["to_numeric(L), 4 modes"] = @benchmarkable to_numeric($L, $b; parameter = $par) seconds = 3 evals = 1
+    group["to_numeric(L), single mode N=20"] = @benchmarkable to_numeric($Lc, $(QOB.FockBasis(20))) seconds = 3 evals = 1
+    group["to_numeric_master, 4 modes"] = @benchmarkable to_numeric_master(
+        $L, $h, $(ntuple(_ -> 3, M)); backend = QuantumOpticsBackend(), parameter = $par,
+    ) seconds = 3 evals = 1
     return SUITE
 end
