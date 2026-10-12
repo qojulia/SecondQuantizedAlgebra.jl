@@ -96,6 +96,12 @@ apply_numeric(S, ρ::AbstractMatrix) = reshape(S * vec(ρ), size(ρ))
         @test length(c_ops) == 3
         @test QOB.liouvillian(H, c_ops).data ≈ ref.data
 
+        # Sides that differ only in their unrolled site compare equal as `Vector{Op}`, so the
+        # side-matrix cache must distinguish slots.
+        Sx = Σ(sprepost(σ(1, 2, i), σ(2, 1, i)), i)
+        refx = sum(QOB.sprepost(Jn, QOB.dagger(Jn)) for Jn in J)
+        @test to_numeric(Sx, bb, sites).data ≈ refx.data
+
         # Independent decay against finite-site enumeration.
         Li = Σ(dissipator(σ(1, 2, i)), i)
         refi = QOB.liouvillian(0 * QOB.dagger(J[1]) * J[1], J)
