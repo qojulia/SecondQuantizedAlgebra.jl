@@ -252,7 +252,7 @@ function average(op::QAdd)
     group_bodies = Vector{BS}[]
     group_slot = Dict{GroupKey, Int}()
     for (term, c) in op.arguments
-        used = Index[idx for idx in shared if depends_on_index_term(c, term.ops, idx)]
+        used = bound_indices(term, c, shared)
         body = average_term(c, term)
         if isempty(used)
             push!(flat_bodies, body)

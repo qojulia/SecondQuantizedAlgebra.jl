@@ -170,10 +170,9 @@ end
 """
     emit_scaled_by_scope!(out, ops, c, ne, scope)
 
-Canonicalize `(ops, c, ne)` into `out`, multiplying any resulting term by
-`prod(idx.range for idx in scope if !depends(term, idx))`. Use when residuals
-that lose a bound-index dependence must absorb the surviving sum's range factor
-(e.g. the `+1` from `a*a' = a'a + 1` inside a `Σ_i` scope).
+Canonicalize `(ops, c, ne)` into `out`, then settle each `scope` index through
+`settle_scope!`. Use when residuals that lose a bound-index dependence must absorb the
+surviving sum's count (e.g. the `+1` from `a*a' = a'a + 1` inside a `Σ_i` scope).
 """
 function emit_scaled_by_scope!(
         out::QTermDict, ops::Vector{Op}, c::CNum,
@@ -181,13 +180,23 @@ function emit_scaled_by_scope!(
     )
     temp = QTermDict()
     canonicalize!(temp, ops, c, ne)
+    return settle_scope!(out, temp, scope)
+end
+
+"""
+    settle_scope!(out, temp, scope)
+
+Add the terms of `temp`, all descended from one term bound by `scope`, into `out`. Each
+scope index that a term's operators and coefficient no longer mention is eliminated by
+`eliminate_binders`: the term is multiplied by the index's constrained count
+(`range - |partners|`), or keeps the binder and its constraints when that count is unknown.
+"""
+function settle_scope!(out::QTermDict, temp::QTermDict, scope::Vector{Index})
     for (term, cv) in temp
-        coef = cv
-        for scope_idx in scope
-            depends_on_index_term(coef, term.ops, scope_idx) && continue
-            coef = mul_cnum(coef, to_cnum(index_range(scope_idx)))
-        end
-        addto_key!(out, copy_key(term), coef)
+        mentions(c, idx) = depends_on_index_term(c, term.ops, idx)
+        coef, ne = eliminate_binders(mentions, cv, term.ne, scope)
+        key = ne === term.ne ? copy_key(term) : QTerm(copy(term.ops), ne)
+        addto_key!(out, key, coef)
     end
     return out
 end

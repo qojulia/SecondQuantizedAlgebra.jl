@@ -187,20 +187,11 @@ function show_terms(io::IO, st::Vector{QAdd})
     return
 end
 
-function term_used_indices(t::QAdd, indices::Vector{Index})
-    ops, c, _ = term_signature(t)
-    used = Index[]
-    for idx in indices
-        depends_on_index_term(c, ops, idx) && push!(used, idx)
-    end
-    return used
-end
-
 function group_dep_terms(dep_qadds, indices::Vector{Index})
     groups = Tuple{Vector{Index}, Vector{NonEqualPair}, Vector{QAdd}}[]
     for q in dep_qadds
-        _, _, ne = term_signature(q)
-        used = term_used_indices(q, indices)
+        ops, c, ne = term_signature(q)
+        used = bound_indices(c, ops, ne, indices)
         slot = position_of(g -> isequal(g[1], used) && isequal(g[2], ne), groups)
         if iszero(slot)
             push!(groups, (used, copy_ne(ne), QAdd[q]))
@@ -301,8 +292,8 @@ function split_index_dependent(st::Vector{QAdd}, indices::Vector{Index})
     dep = QAdd[]
     indep = QAdd[]
     for t in st
-        ops, c, _ = term_signature(t)
-        dependent = any(idx -> depends_on_index_term(c, ops, idx), indices)
+        ops, c, ne = term_signature(t)
+        dependent = any(idx -> depends_on_scope_index(c, ops, ne, idx), indices)
         push!(dependent ? dep : indep, t)
     end
     return dep, indep

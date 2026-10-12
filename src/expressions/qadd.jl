@@ -83,11 +83,14 @@ function constraint_pairs(q::QAdd)
     return constraint_pairs(q.arguments)
 end
 
-function single_qadd(c::CNum, ops::Vector{Op}, ne::Vector{NonEqualPair} = EMPTY_NE)
+function single_qadd(
+        c::CNum, ops::Vector{Op}, ne::Vector{NonEqualPair} = EMPTY_NE,
+        indices::Vector{Index} = EMPTY_INDICES,
+    )
     iszero_cnum(c) && return QAdd(QTermDict(), EMPTY_INDICES)
     d = QTermDict()
     addto!(d, ops, c, ne)
-    return QAdd(d, EMPTY_INDICES)
+    return QAdd(d, indices)
 end
 
 Base.length(a::QAdd) = length(a.arguments)
@@ -188,7 +191,7 @@ function sorted_arguments(q::QAdd)
     isempty(q.arguments) && return QAdd[]
     pairs = collect(q.arguments)
     insertion_sort!(pairs, sorted_args_less)
-    return QAdd[single_qadd(c, term.ops, term.ne) for (term, c) in pairs]
+    return QAdd[single_qadd(c, term.ops, term.ne, q.indices) for (term, c) in pairs]
 end
 
 full_op_key(op::QSym) = (
