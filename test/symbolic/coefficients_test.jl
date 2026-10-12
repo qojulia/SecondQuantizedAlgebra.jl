@@ -253,6 +253,11 @@ import SecondQuantizedAlgebra: Coeff, to_cnum, to_num, Monomial, ExactComplex, B
             @test isequal(root(n), prod(root, parts))
             @test hash(root(n)) == hash(prod(root, parts))
         end
+        # Lowering keeps primes above the trial bound as separate roots, so it never builds a
+        # radicand that only rho could split again.
+        two_large = root(3040000009) * root(3040000039)
+        @test isequal(to_cnum(real(to_num(two_large))), two_large)
+        @test isequal(to_num(root(2) * root(3)), to_num(root(6)))
         # Perfect powers of a large prime fold into the scalar, in the big tier when needed.
         @test isequal(root(big(q)^3), q * root(q))
         @test isequal(root(P^3 * 2), P * root(P) * root(2))

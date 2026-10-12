@@ -573,7 +573,9 @@ function radical_factors(m::Monomial)
         is_radical_atom(s) || continue
         e = m.exps[i]
         p = s.val::RadicalPrime
-        k = p isa Int ? findfirst(f -> f[1] == e && f[2] isa Int, factors) : nothing
+        # Two primes above the trial bound would multiply into a radicand only rho can split.
+        mergeable = p isa Int && p < RADICAL_TRIAL_BOUND
+        k = mergeable ? findfirst(f -> f[1] == e && f[2] isa Int, factors) : nothing
         if k === nothing
             push!(factors, (e, p))
         else
@@ -800,15 +802,6 @@ end
 )
 @inline sym_leaf(x::RawExpression) = from_raw(x; normalize = false)
 
-function integer_root(n::Integer, q::Int)
-    target = BigInt(n)
-    guess = round(BigInt, BigFloat(target)^(one(BigFloat) / q))
-    for m in (guess - 1, guess, guess + 1)
-        m >= 0 && m^q == target && return m
-    end
-    return guess
-end
-@inline is_integer_power(n::Integer, q::Int) = integer_root(n, q)^q == n
 
 function is_rational_power(value::Rational{BigInt}, r::Rational{Int})
     q = denominator(r)

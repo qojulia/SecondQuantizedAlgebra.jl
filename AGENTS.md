@@ -205,6 +205,7 @@ Three distinct axes; keep them separate when reporting numbers.
 | Latexify | LaTeX rendering recipes |
 | LinearAlgebra | `det` on a `Matrix{Coeff}` via minor expansion; stdlib, already in the load closure |
 | PrecompileTools | `@setup_workload`/`@compile_workload` in `precompile.jl` |
+| Primes | `isprime` for radicand cofactors above `2^32`; already loaded by Symbolics |
 
 **Weak dependencies (numeric extensions):** `QuantumOpticsBase` (FockBasis/NLevelBasis/SpinBasis, vector `LazySum`/`TimeDependentSum`), `QuantumToolbox` + `SciMLOperators` (QuantumObject builders, the `VecSum` over `QobjEvo`). The numeric API errors until one backend is loaded.
 

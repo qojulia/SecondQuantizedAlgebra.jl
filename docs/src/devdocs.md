@@ -242,20 +242,23 @@ The representation holds four invariants:
   `SymbolicUtils.Const{SymReal}(p)` of a *prime* `p`, an `Int` when it fits and a `BigInt`
   otherwise; the width is canonical because hashconsing keeps `Const(7)` and `Const(big(7))`
   apart. Radicands factor down to primes by trial division below `2^16`. A leftover cofactor
-  below the bound squared is prime; a larger one is checked with GMP's probable-prime test
+  below the bound squared is prime; a larger one is checked with `Primes.isprime` (GMP's probable-prime test)
   and otherwise split by Pollard-Brent rho under a fixed step budget, so the cost is paid
   only by radicands with a factor beyond `2^32`. A composite radicand is never stored as one
   atom. `√6` is therefore `Const(2)^(1/2) * Const(3)^(1/2)`, the same monomial `√2 * √3`
   and `√24/2` reduce to, so all three compare `isequal` and hash identically. Constructing a
   monomial folds any integer part of a radical's exponent into the scalar, so no
-  construction site can store `√2·√2` with exponent `1`. A negative radicand folds through `cbrt(-x) = -cbrt(x)` and
-  `(-x)^(p/2) = i^p x^(p/2)`; other fractional powers of a negative number stay floats.
+  construction site can store `√2·√2` with exponent `1`. A negative radicand folds through
+  `cbrt(-x) = -cbrt(x)` and `(-x)^(p/2) = i^p x^(p/2)`; other fractional powers of a
+  negative number stay floats.
 - **Radicals and the big tier compose.** The folded integer power is computed in the tier of
   the monomial, so an overflowing fold moves to the big tier instead of falling back to
-  `Float64`. A `BigInt` radicand is recognized the same way an `Int`-sized one is. Only a
-  radicand whose cofactor rho cannot split within its budget (two prime factors, the smaller
-  above about `2^36`) stays an unevaluated symbolic leaf. Such a leaf lives in the raw tier, which has no canonical form, so equal products of it
-  need not compare `isequal` or cancel. A canonical radical needs the square-free part of
+  `Float64`. A `BigInt` radicand is recognized the same way an `Int`-sized one is. A
+  radicand whose cofactor rho cannot split within its budget stays an unevaluated symbolic
+  leaf: in practice one with two prime factors above about `2^36`, counted with
+  multiplicity, so `p²q` with a large `p` also stays a leaf. The leaf lives in the raw tier,
+  which has no canonical form, so equal products of it need not compare `isequal` or cancel,
+  and each recognition of it pays the failed search again. A canonical radical needs the square-free part of
   the radicand, which is as hard as factoring it.
 
 ## QAdd internals
