@@ -685,8 +685,9 @@ end
 
 function term_to_raw(m::Monomial)
     factors = factors_to_raw(m)
-    isone(monomial_scalar(m)) && return factors
-    return with_raw_number(v -> v * factors, monomial_scalar(m))
+    scalar = monomial_scalar(m)
+    isone(scalar) && return factors
+    return with_raw_number(v -> v * factors, scalar)
 end
 
 is_constant_term(m::Monomial) = isempty(m.syms)

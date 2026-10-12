@@ -39,8 +39,9 @@ end
 @inline pack_scalar(::Type{GaussianRational{T}}, z::ComplexF64) where {T} = unsafe_gaussian(
     T(reinterpret(Int, real(z))), T(reinterpret(Int, imag(z))), T(FLOAT_DENOMINATOR),
 )
+@inline holds_float(s::ExactScalar) = s.den == FLOAT_DENOMINATOR
 @inline function unpack_scalar(s::ExactScalar)
-    iszero(s.den) || return s
+    holds_float(s) || return s
     return ComplexF64(reinterpret(Float64, Int(s.re)), reinterpret(Float64, Int(s.im)))
 end
 

@@ -64,7 +64,7 @@ as_tier(::Type{E}, terms::Vector{<:Monomial}) where {E <: ExactScalar} =
 @inline function scalar_iszero(m::Monomial)
     s = m.slot
     iszero(s.re) && iszero(s.im) && return true
-    return iszero(s.den) && iszero(monomial_scalar(m))
+    return holds_float(s) && iszero(monomial_scalar(m))
 end
 @inline scalar_is_real(m::Monomial) = iszero(imag(monomial_scalar(m)))
 @inline scalar_isequal(a::Monomial, b::Monomial) = isequal(monomial_scalar(a), monomial_scalar(b))
@@ -79,11 +79,9 @@ end
 ) where {E} =
     Monomial{E}(conj(monomial_scalar(m)), syms, exps)
 
-@inline mul_scalars(a::Monomial{E}, b::Monomial{E}, syms, exps) where {E} =
-    Monomial{E}(scalar_mul(monomial_scalar(a), monomial_scalar(b)), syms, exps)
 @inline function add_scalars(a::Monomial{E}, b::Monomial{E}) where {E}
     sa, sb = a.slot, b.slot
-    iszero(sa.den) || iszero(sb.den) || return with_scalar(a, sa + sb)
+    holds_float(sa) || holds_float(sb) || return with_scalar(a, sa + sb)
     return with_scalar(a, scalar_add(monomial_scalar(a), monomial_scalar(b)))
 end
 @inline scale_monomial(t::Monomial{E}, z::Union{ComplexF64, E}) where {E} =
@@ -122,20 +120,20 @@ function term_less(a::Monomial, b::Monomial)
     return false
 end
 
-function merge_factors(syma, expa, symb, expb)
+function merge_factors(a::Monomial, b::Monomial)
     ia, ib = 1, 1
-    na, nb = length(syma), length(symb)
+    na, nb = length(a.syms), length(b.syms)
     syms = RawExpression[]
     exps = Rational{Int}[]
     sizehint!(syms, na + nb); sizehint!(exps, na + nb)
     @inbounds while ia <= na || ib <= nb
-        if ib > nb || (ia <= na && fkey(syma[ia]) < fkey(symb[ib]))
-            push!(syms, syma[ia]); push!(exps, expa[ia]); ia += 1
-        elseif ia > na || fkey(syma[ia]) > fkey(symb[ib])
-            push!(syms, symb[ib]); push!(exps, expb[ib]); ib += 1
+        if ib > nb || (ia <= na && fkey(a.syms[ia]) < fkey(b.syms[ib]))
+            push!(syms, a.syms[ia]); push!(exps, a.exps[ia]); ia += 1
+        elseif ia > na || fkey(a.syms[ia]) > fkey(b.syms[ib])
+            push!(syms, b.syms[ib]); push!(exps, b.exps[ib]); ib += 1
         else
-            e = expa[ia] + expb[ib]
-            e != 0 && (push!(syms, syma[ia]); push!(exps, e))
+            e = a.exps[ia] + b.exps[ib]
+            e != 0 && (push!(syms, a.syms[ia]); push!(exps, e))
             ia += 1; ib += 1
         end
     end
@@ -167,8 +165,8 @@ end
 end
 
 function term_mul(a::Monomial{E}, b::Monomial{E}) where {E}
-    isempty(a.syms) && return mul_scalars(a, b, b.syms, b.exps)
-    isempty(b.syms) && return mul_scalars(a, b, a.syms, a.exps)
+    isempty(a.syms) && return with_scalar(b, scalar_mul(monomial_scalar(a), monomial_scalar(b)))
+    isempty(b.syms) && return with_scalar(a, scalar_mul(monomial_scalar(a), monomial_scalar(b)))
     phase_a = phase_factor_index(a.syms)
     phase_b = phase_factor_index(b.syms)
     if phase_a != 0 && phase_b != 0
@@ -182,8 +180,8 @@ function term_mul(a::Monomial{E}, b::Monomial{E}) where {E}
 end
 
 @inline function merged_term_mul(a::Monomial{E}, b::Monomial{E}) where {E}
-    syms, exps = merge_factors(a.syms, a.exps, b.syms, b.exps)
-    return mul_scalars(a, b, syms, exps)
+    syms, exps = merge_factors(a, b)
+    return Monomial{E}(scalar_mul(monomial_scalar(a), monomial_scalar(b)), syms, exps)
 end
 
 function insertion_sort!(v::AbstractVector, lt::F) where {F}

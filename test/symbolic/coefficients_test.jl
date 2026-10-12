@@ -186,6 +186,20 @@ import SecondQuantizedAlgebra: Coeff, to_cnum, to_num, Monomial, ExactComplex, B
         @test_throws OverflowError ExactComplex(2, 0)^63
     end
 
+    @testset "float scalars of parameter polynomials cancel in both tiers" begin
+        @variables g d
+        for (x, y) in ((0.5g + d, -0.5g), (big(2)^70 * g + 0.5d, -0.5d), (-0.25g * d + 0.0g, 0.25g * d))
+            sum_ = to_cnum(x) + to_cnum(y)
+            expected = to_cnum(Symbolics.simplify(x + y))
+            @test isequal(sum_, expected)
+            @test hash(sum_) == hash(expected)
+        end
+        c = to_cnum(big(2)^70 * g + 0.5d)
+        @test iszero(c - c)
+        @test isequal(c + c, 2 * c)
+        @test isequal(to_cnum(2) * c, c * to_cnum(2))
+    end
+
     @testset "numeric radicals multiply exactly" begin
         inverse_root_six = 1 / sqrt(Num(6))
         weighted = inverse_root_six * a
