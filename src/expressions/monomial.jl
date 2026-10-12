@@ -5,13 +5,15 @@ One term of a parameter polynomial: `scalar * ∏ symᵢ^expᵢ`. Factors are so
 `objectid` and deduplicated; `Rational{Int}` exponents let radicals of a single
 atom merge (`sqrt(p)*sqrt(p) = p`). An exact `scalar` has the type `E` of its tier,
 `ExactComplex` or `BigExactComplex`, and every term of one `Poly` shares that tier.
+The `slot` field stores the scalar as an `E`, with a float packed into it (`pack_scalar`),
+so the layout is concrete; read it with `monomial_scalar`.
 A radical atom (a hashconsed `Const{SymReal}` of a prime `Int`) always keeps its
 exponent in `(0, 1)`: the constructor folds any integer part into `scalar`, so
 `√2·√2` normalizes to the scalar `2`, and `√2·√3`/`√6`/`√24/2` all reduce to the
 same two prime atoms `Const(2)^(1/2)`, `Const(3)^(1/2)` and compare `isequal`.
 """
 struct Monomial{E <: ExactScalar}
-    scalar::Union{ComplexF64, E}
+    slot::E
     syms::Vector{RawExpression}
     exps::Vector{Rational{Int}}
 
@@ -20,7 +22,7 @@ struct Monomial{E <: ExactScalar}
             syms::Vector{RawExpression},
             exps::Vector{Rational{Int}},
         ) where {E <: ExactScalar}
-        needs_radical_fold(syms, exps) || return new{E}(scalar, syms, exps)
+        needs_radical_fold(syms, exps) || return new{E}(pack_scalar(E, scalar), syms, exps)
         osyms = RawExpression[]
         oexps = Rational{Int}[]
         sizehint!(osyms, length(syms)); sizehint!(oexps, length(exps))
@@ -37,40 +39,55 @@ struct Monomial{E <: ExactScalar}
             end
             push!(osyms, s); push!(oexps, e)
         end
-        return new{E}(scalar, osyms, oexps)
+        return new{E}(pack_scalar(E, scalar), osyms, oexps)
     end
+
+    # Factors taken from an existing monomial are already folded.
+    Monomial{E}(::Unchecked, scalar::Union{ComplexF64, E}, m::Monomial) where {E <: ExactScalar} =
+        new{E}(pack_scalar(E, scalar), m.syms, m.exps)
 end
+
+@inline monomial_scalar(m::Monomial) = unpack_scalar(m.slot)
+@inline with_scalar(m::Monomial{E}, z::Union{ComplexF64, E}) where {E} =
+    Monomial{E}(Unchecked(), z, m)
 
 @inline as_tier(::Type{E}, m::Monomial{E}) where {E <: ExactScalar} = m
 @inline as_tier(::Type{E}, m::Monomial) where {E <: ExactScalar} =
-    Monomial{E}(as_tier(E, m.scalar), m.syms, m.exps)
+    Monomial{E}(Unchecked(), as_tier(E, monomial_scalar(m)), m)
 @inline as_tier(::Type{E}, terms::Vector{Monomial{E}}) where {E <: ExactScalar} = terms
 as_tier(::Type{E}, terms::Vector{<:Monomial}) where {E <: ExactScalar} =
     Monomial{E}[as_tier(E, m) for m in terms]
 
 @inline with_factors(
     m::Monomial{E}, syms::Vector{RawExpression}, exps::Vector{Rational{Int}},
-) where {E} = Monomial{E}(m.scalar, syms, exps)
-@inline scalar_iszero(m::Monomial) = iszero(m.scalar)
-@inline scalar_is_real(m::Monomial) = iszero(imag(m.scalar))
-@inline scalar_isequal(a::Monomial, b::Monomial) = isequal(a.scalar, b.scalar)
-@inline hash_scalar(m::Monomial, h::UInt) = hash(m.scalar, h)
+) where {E} = Monomial{E}(monomial_scalar(m), syms, exps)
+@inline function scalar_iszero(m::Monomial)
+    s = m.slot
+    iszero(s.re) && iszero(s.im) && return true
+    return iszero(s.den) && iszero(monomial_scalar(m))
+end
+@inline scalar_is_real(m::Monomial) = iszero(imag(monomial_scalar(m)))
+@inline scalar_isequal(a::Monomial, b::Monomial) = isequal(monomial_scalar(a), monomial_scalar(b))
+@inline hash_scalar(m::Monomial, h::UInt) = hash(monomial_scalar(m), h)
 @inline function normalize_monomial(m::Monomial{E}) where {E}
-    scalar = m.scalar
+    scalar = monomial_scalar(m)
     scalar isa ComplexF64 || return m
-    return Monomial{E}(normalize_scalar(scalar), m.syms, m.exps)
+    return with_scalar(m, normalize_scalar(scalar))
 end
 @inline conj_monomial(
     m::Monomial{E}, syms::Vector{RawExpression}, exps::Vector{Rational{Int}},
 ) where {E} =
-    Monomial{E}(conj(m.scalar), syms, exps)
+    Monomial{E}(conj(monomial_scalar(m)), syms, exps)
 
 @inline mul_scalars(a::Monomial{E}, b::Monomial{E}, syms, exps) where {E} =
-    Monomial{E}(scalar_mul(a.scalar, b.scalar), syms, exps)
-@inline add_scalars(a::Monomial{E}, b::Monomial{E}) where {E} =
-    Monomial{E}(scalar_add(a.scalar, b.scalar), a.syms, a.exps)
+    Monomial{E}(scalar_mul(monomial_scalar(a), monomial_scalar(b)), syms, exps)
+@inline function add_scalars(a::Monomial{E}, b::Monomial{E}) where {E}
+    sa, sb = a.slot, b.slot
+    iszero(sa.den) || iszero(sb.den) || return with_scalar(a, sa + sb)
+    return with_scalar(a, scalar_add(monomial_scalar(a), monomial_scalar(b)))
+end
 @inline scale_monomial(t::Monomial{E}, z::Union{ComplexF64, E}) where {E} =
-    Monomial{E}(scalar_mul(t.scalar, z), t.syms, t.exps)
+    with_scalar(t, scalar_mul(monomial_scalar(t), z))
 
 """
     Poly
@@ -128,7 +145,7 @@ end
 @noinline function phase_term_mul(
         a::Monomial{E}, b::Monomial{E}, phase_a::Int, phase_b::Int,
     ) where {E}
-    scalar = scalar_mul(a.scalar, b.scalar)
+    scalar = scalar_mul(monomial_scalar(a), monomial_scalar(b))
     if length(a.syms) == 1 && length(b.syms) == 1 &&
             a.syms[phase_a] === b.syms[phase_b]
         exponent = a.exps[phase_a] + b.exps[phase_b]
@@ -236,7 +253,13 @@ end
 
 function poly_scale(p::Vector{Monomial{E}}, z::Union{ComplexF64, E}) where {E}
     iszero(z) && return Monomial{E}[]
-    return filter!(!scalar_iszero, Monomial{E}[scale_monomial(t, z) for t in p])
+    out = Monomial{E}[]
+    sizehint!(out, length(p))
+    for t in p
+        s = scale_monomial(t, z)
+        scalar_iszero(s) || push!(out, s)
+    end
+    return out
 end
 
 poly_add(::Type{E}, p::Vector{Monomial{E}}, q::Vector{Monomial{E}}) where {E} = poly_add(p, q)

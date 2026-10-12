@@ -122,7 +122,7 @@ function is_real_negative(c::CNum)
     return is_real_negative_sym(c)
 end
 all_real_negative(terms::Vector{<:Monomial}) =
-    all(m -> imag(m.scalar) == 0 && real(m.scalar) < 0, terms)
+    all(m -> imag(monomial_scalar(m)) == 0 && real(monomial_scalar(m)) < 0, terms)
 @noinline function is_real_negative_sym(c::CNum)
     re, im = realimag(c)
     iszero_num(im) || return false

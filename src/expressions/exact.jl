@@ -33,6 +33,17 @@ const FLOAT_DENOMINATOR = 0
     return unsafe_gaussian(s.re, s.im, s.den)
 end
 
+# A `Monomial{E}` stores its scalar in a value of `E` itself, in the `NativeSlot` layout: an
+# exact value as is, a float as its bit patterns with `den == FLOAT_DENOMINATOR`.
+@inline pack_scalar(::Type{E}, z::E) where {E <: ExactScalar} = z
+@inline pack_scalar(::Type{GaussianRational{T}}, z::ComplexF64) where {T} = unsafe_gaussian(
+    T(reinterpret(Int, real(z))), T(reinterpret(Int, imag(z))), T(FLOAT_DENOMINATOR),
+)
+@inline function unpack_scalar(s::ExactScalar)
+    iszero(s.den) || return s
+    return ComplexF64(reinterpret(Float64, Int(s.re)), reinterpret(Float64, Int(s.im)))
+end
+
 @inline normalize_scalar(z::ComplexF64) = z + complex(0.0, 0.0)
 @inline normalize_scalar(z::ExactScalar) = z
 
