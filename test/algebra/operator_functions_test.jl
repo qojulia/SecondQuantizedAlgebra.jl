@@ -21,13 +21,10 @@ import SecondQuantizedAlgebra: QAdd, QExpr, expim
     @test ccA isa QExpr
     @test formal_pair isa QExpr
     @test left_product isa QExpr
-    @test getfield(cA, :storage) isa QAdd
-    @test getfield(sA, :storage) isa QAdd
     @test only(cA.args) isa QAdd
     @test only(ccA.args) isa QExpr
-    @test getfield(ccA, :storage) isa QExpr
-    @test getfield(formal_pair, :storage) isa Vector
-    @test getfield(left_product, :storage) isa Vector
+    @test only(sA.args) isa QAdd
+    @test length(formal_pair.args) == 2
     @test propertynames(cA) == (:kind, :coeff, :args)
     @test_throws ErrorException setfield!(cA, :coeff, cA.coeff)
     @test @inferred((a + a')^4) isa QAdd

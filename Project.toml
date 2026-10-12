@@ -4,6 +4,7 @@ version = "0.14.0"
 
 [deps]
 Combinatorics = "861a8166-3701-5b0c-9a16-15d98fcdc6aa"
+LaTeXStrings = "b964fa9f-0449-5b57-a5c2-d3ea65f4040f"
 Latexify = "23fbe1c1-3f47-55db-b15f-69d7ec21a316"
 LinearAlgebra = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
 MutableArithmetics = "d8a4904e-b15c-11e9-3269-09a3773c0cb0"
@@ -27,6 +28,7 @@ SecondQuantizedAlgebraQuantumToolboxExt = ["QuantumToolbox", "SciMLOperators", "
 
 [compat]
 Combinatorics = "1.0.2"
+LaTeXStrings = "1"
 Latexify = "0.13, 0.14, 0.15, 0.16"
 LinearAlgebra = "1"
 MutableArithmetics = "1"

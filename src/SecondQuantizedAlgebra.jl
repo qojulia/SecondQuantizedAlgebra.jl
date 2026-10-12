@@ -11,6 +11,7 @@ import TensorCore: ⊗, tensor
 
 using Combinatorics: combinations, with_replacement_combinations
 using Latexify: Latexify, latexify, @latexrecipe
+using LaTeXStrings: LaTeXString
 using LinearAlgebra: LinearAlgebra, istriu, istril
 using PrecompileTools: @setup_workload, @compile_workload
 using SciMLPublic: @public

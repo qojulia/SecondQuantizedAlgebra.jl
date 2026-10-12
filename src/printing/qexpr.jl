@@ -111,12 +111,10 @@ end
 
 Base.show(io::IO, q::QExpr) = show_qexpr(io, q, 0)
 
-latex_inline(x) = strip(String(latexify(x; env = :inline)), '$')
-
 function qexpr_latex_prefactor(c::CNum)
     is_neg_unit(c) && return "-"
     is_unit(c) && return ""
-    return string(latex_inline(latex_prefactor(c)), " ")
+    return string(latex_inline(c), " ")
 end
 
 function qexpr_latex_arg(arg::QAdd, parent_precedence::Int)
@@ -146,7 +144,7 @@ function qexpr_latex_add(q::QExpr)
 end
 
 function qexpr_latex_mul(q::QExpr)
-    isempty(q.args) && return latex_inline(latex_prefactor(q.coeff))
+    isempty(q.args) && return latex_inline(q.coeff)
     io = IOBuffer()
     write(io, qexpr_latex_prefactor(q.coeff))
     write(io, qexpr_latex_arg(first(q.args), QEXPR_PREC_MUL))

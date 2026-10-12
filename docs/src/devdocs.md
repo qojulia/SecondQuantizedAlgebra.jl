@@ -299,11 +299,11 @@ end
 struct QExpr <: QField
     kind::QExprKind
     coeff::CNum
-    storage::Union{QAdd, QExpr, Vector{Union{QAdd, QExpr}}}
+    args::Vector{Union{QAdd, QExpr}}
 end
 ```
 
-Function nodes store their single argument directly and sums/products store a vector; `q.args` reads either uniformly.
+Every node keeps its children in one concretely typed vector; function nodes hold exactly one. An earlier layout stored a unary argument directly in a `Union`-typed field to save the one-element vector, but then every walk over `q.args` saw a `Vector` or a `Tuple` and dispatched at runtime. The single vector type lets the whole layer infer, which JET checks, and the saved allocation never mattered on this cold path. For the same reason the layer has no `nothing` sentinels: "no content" is `CNUM_ONE`, and "is this a scalar/polynomial node" is a `Bool` query followed by a typed read.
 
 A `QExpr` therefore never replaces a polynomial `QAdd`. Polynomial leaves stay as complete canonical `QAdd`s, while the formal tree records only the structure that cannot be represented finitely: sums/products involving formal nodes and the supported function applications. The outer coefficient remains the same `CNum` scalar layer used by `QAdd`; structurally identical formal terms can therefore collect and cancel without introducing a second scalar algebra. A product node whose only factor is a `QAdd` is a polynomial in formal clothing: it keeps its scale inside the `QAdd` and sums fold it back into the polynomial part, so `(f(A) + B) - f(A) - B` is zero rather than `-B + B`. Inside a longer product the opposite holds: a polynomial factor hands its content to the outer coefficient, so `(θa) * f(A)` and `θ * (a * f(A))` are one term. The content is a coefficient shared by every term, or else the leading scalar times each parameter's lowest power across all terms, so `(θa + θ²a') f` and `θ (a + θa') f` agree; dividing by a monomial is exact, unlike dividing by a general symbolic coefficient. Content that depends on a bound summation index stays inside its sum. Content extraction also keeps the original polynomial when normalization cannot reconstruct its coefficients exactly, including when a floating-point reciprocal overflows.
 

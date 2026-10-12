@@ -1184,7 +1184,7 @@ function LinearAlgebra.det(A::AbstractMatrix{Coeff})
     rest = rows[(begin + 1):end]
     acc = CNUM_ZERO
     for (k, j) in enumerate(cols)
-        term = A[top, j] * LinearAlgebra.det(@view A[rest, filter(!=(j), cols)])
+        term = A[top, j] * LinearAlgebra.det(A[rest, filter(!=(j), cols)])
         acc = isodd(k) ? acc + term : acc - term
     end
     return acc

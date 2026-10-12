@@ -136,8 +136,7 @@ lower_taylor_arg(q::QExpr, order::Int, cache::Dict{QExpr, QAdd}) =
     lower_taylor_qexpr(q, order, cache)
 
 function lower_taylor_qexpr(q::QExpr, order::Int, cache::Dict{QExpr, QAdd})::QAdd
-    cached = get(cache, q, nothing)
-    cached === nothing || return cached
+    haskey(cache, q) && return cache[q]
 
     result = if q.kind == QEXPR_ADD
         builder = QAddBuilder()
@@ -156,7 +155,7 @@ function lower_taylor_qexpr(q::QExpr, order::Int, cache::Dict{QExpr, QAdd})::QAd
             product
         end
     else
-        argument = taylor_function_argument(getfield(q, :storage)::QExprArg)
+        argument = taylor_function_argument(only(q.args))
         taylor_scale(taylor_function(q.kind, argument, order), q.coeff)
     end
 
@@ -166,7 +165,7 @@ end
 
 function lower_taylor_qexpr(q::QExpr, order::Int)::QAdd
     if q.kind == QEXPR_SIN || q.kind == QEXPR_COS || q.kind == QEXPR_EXPIM
-        argument = taylor_function_argument(getfield(q, :storage)::QExprArg)
+        argument = taylor_function_argument(only(q.args))
         return taylor_scale(taylor_function(q.kind, argument, order), q.coeff)
     end
     return lower_taylor_qexpr(q, order, Dict{QExpr, QAdd}())

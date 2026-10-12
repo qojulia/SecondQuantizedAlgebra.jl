@@ -17,64 +17,39 @@ be represented by `QAdd` without an infinite expansion. Products keep the order 
 factors that share a Hilbert space, while factors on disjoint spaces commute into a
 canonical order. Products are never distributed over formal sums implicitly.
 
-Unary formal nodes store their single `QAdd` or `QExpr` child directly; sums and
-products retain dynamic vector storage. This keeps `QExpr` immutable and
-non-parametric while avoiding a one-element heap container for unary nodes.
+Every node stores its children in one concretely typed vector: sums and products hold
+any number of `QAdd` or `QExpr` children, formal function nodes exactly one.
 """
 struct QExpr <: QField
     kind::QExprKind
     coeff::CNum
-    storage::Union{QAdd, QExpr, Vector{Union{QAdd, QExpr}}}
-    function QExpr(
-            kind::QExprKind,
-            coeff::CNum,
-            storage::Union{QAdd, QExpr, Vector{Union{QAdd, QExpr}}},
-        )
+    args::Vector{Union{QAdd, QExpr}}
+    function QExpr(kind::QExprKind, coeff::CNum, args::Vector{Union{QAdd, QExpr}})
         iszero_cnum(coeff) && throw(
             ArgumentError("QExpr outer coefficient must be nonzero; use the canonical zero"),
         )
         if kind == QEXPR_ADD
-            storage isa Vector || throw(
-                ArgumentError("QExpr additive nodes require dynamic argument storage"),
-            )
             isequal(coeff, CNUM_ONE) || throw(
                 ArgumentError("QExpr additive nodes require a unit outer coefficient"),
             )
         elseif kind == QEXPR_MUL
-            storage isa Vector || throw(
-                ArgumentError("QExpr product nodes require dynamic argument storage"),
-            )
-            # A lone polynomial factor keeps its scale inside the `QAdd` (one representation).
-            length(storage) == 1 && only(storage) isa QAdd && !isequal(coeff, CNUM_ONE) &&
+            length(args) == 1 && only(args) isa QAdd && !isequal(coeff, CNUM_ONE) &&
                 throw(ArgumentError("a single-polynomial product requires a unit outer coefficient"))
         else
-            storage isa Vector && throw(
-                ArgumentError("formal function nodes require direct unary argument storage"),
+            length(args) == 1 || throw(
+                ArgumentError("formal function nodes take exactly one argument"),
             )
         end
-        return new(kind, coeff, storage)
+        return new(kind, coeff, args)
     end
 end
 
 const QExprArg = Union{QAdd, QExpr}
-const QExprArgs = Union{Tuple{QExprArg}, Vector{QExprArg}}
 
-QExpr(kind::QExprKind, coeff::CNum, args::Tuple{QExprArg}) =
-    QExpr(kind, coeff, only(args))
+QExpr(kind::QExprKind, coeff::CNum, arg::QAdd) = QExpr(kind, coeff, QExprArg[arg])
+QExpr(kind::QExprKind, coeff::CNum, arg::QExpr) = QExpr(kind, coeff, QExprArg[arg])
 
-@inline function Base.getproperty(q::QExpr, name::Symbol)
-    name === :args || return getfield(q, name)
-    storage = getfield(q, :storage)
-    return storage isa Vector ? storage : (storage,)
-end
-
-Base.propertynames(::QExpr, private::Bool = false) =
-    private ? (:kind, :coeff, :args, :storage) : (:kind, :coeff, :args)
-
-@inline function qexpr_copy_storage(q::QExpr)
-    storage = getfield(q, :storage)
-    return storage isa Vector ? copy(storage) : storage
-end
+qexpr_copy_args(q::QExpr) = copy(q.args)
 
 qexpr_zero() = QExpr(QEXPR_ADD, CNUM_ONE, QExprArg[])
 qexpr_one() = QExpr(QEXPR_MUL, CNUM_ONE, QExprArg[])
@@ -91,40 +66,32 @@ qexpr_arg(q::QSym) = +q
 qexpr_arg(q::QAdd) = q
 qexpr_arg(q::QExpr) = q
 
-function qexpr_scalar_coeff(q::QAdd)::Union{Nothing, CNum}
-    isempty(q.indices) || return nothing
-    length(q.arguments) == 1 || return nothing
-    term, coeff = first(q.arguments)
-    isempty(term.ops) || return nothing
-    isempty(term.ne) || return nothing
-    return coeff
+function is_scalar_qadd(q::QAdd)
+    isempty(q.indices) || return false
+    length(q.arguments) == 1 || return false
+    term = first(keys(q.arguments))
+    return isempty(term.ops) && isempty(term.ne)
 end
+scalar_qadd_coeff(q::QAdd) = first(values(q.arguments))
 
 function qexpr_from_qadd(q::QAdd)
     iszero(q) && return qexpr_zero()
-    scalar = qexpr_scalar_coeff(q)
-    scalar === nothing || return QExpr(QEXPR_MUL, scalar, QExprArg[])
+    is_scalar_qadd(q) && return QExpr(QEXPR_MUL, scalar_qadd_coeff(q), QExprArg[])
     return QExpr(QEXPR_MUL, CNUM_ONE, QExprArg[q])
 end
 
-# A product node holding a single polynomial factor is a polynomial in formal clothing. Its
-# canonical form keeps the scale inside the `QAdd`, and sums fold it into the polynomial part.
-function qexpr_polynomial_body(q::QExpr)::Union{Nothing, QAdd}
-    q.kind == QEXPR_MUL || return nothing
-    storage = getfield(q, :storage)::Vector{QExprArg}
-    length(storage) == 1 || return nothing
-    body = only(storage)
-    return body isa QAdd ? body : nothing
-end
+has_polynomial_body(q::QExpr) =
+    q.kind == QEXPR_MUL && length(q.args) == 1 && only(q.args) isa QAdd
 
-qexpr_same_body(a::QExpr, b::QExpr) =
-    a.kind == b.kind && isequal(getfield(a, :storage), getfield(b, :storage))
+qexpr_same_body(a::QExpr, b::QExpr) = a.kind == b.kind && isequal(a.args, b.args)
 
 function qexpr_scale(q::QExpr, c::CNum)
     iszero_cnum(c) && return qexpr_zero()
     isequal(c, CNUM_ONE) && return q
-    body = qexpr_polynomial_body(q)
-    body === nothing || return qexpr_from_qadd(body * c)
+    if has_polynomial_body(q)
+        body = only(q.args)
+        body isa QAdd && return qexpr_from_qadd(body * c)
+    end
     if q.kind == QEXPR_ADD
         args = QExprArg[]
         sizehint!(args, length(q.args))
@@ -135,32 +102,25 @@ function qexpr_scale(q::QExpr, c::CNum)
     end
     new_c = mul_cnum(q.coeff, c)
     iszero_cnum(new_c) && return qexpr_zero()
-    return QExpr(q.kind, new_c, qexpr_copy_storage(q))
+    return QExpr(q.kind, new_c, qexpr_copy_args(q))
 end
 
-function qexpr_collect_sum!(
-        formal::Vector{QExpr}, polynomial::Union{Nothing, QAddBuilder}, arg::QAdd,
-    )
-    iszero(arg) && return polynomial
-    polynomial === nothing && (polynomial = QAddBuilder())
-    accumulate!(polynomial, arg)
+function qexpr_collect_sum!(formal::Vector{QExpr}, polynomial::QAddBuilder, arg::QAdd)
+    iszero(arg) || accumulate!(polynomial, arg)
     return polynomial
 end
 
-function qexpr_collect_sum!(
-        formal::Vector{QExpr}, polynomial::Union{Nothing, QAddBuilder}, arg::QExpr,
-    )
+function qexpr_collect_sum!(formal::Vector{QExpr}, polynomial::QAddBuilder, arg::QExpr)
     iszero(arg) && return polynomial
     if arg.kind == QEXPR_ADD
         for child in arg.args
-            polynomial = qexpr_collect_sum!(formal, polynomial, child)
+            qexpr_collect_sum!(formal, polynomial, child)
         end
     elseif qexpr_is_scalar(arg)
-        polynomial === nothing && (polynomial = QAddBuilder())
         accumulate!(polynomial, single_qadd(arg.coeff, EMPTY_OPS))
-    elseif (body = qexpr_polynomial_body(arg)) !== nothing
-        polynomial === nothing && (polynomial = QAddBuilder())
-        accumulate!(polynomial, body)
+    elseif has_polynomial_body(arg)
+        body = only(arg.args)
+        body isa QAdd && accumulate!(polynomial, body)
     else
         push!(formal, arg)
     end
@@ -174,7 +134,7 @@ function qexpr_coalesce_formal(formal::Vector{QExpr})
         if qexpr_same_body(a, b)
             new_c = add_cnum(a.coeff, b.coeff)
             return iszero_cnum(new_c) ? QExpr[] :
-                QExpr[QExpr(a.kind, new_c, qexpr_copy_storage(a))]
+                QExpr[QExpr(a.kind, new_c, qexpr_copy_args(a))]
         end
         isless(b, a) && ((formal[1], formal[2]) = (b, a))
         return formal
@@ -191,20 +151,20 @@ function qexpr_coalesce_formal(formal::Vector{QExpr})
         old = pop!(result)
         new_c = add_cnum(old.coeff, arg.coeff)
         iszero_cnum(new_c) ||
-            push!(result, QExpr(old.kind, new_c, qexpr_copy_storage(old)))
+            push!(result, QExpr(old.kind, new_c, qexpr_copy_args(old)))
     end
     return result
 end
 
 function qexpr_sum(raw::Vector{QExprArg})
-    polynomial = nothing
+    polynomial = QAddBuilder()
     formal = QExpr[]
     sizehint!(formal, length(raw))
     for arg in raw
-        polynomial = qexpr_collect_sum!(formal, polynomial, arg)
+        qexpr_collect_sum!(formal, polynomial, arg)
     end
 
-    polynomial_value = polynomial === nothing ? zero_qadd() : build(polynomial)
+    polynomial_value = build(polynomial)
     formal = qexpr_coalesce_formal(formal)
     args = QExprArg[]
     iszero(polynomial_value) || push!(args, polynomial_value)
@@ -218,20 +178,24 @@ function qexpr_sum(raw::Vector{QExprArg})
     return QExpr(QEXPR_ADD, CNUM_ONE, args)
 end
 
-# Polynomial factors hand their content to the outer coefficient, so `(θa) * f` and
-# `θ * (a * f)` are one term. Content is the shared coefficient, else the leading scalar
-# times each parameter's lowest power across the terms. A bound index never leaves its sum.
-# Leading scalar times each parameter's lowest power across all coefficients, so dividing
-# by it stays exact. `nothing` for a raw symbolic lead, which has no canonical scalar.
-function monomial_content(lead::CNum, coeffs)::Union{Nothing, CNum}
+"""
+    monomial_content(lead, coeffs)
+
+Leading scalar of `lead` times each parameter's lowest power across `coeffs`, so dividing
+every coefficient by it stays exact. A raw symbolic lead has no canonical scalar and
+yields `CNUM_ONE`, which extracts nothing.
+"""
+function monomial_content(lead::CNum, coeffs)
     is_native(lead) && return lead
-    lead.tail isa Poly || return nothing
-    m = first(lead.tail.terms)
+    tail = lead.tail
+    tail isa Poly || return CNUM_ONE
+    m = first(tail.terms)
     syms = copy(m.syms)
     exps = copy(m.exps)
     for c in coeffs
-        c.tail isa Poly || (empty!(syms); break)
-        for term in c.tail.terms
+        ctail = c.tail
+        ctail isa Poly || (empty!(syms); break)
+        for term in ctail.terms
             common_powers!(syms, exps, term)
         end
         isempty(syms) && break
@@ -241,13 +205,12 @@ function monomial_content(lead::CNum, coeffs)::Union{Nothing, CNum}
     return mul_cnum(scalar, tiered(monomial_terms, EXACT_ONE, syms, exps))
 end
 
-# Keep only parameters `term` also carries, at the lower of the two powers.
 function common_powers!(
         syms::Vector{RawExpression}, exps::Vector{Rational{Int}}, term::Monomial,
     )
     for k in reverse(eachindex(syms))
-        j = findfirst(t -> t === syms[k], term.syms)
-        if j === nothing
+        j = sym_position(term.syms, syms[k])
+        if iszero(j)
             deleteat!(syms, k)
             deleteat!(exps, k)
         else
@@ -257,25 +220,38 @@ function common_powers!(
     return syms
 end
 
-function qexpr_split_content(q::QAdd)::Tuple{CNum, QAdd}
-    content = CNUM_ONE
-    uniform = true
-    for (i, c) in enumerate(values(q.arguments))
-        if i == 1
-            content = c
-        elseif !isequal(c, content)
-            uniform = false
-            break
-        end
+function sym_position(syms::Vector{RawExpression}, s::RawExpression)
+    for (j, t) in enumerate(syms)
+        t === s && return j
     end
-    if !uniform
+    return 0
+end
+
+function depends_on_any_index(c::CNum, indices::Vector{Index})
+    for idx in indices
+        depends_on_index_term(c, EMPTY_OPS, idx) && return true
+    end
+    return false
+end
+
+function uniform_coeff(q::QAdd)
+    content = first(values(q.arguments))
+    for c in values(q.arguments)
+        isequal(c, content) || return false
+    end
+    return true
+end
+
+function qexpr_split_content(q::QAdd)
+    uniform = uniform_coeff(q)
+    content = if uniform
+        first(values(q.arguments))
+    else
         lead = argmin(term_order_key, keys(q.arguments))
-        found = monomial_content(q.arguments[lead], values(q.arguments))
-        found === nothing && return (CNUM_ONE, q)
-        content = found
+        monomial_content(q.arguments[lead], values(q.arguments))
     end
     isequal(content, CNUM_ONE) && return (CNUM_ONE, q)
-    any(idx -> depends_on_index_term(content, EMPTY_OPS, idx), q.indices) && return (CNUM_ONE, q)
+    depends_on_any_index(content, q.indices) && return (CNUM_ONE, q)
     scale = uniform ? CNUM_ONE : inv(content)
     if !uniform && is_native(scale)
         z = native_scalar(scale)
@@ -324,9 +300,8 @@ end
 
 function qexpr_push_product!(factors::Vector{QExprArg}, coeff::CNum, arg::QAdd)
     iszero(arg) && return (CNUM_ZERO, true)
-    scalar = qexpr_scalar_coeff(arg)
-    if scalar !== nothing
-        coeff = mul_cnum(coeff, scalar)
+    if is_scalar_qadd(arg)
+        coeff = mul_cnum(coeff, scalar_qadd_coeff(arg))
         return (coeff, iszero_cnum(coeff))
     end
     parts = qexpr_tensor_factors(arg)
@@ -337,21 +312,17 @@ function qexpr_push_product!(factors::Vector{QExprArg}, coeff::CNum, arg::QAdd)
         end
         return (coeff, false)
     end
-    if !isempty(factors) && last(factors) isa QAdd &&
-            !isdisjoint(acts_on(last(factors)), acts_on(arg))
-        left = pop!(factors)::QAdd
+    left = isempty(factors) ? arg : last(factors)
+    if !isempty(factors) && left isa QAdd && !isdisjoint(acts_on(left), acts_on(arg))
+        pop!(factors)
         merged = left * arg
         iszero(merged) && return (CNUM_ZERO, true)
-        merged_scalar = qexpr_scalar_coeff(merged)
-        if merged_scalar === nothing
-            return qexpr_push_product!(factors, coeff, merged)
-        else
-            coeff = mul_cnum(coeff, merged_scalar)
-        end
+        is_scalar_qadd(merged) || return qexpr_push_product!(factors, coeff, merged)
+        coeff = mul_cnum(coeff, scalar_qadd_coeff(merged))
     else
-        content, arg = qexpr_split_content(arg)
+        content, normalized = qexpr_split_content(arg)
         coeff = mul_cnum(coeff, content)
-        push!(factors, arg)
+        push!(factors, normalized)
     end
     return (coeff, iszero_cnum(coeff))
 end
@@ -370,7 +341,7 @@ function qexpr_push_product!(factors::Vector{QExprArg}, coeff::CNum, arg::QExpr)
     coeff = mul_cnum(coeff, arg.coeff)
     iszero_cnum(coeff) && return (CNUM_ZERO, true)
     bare = isequal(arg.coeff, CNUM_ONE) ? arg :
-        QExpr(arg.kind, CNUM_ONE, qexpr_copy_storage(arg))
+        QExpr(arg.kind, CNUM_ONE, qexpr_copy_args(arg))
     push!(factors, bare)
     return (coeff, false)
 end
@@ -444,11 +415,14 @@ function qexpr_product(raw::Vector{QExprArg}, coefficient::CNum = CNUM_ONE)
     if all(factor -> factor isa QAdd, factors)
         polynomial = single_qadd(coeff, EMPTY_OPS)
         for factor in factors
-            polynomial = polynomial * (factor::QAdd)
+            factor isa QAdd && (polynomial = polynomial * factor)
         end
         return qexpr_from_qadd(polynomial)
     end
-    length(factors) == 1 && return qexpr_scale(only(factors)::QExpr, coeff)
+    if length(factors) == 1
+        factor = only(factors)
+        factor isa QExpr && return qexpr_scale(factor, coeff)
+    end
     return QExpr(QEXPR_MUL, coeff, factors)
 end
 
@@ -522,24 +496,21 @@ function Base.:^(a::QExpr, n::Integer)
 end
 
 function Base.isequal(a::QExpr, b::QExpr)
-    return a.kind == b.kind && isequal(a.coeff, b.coeff) &&
-        isequal(getfield(a, :storage), getfield(b, :storage))
+    return a.kind == b.kind && isequal(a.coeff, b.coeff) && isequal(a.args, b.args)
 end
 Base.:(==)(a::QExpr, b::QExpr) = isequal(a, b)
-Base.hash(q::QExpr, h::UInt) =
-    hash(getfield(q, :storage), hash(q.coeff, hash(q.kind, hash(:QExpr, h))))
+Base.hash(q::QExpr, h::UInt) = hash(q.args, hash(q.coeff, hash(q.kind, hash(:QExpr, h))))
 
 function qexpr_arg_less(a::QExprArg, b::QExprArg)
-    isequal(a, b) && return false
-    a isa QAdd && b isa QExpr && return true
-    a isa QExpr && b isa QAdd && return false
     if a isa QAdd
-        return isless(a, b::QAdd)
+        b isa QAdd || return true
+        return !isequal(a, b) && isless(a, b)
     end
-    return isless(a::QExpr, b::QExpr)
+    b isa QAdd && return false
+    return !isequal(a, b) && isless(a, b)
 end
 
-function qexpr_args_less(a::QExprArgs, b::QExprArgs)
+function qexpr_args_less(a::Vector{QExprArg}, b::Vector{QExprArg})
     n = min(length(a), length(b))
     @inbounds for i in 1:n
         isequal(a[i], b[i]) && continue
@@ -548,20 +519,9 @@ function qexpr_args_less(a::QExprArgs, b::QExprArgs)
     return length(a) < length(b)
 end
 
-function qexpr_storage_less(a::QExpr, b::QExpr)
-    a_storage = getfield(a, :storage)
-    b_storage = getfield(b, :storage)
-    if a_storage isa Vector
-        return qexpr_args_less(a_storage, b_storage::Vector{QExprArg})
-    end
-    return qexpr_arg_less(a_storage::QExprArg, b_storage::QExprArg)
-end
-
 function Base.isless(a::QExpr, b::QExpr)
     a.kind != b.kind && return Int(a.kind) < Int(b.kind)
-    a_storage = getfield(a, :storage)
-    b_storage = getfield(b, :storage)
-    isequal(a_storage, b_storage) || return qexpr_storage_less(a, b)
+    isequal(a.args, b.args) || return qexpr_args_less(a.args, b.args)
     return isless(coeff_key(a.coeff), coeff_key(b.coeff))
 end
 
@@ -581,9 +541,9 @@ function Base.adjoint(q::QExpr)
         end
         return qexpr_product(args, c)
     elseif q.kind == QEXPR_SIN || q.kind == QEXPR_COS
-        arg = qexpr_adjoint_arg(getfield(q, :storage)::QExprArg)
+        arg = qexpr_adjoint_arg(only(q.args))
         return qexpr_scale(qexpr_call(q.kind, arg), c)
     end
-    arg = qexpr_adjoint_arg(getfield(q, :storage)::QExprArg)
+    arg = qexpr_adjoint_arg(only(q.args))
     return qexpr_scale(qexpr_call(QEXPR_EXPIM, -arg), c)
 end

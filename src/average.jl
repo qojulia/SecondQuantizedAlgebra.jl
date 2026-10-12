@@ -522,23 +522,36 @@ function indexed_sum(body, indices::Vector{Index}; non_equal::Vector{NonEqualPai
     return indexed_sum(SymbolicUtils.unwrap(body), indices, non_equal)
 end
 
-idx_seal(v) = v isa Vector{Index} ? v : Index[]
-aon_seal(v) = v isa Vector{Int} ? v : Int[]
+function symbolic_indices(@nospecialize(x))
+    x isa RawExpression && return get_indices(x)
+    x isa Op && return get_indices(x)
+    x isa QAdd && return get_indices(x)
+    x isa QExpr && return get_indices(x)
+    return Index[]
+end
+
+function symbolic_acts_on(@nospecialize(x))
+    x isa RawExpression && return acts_on(x)
+    x isa Op && return acts_on(x)
+    x isa QAdd && return acts_on(x)
+    x isa QExpr && return acts_on(x)
+    return Int[]
+end
 
 function get_indices(x::SymbolicUtils.BasicSymbolic)
-    SymbolicUtils.isconst(x) && return idx_seal(get_indices(x.val))
+    SymbolicUtils.isconst(x) && return symbolic_indices(x.val)
     SymbolicUtils.hasmetadata(x, AverageOperator) &&
-        return idx_seal(get_indices(SymbolicUtils.getmetadata(x, AverageOperator)))
-    is_indexed_sum(x) && return idx_seal(get_indices(sum_body(x)))
+        return symbolic_indices(SymbolicUtils.getmetadata(x, AverageOperator))
+    is_indexed_sum(x) && return symbolic_indices(sum_body(x))
     SymbolicUtils.iscall(x) || return Index[]
     f = SymbolicUtils.operation(x)
     if f isa AvgFunc
         arg = SymbolicUtils.arguments(x)[1]
         inner = SymbolicUtils.isconst(arg) ? arg.val : arg
-        return idx_seal(get_indices(inner))
+        return symbolic_indices(inner)
     end
     inds = Index[]
-    for arg in SymbolicUtils.arguments(x), idx in idx_seal(get_indices(arg))
+    for arg in SymbolicUtils.arguments(x), idx in symbolic_indices(arg)
         idx ∉ inds && push!(inds, idx)
     end
     return inds
@@ -591,16 +604,16 @@ function acts_on(op::QAdd)
 end
 
 function acts_on(s::SymbolicUtils.BasicSymbolic)
-    SymbolicUtils.isconst(s) && return aon_seal(acts_on(s.val))
+    SymbolicUtils.isconst(s) && return symbolic_acts_on(s.val)
     SymbolicUtils.hasmetadata(s, AverageOperator) &&
-        return aon_seal(acts_on(SymbolicUtils.getmetadata(s, AverageOperator)))
-    is_indexed_sum(s) && return aon_seal(acts_on(sum_body(s)))
+        return symbolic_acts_on(SymbolicUtils.getmetadata(s, AverageOperator))
+    is_indexed_sum(s) && return symbolic_acts_on(sum_body(s))
     SymbolicUtils.iscall(s) || return Int[]
     f = SymbolicUtils.operation(s)
-    f isa AvgFunc && return aon_seal(acts_on(SymbolicUtils.arguments(s)[1]))
+    f isa AvgFunc && return symbolic_acts_on(SymbolicUtils.arguments(s)[1])
     aon = Int[]
     for arg in SymbolicUtils.arguments(s)
-        append!(aon, aon_seal(acts_on(arg)))
+        append!(aon, symbolic_acts_on(arg))
     end
     unique!(sort!(aon))
     return aon

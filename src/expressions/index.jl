@@ -180,7 +180,7 @@ function change_index(x::Num, pairs::AbstractDict{Index, Index})
         sub[SymbolicUtils.unwrap(index_sym(from))] = SymbolicUtils.unwrap(index_sym(to))
     end
     vars = Symbolics.get_variables(raw)
-    any(v -> any(s -> isequal(v, s), keys(sub)), vars) || return x
+    any(v -> haskey(sub, v), vars) || return x
     result = Symbolics.substitute(raw, sub)
     return check_not_identical(result)
 end

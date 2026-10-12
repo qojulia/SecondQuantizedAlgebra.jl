@@ -94,18 +94,6 @@ function latex_term(c::CNum, ops::Vector{Op})
     return latex_pf_term(Complex(re, im), ops)
 end
 
-function latex_prefactor(c::CNum)
-    if is_native(c)
-        z = native_scalar(c)
-        iszero(imag(z)) && return latex_real(real(z))
-        iszero(real(z)) && return complex(false, latex_real(imag(z)))
-        return complex(latex_real(real(z)), latex_real(imag(z)))
-    end
-    re, im = realimag(c)
-    iszero_num(im) && return SymbolicUtils.unwrap(re)
-    return Complex(re, im)
-end
-
 function latex_pf_term(pf, ops::Vector{Op})
     isempty(ops) && return Expr(:latexifymerge, pf)
     parts = LATEX_FRAGMENT[]
@@ -163,9 +151,18 @@ function latex_sum_group(indices::Vector{Index}, ne_pairs::Vector{NonEqualPair},
     return Expr(:latexifymerge, prefix, Expr(:call, :+, term_exprs...))
 end
 
+function latex_string(@nospecialize(tex))
+    tex isa LaTeXString || throw(ArgumentError("Latexify returned a $(typeof(tex)), not a LaTeXString"))
+    return tex
+end
+
+latex_body(@nospecialize(tex)) = String(strip(latex_string(tex), '$'))
+
+latex_inline(x) = latex_body(latexify(x; env = :inline))
+
 function latex_fragment(x)
     inner = SymbolicUtils.isconst(x) ? x.val : x
-    return strip(String(latexify(inner)), '$')
+    return latex_body(latexify(inner))
 end
 
 function latex_avg_expr(inner)
@@ -180,13 +177,13 @@ function Symbolics._toexpr_op(::typeof(expim), args; kwargs...)
     arg = only(args)
     neg = leading_sign(arg) < 0
     body = neg ? SymbolicUtils.unwrap(expand(-arg)) : arg
-    return "e^{$(neg ? "-" : "")i $(strip(String(latexify(body; env = :inline)), '$'))}"
+    return "e^{$(neg ? "-" : "")i $(latex_inline(body))}"
 end
 
 function Symbolics._toexpr_op(::SumFunc, args; kwargs...)
     scope = scope_of(args[2])
     body = args[1]
-    body_tex = strip(String(latexify(body; env = :inline)), '$')
+    body_tex = latex_inline(body)
     if SymbolicUtils.iscall(body) && SymbolicUtils.operation(body) === (+)
         body_tex = string("\\left( ", body_tex, " \\right)")
     end
@@ -197,7 +194,7 @@ function Symbolics._toexpr_metadata(
         x::SymbolicUtils.BasicSymbolic, ::Type{AverageOperator}, op;
         kwargs...,
     )
-    iv_tex = strip(String(latexify(only(SymbolicUtils.arguments(x)); env = :inline)), '$')
+    iv_tex = latex_inline(only(SymbolicUtils.arguments(x)))
     return string(latex_avg_expr(op), "\\left( ", iv_tex, " \\right)")
 end
 
@@ -237,6 +234,6 @@ end
 end
 
 const QLaTeX = Union{QField, Coeff}
-Base.show(io::IO, ::MIME"text/latex", x::QLaTeX) = write(io, latexify(x))
+Base.show(io::IO, ::MIME"text/latex", x::QLaTeX) = write(io, latex_string(latexify(x)))
 Base.show(io::IO, ::MIME"text/latex", x::AbstractArray{<:QLaTeX}) =
-    print(io, "\$\$ ", latexify(x; env = :raw), " \$\$")
+    print(io, "\$\$ ", latex_string(latexify(x; env = :raw)), " \$\$")

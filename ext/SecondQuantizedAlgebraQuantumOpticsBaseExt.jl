@@ -8,17 +8,30 @@ import LinearAlgebra: dot
 
 const QOBState = Union{QOB.StateVector, QOB.AbstractOperator}
 
-@inline function SQA.numeric_operator(be::QuantumOpticsBackend, op::Op, b::QOB.Basis)
+function SQA.numeric_operator(::QuantumOpticsBackend, op::Op, b::QOB.FockBasis)
     k = op.kind
-    k === SQA.OP_DESTROY    && return QOB.destroy(b)
-    k === SQA.OP_CREATE     && return QOB.create(b)
-    k === SQA.OP_POSITION   && return (QOB.destroy(b) + QOB.create(b)) / sqrt(2)
-    k === SQA.OP_MOMENTUM   && return im * (QOB.create(b) - QOB.destroy(b)) / sqrt(2)
-    k === SQA.OP_TRANSITION && return QOB.transition(b, Int(op.l1), Int(op.l2))
-    k === SQA.OP_PAULI      && return pauli_matrix(op, b)
-    k === SQA.OP_SPIN       && return spin_matrix(op, b)
+    k === SQA.OP_DESTROY  && return QOB.destroy(b)
+    k === SQA.OP_CREATE   && return QOB.create(b)
+    k === SQA.OP_POSITION && return (QOB.destroy(b) + QOB.create(b)) / sqrt(2)
+    k === SQA.OP_MOMENTUM && return im * (QOB.create(b) - QOB.destroy(b)) / sqrt(2)
     throw(ArgumentError("no QuantumOpticsBase numeric_operator for role $k on $(typeof(b))"))
 end
+
+function SQA.numeric_operator(::QuantumOpticsBackend, op::Op, b::QOB.NLevelBasis)
+    SQA.is_transition(op) ||
+        throw(ArgumentError("no QuantumOpticsBase numeric_operator for role $(op.kind) on $(typeof(b))"))
+    return QOB.transition(b, Int(op.l1), Int(op.l2))
+end
+
+function SQA.numeric_operator(::QuantumOpticsBackend, op::Op, b::QOB.SpinBasis)
+    k = op.kind
+    k === SQA.OP_PAULI && return pauli_matrix(op, b)
+    k === SQA.OP_SPIN  && return spin_matrix(op, b)
+    throw(ArgumentError("no QuantumOpticsBase numeric_operator for role $k on $(typeof(b))"))
+end
+
+SQA.numeric_operator(::QuantumOpticsBackend, op::Op, b::QOB.Basis) =
+    throw(ArgumentError("no QuantumOpticsBase numeric_operator for role $(op.kind) on $(typeof(b))"))
 
 function SQA.numeric_operator(::QuantumOpticsBackend, op::Op, b::QOB.ManyBodyBasis)
     SQA.is_collective_transition(op) ||
