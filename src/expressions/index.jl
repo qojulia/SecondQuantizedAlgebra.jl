@@ -337,6 +337,10 @@ function depends_on_scope_index(
     return false
 end
 
+bound_indices(c::CNum, ops::Vector{Op}, ne::Vector{NonEqualPair}, indices::Vector{Index}) =
+    Index[idx for idx in indices if depends_on_scope_index(c, ops, ne, idx)]
+bound_indices(t::QTerm, c::CNum, indices::Vector{Index}) = bound_indices(c, t.ops, t.ne, indices)
+
 """
     eliminate_binder(ne, idx) -> (eliminated, factor, reduced_ne)
 
@@ -350,9 +354,9 @@ function eliminate_binder(ne::Vector{NonEqualPair}, idx::Index)
     partners = Index[]
     mentions = false
     for (α, β) in ne
-        other = α == idx ? β : β == idx ? α : idx
-        other == idx && continue
+        (α == idx || β == idx) || continue
         mentions = true
+        other = α == idx ? β : α
         other.space_index == idx.space_index && push!(partners, other)
     end
     for p in 1:length(partners), q in (p + 1):length(partners)
@@ -365,12 +369,52 @@ function eliminate_binder(ne::Vector{NonEqualPair}, idx::Index)
     return (true, factor, isempty(reduced) ? EMPTY_NE : reduced)
 end
 
-function any_depends_on_index(s::QAdd, idx::Index)
-    for (term, c) in s.arguments
+"""
+    eliminate_binders(mentions, coef, ne, scope) -> (coef, ne)
+
+Eliminate every binder of `scope` for which `mentions(coef, idx)` is `false`, multiplying
+`coef` by its constrained count. Elimination runs to a fixpoint: removing one binder drops
+its constraints, which can make the count of a binder kept earlier known.
+"""
+function eliminate_binders(
+        mentions::F, coef::CNum, ne::Vector{NonEqualPair}, scope::Vector{Index},
+    ) where {F}
+    pending = EMPTY_INDICES
+    for idx in scope
+        mentions(coef, idx) && continue
+        eliminated, factor, ne = eliminate_binder(ne, idx)
+        if eliminated
+            coef = mul_cnum(coef, factor)
+        else
+            pending === EMPTY_INDICES && (pending = Index[])
+            push!(pending, idx)
+        end
+    end
+    progress = true
+    while progress && !isempty(pending)
+        progress = false
+        k = 1
+        while k <= length(pending)
+            eliminated, factor, ne = eliminate_binder(ne, pending[k])
+            if eliminated
+                coef = mul_cnum(coef, factor)
+                deleteat!(pending, k)
+                progress = true
+            else
+                k += 1
+            end
+        end
+    end
+    return (coef, ne)
+end
+
+function any_depends_on_index(d::QTermDict, idx::Index)
+    for (term, c) in d
         depends_on_scope_index(c, term.ops, term.ne, idx) && return true
     end
     return false
 end
+any_depends_on_index(s::QAdd, idx::Index) = any_depends_on_index(s.arguments, idx)
 
 """
     Σ(expr, i::Index, non_equal::Vector{Index} = Index[])
@@ -416,20 +460,22 @@ function Σ(expr::QAdd, i::Index, non_equal::Vector{Index} = Index[])
     diag = QTermDict()
 
     for (term, c) in expr.arguments
-        sigma_term!(off_diag, diag, term, c, i, non_equal)
+        scope = vcat(bound_indices(term, c, expr.indices), [i])
+        sigma_term!(off_diag, diag, term, c, i, non_equal, scope)
     end
 
-    binds = any(((t, c),) -> depends_on_scope_index(c, t.ops, t.ne, i), off_diag)
-    result = QAdd(off_diag, binds ? vcat(expr.indices, [i]) : expr.indices)
+    result = QAdd(off_diag, drop_unused_indices(off_diag, vcat(expr.indices, [i])))
     isempty(diag) && return result
-    return result + QAdd(diag, Index[])
+    # A diagonal keeps the binders of `expr` that it still counts over.
+    return result + QAdd(diag, drop_unused_indices(diag, copy(expr.indices)))
 end
 
 # Split one term of `Σ_i` into its off-diagonal part (`i` distinct from every other index
-# on its space) and one diagonal part per index `i` may coincide with.
+# on its space) and one diagonal part per index `i` may coincide with. `scope` is `i` with
+# the term's other binders, which eliminating `i` can make countable.
 function sigma_term!(
         off_diag::QTermDict, diag::QTermDict, term::QTerm, c::CNum,
-        i::Index, non_equal::Vector{Index},
+        i::Index, non_equal::Vector{Index}, scope::Vector{Index},
     )
     ne_aug = term.ne
     for j in non_equal
@@ -437,7 +483,7 @@ function sigma_term!(
     end
 
     if !depends_on_index_term(c, term.ops, i)
-        emit_scaled_by_scope!(off_diag, copy(term.ops), c, ne_aug, Index[i])
+        emit_scaled_by_scope!(off_diag, copy(term.ops), c, ne_aug, scope)
         return nothing
     end
 
@@ -456,7 +502,7 @@ function sigma_term!(
     # Σ_i: bake `i.range` into emitted entries whose final ops lose their
     # i-dependence (e.g. the `+1` residual from `a_i*a_i' = a_i'*a_i + 1`),
     # so per-term scope matches the explicit `Σ_i` written by the user.
-    emit_scaled_by_scope!(off_diag, copy(term.ops), c, full_ne, Index[i])
+    emit_scaled_by_scope!(off_diag, copy(term.ops), c, full_ne, scope)
 
     for (_, ext_idx) in diag_pairs
         sub_ops = Op[change_index(o, i, ext_idx) for o in term.ops]

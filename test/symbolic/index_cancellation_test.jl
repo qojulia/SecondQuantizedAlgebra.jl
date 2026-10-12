@@ -37,6 +37,31 @@ import SecondQuantizedAlgebra: constraint_pairs, get_sum_indices, get_sum_non_eq
         @test iszero(simplify(commutator(Σ(bm, m), Σ(bn', n)) - N))
     end
 
+    @testset "nested constrained sums count every binder" begin
+        hf = FockSpace(:modes)
+        b = Destroy(hf, :b)
+        n = 5
+        m = Index(hf, :m, n, hf)
+        p = Index(hf, :p, n, hf)
+        q = Index(hf, :q, n, hf)
+        k = Index(hf, :k, n, hf)
+        one_op = 1 + 0 * b' * b
+        @test iszero(Σ(Σ(Σ(one_op, m, [p, q]), p), q) - 80)
+        c2 = Σ(Σ(one_op, m, [p, q]), p)
+        @test iszero(c2 - 16)
+
+        bk = IndexedOperator(b, k)
+        bp = IndexedOperator(b, p)
+        kept = Σ(Σ(bk' * bk, k, [p, q]), p)
+        @test get_indices(kept) == [k]
+        @test iszero(kept - Σ(4 * bk' * bk, k, [q]))
+
+        split = Σ(Σ(bk' * bp, k, [q]), p)
+        @test iszero(split - (Σ(Σ(bk' * bp, k, [p, q]), p) + Σ(bp' * bp, p, [q])))
+        @test all(t -> !isempty(get_indices(t)), SecondQuantizedAlgebra.sorted_arguments(split))
+        @test occursin("p≠q", string(split))
+    end
+
     @testset "diagonal and off-diagonal terms remain distinct" begin
         # The public constraint view exposes the split without depending on how terms are stored.
         off = Σ(σ(1, 2, i) * σ(2, 1, j), i)

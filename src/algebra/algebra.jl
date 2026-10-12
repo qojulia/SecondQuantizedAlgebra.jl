@@ -177,9 +177,6 @@ function simplify_prefactor(x::CNum; kwargs...)
 end
 
 SymbolicUtils.simplify(c::Coeff; kwargs...) = simplify_prefactor(c; kwargs...)
-bound_indices(t::QTerm, c::CNum, indices::Vector{Index}) =
-    Index[idx for idx in indices if depends_on_scope_index(c, t.ops, t.ne, idx)]
-
 function drop_unused_indices(d::QTermDict, indices::Vector{Index})
     isempty(indices) && return indices
     used = Index[]

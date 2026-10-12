@@ -188,18 +188,13 @@ end
 
 Add the terms of `temp`, all descended from one term bound by `scope`, into `out`. Each
 scope index that a term's operators and coefficient no longer mention is eliminated by
-`eliminate_binder`: the term is multiplied by the index's constrained count
+`eliminate_binders`: the term is multiplied by the index's constrained count
 (`range - |partners|`), or keeps the binder and its constraints when that count is unknown.
 """
 function settle_scope!(out::QTermDict, temp::QTermDict, scope::Vector{Index})
     for (term, cv) in temp
-        coef = cv
-        ne = term.ne
-        for scope_idx in scope
-            depends_on_index_term(coef, term.ops, scope_idx) && continue
-            eliminated, factor, ne = eliminate_binder(ne, scope_idx)
-            eliminated && (coef = mul_cnum(coef, factor))
-        end
+        mentions(c, idx) = depends_on_index_term(c, term.ops, idx)
+        coef, ne = eliminate_binders(mentions, cv, term.ne, scope)
         key = ne === term.ne ? copy_key(term) : QTerm(copy(term.ops), ne)
         addto_key!(out, key, coef)
     end
