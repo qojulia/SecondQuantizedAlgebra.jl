@@ -203,8 +203,8 @@ const ExactComplex    = GaussianRational{Int}
 const BigExactComplex = GaussianRational{BigInt}
 
 struct Monomial{E <: Union{ExactComplex, BigExactComplex}}
-    scalar::Union{ComplexF64, E}
-    syms::Vector{SymbolicUtils.BasicSymbolic}
+    slot::E                                 # the scalar, a float packed as in `NativeSlot`
+    syms::Vector{BasicSymbolic{SymReal}}
     exps::Vector{Rational{Int}}
 end
 
@@ -214,9 +214,12 @@ end
 ```
 
 The tier belongs to the whole polynomial, not to a term: every exact scalar of one `Poly`
-has the same type `E`. In the small tier `Union{ComplexF64, ExactComplex}` is an isbits union,
-so the scalar is stored inline and the fast path does not allocate. The tier is a field type
-rather than a `Poly` parameter so that `Coeff.tail` stays a three-member union, which inference
+has the same type `E`. A term's scalar is a `Union{ComplexF64, E}` value, but it is stored in
+a field of type `E` with the `NativeSlot` encoding: a float keeps its bit patterns in
+`(re, im)` with `den == 0`. A union-typed field would carry a type selector in the small tier
+and a boxed pointer in the big one.
+
+The tier is a field type rather than a `Poly` parameter so that `Coeff.tail` stays a three-member union, which inference
 still splits.
 
 **Overflow.** An operation that combines polynomial terms runs in the small tier and, when an

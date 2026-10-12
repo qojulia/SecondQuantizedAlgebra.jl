@@ -121,8 +121,10 @@ function is_real_negative(c::CNum)
         return all_real_negative(t.terms)
     return is_real_negative_sym(c)
 end
-all_real_negative(terms::Vector{<:Monomial}) =
-    all(m -> imag(m.scalar) == 0 && real(m.scalar) < 0, terms)
+all_real_negative(terms::Vector{<:Monomial}) = all(terms) do m
+    scalar = monomial_scalar(m)
+    imag(scalar) == 0 && real(scalar) < 0
+end
 @noinline function is_real_negative_sym(c::CNum)
     re, im = realimag(c)
     iszero_num(im) || return false

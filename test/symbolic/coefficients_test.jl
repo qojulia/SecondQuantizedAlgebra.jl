@@ -3,7 +3,7 @@ using Symbolics: Symbolics, @variables, Num
 using SymbolicUtils: SymbolicUtils
 using Test
 using LinearAlgebra: I
-import SecondQuantizedAlgebra: Coeff, to_cnum, to_num, Monomial, ExactComplex, BigExactComplex, expim
+import SecondQuantizedAlgebra: Coeff, CNum, to_cnum, to_num, Monomial, ExactComplex, BigExactComplex, expim
 
 @testset "Symbolic coefficients" begin
     h = FockSpace(:coefficients)
@@ -184,6 +184,35 @@ import SecondQuantizedAlgebra: Coeff, to_cnum, to_num, Monomial, ExactComplex, B
         @test isequal(ExactComplex(2, 1)^-2, ExactComplex(3 // 25, -4 // 25))
         @test isequal(ExactComplex(2, 0)^62, ExactComplex(2^62, 0))
         @test_throws OverflowError ExactComplex(2, 0)^63
+    end
+
+    @testset "float scalars of parameter polynomials cancel in both tiers" begin
+        @variables g d
+        for (x, y) in ((0.5g + d, -0.5g), (big(2)^70 * g + 0.5d, -0.5d), (-0.25g * d + 0.0g, 0.25g * d))
+            sum_ = to_cnum(x) + to_cnum(y)
+            expected = to_cnum(Symbolics.simplify(x + y))
+            @test isequal(sum_, expected)
+            @test hash(sum_) == hash(expected)
+        end
+        c = to_cnum(big(2)^70 * g + 0.5d)
+        @test iszero(c - c)
+        @test isequal(c + c, 2 * c)
+        @test isequal(to_cnum(2) * c, c * to_cnum(2))
+    end
+
+    @testset "real symbolic quotients keep exact constants" begin
+        @variables x::Real y::Real
+        constants(e) =
+            SymbolicUtils.iscall(e) ? mapreduce(constants, vcat, SymbolicUtils.arguments(e); init = Any[]) :
+            SymbolicUtils.isconst(e) ? Any[SymbolicUtils.unwrap_const(e)] : Any[]
+        for q in (1 / (1 + x), (y - 3x) / (1 + x^2), (1 // 4) * x / (1 + y), (y - 3x / y^4) / (1 + x^4 / y^8))
+            for c in (convert(CNum, q), SecondQuantizedAlgebra.simplify(convert(CNum, q)))
+                expr = c.tail.expr
+                @test SymbolicUtils.symtype(expr) <: Real
+                @test all(v -> v isa Union{Integer, Rational}, constants(expr))
+                @test isequal(imag(to_num(c)), 0)
+            end
+        end
     end
 
     @testset "numeric radicals multiply exactly" begin
