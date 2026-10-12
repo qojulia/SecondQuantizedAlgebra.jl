@@ -1,7 +1,7 @@
 # A dissipation channel γ𝒟[J, K] and the normalization that keeps Lindbladians canonical.
 
 """
-    LindbladChannel{O}
+    Channel{O}
 
 The structured dissipator `Σ_scope 𝒟[jump, partner]` of a [`Lindbladian`](@ref), with
 `𝒟[J, K](ρ) = J ρ K' - (K'J ρ + ρ K'J)/2`. The rate is stored as the channel's value in
@@ -12,41 +12,41 @@ Channels are normalized on construction: constants are stripped from the jumps a
 into the Hamiltonian, native numeric content of the jumps moves into the rate, jumps carry
 no bound sums, and a summation index the channel does not mention is counted into the rate.
 """
-struct LindbladChannel{O <: Union{QAdd, QExpr}}
+struct Channel{O <: Union{QAdd, QExpr}}
     jump::O
     partner::O
     scope::Vector{Index}
     ne::Vector{NonEqualPair}
     hash::UInt
-    function LindbladChannel{O}(
+    function Channel{O}(
             jump::O, partner::O, scope::Vector{Index}, ne::Vector{NonEqualPair},
         ) where {O <: Union{QAdd, QExpr}}
-        h = hash(:LindbladChannel, hash(jump, hash(partner, hash(scope, hash(ne, zero(UInt))))))
+        h = hash(:Channel, hash(jump, hash(partner, hash(scope, hash(ne, zero(UInt))))))
         return new{O}(jump, partner, scope, ne, h)
     end
 end
 
-Base.isequal(a::LindbladChannel, b::LindbladChannel) = a.hash == b.hash &&
+Base.isequal(a::Channel, b::Channel) = a.hash == b.hash &&
     isequal(a.jump, b.jump) && isequal(a.partner, b.partner) &&
     isequal(a.scope, b.scope) && isequal(a.ne, b.ne)
-Base.:(==)(a::LindbladChannel, b::LindbladChannel) = isequal(a, b)
-Base.hash(c::LindbladChannel, h::UInt) = hash(c.hash, h)
+Base.:(==)(a::Channel, b::Channel) = isequal(a, b)
+Base.hash(c::Channel, h::UInt) = hash(c.hash, h)
 
 """
-    jump(c::LindbladChannel)
-    partner(c::LindbladChannel)
-    scope(c::LindbladChannel)
+    jump(c::Channel)
+    partner(c::Channel)
+    scope(c::Channel)
 
 The jump operator `J`, the partner `K` (identical to `J` for a diagonal channel) and the
 bound summation indices of the channel `Σ_scope 𝒟[J, K]`.
 """
-jump(c::LindbladChannel) = c.jump
-partner(c::LindbladChannel) = c.partner
-scope(c::LindbladChannel) = c.scope
+jump(c::Channel) = c.jump
+partner(c::Channel) = c.partner
+scope(c::Channel) = c.scope
 @doc (@doc jump) partner
 @doc (@doc jump) scope
 
-is_diagonal(c::LindbladChannel) = c.partner === c.jump || isequal(c.partner, c.jump)
+is_diagonal(c::Channel) = c.partner === c.jump || isequal(c.partner, c.jump)
 
 ## Polynomial and formal parts of a jump
 
@@ -188,7 +188,7 @@ Hamiltonian correction `G = (iγ/2)(β̄ J - α K')` (normalization rule 2), nat
 the jumps moves into the rate (rule 3), and unmentioned binders are counted (rule I5).
 """
 function add_channel!(
-        hamiltonian, channels::Dict{LindbladChannel{O}, CNum}, J::O, K::O, γ::CNum,
+        hamiltonian, channels::Dict{Channel{O}, CNum}, J::O, K::O, γ::CNum,
         scope::Vector{Index}, ne::Vector{NonEqualPair},
     ) where {O <: Union{QAdd, QExpr}}
     iszero_cnum(γ) && return channels
@@ -236,7 +236,7 @@ function add_channel!(
     end
     iszero_cnum(rate) && return channels
     sort!(kept)
-    key = LindbladChannel{O}(J0, K0, kept, cne)
+    key = Channel{O}(J0, K0, kept, cne)
     existing = get(channels, key, CNUM_ZERO)
     total = add_cnum(existing, rate)
     if iszero_cnum(total)

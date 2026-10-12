@@ -55,7 +55,7 @@ const QTB_OWNER = parentmodule(QuantumToolbox.position)
         S = SecondQuantizedAlgebra
         for T in (
                 S.Lindbladian{S.QAdd}, S.Lindbladian{S.QExpr},
-                S.LindbladChannel{S.QAdd}, S.LindbladChannel{S.QExpr},
+                S.Channel{S.QAdd}, S.Channel{S.QExpr},
                 typeof(S.LindbladianBuilder{S.QAdd}()), typeof(S.LindbladianBuilder{S.QExpr}()),
             )
             @testset "$T" begin

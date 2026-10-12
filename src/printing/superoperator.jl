@@ -94,7 +94,7 @@ function sorted_channels(L::Lindbladian)
     return ps
 end
 
-function show_channel(io::IO, ch::LindbladChannel)
+function show_channel(io::IO, ch::Channel)
     if !isempty(ch.scope)
         show_sum_prefix(io, ch.scope, ch.ne)
         write(io, " ")
@@ -154,7 +154,7 @@ function Base.show(io::IO, X::SuperExpr)
 end
 
 Base.show(io::IO, t::SuperTerm) = show_sandwich(io, t.left, t.right)
-function Base.show(io::IO, ch::LindbladChannel)
+function Base.show(io::IO, ch::Channel)
     show_channel(io, ch)
     write(io, "𝒟[")
     show_side(io, ch.jump)

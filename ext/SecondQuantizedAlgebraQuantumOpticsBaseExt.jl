@@ -234,8 +234,8 @@ SQA.numeric_expect(::QuantumOpticsBackend, numop, state::QOBState) =
 SQA.numeric_expect(::QuantumOpticsBackend, numop, states::AbstractVector) =
     QOB.expect(QOB.sparse(numop), states)
 
-function side_matrix(ops::Vector{Op}, ctx::SQA.NumericContext, cache::Dict{Vector{NTuple{9, Int}}, SparseMatrixCSC{ComplexF64, Int}})
-    return get!(cache, map(SQA.op_site_key, ops)) do
+function side_matrix(ops::Vector{Op}, ctx::SQA.NumericContext, cache::Dict{Tuple{Vector{Op}, Vector{Int}}, SparseMatrixCSC{ComplexF64, Int}})
+    return get!(cache, SQA.side_key(ops, ctx)) do
         op = SQA.static_operator(SQA.OpTerm[(1.0 + 0.0im, ops)], ctx, SQA.EagerOperator())
         sparse(ComplexF64.(QOB.sparse(op).data))
     end
@@ -244,7 +244,7 @@ end
 function SQA.numeric_superoperator(::QuantumOpticsBackend, ctx::SQA.NumericContext, terms::Vector{SQA.SandwichTerm})
     b = ctx.basis
     n = length(b)
-    cache = Dict{Vector{NTuple{9, Int}}, SparseMatrixCSC{ComplexF64, Int}}()
+    cache = Dict{Tuple{Vector{Op}, Vector{Int}}, SparseMatrixCSC{ComplexF64, Int}}()
     data = spzeros(ComplexF64, n^2, n^2)
     for (c, left, right) in terms
         iszero(c) && continue

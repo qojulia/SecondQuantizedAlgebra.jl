@@ -3,7 +3,7 @@ using Symbolics: @variables
 using Test
 
 import SecondQuantizedAlgebra: SuperOperator, SuperExpr, QAdd, QExpr, sprepost, spre, spost,
-    liouvillian, hamiltonian, channels, jump, partner, scope, LindbladChannel
+    liouvillian, hamiltonian, channels, jump, partner, scope
 
 # 𝒟[J, K] by hand: JρK† - ½K†Jρ - ½ρK†J.
 raw_dissipator(J, K = J) = sprepost(J, K') - (1 // 2) * spre(K' * J) - (1 // 2) * spost(K' * J)
@@ -30,7 +30,7 @@ raw_dissipator(J, K = J) = sprepost(J, K') - (1 // 2) * spre(K' * J) - (1 // 2) 
         @test iszero(hamiltonian_action(1))
         @test hamiltonian_action(a' * a + 5) == hamiltonian_action(a' * a)
         ch = only(channels(dissipator(a))).first
-        @test ch isa LindbladChannel{QAdd}
+        @test ch isa SecondQuantizedAlgebra.Channel{QAdd}
         @test jump(ch) == a + 0
         @test partner(ch) === jump(ch)
         @test isempty(scope(ch))

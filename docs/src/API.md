@@ -290,7 +290,7 @@ SuperTerm
 superterm
 left_operator
 right_operator
-LindbladChannel
+Channel
 hamiltonian
 channels
 jump

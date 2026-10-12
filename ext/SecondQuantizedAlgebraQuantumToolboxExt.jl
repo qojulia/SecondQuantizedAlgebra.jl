@@ -369,10 +369,10 @@ SQA.to_numeric(x::Number, state::QTB.QuantumObject) = SQA.to_numeric(x, SQA.nume
 SQA.numeric_average(op, state::QTB.QuantumObject, d::AbstractDict{<:SQA.QSym} = SQA.NO_SUBS) =
     SQA.numeric_average_impl(op, state, d)
 
-const SideCache = Dict{Vector{NTuple{9, Int}}, SparseMatrixCSC{ComplexF64, Int}}
+const SideCache = Dict{Tuple{Vector{Op}, Vector{Int}}, SparseMatrixCSC{ComplexF64, Int}}
 
 function side_matrix(ops::Vector{Op}, ctx::SQA.NumericContext, cache::SideCache)
-    return get!(cache, map(SQA.op_site_key, ops)) do
+    return get!(cache, SQA.side_key(ops, ctx)) do
         op = SQA.static_operator(SQA.OpTerm[(1.0 + 0.0im, ops)], ctx, SQA.EagerOperator())
         sparse(ComplexF64.(op.data))
     end

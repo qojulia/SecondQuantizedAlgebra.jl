@@ -58,6 +58,10 @@ const FormalMap = Union{SuperExpr, Lindbladian{QExpr}}
     ),
 )
 
+# Side matrices are cached by the op vector. `Index` equality ignores the concrete site, so
+# the resolved slots go into the key too; otherwise unrolled sites would share one matrix.
+side_key(ops::Vector{Op}, ctx::NumericContext) = (ops, Int[resolve_slot(o, ctx.sites) for o in ops])
+
 sandwich_terms(S::SuperOperator) =
     SandwichTerm[(to_complex(c), t.left, t.right) for (t, c) in S.arguments]
 

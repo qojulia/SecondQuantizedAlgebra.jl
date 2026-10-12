@@ -350,15 +350,15 @@ function superoperator_order_key(S::SuperOperator)
 end
 
 """
-    channel_order_key(c::LindbladChannel)
+    channel_order_key(c::Channel)
 
 Total ordering key for a channel: its jump and partner, then its scope and constraints.
 """
-channel_order_key(c::LindbladChannel{QAdd}) = (
+channel_order_key(c::Channel{QAdd}) = (
     qadd_order_key(c.jump), qadd_order_key(c.partner),
     [(Int(i.space_index), name_rank(i.name_id)) for i in c.scope], ne_sort_key(c.ne),
 )
-channel_order_key(c::LindbladChannel{QExpr}) = (
+channel_order_key(c::Channel{QExpr}) = (
     sprint(show, c.jump), sprint(show, c.partner),
     [(Int(i.space_index), name_rank(i.name_id)) for i in c.scope], ne_sort_key(c.ne),
 )

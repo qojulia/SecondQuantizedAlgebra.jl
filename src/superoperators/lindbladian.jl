@@ -21,7 +21,7 @@ Composition, `transpose`, `adjoint` and application lower `L` to a [`SuperOperat
 """
 struct Lindbladian{O <: Union{QAdd, QExpr}}
     hamiltonian::O
-    channels::Dict{LindbladChannel{O}, CNum}
+    channels::Dict{Channel{O}, CNum}
 end
 
 const PolyLindbladian = Lindbladian{QAdd}
@@ -31,7 +31,7 @@ const FormalLindbladian = Lindbladian{QExpr}
     hamiltonian(L::Lindbladian)
     channels(L::Lindbladian)
 
-The Hamiltonian of `L`, and an iterator of `LindbladChannel => rate` pairs.
+The Hamiltonian of `L`, and an iterator of `Channel => rate` pairs.
 """
 hamiltonian(L::Lindbladian) = L.hamiltonian
 channels(L::Lindbladian) = pairs(L.channels)
@@ -45,11 +45,11 @@ time. Add with `accumulate!(b, L)` and finish with `build(b)`.
 """
 struct LindbladianBuilder{O <: Union{QAdd, QExpr}, HB}
     hamiltonian::HB
-    channels::Dict{LindbladChannel{O}, CNum}
+    channels::Dict{Channel{O}, CNum}
 end
 LindbladianBuilder{O}() where {O <: Union{QAdd, QExpr}} =
     LindbladianBuilder{O, typeof(hamiltonian_accumulator(O))}(
-    hamiltonian_accumulator(O), Dict{LindbladChannel{O}, CNum}(),
+    hamiltonian_accumulator(O), Dict{Channel{O}, CNum}(),
 )
 
 function accumulate!(b::LindbladianBuilder{O}, L::Lindbladian{O}, scale::CNum = CNUM_ONE) where {O}
@@ -68,8 +68,8 @@ build(b::LindbladianBuilder{O}) where {O} =
     Lindbladian{O}(built_hamiltonian(b.hamiltonian), copy(b.channels))
 
 Base.zero(::Type{Lindbladian}) = zero(Lindbladian{QAdd})
-Base.zero(::Type{Lindbladian{QAdd}}) = Lindbladian{QAdd}(zero_qadd(), Dict{LindbladChannel{QAdd}, CNum}())
-Base.zero(::Type{Lindbladian{QExpr}}) = Lindbladian{QExpr}(qexpr_zero(), Dict{LindbladChannel{QExpr}, CNum}())
+Base.zero(::Type{Lindbladian{QAdd}}) = Lindbladian{QAdd}(zero_qadd(), Dict{Channel{QAdd}, CNum}())
+Base.zero(::Type{Lindbladian{QExpr}}) = Lindbladian{QExpr}(qexpr_zero(), Dict{Channel{QExpr}, CNum}())
 Base.zero(::L) where {L <: Lindbladian} = zero(L)
 Base.iszero(L::Lindbladian) = iszero(L.hamiltonian) && isempty(L.channels)
 
@@ -98,7 +98,7 @@ as_generator_operator(x::QSym) = single_qadd(CNUM_ONE, Op[x])
 as_generator_operator(x::Coefficient) = single_qadd(to_cnum(x), Op[])
 
 function lindbladian_from(H::O) where {O <: Union{QAdd, QExpr}}
-    return Lindbladian{O}(drop_identity(H), Dict{LindbladChannel{O}, CNum}())
+    return Lindbladian{O}(drop_identity(H), Dict{Channel{O}, CNum}())
 end
 
 """
@@ -229,11 +229,11 @@ liouvillian(H::Union{QField, Coefficient}) = hamiltonian_action(H)
 ## Promotion between parameterizations
 
 function formal_lindbladian(L::Lindbladian{QAdd})
-    chans = Dict{LindbladChannel{QExpr}, CNum}()
+    chans = Dict{Channel{QExpr}, CNum}()
     for (ch, γ) in L.channels
         J = qexpr_from_qadd(ch.jump)
         K = is_diagonal(ch) ? J : qexpr_from_qadd(ch.partner)
-        chans[LindbladChannel{QExpr}(J, K, copy(ch.scope), copy_ne(ch.ne))] = γ
+        chans[Channel{QExpr}(J, K, copy(ch.scope), copy_ne(ch.ne))] = γ
     end
     return Lindbladian{QExpr}(qexpr_from_qadd(L.hamiltonian), chans)
 end
