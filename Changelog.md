@@ -16,9 +16,16 @@ This is a breaking release for type stability: public functions no longer use `n
 - The default `op_type` of `to_numeric`, `numeric_average` and `expect` is now `EagerOperator()` instead of `nothing`; custom backends dispatch `numeric_materialize` on `::EagerOperator`.
 - `fundamental_operators` and `find_operators` take `names = Symbol[]` (empty means auto-generated) instead of `names = nothing`.
 - `find_operators` returns a `Vector{Union{Op, QAdd}}` instead of a `Vector{QField}`.
+- `channels(L)` returns a `Vector` of `Channel => rate` pairs in `channel_order_key` order instead of the unordered `pairs` of the internal `Dict`.
 - The backend-specific `numeric_operator(be, ::Val{kind}, op, subbasis)` fallthrough is removed; an unsupported role throws directly.
 - `numeric_basis(state)` returns a tuple of dimensions for a composite QuantumToolbox state.
 - Solver-parameter-aware time coefficients reach `numeric_assemble_td` as plain `(p, t)` closures; the internal `PControlCoeff` wrapper is removed.
+
+### Added
+
+- GKSL coordinates of a `SuperOperator`: `DissipativeFrame`, `kossakowski(S, frame)`, `Lindbladian(S[, frame])`, `gksl_coordinates`, `support_frame`, `independent_frame` and `GKSLFormError`. The extraction is exact in the operator algebra and applies finite-level completeness.
+- `coefficient_terms`, `CoefficientTerm` and `has_coefficient_terms` read the exact or floating scalar and the atom powers of each term of a coefficient.
+- `n_levels`, `ground_state` and `transition_levels` read the level count, ground level and levels of a `Transition`, and `operator_axis` the axis of a `Pauli` or `Spin` operator.
 
 ### Changed
 

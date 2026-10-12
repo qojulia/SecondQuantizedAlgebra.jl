@@ -133,6 +133,13 @@ set_acts_on
 ```
 
 ```@docs
+n_levels
+ground_state
+transition_levels
+operator_axis
+```
+
+```@docs
 optype
 is_destroy
 is_create
@@ -148,6 +155,14 @@ is_momentum
 
 ```@docs
 Coeff
+```
+
+### Polynomial terms
+
+```@docs
+has_coefficient_terms
+coefficient_terms
+CoefficientTerm
 ```
 
 ### Unit phases and representation conversion

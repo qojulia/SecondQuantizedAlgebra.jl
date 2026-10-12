@@ -42,6 +42,19 @@ superoperator_order_key
 channel_order_key
 ```
 
+## GKSL coordinates
+
+```@docs
+DissipativeFrame
+directions
+independent_frame
+support_frame
+kossakowski
+gksl_coordinates
+Lindbladian(::SuperOperator, ::DissipativeFrame)
+GKSLFormError
+```
+
 ## Numerics
 
 ```@docs

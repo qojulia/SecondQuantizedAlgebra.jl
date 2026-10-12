@@ -140,6 +140,48 @@ carries no index (test with [`has_index`](@ref)). Public accessor for the
 operator_index(o::Op) = o.index
 
 """
+    n_levels(o::Op) -> Int
+    ground_state(o::Op) -> Int
+
+The number of levels and the ground level of the [`NLevelSpace`](@ref) a [`Transition`](@ref)
+acts on. Throw an `ArgumentError` for any other operator.
+"""
+function n_levels(o::Op)
+    is_transition(o) || throw(ArgumentError("`n_levels` is defined for a Transition, got $(o.kind)"))
+    return Int(o.nlev)
+end
+function ground_state(o::Op)
+    is_transition(o) ||
+        throw(ArgumentError("`ground_state` is defined for a Transition, got $(o.kind)"))
+    return Int(o.g)
+end
+@doc (@doc n_levels) ground_state
+
+"""
+    transition_levels(o::Op) -> Tuple{Int, Int}
+
+The levels `(i, j)` of a [`Transition`](@ref) ``|i\\rangle\\langle j|``. Throws an
+`ArgumentError` for any other operator.
+"""
+function transition_levels(o::Op)
+    is_transition(o) ||
+        throw(ArgumentError("`transition_levels` is defined for a Transition, got $(o.kind)"))
+    return (Int(o.l1), Int(o.l2))
+end
+
+"""
+    operator_axis(o::Op) -> Int
+
+The axis `1`, `2` or `3` of a [`Pauli`](@ref) or [`Spin`](@ref) operator. Throws an
+`ArgumentError` for any other operator.
+"""
+function operator_axis(o::Op)
+    (is_pauli(o) || is_spin(o)) ||
+        throw(ArgumentError("`operator_axis` is defined for a Pauli or Spin operator, got $(o.kind)"))
+    return Int(o.l1)
+end
+
+"""
     set_acts_on(o::Op, aon::Integer) -> Op
 
 Rebind `o` to subspace `aon`, returning a copy with its `space_index` set to

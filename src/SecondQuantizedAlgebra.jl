@@ -44,6 +44,7 @@ include("algebra/pipelines.jl")
 include("expressions/index.jl")
 
 include("algebra/algebra.jl")
+include("expressions/coefficient_terms.jl")
 include("algebra/mutable_arithmetics.jl")
 include("expressions/qexpr.jl")
 include("expressions/qexpr_structural.jl")
@@ -64,6 +65,7 @@ include("superoperators/scope.jl")
 include("superoperators/channel.jl")
 include("superoperators/lindbladian.jl")
 include("superoperators/structural.jl")
+include("superoperators/gksl.jl")
 include("superoperators/superexpr.jl")
 include("superoperators/frames.jl")
 
@@ -150,7 +152,7 @@ export FockSpace, ProductSpace,
     qadjoint, qconj, dagger, inner_adjoint,
     Op, operator_name, operator_index, is_destroy, is_create, is_transition, is_collective_transition,
     is_pauli, is_spin, is_position, is_momentum, optype,
-    Lindbladian, hamiltonian_action, dissipator
+    Lindbladian, hamiltonian_action, dissipator, DissipativeFrame, kossakowski
 
 @public HilbertSpace, QField, QSym, OpKind,
     NumericContext, expect,
@@ -158,7 +160,8 @@ export FockSpace, ProductSpace,
     OP_COLLECTIVE_TRANSITION,
     QAdd, QTerm, QTermDict, QExpr, Coeff, CNum, PhaseTerm,
     has_sum_metadata, get_sum_indices, get_sum_non_equal, get_sum_body, indexed_sum,
-    set_acts_on, rename,
+    set_acts_on, rename, n_levels, ground_state, transition_levels, operator_axis,
+    CoefficientTerm, coefficient_terms, has_coefficient_terms,
     transition_superscript, constraint_pairs,
     to_num, order_key, term_order_key, qadd_order_key,
     exponential_form, trigonometric_form, phase_terms,
@@ -166,6 +169,7 @@ export FockSpace, ProductSpace,
     spre, spost, sprepost, liouvillian, compose, superterm, left_operator, right_operator,
     hamiltonian, channels, jump, partner, scope, formal_terms, poly, accumulate!, build,
     superterm_order_key, superoperator_order_key, channel_order_key,
+    directions, independent_frame, support_frame, gksl_coordinates, GKSLFormError,
     to_numeric_master, numeric_superoperator, numeric_matrix, numeric_scaled_td
 
 include("precompile.jl")

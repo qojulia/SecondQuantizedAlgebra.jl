@@ -28,10 +28,15 @@ end
     hamiltonian(L::Lindbladian)
     channels(L::Lindbladian)
 
-The Hamiltonian of `L`, and an iterator of `Channel => rate` pairs.
+The Hamiltonian of `L`, and a vector of its `Channel => rate` pairs in
+[`channel_order_key`](@ref) order.
 """
 hamiltonian(L::Lindbladian) = L.hamiltonian
-channels(L::Lindbladian) = pairs(L.channels)
+function channels(L::Lindbladian)
+    entries = collect(L.channels)
+    sort!(entries; by = entry -> channel_order_key(entry.first))
+    return entries
+end
 @doc (@doc hamiltonian) channels
 
 """
