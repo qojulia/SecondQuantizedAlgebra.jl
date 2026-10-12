@@ -504,6 +504,29 @@ The scope rides as a `SumScope` *argument* of the `Term`, not as metadata, becau
 **Singleton single-op terms average to the bare op.** `average(::QAdd)` wraps a term in `_single_qadd(_CNUM_ONE, ops, ne)` only when cross-op canonicalization needs the constraint: `length(term.ops) > 1`. A single-op term averages to `only(term.ops)` regardless of `term.ne`, because the enclosing scope now rides on the `sym_sum` node rather than on the average leaf. This relies on the dead-NE invariant from *QAdd internals*: any `ne` reaching `average` references some op index or sum-scope index, but for a single-op term there is no second op to constrain, so a leaf-level `ne` would be observationally inert and would only obstruct downstream dict lookups (notably QC's MTK variable map).
 
 
+## Superoperators and Lindbladians
+
+**Why the map types are not `QField`s.** A map acts on operators, so letting `SuperOperator` or `Lindbladian` subtype `QField` would make every operator method accept them: `a * L` would mean neither left multiplication nor composition, and `average(L)` would silently produce nonsense. Keeping them outside the hierarchy turns each such misuse into a `MethodError` or a targeted refusal. The three map types share the internal `Union` `AnyMap` instead of an abstract type, because `AbstractSuperOperator` belongs to QuantumInterface.
+
+**One shared scope.** A `SuperOperator` stores `Dict{SuperTerm, CNum}` with `SuperTerm(left, right, ne)`. The left and right operator strings of a term share one inequality list and one summation scope, since `Σᵢ σᵢ ρ σᵢ†` binds the same `i` on both sides. Each side is canonicalized with the ordinary pipeline under the shared `ne`, and the diagonal split runs on the joint unsorted term before either side is sorted, for the same reason as in *Diagonal splitting*: sorting first would lose the information about which product created the coincidence. After emission, every binder that the joint term no longer depends on is eliminated with the constrained cardinality `N - |X|`, or kept when the count is undecidable. This is the two-sided version of the `QAdd` rule, and without it `transpose(Σᵢ 𝒟[aᵢ†])(1)` would be `1 - N` instead of zero.
+
+**The index rules throw instead of guessing.** Composing maps that bind the same index, or applying a map to an operator with that index free, has no unique reading on a sandwich: QAdd's pinned-sum absorption would silently drop the sum. A side that carries its own `Σ` would need two independent copies of the index in `J ρ J†`. All of these throw with a hint to `change_index` or to `dissipator(J, Γ, i => j)`. The algebra never mints an index to resolve them, per the naming policy.
+
+**Lindbladian normalization.** A `Lindbladian{O}` stores its Hamiltonian and `Dict{LindbladChannel{O}, CNum}` rates. Normalization makes structurally different spellings of one generator compare equal, without lowering:
+
+- jump constants are removed and their commutator part `G = (iγ/2)(β̄J - αK†)` is added to `H`, summed under the channel scope;
+- the numeric content of a jump, or a unimodular phase monomial such as a rotating-frame factor, moves into the rate as `γ c_J c̄_K`;
+- a diagonal channel stores `partner === jump`, and the `ne` list is pruned to what the channel mentions;
+- the identity part of `H` is dropped, since it generates nothing.
+
+Equality is structural on the normalized form. `𝒟[a + b]` and its four-channel expansion are unequal as Lindbladians but equal after `SuperOperator` lowering; expanding a cross term automatically would make printing and frame transforms lose the user's channels.
+
+**`σᵍᵍ` stays atomic here too.** Lowering and application never expand the completeness relation, so a dissipator of a projector does not blow up into all levels. `expand_completeness` applies side by side when called.
+
+**The `SuperExpr` contract.** A side that contains a formal function cannot be canonicalized as a polynomial, so `SuperExpr` stores a polynomial `SuperOperator` part plus a dict of formal sandwiches. Each side is split into atoms, single-term polynomials or non-sum formal nodes, and their coefficients move to the outer coefficient, so `sprepost(2cos φ, φ) == 2 sprepost(cos φ, φ)`. Formal sandwiches carry no summation scope, because formal functions of bound sums are already refused by `taylor`. The return type never depends on values: a `SuperExpr` whose formal part is empty stays a `SuperExpr` until `SuperOperator(X)` is called, which keeps inference and JET clean.
+
+**Numeric hooks.** A backend implements `numeric_superoperator(be, ctx, terms)` from `(coefficient, left_ops, right_ops)` triples and `numeric_matrix(be, op)`, and optionally `numeric_scaled_td` for time-dependent collapse operators and `to_numeric_td(::SuperOperator, …)` for time-dependent maps. Both bundled backends build each sandwich as `kron(transpose(R), L)`, the column-major convention of their own `sprepost`. The side matrices are cached by an explicit key of the op kind, name, space and concrete slot, not by the `Op` itself: `Index` equality ignores the slot, so two unrolled sites would otherwise collide. `to_numeric_master` groups channels that share a jump into blocks, checks each numeric rate block for Hermiticity and positive semidefiniteness, and returns the scaled eigenvector combinations as collapse operators.
+
 ## Numeric conversion
 
 The backend-neutral core in `src/numeric/` never names a concrete numeric type.

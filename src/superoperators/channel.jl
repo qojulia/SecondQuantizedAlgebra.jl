@@ -1,0 +1,248 @@
+# A dissipation channel γ𝒟[J, K] and the normalization that keeps Lindbladians canonical.
+
+"""
+    LindbladChannel{O}
+
+The structured dissipator `Σ_scope 𝒟[jump, partner]` of a [`Lindbladian`](@ref), with
+`𝒟[J, K](ρ) = J ρ K' - (K'J ρ + ρ K'J)/2`. The rate is stored as the channel's value in
+the Lindbladian, not in the key. A diagonal channel stores the jump as its own partner.
+Read the fields with [`jump`](@ref), [`partner`](@ref) and [`scope`](@ref).
+
+Channels are normalized on construction: constants are stripped from the jumps and folded
+into the Hamiltonian, native numeric content of the jumps moves into the rate, jumps carry
+no bound sums, and a summation index the channel does not mention is counted into the rate.
+"""
+struct LindbladChannel{O <: Union{QAdd, QExpr}}
+    jump::O
+    partner::O
+    scope::Vector{Index}
+    ne::Vector{NonEqualPair}
+    hash::UInt
+    function LindbladChannel{O}(
+            jump::O, partner::O, scope::Vector{Index}, ne::Vector{NonEqualPair},
+        ) where {O <: Union{QAdd, QExpr}}
+        h = hash(:LindbladChannel, hash(jump, hash(partner, hash(scope, hash(ne, zero(UInt))))))
+        return new{O}(jump, partner, scope, ne, h)
+    end
+end
+
+Base.isequal(a::LindbladChannel, b::LindbladChannel) = a.hash == b.hash &&
+    isequal(a.jump, b.jump) && isequal(a.partner, b.partner) &&
+    isequal(a.scope, b.scope) && isequal(a.ne, b.ne)
+Base.:(==)(a::LindbladChannel, b::LindbladChannel) = isequal(a, b)
+Base.hash(c::LindbladChannel, h::UInt) = hash(c.hash, h)
+
+"""
+    jump(c::LindbladChannel)
+    partner(c::LindbladChannel)
+    scope(c::LindbladChannel)
+
+The jump operator `J`, the partner `K` (identical to `J` for a diagonal channel) and the
+bound summation indices of the channel `Σ_scope 𝒟[J, K]`.
+"""
+jump(c::LindbladChannel) = c.jump
+partner(c::LindbladChannel) = c.partner
+scope(c::LindbladChannel) = c.scope
+@doc (@doc jump) partner
+@doc (@doc jump) scope
+
+is_diagonal(c::LindbladChannel) = c.partner === c.jump || isequal(c.partner, c.jump)
+
+## Polynomial and formal parts of a jump
+
+mentions_index(q::QExpr, idx::Index) = idx in get_indices(q)
+
+function split_constant(J::QAdd)
+    constant = QTermDict()
+    rest = QTermDict()
+    for (t, c) in J.arguments
+        isempty(t.ops) ? (constant[copy_key(t)] = c) : (rest[copy_key(t)] = c)
+    end
+    isempty(constant) && return (J, zero_qadd())
+    return (QAdd(rest, copy(J.indices)), QAdd(constant, Index[]))
+end
+
+function split_constant(J::QExpr)
+    qexpr_is_scalar(J) && return (qexpr_zero(), single_qadd(J.coeff, Op[]))
+    if has_polynomial_body(J)
+        body, constant = split_constant(only(J.args)::QAdd)
+        return (qexpr_from_qadd(body), constant)
+    end
+    J.kind == QEXPR_ADD || return (J, zero_qadd())
+    args = QExprArg[]
+    constant = zero_qadd()
+    for arg in J.args
+        if arg isa QAdd
+            body, c = split_constant(arg)
+            constant = c
+            iszero(body) || push!(args, body)
+        else
+            push!(args, arg)
+        end
+    end
+    iszero(constant) && return (J, constant)
+    return (qexpr_sum(args), constant)
+end
+
+drop_identity(H::QAdd) = first(split_constant(H))
+drop_identity(H::QExpr) = first(split_constant(H))
+
+function native_content(c::CNum)
+    is_native(c) && return c
+    tail = c.tail
+    if tail isa Poly && length(tail.terms) == 1
+        s = scalar_coeff(only(tail.terms).scalar)
+        # A unimodular monomial (a frame phase) leaves 𝒟 invariant, so it leaves the jump too.
+        u = mul_cnum(c, inv(s))
+        return isequal(mul_cnum(u, conj_cnum(u)), CNUM_ONE) ? c : s
+    end
+    return CNUM_ONE
+end
+
+function lead_coefficient(J::QAdd)
+    lead = argmin(term_order_key, keys(J.arguments))
+    return J.arguments[lead]
+end
+
+function jump_content(J::QAdd)
+    iszero(J) && return CNUM_ONE
+    return native_content(lead_coefficient(J))
+end
+
+function jump_content(J::QExpr)
+    iszero(J) && return CNUM_ONE
+    has_polynomial_body(J) && return jump_content(only(J.args)::QAdd)
+    J.kind == QEXPR_ADD && return CNUM_ONE
+    return native_content(J.coeff)
+end
+
+scale_jump(J::QAdd, c::CNum) = J * c
+scale_jump(J::QExpr, c::CNum) = qexpr_scale(J, c)
+
+## Hamiltonian accumulation
+
+hamiltonian_accumulator(::Type{QAdd}) = QAddBuilder()
+hamiltonian_accumulator(::Type{QExpr}) = QExprArg[]
+
+add_hamiltonian!(b::QAddBuilder, H::QAdd) = accumulate!(b, H)
+add_hamiltonian!(b::Vector{QExprArg}, H::QExprArg) = (iszero(H) || push!(b, H); b)
+
+built_hamiltonian(b::QAddBuilder) = drop_identity(build(b))
+built_hamiltonian(b::Vector{QExprArg}) = drop_identity(qexpr_sum(b))
+
+"""
+    sum_under_scope(G::QAdd, scope, ne) -> QAdd
+
+`Σ_scope G` under the constraints `ne`, with every binder that `G` does not mention counted
+into the coefficient.
+"""
+function sum_under_scope(G::QAdd, scope::Vector{Index}, ne::Vector{NonEqualPair})
+    isempty(scope) && isempty(ne) && return G
+    isempty(G.indices) || summed_side_error("a dissipator")
+    out = QTermDict()
+    for (t, c) in G.arguments
+        temp = QTermDict()
+        canonicalize!(temp, copy(t.ops), c, merge_ne(t.ne, ne))
+        settle_scope!(out, temp, scope)
+    end
+    return QAdd(out, drop_unused_indices(out, copy(scope)))
+end
+
+@noinline function formal_scope_error()
+    throw(
+        ArgumentError(
+            "a formal (QExpr) jump or Hamiltonian cannot carry a bound summation scope; " *
+                "lower it with `taylor(expr, 0:n)` first",
+        ),
+    )
+end
+
+function sum_under_scope(G::QExpr, scope::Vector{Index}, ::Vector{NonEqualPair})
+    isempty(scope) || formal_scope_error()
+    return G
+end
+
+## Channel normalization
+
+function channel_mentions(J, K, γ::CNum, idx::Index)
+    return mentions_index(J, idx) || mentions_index(K, idx) ||
+        depends_on_index_term(γ, EMPTY_OPS, idx)
+end
+
+function check_jump(J::QAdd)
+    isempty(J.indices) || summed_side_error("a dissipator")
+    return J
+end
+function check_jump(J::QExpr)
+    for arg in J.args
+        arg isa QAdd && (isempty(arg.indices) || summed_side_error("a dissipator"))
+    end
+    return J
+end
+
+"""
+    add_channel!(hamiltonian, channels, J, K, γ, scope, ne)
+
+Add `γ Σ_scope 𝒟[J, K]` (under `ne`) in canonical form: jump constants become the
+Hamiltonian correction `G = (iγ/2)(β̄ J - α K')` (normalization rule 2), native content of
+the jumps moves into the rate (rule 3), and unmentioned binders are counted (rule I5).
+"""
+function add_channel!(
+        hamiltonian, channels::Dict{LindbladChannel{O}, CNum}, J::O, K::O, γ::CNum,
+        scope::Vector{Index}, ne::Vector{NonEqualPair},
+    ) where {O <: Union{QAdd, QExpr}}
+    iszero_cnum(γ) && return channels
+    check_jump(J)
+    check_jump(K)
+    J0, α = split_constant(J)
+    K0, β = split_constant(K)
+    if !(iszero(α) && iszero(β))
+        half = mul_cnum(CNUM_HALF, mul_cnum(CNUM_IM, γ))
+        G = (adjoint(β) * J0 - α * adjoint(K0)) * half
+        iszero(G) || add_hamiltonian!(hamiltonian, sum_under_scope(G, scope, ne))
+    end
+    (iszero(J0) || iszero(K0)) && return channels
+
+    cj = jump_content(J0)
+    ck = jump_content(K0)
+    rate = γ
+    if !isequal(cj, CNUM_ONE)
+        J0 = scale_jump(J0, inv(cj))
+        rate = mul_cnum(rate, cj)
+    end
+    if !isequal(ck, CNUM_ONE)
+        K0 = scale_jump(K0, inv(ck))
+        rate = mul_cnum(rate, conj_cnum(ck))
+    end
+    K0 = isequal(J0, K0) ? J0 : K0
+
+    kept = Index[]
+    channel_ne = NonEqualPair[]
+    for p in canonical_ne(ne)
+        α_, β_ = p
+        referenced = α_ in scope || β_ in scope ||
+            channel_mentions(J0, K0, rate, α_) || channel_mentions(J0, K0, rate, β_)
+        referenced && push!(channel_ne, p)
+    end
+    cne = isempty(channel_ne) ? EMPTY_NE : channel_ne
+    for idx in scope
+        idx in kept && continue
+        if channel_mentions(J0, K0, rate, idx)
+            push!(kept, idx)
+            continue
+        end
+        eliminated, factor, cne = eliminate_binder(cne, idx)
+        eliminated ? (rate = mul_cnum(rate, factor)) : push!(kept, idx)
+    end
+    iszero_cnum(rate) && return channels
+    sort!(kept)
+    key = LindbladChannel{O}(J0, K0, kept, cne)
+    existing = get(channels, key, CNUM_ZERO)
+    total = add_cnum(existing, rate)
+    if iszero_cnum(total)
+        delete!(channels, key)
+    else
+        channels[key] = total
+    end
+    return channels
+end

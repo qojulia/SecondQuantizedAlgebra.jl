@@ -7,6 +7,7 @@ pages = [
     "Collective N-Level Systems" => "collective.md",
     "Building Large Sums Efficiently" => "accumulation.md",
     "Unitary Transformations" => "unitary_transformations.md",
+    "Open Quantum Systems" => "open_systems.md",
     "Examples" => [
         "Schrieffer–Wolff Transformation" => "examples/schrieffer_wolff.md",
         "Dicke Superradiant Transition" => "examples/dicke.md",

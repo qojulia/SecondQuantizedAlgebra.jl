@@ -34,6 +34,9 @@ precompile(to_num, (CNum,))
             let i = Index(h, :i, 3, h)
                 show(io, Σ(IndexedOperator(ad, i) * IndexedOperator(a, i), i))
             end
+            L = hamiltonian_action(H) + g * dissipator(a)
+            show(io, L); show(io, SuperOperator(L)); show(io, transpose(L)(ad * a))
+            show(io, L ∘ L); show(io, sprepost(a, ad)(H))
         end
     end
 end

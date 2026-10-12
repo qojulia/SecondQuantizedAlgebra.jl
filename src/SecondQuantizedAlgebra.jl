@@ -57,6 +57,15 @@ include("algebra/unitary_displacement_frames.jl")
 include("algebra/unitary_bogoliubov.jl")
 include("algebra/unitary_generators.jl")
 
+include("superoperators/superterm.jl")
+include("superoperators/superoperator.jl")
+include("superoperators/scope.jl")
+include("superoperators/channel.jl")
+include("superoperators/lindbladian.jl")
+include("superoperators/structural.jl")
+include("superoperators/superexpr.jl")
+include("superoperators/frames.jl")
+
 include("average.jl")
 
 include("numeric/backend.jl")
@@ -65,10 +74,12 @@ include("numeric/core.jl")
 include("numeric/indexed.jl")
 include("numeric/api.jl")
 include("numeric/qexpr.jl")
+include("numeric/superoperator.jl")
 
 include("printing/printing.jl")
 include("printing/latexify_recipes.jl")
 include("printing/qexpr.jl")
+include("printing/superoperator.jl")
 
 """
     @qnumbers ops...
@@ -137,7 +148,8 @@ export FockSpace, ProductSpace,
     numeric_backend,
     qadjoint, qconj, dagger, inner_adjoint,
     Op, operator_name, operator_index, is_destroy, is_create, is_transition, is_collective_transition,
-    is_pauli, is_spin, is_position, is_momentum, optype
+    is_pauli, is_spin, is_position, is_momentum, optype,
+    Lindbladian, hamiltonian_action, dissipator
 
 @public HilbertSpace, QField, QSym, OpKind,
     NumericContext, expect,
@@ -148,7 +160,12 @@ export FockSpace, ProductSpace,
     set_acts_on, rename,
     transition_superscript, constraint_pairs,
     to_num, order_key, term_order_key, qadd_order_key,
-    exponential_form, trigonometric_form, phase_terms
+    exponential_form, trigonometric_form, phase_terms,
+    SuperOperator, SuperTerm, SuperExpr, LindbladChannel, SuperBuilder, LindbladianBuilder,
+    spre, spost, sprepost, liouvillian, compose, superterm, left_operator, right_operator,
+    hamiltonian, channels, jump, partner, scope, formal_terms, poly, accumulate!, build,
+    superterm_order_key, superoperator_order_key, channel_order_key,
+    to_numeric_master, numeric_superoperator, numeric_matrix, numeric_scaled_td
 
 include("precompile.jl")
 

@@ -51,5 +51,16 @@ const QTB_OWNER = parentmodule(QuantumToolbox.position)
                 @test all_concrete(T; verbose = false)
             end
         end
+        # Parametric types are skipped above; check their concrete instances.
+        S = SecondQuantizedAlgebra
+        for T in (
+                S.Lindbladian{S.QAdd}, S.Lindbladian{S.QExpr},
+                S.LindbladChannel{S.QAdd}, S.LindbladChannel{S.QExpr},
+                typeof(S.LindbladianBuilder{S.QAdd}()), typeof(S.LindbladianBuilder{S.QExpr}()),
+            )
+            @testset "$T" begin
+                @test all_concrete(T; verbose = false)
+            end
+        end
     end
 end

@@ -3,7 +3,7 @@ module SecondQuantizedAlgebraQuantumOpticsBaseExt
 import SecondQuantizedAlgebra as SQA
 using SecondQuantizedAlgebra: QuantumOpticsBackend, Op
 import QuantumOpticsBase as QOB
-import SparseArrays: SparseMatrixCSC, nonzeros, nzrange, rowvals, sparse, spdiagm
+import SparseArrays: SparseMatrixCSC, nonzeros, nzrange, rowvals, sparse, spdiagm, spzeros
 import LinearAlgebra: dot
 
 const QOBState = Union{QOB.StateVector, QOB.AbstractOperator}
@@ -233,5 +233,35 @@ SQA.numeric_expect(::QuantumOpticsBackend, numop, state::QOBState) =
     ComplexF64(QOB.expect(numop, state))
 SQA.numeric_expect(::QuantumOpticsBackend, numop, states::AbstractVector) =
     QOB.expect(QOB.sparse(numop), states)
+
+function side_matrix(ops::Vector{Op}, ctx::SQA.NumericContext, cache::Dict{Vector{NTuple{9, Int}}, SparseMatrixCSC{ComplexF64, Int}})
+    return get!(cache, map(SQA.op_site_key, ops)) do
+        op = SQA.static_operator(SQA.OpTerm[(1.0 + 0.0im, ops)], ctx, SQA.EagerOperator())
+        sparse(ComplexF64.(QOB.sparse(op).data))
+    end
+end
+
+function SQA.numeric_superoperator(::QuantumOpticsBackend, ctx::SQA.NumericContext, terms::Vector{SQA.SandwichTerm})
+    b = ctx.basis
+    n = length(b)
+    cache = Dict{Vector{NTuple{9, Int}}, SparseMatrixCSC{ComplexF64, Int}}()
+    data = spzeros(ComplexF64, n^2, n^2)
+    for (c, left, right) in terms
+        iszero(c) && continue
+        data += c * kron(transpose(side_matrix(right, ctx, cache)), side_matrix(left, ctx, cache))
+    end
+    return QOB.SuperOperator((b, b), (b, b), data)
+end
+
+SQA.numeric_matrix(::QuantumOpticsBackend, op::QOB.AbstractOperator) = QOB.sparse(op).data
+
+# QuantumOpticsBase exports these names; forwarding keeps `spre(a)` symbolic when both are loaded.
+QOB.spre(A::SQA.QField) = SQA.spre(A)
+QOB.spost(B::SQA.QField) = SQA.spost(B)
+QOB.sprepost(A::SQA.QField, B::SQA.QField) = SQA.sprepost(A, B)
+QOB.sprepost(A::SQA.QField, B::Number) = SQA.sprepost(A, B)
+QOB.sprepost(A::Number, B::SQA.QField) = SQA.sprepost(A, B)
+QOB.liouvillian(H::SQA.QField, J::AbstractVector{<:SQA.QField}; rates = nothing) =
+    SQA.liouvillian(H, J; rates)
 
 end

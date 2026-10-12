@@ -34,6 +34,10 @@ This is a breaking release for type stability: public functions no longer use `n
 - A constrained sum over a summand independent of its index, such as `Σ(a_i*a_i', i, [j])`, counts `N - 1` terms instead of `N`; when the excluded indices are not known to be distinct, the sum is kept with its constraints until `assume_distinct_index` settles it.
 - `substitute` keeps the site count of a sum whose summand becomes site-independent: `Σ(a_i, i)` with `a_i => 2` gives `2N` instead of `2`.
 
+### Added
+
+- Dissipative dynamics as first-class objects: `Lindbladian` (`hamiltonian_action`, `dissipator`, collective `dissipator(J, Γ, i => j)`), general `SuperOperator` maps (`spre`, `spost`, `sprepost`, composition, `transpose` as the Heisenberg generator) and formal `SuperExpr` maps. They support `Σ`, frames, substitution and printing, and convert to backend superoperators or, via `to_numeric_master`, to Hamiltonian and collapse operators.
+
 ## [v0.13.0]
 
 This is a breaking release for coefficient exactness: whether a number is exact is now a property of its type.

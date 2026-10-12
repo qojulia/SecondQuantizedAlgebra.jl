@@ -7,7 +7,7 @@ using Symbolics: Equation
 using Latexify: latexify
 using QuantumToolbox: QuantumToolbox
 import SciMLOperators as SO
-using SecondQuantizedAlgebra: Coeff, constraint_pairs, expect, exponential_form, expim, get_sum_body, get_sum_indices, get_sum_non_equal, indexed_sum, order_key, phase_terms, qadd_order_key, rename, set_acts_on, term_order_key, to_cnum, to_num, transition_superscript, trigonometric_form
+using SecondQuantizedAlgebra: Coeff, SuperOperator, SuperExpr, sprepost, spre, spost, liouvillian, to_numeric_master, constraint_pairs, expect, exponential_form, expim, get_sum_body, get_sum_indices, get_sum_non_equal, indexed_sum, order_key, phase_terms, qadd_order_key, rename, set_acts_on, term_order_key, to_cnum, to_num, transition_superscript, trigonometric_form
 
 const TARGETS = (
     SecondQuantizedAlgebra,
@@ -496,6 +496,42 @@ end
                     ("numeric_basis", () -> numeric_basis(ψq)),
                     ("Pauli / Spin / phase-space averages", () -> (numeric_average(px, ψspin), numeric_average(sx, ψspin), numeric_average(xx, ψq))),
                     ("backend hooks", () -> (numeric_subbasis(QuantumToolboxBackend(), (4, 2), 1), numeric_embed(QuantumToolboxBackend(), (4, 2), 1, QuantumToolbox.destroy(4)), numeric_identity(QuantumToolboxBackend(), (4, 2)), numeric_num_subsystems(QuantumToolboxBackend(), [4, 2]), numeric_identity(QuantumToolboxBackend(), [4, 2]))),
+                ],
+            )
+        end
+
+        @testset "Superoperators and Lindbladians" begin
+            Asup = sprepost(a, ad)
+            Bsup = spre(ad * a) + spost(a)
+            Lsup = hamiltonian_action(Δ * ad * a) + κ * dissipator(a)
+            Lnum = hamiltonian_action(2 * ad * a) + 0.5 * dissipator(a)
+            ha2 = NLevelSpace(:atom, 2)
+            is_ = Index(ha2, :i, 3, ha2); js_ = Index(ha2, :j, 3, ha2)
+            σs(x, y, q) = IndexedOperator(Transition(ha2, :σ, x, y), q)
+            Lind = Σ(dissipator(σs(1, 2, is_)), is_)
+            Lfor = hamiltonian_action(cos(xx))
+            Xsup = SuperExpr(Lfor)
+            Dsup = Displace(a, α)
+            test_entries(
+                [
+                    ("sprepost / spre / spost", () -> (sprepost(a, ad), spre(a), spost(a))),
+                    ("SuperOperator(pairs, indices)", () -> SuperOperator(collect(Asup), Index[])),
+                    ("hamiltonian_action / dissipator", () -> (hamiltonian_action(Hp), dissipator(a), dissipator(a, ad))),
+                    ("collective dissipator", () -> dissipator(σs(1, 2, is_), DoubleIndexedVariable(:Γ, is_, js_), is_ => js_)),
+                    ("liouvillian", () -> liouvillian(Hp, [a, ad]; rates = [κ, 1])),
+                    ("map + / scalar *", () -> (Asup + Bsup, g * Asup, Lsup + Lsup, 2 * Lsup)),
+                    ("composition", () -> (Asup ∘ Bsup, Lsup ∘ Lsup)),
+                    ("apply", () -> (Asup(ad * a), Lsup(ad * a))),
+                    ("transpose / adjoint", () -> (transpose(Asup), Asup', transpose(Lsup))),
+                    ("SuperOperator(L)", () -> SuperOperator(Lsup)),
+                    ("Σ / change_index", () -> (Σ(dissipator(σs(1, 2, is_)), is_), change_index(Lind, is_, js_))),
+                    ("simplify maps", () -> (simplify(Lsup), simplify(Asup))),
+                    ("transform maps", () -> (transform(Lsup, Dsup), transform(Lsup, Ut), transform(Asup, Dsup))),
+                    ("SuperExpr", () -> (SuperExpr(Lfor), Xsup + Xsup, taylor(Xsup, 0:2))),
+                    ("to_numeric(L, basis)", () -> to_numeric(Lnum, FockBasis(4))),
+                    ("to_numeric(L, dims)", () -> to_numeric(Lnum, 5)),
+                    ("to_numeric_master QuantumOptics", () -> to_numeric_master(Lnum, hf, 4; backend = QuantumOpticsBackend())),
+                    ("to_numeric_master QuantumToolbox", () -> to_numeric_master(Lnum, hf, 4; backend = QuantumToolboxBackend())),
                 ],
             )
         end
