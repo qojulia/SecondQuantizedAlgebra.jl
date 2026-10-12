@@ -27,7 +27,7 @@ const FormalDict = Dict{FormalSandwich, CNum}
 
 A superoperator with formal operator-function sides, `poly + Σ c * f ρ g`. The polynomial
 part is a [`SuperOperator`](@ref); every sandwich with a [`QExpr`](@ref) side is a
-[`FormalSandwich`](@ref) with its scalar moved into the coefficient. Sides are split into
+`FormalSandwich` with its scalar moved into the coefficient. Sides are split into
 their additive atoms, so `c * (f, g)`, `(c f, g)` and `(f, c g)` are one key, and a sandwich
 whose sides are both polynomial lands in the polynomial part.
 

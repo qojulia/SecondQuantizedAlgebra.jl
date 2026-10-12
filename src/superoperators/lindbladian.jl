@@ -339,9 +339,9 @@ function lower_channel!(
         )
     end
     for (t, c) in adjoint(K) * J
-        tne = merge_ne(ne, t.ne)
-        emit_sandwich!(out, t.ops, EMPTY_OPS, mul_cnum(minus_half, c), tne, scope)
-        emit_sandwich!(out, EMPTY_OPS, t.ops, mul_cnum(minus_half, c), tne, scope)
+        term_ne = merge_ne(ne, t.ne)
+        emit_sandwich!(out, t.ops, EMPTY_OPS, mul_cnum(minus_half, c), term_ne, scope)
+        emit_sandwich!(out, EMPTY_OPS, t.ops, mul_cnum(minus_half, c), term_ne, scope)
     end
     return out
 end
