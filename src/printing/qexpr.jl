@@ -1,5 +1,3 @@
-# Precedence-aware rendering for the cold-path formal expression layer.
-
 const QEXPR_PREC_ADD = 1
 const QEXPR_PREC_MUL = 2
 const QEXPR_PREC_FUNC = 3

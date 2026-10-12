@@ -1,5 +1,3 @@
-# Structural operations for the cold-path formal expression layer.
-
 function qexpr_rebuild(kind::QExprKind, coeff::CNum, args::Vector{QExprArg})
     if kind == QEXPR_ADD
         return qexpr_scale(qexpr_sum(args), coeff)

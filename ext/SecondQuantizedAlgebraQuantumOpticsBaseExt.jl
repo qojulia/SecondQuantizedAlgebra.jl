@@ -234,4 +234,28 @@ SQA.numeric_expect(::QuantumOpticsBackend, numop, state::QOBState) =
 SQA.numeric_expect(::QuantumOpticsBackend, numop, states::AbstractVector) =
     QOB.expect(QOB.sparse(numop), states)
 
+function SQA.numeric_superoperator(::QuantumOpticsBackend, ctx::SQA.NumericContext, terms::Vector{SQA.SandwichTerm})
+    b = ctx.basis
+    n = length(b)
+    cache = Dict{SQA.SideKey, SparseMatrixCSC{ComplexF64, Int}}()
+    rows, cols, vals = Int[], Int[], ComplexF64[]
+    for (c, left, right) in terms
+        iszero(c) && continue
+        m = kron(transpose(SQA.side_matrix(right, ctx, cache)), SQA.side_matrix(left, ctx, cache))
+        append_scaled!(rows, cols, vals, c, m)
+    end
+    return QOB.SuperOperator((b, b), (b, b), sparse(rows, cols, vals, n^2, n^2))
+end
+
+SQA.numeric_matrix(::QuantumOpticsBackend, op::QOB.AbstractOperator) = QOB.sparse(op).data
+
+# QuantumOpticsBase exports these names; forwarding keeps `spre(a)` symbolic when both are loaded.
+QOB.spre(A::SQA.QField) = SQA.spre(A)
+QOB.spost(B::SQA.QField) = SQA.spost(B)
+QOB.sprepost(A::SQA.QField, B::SQA.QField) = SQA.sprepost(A, B)
+QOB.sprepost(A::SQA.QField, B::Number) = SQA.sprepost(A, B)
+QOB.sprepost(A::Number, B::SQA.QField) = SQA.sprepost(A, B)
+QOB.liouvillian(H::SQA.QField, J::AbstractVector{<:SQA.QField}; rates = nothing) =
+    SQA.liouvillian(H, J; rates)
+
 end

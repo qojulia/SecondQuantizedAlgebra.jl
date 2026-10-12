@@ -11,6 +11,24 @@ function merge_indices!(dest::Vector{Index}, src::Vector{Index})
     return dest
 end
 
+"""
+    accumulate!(b, x) -> b
+    accumulate!(b::SuperBuilder, c, A, B) -> b
+
+Add `x` to the builder `b` in place, so a sum of many terms costs linear time instead of
+the quadratic cost of an `x₁ + x₂ + …` fold. `SuperBuilder` also takes a single sandwich
+`c * A ρ B`. Finish with [`build`](@ref).
+"""
+function accumulate! end
+
+"""
+    build(b) -> QAdd | SuperOperator | Lindbladian
+
+The canonical expression accumulated in the builder `b`. The result may share storage with
+`b`, so do not accumulate into `b` afterwards.
+"""
+function build end
+
 function accumulate!(b::QAddBuilder, x::QAdd)
     for (term, c) in x.arguments
         addto_key!(b.args, copy_key(term), c)

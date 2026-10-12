@@ -3,6 +3,7 @@ using Test
 using Symbolics: @variables
 import SecondQuantizedAlgebra: constraint_pairs, get_sum_indices, get_sum_non_equal,
     has_sum_metadata
+import SecondQuantizedAlgebra as SQA
 
 @testset "Index scope and cancellation" begin
     h = FockSpace(:cavity) ⊗ NLevelSpace(:atom, 2, 1)
@@ -44,7 +45,7 @@ import SecondQuantizedAlgebra: constraint_pairs, get_sum_indices, get_sum_non_eq
         m = Index(hf, :m, n, hf)
         p = Index(hf, :p, n, hf)
         q = Index(hf, :q, n, hf)
-        k = Index(hf, :k, n, hf)
+        local k = Index(hf, :k, n, hf)
         one_op = 1 + 0 * b' * b
         @test iszero(Σ(Σ(Σ(one_op, m, [p, q]), p), q) - 80)
         c2 = Σ(Σ(one_op, m, [p, q]), p)
@@ -147,5 +148,35 @@ import SecondQuantizedAlgebra: constraint_pairs, get_sum_indices, get_sum_non_eq
                 assume_distinct_index(direct - leibniz, [(j, k)]),
             )
         )
+    end
+
+    @testset "binder elimination reaches a fixpoint" begin
+        # Σ_{i,k,l} [i≠k, i≠l] 1 = N(N-1)²: `i` is countable only after `k` and `l` are gone.
+        h5 = NLevelSpace(:atom, 2)
+        i5, k5, l5 = Index(h5, :i, 5, h5), Index(h5, :k, 5, h5), Index(h5, :l, 5, h5)
+        ne = SQA.NonEqualPair[(i5, k5), (i5, l5)]
+        temp = SQA.QTermDict(SQA.QTerm(SQA.Op[], ne) => SQA.CNUM_ONE)
+        out = SQA.settle_scope!(SQA.QTermDict(), temp, [i5, k5, l5])
+        @test only(values(out)) == SQA.to_cnum(80)
+        @test isempty(only(keys(out)).ne)
+
+        stemp = SQA.SuperTermDict(SQA.SuperTerm(SQA.Op[], SQA.Op[], ne) => SQA.CNUM_ONE)
+        sout = SQA.settle_scope!(SQA.SuperTermDict(), stemp, [i5, k5, l5])
+        @test only(values(sout)) == SQA.to_cnum(80)
+
+        J = SQA.single_qadd(SQA.CNUM_ONE, SQA.Op[Transition(h5, :σ, 1, 2)])
+        kept, cne, rate = SQA.count_unmentioned_binders(J, J, SQA.CNUM_ONE, [i5, k5, l5], ne)
+        @test isempty(kept) && isempty(cne) && rate == SQA.to_cnum(80)
+    end
+
+    @testset "diagonal split counts coinciding externals once" begin
+        # Σᵢ over i ∈ {k, l}: setting l = k afterwards must give the sum built at k = l.
+        s22(q) = σ(2, 2, q)
+        l = Index(h, :l, N, 2)
+        X = Σ(s22(i) * s22(k) * s22(l), i)
+        @test iszero(simplify(change_index(X, l, k) - Σ(s22(i) * s22(k), i)))
+        P = Σ(s22(i), i) * (s22(k) * s22(l))
+        @test iszero(simplify(change_index(P, l, k) - Σ(s22(i), i) * s22(k)))
+        @test iszero(simplify(P - X))
     end
 end

@@ -178,11 +178,12 @@ import SecondQuantizedAlgebra: constraint_pairs
         k = Index(h, :k, N, atom)
         H = -Δ * a' * a + Σ(g(i) * (a' * σ(1, 2, i) + a * σ(2, 1, i)), i)
         raw = commutator(H, σ(1, 2, j) * σ(2, 1, k))
-        # diagonal partition must reduce to four 3-operator terms
-        @test length(raw) == 4
-        for term in keys(raw.arguments)
-            @test length(term.ops) == 3
-        end
+        # The diagonal partition covers both readings of the free pair: j = k and j ≠ k.
+        @test iszero(simplify(change_index(raw, k, j) - commutator(H, σ(1, 1, j))))
+        leibniz = commutator(H, σ(1, 2, j)) * σ(2, 1, k) + σ(1, 2, j) * commutator(H, σ(2, 1, k))
+        @test iszero(
+            simplify(assume_distinct_index(raw, [(j, k)]) - assume_distinct_index(leibniz, [(j, k)])),
+        )
         # coefficient-only drive regression: no diagonal leak
         l = Index(h, :l, N, atom)
         u(α, β) = DoubleIndexedVariable(:u, α, β)

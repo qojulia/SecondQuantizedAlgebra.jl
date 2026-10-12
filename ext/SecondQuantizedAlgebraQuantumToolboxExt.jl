@@ -5,7 +5,7 @@ using SecondQuantizedAlgebra: QuantumToolboxBackend, Op
 import QuantumToolbox as QTB
 import SciMLOperators as SO
 import SymbolicUtils: BasicSymbolic
-import SparseArrays: SparseMatrixCSC, nonzeros, nzrange, rowvals, sparse
+import SparseArrays: SparseMatrixCSC, nonzeros, nzrange, rowvals, sparse, spzeros
 import LinearAlgebra: dot, mul!
 
 const QTBDims = Union{Integer, AbstractVector{<:Integer}, Tuple{Vararg{T}} where {T <: Integer}}
@@ -201,12 +201,12 @@ function SQA.numeric_assemble(be::QuantumToolboxBackend, basis, terms)
     return QTB.QobjEvo(static_vecsum(coeffs, ops), QTB.Operator(), refid.dimensions)
 end
 
-function SQA.to_numeric_td(q::SQA.QAdd, ctx::SQA.NumericContext{QuantumToolboxBackend}, time_parameter)
-    factor_lists = [SQA.term_factors(term.ops, ctx) for (term, _) in q.arguments]
+function SQA.to_numeric_td(terms::Vector{SQA.CoeffTerm}, ctx::SQA.NumericContext{QuantumToolboxBackend}, time_parameter)
+    factor_lists = [SQA.term_factors(ops, ctx) for (_, ops) in terms]
     isempty(factor_lists) && push!(factor_lists, SQA.term_factors(Op[], ctx))
     be, basis = ctx.backend, ctx.basis
     ops = [SO.MatrixOperator(fuse(be, basis, factors).data) for factors in factor_lists]
-    coeffs = SQA.compile_td_coeffs(q, time_parameter)
+    coeffs = SQA.compile_td_coeffs(terms, time_parameter)
     refid = SQA.numeric_identity(be, basis)
     return QTB.QobjEvo(VecSum(coeffs, zeros(ComplexF64, length(ops)), ops), QTB.Operator(), refid.dimensions)
 end
@@ -368,5 +368,81 @@ SQA.to_numeric(x::Number, state::QTB.QuantumObject) = SQA.to_numeric(x, SQA.nume
 
 SQA.numeric_average(op, state::QTB.QuantumObject, d::AbstractDict{<:SQA.QSym} = SQA.NO_SUBS) =
     SQA.numeric_average_impl(op, state, d)
+
+const SideCache = Dict{SQA.SideKey, SparseMatrixCSC{ComplexF64, Int}}
+
+sandwich_matrix(left::Vector{Op}, right::Vector{Op}, ctx::SQA.NumericContext, cache::SideCache) =
+    kron(transpose(SQA.side_matrix(right, ctx, cache)), SQA.side_matrix(left, ctx, cache))
+
+super_dimensions(be::QuantumToolboxBackend, basis) =
+    QTB.spre(SQA.numeric_identity(be, basis)).dimensions
+
+function SQA.numeric_superoperator(be::QuantumToolboxBackend, ctx::SQA.NumericContext, terms::Vector{SQA.SandwichTerm})
+    n = size(SQA.numeric_identity(be, ctx.basis), 1)
+    cache = SideCache()
+    rows, cols, vals = Int[], Int[], ComplexF64[]
+    for (c, left, right) in terms
+        iszero(c) && continue
+        append_scaled!(rows, cols, vals, c, sandwich_matrix(left, right, ctx, cache))
+    end
+    data = sparse(rows, cols, vals, n^2, n^2)
+    return QTB.Qobj(data, QTB.SuperOperator(), super_dimensions(be, ctx.basis))
+end
+
+function SQA.to_numeric_td(S::SQA.SuperOperator, ctx::SQA.NumericContext{QuantumToolboxBackend}, time_parameter)
+    cache = SideCache()
+    ops = [SO.MatrixOperator(sandwich_matrix(t.left, t.right, ctx, cache)) for (t, _) in S.arguments]
+    if isempty(ops)
+        n = size(SQA.numeric_identity(ctx.backend, ctx.basis), 1)
+        push!(ops, SO.MatrixOperator(spzeros(ComplexF64, n^2, n^2)))
+    end
+    coeffs = SQA.compile_td_coeffs(S, time_parameter)
+    vecsum = VecSum(coeffs, zeros(ComplexF64, length(ops)), ops)
+    return QTB.QobjEvo(vecsum, QTB.SuperOperator(), super_dimensions(ctx.backend, ctx.basis))
+end
+
+SQA.numeric_matrix(::QuantumToolboxBackend, op::QTB.QuantumObject) = op.data
+
+function SQA.numeric_scaled_td(::QuantumToolboxBackend, op::QTB.QuantumObject, f)
+    g = SQA.tp_reads_p(f) ? f : let f = f
+            (p, t) -> f(t)
+    end
+    return QTB.QobjEvo(op, g)
+end
+
+const QTBMap = Union{SQA.SuperOperator, SQA.SuperExpr, SQA.Lindbladian}
+
+function SQA.to_numeric(
+        S::QTBMap, dims::QTBDims;
+        parameter = SQA.NO_PARAMETER, time_parameter = SQA.NO_TIME_PARAMETER,
+        operators = SQA.NO_SUBS, adjoint_ops = true, op_type = SQA.EagerOperator(),
+    )
+    return SQA.to_numeric_kw(QuantumToolboxBackend(), S, dims; parameter, time_parameter, operators, adjoint_ops, op_type)
+end
+
+SQA.to_numeric(S::SQA.NumericMap, dims::QTBDims, d::AbstractDict{<:SQA.QSym}) =
+    SQA.to_numeric_translated(
+    S, SQA.NumericContext(QuantumToolboxBackend(), dims, d), (SQA.OpRules(), SQA.ScalarRules()),
+    SQA.NO_TIME_PARAMETER, SQA.EagerOperator(),
+)
+SQA.to_numeric(::SQA.FormalMap, ::QTBDims, ::AbstractDict{<:SQA.QSym}) = SQA.formal_map_numeric_error()
+SQA.to_numeric(S::QTBMap, state::QTB.QuantumObject, d::AbstractDict{<:SQA.QSym}) =
+    SQA.to_numeric(S, SQA.numeric_basis(state), d)
+
+SQA.to_numeric(
+    S::SQA.NumericMap, dims::QTBDims,
+    sites::AbstractDict{Int, Vector{Int}},
+    d::AbstractDict{<:SQA.QSym} = SQA.NO_SUBS,
+    scalar_subs::AbstractDict = SQA.NO_SCALAR_SUBS,
+) = SQA.to_numeric_indexed(QuantumToolboxBackend(), dims, S, sites, d, scalar_subs)
+
+# QuantumToolbox exports these names; forwarding keeps `spre(a)` symbolic when both are loaded.
+QTB.spre(A::SQA.QField) = SQA.spre(A)
+QTB.spost(B::SQA.QField) = SQA.spost(B)
+QTB.sprepost(A::SQA.QField, B::SQA.QField) = SQA.sprepost(A, B)
+QTB.sprepost(A::SQA.QField, B::Number) = SQA.sprepost(A, B)
+QTB.sprepost(A::Number, B::SQA.QField) = SQA.sprepost(A, B)
+QTB.liouvillian(H::SQA.QField, c_ops::AbstractVector{<:SQA.QField}) = SQA.liouvillian(H, c_ops)
+QTB.liouvillian(H::SQA.QField, c_ops::Tuple{Vararg{SQA.QField}}) = SQA.liouvillian(H, collect(c_ops))
 
 end

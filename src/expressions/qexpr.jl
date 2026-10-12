@@ -267,8 +267,6 @@ function qexpr_split_content(q::QAdd)
     return (content, QAdd(d, q.indices))
 end
 
-# Recover tensor factors from polynomial leaves, including leaves multiplied before entering
-# the formal layer. Exact reconstruction prevents introducing a factorization by rounding.
 function qexpr_tensor_factors(q::QAdd)::Vector{QAdd}
     spaces = acts_on(q)
     length(spaces) > 1 || return QAdd[q]
@@ -346,8 +344,6 @@ function qexpr_push_product!(factors::Vector{QExprArg}, coeff::CNum, arg::QExpr)
     return (coeff, false)
 end
 
-# Disjoint-space factors commute (no kind is fermionic); the lexicographically least
-# commutation-equivalent order makes `b * f(a)` and `f(a) * b` one term.
 function qexpr_lex_order(factors::Vector{QExprArg})::Vector{Int}
     spaces = [acts_on(f) for f in factors]
     remaining = collect(eachindex(factors))
@@ -371,8 +367,6 @@ function qexpr_lex_order(factors::Vector{QExprArg})::Vector{Int}
     return order
 end
 
-# Reordering can bring overlapping polynomial factors together. Their product may expose
-# new tensor factors, so iterate to a fixed point while keeping disjoint factors separate.
 function qexpr_commuting_order(factors::Vector{QExprArg}, coeff::CNum)
     while length(factors) > 1
         order = qexpr_lex_order(factors)
@@ -388,8 +382,6 @@ function qexpr_commuting_order(factors::Vector{QExprArg}, coeff::CNum)
     return (factors, coeff, false)
 end
 
-# Factors are already normalized (content extracted, tensor factors split, products
-# flattened); only a polynomial landing next to an overlapping one needs the full push.
 function qexpr_push_reordered!(factors::Vector{QExprArg}, coeff::CNum, arg::QExprArg)
     if arg isa QAdd && !isempty(factors) && last(factors) isa QAdd &&
             !isdisjoint(acts_on(last(factors)), acts_on(arg))

@@ -243,6 +243,12 @@ average(::QExpr) = throw(
     ),
 )
 
+average(::AnyMap) = throw(
+    ArgumentError(
+        "a superoperator has no average; average the Heisenberg drift `transpose(L)(A)` instead",
+    ),
+)
+
 function average(op::QAdd)
     BS = SymbolicUtils.BasicSymbolic{SymbolicUtils.SymReal}
     shared = isempty(op.indices) ? Index[] : op.indices
