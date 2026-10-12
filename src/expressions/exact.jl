@@ -151,14 +151,18 @@ function split_cofactor!(primes::Vector{BigInt}, n::BigInt, budget::Base.RefValu
             return true
         end
     end
-    for c in 1:4
-        d = n < typemax(Int) ? BigInt(pollard_brent(UInt64(n), UInt64(c), budget)) :
-            pollard_brent(n, BigInt(c), budget)
-        iszero(d) && return false
-        d == n && continue
-        return split_cofactor!(primes, d, budget) && split_cofactor!(primes, div(n, d), budget)
+    # Every attempt spends budget, so the budget alone ends the search over `c`.
+    c = 1
+    while (d = rho_divisor(n, c, budget)) == n
+        c += 1
     end
-    return false
+    iszero(d) && return false
+    return split_cofactor!(primes, d, budget) && split_cofactor!(primes, div(n, d), budget)
+end
+
+function rho_divisor(n::BigInt, c::Int, budget::Base.RefValue{Int})
+    n < typemax(Int) && return BigInt(pollard_brent(UInt64(n), UInt64(c), budget))
+    return pollard_brent(n, BigInt(c), budget)
 end
 
 # The cycle search is written against these updates. `UInt64` updates return new values;
@@ -222,11 +226,11 @@ for T in (UInt64, BigInt)
         end
         g == n || return g
         # The batch overshot: replay it one step at a time.
-        while true
+        g = rho_assign!(g, one($T))
+        while isone(g)
             ys = rho_step!(ys, c, n, t)
             g = rho_gcd!(g, x, ys, n, t)
-            isone(g) || return g
         end
-        return
+        return g
     end
 end

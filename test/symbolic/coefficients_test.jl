@@ -244,7 +244,12 @@ import SecondQuantizedAlgebra: Coeff, to_cnum, to_num, Monomial, ExactComplex, B
 
         root(n) = to_cnum(sqrt(Num(n)))
         # Composite radicands split by Pollard rho, below and above typemax(Int).
-        for (n, parts) in ((big(q) * 65537 * 65539, (q, 65537, 65539)), (big(q) * q2, (q, q2)), (P * q, (P, q)))
+        # The first small semiprime makes the batched gcd overshoot to n and replay; the second
+        # needs a second rho constant.
+        for (n, parts) in (
+                (big(65537) * 65551, (65537, 65551)), (big(65563) * 66413, (65563, 66413)),
+                (big(q) * 65537 * 65539, (q, 65537, 65539)), (big(q) * q2, (q, q2)), (P * q, (P, q)),
+            )
             @test isequal(root(n), prod(root, parts))
             @test hash(root(n)) == hash(prod(root, parts))
         end
