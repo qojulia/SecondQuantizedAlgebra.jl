@@ -37,12 +37,14 @@ and zero gives no term. Throws an `ArgumentError` when `c` has no
 [`has_coefficient_terms`](@ref) form.
 
 ```jldoctest
+julia> using SecondQuantizedAlgebra: coefficient_terms
+
 julia> using Symbolics: @variables
 
 julia> @variables p;
 
 julia> [(t.scalar, t.powers) for t in coefficient_terms(2p^2 + 1 // 3)]
-2-element Vector{Tuple{Complex{Rational{BigInt}}, Vector{Pair{Num, Rational{Int64}}}}}:
+2-element Vector{Tuple{Complex{Rational{BigInt}}, Vector{Pair{Symbolics.Num, Rational{Int64}}}}}:
  (1//3 + 0//1*im, [])
  (2//1 + 0//1*im, [p => 2])
 ```
