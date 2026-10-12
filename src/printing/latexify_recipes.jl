@@ -78,6 +78,9 @@ const LATEX_FRAGMENT = Union{String, Symbol, QSym, Number, SymbolicUtils.BasicSy
 function needs_pf_brackets(pf::Number)
     return false
 end
+needs_pf_brackets(pf::Complex) = !is_zero_part(real(pf)) && !is_zero_part(imag(pf))
+is_zero_part(x::Num) = iszero_num(x)
+is_zero_part(x::Real) = iszero(x)
 function needs_pf_brackets(pf::SymbolicUtils.BasicSymbolic)
     SymbolicUtils.iscall(pf) || return false
     op = SymbolicUtils.operation(pf)

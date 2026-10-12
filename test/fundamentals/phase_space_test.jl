@@ -209,4 +209,8 @@ import SecondQuantizedAlgebra: simplify
             @test @allocations(hash(p, UInt(0))) == 0
         end
     end
+
+    @testset "fundamental_operators rejects a bare name" begin
+        @test_throws ArgumentError fundamental_operators(PhaseSpace(:osc); names = [:q])
+    end
 end

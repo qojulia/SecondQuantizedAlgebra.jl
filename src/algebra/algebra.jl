@@ -603,7 +603,7 @@ function stream_substitution_once!(
     partials = Tuple{Vector{Op}, CNum, Vector{NonEqualPair}}[(Op[], c, EMPTY_NE)]
     indices = EMPTY_INDICES
     for op in ops
-        replacement = get(op_rules, op, single_qadd(CNUM_ONE, Op[op]))
+        replacement = get(() -> single_qadd(CNUM_ONE, Op[op]), op_rules, op)
         indices = merge_unique(indices, replacement.indices)
         next_partials = Tuple{Vector{Op}, CNum, Vector{NonEqualPair}}[]
         for (prefix_ops, prefix_c, prefix_ne) in partials

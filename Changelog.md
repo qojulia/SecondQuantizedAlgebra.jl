@@ -6,6 +6,26 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [Unreleased]
+
+### Changed
+
+- The default `op_type` of `to_numeric`, `numeric_average` and `expect` is now `EagerOperator()` instead of `nothing`; custom backends dispatch `numeric_materialize` on `::EagerOperator`.
+- `fundamental_operators` and `find_operators` take `names = Symbol[]` (empty means auto-generated) instead of `names = nothing`.
+- `find_operators` returns a `Vector{Union{Op, QAdd}}` instead of a `Vector{QField}`.
+- `substitute` rejects a scalar replacement that is not a number or symbolic expression with an `ArgumentError`.
+- The backend-specific `numeric_operator(be, ::Val{kind}, op, subbasis)` fallthrough is removed; an unsupported role throws directly.
+- `numeric_basis(state)` returns a tuple of dimensions for a composite QuantumToolbox state.
+- Solver-parameter-aware time coefficients reach `numeric_assemble_td` as plain `(p, t)` closures; the internal `PControlCoeff` wrapper is removed.
+- QuantumToolbox time-dependent operators compile all coefficients into one function, so applying them in `sesolve`/`mesolve` no longer dispatches per term.
+
+### Fixed
+
+- Numeric conversion, expectation values, typed substitution, unitary transforms, printing and `make_time_dependent` run without runtime dispatch; JET `report_opt` now also covers both backend extensions.
+- Eager `to_numeric` on a composite QuantumOptics basis assembles sparse `kron` products directly instead of materializing a `LazySum`.
+- `numeric_average` on a QuantumOptics `LazyKet` contracts each term slot by slot instead of going through a `LazySum`.
+- LaTeX output brackets a complex prefactor with nonzero real and imaginary parts, e.g. `\left(g + \kappa ~ \mathit{i}\right) a`.
+
 ## [v0.13.0]
 
 This is a breaking release for coefficient exactness: whether a number is exact is now a property of its type.

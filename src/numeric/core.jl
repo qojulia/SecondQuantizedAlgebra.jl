@@ -144,10 +144,7 @@ function to_numeric_translated(
         return numeric_materialize(ctx.backend, const_coeff(c) * numeric_identity(ctx.backend, ctx.basis), op_type)
     end
     check_td_op_type(op_type)
-    basevars, valuefuncs, p_aware = time_basis(time_parameter)
-    coef = td_coeff(c, basevars, valuefuncs, p_aware)
-    no_factors = term_factors(Op[], ctx)
-    return numeric_assemble_td(ctx.backend, ctx.basis, Tuple{TDCoeff, typeof(no_factors)}[(coef, no_factors)])
+    return to_numeric_td(single_qadd(to_cnum(c), Op[]), ctx, time_parameter)
 end
 
 function check_td_op_type(op_type)

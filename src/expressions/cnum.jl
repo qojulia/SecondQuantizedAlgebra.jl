@@ -1474,6 +1474,18 @@ end
     return is_const_zero(c.tail.expr)
 end
 
+function is_const_minus_one(x::SymbolicUtils.BasicSymbolic)
+    SymbolicUtils.isconst(x) || return false
+    v = x.val
+    v isa Int && return v == -1
+    v isa Float64 && return v == -1.0
+    v isa Rational{Int} && return v == -1
+    v isa BigInt && return v == -1
+    v isa Rational{BigInt} && return v == -1
+    v isa BigFloat && return v == -1
+    return false
+end
+
 @inline function raw_is_negative_of(
         positive::SymbolicUtils.BasicSymbolic, negative::SymbolicUtils.BasicSymbolic,
     )
@@ -1482,7 +1494,7 @@ end
     SymbolicUtils.iscall(negative) || return false
     op = SymbolicUtils.operation(negative)
     args = SymbolicUtils.arguments(negative)
-    if op === (*) && length(args) >= 2 && is_const_zero(args[1] + 1)
+    if op === (*) && length(args) >= 2 && is_const_minus_one(args[1])
         if SymbolicUtils.iscall(positive) && SymbolicUtils.operation(positive) === (*)
             positive_args = SymbolicUtils.arguments(positive)
             length(args) - 1 == length(positive_args) || return false

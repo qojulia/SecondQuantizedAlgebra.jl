@@ -1,9 +1,11 @@
 using SecondQuantizedAlgebra
 using Test
 using JET
-using QuantumOpticsBase: FockBasis, NLevelBasis, SpinBasis, LazyKet, basisstate, destroy, fockstate, nlevelstate
+using QuantumOpticsBase: FockBasis, NLevelBasis, SpinBasis, LazyKet, basisstate, coherentstate, dense, destroy, fockstate, nlevelstate, tensor
 using Latexify: latexify
 using QuantumToolbox: QuantumToolbox
+import SciMLOperators as SO
+using SecondQuantizedAlgebra: constraint_pairs, exponential_form, expim, get_sum_body, get_sum_indices, get_sum_non_equal, indexed_sum, order_key, phase_terms, qadd_order_key, rename, set_acts_on, term_order_key, to_cnum, to_num, transition_superscript, trigonometric_form
 
 report_text(report) = sprint(show, MIME("text/plain"), report)
 
@@ -183,6 +185,14 @@ end
         H0 = ω * ajc' * ajc
         hc = CollectiveNLevelSpace(:atom, 3); S12 = CollectiveTransition(hc, :S, 1, 2)
         B = Bogoliubov(a, [u v; conj(v) conj(u)])
+        @variables κ::Real
+        Lq = to_numeric(α * a + conj(α) * ad, 8; time_parameter = Dict(α => t -> 1 + im * t)).data
+        Lp = to_numeric(α * a + conj(α) * ad, 8; time_parameter = Dict(α => (p, t) -> p[1] * cos(t))).data
+        Ls = to_numeric(ad * a + a, 8; op_type = identity).data
+        c1 = to_numeric(sqrt(κ) * a, 8; time_parameter = Dict(κ => (p, t) -> p[1]))
+        Ll = QuantumToolbox.liouvillian(to_numeric(α * a + conj(α) * ad, 8; time_parameter = Dict(α => t -> cos(t))), [c1]).data
+        vq = rand(ComplexF64, 9); wq = similar(vq)
+        vl = rand(ComplexF64, 81); wl = similar(vl)
         ψl = LazyKet(FockBasis(3) ⊗ NLevelBasis(2), (fockstate(FockBasis(3), 1), nlevelstate(NLevelBasis(2), 1)))
 
         for (name, thunk) in [
@@ -279,10 +289,10 @@ end
                 # QuantumToolbox numeric conversion and expectation values
                 ("to_numeric(a' * a, 8)", () -> to_numeric(ad * a, 8)),
                 ("to_numeric(Hjc, (4, 2))", () -> to_numeric(Hjc, (4, 2))),
-                (
-                    "to_numeric(α * a + h.c., 8; time_parameter)",
-                    () -> to_numeric(α * a + conj(α) * ad, 8; time_parameter = Dict(α => t -> 1 + im * t)),
-                ),
+                ("solver apply: time-dependent QobjEvo", () -> Lq(wq, vq, nothing, nothing, 0.3)),
+                ("solver apply: p-aware QobjEvo", () -> Lp(wq, vq, nothing, [0.5], 0.3)),
+                ("solver apply: static lazy QobjEvo", () -> Ls(wq, vq, nothing, nothing, 0.3)),
+                ("solver apply: Liouvillian with time-dependent collapse", () -> Ll(wl, vl, nothing, [0.5], 0.3)),
                 (
                     "to_numeric(Hjc, hjc, (3, 2); QuantumToolboxBackend)",
                     () -> to_numeric(Hjc, hjc, (3, 2); backend = QuantumToolboxBackend()),
@@ -291,6 +301,115 @@ end
                 ("numeric_average(average(a), ψq)", () -> numeric_average(average(a), ψq)),
                 ("numeric_average(Hjc, ψqjc)", () -> numeric_average(Hjc, ψqjc)),
                 ("numeric_average(a' * a, [ψq, ψq])", () -> numeric_average(ad * a, [ψq, ψq])),
+            ]
+            rep = JET.@report_opt target_modules = targets thunk()
+            @testset "$name" begin
+                test_no_reports(rep)
+            end
+        end
+    end
+
+    @testset "JET report_opt (feature coverage)" begin
+        targets = (
+            SecondQuantizedAlgebra,
+            Base.get_extension(SecondQuantizedAlgebra, :SecondQuantizedAlgebraQuantumOpticsBaseExt),
+            Base.get_extension(SecondQuantizedAlgebra, :SecondQuantizedAlgebraQuantumToolboxExt),
+        )
+        hf = FockSpace(:f); a = Destroy(hf, :a); ad = a'
+        hn = NLevelSpace(:atom, 3); σ12 = Transition(hn, :σ, 1, 2); σ11 = Transition(hn, :σ, 1, 1)
+        hp = PauliSpace(:s); px = Pauli(hp, :σ, 1); py = Pauli(hp, :σ, 2); pz = Pauli(hp, :σ, 3)
+        hs = SpinSpace(:s); sx = Spin(hs, :S, 1); sz = Spin(hs, :S, 3)
+        hph = PhaseSpace(:osc); xx = Position(hph, :x); pp = Momentum(hph, :p)
+        hjc = FockSpace(:c) ⊗ NLevelSpace(:atom, 2)
+        ajc = Destroy(hjc, :a, 1); σjc = Transition(hjc, :σ, 1, 2, 2)
+        hc = CollectiveNLevelSpace(:atom, 3); S12 = CollectiveTransition(hc, :S, 1, 2)
+        @variables θ::Real ω::Real t::Real r::Real ϕ::Real g::Real Δ::Real
+        hi = FockSpace(:cavity) ⊗ NLevelSpace(:atom, 2)
+        ai = Destroy(hi, :a, 1)
+        σi(k, l, m) = IndexedOperator(Transition(hi, :σ, k, l, 2), m)
+        i = Index(hi, :i, 3, NLevelSpace(:atom, 2)); j = Index(hi, :j, 3, NLevelSpace(:atom, 2))
+        gi = IndexedVariable(:g, i); Jij = DoubleIndexedVariable(:J, i, j)
+        Hi = -Δ * ai' * ai + Σ(gi * (ai' * σi(1, 2, i) + ai * σi(2, 1, i)), i)
+        Hne = Σ(σi(2, 1, i) * σi(1, 2, j), i, [j])
+        avgHi = average(Hi)
+        U = Rotation(a, θ)
+        Hin = substitute(Σ(g * (ai' * σi(1, 2, i) + ai * σi(2, 1, i)), i), Dict(g => 1.0))
+        sites = Dict{Int, Vector{Int}}(1 => [1], 2 => [2, 3, 4])
+        ψsites = tensor(fockstate(FockBasis(3), 0), nlevelstate(NLevelBasis(2), 1), nlevelstate(NLevelBasis(2), 1), nlevelstate(NLevelBasis(2), 1))
+        b = FockBasis(5); ψ = coherentstate(b, 0.3)
+        ψq = QuantumToolbox.coherent(6, 0.3); ρq = QuantumToolbox.ket2dm(ψq)
+        Hq = to_numeric(ad * a + a, 5; op_type = identity)
+
+        for (name, thunk) in [
+                # Construction and accessors
+                ("Index", () -> Index(hi, :k, 3, NLevelSpace(:atom, 2))),
+                ("IndexedVariable", () -> IndexedVariable(:g, i)),
+                ("DoubleIndexedVariable", () -> DoubleIndexedVariable(:J, i, j)),
+                ("Σ with non-equal indices", () -> Σ(σi(2, 1, i) * σi(1, 2, j), i, [j])),
+                ("∑", () -> ∑(σi(2, 1, i), i)),
+                ("Σ Jij", () -> Σ(Jij * σi(2, 1, i) * σi(1, 2, j), i, j)),
+                ("FockSpace ⊗ NLevelSpace", () -> FockSpace(:a) ⊗ NLevelSpace(:b, 2)),
+                ("UnitaryTransform", () -> UnitaryTransform(ad * a, θ)),
+                ("generators", () -> generators(U)),
+                ("get_prefactor", () -> get_prefactor(2g * a)),
+                ("get_sum_body", () -> get_sum_body(avgHi)),
+                ("get_sum_indices", () -> get_sum_indices(average(Σ(σi(2, 1, i), i)))),
+                ("get_sum_non_equal", () -> get_sum_non_equal(average(Hne))),
+                ("indexed_sum", () -> indexed_sum(get_sum_body(average(Σ(σi(2, 1, i), i))), [i])),
+                ("constraint_pairs", () -> constraint_pairs(Hne)),
+                ("operator_name / operator_index", () -> (operator_name(a), operator_index(σi(1, 2, i)))),
+                ("index accessors", () -> (index_name(i), index_range(i), index_slot(i), index_sym(i), has_index(i))),
+                ("order keys", () -> (order_key(a), qadd_order_key(ad * a + a), term_order_key(first(keys((ad * a).arguments))))),
+                ("transition_superscript", () -> transition_superscript(true)),
+                ("to_num", () -> to_num(to_cnum(2g))),
+                ("rename / set_acts_on", () -> (rename(a, :b), set_acts_on(a, 2))),
+                ("qadjoint / qconj / dagger", () -> (qadjoint(ad * a + a), qconj(a * ad), dagger(a * ad))),
+                ("acts_on(product)", () -> acts_on(ajc' * σjc)),
+                ("fundamental_operators / unique_up_to_adjoint", () -> unique_up_to_adjoint(fundamental_operators(hn))),
+                # Algebra across operator families
+                ("anticommutator(px, py)", () -> anticommutator(px, py)),
+                ("px * py * pz", () -> px * py * pz),
+                ("sx * sz * sx", () -> sx * sz * sx),
+                ("x * p * x", () -> xx * pp * xx),
+                ("normal_order(px * sx * px)", () -> normal_order(px * sx * px)),
+                ("normal_to_symmetric(x * p * x)", () -> normal_to_symmetric(xx * pp * xx)),
+                ("collective S12 * S12'", () -> commutator(S12, S12')),
+                ("expand_completeness(σ11 * a)", () -> expand_completeness(σ11 * a)),
+                ("exact and symbolic coefficients", () -> (g + Δ)^2 * a * ad + sqrt(2) * g * a + (1 // 2) * ad),
+                ("exponential_form / phase_terms", () -> phase_terms(exponential_form(cos(ω * t)))),
+                ("expim(ω*t) * expim(θ)", () -> expim(ω * t) * expim(θ)),
+                # Indexed and averaged expressions
+                ("simplify(non-equal sum)", () -> simplify(Hne)),
+                ("commutator(indexed H, a)", () -> commutator(Hi, ai)),
+                ("average(non-equal sum)", () -> average(Hne)),
+                ("undo_average(indexed average)", () -> undo_average(avgHi)),
+                ("substitute(indexed average)", () -> substitute(avgHi, Dict(Δ => 1.0))),
+                ("inner_adjoint(compound average)", () -> inner_adjoint(g * average(a) + im * average(ad * a) * average(a))),
+                ("inner_adjoint(time-dependent average)", () -> inner_adjoint(make_time_dependent(average(a), t))),
+                ("inner_adjoint(indexed average)", () -> inner_adjoint(avgHi)),
+                ("get_variables / get_operators / get_indices", () -> (get_variables(Hi), get_operators(Hi), get_indices(Hi))),
+                # Printing
+                ("repr(indexed H)", () -> repr(Hi)),
+                ("repr(indexed average)", () -> repr(avgHi)),
+                ("latexify(complex coefficients)", () -> latexify((1 // 2 + 2im) * ad * a - a + (g + im * Δ) * ad)),
+                ("latexify(expim(ω*t) * a)", () -> latexify(expim(ω * t) * a)),
+                # Numeric backends
+                ("numeric_basis / numeric_backend", () -> (numeric_basis(ψ), numeric_backend(ψ), numeric_basis(ψq))),
+                ("to_numeric(pauli product)", () -> to_numeric(px * py, SpinBasis(1 // 2))),
+                ("to_numeric(spin product)", () -> to_numeric(sx * sz, SpinBasis(1))),
+                ("to_numeric(phase-space product)", () -> to_numeric(xx * pp, FockBasis(5))),
+                ("to_numeric(a' * a, b; op_type = dense)", () -> to_numeric(ad * a, b; op_type = dense)),
+                ("to_numeric(composite; op_type = identity)", () -> to_numeric(ajc' * σjc, FockBasis(3) ⊗ NLevelBasis(2); op_type = identity)),
+                ("expect(a' * a, ψ)", () -> expect(ad * a, ψ)),
+                ("numeric_average(indexed H, product state)", () -> numeric_average(Hin, ψsites)),
+                ("QuantumToolbox to_numeric(nlevel)", () -> to_numeric(σ12 + σ12', 3)),
+                ("QuantumToolbox to_numeric(indexed H, dims, sites)", () -> to_numeric(Hin, (4, 2, 2, 2), sites)),
+                ("QuantumToolbox op_type = concretize", () -> to_numeric(ad * a, 5; op_type = SO.concretize)),
+                ("QuantumToolbox op_type = to_dense", () -> to_numeric(ad * a, 5; op_type = QuantumToolbox.to_dense)),
+                ("QuantumToolbox expect(ket)", () -> expect(ad * a, ψq)),
+                ("QuantumToolbox expect(VecSum, density)", () -> QuantumToolbox.expect(Hq, ρq)),
+                ("QuantumToolbox numeric_average(density)", () -> numeric_average(ad * a, ρq)),
+                ("QuantumToolbox concretize(VecSum)", () -> SO.concretize(Hq.data)),
             ]
             rep = JET.@report_opt target_modules = targets thunk()
             @testset "$name" begin

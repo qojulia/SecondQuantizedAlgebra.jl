@@ -156,6 +156,34 @@ function compile_coeff(c::Complex{Num}, vars...)
     return (vals...) -> g_re(vals...) + im * g_im(vals...)
 end
 
+function compile_td_coeffs(q::QAdd, time_parameter)
+    basevars, valuefuncs, p_aware = time_basis(time_parameter)
+    exprs = Complex{Num}[to_num(c) for (_, c) in q.arguments]
+    isempty(exprs) && push!(exprs, Complex{Num}(0))
+    for e in exprs
+        check_time_variables(e, basevars)
+    end
+    return compile_coeffs(exprs, basevars, valuefuncs, p_aware)
+end
+
+function compile_coeffs(exprs::Vector{Complex{Num}}, basevars::Vector{Num}, @nospecialize(valuefuncs), p_aware::Bool)
+    f_re = first(build_function(Num[real(e) for e in exprs], basevars...; expression = Val(false)))
+    f_im = first(build_function(Num[imag(e) for e in exprs], basevars...; expression = Val(false)))
+    return let f_re = f_re, f_im = f_im, valuefuncs = valuefuncs
+        if p_aware
+            (u, p, t) -> complex_values(f_re, f_im, map(f -> f(p, t), valuefuncs))
+        else
+            (u, p, t) -> complex_values(f_re, f_im, map(f -> f(t), valuefuncs))
+        end
+    end
+end
+
+function complex_values(f_re::F, f_im::G, vals::Tuple) where {F, G}
+    re = f_re(vals...)
+    imag_part = f_im(vals...)
+    return ComplexF64[re[k] + im * imag_part[k] for k in eachindex(re)]
+end
+
 function split_scalar_subs(scalar_subs::AbstractDict)
     sub_re = ScalarRules()
     sub_im = ScalarRules()

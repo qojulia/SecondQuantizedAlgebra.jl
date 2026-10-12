@@ -142,7 +142,7 @@ Base.iterate(q::QAdd) = iterate(q.arguments)
 Base.iterate(q::QAdd, state) = iterate(q.arguments, state)
 Base.eltype(::Type{QAdd}) = Pair{QTerm, CNum}
 
-ne_sort_key(ne::Vector{NonEqualPair}) = Tuple(ne)
+ne_sort_key(ne::Vector{NonEqualPair}) = copy(ne)
 
 function ne_less(a::Vector{NonEqualPair}, b::Vector{NonEqualPair})
     la, lb = length(a), length(b)

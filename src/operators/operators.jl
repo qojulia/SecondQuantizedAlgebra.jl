@@ -244,9 +244,7 @@ On non-average sub-expressions, behaves like [`qadjoint`](@ref).
 function inner_adjoint(v::SymbolicUtils.BasicSymbolic)
     v === Symbolics.IM && return -Symbolics.IM
     if SymbolicUtils.hasmetadata(v, AverageOperator)
-        op = SymbolicUtils.getmetadata(v, AverageOperator)
-        iv = SymbolicUtils.arguments(v)[1]
-        return lift_average(average(adjoint(op)), iv)
+        return adjoint_lifted(SymbolicUtils.getmetadata(v, AverageOperator), SymbolicUtils.arguments(v)[1])
     end
     if is_indexed_sum(v)
         return indexed_sum(inner_adjoint(sum_body(v)), sum_indices(v), sum_ne(v))
@@ -256,8 +254,7 @@ function inner_adjoint(v::SymbolicUtils.BasicSymbolic)
         args = SymbolicUtils.arguments(v)
         if f isa AvgFunc
             arg = args[1]
-            inner = SymbolicUtils.isconst(arg) ? arg.val : arg
-            return average_leaf(adjoint(inner))
+            return adjoint_average_leaf(SymbolicUtils.isconst(arg) ? arg.val : arg)
         elseif f === conj
             return inner_adjoint(args[1])
         elseif f === expim
@@ -272,6 +269,17 @@ function inner_adjoint(v::SymbolicUtils.BasicSymbolic)
     end
 end
 inner_adjoint(x::Number) = conj(x)
+
+function adjoint_lifted(@nospecialize(op), @nospecialize(iv))
+    op isa QAdd && iv isa RawExpression && return lift_average(average(adjoint(op)), iv)
+    throw(ArgumentError("malformed time-dependent average with operator `$op` and argument `$iv`"))
+end
+
+function adjoint_average_leaf(@nospecialize(inner))
+    inner isa Op && return average_leaf(adjoint(inner))
+    inner isa QAdd && return average_leaf(adjoint(inner))
+    throw(ArgumentError("cannot take the adjoint of the averaged argument `$inner`"))
+end
 inner_adjoint(x::Num) = inner_adjoint(SymbolicUtils.unwrap(x))
 inner_adjoint(x::QField) = adjoint(x)
 
