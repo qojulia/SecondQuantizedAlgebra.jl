@@ -190,6 +190,7 @@ end
     )
     scalar_subs = Dict{Num, Float64}(Num(ks_sym(1)) => 0.3, Num(ks_sym(2)) => 0.7)
     M = to_numeric(H, b, sites, Dict{S.QSym, Any}(), scalar_subs)
+    @test to_numeric(H, b, sites; parameter = scalar_subs) == M
 
     # Explicit reference on the same layout.
     he = FockSpace(:c) ⊗ NLevelSpace(:a1, 2) ⊗ NLevelSpace(:a2, 2)
@@ -269,4 +270,14 @@ end
     σx(α, β, k) = Transition(hx, Symbol("σ_", k), α, β, k + 1)
     Hx = sum(gnums[k]^2 / Δnums[k] * ax' * ax * (σx(2, 2, k) - σx(1, 1, k)) for k in 1:N)
     @test matnorm(sparse(M).data, sparse(to_numeric(Hx, b)).data) < 1.0e-10
+end
+
+@testset "Indexed numeric: expressions without sums keep their parameters" begin
+    h = FockSpace(:cavity) ⊗ NLevelSpace(:atom, 2)
+    a = Destroy(h, :a, 1)
+    @variables Δ
+    b = FockBasis(3) ⊗ NLevelBasis(2)
+    sites = Dict{Int, Vector{Int}}(1 => [1], 2 => [2])
+    @test to_numeric(Δ * a' * a, b, sites; parameter = Dict(Δ => 0.5)) ==
+        to_numeric(Δ * a' * a, b; parameter = Dict(Δ => 0.5))
 end

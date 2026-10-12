@@ -4,13 +4,6 @@ function reduce_map_params(S::SuperOperator, relations::Vector{ParamRelation})
     return map_coefficients(c -> reduce_all(c, relations, true, scratch), S)
 end
 
-"""
-    conjugate(S, U::UnitaryTransform)
-
-Conjugate every side of a map, `A ↦ U' * A * U`. For a [`Lindbladian`](@ref) the
-Hamiltonian and every jump are conjugated, so `𝒟[J] ↦ 𝒟[U' J U]`. Conjugation is a
-homomorphism: `conjugate(A ∘ B, U) == conjugate(A, U) ∘ conjugate(B, U)`.
-"""
 function conjugate(S::SuperOperator, U::UnitaryTransform)
     conjugated = map_sides((ops, ne) -> conjugate(side_qadd(ops, ne), U), S)
     return reduce_map_params(conjugated, U.action.relations)
@@ -19,15 +12,6 @@ end
 conjugate(L::Lindbladian, U::UnitaryTransform) =
     map_lindbladian(H -> conjugate(H, U), J -> conjugate(J, U), identity, L)
 
-"""
-    transform(L, U::UnitaryTransform)
-
-Move a Schrödinger-picture generator into the frame of `U`: `conjugate(L, U)` plus the
-coherent gauge term `hamiltonian_action(gauge_term(U))`. For a [`Lindbladian`](@ref) the
-Hamiltonian is transformed with [`transform`](@ref) and the jumps are conjugated; jump
-constants created by a displacement are folded back into the Hamiltonian. `transform` is
-affine, so it does not distribute over composition.
-"""
 transform(S::SuperOperator, U::UnitaryTransform{StaticTime}) = conjugate(S, U)
 transform(S::SuperOperator, U::UnitaryTransform{DynamicTime}) =
     conjugate(S, U) + SuperOperator(hamiltonian_action(U.gauge))
@@ -65,14 +49,6 @@ function linear_fock_drift(L::Lindbladian{QAdd}, d::Op)
     return FockDrift(rate, offset)
 end
 
-"""
-    DisplacementFrame(a, Llin::Lindbladian)
-
-Construct the static displacement `a ↦ a + α` that removes the coherent drive from the
-damped linear reference generator `Llin`. The drift `transpose(Llin)(a) = λ a + c` must be
-affine in `a`, and `α = -c/λ` is its fixed point, so heating and loss enter through the
-exact drift rather than through a no-jump Hamiltonian.
-"""
 function DisplacementFrame(a::Op, L::Lindbladian{QAdd})
     d = fock_or_throw(a, "`DisplacementFrame`")
     drift = linear_fock_drift(L, d)
@@ -80,14 +56,6 @@ function DisplacementFrame(a::Op, L::Lindbladian{QAdd})
     return fock_displacement(d, α)
 end
 
-"""
-    DisplacementFrame(a, Llin::Lindbladian, t)
-
-Construct the bounded moving displacement of the damped linear generator `Llin`, whose
-drift `transpose(Llin)(a) = λ a + c(t)` has a time-independent `λ` and a drive `c(t)` that
-is a finite sum of exact harmonic phases. The displacement solves `α̇ = λ α + c(t)` with the
-free homogeneous solution set to zero.
-"""
 function DisplacementFrame(a::Op, L::Lindbladian{QAdd}, t::Num)
     d = fock_or_throw(a, "`DisplacementFrame`")
     tt = time_or_throw(t)

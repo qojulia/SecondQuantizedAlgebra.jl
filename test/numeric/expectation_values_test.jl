@@ -32,6 +32,11 @@ dat(x) = dense(x).data
 
         avg_scaled = 2 * average(a)
         @test numeric_average(avg_scaled, ψ) ≈ 2α
+
+        @variables Δ η
+        H = Δ * a' * a + η * (a + a')
+        rhs = substitute(average(1im * commutator(H, a)), Dict(Δ => 0.5, η => 0.2))
+        @test numeric_average(rhs, ψ) ≈ -0.5im * α - 0.2im
     end
 
     @testset "numeric_average: Dict substitution" begin

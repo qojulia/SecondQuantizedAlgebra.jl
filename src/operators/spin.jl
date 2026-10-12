@@ -1,16 +1,19 @@
 """
     SpinSpace(name::Symbol) <: HilbertSpace
 
-Hilbert space for collective spin angular momentum. Hosts [`Spin`](@ref)
-operators satisfying ``[S_j, S_k] = i \\epsilon_{jkl} S_l``. The algebra is
-independent of the spin size ``S``, which enters only via the
-`QuantumOpticsBase.SpinBasis` chosen for numeric evaluation.
+Hilbert space of an angular momentum, home of the [`Spin`](@ref) operators.
+
+The spin length ``S`` does not enter the algebra. It is fixed only by the basis
+chosen for numerics, so the same expressions hold for every ``S``.
 
 # Examples
 
 ```jldoctest
-julia> SpinSpace(:S)
+julia> h = SpinSpace(:S)
 ℋ(S)
+
+julia> Sz = Spin(h, :S, 3)
+Sz
 ```
 
 See also [`Spin`](@ref), [`PauliSpace`](@ref).
@@ -23,13 +26,16 @@ Base.:(==)(a::SpinSpace, b::SpinSpace) = a.name == b.name
 Base.hash(a::SpinSpace, h::UInt) = hash(:SpinSpace, hash(a.name, h))
 
 """
-    Spin(h::SpinSpace, name::Symbol, axis::Int) -> Op
+    Spin(h::SpinSpace, name::Symbol, axis::Int)
+    Spin(h::ProductSpace, name::Symbol, axis::Int, [subsystem::Int])
 
-Angular momentum operator ``S_x, S_y, S_z`` on a [`SpinSpace`](@ref). The
-`axis` argument selects the component: `1 = x`, `2 = y`, `3 = z`. Hermitian
-(`S' == S`) and satisfies ``[S_j, S_k] = i \\epsilon_{jkl} S_l`` (applied
-eagerly by `*`). Returns an [`Op`](@ref) tagged `OP_SPIN` with the axis stored
-in `l1`.
+Angular momentum component along `axis`, where `1`, `2`, `3` stand for x, y, z.
+
+Spin operators are Hermitian and obey ``[S_j, S_k] = i \\epsilon_{jkl} S_l``.
+Products are ordered by axis, ``x`` before ``y`` before ``z``. Squares such as
+``S_x^2`` stay as they are, since the spin length is not fixed. On a
+[`ProductSpace`](@ref), `subsystem` selects the [`SpinSpace`](@ref) factor and may
+be omitted when there is only one.
 
 # Examples
 

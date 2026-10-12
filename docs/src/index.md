@@ -9,13 +9,10 @@ hero:
   actions:
     - theme: brand
       text: Get started
-      link: implementation/
+      link: manual/getting_started/
     - theme: alt
       text: Examples
       link: examples/schrieffer_wolff/
-    - theme: alt
-      text: API
-      link: API/
     - theme: alt
       text: View on GitHub
       link: https://github.com/qojulia/SecondQuantizedAlgebra.jl
@@ -74,6 +71,6 @@ h = hc ⊗ ha
 @variables g Δ
 H = Δ * b' * b + g * (b * σ(2, 1) + b' * σ(1, 2))
 
-simplify(commutator(H, b))
+commutator(H, b)
 ```
 
