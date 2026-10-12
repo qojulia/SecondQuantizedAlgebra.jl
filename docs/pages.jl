@@ -20,7 +20,10 @@ pages = [
         "Differentiable Quantum Control" => "examples/differentiable_control.md",
     ],
     "Comparison with other packages" => "comparison.md",
-    "API" => "API.md",
+    "API" => [
+        "Core" => "API.md",
+        "Open Systems" => "API_open_systems.md",
+    ],
     "References" => "references.md",
     "Changelog" => "changelog.md",
     "Developer Documentation" => "devdocs.md",
