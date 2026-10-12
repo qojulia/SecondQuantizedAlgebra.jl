@@ -3,7 +3,7 @@ using Symbolics: Symbolics, @variables, Num
 using SymbolicUtils: SymbolicUtils
 using Test
 using LinearAlgebra: I
-import SecondQuantizedAlgebra: Coeff, to_cnum, to_num, Monomial, ExactComplex, BigExactComplex, expim
+import SecondQuantizedAlgebra: Coeff, CNum, to_cnum, to_num, Monomial, ExactComplex, BigExactComplex, expim
 
 @testset "Symbolic coefficients" begin
     h = FockSpace(:coefficients)
@@ -184,6 +184,21 @@ import SecondQuantizedAlgebra: Coeff, to_cnum, to_num, Monomial, ExactComplex, B
         @test isequal(ExactComplex(2, 1)^-2, ExactComplex(3 // 25, -4 // 25))
         @test isequal(ExactComplex(2, 0)^62, ExactComplex(2^62, 0))
         @test_throws OverflowError ExactComplex(2, 0)^63
+    end
+
+    @testset "real symbolic quotients keep exact constants" begin
+        @variables x::Real y::Real
+        constants(e) =
+            SymbolicUtils.iscall(e) ? mapreduce(constants, vcat, SymbolicUtils.arguments(e); init = Any[]) :
+            SymbolicUtils.isconst(e) ? Any[SymbolicUtils.unwrap_const(e)] : Any[]
+        for q in (1 / (1 + x), (y - 3x) / (1 + x^2), (1 // 4) * x / (1 + y), (y - 3x / y^4) / (1 + x^4 / y^8))
+            for c in (convert(CNum, q), SecondQuantizedAlgebra.simplify(convert(CNum, q)))
+                expr = c.tail.expr
+                @test SymbolicUtils.symtype(expr) <: Real
+                @test all(v -> v isa Union{Integer, Rational}, constants(expr))
+                @test isequal(imag(to_num(c)), 0)
+            end
+        end
     end
 
     @testset "numeric radicals multiply exactly" begin
