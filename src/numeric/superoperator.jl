@@ -202,7 +202,8 @@ Channels are unrolled over their scopes (bound indices need `sites`, as in the i
 checked to be Hermitian and positive semidefinite and diagonalized,
 `c_k = √λ_k Σ_a U[a, k] J_a`; a diagonal channel gives `√γ J`. Eigenvalues with
 `λ ≥ -tol` are clipped to zero, where `tol = √eps * max|λ|` by default, and a more negative
-eigenvalue or a non-Hermitian static `H` throws. `scalar_subs` resolves coefficients of
+eigenvalue or a non-Hermitian `H` throws. A time-dependent `H` is checked at a few sample
+times; with `(p, t)` coefficients it is checked symbolically, treating parameters as real. `scalar_subs` resolves coefficients of
 unrolled indices, such as `g(k)`, as in the indexed `to_numeric`.
 
 With a `time_parameter` (QuantumToolbox only), `H` becomes a `QobjEvo` and a diagonal
@@ -257,13 +258,13 @@ function master_hamiltonian(
     )
     if !isempty(tp)
         isempty(H.indices) || indexed_map_error()
-        return to_numeric_td(apply_parameter(H, rules), ctx, tp)
+        H_ = apply_parameter(H, rules)
+        check_td_hermitian(H_, ctx, tp)
+        return to_numeric_td(H_, ctx, tp)
     end
     terms = OpTerm[(to_complex(c), ops) for (c, ops) in unrolled_terms(H, rules, site_map, sub_re, sub_im, has_imag)]
     op = static_operator(terms, ctx, EagerOperator())
-    m = numeric_matrix(ctx.backend, op)
-    scale_ = max(1.0, maximum(abs, m; init = 0.0))
-    maximum(abs, m - m'; init = 0.0) <= sqrt(eps()) * scale_ || non_hermitian_error()
+    hermitian_matrix(numeric_matrix(ctx.backend, op)) || non_hermitian_error()
     return op
 end
 
@@ -271,6 +272,40 @@ op_site_key(o::Op) = (
     Int(o.kind), Int(o.name_id), Int(o.space_index), Int(index_slot(o.index)),
     Int(o.l1), Int(o.l2), Int(o.g), Int(o.nlev), has_index(o.index) ? 1 : 0,
 )
+
+# Sample times for the Hermiticity check of a time-dependent Hamiltonian: generic points, so
+# a coefficient pair that agrees only at isolated instants is still caught.
+const HERMITIAN_SAMPLE_TIMES = (0.0, 0.5772156649, 1.4142135624, 3.1415926536, 7.3890560989)
+
+coefficient_at(c::ComplexF64, ::Float64) = c
+coefficient_at(f, t::Float64) = ComplexF64(f(t))
+
+function hermitian_matrix(m)
+    scale_ = max(1.0, maximum(abs, m; init = 0.0))
+    return maximum(abs, m - m'; init = 0.0) <= sqrt(eps()) * scale_
+end
+
+# Time values are numeric, so `H(t)` is assembled and compared with its adjoint at sample
+# times. `(p, t)` coefficients cannot be evaluated before the solver runs; they fall back to
+# the symbolic check, which treats parameters as real like `adjoint` does.
+function check_td_hermitian(H::QAdd, ctx::NumericContext, tp)
+    basevars, valuefuncs, p_aware = time_basis(tp)
+    if p_aware
+        iszero(simplify(H - adjoint(H))) || non_hermitian_error()
+        return nothing
+    end
+    coeffs = [td_coeff(to_num(c), basevars, valuefuncs, false) for (_, c) in H.arguments]
+    mats = [
+        numeric_matrix(ctx.backend, static_operator(OpTerm[(1.0 + 0.0im, t.ops)], ctx, EagerOperator()))
+            for (t, _) in H.arguments
+    ]
+    isempty(mats) && return nothing
+    for t in HERMITIAN_SAMPLE_TIMES
+        m = sum(coefficient_at(coeffs[k], t) * mats[k] for k in eachindex(mats))
+        hermitian_matrix(m) || non_hermitian_error()
+    end
+    return nothing
+end
 
 struct UnrolledJump
     terms::Vector{OpTerm}

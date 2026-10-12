@@ -51,6 +51,26 @@ import SecondQuantizedAlgebra: SuperExpr, liouvillian, to_numeric_master
         @test_throws ArgumentError to_numeric_master(Δ * dissipator(a), h, 3; backend = QuantumOpticsBackend())
     end
 
+    @testset "time-dependent Hamiltonian Hermiticity" begin
+        @variables Ω::Number η(t)
+        QTBB = QuantumToolboxBackend()
+        tp = Dict(Ω => (t -> cos(t) + im * sin(t)), η => (t -> 1 + t))
+        # A conjugate-paired drive and a real-valued coefficient are Hermitian.
+        Lok = hamiltonian_action(Ω * a' + conj(Ω) * a + η * a' * a) + dissipator(a)
+        @test to_numeric_master(Lok, h, 3; backend = QTBB, time_parameter = tp).collapse_operators isa Vector
+        # The same drive without its conjugate partner is not.
+        Lbad = hamiltonian_action(Ω * a' + Ω * a) + dissipator(a)
+        @test_throws ArgumentError to_numeric_master(Lbad, h, 3; backend = QTBB, time_parameter = tp)
+        Lim = hamiltonian_action(im * η * a' * a) + dissipator(a)
+        @test_throws ArgumentError to_numeric_master(Lim, h, 3; backend = QTBB, time_parameter = tp)
+        # Solver-parameter coefficients are checked symbolically, with real parameters.
+        tpp = Dict(η => ((p, t) -> p[1] * t))
+        @test to_numeric_master(hamiltonian_action(η * a' * a), h, 3; backend = QTBB, time_parameter = tpp).hamiltonian isa QTB.QuantumObjectEvolution
+        @test_throws ArgumentError to_numeric_master(
+            hamiltonian_action(im * η * a' * a), h, 3; backend = QTBB, time_parameter = tpp,
+        )
+    end
+
     @testset "time-dependent correlated block" begin
         hp = FockSpace(:a) ⊗ FockSpace(:b)
         a1 = Destroy(hp, :a, 1)

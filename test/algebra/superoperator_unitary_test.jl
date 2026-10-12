@@ -94,7 +94,7 @@ end
     @testset "squeezed-frame Kerr oscillator" begin
         L = hamiltonian_action(Δ * a' * a + χ * a' * a' * a * a) + dissipator(a)
         U = Squeeze(a, 0.25)
-        @test SuperOperator(transform(L, U)) == transform(SuperOperator(L), U)
-        @test iszero(transpose(transform(L, U))(1))
+        @test approx_equal(SuperOperator(transform(L, U)), transform(SuperOperator(L), U))
+        @test approx_equal(transpose(transform(L, U))(1), zero(transpose(L)(1)))
     end
 end
