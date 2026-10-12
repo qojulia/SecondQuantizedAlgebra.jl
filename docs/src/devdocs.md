@@ -242,21 +242,27 @@ The representation holds four invariants:
   decide whether it is exact. Internal constants such as the `1/2` of the Euler expansion are
   exact.
 - **A radical atom's exponent stays in `(0, 1)`.** A radical atom is the hashconsed
-  `SymbolicUtils.Const{SymReal}(p::Int)` of a *prime* `p`. Radicands always factor down to
-  primes by trial division below `2^16`, with the leftover cofactor accepted as prime below
-  the bound squared; a composite radicand is never stored as one atom. `√6` is therefore
-  `Const(2)^(1/2) * Const(3)^(1/2)`, the same monomial `√2 * √3` and `√24/2` reduce to, so all
-  three compare `isequal` and hash identically. Constructing a monomial folds any integer part
-  of a radical's exponent into the scalar, so no construction site can store `√2·√2` with
-  exponent `1`. A negative radicand folds through `cbrt(-x) = -cbrt(x)` and
-  `(-x)^(p/2) = i^p x^(p/2)`; other fractional powers of a negative number stay floats.
+  `SymbolicUtils.Const{SymReal}(p)` of a *prime* `p`, an `Int` when it fits and a `BigInt`
+  otherwise; the width is canonical because hashconsing keeps `Const(7)` and `Const(big(7))`
+  apart. Radicands factor down to primes by trial division below `2^16`. A leftover cofactor
+  below the bound squared is prime; a larger one is checked with `Primes.isprime` (GMP's probable-prime test)
+  and otherwise split by Pollard-Brent rho under a fixed step budget, so the cost is paid
+  only by radicands with a factor beyond `2^32`. A composite radicand is never stored as one
+  atom. `√6` is therefore `Const(2)^(1/2) * Const(3)^(1/2)`, the same monomial `√2 * √3`
+  and `√24/2` reduce to, so all three compare `isequal` and hash identically. Constructing a
+  monomial folds any integer part of a radical's exponent into the scalar, so no
+  construction site can store `√2·√2` with exponent `1`. A negative radicand folds through
+  `cbrt(-x) = -cbrt(x)` and `(-x)^(p/2) = i^p x^(p/2)`; other fractional powers of a
+  negative number stay floats.
 - **Radicals and the big tier compose.** The folded integer power is computed in the tier of
   the monomial, so an overflowing fold moves to the big tier instead of falling back to
-  `Float64`. A `BigInt` radicand that fully factors below the trial bound is recognized the
-  same way an `Int`-sized one is; only a radicand that cannot be fully factored stays an
-  unevaluated symbolic leaf. Such a leaf lives in the raw tier, which has no canonical form,
-  so equal products of it need not compare `isequal` or cancel
-  ([#291](https://github.com/qojulia/SecondQuantizedAlgebra.jl/issues/291)).
+  `Float64`. A `BigInt` radicand is recognized the same way an `Int`-sized one is. A
+  radicand whose cofactor rho cannot split within its budget stays an unevaluated symbolic
+  leaf: in practice one with two prime factors above about `2^36`, counted with
+  multiplicity, so `p²q` with a large `p` also stays a leaf. The leaf lives in the raw tier,
+  which has no canonical form, so equal products of it need not compare `isequal` or cancel,
+  and each recognition of it pays the failed search again. A canonical radical needs the square-free part of
+  the radicand, which is as hard as factoring it.
 
 ## QAdd internals
 

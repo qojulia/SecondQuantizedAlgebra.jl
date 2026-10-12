@@ -257,6 +257,50 @@ import SecondQuantizedAlgebra: Coeff, CNum, to_cnum, to_num, Monomial, ExactComp
         @test isequal(to_cnum(sqrt(Num(2)))^200, to_cnum(2)^100)
     end
 
+    @testset "radicals with prime factors beyond the trial bound stay canonical" begin
+        @variables g k
+        P = big(2)^127 - 1             # prime wider than Int
+        q = 4294967311                 # smallest prime above 2^32
+        q2 = 4294967357
+        c = cos(g + k)
+        # Issue #291: each spelling of the same value cancels.
+        e = sqrt(Num(P)) * c * a
+        @test iszero(e * e - (P * c^2) * a * a)
+        f = sqrt(Num(q)) * c * a
+        @test isequal(f * f, (q * c^2) * a * a)
+        both = sqrt(Num(P)) * sqrt(Num(q)) * c * a
+        @test iszero(both * both - (P * q * c^2) * a * a)
+
+        root(n) = to_cnum(sqrt(Num(n)))
+        # Composite radicands split by Pollard rho, below and above typemax(Int).
+        # The first small semiprime makes the batched gcd overshoot to n and replay; the second
+        # needs a second rho constant.
+        for (n, parts) in (
+                (big(65537) * 65551, (65537, 65551)), (big(65563) * 66413, (65563, 66413)),
+                (big(q) * 65537 * 65539, (q, 65537, 65539)), (big(q) * q2, (q, q2)), (P * q, (P, q)),
+            )
+            @test isequal(root(n), prod(root, parts))
+            @test hash(root(n)) == hash(prod(root, parts))
+        end
+        # Lowering keeps primes above the trial bound as separate roots, so it never builds a
+        # radicand that only rho could split again.
+        two_large = root(3040000009) * root(3040000039)
+        @test isequal(to_cnum(real(to_num(two_large))), two_large)
+        @test isequal(to_num(root(2) * root(3)), to_num(root(6)))
+        # Perfect powers of a large prime fold into the scalar, in the big tier when needed.
+        @test isequal(root(big(q)^3), q * root(q))
+        @test isequal(root(P^3 * 2), P * root(P) * root(2))
+        @test isequal(root(P)^2, to_cnum(P))
+        @test isequal(to_cnum(sqrt(Num(1 // P))) * root(P), to_cnum(1))
+        @test isequal(to_cnum(cbrt(Num(P)))^3, to_cnum(P))
+        @test isequal(to_cnum(sqrt(Num(-P))), im * root(P))
+
+        # Lowering keeps one root per wide prime and rebuilds the same coefficient.
+        wide = sqrt(Num(P)) * sqrt(Num(q)) * g * a
+        @test string(real(get_prefactor(wide))) == "g*sqrt($P)*sqrt($q)"
+        @test isequal(get_prefactor(wide) * a, wide)
+    end
+
     @testset "cross-tier stress: prime-radical sums forced through the big tier" begin
         primes6 = [2, 3, 5, 7, 11, 13]
         s = sum(to_cnum(sqrt(Num(p))) for p in primes6)
@@ -313,8 +357,9 @@ import SecondQuantizedAlgebra: Coeff, CNum, to_cnum, to_num, Monomial, ExactComp
         both = ((huge + 2im) * a) * (cos(g + k) * a)
         @test isequal(get_prefactor(both) * a * a, both)
 
-        # Roots of a negative radicand that cannot be factored.
-        P = big(2)^127 - 1
+        # Roots of a negative radicand that cannot be factored: a product of two primes near
+        # 2^64 is beyond the Pollard-rho budget.
+        P = big(18446744073709551557) * big(18446744073709551533)
         real_root = cbrt(Num(-P)) * a
         @test isequal(get_prefactor(real_root), Complex(cbrt(Num(-P)), Num(0)))
         @test roundtrip(real_root)
