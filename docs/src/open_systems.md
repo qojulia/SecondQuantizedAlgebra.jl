@@ -141,4 +141,4 @@ H, c_ops = to_numeric_master(L, hc, (10, nothing); parameter = Dict(Δ => 1, g =
 timeevolution.master(tspan, ρ0, H, c_ops)
 ```
 
-A rate matrix that is not positive semidefinite, or a non-Hermitian `H`, throws, since a solver needs a physical generator. Time-dependent maps and time-dependent diagonal rates need QuantumToolbox; a correlated block with time-dependent rates is refused, and `to_numeric(L, …; time_parameter)` gives the full generator for `mesolve` instead.
+A rate matrix that is not positive semidefinite, or a non-Hermitian `H`, throws, since a solver needs a physical generator. A time-dependent `H(t)` is checked at a few generic sample times, so it must be Hermitian at every `t` for the conversion to be meaningful; the check catches a broken pairing, not a coincidence at the samples. Time-dependent maps and time-dependent diagonal rates need QuantumToolbox; a correlated block with time-dependent rates is refused, and `to_numeric(L, …; time_parameter)` gives the full generator for `mesolve` instead.

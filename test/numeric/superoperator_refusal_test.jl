@@ -63,6 +63,9 @@ import SecondQuantizedAlgebra: SuperExpr, liouvillian, to_numeric_master
         @test_throws ArgumentError to_numeric_master(Lbad, h, 3; backend = QTBB, time_parameter = tp)
         Lim = hamiltonian_action(im * η * a' * a) + dissipator(a)
         @test_throws ArgumentError to_numeric_master(Lim, h, 3; backend = QTBB, time_parameter = tp)
+        # A symbol treated as real by `adjoint` but mapped to a complex function is caught.
+        Lcx = hamiltonian_action(η * a' * a) + dissipator(a)
+        @test_throws ArgumentError to_numeric_master(Lcx, h, 3; backend = QTBB, time_parameter = Dict(η => (t -> im * t)))
         # Solver-parameter coefficients are checked symbolically, with real parameters.
         tpp = Dict(η => ((p, t) -> p[1] * t))
         @test to_numeric_master(hamiltonian_action(η * a' * a), h, 3; backend = QTBB, time_parameter = tpp).hamiltonian isa QTB.QuantumObjectEvolution
