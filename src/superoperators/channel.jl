@@ -91,7 +91,7 @@ function native_content(c::CNum)
     is_native(c) && return c
     tail = c.tail
     if tail isa Poly && length(tail.terms) == 1
-        s = scalar_coeff(only(tail.terms).scalar)
+        s = scalar_coeff(monomial_scalar(only(tail.terms)))
         # A unimodular monomial (a frame phase) leaves 𝒟 invariant, so it leaves the jump too.
         u = mul_cnum(c, inv(s))
         return isequal(mul_cnum(u, conj_cnum(u)), CNUM_ONE) ? c : s

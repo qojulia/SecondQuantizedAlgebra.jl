@@ -121,8 +121,10 @@ function is_real_negative(c::CNum)
         return all_real_negative(t.terms)
     return is_real_negative_sym(c)
 end
-all_real_negative(terms::Vector{<:Monomial}) =
-    all(m -> imag(m.scalar) == 0 && real(m.scalar) < 0, terms)
+all_real_negative(terms::Vector{<:Monomial}) = all(terms) do m
+    scalar = monomial_scalar(m)
+    imag(scalar) == 0 && real(scalar) < 0
+end
 @noinline function is_real_negative_sym(c::CNum)
     re, im = realimag(c)
     iszero_num(im) || return false
@@ -185,20 +187,11 @@ function show_terms(io::IO, st::Vector{QAdd})
     return
 end
 
-function term_used_indices(t::QAdd, indices::Vector{Index})
-    ops, c, ne = term_signature(t)
-    used = Index[]
-    for idx in indices
-        depends_on_scope_index(c, ops, ne, idx) && push!(used, idx)
-    end
-    return used
-end
-
 function group_dep_terms(dep_qadds, indices::Vector{Index})
     groups = Tuple{Vector{Index}, Vector{NonEqualPair}, Vector{QAdd}}[]
     for q in dep_qadds
-        _, _, ne = term_signature(q)
-        used = term_used_indices(q, indices)
+        ops, c, ne = term_signature(q)
+        used = bound_indices(c, ops, ne, indices)
         slot = position_of(g -> isequal(g[1], used) && isequal(g[2], ne), groups)
         if iszero(slot)
             push!(groups, (used, copy_ne(ne), QAdd[q]))

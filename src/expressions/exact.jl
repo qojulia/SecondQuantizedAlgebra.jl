@@ -33,6 +33,18 @@ const FLOAT_DENOMINATOR = 0
     return unsafe_gaussian(s.re, s.im, s.den)
 end
 
+# A `Monomial{E}` stores its scalar in a value of `E` itself, in the `NativeSlot` layout: an
+# exact value as is, a float as its bit patterns with `den == FLOAT_DENOMINATOR`.
+@inline pack_scalar(::Type{E}, z::E) where {E <: ExactScalar} = z
+@inline pack_scalar(::Type{GaussianRational{T}}, z::ComplexF64) where {T} = unsafe_gaussian(
+    T(reinterpret(Int, real(z))), T(reinterpret(Int, imag(z))), T(FLOAT_DENOMINATOR),
+)
+@inline holds_float(s::ExactScalar) = s.den == FLOAT_DENOMINATOR
+@inline function unpack_scalar(s::ExactScalar)
+    holds_float(s) || return s
+    return ComplexF64(reinterpret(Float64, Int(s.re)), reinterpret(Float64, Int(s.im)))
+end
+
 @inline normalize_scalar(z::ComplexF64) = z + complex(0.0, 0.0)
 @inline normalize_scalar(z::ExactScalar) = z
 
@@ -59,12 +71,21 @@ end
 @inline scalar_add(a::ComplexF64, b::CoeffScalar) = normalize_scalar(a + to_float_scalar(b))
 @inline scalar_add(a::ExactScalar, b::ComplexF64) = normalize_scalar(to_float_scalar(a) + b)
 
+# A radical prime is stored as an `Int` when it fits, else as a `BigInt`. `Const` hashconsing
+# keeps `Const(7)` and `Const(big(7))` apart, so the width must be canonical.
+const RadicalPrime = Union{Int, BigInt}
+@inline radical_prime(p::Integer) = typemin(Int) < p <= typemax(Int) ? Int(p) : BigInt(p)
+@inline radical_prime(p::Int) = p
+@inline radical_atom(p::Integer) = SymbolicUtils.Const{SymbolicUtils.SymReal}(radical_prime(p))
+
 @inline function is_radical_atom(s::SymbolicUtils.BasicSymbolic)
     s isa SymbolicUtils.BasicSymbolic{SymbolicUtils.SymReal} || return false
-    return SymbolicUtils.isconst(s) && s.val isa Int
+    SymbolicUtils.isconst(s) || return false
+    return s.val isa RadicalPrime
 end
 
-radical_power(::Type{E}, p::Int, n::Int) where {E <: ExactScalar} = E(p, 0)^n
+# A `BigInt` prime does not fit the small tier, so its power throws `OverflowError`.
+radical_power(::Type{E}, p::RadicalPrime, n::Int) where {E <: ExactScalar} = E(p, 0)^n
 
 @inline function needs_radical_fold(
         syms::Vector{RawExpression}, exps::Vector{Rational{Int}},
@@ -77,9 +98,29 @@ radical_power(::Type{E}, p::Int, n::Int) where {E <: ExactScalar} = E(p, 0)^n
     return false
 end
 
-const RADICAL_TRIAL_BOUND = 1 << 16
+function integer_root(n::Integer, q::Int)
+    target = BigInt(n)
+    guess = round(BigInt, BigFloat(target)^(one(BigFloat) / q))
+    for m in (guess - 1, guess, guess + 1)
+        m >= 0 && m^q == target && return m
+    end
+    return guess
+end
+@inline is_integer_power(n::Integer, q::Int) = integer_root(n, q)^q == n
 
-function prime_factorization!(factors::Vector{Tuple{Int, Int}}, n::Integer)
+const RADICAL_TRIAL_BOUND = 1 << 16
+# Bounds the cost of one failed recognition (about 30 ms); an unsplit cofactor stays a leaf.
+const RADICAL_RHO_BUDGET = 1 << 18
+
+"""
+    prime_factorization!(factors, n) -> Bool
+
+Push the `(prime, multiplicity)` pairs of `n > 0` onto `factors`, in increasing order. Trial
+division runs below `RADICAL_TRIAL_BOUND`; a leftover cofactor below its square is prime. A
+larger cofactor is tested with `Primes.isprime` and split by Pollard-Brent rho.
+Returns `false` when a composite cofactor cannot be split within `RADICAL_RHO_BUDGET`.
+"""
+function prime_factorization!(factors::Vector{Tuple{RadicalPrime, Int}}, n::Integer)
     p = 2
     while p < RADICAL_TRIAL_BOUND && p * p <= n
         k = 0
@@ -90,7 +131,116 @@ function prime_factorization!(factors::Vector{Tuple{Int, Int}}, n::Integer)
         p += p == 2 ? 1 : 2
     end
     n == 1 && return true
-    n < big(RADICAL_TRIAL_BOUND)^2 || return false
-    push!(factors, (Int(n), 1))
+    if n < RADICAL_TRIAL_BOUND^2
+        push!(factors, (Int(n), 1))
+        return true
+    end
+    primes = BigInt[]
+    split_cofactor!(primes, BigInt(n), Ref(RADICAL_RHO_BUDGET)) || return false
+    for prime in unique!(sort(primes))
+        push!(factors, (radical_prime(prime), count(==(prime), primes)))
+    end
     return true
+end
+
+# `n` has no prime factor below `RADICAL_TRIAL_BOUND`.
+function split_cofactor!(primes::Vector{BigInt}, n::BigInt, budget::Base.RefValue{Int})
+    # `isprime(::Int)` is deterministic and about three times faster than the GMP test.
+    if n < RADICAL_TRIAL_BOUND^2 || (n <= typemax(Int) ? isprime(Int(n)) : isprime(n))
+        push!(primes, n)
+        return true
+    end
+    # Rho finds a repeated prime only slowly, so perfect powers are peeled off first.
+    for k in 2:(ndigits(n; base = 2) ÷ 16)
+        r = integer_root(n, k)
+        if r^k == n
+            for _ in 1:k
+                split_cofactor!(primes, r, budget) || return false
+            end
+            return true
+        end
+    end
+    # Every attempt spends budget, so the budget alone ends the search over `c`.
+    c = 1
+    while (d = rho_divisor(n, c, budget)) == n
+        c += 1
+    end
+    iszero(d) && return false
+    return split_cofactor!(primes, d, budget) && split_cofactor!(primes, div(n, d), budget)
+end
+
+function rho_divisor(n::BigInt, c::Int, budget::Base.RefValue{Int})
+    n < typemax(Int) && return BigInt(pollard_brent(UInt64(n), UInt64(c), budget))
+    return pollard_brent(n, BigInt(c), budget)
+end
+
+# `BigInt` updates write into their first argument through GMP: an allocating step costs
+# about ten times more.
+rho_step!(y::UInt64, c::UInt64, n::UInt64, ::UInt64) = ((widemul(y, y) + c) % n) % UInt64
+function rho_accumulate!(q::UInt64, x::UInt64, y::UInt64, n::UInt64, ::UInt64)
+    return (widemul(q, x > y ? x - y : y - x) % n) % UInt64
+end
+rho_gcd!(::UInt64, a::UInt64, b::UInt64, n::UInt64, ::UInt64) = gcd(a > b ? a - b : b - a, n)
+rho_gcd!(::UInt64, a::UInt64, n::UInt64) = gcd(a, n)
+rho_assign!(::UInt64, y::UInt64) = y
+
+const MPZ = Base.GMP.MPZ
+function rho_step!(y::BigInt, c::BigInt, n::BigInt, t::BigInt)
+    MPZ.mul!(t, y, y); MPZ.add!(t, t, c)
+    return MPZ.fdiv_r!(y, t, n)
+end
+function rho_accumulate!(q::BigInt, x::BigInt, y::BigInt, n::BigInt, t::BigInt)
+    MPZ.sub!(t, x, y); MPZ.mul!(q, q, t)
+    return MPZ.fdiv_r!(q, q, n)
+end
+function rho_gcd!(g::BigInt, a::BigInt, b::BigInt, n::BigInt, t::BigInt)
+    MPZ.sub!(t, a, b)
+    return MPZ.gcd!(g, t, n)
+end
+rho_gcd!(g::BigInt, a::BigInt, n::BigInt) = MPZ.gcd!(g, a, n)
+rho_assign!(x::BigInt, y::BigInt) = MPZ.set!(x, y)
+
+"""
+    pollard_brent(n, c, budget)
+
+A nontrivial divisor of the composite `n` from Brent's cycle search on `y ↦ y² + c mod n`,
+`n` itself when this `c` fails, or `0` once `budget` steps are spent.
+"""
+function pollard_brent end
+# One concrete method per arithmetic, since a method generic over both would be analysed by
+# JET with their union.
+for T in (UInt64, BigInt)
+    @eval function pollard_brent(n::$T, c::$T, budget::Base.RefValue{Int})
+        batch = 128
+        y, x, ys, t = $T(2), $T(0), $T(0), $T(0)
+        q, g = $T(1), $T(1)
+        r = 1
+        while isone(g)
+            budget[] -= 2r
+            budget[] < 0 && return zero($T)
+            x = rho_assign!(x, y)
+            for _ in 1:r
+                y = rho_step!(y, c, n, t)
+            end
+            k = 0
+            while k < r && isone(g)
+                ys = rho_assign!(ys, y)
+                for _ in 1:min(batch, r - k)
+                    y = rho_step!(y, c, n, t)
+                    q = rho_accumulate!(q, x, y, n, t)
+                end
+                g = rho_gcd!(g, q, n)
+                k += batch
+            end
+            r *= 2
+        end
+        g == n || return g
+        # The batch overshot: replay it one step at a time.
+        g = rho_assign!(g, one($T))
+        while isone(g)
+            ys = rho_step!(ys, c, n, t)
+            g = rho_gcd!(g, x, ys, n, t)
+        end
+        return g
+    end
 end

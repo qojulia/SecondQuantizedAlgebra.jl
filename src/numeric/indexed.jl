@@ -72,7 +72,7 @@ function accumulate_indexed_term!(
         terms::Vector{OpTerm}, term::QTerm, c::CNum, indices::Vector{Index},
         ctx::NumericContext, sub_re::ScalarRules, sub_im::ScalarRules, has_imag::Bool,
     )
-    dep_indices = Index[idx for idx in indices if depends_on_scope_index(c, term.ops, term.ne, idx)]
+    dep_indices = bound_indices(term, c, indices)
     if isempty(dep_indices)
         c_resolved = apply_scalar_subs(c, sub_re, sub_im, has_imag)
         return push_indexed_combo!(terms, term.ops, c_resolved)

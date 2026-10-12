@@ -14,6 +14,7 @@ using Latexify: Latexify, latexify, @latexrecipe
 using LaTeXStrings: LaTeXString
 using LinearAlgebra: LinearAlgebra, istriu, istril
 using PrecompileTools: @setup_workload, @compile_workload
+using Primes: isprime
 using SciMLPublic: @public
 import MutableArithmetics as MA
 
