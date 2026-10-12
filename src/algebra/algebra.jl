@@ -177,12 +177,15 @@ function simplify_prefactor(x::CNum; kwargs...)
 end
 
 SymbolicUtils.simplify(c::Coeff; kwargs...) = simplify_prefactor(c; kwargs...)
+bound_indices(t::QTerm, c::CNum, indices::Vector{Index}) =
+    Index[idx for idx in indices if depends_on_scope_index(c, t.ops, t.ne, idx)]
+
 function drop_unused_indices(d::QTermDict, indices::Vector{Index})
     isempty(indices) && return indices
     used = Index[]
     for idx in indices
         for (term, c) in d
-            if depends_on_index_term(c, term.ops, idx)
+            if depends_on_scope_index(c, term.ops, term.ne, idx)
                 push!(used, idx)
                 break
             end
@@ -365,9 +368,12 @@ function assume_distinct_index(q::QAdd, pairs::Vector{Tuple{Index, Index}})
         for (a, b) in pairs
             ne = merge_ne_pair(ne, a, b)
         end
-        canonicalize!(out, copy(t.ops), c, ne)
+        # A binder kept only for its count may now have provably distinct exclusions.
+        temp = QTermDict()
+        canonicalize!(temp, copy(t.ops), c, ne)
+        settle_scope!(out, temp, bound_indices(t, c, q.indices))
     end
-    return expand_completeness(QAdd(out, copy(q.indices)))
+    return expand_completeness(QAdd(out, drop_unused_indices(out, copy(q.indices))))
 end
 
 const ZERO_QADD = QAdd(QTermDict(), Index[])
@@ -556,9 +562,12 @@ function substitute_split(q::QAdd, op_rules::OpRules, scalar_rules::ScalarRules)
     indices = copy(q.indices)
     phase_rules = nonreal_phase_substitutions(scalar_rules)
     for (t, c) in q
+        temp = QTermDict()
         replacement_indices = stream_substitution_once!(
-            out, t.ops, c, t.ne, op_rules, scalar_rules, phase_rules,
+            temp, t.ops, c, t.ne, op_rules, scalar_rules, phase_rules,
         )
+        # A summand substituted to something site-independent still counts every site.
+        settle_scope!(out, temp, bound_indices(t, c, q.indices))
         indices = merge_unique(indices, replacement_indices)
     end
     return QAdd(out, drop_unused_indices(out, indices))

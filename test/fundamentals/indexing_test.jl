@@ -273,8 +273,9 @@ import SecondQuantizedAlgebra: constraint_pairs
         indexed = IndexedOperator(a, i)
 
         scalar = substitute(Σ(indexed, i, [j]), Dict(indexed => 2))
-        @test iszero(scalar - 2)
+        @test iszero(scalar - 18)
         @test isempty(constraint_pairs(scalar))
+        @test iszero(substitute(Σ(indexed, i), Dict(indexed => 2)) - 20)
     end
 
     @testset "ordering distinguishes public constraint scopes" begin

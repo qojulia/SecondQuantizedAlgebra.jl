@@ -61,6 +61,37 @@ import SecondQuantizedAlgebra: constraint_pairs, get_sum_indices, get_sum_non_eq
         @test any(pair -> pair == (ip, jp) || pair == (jp, ip), constraint_pairs(actual))
     end
 
+    @testset "constrained sums count excluded sites" begin
+        hf = FockSpace(:counted)
+        b = Destroy(hf, :b)
+        M = 5
+        ii = Index(hf, :i, M, hf)
+        p = Index(hf, :p, M, hf)
+        q = Index(hf, :q, M, hf)
+        bi = IndexedOperator(b, ii)
+        bp = IndexedOperator(b, p)
+        bq = IndexedOperator(b, q)
+
+        @test iszero(simplify(Σ(bi * bi', ii) - (M + Σ(bi' * bi, ii))))
+        @test iszero(simplify(Σ(bi * bi', ii, [p]) - ((M - 1) + Σ(bi' * bi, ii, [p]))))
+        @test iszero(
+            simplify(
+                Σ(bi * bi' * bp' * bp, ii, [p]) -
+                    ((M - 1) * bp' * bp + Σ(bi' * bi * bp' * bp, ii, [p])),
+            ),
+        )
+        @test iszero(simplify(Σ(Σ(bi * bi', ii, [p]), p) - (M * (M - 1) + (M - 1) * Σ(bi' * bi, ii))))
+
+        # p and q may coincide, so the count M - |{p, q}| is unknown until declared.
+        undecided = Σ(bi * bi' * bp' * bq, ii, [p, q])
+        @test ii in undecided.indices
+        distinct = assume_distinct_index(undecided, [(p, q)])
+        expected = assume_distinct_index(
+            (M - 2) * bp' * bq + Σ(bi' * bi * bp' * bq, ii, [p, q]), [(p, q)],
+        )
+        @test iszero(simplify(distinct - expected))
+    end
+
     @testset "average only retains live sum metadata" begin
         averaged = average(Σ(σ(1, 2, i), i))
         @test is_indexed_sum(averaged)

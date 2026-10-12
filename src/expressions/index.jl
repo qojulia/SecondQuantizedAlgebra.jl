@@ -325,9 +325,49 @@ function depends_on_index_term(c::CNum, ops::Vector{Op}, idx::Index)
     return contains_leaf(tail.expr, isym)
 end
 
+# A summation index is also observable through a counting constraint: Σ_{i≠j} T has N-1
+# terms even when T itself does not mention i.
+function depends_on_scope_index(
+        c::CNum, ops::Vector{Op}, ne::Vector{NonEqualPair}, idx::Index,
+    )
+    depends_on_index_term(c, ops, idx) && return true
+    for (α, β) in ne
+        (α == idx || β == idx) && return true
+    end
+    return false
+end
+
+"""
+    eliminate_binder(ne, idx) -> (eliminated, factor, reduced_ne)
+
+Count the values of the summation index `idx` in a term that no longer mentions it through
+its operators or coefficient. With `X` the indices on the same space that `ne` keeps distinct
+from `idx`, the count is `index_range(idx) - |X|`. It is only known when the members of `X`
+are themselves provably distinct; otherwise `eliminated` is `false` and the term must keep
+the binder together with its constraints.
+"""
+function eliminate_binder(ne::Vector{NonEqualPair}, idx::Index)
+    partners = Index[]
+    mentions = false
+    for (α, β) in ne
+        other = α == idx ? β : β == idx ? α : idx
+        other == idx && continue
+        mentions = true
+        other.space_index == idx.space_index && push!(partners, other)
+    end
+    for p in 1:length(partners), q in (p + 1):length(partners)
+        ne_contains(ne, partners[p], partners[q]) ||
+            return (false, CNUM_ONE, ne)
+    end
+    factor = to_cnum(index_range(idx) - length(partners))
+    mentions || return (true, factor, ne)
+    reduced = NonEqualPair[p for p in ne if p[1] != idx && p[2] != idx]
+    return (true, factor, isempty(reduced) ? EMPTY_NE : reduced)
+end
+
 function any_depends_on_index(s::QAdd, idx::Index)
     for (term, c) in s.arguments
-        depends_on_index_term(c, term.ops, idx) && return true
+        depends_on_scope_index(c, term.ops, term.ne, idx) && return true
     end
     return false
 end
@@ -368,7 +408,7 @@ See also [`Index`](@ref), [`IndexedOperator`](@ref), [`constraint_pairs`](@ref).
 """
 function Σ(expr::QAdd, i::Index, non_equal::Vector{Index} = Index[])
     i.range_id == 0 && throw(ArgumentError("Σ: index $(index_name(i)) has no summation range"))
-    if !any_depends_on_index(expr, i)
+    if isempty(non_equal) && !any_depends_on_index(expr, i)
         return expr * index_range(i)
     end
 
@@ -379,7 +419,8 @@ function Σ(expr::QAdd, i::Index, non_equal::Vector{Index} = Index[])
         sigma_term!(off_diag, diag, term, c, i, non_equal)
     end
 
-    result = QAdd(off_diag, vcat(expr.indices, [i]))
+    binds = any(((t, c),) -> depends_on_scope_index(c, t.ops, t.ne, i), off_diag)
+    result = QAdd(off_diag, binds ? vcat(expr.indices, [i]) : expr.indices)
     isempty(diag) && return result
     return result + QAdd(diag, Index[])
 end
@@ -390,15 +431,14 @@ function sigma_term!(
         off_diag::QTermDict, diag::QTermDict, term::QTerm, c::CNum,
         i::Index, non_equal::Vector{Index},
     )
-    if !depends_on_index_term(c, term.ops, i)
-        canonicalize!(off_diag, copy(term.ops), mul_cnum(c, to_cnum(index_range(i))), term.ne)
-        return nothing
-    end
-
-    # User-supplied non_equal constraints apply when the term depends on i.
     ne_aug = term.ne
     for j in non_equal
         ne_aug = merge_ne_pair(ne_aug, i, j)
+    end
+
+    if !depends_on_index_term(c, term.ops, i)
+        emit_scaled_by_scope!(off_diag, copy(term.ops), c, ne_aug, Index[i])
+        return nothing
     end
 
     # Identify (i, ext_idx) pairs that need diagonal contributions.

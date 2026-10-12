@@ -204,9 +204,9 @@ end
         dep_qadds = QAdd[]
         terms_out = Expr[]
         for t in st
-            ops, c, _ = term_signature(t)
+            ops, c, ne = term_signature(t)
             term_expr = latex_term(c, ops)
-            if any(idx -> depends_on_index_term(c, ops, idx), x.indices)
+            if any(idx -> depends_on_scope_index(c, ops, ne, idx), x.indices)
                 push!(dep_qadds, t)
             else
                 push!(terms_out, term_expr)

@@ -31,6 +31,8 @@ This is a breaking release for type stability: public functions no longer use `n
 - Eager `to_numeric` on a composite QuantumOptics basis assembles sparse `kron` products directly instead of materializing a `LazySum`.
 - `numeric_average` on a QuantumOptics `LazyKet` contracts each term slot by slot instead of going through a `LazySum`.
 - LaTeX output brackets a complex prefactor with nonzero real and imaginary parts, e.g. `\left(g + \kappa ~ \mathit{i}\right) a`.
+- A constrained sum over a summand independent of its index, such as `Σ(a_i*a_i', i, [j])`, counts `N - 1` terms instead of `N`; when the excluded indices are not known to be distinct, the sum is kept with its constraints until `assume_distinct_index` settles it.
+- `substitute` keeps the site count of a sum whose summand becomes site-independent: `Σ(a_i, i)` with `a_i => 2` gives `2N` instead of `2`.
 
 ## [v0.13.0]
 
