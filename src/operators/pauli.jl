@@ -58,12 +58,9 @@ function Pauli(h::ProductSpace, name::Symbol, axis::Int, idx::Int)
     return Pauli(name, axis, idx)
 end
 
-# Auto-detect subspace when the ProductSpace contains exactly one PauliSpace.
 Pauli(h::ProductSpace, name::Symbol, axis::Int) =
     Pauli(h, name, axis, unique_subspace_index(h, PauliSpace))
 
 Pauli(::HilbertSpace, name::AbstractString, args...) = name_must_be_symbol(name)
 
-# Per-site Levi-Civita lookup (3×3 antisymmetric); shared by Pauli and Spin
-# hooks in `operators.jl`. levi_civita[j][k] = ε_{jk(6-j-k)}.
 const levi_civita = ((0, 1, -1), (-1, 0, 1), (1, -1, 0))

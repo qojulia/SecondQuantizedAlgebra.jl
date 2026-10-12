@@ -379,4 +379,13 @@ import SecondQuantizedAlgebra:
         @test acts_on(average(a) + z) == [1]
         @test acts_on(2 * average(a)) == [1]
     end
+
+    @testset "uniform mean-field sum over sites" begin
+        hs = NLevelSpace(:atom, 2)
+        ks = Index(hs, :k, 10, hs)
+        population = indexed_sum(0.5, [ks])
+        @test symtype(SymbolicUtils.unwrap(population)) <: Real
+        coherence = indexed_sum(0.5im, [ks])
+        @test !(symtype(SymbolicUtils.unwrap(coherence)) <: Real)
+    end
 end

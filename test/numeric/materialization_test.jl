@@ -77,4 +77,16 @@ dat(x) = dense(x).data
             @test dense(to_numeric(expr, b)) ≈ dense(to_numeric(expr, b; op_type = dense))
         end
     end
+
+    @testset "composite basis: lazy constant term and slot validation" begin
+        h = FockSpace(:c) ⊗ NLevelSpace(:atom, 2)
+        a = Destroy(h, :a, 1)
+        b = FockBasis(3) ⊗ NLevelBasis(2)
+        lazy = to_numeric(1 + a, b; op_type = identity)
+        @test dense(lazy).data ≈ dense(to_numeric(1 + a, b)).data
+        h3 = FockSpace(:a) ⊗ FockSpace(:b) ⊗ FockSpace(:c)
+        @test_throws ArgumentError to_numeric(
+            Destroy(h3, :c, 3) + Destroy(h3, :a, 1), FockBasis(2) ⊗ FockBasis(2),
+        )
+    end
 end

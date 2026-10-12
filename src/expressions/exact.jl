@@ -15,6 +15,7 @@ const BigExactComplex = GaussianRational{BigInt}
 const ExactScalar = Union{ExactComplex, BigExactComplex}
 const CoeffScalar = Union{ComplexF64, ExactComplex, BigExactComplex}
 const NativeScalar = Union{ComplexF64, ExactComplex}
+const RawExpression = SymbolicUtils.BasicSymbolic{SymbolicUtils.SymReal}
 
 struct NativeSlot
     re::Int
@@ -27,7 +28,7 @@ const FLOAT_DENOMINATOR = 0
 @inline NativeSlot(z::ExactComplex) = NativeSlot(z.re, z.im, z.den)
 @inline NativeSlot(z::ComplexF64) =
     NativeSlot(reinterpret(Int, real(z)), reinterpret(Int, imag(z)), FLOAT_DENOMINATOR)
-@inline function native_scalar(s::NativeSlot)::NativeScalar
+@inline function native_scalar(s::NativeSlot)
     holds_float(s) && return ComplexF64(reinterpret(Float64, s.re), reinterpret(Float64, s.im))
     return unsafe_gaussian(s.re, s.im, s.den)
 end
@@ -66,7 +67,7 @@ end
 radical_power(::Type{E}, p::Int, n::Int) where {E <: ExactScalar} = E(p, 0)^n
 
 @inline function needs_radical_fold(
-        syms::Vector{SymbolicUtils.BasicSymbolic}, exps::Vector{Rational{Int}},
+        syms::Vector{RawExpression}, exps::Vector{Rational{Int}},
     )
     @inbounds for i in eachindex(syms)
         is_radical_atom(syms[i]) || continue
@@ -78,7 +79,7 @@ end
 
 const RADICAL_TRIAL_BOUND = 1 << 16
 
-function prime_factorization!(factors::Vector{Tuple{Int, Int}}, n::Integer)::Bool
+function prime_factorization!(factors::Vector{Tuple{Int, Int}}, n::Integer)
     p = 2
     while p < RADICAL_TRIAL_BOUND && p * p <= n
         k = 0

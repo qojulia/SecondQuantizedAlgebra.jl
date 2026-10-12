@@ -118,7 +118,7 @@ adf = af'
 
     @testset "Symbolic imaginary and complex prefactors" begin
         # Regression guard: a `Coeff` with a symbolic imaginary part must lower
-        # to `Complex{Num}` in `latex_prefactor`, so rendering (including the
+        # to `Complex{Num}` before rendering, so rendering (including the
         # text/latex MIME path Documenter uses for `@example` output) never hits
         # `needs_pf_brackets(::Coeff)`.
         @variables g κ
@@ -131,7 +131,10 @@ adf = af'
         @test latexify((im * g) * aL) == L"g ~ \mathit{i} a"
         @test repr(MIME"text/latex"(), (im * g) * aL) == latexify((im * g) * aL)
         # symbolic complex prefactor: real and imaginary parts both symbolic
-        @test latexify((g + im * κ) * aL) == L"g + \kappa ~ \mathit{i} a"
+        @test latexify((g + im * κ) * aL) == L"\left(g + \kappa ~ \mathit{i}\right) a"
+        # native complex prefactors with both parts nonzero are bracketed like symbolic ones
+        @test latexify((1.5 + 2.0im) * aL) == L"\left(1.5+2.0\mathit{i}\right) a"
+        @test latexify((1 // 2 + 2im) * aL) == L"\left(\frac{1}{2}+2\mathit{i}\right) a"
 
         # the exact shape that reached docs CI: a Spin commutator yields i * g * Sz
         Sx = Spin(SpinSpace(:S), :S, 1)

@@ -120,11 +120,8 @@ function change_index(x::CNum, from::Index, to::Index)
         raw = change_index(Num(tail.expr), from, to)
         isequal(raw, Num(tail.expr)) && return x
         result = SymbolicUtils.unwrap(raw)
-        value = const_value(result)
-        value isa Number && return to_cnum(value)
-        return from_raw_arithmetic(
-            result::SymbolicUtils.BasicSymbolic{SymbolicUtils.SymReal}, tail.real_slot,
-        )
+        is_numeric_const(result) && return const_coeff(result)
+        return from_raw_arithmetic(result, tail.real_slot)
     end
     raw_re, raw_im = realimag(x)
     re = change_index(raw_re, from, to)
@@ -132,7 +129,6 @@ function change_index(x::CNum, from::Index, to::Index)
     return cnum(re, im)
 end
 
-# Rebuild with a new site index; kind-agnostic since all other fields carry over.
 with_index(op::Op, i::Index) = IndexedOperator(op, i)
 
 function change_index(op::QSym, from::Index, to::Index)
@@ -143,8 +139,6 @@ function change_index(s::QAdd, from::Index, to::Index)
     out = QTermDict()
     needs = !isempty(s.indices)
     for (term, c) in s.arguments
-        # A term whose NE constraint becomes contradictory under the rename
-        # carries weight zero and must be dropped, not relaxed.
         ne_becomes_contradictory(term.ne, from, to) && continue
         new_c = change_index(c, from, to)
         new_ops = Op[change_index(op, from, to) for op in term.ops]
@@ -197,11 +191,8 @@ function change_index(x::CNum, pairs::AbstractDict{Index, Index})
         raw = change_index(Num(tail.expr), pairs)
         isequal(raw, Num(tail.expr)) && return x
         result = SymbolicUtils.unwrap(raw)
-        value = const_value(result)
-        value isa Number && return to_cnum(value)
-        return from_raw_arithmetic(
-            result::SymbolicUtils.BasicSymbolic{SymbolicUtils.SymReal}, tail.real_slot,
-        )
+        is_numeric_const(result) && return const_coeff(result)
+        return from_raw_arithmetic(result, tail.real_slot)
     end
     raw_re, raw_im = realimag(x)
     re = change_index(raw_re, pairs)
@@ -300,7 +291,6 @@ function collect_identical_zeros!(acc, x)
     if SymbolicUtils.hasmetadata(x, NotIdentical) &&
             length(SymbolicUtils.arguments(x)) == 2
         a1, a2 = SymbolicUtils.arguments(x)
-        # The args are indices, so a matched node holds no nested NotIdentical node.
         isequal(a1, a2) && (acc[x] = 0; return acc)
     end
     for a in SymbolicUtils.arguments(x)
@@ -309,7 +299,7 @@ function collect_identical_zeros!(acc, x)
     return acc
 end
 
-function contains_leaf(x::RawExpression, v::RawExpression)::Bool
+function contains_leaf(x::RawExpression, v::RawExpression)
     isequal(x, v) && return true
     SymbolicUtils.iscall(x) || return false
     for a in SymbolicUtils.arguments(x)
@@ -324,19 +314,15 @@ function depends_on_index_term(c::CNum, ops::Vector{Op}, idx::Index)
     end
     is_native(c) && return false
     isym = SymbolicUtils.unwrap(index_sym(idx))
-    # A `Poly` coefficient carries its parameters as opaque atoms; scan them directly
-    # instead of materializing the whole coefficient to a `Complex{Num}` first.
-    if c.tail isa Poly
-        for m in c.tail.terms, s in m.syms
-            contains_leaf(s::RawExpression, isym::RawExpression) && return true
+    tail = c.tail
+    if tail isa Poly
+        for m in tail.terms, s in m.syms
+            contains_leaf(s, isym) && return true
         end
         return false
     end
-    for part in realimag(c)
-        vars = Symbolics.get_variables(part)
-        any(v -> isequal(v, isym), vars) && return true
-    end
-    return false
+    tail isa RawSymbolicCoeff || return false
+    return contains_leaf(tail.expr, isym)
 end
 
 function any_depends_on_index(s::QAdd, idx::Index)
@@ -392,7 +378,6 @@ function Σ(expr::QAdd, i::Index, non_equal::Vector{Index} = Index[])
     for (term, c) in expr.arguments
         depends_on_i = depends_on_index_term(c, term.ops, i)
 
-        # User-supplied non_equal constraints apply when the term depends on i.
         ne_aug = term.ne
         if depends_on_i
             for j in non_equal
@@ -400,7 +385,6 @@ function Σ(expr::QAdd, i::Index, non_equal::Vector{Index} = Index[])
             end
         end
 
-        # Identify (i, ext_idx) pairs that need diagonal contributions.
         distinct = distinct_op_indices(term.ops)
         diag_pairs = Tuple{Index, Index}[]
         if depends_on_i
@@ -412,15 +396,10 @@ function Σ(expr::QAdd, i::Index, non_equal::Vector{Index} = Index[])
             end
         end
 
-        # Off-diagonal: canonicalize under ne_aug augmented with every diag pair,
-        # so partial_sort can use those inequalities.
         full_ne = ne_aug
         for (a, b) in diag_pairs
             full_ne = merge_ne_pair(full_ne, a, b)
         end
-        # Σ_i: bake `i.range` into emitted entries whose final ops lose their
-        # i-dependence (e.g. the `+1` residual from `a_i*a_i' = a_i'*a_i + 1`),
-        # so per-term scope matches the explicit `Σ_i` written by the user.
         if depends_on_i
             emit_scaled_by_scope!(off_diag, copy(term.ops), c, full_ne, Index[i])
         else
@@ -433,8 +412,6 @@ function Σ(expr::QAdd, i::Index, non_equal::Vector{Index} = Index[])
         for (_, ext_idx) in diag_pairs
             sub_ops = Op[change_index(o, i, ext_idx) for o in term.ops]
             sub_c = change_index(c, i, ext_idx)
-            # Propagate NE onto the diagonal (i≠β becomes ext_idx≠β); dropping it
-            # lets a later sum re-admit ext_idx=β and double-count the diagonal.
             sub_ne = substitute_ne(ne_aug, i, ext_idx)
             canonicalize!(diag, sub_ops, sub_c, sub_ne)
         end

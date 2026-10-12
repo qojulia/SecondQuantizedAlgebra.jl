@@ -26,7 +26,7 @@ function SecondQuantizedAlgebra.numeric_assemble(::MockNumericBackend, n::Int, t
     end
     return result
 end
-SecondQuantizedAlgebra.numeric_materialize(::MockNumericBackend, assembled, ::Nothing) =
+SecondQuantizedAlgebra.numeric_materialize(::MockNumericBackend, assembled, ::SecondQuantizedAlgebra.EagerOperator) =
     MockEagerOperator(assembled)
 SecondQuantizedAlgebra.numeric_materialize(
     ::MockNumericBackend, assembled, ::typeof(identity),

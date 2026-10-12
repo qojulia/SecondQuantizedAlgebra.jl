@@ -1,5 +1,3 @@
-# === Fock transformations ===
-
 function fock_displacement(d::Op, c::CNum)
     action = AffineAction(
         Op[d, adjoint(d)],
@@ -153,8 +151,6 @@ function Squeeze(a::Op, r::Real, ϕ::Real, t::Num)
     return timed_transform(Squeeze(a, r, ϕ), squeeze_gauge(d, r, ϕ, tt), tt)
 end
 
-# === Two-mode and phase-space transformations ===
-
 function two_modes(a::Op, b::Op, what::AbstractString)
     x = fock_or_throw(a, what)
     y = fock_or_throw(b, what)
@@ -169,7 +165,7 @@ function phase_pair(x::Op, p::Op, what::AbstractString)
     site_key(x) == site_key(p) || unitary_error(
         "$what expects both quadratures on the same site",
     )
-    return nothing
+    return (x, p)
 end
 
 function fock_mode_rotation(a::Op, b::Op, θ::Real)
@@ -357,8 +353,6 @@ function Displace(x::Op, p::Op, dx::Real, dp::Real, t::Num)
     return timed_transform(quadrature_displacement(x, p, cx, cp), gauge, tt)
 end
 
-# === Pauli and spin transformations ===
-
 axis_or_throw(axis::Integer) = 1 <= axis <= 3 ? Int32(axis) :
     unitary_error("axis must be 1, 2, or 3, got $axis")
 axis_op(o::Op, axis::Integer) =
@@ -368,7 +362,7 @@ function triple_or_throw(S::Op)
     (is_pauli(S) || is_spin(S)) || unitary_error(
         "`Rotation` expects a Pauli or Spin operator, got $(S.kind)",
     )
-    return nothing
+    return S
 end
 
 """
@@ -413,8 +407,6 @@ function Rotation(S::Op, axis::Integer, θ::Real, t::Num)
         scaled(CNUM_ONE, fixed)
     return timed_transform(Rotation(S, axis, θ), gauge(generator, θ, tt), tt)
 end
-
-# === Ordinary N-level basis transformations ===
 
 transition_op(o::Op, i::Integer, j::Integer) =
     Op(OP_TRANSITION, o.name_id, o.space_index, o.index, Int32(i), Int32(j), o.g, o.nlev)

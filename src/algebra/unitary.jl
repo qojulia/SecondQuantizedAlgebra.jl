@@ -8,14 +8,12 @@ struct DynamicTime
     variable::Num
 end
 
-# Exact actions are partitioned into algebra-homogeneous affine blocks. These types live next
-# to `UnitaryTransform` so every transform can carry concrete affine metadata directly. Their
-# container fields are immutable by convention after construction and may be shared safely.
 @enum AffineStructure::UInt8 begin
     AFFINE_BOSONIC_NAMBU
     AFFINE_SYMPLECTIC_PHASE_SPACE
     AFFINE_ORTHOGONAL
     AFFINE_UNITARY_LINEAR
+    AFFINE_NONE
 end
 
 struct AffineBlock
@@ -115,7 +113,7 @@ function validate_complete(generators::Vector{Op})
             )
         end
     end
-    return nothing
+    return generators
 end
 
 function validated_transform(
@@ -124,7 +122,7 @@ function validated_transform(
     rules = affine_rules(action)
     generators = sort!(collect(keys(rules)))
     for generator in generators
-        (has_index(generator.index) && index_slot(generator.index) === nothing) &&
+        (has_index(generator.index) && iszero(index_slot(generator.index))) &&
             unitary_error(
             "unitary transforms of free indexed-operator families are not part of " *
                 "the exact closed-form API; resolve the index to one site first",
@@ -164,7 +162,7 @@ function validate_coverage(q::QAdd, U::UnitaryTransform)
                 "the constructor must cover every generator of a transformed site",
         )
     end
-    return nothing
+    return q
 end
 
 apply_rules(q::QAdd, rules::Dict{Op, QAdd}) = substitute_op_rules(q, rules)
@@ -294,7 +292,7 @@ function compose_rules(first::Dict{Op, QAdd}, second::Dict{Op, QAdd})
     return out
 end
 
-function add_gauges(left::QAdd, right::QAdd)::QAdd
+function add_gauges(left::QAdd, right::QAdd)
     if isempty(left.indices) && isempty(right.indices) &&
             length(left.arguments) == length(right.arguments) == 1
         first_term, first_coefficient = first(left.arguments)
@@ -333,7 +331,7 @@ function check_adopted_time(U::UnitaryTransform{StaticTime}, t::Num)
         "a static transform whose rules depend on `$t` cannot be composed with a timed " *
             "transform; construct the moving transform with its timed constructor",
     )
-    return nothing
+    return U
 end
 
 function compose_action(
@@ -408,7 +406,6 @@ function Base.:*(
     return compose(first, second, first.time)
 end
 
-# Rule-building primitives used by affine compilation and gauge construction.
 function rule_qadd(pairs::Vector{Tuple{CNum, Vector{Op}}})
     out = QTermDict()
     for (coefficient, operators) in pairs

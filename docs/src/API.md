@@ -370,6 +370,7 @@ numeric_num_subsystems
 numeric_assemble
 numeric_assemble_td
 numeric_materialize
+EagerOperator
 numeric_expect
 numeric_backend
 ```

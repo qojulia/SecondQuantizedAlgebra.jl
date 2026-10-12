@@ -1,7 +1,3 @@
-# Proof-preserving helpers for affine actions that are canonical by construction or by API
-# contract. No generic symbolic matrix inversion is used: each homogeneous affine block has a
-# structural inverse formula determined by its algebra.
-
 function canonical_block_inverse(block::AffineBlock, relations::Vector{ParamRelation})
     linear = inverse_linear(block.linear, block.structure)
     n = length(block.basis)
@@ -21,7 +17,6 @@ function canonical_affine_inverse(action::AffineAction)
     blocks = AffineBlock[
         canonical_block_inverse(block, action.relations) for block in action.blocks
     ]
-    # Structural inversion preserves block disjointness and does not mutate parameter relations.
     return AffineAction(blocks, action.relations)
 end
 
@@ -69,32 +64,27 @@ function validate_transform_substitution_rules(rules::AbstractDict)
                 "operator substitutions belong on the transformed expression",
         )
     end
-    return nothing
+    return rules
 end
 
-# Keep scalar substitutions closed under conjugation so exact rational/complex values replace
-# both a symbolic coefficient and its conjugate before the affine map is recompiled.
 function conjugation_closed_substitutions(rules::AbstractDict)
-    isempty(rules) && return rules
-    closed = Dict{Any, Any}(rules)
+    closed = ScalarRules()
     sizehint!(closed, 2 * length(rules))
     for (from, to) in rules
-        raw_from = if from isa Num
-            SymbolicUtils.unwrap(from)
-        elseif from isa SymbolicUtils.BasicSymbolic
-            from
-        else
-            continue
-        end
-        conjugated_from = raw_conj(raw_from)
-        isequal(conjugated_from, raw_from) && continue
-        conjugated_to = if to isa Number || to isa Num || to isa SymbolicUtils.BasicSymbolic
-            conj(to)
-        else
-            continue
-        end
-        closed[conjugated_from] = conjugated_to
+        add_scalar_rule!(closed, from, to)
     end
+    for (from, to) in rules
+        add_conjugate_rule!(closed, from, to)
+    end
+    return closed
+end
+
+add_conjugate_rule!(closed::ScalarRules, from, to) = closed
+function add_conjugate_rule!(closed::ScalarRules, from::Union{Num, RawExpression}, to::Union{Number, RawExpression})
+    raw_from = raw_rule(from)
+    conjugated_from = raw_conj(raw_from)
+    isequal(conjugated_from, raw_from) && return closed
+    closed[conjugated_from] = raw_rule(conj(to))
     return closed
 end
 

@@ -48,3 +48,10 @@ Outcome tag for `reduce_pair`:
 - `OpReduction`: pair reduces to `op * factor`; `op` replaces the first input.
 """
 @enum ReduceKind::UInt8 NoReduction ScalarReduction OpReduction
+
+function position_of(pred::F, v::AbstractVector) where {F}
+    for i in eachindex(v)
+        pred(v[i]) && return i
+    end
+    return 0
+end

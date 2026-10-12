@@ -3,7 +3,7 @@ using Symbolics: Symbolics, @variables, Num
 using SymbolicUtils: SymbolicUtils
 using Test
 using LinearAlgebra: I
-import SecondQuantizedAlgebra: Coeff, to_cnum, Monomial, ExactComplex, BigExactComplex, expim
+import SecondQuantizedAlgebra: Coeff, to_cnum, to_num, Monomial, ExactComplex, BigExactComplex, expim
 
 @testset "Symbolic coefficients" begin
     h = FockSpace(:coefficients)
@@ -372,5 +372,18 @@ import SecondQuantizedAlgebra: Coeff, to_cnum, Monomial, ExactComplex, BigExactC
             Matrix{Coeff}(I, 2, 2),
             Coeff[one(Coeff) zero(Coeff); zero(Coeff) one(Coeff)],
         )
+    end
+
+    @testset "lowering and identity checks infer concrete types" begin
+        @variables g::Real z
+        for c in (to_cnum(2 // 3), to_cnum(g), to_cnum(z), to_cnum(Complex(g, g)), to_cnum(sqrt(g) * z))
+            @test (@inferred to_num(c)) isa Complex{Num}
+        end
+        one_term = one(a)
+        @test @inferred isone(one_term)
+        @test isone(1.0 * one_term)
+        @test !(@inferred isone(2 * one_term))
+        @test !isone(g * one_term)
+        @test !isone(a + 0)
     end
 end

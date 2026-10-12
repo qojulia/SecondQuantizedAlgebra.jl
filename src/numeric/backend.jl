@@ -1,12 +1,3 @@
-# Numeric backends and the open extension surface.
-#
-# `to_numeric`/`numeric_average` are backend-neutral in `src/`; every place that would
-# name a concrete numeric type (a `Basis`, a lazy operator, an `expect`) goes through a
-# generic hook whose methods live in a package extension (`ext/`). A backend is selected
-# by a zero-field singleton so dispatch is static and the backend axis is free for
-# inference. Loading `QuantumOpticsBase` or `QuantumToolbox` activates the matching
-# extension, which adds the methods below.
-
 """
     NumericBackend
 
@@ -35,18 +26,11 @@ Select [QuantumToolbox.jl](https://github.com/qutip/QuantumToolbox.jl). Active a
 """
 struct QuantumToolboxBackend <: NumericBackend end
 
-# --- Open extension hooks (bare generic functions; methods defined in ext/) ------------
-#
-# `be` is always a backend singleton. `basis` is opaque to the core: a `Basis` for
-# QuantumOptics, integer dims (`Int`/`Vector{Int}`) for QuantumToolbox.
-
 """
     numeric_operator(be, op::Op, subbasis)
 
 Map a single-site operator `op` to its numeric matrix on `subbasis` (the subsystem basis
-for `op`'s slot). The main extension method is a closed `k === OP_*` value-branch on
-`op.kind`; the separate extension point `numeric_operator(be, ::Val{kind}, op, subbasis)`
-is the fallthrough for adding backend support for an existing role and throws by default.
+for `op`'s slot). Backends implement it as a closed `k === OP_*` value-branch on `op.kind`.
 """
 function numeric_operator end
 
@@ -103,17 +87,25 @@ function numeric_assemble end
     numeric_assemble_td(be, basis, td_terms)
 
 Like [`numeric_assemble`](@ref) but each coefficient is `Union{ComplexF64, Function}`
-(a constant or a `t -> ComplexF64`), producing the backend's native time-dependent
+(a constant, a `t -> ComplexF64`, or a solver-parameter-aware `(p, t) -> ComplexF64`),
+producing the backend's native time-dependent
 operator.
 """
 function numeric_assemble_td end
 
 """
+    EagerOperator()
+
+The default `op_type`: request the backend's ordinary eager operator.
+"""
+struct EagerOperator end
+
+"""
     numeric_materialize(be, op, op_type)
 
 Materialize a static lazily assembled operator `op` according to `op_type`, applied exactly
-once at the public boundary. Implementations must treat `nothing` as a request for their
-ordinary eager operator and `identity` as a request for `op` unchanged. Other callables are
+once at the public boundary. Implementations must treat [`EagerOperator`](@ref) as a request
+for their ordinary eager operator and `identity` as a request for `op` unchanged. Other callables are
 backend-defined. The eager representation need not be sparse, although both bundled
 backends choose sparse storage.
 
@@ -138,8 +130,6 @@ for their state types to support [`numeric_average`](@ref) and state-based [`to_
 """
 function numeric_backend end
 
-# The one-argument `numeric_basis(state)` is the public state-to-basis counterpart of the
-# three-argument Hilbert-space builder declared above.
 """
     numeric_basis(state)
 
@@ -175,8 +165,8 @@ loaded backend extension, erroring helpfully when zero or both are loaded.
 """
 function default_backend()
     m = @__MODULE__
-    qob = Base.get_extension(m, :SecondQuantizedAlgebraQuantumOpticsBaseExt) !== nothing
-    qtb = Base.get_extension(m, :SecondQuantizedAlgebraQuantumToolboxExt) !== nothing
+    qob = Base.get_extension(m, :SecondQuantizedAlgebraQuantumOpticsBaseExt) isa Module
+    qtb = Base.get_extension(m, :SecondQuantizedAlgebraQuantumToolboxExt) isa Module
     qob && !qtb && return QuantumOpticsBackend()
     qtb && !qob && return QuantumToolboxBackend()
     if qob && qtb

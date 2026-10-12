@@ -1,6 +1,3 @@
-# The Pythagorean relation `hi^2 == 1 + sign * lo^2`, used to reduce coefficients without
-# calling the CAS. `hi` is eliminated in favour of `lo`, so the factor to remove comes first.
-# `sign` is `-1` for a trigonometric pair (`cos^2 = 1 - sin^2`) and `+1` for a hyperbolic one.
 struct ParamRelation
     hi::Num
     lo::Num
@@ -12,9 +9,6 @@ as_num(x) = Num(x)
 ParamRelation(hi, lo, sign::Integer) =
     ParamRelation(as_num(hi), as_num(lo), Int8(sign))
 
-# Whether a relation can fire at all: both members have to be symbolic, not folded
-# constants. A numeric parameter collapses its members to literals, and the transient swap
-# would then hand those to `substitute` and rewrite bare constants in every coefficient.
 function is_usable_rel(r::ParamRelation)
     return is_sym_member(r.hi) && is_sym_member(r.lo)
 end
@@ -32,12 +26,9 @@ end
     return 0
 end
 
-# Rebuild with the exponents at `i` and `j` replaced, dropping factors that cancel.
-# Index order is preserved, so `syms` stays sorted by `fkey` as `term_mul` and
-# `poly_add` require.
 function replace_exps(m::Monomial, i::Int, ei::Rational{Int}, j::Int, ej::Rational{Int})
     n = length(m.syms)
-    syms = SymbolicUtils.BasicSymbolic[]
+    syms = RawExpression[]
     exps = Rational{Int}[]
     sizehint!(syms, n)
     sizehint!(exps, n)
@@ -53,13 +44,8 @@ end
 @inline reducible_power(m::Monomial, i::Int) =
     i != 0 && denominator(m.exps[i]) == 1 && numerator(m.exps[i]) >= 2
 
-# A malformed or simply enormous symbolic power must not turn simplification into an
-# accidental expansion bomb. This is a work bound, not a mathematical approximation: on
-# refusal the original coefficient is returned byte-for-byte unchanged.
 const MAX_RELATION_TERMS = 4096
 
-# Expanded rather than reached by `k` rounds of `poly_mul`, which is quadratic: each round
-# canonicalizes, so the accumulator grows by a term and is multiplied out again.
 function binomial_power(
         ::Type{E}, lo::SymbolicUtils.BasicSymbolic, sign::Int8, k::Int,
     ) where {E <: ExactScalar}
@@ -69,15 +55,12 @@ function binomial_power(
     for j in 1:k
         c = c * E(k - j + 1, 0) * inv(E(j, 0))
         s = (sign < 0 && isodd(j)) ? -c : c
-        out[j + 1] = Monomial{E}(s, SymbolicUtils.BasicSymbolic[lo], Rational{Int}[2j])
+        out[j + 1] = Monomial{E}(s, RawExpression[lo], Rational{Int}[2j])
     end
     return out
 end
 
-# Project the raw number of terms before allocating a binomial. Canonicalization can make
-# this much shorter (and often reduces it to one), so the projection is only a safety gate;
-# the `gated` length decision is made on the canonical result afterwards.
-function projected_relation_terms(terms::Vector{<:Monomial}, hi)
+function exceeds_relation_budget(terms::Vector{<:Monomial}, hi)
     projected = 0
     for m in terms
         i = find_factor(m, hi)
@@ -86,14 +69,12 @@ function projected_relation_terms(terms::Vector{<:Monomial}, hi)
         else
             1
         end
-        add > MAX_RELATION_TERMS - projected && return nothing
+        add > MAX_RELATION_TERMS - projected && return true
         projected += add
     end
-    return projected
+    return false
 end
 
-# `hi^e -> (1 + sign*lo^2)^(e ÷ 2) * hi^(e % 2)`, term by term. Only integer exponents
-# split; a radical of `hi` carries no such identity.
 function reduce_pythagorean(terms::Vector{Monomial{E}}, hi, lo, sign::Int8) where {E}
     reducible = false
     for m in terms
@@ -103,10 +84,10 @@ function reduce_pythagorean(terms::Vector{Monomial{E}}, hi, lo, sign::Int8) wher
         end
     end
     reducible || return (terms, false)
-    projected_relation_terms(terms, hi) === nothing && return (terms, false)
+    exceeds_relation_budget(terms, hi) && return (terms, false)
     out = Monomial{E}[]
     pow = Monomial{E}[]
-    last_k = -1   # terms of one expression almost always share an exponent
+    last_k = -1
     for m in terms
         i = find_factor(m, hi)
         if !reducible_power(m, i)
@@ -131,15 +112,8 @@ apply_relation(terms::Vector{<:Monomial}, r::ParamRelation) = reduce_pythagorean
     terms, SymbolicUtils.unwrap(r.hi), SymbolicUtils.unwrap(r.lo), r.sign,
 )
 
-# Two relations that eliminate each other's retained factor would ping-pong forever;
-# the cap is the backstop. Every relation used here converges in one pass.
 const MAX_REDUCE_PASSES = 8
 
-# Apply every relation until nothing changes.
-#
-# `gated` keeps a rewrite only when it shortens the term list, which is what display
-# wants but makes reduction non-monotone: the sole route to zero may pass through a
-# longer intermediate. Zero-testing therefore runs ungated.
 function reduce_terms(terms::Vector{<:Monomial}, rels::Vector{ParamRelation}, gated::Bool)
     isempty(rels) && return terms
     cur = terms
@@ -163,13 +137,9 @@ end
     return (s, false)
 end
 
-# The sole argument of a one-argument call, else `nothing`.
-@inline function unary_arg(x)
-    (x isa SymbolicUtils.BasicSymbolic && SymbolicUtils.iscall(x)) || return nothing
-    args = SymbolicUtils.arguments(x)
-    length(args) == 1 || return nothing
-    return args[1]
-end
+@inline is_unary_call(x) =
+    x isa SymbolicUtils.BasicSymbolic && SymbolicUtils.iscall(x) &&
+    length(SymbolicUtils.arguments(x)) == 1
 
 struct TrigKey
     arg_id::UInt
@@ -181,27 +151,22 @@ Base.isequal(a::TrigKey, b::TrigKey) =
     a.arg_id == b.arg_id && a.wrapped == b.wrapped && a.family == b.family
 Base.hash(k::TrigKey, h::UInt) = hash(k.family, hash(k.wrapped, hash(k.arg_id, h)))
 
-struct TrigHead{F}
-    factor::F
+struct TrigHead
+    factor::RawExpression
     key::TrigKey
     sign::Int8
 end
 
-# `cos^2 + sin^2 = 1` and `cosh^2 - sinh^2 = 1` hold unconditionally, so the pairs come
-# from the coefficient's own factors. Both members must carry the same `conj` wrapping:
-# `conj_atom` wraps `Number`-symtype atoms, and `conj(cos u)^2 + conj(sin u)^2 = 1` too.
 trig_relations(terms::Vector{<:Monomial}) = trig_relations!(ParamRelation[], terms)
 
-# Appends to `rels`, which may already hold the declared relations: a discovered pair whose
-# `hi` is already there would only be applied twice for the same fixpoint.
 function trig_relations!(rels::Vector{ParamRelation}, terms::Vector{<:Monomial})
     from = length(rels) + 1
-    lows = Dict{TrigKey, SymbolicUtils.BasicSymbolic}()
+    lows = Dict{TrigKey, RawExpression}()
     heads = TrigHead[]
     for m in terms, s in m.syms
         core, wrapped = strip_conj(s)
-        arg = unary_arg(core)
-        arg isa SymbolicUtils.BasicSymbolic || continue
+        is_unary_call(core) || continue
+        arg = only(SymbolicUtils.arguments(core))
         op = SymbolicUtils.operation(core)
         family = (op === cos || op === sin) ? UInt8(1) :
             ((op === cosh || op === sinh) ? UInt8(2) : UInt8(0))
@@ -222,13 +187,9 @@ function trig_relations!(rels::Vector{ParamRelation}, terms::Vector{<:Monomial})
             end
         end
         duplicate && continue
-        lo = get(lows, head.key, nothing)
-        lo === nothing && continue
-        push!(rels, ParamRelation(Num(head.factor), Num(lo), head.sign))
+        haskey(lows, head.key) || continue
+        push!(rels, ParamRelation(Num(head.factor), Num(lows[head.key]), head.sign))
     end
-    # `fkey` is `objectid`, so factor order within a monomial is address-derived. Sort by
-    # the structural hash instead, keeping the result independent of allocation order. Only
-    # the pairs found here are sorted, so declared relations keep their leading position.
     sort_rels!(rels, from)
     return rels
 end
@@ -244,19 +205,18 @@ function sort_rels!(rels::Vector{ParamRelation}, from::Int)
         end
         rels[j + 1] = r
     end
-    return nothing
+    return rels
 end
 
-# Empty -> `CNUM_ZERO`; a `Poly` never reports itself zero.
 reduce_tail(t::Poly, rels::Vector{ParamRelation}, gated::Bool) =
     tiered(reduced_terms, t, rels, gated)
 @inline reduced_terms(::Type{E}, terms::Vector{Monomial{E}}, rels, gated::Bool) where {E} =
     reduce_terms(terms, rels, gated)
 
-# Fold `cos^2 + sin^2` and `cosh^2 - sinh^2` factors of a coefficient.
 function reduce_trig(c::Coeff)
-    t = c.tail::Poly
-    has_trig_factor(t.terms) || return c   # common path allocates nothing
+    t = c.tail
+    t isa Poly || return c
+    has_trig_factor(t.terms) || return c
     rels = trig_relations(t.terms)
     isempty(rels) && return c
     return reduce_tail(t, rels, true)
@@ -284,13 +244,10 @@ function has_trig_factor(terms::Vector{<:Monomial})
     return false
 end
 
-# Create a genuinely fresh stand-in and check it against every symbol already present in
-# the coefficient. The explicit check is intentional: these atoms participate in global
-# SymbolicUtils interning, so relying on a human-chosen prefix is never sound.
-function fresh_transient!(occupied::Vector{SymbolicUtils.BasicSymbolic})
+function fresh_transient!(occupied::Vector{RawExpression})
     while true
-        candidate = Symbolics.variable(gensym(:sqa_rel))
-        raw = SymbolicUtils.unwrap(candidate)
+        raw = SymbolicUtils.Sym{SymbolicUtils.SymReal}(gensym(:sqa_rel); type = Real)
+        candidate = Num(raw)
         collision = false
         for s in occupied
             if isequal(s, raw)
@@ -305,20 +262,16 @@ function fresh_transient!(occupied::Vector{SymbolicUtils.BasicSymbolic})
     return
 end
 
-# A relation on a composite argument (`cos(ω*t)`) is not an atom, so its coefficient sits
-# on the raw symbolic tail, where the CAS folds degree 2 and nothing above it. Swap both
-# members for plain symbols, which *are* atoms, reduce on the polynomial tier, swap back.
-# The raw route keeps the complex expression intact; splitting it into real and imaginary
-# parts here would materialize the representation on every coefficient.
 function reduce_raw_via_transient(
         c::Coeff, rels::Vector{ParamRelation}, gated::Bool,
     )
-    tail = c.tail::RawSymbolicCoeff
+    tail = c.tail
+    tail isa RawSymbolicCoeff || return c
     raw = tail.expr
     fwd = Dict{Num, Num}()
     back = Dict{Num, Num}()
     trels = ParamRelation[]
-    occupied = SymbolicUtils.BasicSymbolic[]
+    occupied = RawExpression[]
     append!(occupied, Symbolics.get_variables(Num(raw)))
     for r in rels
         haskey(fwd, r.hi) && continue
@@ -337,9 +290,8 @@ function reduce_raw_via_transient(
     isequal(reduced, sub) && return c
     reduced.tail isa Native && return reduced
     result = SymbolicUtils.unwrap(Symbolics.substitute(Num(raw_tail(reduced)), back))
-    value = const_value(result)
-    value isa Number && return to_cnum(value)
-    result isa SymbolicUtils.BasicSymbolic || return c
+    result isa RawExpression || return c
+    is_numeric_const(result) && return const_coeff(result)
     return from_raw_arithmetic(result, tail.real_slot)
 end
 
@@ -347,9 +299,6 @@ function reduce_via_transient(c::Coeff, rels::Vector{ParamRelation}, gated::Bool
     return reduce_raw_via_transient(c, rels, gated)
 end
 
-# On the polynomial tier the factors of a coefficient are explicit; on the raw symbolic
-# tail they are buried in a SymbolicUtils tree, so walk it for the same pairs. Only the
-# transform layer pays for this, never `simplify`.
 function has_symbolic_trig(x)
     x isa SymbolicUtils.BasicSymbolic || return false
     SymbolicUtils.iscall(x) || return false
@@ -375,9 +324,9 @@ function raw_uses_trig_relation(x, r::ParamRelation)
     return false
 end
 
-function collect_trig!(store::Vector{SymbolicUtils.BasicSymbolic}, x)
-    x isa SymbolicUtils.BasicSymbolic || return nothing
-    SymbolicUtils.iscall(x) || return nothing
+function collect_trig!(store::Vector{RawExpression}, x)
+    x isa SymbolicUtils.BasicSymbolic || return store
+    SymbolicUtils.iscall(x) || return store
     args = SymbolicUtils.arguments(x)
     op = SymbolicUtils.operation(x)
     if length(args) == 1 && (op === cos || op === sin || op === cosh || op === sinh)
@@ -389,23 +338,23 @@ function collect_trig!(store::Vector{SymbolicUtils.BasicSymbolic}, x)
             end
         end
         duplicate || push!(store, x)
-        return nothing
+        return store
     end
     for arg in args
         collect_trig!(store, arg)
     end
-    return nothing
+    return store
 end
 
 function sym_trig_relations!(rels::Vector{ParamRelation}, c::Coeff)
-    store = SymbolicUtils.BasicSymbolic[]
+    store = RawExpression[]
     collect_trig!(store, c.tail.expr)
     return sym_trig_relations!(rels, store)
 end
 
-function sym_trig_relations!(rels::Vector{ParamRelation}, store::Vector{SymbolicUtils.BasicSymbolic})
+function sym_trig_relations!(rels::Vector{ParamRelation}, store::Vector{RawExpression})
     isempty(store) && return rels
-    lows = Dict{TrigKey, SymbolicUtils.BasicSymbolic}()
+    lows = Dict{TrigKey, RawExpression}()
     heads = TrigHead[]
     for factor in store
         op = SymbolicUtils.operation(factor)
@@ -420,23 +369,18 @@ function sym_trig_relations!(rels::Vector{ParamRelation}, store::Vector{Symbolic
         end
     end
     for head in heads
-        lo = get(lows, head.key, nothing)
-        lo === nothing && continue
-        push!(rels, ParamRelation(Num(head.factor), Num(lo), head.sign))
+        haskey(lows, head.key) || continue
+        push!(rels, ParamRelation(Num(head.factor), Num(lows[head.key]), head.sign))
     end
     return rels
 end
 
-# Reduce by the declared relations together with the trigonometric pairs found in `c`, to a
-# fixpoint over all of them.
 function reduce_all(
         c::Coeff, rels::Vector{ParamRelation}, gated::Bool,
         scratch::Vector{ParamRelation},
     )
     t = c.tail
     t isa Native && return c
-    # Declared relations lead, then the pairs found in `c`. `scratch` is reused across the
-    # terms of one expression, so a frame conjugation allocates no relation list per term.
     empty!(scratch)
     append!(scratch, rels)
     if t isa Poly
@@ -449,9 +393,6 @@ function reduce_all(
         isempty(scratch) && return c
         return reduce_via_transient(c, scratch, gated)
     end
-    # A raw coefficient without trig or phase factors cannot be affected by the
-    # trigonometric relations attached to a unitary transform. In particular,
-    # leave indexed parameters and time derivatives in their raw representation.
     if all(is_trig_relation, rels)
         any(r -> raw_uses_trig_relation(t.expr, r), rels) || return c
     end

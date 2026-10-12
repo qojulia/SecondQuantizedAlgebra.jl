@@ -51,8 +51,8 @@ Look up the integer index for a symbolic level name.
 """
 function level_index(h::NLevelSpace, s::Symbol)
     isempty(h.levels) && throw(ArgumentError("NLevelSpace $(h.name) has no symbolic levels"))
-    idx = findfirst(==(s), h.levels)
-    idx === nothing && throw(ArgumentError("Level :$s not found in $(h.levels)"))
+    idx = position_of(==(s), h.levels)
+    iszero(idx) && throw(ArgumentError("Level :$s not found in $(h.levels)"))
     return idx
 end
 
@@ -89,8 +89,8 @@ Base.hash(a::CollectiveNLevelSpace, h::UInt) =
 
 function level_index(h::CollectiveNLevelSpace, s::Symbol)
     isempty(h.levels) && throw(ArgumentError("CollectiveNLevelSpace $(h.name) has no symbolic levels"))
-    idx = findfirst(==(s), h.levels)
-    idx === nothing && throw(ArgumentError("Level :$s not found in $(h.levels)"))
+    idx = position_of(==(s), h.levels)
+    iszero(idx) && throw(ArgumentError("Level :$s not found in $(h.levels)"))
     return idx
 end
 
@@ -151,7 +151,6 @@ function Transition(h::ProductSpace, name::Symbol, i::Symbol, j::Symbol, idx::In
     return Transition(name, level_index(space, i), level_index(space, j), idx, NO_INDEX, space.ground_state, space.n)
 end
 
-# Auto-detect subspace when the ProductSpace contains exactly one NLevelSpace.
 Transition(h::ProductSpace, name::Symbol, i::Int, j::Int) =
     Transition(h, name, i, j, unique_subspace_index(h, NLevelSpace))
 Transition(h::ProductSpace, name::Symbol, i::Symbol, j::Symbol) =

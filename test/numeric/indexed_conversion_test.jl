@@ -240,3 +240,33 @@ end
     @test_throws ArgumentError to_numeric(H, b, Dict(1 => [1, 1]))
     @test_throws ArgumentError to_numeric(H, b, Dict(1 => [1, 3]))
 end
+
+@testset "Indexed numeric: dispersive Tavis-Cummings shift" begin
+    N, cutoff = 2, 2
+    h = FockSpace(:cavity) ⊗ NLevelSpace(:atom, 2)
+    a = Destroy(h, :a, 1)
+    σ(α, β, k) = IndexedOperator(Transition(h, :σ, α, β, 2), k)
+    i = Index(h, :i, N, NLevelSpace(:atom, 2))
+    g, Δ = IndexedVariable(:g, i), IndexedVariable(:Δ, i)
+    H = Σ(g^2 / Δ * a' * a * (σ(2, 2, i) - σ(1, 1, i)), i)
+    b = FockBasis(cutoff) ⊗ NLevelBasis(2) ⊗ NLevelBasis(2)
+    sites = Dict{Int, Vector{Int}}(1 => [1], 2 => [2, 3])
+    site_sym(name) = SymbolicUtils.Sym{SymbolicUtils.SymReal}(
+        name;
+        type = SymbolicUtils.FnType{Tuple{Int}, Real, Nothing},
+        shape = UnitRange{Int}[],
+    )
+    gnums, Δnums = (0.3, 0.7), (2.0, 5.0)
+    scalar_subs = Dict{Num, ComplexF64}()
+    for k in 1:N
+        scalar_subs[Num(site_sym(:g)(k))] = gnums[k]
+        scalar_subs[Num(site_sym(:Δ)(k))] = Δnums[k]
+    end
+    M = to_numeric(H, b, sites, Dict{Op, Any}(), scalar_subs)
+
+    hx = FockSpace(:c) ⊗ NLevelSpace(:atom_1, 2) ⊗ NLevelSpace(:atom_2, 2)
+    ax = Destroy(hx, :a, 1)
+    σx(α, β, k) = Transition(hx, Symbol("σ_", k), α, β, k + 1)
+    Hx = sum(gnums[k]^2 / Δnums[k] * ax' * ax * (σx(2, 2, k) - σx(1, 1, k)) for k in 1:N)
+    @test matnorm(sparse(M).data, sparse(to_numeric(Hx, b)).data) < 1.0e-10
+end

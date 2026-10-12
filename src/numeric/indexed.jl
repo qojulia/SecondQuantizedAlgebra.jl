@@ -1,9 +1,3 @@
-# Indexed numeric conversion. The unroll logic (which bound indices a term depends on,
-# the `ne` diagonal filter, the `sub_op`/`sub_coef` dual substitution) is backend-neutral
-# and kept verbatim; only the leaf emission is routed through the backend hooks at the
-# resolved site, so every combination becomes one entry of the same term list the static
-# path assembles.
-
 """
     to_numeric(q::QAdd, basis, sites::Dict{Int, Vector{Int}}[, d[, scalar_subs]])
 
@@ -31,9 +25,6 @@ function to_numeric(
     return to_numeric_indexed(QuantumOpticsBackend(), b, q, sites, d, scalar_subs)
 end
 
-# Backend-neutral indexed conversion. Every place that would name a numeric type goes
-# through the hooks, so this drives both backends; the `Basis`/QTB-dims entry points only
-# pick the backend singleton and hand off here.
 function to_numeric_indexed(
         be::NumericBackend, basis, q::QAdd,
         sites::AbstractDict{Int, Vector{Int}},
@@ -43,11 +34,11 @@ function to_numeric_indexed(
     validate_sites(be, basis, sites)
     ctx = NumericContext(be, basis, d, scalar_subs, Dict{Int, Vector{Int}}(sites))
     sub_re, sub_im, has_imag = split_scalar_subs(scalar_subs)
-    terms = Tuple{ComplexF64, Vector{Any}}[]
+    terms = OpTerm[]
     for (term, c) in q.arguments
         accumulate_indexed_term!(terms, term, c, q.indices, ctx, sub_re, sub_im, has_imag)
     end
-    return numeric_materialize(be, numeric_assemble(be, basis, terms), nothing)
+    return static_operator(terms, ctx, EagerOperator())
 end
 
 function validate_sites(be::NumericBackend, basis, sites)
@@ -69,31 +60,22 @@ function validate_sites(be::NumericBackend, basis, sites)
             push!(seen, slot)
         end
     end
-    return nothing
+    return sites
 end
 
-function numeric_leaf_indexed(op::Op, ctx::NumericContext)
-    haskey(ctx.op_subs, op) && return ctx.op_subs[op]
-    slot = resolve_slot(op, ctx.sites)
-    sub = numeric_subbasis(ctx.backend, ctx.basis, slot)
-    leaf = numeric_operator(ctx.backend, op, sub)
-    return numeric_embed(ctx.backend, ctx.basis, slot, leaf)
-end
-
-function push_indexed_combo!(terms, ops::Vector{Op}, c::CNum, ctx::NumericContext)
-    factors = Any[numeric_leaf_indexed(op, ctx) for op in ops]
-    push!(terms, (to_complex(c), factors))
+function push_indexed_combo!(terms::Vector{OpTerm}, ops::Vector{Op}, c::CNum)
+    push!(terms, (to_complex(c), ops))
     return terms
 end
 
 function accumulate_indexed_term!(
-        terms, term::QTerm, c::CNum, indices::Vector{Index},
-        ctx::NumericContext, sub_re::Dict, sub_im::Dict, has_imag::Bool,
+        terms::Vector{OpTerm}, term::QTerm, c::CNum, indices::Vector{Index},
+        ctx::NumericContext, sub_re::ScalarRules, sub_im::ScalarRules, has_imag::Bool,
     )
     dep_indices = Index[idx for idx in indices if depends_on_index_term(c, term.ops, idx)]
     if isempty(dep_indices)
         c_resolved = apply_scalar_subs(c, sub_re, sub_im, has_imag)
-        return push_indexed_combo!(terms, term.ops, c_resolved, ctx)
+        return push_indexed_combo!(terms, term.ops, c_resolved)
     end
     lens = Int[length(ctx.sites[Int(idx.space_index)]) for idx in dep_indices]
     total = prod(lens)
@@ -107,9 +89,6 @@ function accumulate_indexed_term!(
             kpos = (rem % lens[k]) + 1
             rem ÷= lens[k]
             idx = dep_indices[k]
-            # Operators keep the index name (slot kpos drives routing / ne checks and
-            # lets a resolved op still match a user `d` key); coefficients use the
-            # anonymous name_id-0 form so `index_sym` is Num(kpos), resolving g(i)→g(k).
             sub_op[idx] = Index(idx.name_id, idx.range_id, idx.space_index, Int32(kpos))
             sub_coef[idx] = Index(Int32(0), idx.range_id, idx.space_index, Int32(kpos))
         end
@@ -117,7 +96,7 @@ function accumulate_indexed_term!(
         new_ops = Op[change_index(op, sub_op) for op in term.ops]
         new_c = change_index(c, sub_coef)
         new_c = apply_scalar_subs(new_c, sub_re, sub_im, has_imag)
-        push_indexed_combo!(terms, new_ops, new_c, ctx)
+        push_indexed_combo!(terms, new_ops, new_c)
     end
     return terms
 end
@@ -128,8 +107,8 @@ function violates_ne(ne::Vector{NonEqualPair}, sub::Dict{Index, Index})
         rb = get(sub, b, b)
         va = index_slot(ra)
         vb = index_slot(rb)
-        va === nothing && continue
-        vb === nothing && continue
+        iszero(va) && continue
+        iszero(vb) && continue
         ra.space_index == rb.space_index || continue
         va == vb && return true
     end
@@ -144,7 +123,7 @@ function resolve_slot(op::QSym, sites::AbstractDict{Int, Vector{Int}})
     end
     if has_index(op.index)
         v = index_slot(op.index)
-        if v !== nothing && 1 <= v <= length(slots)
+        if 1 <= v <= length(slots)
             return slots[v]
         end
     end

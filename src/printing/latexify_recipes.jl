@@ -24,8 +24,6 @@ function transition_superscript(x::Bool)
     return x
 end
 
-# Join accumulated per-slot suffixes into one comma subscript (`i_2_1` -> `i_{2,1}`);
-# a bare `_{i_2_1}` is a double subscript that MathJax rejects.
 function latex_index_suffix(idx::Index)
     has_index(idx) || return ""
     parts = split(string(index_name(idx)), '_')
@@ -33,16 +31,10 @@ function latex_index_suffix(idx::Index)
     return "_{$(name)}"
 end
 
-# Render an operator name for LaTeX. A bare name (`:a`) passes through, but a
-# Julia-style compound name (`:a_pol`, `:c_bog`) is split at the first `_` and
-# rendered as `a_{\mathrm{pol}}` — otherwise KaTeX reads the `_` as a subscript
-# operator and the trailing characters render as stray italic letters.
 function latex_name(name)
     s = string(name)
-    idx = findfirst('_', s)
-    idx === nothing && return s
-    head = s[1:prevind(s, idx)]
-    rest = s[nextind(s, idx):end]
+    occursin('_', s) || return s
+    head, rest = split(s, '_'; limit = 2)
     rest_escaped = replace(rest, '_' => "\\_")
     return string(head, "_{\\mathrm{", rest_escaped, "}}")
 end
@@ -59,24 +51,22 @@ end
         "{$(name)}$(suffix)$(transition_idx_script[]){{$(Int(x.l1))$(Int(x.l2))}}"
     elseif k === OP_PAULI || k === OP_SPIN
         "{$(name)}$(suffix)_{{$(xyz_sym[x.l1])}}"
-    else   # OP_POSITION, OP_MOMENTUM
+    else
         "\\hat{$(name)}$(suffix)"
     end
     return Expr(:latexifymerge, body)
 end
 
-function latex_prefactor(c::CNum)
-    re, im = realimag(c)
-    r_val = Symbolics.value(SymbolicUtils.unwrap(re))
-    i_val = Symbolics.value(SymbolicUtils.unwrap(im))
-    iszero_num(im) && return r_val
-    if iszero_num(re)
+latex_real(x::Int) = x
+latex_real(x::Float64) = x
+latex_real(x::Rational{Int}) = isone(denominator(x)) ? numerator(x) : x
 
-        i_val isa Real && return complex(false, i_val)
-    elseif r_val isa Real && i_val isa Real
-        return complex(r_val, i_val)
-    end
-    return Complex(re, im)
+function latex_native_term(z::Union{ComplexF64, GaussianRational{Int}}, ops::Vector{Op})
+    r = latex_real(real(z))
+    i = latex_real(imag(z))
+    iszero(imag(z)) && return latex_pf_term(r, ops)
+    iszero(real(z)) && return latex_pf_term(complex(false, i), ops)
+    return latex_pf_term(complex(r, i), ops)
 end
 
 @latexrecipe function f(c::Coeff)
@@ -85,11 +75,12 @@ end
 
 const LATEX_FRAGMENT = Union{String, Symbol, QSym, Number, SymbolicUtils.BasicSymbolic}
 
-# Check if a symbolic prefactor needs \left( \right) brackets when followed by operators.
-# Fractions (/) and sums (+) are visually ambiguous without grouping.
 function needs_pf_brackets(pf::Number)
     return false
 end
+needs_pf_brackets(pf::Complex) = !is_zero_part(real(pf)) && !is_zero_part(imag(pf))
+is_zero_part(x::Num) = iszero_num(x)
+is_zero_part(x::Real) = iszero(x)
 function needs_pf_brackets(pf::SymbolicUtils.BasicSymbolic)
     SymbolicUtils.iscall(pf) || return false
     op = SymbolicUtils.operation(pf)
@@ -97,13 +88,18 @@ function needs_pf_brackets(pf::SymbolicUtils.BasicSymbolic)
 end
 
 function latex_term(c::CNum, ops::Vector{Op})
-    pf = latex_prefactor(c)
+    is_native(c) && return latex_native_term(native_scalar(c), ops)
+    re, im = realimag(c)
+    iszero_num(im) && return latex_pf_term(SymbolicUtils.unwrap(re), ops)
+    return latex_pf_term(Complex(re, im), ops)
+end
+
+function latex_pf_term(pf, ops::Vector{Op})
     isempty(ops) && return Expr(:latexifymerge, pf)
     parts = LATEX_FRAGMENT[]
     if pf isa Number && pf == -1
         push!(parts, :(-))
     elseif pf isa Number && isone(pf)
-        # skip prefactor
     elseif needs_pf_brackets(pf)
         push!(parts, "\\left(")
         push!(parts, pf)
@@ -168,8 +164,6 @@ function Symbolics._toexpr_op(::AvgFunc, args; kwargs...)
     return latex_avg_expr(only(args))
 end
 
-# The LaTeX twin of the `show_call(::typeof(expim))` override, so a phase renders
-# as an exponential rather than as the raw head name.
 function Symbolics._toexpr_op(::typeof(expim), args; kwargs...)
     arg = only(args)
     neg = leading_sign(arg) < 0
@@ -181,8 +175,6 @@ function Symbolics._toexpr_op(::SumFunc, args; kwargs...)
     scope = scope_of(args[2])
     body = args[1]
     body_tex = strip(String(latexify(body; env = :inline)), '$')
-    # Wrap a multi-term (`+`) body so the Σ binds the whole sum, not just its
-    # first summand (mirrors the Unicode `show_call(::SumFunc)`).
     if SymbolicUtils.iscall(body) && SymbolicUtils.operation(body) === (+)
         body_tex = string("\\left( ", body_tex, " \\right)")
     end
@@ -200,7 +192,6 @@ end
 @latexrecipe function f(x::QAdd)
     st = sorted_arguments(x)
     if !isempty(x.indices)
-        # Split terms into index-dependent and index-independent
         dep_qadds = QAdd[]
         terms_out = Expr[]
         for t in st

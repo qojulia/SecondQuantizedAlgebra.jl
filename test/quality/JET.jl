@@ -1,68 +1,41 @@
 using SecondQuantizedAlgebra
 using Test
 using JET
-using QuantumOpticsBase: FockBasis, NLevelBasis, SpinBasis, basisstate
+using QuantumOpticsBase: FockBasis, NLevelBasis, SpinBasis, LazyKet, basisstate, coherentstate, dense, destroy, fockstate, nlevelstate, tensor
+using Latexify: latexify
+using QuantumToolbox: QuantumToolbox
+import SciMLOperators as SO
+using SecondQuantizedAlgebra: constraint_pairs, exponential_form, expim, get_sum_body, get_sum_indices, get_sum_non_equal, indexed_sum, order_key, phase_terms, qadd_order_key, rename, set_acts_on, term_order_key, to_cnum, to_num, transition_superscript, trigonometric_form
 
 report_text(report) = sprint(show, MIME("text/plain"), report)
 
-# Collected rather than asserted one by one so the failure can name the offender: a bare
-# `@test any(occursin, allowed)` prints only the predicate.
-matches_allowed(text, needle::AbstractString) = occursin(needle, text)
-matches_allowed(text, needle::Regex) = occursin(needle, text)
-
-unmatched(report, allowed::AbstractVector) = filter(
-    text -> !any(needle -> matches_allowed(text, needle), allowed),
-    map(report_text, JET.get_reports(report)),
-)
-
-function test_allowed_only(report, allowed::AbstractVector)
-    left = unmatched(report, allowed)
-    isempty(left) || @info "unmatched JET reports" left
-    @test isempty(left)
+# Prints the offending reports on failure: a bare `@test isempty(...)` shows only the count.
+function test_no_reports(report)
+    reports = map(report_text, JET.get_reports(report))
+    isempty(reports) || @info "unexpected JET reports" reports
+    @test isempty(reports)
     return
 end
 
 @static if isempty(VERSION.prerelease)
     @testset "JET report_package (correctness)" begin
-        # report_package finds actual type errors (method-not-found, etc.).
-        # `ignore_missing_comparison = true
-        # silences `Missing` union-split warnings that bubble up from Symbolics.
-        # report_opt is checked separately (below) on selected hot paths; collapsing
-        # the operators to a concrete `Vector{Op}` removed the per-leaf dynamic
-        # dispatch the abstract hierarchy used to force, leaving only the `Coeff`
-        # materialization and numeric/average conversion boundaries.
         result = JET.report_package(
             SecondQuantizedAlgebra;
             target_modules = (SecondQuantizedAlgebra,),
-            ignore_missing_comparison = true,
         )
-        # `Symbolics` defines `Num` only for the `SymReal` variant, so every
-        # `Num(x::BasicSymbolic)` reads as a possible `MethodError` on the `TreeReal` arm.
-        # Nothing here produces one: `unwrap(r)`, `unwrap(cosh(r))` and `unwrap(ω*t)` are all
-        # `SymReal`. Narrowing the callees only relocates the report, since the widening
-        # starts at `recognize(::BasicSymbolic)`, and `Symbolics.wrap` infers `Any`. Spelled
-        # out in full so a SymbolicUtils rename re-fires the gate — both renderings, since
-        # JET qualifies the type parameter only when the running session lacks the binding.
-        test_allowed_only(
-            result,
-            [
-                "Num(::SymbolicUtils.BasicSymbolicImpl.var\"typeof(BasicSymbolicImpl)\"" *
-                    "{SymbolicUtils.TreeReal})",
-                "Num(::SymbolicUtils.BasicSymbolicImpl.var\"typeof(BasicSymbolicImpl)\"" *
-                    "{TreeReal})",
-            ],
+        test_no_reports(result)
+    end
+
+    @testset "JET report_package ($ext)" for ext in (
+            :SecondQuantizedAlgebraQuantumOpticsBaseExt,
+            :SecondQuantizedAlgebraQuantumToolboxExt,
         )
+        m = Base.get_extension(SecondQuantizedAlgebra, ext)
+        @test m isa Module
+        test_no_reports(JET.report_package(m; target_modules = (m,)))
     end
 
     @testset "JET report_call on entry points (no errors)" begin
-        # @report_call catches actual MethodError/UndefVar issues at runtime.
-        # Entries are grouped by what they exercise: per-family products and
-        # commutators, multi-body and mixed-space products, and the canonicalisation /
-        # average / substitute / expand_completeness pipelines.
-        #
-        # `a^n` is skipped because JET descends through Symbolics' `Num^Integer`
-        # and surfaces hundreds of macro-generated UndefVarError reports from
-        # SymbolicUtils' BasicSymbolic internals — outside our control.
         hf = FockSpace(:f); a = Destroy(hf, :a); ad = Create(hf, :a)
         hn = NLevelSpace(:atom, 3); σ12 = Transition(hn, :σ, 1, 2); σ21 = Transition(hn, :σ, 2, 1)
         hp = PauliSpace(:s); px = Pauli(hp, :σ, 1); py = Pauli(hp, :σ, 2)
@@ -95,6 +68,8 @@ end
                 # QAdd-QAdd commutator and multi-body products
                 ("commutator(a*a', a'*a)", () -> commutator(a * ad, ad * a)),
                 ("a * a' * a", () -> a * ad * a),
+                ("a^3", () -> a^3),
+                ("a'^2 * a", () -> ad^2 * a),
                 ("(a + a') * (a - a')", () -> (a + ad) * (a - ad)),
                 # Mixed ProductSpace (Jaynes-Cummings setup)
                 ("a' * σ12 (Fock ⊗ NLevel)", () -> ajc * σjc),
@@ -159,27 +134,21 @@ end
                     () -> substitute(B, Dict(u => 5 // 3, v => 4 // 3)),
                 ),
             ]
-            rep = JET.@report_call target_modules = (SecondQuantizedAlgebra,) ignore_missing_comparison = true expr()
+            rep = JET.@report_call target_modules = (SecondQuantizedAlgebra,) expr()
             @testset "$name" begin
-                @test isempty(JET.get_reports(rep))
+                test_no_reports(rep)
             end
         end
     end
 
-    @testset "JET report_opt on selected hot paths" begin
-        # Three buckets:
-        #
-        #  1. Strict (leaf-level operations). Fully inferred, zero dispatch reports.
-        #     With the concrete `Vector{Op}` storage the per-operator hooks and
-        #     leaf-level `to_numeric` infer statically, so these stay clean.
-        #
-        #  2. Hot-path allowed. QAdd-level pipelines whose only residual dispatch is
-        #     the `Coeff` materialization boundary, plus `undo_average`'s rebuild from
-        #     a Symbolics `average` node (see the allowlists below).
-        #
-        #  3. Numeric allowed. `to_numeric` / `numeric_average` on QAdd inputs, which
-        #     additionally cross the `Any → ComplexF64` numeric-conversion boundary
-        #     and call into QuantumOpticsBase.
+    @testset "JET report_opt (no runtime dispatch)" begin
+        # Every entry is strict: zero runtime dispatch inside the package and both backend
+        # extensions.
+        targets = (
+            SecondQuantizedAlgebra,
+            Base.get_extension(SecondQuantizedAlgebra, :SecondQuantizedAlgebraQuantumOpticsBaseExt),
+            Base.get_extension(SecondQuantizedAlgebra, :SecondQuantizedAlgebraQuantumToolboxExt),
+        )
         hf = FockSpace(:f); a = Destroy(hf, :a); ad = Create(hf, :a)
         hn = NLevelSpace(:atom, 3); σ12 = Transition(hn, :σ, 1, 2); σ21 = Transition(hn, :σ, 2, 1)
         hp = PauliSpace(:s); px = Pauli(hp, :σ, 1); py = Pauli(hp, :σ, 2)
@@ -191,7 +160,41 @@ end
         bs = SpinBasis(1 // 2)
         ψ = basisstate(b, 1)
 
-        # Bucket 1: strict (zero dispatch reports)
+        hjc = FockSpace(:c) ⊗ NLevelSpace(:atom, 2)
+        ajc = Destroy(hjc, :a, 1); σjc = Transition(hjc, :σ, 1, 2, 2)
+        Hjc = ajc' * σjc + ajc * σjc'
+        ψjc = basisstate(FockBasis(3) ⊗ NLevelBasis(2), 1)
+        ψq = QuantumToolbox.fock(8, 1)
+        ψqjc = QuantumToolbox.tensor(QuantumToolbox.fock(4, 0), QuantumToolbox.basis(2, 1))
+
+        @variables g::Real Δ::Real θ::Real α::Number
+        Hp = Δ * ad * a + g * (a + ad)
+        U = Rotation(a, θ)
+        D = Displace(a, α)
+
+        hi = FockSpace(:cavity) ⊗ NLevelSpace(:atom, 2)
+        ai = Destroy(hi, :a, 1)
+        σi(k, l, m) = IndexedOperator(Transition(hi, :σ, k, l, 2), m)
+        i = Index(hi, :i, 3, NLevelSpace(:atom, 2)); j = Index(hi, :j, 3, NLevelSpace(:atom, 2))
+        Hi = -Δ * ai' * ai + Σ(g * (ai' * σi(1, 2, i) + ai * σi(2, 1, i)), i)
+        bi = FockBasis(3) ⊗ NLevelBasis(2) ⊗ NLevelBasis(2) ⊗ NLevelBasis(2)
+        sites = Dict{Int, Vector{Int}}(1 => [1], 2 => [2, 3, 4])
+        Hin = substitute(Hi, Dict(g => 1.0, Δ => 0.5))
+        custom = 2.0 * destroy(b)
+        @variables t::Real ω::Real r::Real ϕ::Real u::Number v::Number
+        H0 = ω * ajc' * ajc
+        hc = CollectiveNLevelSpace(:atom, 3); S12 = CollectiveTransition(hc, :S, 1, 2)
+        B = Bogoliubov(a, [u v; conj(v) conj(u)])
+        @variables κ::Real
+        Lq = to_numeric(α * a + conj(α) * ad, 8; time_parameter = Dict(α => t -> 1 + im * t)).data
+        Lp = to_numeric(α * a + conj(α) * ad, 8; time_parameter = Dict(α => (p, t) -> p[1] * cos(t))).data
+        Ls = to_numeric(ad * a + a, 8; op_type = identity).data
+        c1 = to_numeric(sqrt(κ) * a, 8; time_parameter = Dict(κ => (p, t) -> p[1]))
+        Ll = QuantumToolbox.liouvillian(to_numeric(α * a + conj(α) * ad, 8; time_parameter = Dict(α => t -> cos(t))), [c1]).data
+        vq = rand(ComplexF64, 9); wq = similar(vq)
+        vl = rand(ComplexF64, 81); wl = similar(vl)
+        ψl = LazyKet(FockBasis(3) ⊗ NLevelBasis(2), (fockstate(FockBasis(3), 1), nlevelstate(NLevelBasis(2), 1)))
+
         for (name, thunk) in [
                 # Per-family to_numeric on a leaf
                 ("to_numeric(a, b)", () -> to_numeric(a, b)),
@@ -211,134 +214,6 @@ end
                 ("is_average(a)", () -> is_average(a)),
                 ("is_average(average(a))", () -> is_average(average(a))),
                 ("has_sum_metadata(average(a))", () -> SecondQuantizedAlgebra.has_sum_metadata(average(a))),
-            ]
-            rep = JET.@report_opt target_modules = (SecondQuantizedAlgebra,) thunk()
-            @testset "$name" begin
-                @test isempty(JET.get_reports(rep))
-            end
-        end
-
-        # Collapsing the operators to a concrete `Vector{Op}` removed the former
-        # per-leaf operator dispatch (`site_compare`/`can_commute`/`commute_pair`),
-        # so those reports are gone. Two residual `report_opt` boundaries remain, both
-        # independent of the operator type:
-        #
-        # (a) Coefficient materialization. Constructing an operator builds its
-        #     `Coeff`; the recognizer (`recognize`) and the numeric fold read a
-        #     heterogeneous Symbolics expression whose `BasicSymbolic.val` is `::Any`,
-        #     so the reduction (`+`/`*`/`==`/`ComplexF64`/`convert`) is dynamic. The
-        #     Hermitian-symtype probe (`avg_symtype`) reaches the same boundary from
-        #     the other side: `adjoint` conjugates each coefficient via `conj_atom`,
-        #     which reads that same `::Any` symbolic tail.
-        # The extra entries below are deliberately type-shaped: a new function name alone
-        # must not silence every future report from that function.
-        allowed_coeff_reports = Any[
-            "SecondQuantizedAlgebra.recognize(",
-            r"SecondQuantizedAlgebra\.raw_complex\(%\d+::Any, %\d+::Any\)",
-            r"Core\.kwcall\(%\d+::@NamedTuple\{(?:normalize::Bool, )?real_slot::Bool\},",
-            r"SecondQuantizedAlgebra\.to_cnum\(%\d+::Number\)::Any",
-            r"SecondQuantizedAlgebra\.to_cnum\(%\d+::Any\)::Any",
-            r"SecondQuantizedAlgebra\.to_cnum\(%\d+::Rational\)::(?:SecondQuantizedAlgebra\.)?Coeff",
-            r"SecondQuantizedAlgebra\.to_cnum\(%\d+::Complex\)::(?:SecondQuantizedAlgebra\.)?Coeff",
-            r"SecondQuantizedAlgebra\.normalize_phase\(%\d+::Any\)::Any",
-            r"SecondQuantizedAlgebra\.Complex\(%\d+::Any, %\d+::Any\)::Complex",
-            r"SecondQuantizedAlgebra\.imag\(%\d+::Number\)::Real",
-            r"SecondQuantizedAlgebra\.real\(%\d+::Number\)::Real",
-            r"\(%\d+::Any SecondQuantizedAlgebra\.:/ %\d+::Any\)::Any",
-            r"\(%\d+::SymbolicUtils\.BasicSymbolicImpl.*SecondQuantizedAlgebra\.:/ %\d+::Any\)::Any",
-            r"\(%\d+::Any SecondQuantizedAlgebra\.:/ %\d+::SymbolicUtils\.BasicSymbolicImpl.*\)::Any",
-            r"\(%\d+::Any SecondQuantizedAlgebra\.:- %\d+::Any\)::Any",
-            r"get_variables\(%\d+::Real\)::Any",
-            r"SecondQuantizedAlgebra\.any\(%\d+::.*::Any\)::Any",
-            r"SecondQuantizedAlgebra\.:// %\d+::Integer\)::Rational",
-            r"::Rational\{BigInt\}\(%\d+::Union\{Integer, Rational\}\)::Rational\{BigInt\}\)",
-            r"::Rational\{BigInt\}\(x::Rational\)::Rational\{BigInt\}\)",
-            r"SecondQuantizedAlgebra\.collect_trig!\(%\d+::Vector\{SymbolicUtils\.BasicSymbolicImpl.*?, %\d+::Any\)::Any",
-            r"SecondQuantizedAlgebra\.append!\(%\d+::Vector\{SymbolicUtils\.BasicSymbolicImpl.*?, %\d+::Any\)::Any",
-            r"SecondQuantizedAlgebra\.has_symbolic_trig\(%\d+::Any\)::Bool",
-            "SecondQuantizedAlgebra.ComplexF64(",
-            "convert(SecondQuantizedAlgebra.Coeff",
-            "SecondQuantizedAlgebra.:*",
-            "SecondQuantizedAlgebra.:+",
-            "SecondQuantizedAlgebra.:(==)",
-            "SecondQuantizedAlgebra.conj_atom(",
-            ".val::Any",
-        ]
-        # (a2) The same `::Any` boundary further downstream. `BasicSymbolic` is a UnionAll, so
-        #     `operation`/`arguments` on one return `Any` and every call after that inherits
-        #     it. Two cold walks reach it: `qadjoint(::Num)` unwraps to the field before its
-        #     phase and sign arms run, and the trig discovery in `reduce.jl` iterates
-        #     `Monomial.syms`, whose eltype is that same UnionAll. Neither is fixable here:
-        #     the type is already lost at the caller, and the eltype is SymbolicUtils' choice.
-        allowed_symbolic_walk_reports = Any[
-            "BasicSymbolicImpl)\"{T} where T)",
-            "operation(",   # the two SymbolicUtils accessors that start the widening
-            "arguments(",
-            "SecondQuantizedAlgebra.strip_conj(",
-            "SecondQuantizedAlgebra.only(",
-            "SecondQuantizedAlgebra.expim_symbolic(",
-            "SecondQuantizedAlgebra.sign(",
-            "SecondQuantizedAlgebra.exp(",
-            "SecondQuantizedAlgebra.:!(",
-            "SecondQuantizedAlgebra.:<",
-            "SecondQuantizedAlgebra.:-(",
-            "SecondQuantizedAlgebra.unary_arg(",
-            "SecondQuantizedAlgebra.find_partner(",
-            "SecondQuantizedAlgebra.TrigHead(",
-            "SecondQuantizedAlgebra.length(",
-            "SecondQuantizedAlgebra.isequal(",
-            "Dict{SecondQuantizedAlgebra.TrigKey",
-            "Dict{Symbolics.Num, Symbolics.Num}",
-            "Dict{Num, Num}",
-            "unwrap(",
-            ")[1]::Any",
-            "SecondQuantizedAlgebra.Num(",
-            "SecondQuantizedAlgebra.ParamRelation(",
-            r"SecondQuantizedAlgebra\.simplify_raw_component\(%\d+::Any\)::Any",
-        ]
-        # (b) `undo_average` rebuilds a QAdd from a Symbolics `average` node, reading
-        #     its `Any`-typed arguments/metadata (`average`, `to_qadd`) and folding
-        #     the rebuilt terms through generic iteration.
-        allowed_hotpath_reports = vcat(
-            allowed_coeff_reports, allowed_symbolic_walk_reports, [
-                "SecondQuantizedAlgebra.average(",
-                "SecondQuantizedAlgebra.to_qadd(",
-                "SecondQuantizedAlgebra.iszero(",
-                "SecondQuantizedAlgebra.:^",
-                "Base.indexed_iterate",
-                "iterate(",
-            ],
-        )
-        # (c) Numeric conversion seals `Any → ComplexF64` (`to_complex` /
-        #     `reduce_const` / `fold_const` walking a Symbolics tree) and calls into
-        #     QuantumOpticsBase (`to_numeric` / `expect` / `numeric_average`). This
-        #     boundary is independent of the operator collapse and was always
-        #     allowlisted.
-        # (d) The `reduce_const` fallback. A variable-free symbolic constant that
-        #     `fold_const` cannot reduce (e.g. `sqrt(2)`, `exp` of a constant) is
-        #     evaluated through `Symbolics.symbolic_to_float`, whose result is typed
-        #     `Any`, so the final `convert`/`ComplexF64` to a concrete `ComplexF64` is
-        #     dynamic. This is the same `Any → ComplexF64` boundary as the entries
-        #     above, reached through `compile_const`.
-        allowed_numeric_reports = vcat(
-            allowed_hotpath_reports, [
-                "SecondQuantizedAlgebra.to_complex(",
-                "SecondQuantizedAlgebra.reduce_const(",
-                "SecondQuantizedAlgebra.fold_const(",
-                "SecondQuantizedAlgebra.compile_const(",
-                "SecondQuantizedAlgebra.numeric_average(",
-                "SecondQuantizedAlgebra.numeric_average_impl(",
-                "SecondQuantizedAlgebra.Complex(",
-                "SecondQuantizedAlgebra.convert(",
-                "convert(SecondQuantizedAlgebra.ComplexF64",
-                "to_numeric(",
-                "expect(",
-                "string(",
-            ],
-        )
-
-        # Bucket 2: hot-path allowed
-        for (name, thunk) in [
                 # Leaf-pair commutators with a `commute_pair` fast path.
                 ("commutator(a, a')", () -> commutator(a, ad)),
                 ("commutator(x, p)", () -> commutator(xx, pp)),
@@ -349,6 +224,7 @@ end
                 # QAdd-QAdd commutator and multi-body products
                 ("commutator(a*a', a'*a)", () -> commutator(a * ad, ad * a)),
                 ("a*a'*a", () -> a * ad * a),
+                ("a^3", () -> a^3),
                 ("(a + a')*(a - a')", () -> (a + ad) * (a - ad)),
                 # Canonicalisation pipelines on QAdd
                 ("normal_order(a)", () -> normal_order(a)),
@@ -357,21 +233,187 @@ end
                 # Average/undo_average round trip
                 ("average(a*a')", () -> average(a * ad)),
                 ("undo_average(average(a))", () -> undo_average(average(a))),
+                # Substitution, unitary transforms, Weyl ordering
+                ("substitute(a, Dict(a => a'))", () -> substitute(a, Dict(a => ad))),
+                ("substitute(Hp, Dict(g => 1.0, Δ => 2.0))", () -> substitute(Hp, Dict(g => 1.0, Δ => 2.0))),
+                ("substitute(Hp, Dict(a => a + 1))", () -> substitute(Hp, Dict(a => a + 1))),
+                ("substitute(U, Dict(θ => 0.5))", () -> substitute(U, Dict(θ => 0.5))),
+                ("transform(a'*a, Displace(a, α))", () -> transform(ad * a, D)),
+                ("conjugate(a, Rotation(a, θ))", () -> conjugate(a, U)),
+                ("normal_to_symmetric(a'*a)", () -> normal_to_symmetric(ad * a)),
+                ("symmetric_to_normal(a'*a)", () -> symmetric_to_normal(ad * a)),
+                ("transform(a'*a, Squeeze(a, r, ϕ))", () -> transform(ad * a, Squeeze(a, r, ϕ))),
+                ("transform(a'*a, Bogoliubov)", () -> transform(ad * a, B)),
+                ("RotatingFrame(H0, t)", () -> RotatingFrame(H0, t)),
+                ("DisplacementFrame(a, ω a'a)", () -> DisplacementFrame(a, ω * ad * a)),
+                ("gauge_term(RotatingFrame(H0, t))", () -> gauge_term(RotatingFrame(H0, t))),
+                (
+                    "trigonometric_form(expim(ω*t)*a)",
+                    () -> SecondQuantizedAlgebra.trigonometric_form(SecondQuantizedAlgebra.expim(ω * t) * a),
+                ),
+                ("anticommutator(a, a')", () -> anticommutator(a, ad)),
+                ("find_operators(hjc, 2)", () -> find_operators(hjc, 2)),
+                ("S12 * S12'", () -> S12 * S12'),
+                # Printing
+                ("repr(Hp)", () -> repr(Hp)),
+                ("latexify(Hp)", () -> latexify(Hp)),
+                ("latexify(average(indexed H))", () -> latexify(average(Hi))),
+                # Indexed sums
+                ("Σ(σ21_i) * Σ(σ12_j)", () -> Σ(σi(2, 1, i), i) * Σ(σi(1, 2, j), j)),
+                ("simplify(indexed H)", () -> simplify(Hi)),
+                ("average(indexed H)", () -> average(Hi)),
+                ("change_index(indexed H, i, j)", () -> change_index(Hi, i, j)),
+                ("assume_distinct_index(σ21_i σ12_j)", () -> assume_distinct_index(σi(2, 1, i) * σi(1, 2, j), [(i, j)])),
+                ("make_time_dependent(average(indexed H), t)", () -> make_time_dependent(average(Hi), t)),
+                # QuantumOptics numeric conversion and expectation values
+                ("to_numeric(a' * a, b)", () -> to_numeric(ad * a, b)),
+                ("to_numeric(a' * a, b; op_type = identity)", () -> to_numeric(ad * a, b; op_type = identity)),
+                ("to_numeric(Hp, b; parameter)", () -> to_numeric(Hp, b; parameter = Dict(g => 1.0, Δ => 0.5))),
+                ("to_numeric(2.0, b)", () -> to_numeric(2.0, b)),
+                ("to_numeric([a, a'], b)", () -> to_numeric([a, ad], b)),
+                (
+                    "to_numeric(a' * a, hf, 7; QuantumOpticsBackend)",
+                    () -> to_numeric(ad * a, hf, 7; backend = QuantumOpticsBackend()),
+                ),
+                ("to_numeric(Hjc, bjc)", () -> to_numeric(Hjc, FockBasis(3) ⊗ NLevelBasis(2))),
+                ("to_numeric(indexed H, b, sites)", () -> to_numeric(Hin, bi, sites)),
+                ("to_numeric(a' * a, b; operators)", () -> to_numeric(ad * a, b; operators = Dict(a => custom))),
+                (
+                    "to_numeric(α * a + h.c., b; time_parameter)",
+                    () -> to_numeric(α * a + conj(α) * ad, b; time_parameter = Dict(α => t -> 1 + im * t)),
+                ),
+                ("numeric_average(average(a), ψ)", () -> numeric_average(average(a), ψ)),
+                ("numeric_average(a' * a, [ψ, ψ])", () -> numeric_average(ad * a, [ψ, ψ])),
+                ("numeric_average(Hjc, ψjc)", () -> numeric_average(Hjc, ψjc)),
+                ("numeric_average(Hjc, LazyKet)", () -> numeric_average(Hjc, ψl)),
+                # QuantumToolbox numeric conversion and expectation values
+                ("to_numeric(a' * a, 8)", () -> to_numeric(ad * a, 8)),
+                ("to_numeric(Hjc, (4, 2))", () -> to_numeric(Hjc, (4, 2))),
+                ("solver apply: time-dependent QobjEvo", () -> Lq(wq, vq, nothing, nothing, 0.3)),
+                ("solver apply: p-aware QobjEvo", () -> Lp(wq, vq, nothing, [0.5], 0.3)),
+                ("solver apply: static lazy QobjEvo", () -> Ls(wq, vq, nothing, nothing, 0.3)),
+                ("solver apply: Liouvillian with time-dependent collapse", () -> Ll(wl, vl, nothing, [0.5], 0.3)),
+                (
+                    "to_numeric(Hjc, hjc, (3, 2); QuantumToolboxBackend)",
+                    () -> to_numeric(Hjc, hjc, (3, 2); backend = QuantumToolboxBackend()),
+                ),
+                ("numeric_average(a' * a, ψq)", () -> numeric_average(ad * a, ψq)),
+                ("numeric_average(average(a), ψq)", () -> numeric_average(average(a), ψq)),
+                ("numeric_average(Hjc, ψqjc)", () -> numeric_average(Hjc, ψqjc)),
+                ("numeric_average(a' * a, [ψq, ψq])", () -> numeric_average(ad * a, [ψq, ψq])),
             ]
-            rep = JET.@report_opt target_modules = (SecondQuantizedAlgebra,) thunk()
+            rep = JET.@report_opt target_modules = targets thunk()
             @testset "$name" begin
-                test_allowed_only(rep, allowed_hotpath_reports)
+                test_no_reports(rep)
             end
         end
+    end
 
-        # Bucket 3: numeric allowed
+    @testset "JET report_opt (feature coverage)" begin
+        targets = (
+            SecondQuantizedAlgebra,
+            Base.get_extension(SecondQuantizedAlgebra, :SecondQuantizedAlgebraQuantumOpticsBaseExt),
+            Base.get_extension(SecondQuantizedAlgebra, :SecondQuantizedAlgebraQuantumToolboxExt),
+        )
+        hf = FockSpace(:f); a = Destroy(hf, :a); ad = a'
+        hn = NLevelSpace(:atom, 3); σ12 = Transition(hn, :σ, 1, 2); σ11 = Transition(hn, :σ, 1, 1)
+        hp = PauliSpace(:s); px = Pauli(hp, :σ, 1); py = Pauli(hp, :σ, 2); pz = Pauli(hp, :σ, 3)
+        hs = SpinSpace(:s); sx = Spin(hs, :S, 1); sz = Spin(hs, :S, 3)
+        hph = PhaseSpace(:osc); xx = Position(hph, :x); pp = Momentum(hph, :p)
+        hjc = FockSpace(:c) ⊗ NLevelSpace(:atom, 2)
+        ajc = Destroy(hjc, :a, 1); σjc = Transition(hjc, :σ, 1, 2, 2)
+        hc = CollectiveNLevelSpace(:atom, 3); S12 = CollectiveTransition(hc, :S, 1, 2)
+        @variables θ::Real ω::Real t::Real r::Real ϕ::Real g::Real Δ::Real
+        hi = FockSpace(:cavity) ⊗ NLevelSpace(:atom, 2)
+        ai = Destroy(hi, :a, 1)
+        σi(k, l, m) = IndexedOperator(Transition(hi, :σ, k, l, 2), m)
+        i = Index(hi, :i, 3, NLevelSpace(:atom, 2)); j = Index(hi, :j, 3, NLevelSpace(:atom, 2))
+        gi = IndexedVariable(:g, i); Jij = DoubleIndexedVariable(:J, i, j)
+        Hi = -Δ * ai' * ai + Σ(gi * (ai' * σi(1, 2, i) + ai * σi(2, 1, i)), i)
+        Hne = Σ(σi(2, 1, i) * σi(1, 2, j), i, [j])
+        avgHi = average(Hi)
+        U = Rotation(a, θ)
+        Hin = substitute(Σ(g * (ai' * σi(1, 2, i) + ai * σi(2, 1, i)), i), Dict(g => 1.0))
+        sites = Dict{Int, Vector{Int}}(1 => [1], 2 => [2, 3, 4])
+        ψsites = tensor(fockstate(FockBasis(3), 0), nlevelstate(NLevelBasis(2), 1), nlevelstate(NLevelBasis(2), 1), nlevelstate(NLevelBasis(2), 1))
+        b = FockBasis(5); ψ = coherentstate(b, 0.3)
+        ψq = QuantumToolbox.coherent(6, 0.3); ρq = QuantumToolbox.ket2dm(ψq)
+        Hq = to_numeric(ad * a + a, 5; op_type = identity)
+
         for (name, thunk) in [
-                ("to_numeric(a' * a, b)", () -> to_numeric(ad * a, b)),
-                ("numeric_average(average(a), ψ)", () -> numeric_average(average(a), ψ)),
+                # Construction and accessors
+                ("Index", () -> Index(hi, :k, 3, NLevelSpace(:atom, 2))),
+                ("IndexedVariable", () -> IndexedVariable(:g, i)),
+                ("DoubleIndexedVariable", () -> DoubleIndexedVariable(:J, i, j)),
+                ("Σ with non-equal indices", () -> Σ(σi(2, 1, i) * σi(1, 2, j), i, [j])),
+                ("∑", () -> ∑(σi(2, 1, i), i)),
+                ("Σ Jij", () -> Σ(Jij * σi(2, 1, i) * σi(1, 2, j), i, j)),
+                ("FockSpace ⊗ NLevelSpace", () -> FockSpace(:a) ⊗ NLevelSpace(:b, 2)),
+                ("UnitaryTransform", () -> UnitaryTransform(ad * a, θ)),
+                ("generators", () -> generators(U)),
+                ("get_prefactor", () -> get_prefactor(2g * a)),
+                ("get_sum_body", () -> get_sum_body(avgHi)),
+                ("get_sum_indices", () -> get_sum_indices(average(Σ(σi(2, 1, i), i)))),
+                ("get_sum_non_equal", () -> get_sum_non_equal(average(Hne))),
+                ("indexed_sum", () -> indexed_sum(get_sum_body(average(Σ(σi(2, 1, i), i))), [i])),
+                ("constraint_pairs", () -> constraint_pairs(Hne)),
+                ("operator_name / operator_index", () -> (operator_name(a), operator_index(σi(1, 2, i)))),
+                ("index accessors", () -> (index_name(i), index_range(i), index_slot(i), index_sym(i), has_index(i))),
+                ("order keys", () -> (order_key(a), qadd_order_key(ad * a + a), term_order_key(first(keys((ad * a).arguments))))),
+                ("transition_superscript", () -> transition_superscript(true)),
+                ("to_num", () -> to_num(to_cnum(2g))),
+                ("rename / set_acts_on", () -> (rename(a, :b), set_acts_on(a, 2))),
+                ("qadjoint / qconj / dagger", () -> (qadjoint(ad * a + a), qconj(a * ad), dagger(a * ad))),
+                ("acts_on(product)", () -> acts_on(ajc' * σjc)),
+                ("fundamental_operators / unique_up_to_adjoint", () -> unique_up_to_adjoint(fundamental_operators(hn))),
+                # Algebra across operator families
+                ("anticommutator(px, py)", () -> anticommutator(px, py)),
+                ("px * py * pz", () -> px * py * pz),
+                ("sx * sz * sx", () -> sx * sz * sx),
+                ("x * p * x", () -> xx * pp * xx),
+                ("normal_order(px * sx * px)", () -> normal_order(px * sx * px)),
+                ("normal_to_symmetric(x * p * x)", () -> normal_to_symmetric(xx * pp * xx)),
+                ("collective S12 * S12'", () -> commutator(S12, S12')),
+                ("expand_completeness(σ11 * a)", () -> expand_completeness(σ11 * a)),
+                ("exact and symbolic coefficients", () -> (g + Δ)^2 * a * ad + sqrt(2) * g * a + (1 // 2) * ad),
+                ("exponential_form / phase_terms", () -> phase_terms(exponential_form(cos(ω * t)))),
+                ("expim(ω*t) * expim(θ)", () -> expim(ω * t) * expim(θ)),
+                # Indexed and averaged expressions
+                ("simplify(non-equal sum)", () -> simplify(Hne)),
+                ("commutator(indexed H, a)", () -> commutator(Hi, ai)),
+                ("average(non-equal sum)", () -> average(Hne)),
+                ("undo_average(indexed average)", () -> undo_average(avgHi)),
+                ("substitute(indexed average)", () -> substitute(avgHi, Dict(Δ => 1.0))),
+                ("inner_adjoint(compound average)", () -> inner_adjoint(g * average(a) + im * average(ad * a) * average(a))),
+                ("inner_adjoint(time-dependent average)", () -> inner_adjoint(make_time_dependent(average(a), t))),
+                ("inner_adjoint(indexed average)", () -> inner_adjoint(avgHi)),
+                ("get_variables / get_operators / get_indices", () -> (get_variables(Hi), get_operators(Hi), get_indices(Hi))),
+                # Printing
+                ("repr(indexed H)", () -> repr(Hi)),
+                ("repr(indexed average)", () -> repr(avgHi)),
+                ("latexify(complex coefficients)", () -> latexify((1 // 2 + 2im) * ad * a - a + (g + im * Δ) * ad)),
+                ("latexify(expim(ω*t) * a)", () -> latexify(expim(ω * t) * a)),
+                # Numeric backends
+                ("numeric_basis / numeric_backend", () -> (numeric_basis(ψ), numeric_backend(ψ), numeric_basis(ψq))),
+                ("to_numeric(pauli product)", () -> to_numeric(px * py, SpinBasis(1 // 2))),
+                ("to_numeric(spin product)", () -> to_numeric(sx * sz, SpinBasis(1))),
+                ("to_numeric(phase-space product)", () -> to_numeric(xx * pp, FockBasis(5))),
+                ("to_numeric(a' * a, b; op_type = dense)", () -> to_numeric(ad * a, b; op_type = dense)),
+                ("to_numeric(composite; op_type = identity)", () -> to_numeric(ajc' * σjc, FockBasis(3) ⊗ NLevelBasis(2); op_type = identity)),
+                ("expect(a' * a, ψ)", () -> expect(ad * a, ψ)),
+                ("numeric_average(indexed H, product state)", () -> numeric_average(Hin, ψsites)),
+                ("QuantumToolbox to_numeric(nlevel)", () -> to_numeric(σ12 + σ12', 3)),
+                ("QuantumToolbox to_numeric(indexed H, dims, sites)", () -> to_numeric(Hin, (4, 2, 2, 2), sites)),
+                ("QuantumToolbox op_type = concretize", () -> to_numeric(ad * a, 5; op_type = SO.concretize)),
+                ("QuantumToolbox op_type = to_dense", () -> to_numeric(ad * a, 5; op_type = QuantumToolbox.to_dense)),
+                ("QuantumToolbox expect(ket)", () -> expect(ad * a, ψq)),
+                ("QuantumToolbox expect(VecSum, density)", () -> QuantumToolbox.expect(Hq, ρq)),
+                ("QuantumToolbox numeric_average(density)", () -> numeric_average(ad * a, ρq)),
+                ("QuantumToolbox concretize(VecSum)", () -> SO.concretize(Hq.data)),
             ]
-            rep = JET.@report_opt target_modules = (SecondQuantizedAlgebra,) thunk()
+            rep = JET.@report_opt target_modules = targets thunk()
             @testset "$name" begin
-                test_allowed_only(rep, allowed_numeric_reports)
+                test_no_reports(rep)
             end
         end
     end

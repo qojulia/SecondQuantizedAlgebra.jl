@@ -26,10 +26,10 @@ See also [`has_index`](@ref), [`IndexedOperator`](@ref), [`Σ`](@ref),
 [`change_index`](@ref).
 """
 struct Index
-    name_id::Int32       # interned name (see intern.jl); 0 == anonymous concrete site / NO_INDEX
-    range_id::Int32      # interned range Num; 0 == no range
+    name_id::Int32
+    range_id::Int32
     space_index::Int32
-    slot::Int32          # 0 == abstract; k>0 == concrete site k
+    slot::Int32
 end
 
 const NO_INDEX = Index(Int32(0), Int32(0), Int32(0), Int32(0))
@@ -51,17 +51,11 @@ attached index.
 """
 has_index(idx::Index) = idx.space_index != 0
 
-# A pair of indices `(α, β)` meaning `α ≠ β`.
 const NonEqualPair = Tuple{Index, Index}
 
-# Shared sentinels for empty vectors on hot paths. Never mutated.
-# `EMPTY_OPS` lives in `operators/op.jl` (needs `Op`, defined after `Index`).
 const EMPTY_NE = NonEqualPair[]
 const EMPTY_INDICES = Index[]
 
-# Equality compares the interned ids (pure integers). `slot` is excluded, exactly
-# as the old equality excluded the per-slot `sym`: concrete sites are distinguished
-# out-of-band (numeric reads `slot` via `index_slot`), never via `Index ==`.
 function Base.:(==)(a::Index, b::Index)
     a === b && return true
     return a.name_id == b.name_id && a.space_index == b.space_index && a.range_id == b.range_id
@@ -69,11 +63,8 @@ end
 function Base.hash(a::Index, h::UInt)
     return hash(:Index, hash(a.name_id, hash(a.space_index, h)))
 end
-# Order by lexicographic name rank (not raw id, which is insertion-order), so
-# canonical form stays alphabetical and deterministic across sessions.
 Base.isless(a::Index, b::Index) = (a.space_index, name_rank(a.name_id)) < (b.space_index, name_rank(b.name_id))
 
-# Ordering key for an index; mirrors isless's (space_index, name rank) (range excluded).
 index_key(idx::Index) = (idx.space_index, name_rank(idx.name_id))
 
 function Index(h::HilbertSpace, name::Symbol, range::Union{Int, Num}, space::HilbertSpace)
@@ -102,16 +93,16 @@ function (i::Index)(k::Integer)
 end
 
 """
-    index_slot(x) -> Union{Int, Nothing}
-    index_slot(idx::Index) -> Union{Int, Nothing}
+    index_slot(x) -> Int
+    index_slot(idx::Index) -> Int
 
-Concrete slot integer of a per-slot index, or `nothing` for an abstract index.
+Concrete slot integer of a per-slot index, or `0` for an abstract index.
 On an [`Index`](@ref) reads the `slot` field directly; on a symbol reads the
 `IndexSlot` metadata minted by `(i::Index)(k)`, so consumers can recover the
 position `k` without parsing the symbol's name.
 """
-index_slot(idx::Index)::Union{Int, Nothing} = idx.slot == 0 ? nothing : Int(idx.slot)
-index_slot(x) = SymbolicUtils.getmetadata(SymbolicUtils.unwrap(x), IndexSlot, nothing)
+index_slot(idx::Index) = Int(idx.slot)
+index_slot(x) = SymbolicUtils.getmetadata(SymbolicUtils.unwrap(x), IndexSlot, 0)
 
 """
     rename(idx::Index, name::Symbol) -> Index
@@ -144,14 +135,14 @@ rename(idx::Index, name::AbstractString) = name_must_be_symbol(name)
 The summation range of `idx` (the user's `Num`, recovered from the intern table).
 Returns `Num(0)` for the sentinel `NO_INDEX`.
 """
-index_range(idx::Index)::Num = range_from_id(idx.range_id)
+index_range(idx::Index) = range_from_id(idx.range_id)
 
 """
     index_name(idx::Index) -> Symbol
 
 The display name of `idx` (recovered from the intern table).
 """
-index_name(idx::Index)::Symbol = name_from_id(idx.name_id)
+index_name(idx::Index) = name_from_id(idx.name_id)
 
 """
     index_sym(idx::Index) -> Num
@@ -163,9 +154,9 @@ and `get_variables` are unaffected. An anonymous concrete site (`name_id == 0`,
 `slot == k`) reconstructs to the integer `Num(k)`, matching `to_numeric`'s
 resolved-site convention.
 """
-function index_sym(idx::Index)::Num
+function index_sym(idx::Index)
     idx.name_id == 0 && return Num(Int(idx.slot))
-    base = base_sym_from_id(idx.name_id)            # cached name-only Sym (hot path: cached read)
+    base = base_sym_from_id(idx.name_id)
     idx.slot == 0 && return base
     return Num(SymbolicUtils.setmetadata(SymbolicUtils.unwrap(base), IndexSlot, Int(idx.slot)))
 end

@@ -1,12 +1,12 @@
 module SecondQuantizedAlgebra
 
 using SymbolicUtils: SymbolicUtils, simplify, substitute, add_worker
-using Symbolics: Symbolics, Num, expand, @variables, build_function, get_variables, symbolic_to_float
+using Symbolics: Symbolics, Num, expand, @variables, build_function, get_variables
 using TermInterface: TermInterface
 
 import QuantumInterface
 import QuantumInterface: expect, basis, dagger
-using QuantumInterface: AbstractOperator, StateVector, Basis
+using QuantumInterface: AbstractOperator, StateVector, Basis, CompositeBasis
 import TensorCore: ⊗, tensor
 
 using Combinatorics: with_replacement_combinations
@@ -96,14 +96,12 @@ macro qnumbers(qs...)
         op_type = f.args[1]
         op_args = f.args[2:end]
         name_quoted = Expr(:quote, name)
-        # Insert name as second argument: Op(hilbert, name, extra_args...)
         construction = Expr(:call, esc(op_type), esc(op_args[1]), name_quoted, map(esc, op_args[2:end])...)
         push!(ex.args, :($(esc(name)) = $(construction)))
     end
     push!(ex.args, Expr(:tuple, map(esc, qnames)...))
     return ex
 end
-
 
 export FockSpace, ProductSpace,
     NLevelSpace, Transition, CollectiveNLevelSpace, CollectiveTransition,
@@ -128,15 +126,12 @@ export FockSpace, ProductSpace,
     NumericBackend, QuantumOpticsBackend, QuantumToolboxBackend,
     numeric_operator, numeric_basis, numeric_subbasis, numeric_embed,
     numeric_identity, numeric_num_subsystems,
-    numeric_assemble, numeric_assemble_td, numeric_materialize, numeric_expect,
+    numeric_assemble, numeric_assemble_td, numeric_materialize, EagerOperator, numeric_expect,
     numeric_backend,
     qadjoint, qconj, dagger, inner_adjoint,
     Op, operator_name, operator_index, is_destroy, is_create, is_transition, is_collective_transition,
     is_pauli, is_spin, is_position, is_momentum, optype
 
-
-# Public API that is intentionally NOT exported — accessed as
-# `SecondQuantizedAlgebra.symbol`.
 @public HilbertSpace, QField, QSym, OpKind,
     NumericContext, expect,
     OP_DESTROY, OP_CREATE, OP_TRANSITION, OP_PAULI, OP_SPIN, OP_POSITION, OP_MOMENTUM,

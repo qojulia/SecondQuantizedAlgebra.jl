@@ -8,9 +8,6 @@ tensor products. Compose with [`⊗`](@ref) or [`tensor`](@ref).
 """
 abstract type HilbertSpace end
 
-# Hilbert-space and operator names are `Symbol`s by design (a single canonical
-# name type keeps comparisons and interning type-stable). Passing a `String`
-# would otherwise surface a cryptic `MethodError`; guide the user to `:name`.
 @noinline name_must_be_symbol(name::AbstractString) =
     throw(ArgumentError("name must be a `Symbol`, not a `String`; use `:$name` instead of `\"$name\"`"))
 
@@ -84,9 +81,6 @@ See also [`ProductSpace`](@ref), [`tensor`](@ref).
 ⊗(a::HilbertSpace, b::HilbertSpace, c::HilbertSpace...) = ⊗(a ⊗ b, c...)
 ⊗(a::HilbertSpace) = a
 
-# `⊗` and `tensor` name the same generic function (TensorCore's `const ⊗ = tensor`),
-# so the methods above already serve both spellings and no forwarding method is
-# needed. The docstring therefore attaches to the binding rather than a signature.
 @doc """
     tensor(space::HilbertSpace, spaces::HilbertSpace...)
 

@@ -1,5 +1,3 @@
-# Scalar values accepted as coefficients in operator expressions. `Coeff` is included for
-# internal composition, while public inputs ordinarily arrive as numbers or symbolic values.
 const Coefficient = Union{Number, SymbolicUtils.BasicSymbolic, Coeff}
 
 Base.:*(a::QSym, b::Coefficient) = single_qadd(to_cnum(b), Op[a])
@@ -49,7 +47,6 @@ end
 Base.:+(a::Coefficient, b::QSym) = b + a
 
 function Base.:+(a::QAdd, b::Coefficient)
-    # `iszero` on a `BasicSymbolic` is itself symbolic, so guard the shortcut on `Number`.
     b isa Number && iszero(b) && return a
     d = copy_args(a.arguments)
     addto!(d, EMPTY_OPS, to_cnum(b))
@@ -86,8 +83,6 @@ Base.:/(a::QAdd, b::Coefficient) = a * inv(b)
 
 Base.://(a::QSym, b::Integer) = a * (1 // b)
 Base.://(a::QAdd, b::Integer) = a * (1 // b)
-# A symbolic or non-integer denominator cannot be the denominator of Julia's
-# rational literal, but operator division supports all scalar coefficients.
 Base.://(a::QSym, b::Coefficient) = a / b
 Base.://(a::QAdd, b::Coefficient) = a / b
 
@@ -165,8 +160,8 @@ function contains_division(x)
 end
 
 function simplify_prefactor(x::CNum; kwargs...)
-    is_native(x) && return x                    # already simplest product form
-    is_poly(x) && return reduce_trig(x)        # the CAS is not reached on this tier
+    is_native(x) && return x
+    is_poly(x) && return reduce_trig(x)
     tail = x.tail
     if !contains_phase(tail.expr) && !contains_division(tail.expr)
         re, im = raw_realimag(tail.expr)
@@ -233,8 +228,6 @@ SymbolicUtils.simplify(op::QSym; kwargs...) = single_qadd(CNUM_ONE, Op[op])
 SymbolicUtils.simplify(q::QAdd; kwargs...) =
     map_coefficients(simplify_prefactor, normal_order(q))
 
-# Restoring the `QAdd` contract (no zero entries, every advertised index has a live carrier)
-# after a coefficient rewrite, once here rather than at each caller.
 function map_coefficients(f::F, q::QAdd) where {F}
     out = QTermDict()
     for (term, c) in q.arguments
@@ -401,11 +394,8 @@ commutator(::Number, ::QField) = zero_qadd()
 commutator(::QField, ::Number) = zero_qadd()
 
 function commutator(a::QSym, b::QSym)
-    # `can_commute`/`commute_pair` below are only defined on provably-same-site
-    # pairs, which is exactly `Equal`. Anything else commutes or is undetermined.
     site_compare(a, b, EMPTY_NE) === Equal || return zero_qadd()
     isequal(a, b) && return zero_qadd()
-    # If exactly one direction needs a swap, [a, b] is the swap residual.
     forward = can_commute(a, b)
     reverse = can_commute(b, a)
     if !forward && reverse
@@ -420,7 +410,6 @@ function commutator(a::QSym, b::QSym)
     return a * b - b * a
 end
 
-# Skip term pairs on disjoint subspaces: [aₖ,bₗ]=0, so their products only cancel.
 function commutator(a::QAdd, b::QSym)
     sb = b.space_index
     d = QTermDict()
@@ -478,8 +467,6 @@ function commutator(a::QAdd, b::QAdd)
     return QAdd(d, drop_unused_indices(d, indices))
 end
 
-# Collect every term of `r` into `d` (summing like terms); return `r`'s indices
-# so the caller can accumulate the summation scope as the `+` chain would.
 function merge_into!(d::QTermDict, r::QAdd)
     for (term, c) in r.arguments
         addto_key!(d, copy_key(term), c)
@@ -543,21 +530,20 @@ function SymbolicUtils.substitute(op::QSym, rules::AbstractDict; replace_adjoint
     )
 end
 
-function SymbolicUtils.substitute(q::QAdd, rules::AbstractDict; replace_adjoint = true)
+function SymbolicUtils.substitute(q::QAdd, rules::AbstractDict; replace_adjoint::Bool = true)
     iszero(q) && return q
     op_rules, scalar_rules = split_substitution_rules(rules, replace_adjoint)
     return substitute_split(q, op_rules, scalar_rules)
 end
 
-# Never mutated: `substitute_cnum` early-returns on an empty dict and nothing else writes.
-const EMPTY_SCALAR_RULES = Dict{Any, Any}()
+const OpRules = Dict{Op, QAdd}
 
-# For a rule set already known to be all-operator. The public `substitute` has to copy an
-# `AbstractDict` into two fresh `Dict{Any, Any}`, boxing every key and value, to find that out.
-substitute_op_rules(q::QAdd, op_rules::Dict{Op, QAdd}) =
+const EMPTY_OP_RULES = OpRules()
+
+substitute_op_rules(q::QAdd, op_rules::OpRules) =
     iszero(q) ? q : substitute_split(q, op_rules, EMPTY_SCALAR_RULES)
 
-function substitute_split(q::QAdd, op_rules::AbstractDict, scalar_rules::AbstractDict)
+function substitute_split(q::QAdd, op_rules::OpRules, scalar_rules::ScalarRules)
     out = QTermDict()
     indices = copy(q.indices)
     phase_rules = nonreal_phase_substitutions(scalar_rules)
@@ -570,29 +556,34 @@ function substitute_split(q::QAdd, op_rules::AbstractDict, scalar_rules::Abstrac
     return QAdd(out, drop_unused_indices(out, indices))
 end
 
-function split_substitution_rules(rules::AbstractDict, replace_adjoint)
-    op_rules = Dict{Any, Any}()
-    scalar_rules = Dict{Any, Any}()
+function split_substitution_rules(rules::AbstractDict, replace_adjoint::Bool)
+    op_rules = OpRules()
+    scalar_rules = ScalarRules()
     for (k, v) in rules
-        if k isa QSym
-            op_rules[k] = v
-        else
-            scalar_rules[k] = v
-        end
+        add_substitution_rule!(op_rules, scalar_rules, k, v)
     end
     replace_adjoint && add_adjoint_rules!(op_rules)
     return op_rules, scalar_rules
 end
 
-function add_adjoint_rules!(op_rules::Dict{Any, Any})
+function add_substitution_rule!(op_rules::OpRules, scalar_rules::ScalarRules, k::Op, v)
+    op_rules[k] = replacement_qadd(k, v)
+    return op_rules
+end
+function add_substitution_rule!(op_rules::OpRules, scalar_rules::ScalarRules, k, v)
+    add_scalar_rule!(scalar_rules, k, v)
+    return op_rules
+end
+
+function add_adjoint_rules!(op_rules::OpRules)
     for (k, v) in collect(op_rules)
         k_adj = Base.adjoint(k)
-        haskey(op_rules, k_adj) || (op_rules[k_adj] = adjoint_replacement(v))
+        haskey(op_rules, k_adj) || (op_rules[k_adj] = qadjoint(v))
     end
     return op_rules
 end
 
-function has_operator_rule(ops::Vector{Op}, dict::AbstractDict)
+function has_operator_rule(ops::Vector{Op}, dict::OpRules)
     for op in ops
         haskey(dict, op) && return true
     end
@@ -601,7 +592,7 @@ end
 
 function stream_substitution_once!(
         out::QTermDict, ops::Vector{Op}, c::CNum, ne::Vector{NonEqualPair},
-        op_rules::AbstractDict, scalar_rules::AbstractDict, phase_rules::Vector{Pair{Any, Any}},
+        op_rules::OpRules, scalar_rules::ScalarRules, phase_rules::PhaseRules,
     )
     if !has_operator_rule(ops, op_rules)
         new_c = substitute_cnum(c, scalar_rules, phase_rules)
@@ -612,7 +603,7 @@ function stream_substitution_once!(
     partials = Tuple{Vector{Op}, CNum, Vector{NonEqualPair}}[(Op[], c, EMPTY_NE)]
     indices = EMPTY_INDICES
     for op in ops
-        replacement = replacement_qadd(op, op_rules)
+        replacement = get(() -> single_qadd(CNUM_ONE, Op[op]), op_rules, op)
         indices = merge_unique(indices, replacement.indices)
         next_partials = Tuple{Vector{Op}, CNum, Vector{NonEqualPair}}[]
         for (prefix_ops, prefix_c, prefix_ne) in partials
@@ -636,15 +627,8 @@ function stream_substitution_once!(
     return indices
 end
 
-function replacement_qadd(op::Op, dict::AbstractDict)
-    haskey(dict, op) || return single_qadd(CNUM_ONE, Op[op])
-    val = dict[op]
-    val isa QAdd && return val
-    val isa QSym && return single_qadd(CNUM_ONE, Op[val])
-    (val isa Number || val isa SymbolicUtils.BasicSymbolic || val isa Coeff) &&
-        return single_qadd(to_cnum(val), Op[])
-    throw(ArgumentError("operator replacement for `$op` has unsupported value `$val`"))
-end
-
-adjoint_replacement(v::Coeff) = conj(v)
-adjoint_replacement(v) = qadjoint(v)
+replacement_qadd(::Op, v::QAdd) = v
+replacement_qadd(::Op, v::Op) = single_qadd(CNUM_ONE, Op[v])
+replacement_qadd(::Op, v::Union{Number, SymbolicUtils.BasicSymbolic, Coeff}) = single_qadd(to_cnum(v), Op[])
+replacement_qadd(op::Op, v) =
+    throw(ArgumentError("operator replacement for `$op` has unsupported value `$v`"))

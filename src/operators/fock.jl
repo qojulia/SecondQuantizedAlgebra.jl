@@ -48,7 +48,6 @@ function Create(h::ProductSpace, name::Symbol, idx::Int)
     return Create(name, idx)
 end
 
-# Auto-detect subspace when the ProductSpace contains exactly one FockSpace.
 Destroy(h::ProductSpace, name::Symbol) = Destroy(h, name, unique_subspace_index(h, FockSpace))
 Create(h::ProductSpace, name::Symbol) = Create(h, name, unique_subspace_index(h, FockSpace))
 

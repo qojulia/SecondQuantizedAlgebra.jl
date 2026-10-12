@@ -67,11 +67,15 @@ Base.nameof(::SumFunc) = :sum
 Base.show(io::IO, ::SumFunc) = print(io, "sum")
 SymbolicUtils.promote_symtype(::SumFunc, Ts...) = Number
 
-indexed_sum(body, indices::Vector{Index}, ne::Vector{NonEqualPair}) =
+indexed_sum(@nospecialize(body), indices::Vector{Index}, ne::Vector{NonEqualPair}) =
     SymbolicUtils.Term{SymbolicUtils.SymReal}(sym_sum, Any[body, SumScope(indices, ne)]; type = sum_symtype(body))
 
 scope_of(s::SumScope) = s
-scope_of(s::SymbolicUtils.BasicSymbolic) = s.val::SumScope
+function scope_of(s::SymbolicUtils.BasicSymbolic)
+    scope = s.val
+    scope isa SumScope && return scope
+    throw(ArgumentError("expected an indexed-sum scope, got $s"))
+end
 sum_body(x::SymbolicUtils.BasicSymbolic) = SymbolicUtils.arguments(x)[1]
 sum_scope(x::SymbolicUtils.BasicSymbolic) = scope_of(SymbolicUtils.arguments(x)[2])
 sum_indices(x::SymbolicUtils.BasicSymbolic) = sum_scope(x).indices
@@ -112,12 +116,16 @@ is_average(x::Num) = is_average(SymbolicUtils.unwrap(x))
 
 avg_symtype(op::QField) = isequal(adjoint(op), op) ? Real : Number
 
-sum_symtype(body) = SymbolicUtils.symtype(body) <: Real ? Real : Number
+function sum_symtype(@nospecialize(body))
+    body isa RawExpression && return SymbolicUtils.symtype(body) <: Real ? Real : Number
+    return body isa Real ? Real : Number
+end
 
-function avg_symtype_from_arg(arg)
-    op = SymbolicUtils.isconst(arg) ? arg.val : arg
-    op isa QField || return Number
-    return avg_symtype(op)
+function avg_symtype_from_arg(@nospecialize(arg))
+    op = arg isa RawExpression && SymbolicUtils.isconst(arg) ? arg.val : arg
+    op isa Op && return avg_symtype(op)
+    op isa QAdd && return avg_symtype(op)
+    return Number
 end
 
 average_leaf(op::QField) = SymbolicUtils.Term{SymbolicUtils.SymReal}(sym_average, QField[op]; type = avg_symtype(op))
@@ -147,44 +155,44 @@ leaf: the walk does not descend into `iv`. The default `name` is uniqueness-only
 downstream code may rename for display without changing identity.
 """
 make_time_dependent(x::Num, iv) = Symbolics.wrap(make_time_dependent(SymbolicUtils.unwrap(x), iv))
-function make_time_dependent(x, iv)
-    x isa SymbolicUtils.BasicSymbolic || return x
-    if SymbolicUtils.iscall(x) && SymbolicUtils.operation(x) === sym_average
-        return lift_average(x, iv)
-    end
-    if is_indexed_sum(x)
-        return indexed_sum(make_time_dependent(sum_body(x), iv), sum_indices(x), sum_ne(x))
-    end
+make_time_dependent(x, iv) = x
+function make_time_dependent(x::RawExpression, iv)
     SymbolicUtils.iscall(x) || return x
+    f = SymbolicUtils.operation(x)
+    f === sym_average && return lift_average(x, iv)
+    if f === sym_sum
+        return indexed_sum(lift_child(sum_body(x), iv), sum_indices(x), sum_ne(x))
+    end
     args = SymbolicUtils.arguments(x)
     new_args = Vector{Any}(undef, length(args))
     changed = false
     for k in eachindex(args)
-        na = make_time_dependent(args[k], iv)
+        na = lift_child(args[k], iv)
         new_args[k] = na
         changed |= na !== args[k]
     end
-    changed || return x   # nothing rewritten: keep the node (and its identity) intact
-    return TermInterface.maketerm(typeof(x), SymbolicUtils.operation(x), new_args, TermInterface.metadata(x))
+    changed || return x
+    return Base.invoke(
+        TermInterface.maketerm, Tuple{Type{RawExpression}, Any, Any, Any},
+        RawExpression, f, new_args, TermInterface.metadata(x),
+    )
 end
 
-function lift_average(leaf, iv)
+lift_child(@nospecialize(a), iv) = a isa RawExpression ? make_time_dependent(a, iv) : a
+
+function lift_average(leaf::RawExpression, iv)
     op = undo_average(leaf)
     nm = avg_var_name(op)
-    ivw = iv isa SymbolicUtils.BasicSymbolic ? Symbolics.wrap(iv) : iv
-    v = SymbolicUtils.unwrap(
-        avg_symtype(op) === Real ?
-            first(@variables ($nm(ivw))::Real) :
-            first(@variables ($nm(ivw))::Number)
-    )
+    raw_iv = SymbolicUtils.unwrap(iv)
+    fn = if avg_symtype(op) === Real
+        SymbolicUtils.Sym{SymbolicUtils.SymReal}(nm; type = SymbolicUtils.FnType{Tuple, Real, Nothing}, shape = UnitRange{Int}[])
+    else
+        SymbolicUtils.Sym{SymbolicUtils.SymReal}(nm; type = SymbolicUtils.FnType{Tuple, Number, Nothing}, shape = UnitRange{Int}[])
+    end
+    v = SymbolicUtils.setmetadata(fn(raw_iv), Symbolics.VariableSource, (:variables, nm))
     return SymbolicUtils.setmetadata(v, AverageOperator, op)
 end
 
-# Deterministic, structurally injective name for a lifted variable. Identity rests on this
-# name: Symbolics `isequal`/`hash` ignore the `AverageOperator` metadata, so the name must
-# be 1:1 with the operator. `hash(op)` is a digest (collisions silently merge two distinct
-# unknowns); `string(op)` alone drops the subspace (`a` on different spaces prints alike),
-# so the per-operator token prepends `space_index` to the faithful operator rendering.
 function avg_var_name(op::QAdd)
     io = IOBuffer()
     print(io, "avg")
@@ -233,17 +241,13 @@ function average(op::QAdd)
     BS = SymbolicUtils.BasicSymbolic{SymbolicUtils.SymReal}
     shared = isempty(op.indices) ? Index[] : op.indices
     GroupKey = Tuple{Vector{Index}, Vector{NonEqualPair}}
-    flat_bodies = BS[]                   # ungrouped contributions
+    flat_bodies = BS[]
     group_keys = GroupKey[]
-    group_bodies = Vector{BS}[]          # one buffer per summation scope
-    group_slot = Dict{GroupKey, Int}()   # scope -> index into group_bodies (O(1) lookup)
+    group_bodies = Vector{BS}[]
+    group_slot = Dict{GroupKey, Int}()
     for (term, c) in op.arguments
         used = Index[idx for idx in shared if depends_on_index_term(c, term.ops, idx)]
         contrib = Num(0)
-        # A raw coefficient can be genuinely complex, but splitting it into
-        # `real(raw)` and `imag(raw)` prevents Symbolics from recognizing the original
-        # scalar expression. Carry raw coefficients as one scalar here unless the root is
-        # an explicit complex constructor, whose slots should remain component-wise.
         opaque_raw = c.tail isa RawSymbolicCoeff &&
             !(
             SymbolicUtils.iscall(c.tail.expr) &&
@@ -290,10 +294,9 @@ function average(op::QAdd)
         push!(flat_bodies, indexed_sum(add_worker(SymbolicUtils.SymReal, bodies), gk[1], gk[2]))
     end
     isempty(flat_bodies) && return SymbolicUtils.unwrap(Num(0))
-    return add_worker(SymbolicUtils.SymReal, flat_bodies)::BS
+    return add_worker(SymbolicUtils.SymReal, flat_bodies)
 end
 
-# Uniform-return wrappers (all return QAdd).
 to_qadd(x::QAdd) = x
 to_qadd(x::QSym) = single_qadd(CNUM_ONE, Op[x])
 to_qadd(x::SymbolicUtils.BasicSymbolic) = single_qadd(to_cnum(x), Op[])
@@ -307,9 +310,6 @@ function rebuild_indexed_sum(inner::QAdd, indices::Vector{Index}, ne::Vector{Non
     return QAdd(new_args, indices)
 end
 
-# The `+` fold is O(n²) by repeated `Base.:+` (each copies the growing dict); the
-# in-place accumulator behind `sum` makes it O(n) and is byte-identical. The `*`
-# fold stays as repeated `*` (the product path has no in-place win; see devdocs).
 fold_qadds(::typeof(+), args::Vector{QAdd}, empty::QAdd) = isempty(args) ? empty : sum(args)
 function fold_qadds(op::F, args::Vector{QAdd}, empty::QAdd) where {F}
     isempty(args) && return empty
@@ -519,8 +519,6 @@ function indexed_sum(body, indices::Vector{Index}; non_equal::Vector{NonEqualPai
     return indexed_sum(SymbolicUtils.unwrap(body), indices, non_equal)
 end
 
-# Seals: recursive calls go through `Any`-typed inputs; isa-narrow restores
-# the typed accumulator without a return annotation.
 idx_seal(v) = v isa Vector{Index} ? v : Index[]
 aon_seal(v) = v isa Vector{Int} ? v : Int[]
 

@@ -18,7 +18,6 @@ struct QAdd <: QField
     end
 end
 
-# Strip NE pairs that reference no op index, coefficient index, or scope index.
 function prune_dead_ne(args::QTermDict, indices::Vector{Index})
     needs_rebuild = false
     for (term, c) in args
@@ -108,15 +107,10 @@ function Base.isone(q::QAdd)
     length(q.arguments) == 1 || return false
     (term, c) = first(q.arguments)
     isempty(term.ops) || return false
-    re, im = realimag(c)
-    iszero_num(im) || return false
-    v = SymbolicUtils.unwrap(re)
-    return (v isa Number && isone(v)) || isequal(re, NUM_ONE)
+    is_native(c) && return isone(native_scalar(c))
+    return isone(c)
 end
 
-# `indices` is a multiset of bound sum indices (`Σ_iΣ_j ≡ Σ_jΣ_i`); compare/hash it
-# order-insensitively but multiplicity-faithfully. A plain subset test is asymmetric
-# and the XOR hash collapses repeated indices, so both use per-element multiplicity.
 function same_index_set(a::Vector{Index}, b::Vector{Index})
     length(a) == length(b) || return false
     for idx in a
@@ -131,7 +125,6 @@ function Base.isequal(a::QAdd, b::QAdd)
 end
 Base.:(==)(a::QAdd, b::QAdd) = isequal(a, b)
 function Base.hash(q::QAdd, h::UInt)
-    # `+` (not `⊻`) so repeated indices contribute, matching `same_index_set`.
     ih = foldl((acc, idx) -> acc + hash(idx), q.indices; init = zero(UInt))
     return hash(:QAdd, hash(q.arguments, hash(ih, hash(length(q.indices), h))))
 end
@@ -149,12 +142,8 @@ Base.iterate(q::QAdd) = iterate(q.arguments)
 Base.iterate(q::QAdd, state) = iterate(q.arguments, state)
 Base.eltype(::Type{QAdd}) = Pair{QTerm, CNum}
 
-ne_sort_key(ne::Vector{NonEqualPair}) = Tuple(ne)
+ne_sort_key(ne::Vector{NonEqualPair}) = copy(ne)
 
-# Type-stable display order. Compares operator sequences field-by-field (each
-# `full_op_key` is a fixed-length concrete tuple), then the constraint set. This
-# replaces `isless` on the variable-length `Vararg` tuples the `_*sort_key`
-# helpers build, which inference cannot resolve concretely (a print-path cost).
 function ne_less(a::Vector{NonEqualPair}, b::Vector{NonEqualPair})
     la, lb = length(a), length(b)
     @inbounds for i in 1:min(la, lb)
@@ -198,8 +187,6 @@ function sorted_arguments(q::QAdd)
     return QAdd[single_qadd(c, term.ops, term.ne) for (term, c) in pairs]
 end
 
-# Total: without the packed level/axis fields two axes of one spin triple (or two levels of
-# one transition set) tie, and the display order falls back to dict iteration order.
 full_op_key(op::QSym) = (
     sort_key(op)..., type_order(op), name_rank(op.name_id),
     Int(op.l1), Int(op.l2), Int(op.g), Int(op.nlev),
@@ -241,10 +228,12 @@ Look up the prefactor for a given operator sequence. Returns zero if absent.
 Throws if more than one constrained term shares the same operator sequence.
 """
 function Base.getindex(q::QAdd, key::AbstractVector{<:QSym})
-    found = nothing
+    found = CNUM_ZERO
+    matches = 0
     for (term, c) in q.arguments
         term.ops == key || continue
-        found === nothing || throw(
+        matches += 1
+        matches > 1 && throw(
             ArgumentError(
                 "operator sequence has multiple constrained terms; iterate `q.arguments` " *
                     "or `sorted_arguments(q)` to inspect them explicitly"
@@ -252,7 +241,6 @@ function Base.getindex(q::QAdd, key::AbstractVector{<:QSym})
         )
         found = c
     end
-    found === nothing && return to_num(CNUM_ZERO)
     return to_num(found)
 end
 
@@ -358,7 +346,7 @@ julia> length(get_variables(ω * a' * a + g * a))
 2
 ```
 """
-function Symbolics.get_variables(s::QAdd; kwargs...)::Vector{SymbolicUtils.BasicSymbolic}
+function Symbolics.get_variables(s::QAdd; kwargs...)
     vars = SymbolicUtils.BasicSymbolic[]
     for c in values(s.arguments)
         append!(vars, Symbolics.get_variables(real(c); kwargs...))
@@ -374,7 +362,7 @@ function Symbolics.get_variables(
         varlist;
         is_atomic = SymbolicUtils.default_is_atomic,
         kwargs...,
-    )::Vector{SymbolicUtils.BasicSymbolic}
+    )
     vars = SymbolicUtils.BasicSymbolic[]
     for c in values(s.arguments)
         append!(

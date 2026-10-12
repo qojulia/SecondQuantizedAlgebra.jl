@@ -69,4 +69,13 @@ using Test
         @inferred substitute(x * a, Dict(x => 2))
         @inferred substitute(a, Dict(a => a'))
     end
+
+    @testset "driven mode with a damped drive amplitude" begin
+        hf = FockSpace(:f)
+        @qnumbers a::Destroy(hf)
+        @variables g::Real ω::Real t::Real α::Number
+        c = SecondQuantizedAlgebra.expim(ω * t) / (1 + g)
+        @test_throws ArgumentError substitute(c * a, Dict(ω => α))
+        @test isequal(substitute(c * a, Dict(g => 1)), SecondQuantizedAlgebra.expim(ω * t) / 2 * a)
+    end
 end
