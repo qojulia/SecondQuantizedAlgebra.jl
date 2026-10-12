@@ -1,5 +1,3 @@
-# Exact unitary transformations for the cold-path formal expression layer.
-
 qexpr_conjugate_arg(arg::QAdd, U::UnitaryTransform) = conjugate(arg, U)
 qexpr_conjugate_arg(arg::QExpr, U::UnitaryTransform) = conjugate(arg, U)
 

@@ -81,11 +81,6 @@ end
 
 const NO_DIAGONALS = Tuple{Index, Index}[]
 
-# The coincidences that the sum over `s` splits off: every other index of `ops` that `s` may
-# equal. When both indices are bound, the two directions (i→j and j→i) describe the same
-# diagonal slice; keeping one (later→earlier) avoids double-counting constant residuals (the
-# `+1` from `a*a' = a'a + 1`) and keeps the survivor invariant under factor order so
-# `Σa * Σa'` and `Σa' * Σa` agree.
 function binder_diagonals(
         ops::Vector{Op}, c::CNum, s::Index, bound::Vector{Index}, ne::Vector{NonEqualPair},
     )
@@ -151,17 +146,12 @@ function partition_binders!(
     return nothing
 end
 
-# Two distinct indices on the same space, not already constrained apart.
 function may_coincide(sum_idx::Index, ext_idx::Index, ne::Vector{NonEqualPair})
     ext_idx == sum_idx && return false
     ext_idx.space_index == sum_idx.space_index || return false
     return !ne_contains(ne, sum_idx, ext_idx)
 end
 
-# The diagonals of one sum index partition `sum_idx ∈ {e₁, e₂, …}` exactly when each takes
-# the first external it equals: `sum_idx = eₖ` excludes `eₖ = eₚ` for the earlier `p` only.
-# Excluding every sibling would drop the point where the externals coincide; excluding none
-# would count it once per external.
 function sibling_exclusions(diag_pairs::Vector{Tuple{Index, Index}}, sum_idx::Index, ext_idx::Index)
     sibling_ne = NonEqualPair[]
     for (other_sum, other_ext) in diag_pairs
@@ -173,8 +163,6 @@ function sibling_exclusions(diag_pairs::Vector{Tuple{Index, Index}}, sum_idx::In
     return sibling_ne
 end
 
-# Constraints of the diagonal `sum_idx = ext_idx`: those on `sum_idx` move to `ext_idx`, and
-# the earlier siblings are excluded.
 function diagonal_ne(
         ne::Vector{NonEqualPair}, diag_pairs::Vector{Tuple{Index, Index}}, sum_idx::Index,
         ext_idx::Index,

@@ -325,8 +325,6 @@ function depends_on_index_term(c::CNum, ops::Vector{Op}, idx::Index)
     return contains_leaf(tail.expr, isym)
 end
 
-# A summation index is also observable through a counting constraint: Σ_{i≠j} T has N-1
-# terms even when T itself does not mention i.
 function depends_on_scope_index(
         c::CNum, ops::Vector{Op}, ne::Vector{NonEqualPair}, idx::Index,
     )
@@ -466,13 +464,9 @@ function Σ(expr::QAdd, i::Index, non_equal::Vector{Index} = Index[])
 
     result = QAdd(off_diag, drop_unused_indices(off_diag, vcat(expr.indices, [i])))
     isempty(diag) && return result
-    # A diagonal keeps the binders of `expr` that it still counts over.
     return result + QAdd(diag, drop_unused_indices(diag, copy(expr.indices)))
 end
 
-# Split one term of `Σ_i` into its off-diagonal part (`i` distinct from every other index
-# on its space) and one diagonal part per index `i` may coincide with. `scope` is `i` with
-# the term's other binders, which eliminating `i` can make countable.
 function sigma_term!(
         off_diag::QTermDict, diag::QTermDict, term::QTerm, c::CNum,
         i::Index, non_equal::Vector{Index}, scope::Vector{Index},
@@ -487,28 +481,20 @@ function sigma_term!(
         return nothing
     end
 
-    # Identify (i, ext_idx) pairs that need diagonal contributions.
     diag_pairs = Tuple{Index, Index}[]
     for ext_idx in distinct_op_indices(term.ops)
         may_coincide(i, ext_idx, ne_aug) && push!(diag_pairs, (i, ext_idx))
     end
 
-    # Off-diagonal: canonicalize under ne_aug augmented with every diag pair,
-    # so partial_sort can use those inequalities.
     full_ne = ne_aug
     for (a, b) in diag_pairs
         full_ne = merge_ne_pair(full_ne, a, b)
     end
-    # Σ_i: bake `i.range` into emitted entries whose final ops lose their
-    # i-dependence (e.g. the `+1` residual from `a_i*a_i' = a_i'*a_i + 1`),
-    # so per-term scope matches the explicit `Σ_i` written by the user.
     emit_scaled_by_scope!(off_diag, copy(term.ops), c, full_ne, scope)
 
     for (_, ext_idx) in diag_pairs
         sub_ops = Op[change_index(o, i, ext_idx) for o in term.ops]
         sub_c = change_index(c, i, ext_idx)
-        # Propagate NE onto the diagonal (i≠β becomes ext_idx≠β); dropping it
-        # lets a later sum re-admit ext_idx=β and double-count the diagonal.
         sub_ne = diagonal_ne(ne_aug, diag_pairs, i, ext_idx)
         canonicalize!(diag, sub_ops, sub_c, sub_ne)
     end

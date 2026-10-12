@@ -42,7 +42,6 @@ struct Monomial{E <: ExactScalar}
         return new{E}(pack_scalar(E, scalar), osyms, oexps)
     end
 
-    # Factors taken from an existing monomial are already folded.
     Monomial{E}(::Unchecked, scalar::Union{ComplexF64, E}, m::Monomial) where {E <: ExactScalar} =
         new{E}(pack_scalar(E, scalar), m.syms, m.exps)
 end

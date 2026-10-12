@@ -206,4 +206,41 @@ apply_numeric(S, ρ::AbstractMatrix) = reshape(S * vec(ρ), size(ρ))
         @test H1 ≈ (2 * (gv[1] * P(1) + gv[2] * P(2))).data
         @test length(c_ops) == 2
     end
+
+    @testset "solver-library name forwarding" begin
+        hf = FockSpace(:c)
+        @qnumbers c::Destroy(hf)
+        for M in (QOB, QTB)
+            @test M.spre(c) == spre(c)
+            @test M.spost(c) == spost(c)
+            @test M.sprepost(c, c') == sprepost(c, c')
+            @test M.sprepost(c, 2) == sprepost(c, 2)
+            @test M.sprepost(2, c) == sprepost(2, c)
+        end
+        @test QOB.liouvillian(c' * c, [c]) == liouvillian(c' * c, [c])
+        @test QTB.liouvillian(c' * c, [c]) == liouvillian(c' * c, [c])
+        @test QTB.liouvillian(c' * c, (c,)) == liouvillian(c' * c, [c])
+    end
+
+    @testset "eager op_type and empty time-dependent maps" begin
+        hf = FockSpace(:c)
+        @qnumbers c::Destroy(hf)
+        bf = QOB.FockBasis(3)
+        @test to_numeric(spre(c), bf; op_type = QOB.dense) == QOB.dense(to_numeric(spre(c), bf))
+        @variables t κ(t)
+        Z = κ * spre(c) - κ * spre(c)
+        Lz = to_numeric(Z, hf, 3; backend = QTBB, time_parameter = Dict(κ => (t -> 1.0)))
+        @test iszero(SO.concretize(SO.update_coefficients(Lz.data, nothing, nothing, 1.0)))
+    end
+
+    @testset "parameter-aware time-dependent rates" begin
+        hf = FockSpace(:c)
+        @qnumbers c::Destroy(hf)
+        @variables t κ(t)
+        _, c_ops = to_numeric_master(
+            κ * dissipator(c), hf, 3; backend = QTBB, time_parameter = Dict(κ => (p, t) -> p[1] * (1 + t)),
+        )
+        M = SO.concretize(SO.update_coefficients(only(c_ops).data, nothing, [4.0], 1.0))
+        @test M ≈ sqrt(8.0) * QTB.destroy(4).data
+    end
 end

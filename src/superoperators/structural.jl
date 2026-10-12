@@ -1,8 +1,3 @@
-# Structural passes, substitution, introspection, builders and ordering keys for the
-# superoperator layer.
-
-## SuperOperator passes
-
 function map_sides(f::F, S::SuperOperator) where {F}
     out = SuperTermDict()
     for (t, c) in S.arguments
@@ -103,8 +98,6 @@ end
         ),
     )
 end
-
-## Lindbladian passes
 
 """
     map_lindbladian(fH, fJ, fγ, L) -> Lindbladian
@@ -243,8 +236,6 @@ function constraint_pairs(L::Lindbladian)
     return out
 end
 
-## Builders
-
 """
     SuperBuilder()
 
@@ -302,8 +293,6 @@ end
 
 MA.operate(::typeof(sum), a::AbstractArray{SuperOperator}) = sum(a)
 MA.operate(::typeof(sum), a::AbstractArray{Lindbladian{O}}) where {O} = sum(a)
-
-## Ordering keys
 
 """
     superterm_order_key(t::SuperTerm)

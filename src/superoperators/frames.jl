@@ -1,5 +1,3 @@
-# Changes of frame for superoperators and Lindbladians.
-
 function reduce_map_params(S::SuperOperator, relations::Vector{ParamRelation})
     isempty(relations) && return S
     scratch = ParamRelation[]
@@ -36,8 +34,6 @@ transform(S::SuperOperator, U::UnitaryTransform{DynamicTime}) =
 
 transform(L::Lindbladian, U::UnitaryTransform) =
     map_lindbladian(H -> transform(H, U), J -> conjugate(J, U), identity, L)
-
-## Dissipative displacement frames
 
 struct FockDrift
     rate::CNum
@@ -101,7 +97,6 @@ function DisplacementFrame(a::Op, L::Lindbladian{QAdd}, t::Num)
             "got `$(to_num(drift.rate))`",
     )
     offset = exponential_form(drift.offset)
-    # α̇ = λα + c has the same bounded solution as the Hamiltonian frame with ω = iλ, η = ic.
     amplitude = bounded_harmonic_displacement(
         mul_cnum(CNUM_IM, offset), mul_cnum(CNUM_IM, drift.rate), tt,
     )

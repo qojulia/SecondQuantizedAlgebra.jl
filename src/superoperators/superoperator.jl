@@ -98,8 +98,6 @@ function get_prefactor(S::SuperOperator)
     return to_num(first(values(S.arguments)))
 end
 
-## Index-scope rules
-
 @noinline function shared_binder_error(idx::Index)
     throw(
         ArgumentError(
@@ -162,8 +160,6 @@ function check_operands(a::Union{QAdd, SuperOperator}, b::Union{QAdd, SuperOpera
     return nothing
 end
 
-## Constructors
-
 as_side(x::QAdd) = x
 as_side(x::QSym) = single_qadd(CNUM_ONE, Op[x])
 as_side(x::Coefficient) = single_qadd(to_cnum(x), Op[])
@@ -204,8 +200,6 @@ spre(A::Union{QField, Coefficient}) = sprepost(A, 1)
 Right multiplication `ρ ↦ ρ * B`. See [`sprepost`](@ref).
 """
 spost(B::Union{QField, Coefficient}) = sprepost(1, B)
-
-## Linear arithmetic
 
 function Base.:+(a::SuperOperator, b::SuperOperator)
     d = copy_args(a.arguments)
@@ -250,8 +244,6 @@ Base.:+(S::SuperOperator, c::Coefficient) = S + scale(one(SuperOperator), to_cnu
 Base.:+(c::Coefficient, S::SuperOperator) = S + c
 Base.:-(S::SuperOperator, c::Coefficient) = S + (-to_cnum(c))
 Base.:-(c::Coefficient, S::SuperOperator) = (-S) + c
-
-## Composition and application
 
 """
     compose(A, B)
@@ -353,8 +345,6 @@ function ⊗(A::SuperOperator, B::SuperOperator)
     )
     return compose(A, B)
 end
-
-## Adjoint and transpose
 
 """
     adjoint(S::SuperOperator)

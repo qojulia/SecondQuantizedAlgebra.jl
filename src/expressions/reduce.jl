@@ -193,7 +193,6 @@ function trig_relations!(rels::Vector{ParamRelation}, terms::Vector{<:Monomial})
     return rels
 end
 
-# 1 for the circular pair `cos`/`sin`, 2 for the hyperbolic pair, 0 otherwise.
 trig_family(op)::UInt8 = (op === cos || op === sin) ? UInt8(1) :
     ((op === cosh || op === sinh) ? UInt8(2) : UInt8(0))
 

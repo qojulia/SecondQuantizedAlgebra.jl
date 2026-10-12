@@ -1,5 +1,3 @@
-# A dissipation channel γ𝒟[J, K] and the normalization that keeps Lindbladians canonical.
-
 """
     Channel{O}
 
@@ -48,8 +46,6 @@ scope(c::Channel) = c.scope
 
 is_diagonal(c::Channel) = c.partner === c.jump || isequal(c.partner, c.jump)
 
-## Polynomial and formal parts of a jump
-
 mentions_index(q::QExpr, idx::Index) = idx in get_indices(q)
 
 function split_constant(J::QAdd)
@@ -92,7 +88,6 @@ function native_content(c::CNum)
     tail = c.tail
     if tail isa Poly && length(tail.terms) == 1
         s = scalar_coeff(monomial_scalar(only(tail.terms)))
-        # A unimodular monomial (a frame phase) leaves 𝒟 invariant, so it leaves the jump too.
         u = mul_cnum(c, inv(s))
         return isequal(mul_cnum(u, conj_cnum(u)), CNUM_ONE) ? c : s
     end
@@ -118,8 +113,6 @@ end
 
 scale_jump(J::QAdd, c::CNum) = J * c
 scale_jump(J::QExpr, c::CNum) = qexpr_scale(J, c)
-
-## Hamiltonian accumulation
 
 hamiltonian_accumulator(::Type{QAdd}) = QAddBuilder()
 hamiltonian_accumulator(::Type{QExpr}) = QExprArg[]
@@ -162,8 +155,6 @@ function sum_under_scope(G::QExpr, scope::Vector{Index}, ::Vector{NonEqualPair})
     return G
 end
 
-## Channel normalization
-
 function channel_mentions(J, K, γ::CNum, idx::Index)
     return mentions_index(J, idx) || mentions_index(K, idx) ||
         depends_on_index_term(γ, EMPTY_OPS, idx)
@@ -203,7 +194,6 @@ function move_content_to_rate(J::Union{QAdd, QExpr}, K::Union{QAdd, QExpr}, γ::
     return (J0, isequal(J0, K0) ? J0 : K0, rate)
 end
 
-# A float coefficient is usable when finite and either zero or normal; exact scalars are.
 well_scaled(z::Union{AbstractFloat, Complex{<:AbstractFloat}}) =
     isfinite(z) && (iszero(z) || abs(z) >= floatmin(Float64))
 well_scaled(c::CNum) = !is_native(c) || well_scaled(native_scalar(c))
@@ -213,7 +203,6 @@ jump_coefficients(J::QAdd) = collect(values(J.arguments))
 jump_coefficients(J::QExpr) =
     has_polynomial_body(J) ? jump_coefficients(only(J.args)::QAdd) : CNum[J.coeff]
 
-# The coefficients `rate * a * conj(b)` that lowering the channel forms.
 function lowered_well_scaled(J::Union{QAdd, QExpr}, K::Union{QAdd, QExpr}, rate::CNum)
     (well_scaled(rate) && !iszero_cnum(rate)) || return false
     for a in jump_coefficients(J), b in jump_coefficients(K)

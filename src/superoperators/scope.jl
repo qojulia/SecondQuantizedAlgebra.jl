@@ -1,6 +1,3 @@
-# Summation scope of superoperators: Σ, change_index, assume_distinct_index and
-# expand_completeness, all under the joint counting rule of `emit_sandwich!`.
-
 function Σ(S::SuperOperator, i::Index, non_equal::Vector{Index} = Index[])
     i.range_id == 0 && throw(ArgumentError("Σ: index $(index_name(i)) has no summation range"))
     i in S.indices && shared_binder_error(i)

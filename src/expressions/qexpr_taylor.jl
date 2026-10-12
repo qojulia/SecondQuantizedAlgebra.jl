@@ -1,5 +1,3 @@
-# Explicit Maclaurin lowering for the cold-path formal expression layer.
-
 @noinline function nested_taylor_error()
     throw(
         ArgumentError(

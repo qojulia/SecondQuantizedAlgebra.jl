@@ -93,4 +93,21 @@ import SecondQuantizedAlgebra: SuperExpr, liouvillian, to_numeric_master
         @test_throws ArgumentError to_numeric_master(Lr, h, 3; backend = QTBB, time_parameter = Dict(κ => (t -> im * t)))
         @test length(to_numeric_master(Lr, h, 3; backend = QTBB, time_parameter = Dict(κ => (t -> 1 + t))).collapse_operators) == 1
     end
+
+    @testset "rate matrix and index scope" begin
+        @test_throws ArgumentError to_numeric_master(dissipator(a, a' * a), h, 3; backend = QuantumOpticsBackend())
+        ha = NLevelSpace(:atom, 2)
+        @variables N
+        i = Index(ha, :i, N, ha)
+        Si = Σ(SecondQuantizedAlgebra.spre(IndexedOperator(Transition(ha, :σ, 1, 2), i)), i)
+        @test_throws ArgumentError to_numeric(Si, QOB.NLevelBasis(2))
+    end
+
+    @testset "formal maps on every entry point" begin
+        Xf = SuperExpr(hamiltonian_action(cos(φ)))
+        bφ = QOB.FockBasis(3)
+        @test_throws ArgumentError to_numeric(Xf, QOB.fockstate(bφ, 0), Dict{SecondQuantizedAlgebra.QSym, Any}())
+        @test_throws ArgumentError to_numeric(Xf, hφ, 3; backend = QuantumToolboxBackend())
+        @test_throws ArgumentError SecondQuantizedAlgebra.numeric_average_vec(Xf, nothing, Dict{SecondQuantizedAlgebra.QSym, Any}())
+    end
 end

@@ -76,8 +76,6 @@ function add_channel!(
     iszero_cnum(γ) && return b
     check_jump(J)
     check_jump(K)
-    # Rule 2: strip the jump constants α, β and add the Hamiltonian correction
-    # G = (iγ/2)(β̄ J - α K') that keeps the generator unchanged.
     J0, α = split_constant(J)
     K0, β = split_constant(K)
     if !(iszero(α) && iszero(β))
@@ -120,8 +118,6 @@ Base.isequal(a::Lindbladian{O}, b::Lindbladian{O}) where {O} =
     isequal(a.hamiltonian, b.hamiltonian) && isequal(a.channels, b.channels)
 Base.:(==)(a::Lindbladian{O}, b::Lindbladian{O}) where {O} = isequal(a, b)
 Base.hash(L::Lindbladian, h::UInt) = hash(:Lindbladian, hash(L.hamiltonian, hash(L.channels, h)))
-
-## Constructors
 
 as_generator_operator(x::QAdd) = x
 as_generator_operator(x::QExpr) = x
@@ -258,8 +254,6 @@ channel_family(::AbstractVector, ::Any) =
 
 liouvillian(H::Union{QField, Coefficient}) = hamiltonian_action(H)
 
-## Promotion between parameterizations
-
 function formal_lindbladian(L::Lindbladian{QAdd})
     chans = Dict{Channel{QExpr}, CNum}()
     for (ch, γ) in L.channels
@@ -270,8 +264,6 @@ function formal_lindbladian(L::Lindbladian{QAdd})
     return Lindbladian{QExpr}(qexpr_from_qadd(L.hamiltonian), chans)
 end
 formal_lindbladian(L::Lindbladian{QExpr}) = L
-
-## Linear arithmetic
 
 Base.:+(a::Lindbladian{QAdd}, b::Lindbladian{QAdd}) = add_lindbladians(a, b)
 Base.:+(a::Lindbladian{QExpr}, b::Lindbladian{QExpr}) = add_lindbladians(a, b)
@@ -301,8 +293,6 @@ Base.:/(L::Lindbladian, b::Number) =
 Base.:/(L::Lindbladian, b::Coefficient) = L * inv(b)
 Base.://(L::Lindbladian, b::Integer) = L * (1 // b)
 Base.://(L::Lindbladian, b::Coefficient) = L / b
-
-## Lowering
 
 """
     SuperOperator(L::Lindbladian{QAdd}) -> SuperOperator
@@ -348,8 +338,6 @@ end
 
 SuperOperator(S::SuperOperator) = S
 
-## Map operations through lowering
-
 Base.transpose(L::Lindbladian{QAdd}) = transpose(SuperOperator(L))
 Base.adjoint(L::Lindbladian{QAdd}) = adjoint(SuperOperator(L))
 dagger(L::Lindbladian) = adjoint(L)
@@ -368,8 +356,6 @@ function Base.:^(L::Lindbladian{QAdd}, n::Integer)
     n >= 0 || negative_power_error()
     return SuperOperator(L)^n
 end
-
-## Summation
 
 function Σ(L::Lindbladian{QAdd}, i::Index, non_equal::Vector{Index} = Index[])
     i.range_id == 0 && throw(ArgumentError("Σ: index $(index_name(i)) has no summation range"))

@@ -72,7 +72,6 @@ function copy_args(d::SuperTermDict)
     return out
 end
 
-# Joint dependence of a sandwich on `idx`, without concatenating the two sides.
 function depends_on_sandwich(c::CNum, left::Vector{Op}, right::Vector{Op}, idx::Index)
     for op in right
         op.index == idx && return true
@@ -192,7 +191,6 @@ function settle_sandwich!(
     return settle_scope!(out, temp, scope)
 end
 
-# The indices of `ops` that the summation index `i` may coincide with under `ne`.
 coinciding_pairs(i::Index, ops::Vector{Op}, ne::Vector{NonEqualPair}) =
     Tuple{Index, Index}[(i, ext) for ext in distinct_op_indices(ops) if may_coincide(i, ext, ne)]
 

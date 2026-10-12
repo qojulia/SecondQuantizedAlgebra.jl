@@ -1,5 +1,3 @@
-# Text and LaTeX rendering of superoperators and Lindbladians.
-
 function show_coeff_prefix(io::IO, c::CNum)
     is_unit(c) && return
     if is_neg_unit(c)
@@ -59,7 +57,6 @@ function displays_negative(c::CNum)
     return real(z) < 0 || (iszero(real(z)) && imag(z) < 0)
 end
 
-# Write the separating sign and return the coefficient left to print.
 function write_sign!(io::IO, first_term::Bool, c::CNum)
     negative = !first_term && displays_negative(c)
     first_term || write(io, negative ? " - " : " + ")
@@ -169,8 +166,6 @@ function Base.show(io::IO, ch::Channel)
     show_dissipator(io, ch)
     return nothing
 end
-
-## LaTeX
 
 latex_ops(ops::Vector{Op}) = join((latex_inline(op) for op in ops), " ")
 

@@ -1,5 +1,3 @@
-# Numeric conversion of superoperators and Lindbladians, and collapse-operator solver inputs.
-
 const SandwichTerm = Tuple{ComplexF64, Vector{Op}, Vector{Op}}
 
 """
@@ -58,8 +56,6 @@ const FormalMap = Union{SuperExpr, Lindbladian{QExpr}}
     ),
 )
 
-# Side matrices are cached by the op vector. `Index` equality ignores the concrete site, so
-# the resolved slots go into the key too; otherwise unrolled sites would share one matrix.
 const SideKey = Tuple{Vector{Op}, Vector{Int}}
 side_key(ops::Vector{Op}, ctx::NumericContext) = (ops, Int[resolve_slot(o, ctx.sites) for o in ops])
 
@@ -132,8 +128,6 @@ to_numeric(::FormalMap, ::Basis, ::AbstractDict{<:QSym}) = formal_map_numeric_er
 to_numeric(S::Union{NumericMap, FormalMap}, state::QuantumState, d::AbstractDict{<:QSym}) =
     to_numeric(S, numeric_basis(state), d)
 
-## Indexed conversion
-
 function for_each_assignment(f::F, dep::Vector{Index}, ne::Vector{NonEqualPair}, sites::Dict{Int, Vector{Int}}) where {F}
     if isempty(dep)
         f(Dict{Index, Index}(), Dict{Index, Index}())
@@ -199,13 +193,9 @@ function to_numeric(
     return to_numeric_indexed(QuantumOpticsBackend(), b, S, sites, d, scalar_subs)
 end
 
-## Refusals
-
 numeric_average_impl(::Union{NumericMap, FormalMap}, ::Any, ::AbstractDict{<:QSym}) = map_average_error()
 numeric_average_vec(::Union{NumericMap, FormalMap}, ::Any, ::AbstractDict{<:QSym}) = map_average_error()
 expect(::Union{NumericMap, FormalMap}, state, d::AbstractDict{<:QSym} = NO_SUBS) = map_average_error()
-
-## Solver inputs
 
 """
     to_numeric_master(L::Lindbladian, h, dims; backend, parameter, time_parameter, sites, tol)
@@ -251,7 +241,6 @@ end
 
 to_numeric_master(::Lindbladian{QExpr}, h::HilbertSpace, dims; kwargs...) = formal_map_numeric_error()
 
-# The `parameter` rules and the `scalar_subs` that resolve coefficients after unrolling.
 struct CoefficientRules
     parameter::Tuple{OpRules, ScalarRules}
     sub_re::ScalarRules
@@ -290,20 +279,14 @@ function master_hamiltonian(H::QAdd, ctx::NumericContext, r::CoefficientRules, t
     return op
 end
 
-# Sample times for the checks of a time-dependent Hamiltonian and rate: generic points, so a
-# coefficient pair that agrees only at isolated instants is still caught.
 const HERMITIAN_SAMPLE_TIMES = (0.0, 0.5772156649, 1.4142135624, 3.1415926536, 7.3890560989)
 
 coefficient_at(c::ComplexF64, ::Float64) = c
 coefficient_at(f, t::Float64) = ComplexF64(f(t))
 
-# Hermitian up to `√eps` relative to `scale`.
 hermitian_matrix(m, scale::Real) = maximum(abs, m - m'; init = 0.0) <= sqrt(eps()) * scale
 hermitian_matrix(m) = hermitian_matrix(m, max(1.0, maximum(abs, m; init = 0.0)))
 
-# Time values are numeric, so `H(t)` is assembled and compared with its adjoint at sample
-# times. `(p, t)` coefficients cannot be evaluated before the solver runs; they fall back to
-# the symbolic check, which treats parameters as real like `adjoint` does.
 function check_td_hermitian(H::QAdd, terms::Vector{CoeffTerm}, ctx::NumericContext, tp)
     basevars, valuefuncs, p_aware = time_basis(tp)
     if p_aware
@@ -323,10 +306,6 @@ function check_td_hermitian(H::QAdd, terms::Vector{CoeffTerm}, ctx::NumericConte
     return nothing
 end
 
-# Collapse operators are factored in a basis of operator monomials on concrete subsystems, so
-# linearly dependent jumps such as `J` and `2J` share one rate-matrix row. A monomial's ops
-# are stably sorted by subsystem: ops on different subsystems commute, and the order on one
-# subsystem is physical.
 const MonomialKey = Vector{NTuple{8, Int}}
 
 monomial_op_key(o::Op, slot::Int) = (
@@ -350,7 +329,6 @@ function monomial!(basis::MonomialBasis, ops::Vector{Op}, ctx::NumericContext)
     end
 end
 
-# A jump as its coefficients over the monomial basis.
 const JumpVector = Dict{Int, ComplexF64}
 
 function unrolled_jump(
@@ -395,9 +373,6 @@ jump_terms(u::JumpVector, basis::MonomialBasis) =
     ),
 )
 
-# The generator is a sum over channels, so a diagonal channel with a time-dependent rate gives
-# its own `√γ(t) J`, and the static channels are factored together from one rate matrix
-# `Γ[m, n] = Σ γ u[m] conj(v[n])` over the monomials.
 function master_collapse_operators(
         L::Lindbladian{QAdd}, ctx::NumericContext, r::CoefficientRules, tp, tol::Real,
     )
@@ -439,7 +414,6 @@ function block_root(parent::Vector{Int}, x::Int)
     return x
 end
 
-# Groups of monomials coupled by nonzero rates; each is factored on its own.
 function rate_blocks(n::Int, Γ::Dict{Tuple{Int, Int}, ComplexF64})
     parent = collect(1:n)
     for ((a, b), γ) in Γ
@@ -456,7 +430,6 @@ function rate_blocks(n::Int, Γ::Dict{Tuple{Int, Int}, ComplexF64})
     return blocks
 end
 
-# Diagonalize the rate matrix of one block, `c_k = √λ_k Σ_m U[m, k] M_m`.
 function append_block_terms!(
         out::Vector{Vector{OpTerm}}, block::Vector{Int}, Γ::Dict{Tuple{Int, Int}, ComplexF64},
         basis::MonomialBasis, tol::Real,
@@ -488,7 +461,6 @@ end
     ),
 )
 
-# `√γ(t)` of a rate that must stay real and nonnegative; roundoff below zero is clipped.
 function collapse_amplitude(r::Number, t)
     tol = sqrt(eps()) * max(1.0, abs(r))
     (abs(imag(r)) <= tol && real(r) >= -tol) || td_rate_error(t, r)

@@ -156,8 +156,6 @@ function compile_coeff(c::Complex{Num}, vars...)
     return (vals...) -> g_re(vals...) + im * g_im(vals...)
 end
 
-# A coefficient with its operator product. Unrolled indexed terms stay a list: their ops on
-# different sites compare equal, so collecting them into a `QAdd` would merge them.
 const CoeffTerm = Tuple{CNum, Vector{Op}}
 
 coeff_terms(q::QAdd) = CoeffTerm[(c, t.ops) for (t, c) in q.arguments]
