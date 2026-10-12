@@ -117,7 +117,7 @@ function map_lindbladian(fH::FH, fJ::FJ, fγ::FG, L::Lindbladian{O}) where {FH, 
     for (ch, γ) in L.channels
         J = fJ(ch.jump)
         K = is_diagonal(ch) ? J : fJ(ch.partner)
-        add_channel!(b.hamiltonian, b.channels, J, K, fγ(γ), copy(ch.scope), ch.ne)
+        add_channel!(b, J, K, fγ(γ), copy(ch.scope), ch.ne)
     end
     return build(b)
 end
@@ -144,11 +144,7 @@ function assume_distinct_index(L::Lindbladian{O}, pairs::Vector{Tuple{Index, Ind
     for (ch, γ) in L.channels
         J = assume_distinct_index(ch.jump, pairs)
         K = is_diagonal(ch) ? J : assume_distinct_index(ch.partner, pairs)
-        ne = ch.ne
-        for (x, y) in pairs
-            ne = merge_ne_pair(ne, x, y)
-        end
-        add_channel!(b.hamiltonian, b.channels, J, K, γ, copy(ch.scope), ne)
+        add_channel!(b, J, K, γ, copy(ch.scope), merge_ne_pairs(ch.ne, pairs))
     end
     return build(b)
 end
@@ -168,21 +164,7 @@ substitute_part(q::QAdd, op_rules::OpRules, scalar_rules::ScalarRules, ::PhaseRu
 substitute_part(q::QExpr, op_rules::OpRules, scalar_rules::ScalarRules, phase_rules::PhaseRules) =
     iszero(q) ? q : substitute_qexpr_split(q, op_rules, scalar_rules, phase_rules)
 
-function change_index(L::Lindbladian{O}, from::Index, to::Index) where {O}
-    b = LindbladianBuilder{O}()
-    add_hamiltonian!(b.hamiltonian, change_index(L.hamiltonian, from, to))
-    for (ch, γ) in L.channels
-        ne_becomes_contradictory(ch.ne, from, to) && continue
-        J = change_index(ch.jump, from, to)
-        K = is_diagonal(ch) ? J : change_index(ch.partner, from, to)
-        sc = unique!(Index[idx == from ? to : idx for idx in ch.scope])
-        add_channel!(
-            b.hamiltonian, b.channels, J, K, change_index(γ, from, to), sc,
-            substitute_ne(ch.ne, from, to),
-        )
-    end
-    return build(b)
-end
+change_index(L::Lindbladian, from::Index, to::Index) = change_index(L, Dict(from => to))
 
 function change_index(L::Lindbladian{O}, pairs::AbstractDict{Index, Index}) where {O}
     isempty(pairs) && return L
@@ -193,10 +175,7 @@ function change_index(L::Lindbladian{O}, pairs::AbstractDict{Index, Index}) wher
         J = change_index(ch.jump, pairs)
         K = is_diagonal(ch) ? J : change_index(ch.partner, pairs)
         sc = unique!(Index[get(pairs, idx, idx) for idx in ch.scope])
-        add_channel!(
-            b.hamiltonian, b.channels, J, K, change_index(γ, pairs), sc,
-            substitute_ne(ch.ne, pairs),
-        )
+        add_channel!(b, J, K, change_index(γ, pairs), sc, substitute_ne(ch.ne, pairs))
     end
     return build(b)
 end

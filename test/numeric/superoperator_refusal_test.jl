@@ -84,4 +84,13 @@ import SecondQuantizedAlgebra: SuperExpr, liouvillian, to_numeric_master
             Lc, hp, (2, 2); backend = QuantumToolboxBackend(), time_parameter = tp,
         )
     end
+
+    @testset "time-dependent rate sign" begin
+        QTBB = QuantumToolboxBackend()
+        Lr = κ * dissipator(a)
+        # cos(t) is negative at the sample time π; i·t is complex.
+        @test_throws ArgumentError to_numeric_master(Lr, h, 3; backend = QTBB, time_parameter = Dict(κ => cos))
+        @test_throws ArgumentError to_numeric_master(Lr, h, 3; backend = QTBB, time_parameter = Dict(κ => (t -> im * t)))
+        @test length(to_numeric_master(Lr, h, 3; backend = QTBB, time_parameter = Dict(κ => (t -> 1 + t))).collapse_operators) == 1
+    end
 end

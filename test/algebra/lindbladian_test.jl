@@ -34,6 +34,13 @@ raw_dissipator(J, K = J) = sprepost(J, K') - (1 // 2) * spre(K' * J) - (1 // 2) 
         @test jump(ch) == a + 0
         @test partner(ch) === jump(ch)
         @test isempty(scope(ch))
+        # Moving a tiny lead coefficient into the rate would underflow it; the channel keeps
+        # its jump instead of vanishing.
+        for x in (1.0e-200, 1.0e-320)
+            Lx = dissipator(x * a + a')
+            @test !iszero(Lx)
+            @test SuperOperator(Lx) == raw_dissipator(x * a + a')
+        end
     end
 
     @testset "cross terms" begin

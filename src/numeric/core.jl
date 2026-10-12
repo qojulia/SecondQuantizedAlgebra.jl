@@ -73,13 +73,16 @@ function td_coeff(c::Complex{Num}, basevars::Vector{Num}, @nospecialize(valuefun
     end
 end
 
-function to_numeric_td(q::QAdd, ctx::NumericContext, time_parameter)
+to_numeric_td(q::QAdd, ctx::NumericContext, time_parameter) =
+    to_numeric_td(coeff_terms(q), ctx, time_parameter)
+
+function to_numeric_td(terms::Vector{CoeffTerm}, ctx::NumericContext, time_parameter)
     basevars, valuefuncs, p_aware = time_basis(time_parameter)
     no_factors = term_factors(Op[], ctx)
     td_terms = Tuple{TDCoeff, typeof(no_factors)}[]
-    for (term, c_) in q.arguments
+    for (c_, ops) in terms
         coef = td_coeff(to_num(c_), basevars, valuefuncs, p_aware)
-        push!(td_terms, (coef, term_factors(term.ops, ctx)))
+        push!(td_terms, (coef, term_factors(ops, ctx)))
     end
     isempty(td_terms) && push!(td_terms, (0.0im, no_factors))
     return numeric_assemble_td(ctx.backend, ctx.basis, td_terms)

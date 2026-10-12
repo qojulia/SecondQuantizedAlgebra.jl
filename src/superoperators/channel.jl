@@ -74,7 +74,7 @@ function split_constant(J::QExpr)
     for arg in J.args
         if arg isa QAdd
             body, c = split_constant(arg)
-            constant = c
+            constant = constant + c
             iszero(body) || push!(args, body)
         else
             push!(args, arg)
@@ -181,68 +181,73 @@ function check_jump(J::QExpr)
 end
 
 """
-    add_channel!(hamiltonian, channels, J, K, γ, scope, ne)
+    move_content_to_rate(J, K, γ) -> (J, K, rate)
 
-Add `γ Σ_scope 𝒟[J, K]` (under `ne`) in canonical form: jump constants become the
-Hamiltonian correction `G = (iγ/2)(β̄ J - α K')` (normalization rule 2), native content of
-the jumps moves into the rate (rule 3), and unmentioned binders are counted (rule I5).
+Normalization rule 3: divide the native content out of each jump and multiply it into the
+rate, `γ 𝒟[cJ, dK] = γ c d̄ 𝒟[J, K]`. A float rescaling that would overflow or underflow a
+coefficient of the lowered channel is skipped, so the channel keeps its jumps and rate.
 """
-function add_channel!(
-        hamiltonian, channels::Dict{Channel{O}, CNum}, J::O, K::O, γ::CNum,
-        scope::Vector{Index}, ne::Vector{NonEqualPair},
-    ) where {O <: Union{QAdd, QExpr}}
-    iszero_cnum(γ) && return channels
-    check_jump(J)
-    check_jump(K)
-    J0, α = split_constant(J)
-    K0, β = split_constant(K)
-    if !(iszero(α) && iszero(β))
-        half = mul_cnum(CNUM_HALF, mul_cnum(CNUM_IM, γ))
-        G = (adjoint(β) * J0 - α * adjoint(K0)) * half
-        iszero(G) || add_hamiltonian!(hamiltonian, sum_under_scope(G, scope, ne))
-    end
-    (iszero(J0) || iszero(K0)) && return channels
-
-    cj = jump_content(J0)
-    ck = jump_content(K0)
-    rate = γ
+function move_content_to_rate(J::Union{QAdd, QExpr}, K::Union{QAdd, QExpr}, γ::CNum)
+    cj = jump_content(J)
+    ck = jump_content(K)
+    J0, K0, rate = J, K, γ
     if !isequal(cj, CNUM_ONE)
-        J0 = scale_jump(J0, inv(cj))
+        J0 = scale_jump(J, inv(cj))
         rate = mul_cnum(rate, cj)
     end
     if !isequal(ck, CNUM_ONE)
-        K0 = scale_jump(K0, inv(ck))
+        K0 = scale_jump(K, inv(ck))
         rate = mul_cnum(rate, conj_cnum(ck))
     end
-    K0 = isequal(J0, K0) ? J0 : K0
+    lowered_well_scaled(J0, K0, rate) || return (J, isequal(J, K) ? J : K, γ)
+    return (J0, isequal(J0, K0) ? J0 : K0, rate)
+end
 
-    kept = Index[]
+# A float coefficient is usable when finite and either zero or normal; exact scalars are.
+well_scaled(z::Union{AbstractFloat, Complex{<:AbstractFloat}}) =
+    isfinite(z) && (iszero(z) || abs(z) >= floatmin(Float64))
+well_scaled(c::CNum) = !is_native(c) || well_scaled(native_scalar(c))
+well_scaled(_) = true
+
+jump_coefficients(J::QAdd) = collect(values(J.arguments))
+jump_coefficients(J::QExpr) =
+    has_polynomial_body(J) ? jump_coefficients(only(J.args)::QAdd) : CNum[J.coeff]
+
+# The coefficients `rate * a * conj(b)` that lowering the channel forms.
+function lowered_well_scaled(J::Union{QAdd, QExpr}, K::Union{QAdd, QExpr}, rate::CNum)
+    (well_scaled(rate) && !iszero_cnum(rate)) || return false
+    for a in jump_coefficients(J), b in jump_coefficients(K)
+        well_scaled(mul_cnum(rate, mul_cnum(a, conj_cnum(b)))) || return false
+    end
+    return true
+end
+
+"""
+    count_unmentioned_binders(J, K, rate, scope, ne) -> (kept, ne, rate)
+
+Normalization rule I5: keep the constraints that touch the channel, and count every binder
+the channel does not mention into the rate when its constrained count is known.
+"""
+function count_unmentioned_binders(
+        J::Union{QAdd, QExpr}, K::Union{QAdd, QExpr}, rate::CNum, scope::Vector{Index},
+        ne::Vector{NonEqualPair},
+    )
     channel_ne = NonEqualPair[]
     for p in canonical_ne(ne)
-        α_, β_ = p
-        referenced = α_ in scope || β_ in scope ||
-            channel_mentions(J0, K0, rate, α_) || channel_mentions(J0, K0, rate, β_)
+        x, y = p
+        referenced = x in scope || y in scope ||
+            channel_mentions(J, K, rate, x) || channel_mentions(J, K, rate, y)
         referenced && push!(channel_ne, p)
     end
     cne = isempty(channel_ne) ? EMPTY_NE : channel_ne
+    mentions(γ, idx) = channel_mentions(J, K, γ, idx)
+    rate, cne = eliminate_binders(mentions, rate, cne, scope)
+    kept = Index[]
     for idx in scope
         idx in kept && continue
-        if channel_mentions(J0, K0, rate, idx)
-            push!(kept, idx)
-            continue
-        end
-        eliminated, factor, cne = eliminate_binder(cne, idx)
-        eliminated ? (rate = mul_cnum(rate, factor)) : push!(kept, idx)
+        (mentions(rate, idx) || ne_mentions(cne, idx)) && push!(kept, idx)
     end
-    iszero_cnum(rate) && return channels
-    sort!(kept)
-    key = Channel{O}(J0, K0, kept, cne)
-    existing = get(channels, key, CNUM_ZERO)
-    total = add_cnum(existing, rate)
-    if iszero_cnum(total)
-        delete!(channels, key)
-    else
-        channels[key] = total
-    end
-    return channels
+    return (sort!(kept), cne, rate)
 end
+
+ne_mentions(ne::Vector{NonEqualPair}, idx::Index) = any(p -> p[1] == idx || p[2] == idx, ne)

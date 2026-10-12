@@ -156,9 +156,17 @@ function compile_coeff(c::Complex{Num}, vars...)
     return (vals...) -> g_re(vals...) + im * g_im(vals...)
 end
 
-function compile_td_coeffs(q::QAdd, time_parameter)
+# A coefficient with its operator product. Unrolled indexed terms stay a list: their ops on
+# different sites compare equal, so collecting them into a `QAdd` would merge them.
+const CoeffTerm = Tuple{CNum, Vector{Op}}
+
+coeff_terms(q::QAdd) = CoeffTerm[(c, t.ops) for (t, c) in q.arguments]
+
+compile_td_coeffs(q::QAdd, time_parameter) = compile_td_coeffs(coeff_terms(q), time_parameter)
+
+function compile_td_coeffs(terms::Vector{CoeffTerm}, time_parameter)
     basevars, valuefuncs, p_aware = time_basis(time_parameter)
-    exprs = Complex{Num}[to_num(c) for (_, c) in q.arguments]
+    exprs = Complex{Num}[to_num(c) for (c, _) in terms]
     isempty(exprs) && push!(exprs, Complex{Num}(0))
     for e in exprs
         check_time_variables(e, basevars)

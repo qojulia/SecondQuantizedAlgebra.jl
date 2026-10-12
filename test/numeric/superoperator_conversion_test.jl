@@ -122,6 +122,13 @@ apply_numeric(S, ρ::AbstractMatrix) = reshape(S * vec(ρ), size(ρ))
         Hd, cd = to_numeric_master(Ld, hp, (2, 2); backend = QOBB)
         @test length(cd) == 2
         @test to_numeric(Ld, hp, (2, 2); backend = QOBB).data ≈ QOB.liouvillian(Hd, cd).data
+        # Jumps that become proportional only after `parameter` (J and 2J) share one row of
+        # the rate matrix: 𝒟[a] - 0.1 𝒟[2a] = 0.6 𝒟[a] is a valid generator.
+        Lp = dissipator(a1) - 0.1 * dissipator(γ * a1)
+        Hp, cp = to_numeric_master(Lp, hp, (2, 2); backend = QOBB, parameter = Dict(γ => 2.0))
+        @test length(cp) == 1
+        @test to_numeric(Lp, hp, (2, 2); backend = QOBB, parameter = Dict(γ => 2.0)).data ≈
+            QOB.liouvillian(Hp, cp).data
     end
 
     @testset "QuantumOptics master equation" begin
@@ -174,5 +181,29 @@ apply_numeric(S, ρ::AbstractMatrix) = reshape(S * vec(ρ), size(ρ))
         exact = 3 * exp(-(0.5 + 0.05))
         @test real(sol.expect[1, end]) ≈ exact rtol = 1.0e-5
         @test real(sol2.expect[1, end]) ≈ exact rtol = 1.0e-5
+    end
+
+    @testset "QuantumToolbox time-dependent indexed Hamiltonian" begin
+        # A summed H(t) is unrolled over `sites` with `scalar_subs`, as in the static path.
+        ha = NLevelSpace(:atom, 2)
+        @variables N t η(t)
+        i = Index(ha, :i, N, ha)
+        σ(x, y, q) = IndexedOperator(Transition(ha, :σ, x, y), q)
+        g = IndexedVariable(:g, i)
+        gf = SymbolicUtils.Sym{SymbolicUtils.SymReal}(
+            :g; type = SymbolicUtils.FnType{Tuple{Int}, Real, Nothing}, shape = UnitRange{Int}[],
+        )
+        gv = [0.3, 0.7]
+        subs = Dict{Num, Float64}(Num(gf(p)) => gv[p] for p in 1:2)
+        L = hamiltonian_action(Σ(η * g * σ(2, 2, i), i)) + Σ(dissipator(σ(1, 2, i)), i)
+        sites = Dict{Int, Vector{Int}}(1 => [1, 2])
+        H, c_ops = to_numeric_master(
+            L, ha ⊗ ha, (2, 2); backend = QTBB, sites, scalar_subs = subs,
+            time_parameter = Dict(η => (t -> 1 + t)),
+        )
+        P(k) = QTB.tensor((q == k ? QTB.basis(2, 1) * QTB.basis(2, 1)' : QTB.qeye(2) for q in 1:2)...)
+        H1 = SO.concretize(SO.update_coefficients(H.data, nothing, nothing, 1.0))
+        @test H1 ≈ (2 * (gv[1] * P(1) + gv[2] * P(2))).data
+        @test length(c_ops) == 2
     end
 end

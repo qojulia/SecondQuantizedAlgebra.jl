@@ -105,17 +105,8 @@ bound_indices(t::SuperTerm, c::CNum, indices::Vector{Index}) =
 end
 
 function prune_dead_ne(args::SuperTermDict, indices::Vector{Index})
-    needs_rebuild = false
-    for (term, c) in args
-        for p in term.ne
-            if !pair_referenced(p, term, c, indices)
-                needs_rebuild = true
-                break
-            end
-        end
-        needs_rebuild && break
-    end
-    needs_rebuild || return args
+    dead((term, c)) = any(p -> !pair_referenced(p, term, c, indices), term.ne)
+    any(dead, args) || return args
     out = SuperTermDict()
     sizehint!(out, length(args))
     for (term, c) in args
@@ -183,13 +174,8 @@ constrained count, or kept with its constraints when the count is unknown.
 """
 function settle_scope!(out::SuperTermDict, temp::SuperTermDict, scope::Vector{Index})
     for (term, cv) in temp
-        coef = cv
-        ne = term.ne
-        for scope_idx in scope
-            depends_on_sandwich(coef, term.left, term.right, scope_idx) && continue
-            eliminated, factor, ne = eliminate_binder(ne, scope_idx)
-            eliminated && (coef = mul_cnum(coef, factor))
-        end
+        mentions(c, idx) = depends_on_sandwich(c, term.left, term.right, idx)
+        coef, ne = eliminate_binders(mentions, cv, term.ne, scope)
         key = ne === term.ne ? term : SuperTerm(term.left, term.right, ne)
         addto_key!(out, key, coef)
     end
@@ -206,39 +192,15 @@ function settle_sandwich!(
     return settle_scope!(out, temp, scope)
 end
 
-const NO_DIAGONALS = Tuple{Index, Index}[]
-
-function joint_diagonals(
-        ops::Vector{Op}, c::CNum, scope::Vector{Index}, ne::Vector{NonEqualPair},
-    )
-    distinct = distinct_op_indices(ops)
-    length(distinct) < 2 && return NO_DIAGONALS
-    return diagonal_pairs(ops, c, scope, ne, distinct)
-end
-
-function with_diagonals(ne::Vector{NonEqualPair}, diag::Vector{Tuple{Index, Index}})
-    out = ne
-    for (a, b) in diag
-        out = merge_ne_pair(out, a, b)
-    end
-    return out
-end
-
-function diagonal_ne(
-        ne::Vector{NonEqualPair}, diag::Vector{Tuple{Index, Index}}, s::Index, e::Index,
-    )
-    sub_ne = substitute_ne(ne, s, e)
-    sibling_ne = sibling_exclusions(diag, s, e)
-    return isempty(sibling_ne) ? sub_ne : merge_ne(sub_ne, sibling_ne)
-end
-
-without_index(scope::Vector{Index}, s::Index) = Index[idx for idx in scope if idx != s]
+# The indices of `ops` that the summation index `i` may coincide with under `ne`.
+coinciding_pairs(i::Index, ops::Vector{Op}, ne::Vector{NonEqualPair}) =
+    Tuple{Index, Index}[(i, ext) for ext in distinct_op_indices(ops) if may_coincide(i, ext, ne)]
 
 """
     emit_sandwich!(out, left, right, c, ne, scope)
 
-Emit one joint sandwich bound by `scope` (rules I5 and I6): split every bound index that may
-coincide with another index of either side into its off-diagonal and diagonal parts, with the
+Emit one joint sandwich bound by `scope` (rules I5 and I6): partition the bound indices by
+their coincidences with the indices of either side ([`partition_binders!`](@ref)), with the
 diagonal substitution applied to the unsorted sides, then canonicalize both sides and count
 every binder the result no longer mentions.
 """
@@ -247,15 +209,8 @@ function emit_sandwich!(
         ne::Vector{NonEqualPair}, scope::Vector{Index},
     )
     isempty(scope) && return canonical_sandwich!(out, left, right, c, ne)
-    diag = joint_diagonals(vcat(left, right), c, scope, ne)
-    settle_sandwich!(out, left, right, c, with_diagonals(ne, diag), scope)
-    for (s, e) in diag
-        sub_left = Op[change_index(o, s, e) for o in left]
-        sub_right = Op[change_index(o, s, e) for o in right]
-        settle_sandwich!(
-            out, sub_left, sub_right, change_index(c, s, e), diagonal_ne(ne, diag, s, e),
-            without_index(scope, s),
-        )
+    partition_binders!((left, right), c, ne, scope, scope) do (l, r), pc, pne, pscope, _
+        settle_sandwich!(out, l, r, pc, pne, pscope)
     end
     return out
 end
@@ -270,15 +225,10 @@ function emit_applied!(
         scope::Vector{Index},
     )
     isempty(scope) && return canonicalize!(out, ops, c, ne)
-    diag = joint_diagonals(ops, c, scope, ne)
-    temp = QTermDict()
-    canonicalize!(temp, copy(ops), c, with_diagonals(ne, diag))
-    settle_scope!(out, temp, scope)
-    for (s, e) in diag
-        sub_ops = Op[change_index(o, s, e) for o in ops]
+    partition_binders!((ops,), c, ne, scope, scope) do (part,), pc, pne, pscope, _
         temp = QTermDict()
-        canonicalize!(temp, sub_ops, change_index(c, s, e), diagonal_ne(ne, diag, s, e))
-        settle_scope!(out, temp, without_index(scope, s))
+        canonicalize!(temp, copy(part), pc, pne)
+        settle_scope!(out, temp, pscope)
     end
     return out
 end

@@ -60,7 +60,21 @@ const FormalMap = Union{SuperExpr, Lindbladian{QExpr}}
 
 # Side matrices are cached by the op vector. `Index` equality ignores the concrete site, so
 # the resolved slots go into the key too; otherwise unrolled sites would share one matrix.
+const SideKey = Tuple{Vector{Op}, Vector{Int}}
 side_key(ops::Vector{Op}, ctx::NumericContext) = (ops, Int[resolve_slot(o, ctx.sites) for o in ops])
+
+"""
+    side_matrix(ops, ctx, cache::Dict{SideKey, M}) -> M
+
+The matrix of the operator product `ops` in the backend of `ctx`, converted to the cache's
+matrix type `M` and cached by [`side_key`](@ref).
+"""
+function side_matrix(ops::Vector{Op}, ctx::NumericContext, cache::Dict{SideKey, M}) where {M}
+    return get!(cache, side_key(ops, ctx)) do
+        op = static_operator(OpTerm[(1.0 + 0.0im, ops)], ctx, EagerOperator())
+        convert(M, numeric_matrix(ctx.backend, op))
+    end
+end
 
 sandwich_terms(S::SuperOperator) =
     SandwichTerm[(to_complex(c), t.left, t.right) for (t, c) in S.arguments]
@@ -202,50 +216,58 @@ Convert a Lindbladian to the inputs of a master-equation solver, so that
 QuantumToolbox `mesolve` without rate arguments.
 
 Channels are unrolled over their scopes (bound indices need `sites`, as in the indexed
-[`to_numeric`](@ref) form). The rate matrix of every correlated block of jump operators is
-checked to be Hermitian and positive semidefinite and diagonalized,
-`c_k = √λ_k Σ_a U[a, k] J_a`; a diagonal channel gives `√γ J`. Eigenvalues with
-`λ ≥ -tol` are clipped to zero, where `tol = √eps * max|λ|` by default, and a more negative
+[`to_numeric`](@ref) form), and `scalar_subs` resolves coefficients of unrolled indices,
+such as `g(k)`. The jumps are expanded in their operator monomials `M_m`, and the rate matrix
+`Γ[m, n]` of every coupled block is checked to be Hermitian and positive semidefinite and
+diagonalized, `c_k = √λ_k Σ_m U[m, k] M_m`; a single channel gives `√γ J`. Eigenvalues with
+`|λ| ≤ tol * max|λ|` are clipped to zero (`tol = √eps` by default), and a more negative
 eigenvalue or a non-Hermitian `H` throws. A time-dependent `H` is checked at a few sample
-times; with `(p, t)` coefficients it is checked symbolically, treating parameters as real. `scalar_subs` resolves coefficients of
-unrolled indices, such as `g(k)`, as in the indexed `to_numeric`.
+times; with `(p, t)` coefficients it is checked symbolically, treating parameters as real.
 
 With a `time_parameter` (QuantumToolbox only), `H` becomes a `QobjEvo` and a diagonal
-channel with a time-dependent rate `γ(t)` gives the collapse operator `√γ(t) J`; the user
-must keep such a rate nonnegative. A time-dependent correlated block is refused, because the
-eigenvectors of `Γ(t)` move with `t`; convert the full generator with
+channel with a time-dependent rate `γ(t)` gives the collapse operator `√γ(t) J`. Such a rate
+must stay real and nonnegative: it is checked at the sample times, and evaluating a negative
+or complex rate during the solve throws. A correlated channel with a time-dependent rate is
+refused, because the eigenvectors of `Γ(t)` move with `t`; convert the full generator with
 `to_numeric(L, ...; time_parameter)` instead.
 """
 function to_numeric_master(
         L::Lindbladian{QAdd}, h::HilbertSpace, dims;
         backend::NumericBackend = default_backend(), parameter = NO_PARAMETER,
         time_parameter = NO_TIME_PARAMETER, sites::AbstractDict = EMPTY_SITES,
-        scalar_subs::AbstractDict = NO_SCALAR_SUBS, tol::Union{Nothing, Real} = nothing,
+        scalar_subs::AbstractDict = NO_SCALAR_SUBS, tol::Real = sqrt(eps()),
     )
     basis = numeric_basis(backend, h, dims)
     site_map = Dict{Int, Vector{Int}}(sites)
     isempty(site_map) || validate_sites(backend, basis, site_map)
     rules = expand_parameter(parameter)
     tp = normalize_time_parameter(time_parameter)
-    sub_re, sub_im, has_imag = split_scalar_subs(scalar_subs)
     ctx = NumericContext(backend, basis, NO_SUBS, NO_SCALAR_SUBS, site_map)
-    H = master_hamiltonian(L.hamiltonian, ctx, rules, tp, site_map, sub_re, sub_im, has_imag)
-    c_ops = master_collapse_operators(L, ctx, rules, tp, site_map, sub_re, sub_im, has_imag, tol)
+    coeffs = CoefficientRules(rules, split_scalar_subs(scalar_subs)...)
+    H = master_hamiltonian(L.hamiltonian, ctx, coeffs, tp)
+    c_ops = master_collapse_operators(L, ctx, coeffs, tp, tol)
     return (hamiltonian = H, collapse_operators = c_ops)
 end
 
 to_numeric_master(::Lindbladian{QExpr}, h::HilbertSpace, dims; kwargs...) = formal_map_numeric_error()
 
-function unrolled_terms(
-        q::QAdd, rules, site_map::Dict{Int, Vector{Int}},
-        sub_re::ScalarRules, sub_im::ScalarRules, has_imag::Bool,
-    )
-    q_ = apply_parameter(q, rules)
-    terms = Tuple{CNum, Vector{Op}}[]
-    for (t, c) in q_.arguments
-        dep = bound_indices(t, c, q_.indices)
-        for_each_assignment(dep, t.ne, site_map) do sub_op, sub_coef
-            nc = apply_scalar_subs(change_index(c, sub_coef), sub_re, sub_im, has_imag)
+# The `parameter` rules and the `scalar_subs` that resolve coefficients after unrolling.
+struct CoefficientRules
+    parameter::Tuple{OpRules, ScalarRules}
+    sub_re::ScalarRules
+    sub_im::ScalarRules
+    has_imag::Bool
+end
+
+resolve_coefficient(c::CNum, sub_coef::Dict{Index, Index}, r::CoefficientRules) =
+    apply_scalar_subs(change_index(c, sub_coef), r.sub_re, r.sub_im, r.has_imag)
+
+function unrolled_terms(q::QAdd, ctx::NumericContext, r::CoefficientRules)
+    terms = CoeffTerm[]
+    for (t, c) in q.arguments
+        dep = bound_indices(t, c, q.indices)
+        for_each_assignment(dep, t.ne, ctx.sites) do sub_op, sub_coef
+            nc = resolve_coefficient(c, sub_coef, r)
             push!(terms, (nc, Op[change_index(o, sub_op) for o in t.ops]))
         end
     end
@@ -256,52 +278,42 @@ end
     ArgumentError("`to_numeric_master` requires a Hermitian Hamiltonian"),
 )
 
-function master_hamiltonian(
-        H::QAdd, ctx::NumericContext, rules, tp, site_map::Dict{Int, Vector{Int}},
-        sub_re::ScalarRules, sub_im::ScalarRules, has_imag::Bool,
-    )
+function master_hamiltonian(H::QAdd, ctx::NumericContext, r::CoefficientRules, tp)
+    H_ = apply_parameter(H, r.parameter)
+    terms = unrolled_terms(H_, ctx, r)
     if !isempty(tp)
-        isempty(H.indices) || indexed_map_error()
-        H_ = apply_parameter(H, rules)
-        check_td_hermitian(H_, ctx, tp)
-        return to_numeric_td(H_, ctx, tp)
+        check_td_hermitian(H_, terms, ctx, tp)
+        return to_numeric_td(terms, ctx, tp)
     end
-    terms = OpTerm[(to_complex(c), ops) for (c, ops) in unrolled_terms(H, rules, site_map, sub_re, sub_im, has_imag)]
-    op = static_operator(terms, ctx, EagerOperator())
+    op = static_operator(OpTerm[(to_complex(c), ops) for (c, ops) in terms], ctx, EagerOperator())
     hermitian_matrix(numeric_matrix(ctx.backend, op)) || non_hermitian_error()
     return op
 end
 
-op_site_key(o::Op) = (
-    Int(o.kind), Int(o.name_id), Int(o.space_index), Int(index_slot(o.index)),
-    Int(o.l1), Int(o.l2), Int(o.g), Int(o.nlev), has_index(o.index) ? 1 : 0,
-)
-
-# Sample times for the Hermiticity check of a time-dependent Hamiltonian: generic points, so
-# a coefficient pair that agrees only at isolated instants is still caught.
+# Sample times for the checks of a time-dependent Hamiltonian and rate: generic points, so a
+# coefficient pair that agrees only at isolated instants is still caught.
 const HERMITIAN_SAMPLE_TIMES = (0.0, 0.5772156649, 1.4142135624, 3.1415926536, 7.3890560989)
 
 coefficient_at(c::ComplexF64, ::Float64) = c
 coefficient_at(f, t::Float64) = ComplexF64(f(t))
 
-function hermitian_matrix(m)
-    scale_ = max(1.0, maximum(abs, m; init = 0.0))
-    return maximum(abs, m - m'; init = 0.0) <= sqrt(eps()) * scale_
-end
+# Hermitian up to `√eps` relative to `scale`.
+hermitian_matrix(m, scale::Real) = maximum(abs, m - m'; init = 0.0) <= sqrt(eps()) * scale
+hermitian_matrix(m) = hermitian_matrix(m, max(1.0, maximum(abs, m; init = 0.0)))
 
 # Time values are numeric, so `H(t)` is assembled and compared with its adjoint at sample
 # times. `(p, t)` coefficients cannot be evaluated before the solver runs; they fall back to
 # the symbolic check, which treats parameters as real like `adjoint` does.
-function check_td_hermitian(H::QAdd, ctx::NumericContext, tp)
+function check_td_hermitian(H::QAdd, terms::Vector{CoeffTerm}, ctx::NumericContext, tp)
     basevars, valuefuncs, p_aware = time_basis(tp)
     if p_aware
         iszero(simplify(H - adjoint(H))) || non_hermitian_error()
         return nothing
     end
-    coeffs = [td_coeff(to_num(c), basevars, valuefuncs, false) for (_, c) in H.arguments]
+    coeffs = [td_coeff(to_num(c), basevars, valuefuncs, false) for (c, _) in terms]
     mats = [
-        numeric_matrix(ctx.backend, static_operator(OpTerm[(1.0 + 0.0im, t.ops)], ctx, EagerOperator()))
-            for (t, _) in H.arguments
+        numeric_matrix(ctx.backend, static_operator(OpTerm[(1.0 + 0.0im, ops)], ctx, EagerOperator()))
+            for (_, ops) in terms
     ]
     isempty(mats) && return nothing
     for t in HERMITIAN_SAMPLE_TIMES
@@ -311,55 +323,113 @@ function check_td_hermitian(H::QAdd, ctx::NumericContext, tp)
     return nothing
 end
 
-struct UnrolledJump
-    terms::Vector{OpTerm}
-    key::Vector{Tuple{Vector{NTuple{9, Int}}, ComplexF64}}
-end
+# Collapse operators are factored in a basis of operator monomials on concrete subsystems, so
+# linearly dependent jumps such as `J` and `2J` share one rate-matrix row. A monomial's ops
+# are stably sorted by subsystem: ops on different subsystems commute, and the order on one
+# subsystem is physical.
+const MonomialKey = Vector{NTuple{8, Int}}
 
-function unrolled_jump(J::QAdd, sub_op::Dict{Index, Index}, sub_coef::Dict{Index, Index}, rules, sub_re::ScalarRules, sub_im::ScalarRules, has_imag::Bool)
-    J_ = apply_parameter(J, rules)
-    terms = OpTerm[]
-    for (t, c) in J_.arguments
-        nc = apply_scalar_subs(change_index(c, sub_coef), sub_re, sub_im, has_imag)
-        push!(terms, (to_complex(nc), Op[change_index(o, sub_op) for o in t.ops]))
+monomial_op_key(o::Op, slot::Int) = (
+    Int(o.kind), Int(o.name_id), Int(o.space_index), slot, Int(o.l1), Int(o.l2), Int(o.g),
+    Int(o.nlev),
+)
+
+struct MonomialBasis
+    index::Dict{MonomialKey, Int}
+    ops::Vector{Vector{Op}}
+end
+MonomialBasis() = MonomialBasis(Dict{MonomialKey, Int}(), Vector{Op}[])
+
+function monomial!(basis::MonomialBasis, ops::Vector{Op}, ctx::NumericContext)
+    slots = Int[resolve_slot(o, ctx.sites) for o in ops]
+    perm = sortperm(slots)
+    key = MonomialKey([monomial_op_key(ops[p], slots[p]) for p in perm])
+    return get!(basis.index, key) do
+        push!(basis.ops, ops[perm])
+        length(basis.ops)
     end
-    key = [(map(op_site_key, ops), c) for (c, ops) in terms]
-    sort!(key)
-    return UnrolledJump(terms, key)
 end
 
-struct RateEntry
-    a::Int
-    b::Int
-    rate::Complex{Num}
-end
+# A jump as its coefficients over the monomial basis.
+const JumpVector = Dict{Int, ComplexF64}
 
-function master_collapse_operators(
-        L::Lindbladian{QAdd}, ctx::NumericContext, rules, tp, site_map::Dict{Int, Vector{Int}},
-        sub_re::ScalarRules, sub_im::ScalarRules, has_imag::Bool, tol,
+function unrolled_jump(
+        J::QAdd, sub_op::Dict{Index, Index}, sub_coef::Dict{Index, Index}, r::CoefficientRules,
+        basis::MonomialBasis, ctx::NumericContext,
     )
-    jumps = UnrolledJump[]
-    keys_ = Dict{Vector{Tuple{Vector{NTuple{9, Int}}, ComplexF64}}, Int}()
-    entries = RateEntry[]
-    function jump_slot(j::UnrolledJump)
-        slot = get(keys_, j.key, 0)
-        slot == 0 || return slot
-        push!(jumps, j)
-        keys_[j.key] = length(jumps)
-        return length(jumps)
+    J_ = apply_parameter(J, r.parameter)
+    u = JumpVector()
+    for (t, c) in J_.arguments
+        m = monomial!(basis, Op[change_index(o, sub_op) for o in t.ops], ctx)
+        u[m] = get(u, m, 0.0im) + to_complex(resolve_coefficient(c, sub_coef, r))
     end
+    return u
+end
+
+jump_terms(u::JumpVector, basis::MonomialBasis) =
+    OpTerm[(c, basis.ops[m]) for (m, c) in u if !iszero(c)]
+
+@noinline not_psd_error(λ) = throw(
+    ArgumentError(
+        "`to_numeric_master`: the rate matrix is not positive semidefinite " *
+            "(eigenvalue $λ); a solver needs a GKSL generator",
+    ),
+)
+
+@noinline symbolic_rate_error() = throw(
+    ArgumentError(
+        "`to_numeric_master`: a rate is symbolic; supply its value via `parameter` " *
+            "or `time_parameter`",
+    ),
+)
+
+@noinline non_hermitian_rates_error() = throw(
+    ArgumentError("`to_numeric_master`: the rate matrix is not Hermitian"),
+)
+
+@noinline td_block_error() = throw(
+    ArgumentError(
+        "`to_numeric_master`: correlated channels with time-dependent rates are not " *
+            "supported, because the eigenvectors of Γ(t) move with t; convert the generator " *
+            "with `to_numeric(L, ...; time_parameter)` and pass the superoperator to `mesolve`",
+    ),
+)
+
+# The generator is a sum over channels, so a diagonal channel with a time-dependent rate gives
+# its own `√γ(t) J`, and the static channels are factored together from one rate matrix
+# `Γ[m, n] = Σ γ u[m] conj(v[n])` over the monomials.
+function master_collapse_operators(
+        L::Lindbladian{QAdd}, ctx::NumericContext, r::CoefficientRules, tp, tol::Real,
+    )
+    basis = MonomialBasis()
+    Γ = Dict{Tuple{Int, Int}, ComplexF64}()
+    td = Tuple{JumpVector, Complex{Num}}[]
     for (ch, γ) in L.channels
-        dep = Index[idx for idx in ch.scope]
-        for_each_assignment(dep, ch.ne, site_map) do sub_op, sub_coef
-            rate = apply_parameter(to_num(change_index(γ, sub_coef)), rules)
-            rate = to_num(apply_scalar_subs(to_cnum(rate), sub_re, sub_im, has_imag))
-            a = jump_slot(unrolled_jump(ch.jump, sub_op, sub_coef, rules, sub_re, sub_im, has_imag))
-            b = is_diagonal(ch) ? a :
-                jump_slot(unrolled_jump(ch.partner, sub_op, sub_coef, rules, sub_re, sub_im, has_imag))
-            push!(entries, RateEntry(a, b, rate))
+        for_each_assignment(ch.scope, ch.ne, ctx.sites) do sub_op, sub_coef
+            rate = apply_parameter(to_num(change_index(γ, sub_coef)), r.parameter)
+            rate = to_num(apply_scalar_subs(to_cnum(rate), r.sub_re, r.sub_im, r.has_imag))
+            u = unrolled_jump(ch.jump, sub_op, sub_coef, r, basis, ctx)
+            if !coeff_is_const(rate)
+                isempty(tp) && symbolic_rate_error()
+                is_diagonal(ch) || td_block_error()
+                push!(td, (u, rate))
+                return nothing
+            end
+            v = is_diagonal(ch) ? u : unrolled_jump(ch.partner, sub_op, sub_coef, r, basis, ctx)
+            γn = to_complex(rate)
+            for (m, cu) in u, (n, cv) in v
+                Γ[(m, n)] = get(Γ, (m, n), 0.0im) + γn * cu * conj(cv)
+            end
+            return nothing
         end
     end
-    return collapse_from_rates(jumps, entries, ctx, tp, tol)
+    static_terms = Vector{OpTerm}[]
+    for block in rate_blocks(length(basis.ops), Γ)
+        append_block_terms!(static_terms, block, Γ, basis, tol)
+    end
+    static_ops = [static_operator(terms, ctx, EagerOperator()) for terms in static_terms]
+    td_ops = [td_collapse(jump_terms(u, basis), rate, ctx, tp) for (u, rate) in td]
+    return vcat(static_ops, td_ops)
 end
 
 function block_root(parent::Vector{Int}, x::Int)
@@ -369,10 +439,12 @@ function block_root(parent::Vector{Int}, x::Int)
     return x
 end
 
-function rate_blocks(n::Int, entries::Vector{RateEntry})
+# Groups of monomials coupled by nonzero rates; each is factored on its own.
+function rate_blocks(n::Int, Γ::Dict{Tuple{Int, Int}, ComplexF64})
     parent = collect(1:n)
-    for e in entries
-        ra, rb = block_root(parent, e.a), block_root(parent, e.b)
+    for ((a, b), γ) in Γ
+        iszero(γ) && continue
+        ra, rb = block_root(parent, a), block_root(parent, b)
         ra == rb || (parent[ra] = rb)
     end
     groups = Dict{Int, Vector{Int}}()
@@ -384,81 +456,61 @@ function rate_blocks(n::Int, entries::Vector{RateEntry})
     return blocks
 end
 
-@noinline not_psd_error(λ) = throw(
-    ArgumentError(
-        "`to_numeric_master`: the rate matrix is not positive semidefinite " *
-            "(eigenvalue $λ); a solver needs a GKSL generator",
-    ),
-)
-
-@noinline td_block_error() = throw(
-    ArgumentError(
-        "`to_numeric_master`: correlated channels with time-dependent rates are not " *
-            "supported, because the eigenvectors of Γ(t) move with t; convert the generator " *
-            "with `to_numeric(L, ...; time_parameter)` and pass the superoperator to `mesolve`",
-    ),
-)
-
-rate_is_static(r::Complex{Num}) = coeff_is_const(r)
-
-function collapse_from_rates(jumps::Vector{UnrolledJump}, entries::Vector{RateEntry}, ctx::NumericContext, tp, tol)
-    c_ops = Any[]
-    for block in rate_blocks(length(jumps), entries)
-        pos = Dict(a => k for (k, a) in enumerate(block))
-        block_entries = [e for e in entries if haskey(pos, e.a)]
-        static = all(e -> rate_is_static(e.rate), block_entries)
-        if !static
-            isempty(tp) && throw(
-                ArgumentError(
-                    "`to_numeric_master`: a rate is symbolic; supply its value via `parameter` " *
-                        "or `time_parameter`",
-                ),
-            )
-            length(block) == 1 || td_block_error()
-            rate = sum(e.rate for e in block_entries)
-            push!(c_ops, td_collapse(jumps[only(block)], rate, ctx, tp))
-            continue
+# Diagonalize the rate matrix of one block, `c_k = √λ_k Σ_m U[m, k] M_m`.
+function append_block_terms!(
+        out::Vector{Vector{OpTerm}}, block::Vector{Int}, Γ::Dict{Tuple{Int, Int}, ComplexF64},
+        basis::MonomialBasis, tol::Real,
+    )
+    G = ComplexF64[get(Γ, (a, b), 0.0im) for a in block, b in block]
+    scale_ = maximum(abs, G; init = 0.0)
+    iszero(scale_) && return out
+    hermitian_matrix(G, scale_) || non_hermitian_rates_error()
+    F = LinearAlgebra.eigen(LinearAlgebra.Hermitian((G + G') / 2))
+    cutoff = tol * maximum(abs, F.values)
+    for k in eachindex(F.values)
+        λ = F.values[k]
+        λ < -cutoff && not_psd_error(λ)
+        λ <= cutoff && continue
+        terms = OpTerm[]
+        for (row, m) in enumerate(block)
+            w = sqrt(λ) * F.vectors[row, k]
+            iszero(w) || push!(terms, (w, basis.ops[m]))
         end
-        Γ = zeros(ComplexF64, length(block), length(block))
-        for e in block_entries
-            Γ[pos[e.a], pos[e.b]] += to_complex(e.rate)
-        end
-        scale_ = maximum(abs, Γ; init = 0.0)
-        iszero(scale_) && continue
-        maximum(abs, Γ - Γ'; init = 0.0) <= sqrt(eps()) * scale_ || throw(
-            ArgumentError("`to_numeric_master`: the rate matrix is not Hermitian"),
-        )
-        F = LinearAlgebra.eigen(LinearAlgebra.Hermitian((Γ + Γ') / 2))
-        cutoff = tol === nothing ? sqrt(eps()) * maximum(abs, F.values) : Float64(tol)
-        for k in eachindex(F.values)
-            λ = F.values[k]
-            λ < -cutoff && not_psd_error(λ)
-            λ <= cutoff && continue
-            terms = OpTerm[]
-            for (row, a) in enumerate(block)
-                w = sqrt(λ) * F.vectors[row, k]
-                iszero(w) && continue
-                for (c, ops) in jumps[a].terms
-                    push!(terms, (w * c, ops))
-                end
-            end
-            push!(c_ops, static_operator(terms, ctx, EagerOperator()))
-        end
+        push!(out, terms)
     end
-    return [c for c in c_ops]
+    return out
 end
 
-function td_collapse(j::UnrolledJump, rate::Complex{Num}, ctx::NumericContext, tp)
-    op = static_operator(j.terms, ctx, EagerOperator())
+@noinline td_rate_error(t, r) = throw(
+    ArgumentError(
+        "`to_numeric_master`: the time-dependent rate is $r at t = $t; a collapse operator " *
+            "√γ(t) J needs a real, nonnegative rate",
+    ),
+)
+
+# `√γ(t)` of a rate that must stay real and nonnegative; roundoff below zero is clipped.
+function collapse_amplitude(r::Number, t)
+    tol = sqrt(eps()) * max(1.0, abs(r))
+    (abs(imag(r)) <= tol && real(r) >= -tol) || td_rate_error(t, r)
+    return sqrt(max(real(r), 0.0))
+end
+
+td_collapse(::Vector{OpTerm}, ::Complex{Num}, ::NumericContext, ::Tuple{}) = symbolic_rate_error()
+
+function td_collapse(terms::Vector{OpTerm}, rate::Complex{Num}, ctx::NumericContext, tp::AbstractDict)
+    op = static_operator(terms, ctx, EagerOperator())
     basevars, valuefuncs, p_aware = time_basis(tp)
     check_time_variables(rate, basevars)
     f = compile_coeff(rate, basevars...)
-    g = p_aware ?
-        let f = f, valuefuncs = valuefuncs
-            (p, t) -> sqrt(real(f(map(v -> v(p, t), valuefuncs)...)))
-    end :
-        let f = f, valuefuncs = valuefuncs
-            t -> sqrt(real(f(map(v -> v(t), valuefuncs)...)))
+    if p_aware
+        g = let f = f, valuefuncs = valuefuncs
+            (p, t) -> collapse_amplitude(f(map(v -> v(p, t), valuefuncs)...), t)
+        end
+        return numeric_scaled_td(ctx.backend, op, g)
     end
+    g = let f = f, valuefuncs = valuefuncs
+        t -> collapse_amplitude(f(map(v -> v(t), valuefuncs)...), t)
+    end
+    foreach(g, HERMITIAN_SAMPLE_TIMES)
     return numeric_scaled_td(ctx.backend, op, g)
 end

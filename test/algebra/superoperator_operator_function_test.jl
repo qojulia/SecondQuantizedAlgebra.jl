@@ -27,6 +27,9 @@ import SecondQuantizedAlgebra: SuperOperator, SuperExpr, QAdd, QExpr, sprepost, 
         @test D isa Lindbladian{QExpr}
         @test taylor(SuperExpr(D), 0:2) == SuperOperator(γ * dissipator(taylor(cos(φ), 0:2)))
         @test iszero(transpose(taylor(D, 0:3))(1))
+        # Loss terms are split into the same additive atoms as the gain term.
+        @test iszero(simplify(transpose(dissipator(cos(φ) + sin(φ)))(1)))
+        @test iszero(simplify(transpose(dissipator(cos(φ) + 2sin(φ), sin(φ) + φ))(1)))
     end
 
     @testset "key canonicality" begin

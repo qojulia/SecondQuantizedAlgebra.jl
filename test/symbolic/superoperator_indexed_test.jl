@@ -97,4 +97,31 @@ import SecondQuantizedAlgebra: SuperOperator, sprepost, spre, spost, liouvillian
         S = spre(σ(1, 2, i)) + spost(σ(2, 1, j))
         @test change_index(S, Dict(i => j, j => i)) == spre(σ(1, 2, j)) + spost(σ(2, 1, i))
     end
+
+    @testset "diagonal split counts coinciding externals once" begin
+        s22(q) = σ(2, 2, q)
+        S = Σ(sprepost(s22(i) * s22(k), s22(l)), i)
+        @test iszero(simplify(change_index(S, l, k) - Σ(sprepost(s22(i) * s22(k), s22(k)), i)))
+        L = Σ(dissipator(σ(1, 2, i) * s22(k) * s22(l)), i)
+        Lk = Σ(dissipator(σ(1, 2, i) * s22(k)), i)
+        @test iszero(simplify(SuperOperator(change_index(L, l, k)) - SuperOperator(Lk)))
+    end
+
+    @testset "joint coincidences of several binders" begin
+        # i = k and j = l on two subspaces: each joint coincidence is counted once.
+        hP = NLevelSpace(:p, 2)
+        hQ = NLevelSpace(:q, 2)
+        h2 = hP ⊗ hQ
+        ip, kp = Index(h2, :i, N, 1), Index(h2, :k, N, 1)
+        jq, lq = Index(h2, :j, N, 2), Index(h2, :l, N, 2)
+        P(x) = IndexedOperator(Transition(h2, :P, 2, 2, 1), x)
+        Q(x) = IndexedOperator(Transition(h2, :Q, 2, 2, 2), x)
+        A = Σ(spre(P(ip)), ip)
+        B = Σ(spre(Q(jq)), jq)
+        ρ = P(kp) * Q(lq)
+        ref = Σ(P(ip), ip) * (Σ(Q(jq), jq) * ρ)
+        @test iszero(simplify((A * B)(ρ) - A(B(ρ))))
+        @test iszero(simplify(A(B(ρ)) - ref))
+        @test iszero(simplify((Σ(P(ip), ip) * Σ(Q(jq), jq)) * ρ - ref))
+    end
 end

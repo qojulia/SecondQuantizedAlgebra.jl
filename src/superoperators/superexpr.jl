@@ -5,23 +5,18 @@
 
 One sandwich `ρ ↦ left * ρ * right` of a [`SuperExpr`](@ref) with at least one formal side.
 Both sides carry a unit coefficient; the scalar lives in the `SuperExpr`. A formal sandwich
-never carries a summation scope.
+carries neither a summation scope nor index constraints.
 """
 struct FormalSandwich
     left::QExpr
     right::QExpr
-    scope::Vector{Index}
-    ne::Vector{NonEqualPair}
     hash::UInt
-    function FormalSandwich(left::QExpr, right::QExpr, scope::Vector{Index}, ne::Vector{NonEqualPair})
-        isempty(scope) || formal_scope_error()
-        h = hash(:FormalSandwich, hash(left, hash(right, hash(ne, zero(UInt)))))
-        return new(left, right, scope, ne, h)
-    end
+    FormalSandwich(left::QExpr, right::QExpr) =
+        new(left, right, hash(:FormalSandwich, hash(left, hash(right, zero(UInt)))))
 end
 
 Base.isequal(a::FormalSandwich, b::FormalSandwich) = a.hash == b.hash &&
-    isequal(a.left, b.left) && isequal(a.right, b.right) && isequal(a.ne, b.ne)
+    isequal(a.left, b.left) && isequal(a.right, b.right)
 Base.:(==)(a::FormalSandwich, b::FormalSandwich) = isequal(a, b)
 Base.hash(t::FormalSandwich, h::UInt) = hash(t.hash, h)
 
@@ -138,7 +133,7 @@ function add_atom_pair!(b::SuperExprBuilder, c::CNum, l::QExprArg, r::QExprArg)
         tr, cr = first(r.arguments)
         canonical_sandwich!(b.poly, tl.ops, tr.ops, mul_cnum(c, mul_cnum(cl, cr)), merge_ne(tl.ne, tr.ne))
     else
-        add_formal!(b.formal, FormalSandwich(atom_qexpr(l), atom_qexpr(r), Index[], EMPTY_NE), c)
+        add_formal!(b.formal, FormalSandwich(atom_qexpr(l), atom_qexpr(r)), c)
     end
     return b
 end
@@ -237,6 +232,22 @@ function lower_formal_hamiltonian!(b::SuperExprBuilder, H::QExpr)
     return b
 end
 
+# `γ 𝒟[J, K]` over the additive atoms `J = Σ cⱼ jⱼ`, `K = Σ cₖ kₖ`: the loss terms use the
+# same atom pairs as the gain term, so `transpose(L)(1)` cancels atom by atom.
+function lower_formal_channel!(b::SuperExprBuilder, J::QExpr, K::QExpr, γ::CNum)
+    one_side = single_qadd(CNUM_ONE, Op[])
+    minus_half = mul_cnum(CNUM_NEG1, mul_cnum(CNUM_HALF, γ))
+    for (cj, j) in side_atoms(J), (ck, k) in side_atoms(K)
+        c = mul_cnum(cj, conj_cnum(ck))
+        kd = adjoint(k)
+        add_sandwich!(b, mul_cnum(γ, c), j, kd)
+        kj = kd * j
+        add_sandwich!(b, mul_cnum(minus_half, c), kj, one_side)
+        add_sandwich!(b, mul_cnum(minus_half, c), one_side, kj)
+    end
+    return b
+end
+
 """
     SuperExpr(L::Lindbladian{QExpr}) -> SuperExpr
 
@@ -253,13 +264,7 @@ function SuperExpr(L::Lindbladian{QExpr})
             merge_indices!(b.indices, ch.scope)
         else
             isempty(ch.scope) || formal_scope_error()
-            Kd = adjoint(ch.partner)
-            KJ = Kd * ch.jump
-            minus_half = mul_cnum(CNUM_NEG1, mul_cnum(CNUM_HALF, γ))
-            one_side = single_qadd(CNUM_ONE, Op[])
-            add_sandwich!(b, γ, ch.jump, Kd)
-            add_sandwich!(b, minus_half, KJ, one_side)
-            add_sandwich!(b, minus_half, one_side, KJ)
+            lower_formal_channel!(b, ch.jump, ch.partner, γ)
         end
     end
     return build(b)
@@ -298,7 +303,6 @@ Base.:-(L::Lindbladian{QExpr}, c::Coefficient) = SuperExpr(L) - c
 Base.:-(c::Coefficient, L::Lindbladian{QExpr}) = c - SuperExpr(L)
 
 ## Composition, application, adjoint and transpose
-
 
 function poly_sandwiches(S::SuperOperator)
     out = Tuple{CNum, QExpr, QExpr}[]
@@ -347,7 +351,6 @@ function Base.:^(X::FormalOperand, n::Integer)
     return result
 end
 
-
 function apply_formal(S::SuperOperator, ρ::QExpr)
     iszero(S) && return qexpr_zero()
     isempty(S.indices) || formal_scope_error()
@@ -388,7 +391,7 @@ function Base.transpose(X::SuperExpr)
     b = SuperExprBuilder()
     accumulate!(b, transpose(X.poly))
     for (t, c) in X.formal
-        add_formal!(b.formal, FormalSandwich(t.right, t.left, Index[], t.ne), c)
+        add_formal!(b.formal, FormalSandwich(t.right, t.left), c)
     end
     return build(b)
 end
@@ -518,7 +521,7 @@ function Symbolics.taylor(L::Lindbladian{QExpr}, ns::UnitRange{T}) where {T <: I
     for (ch, γ) in L.channels
         J = taylor_side(ch.jump, order)
         K = is_diagonal(ch) ? J : taylor_side(ch.partner, order)
-        add_channel!(b.hamiltonian, b.channels, J, K, γ, copy(ch.scope), ch.ne)
+        add_channel!(b, J, K, γ, copy(ch.scope), ch.ne)
     end
     return build(b)
 end

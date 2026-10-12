@@ -24,9 +24,6 @@ struct Lindbladian{O <: Union{QAdd, QExpr}}
     channels::Dict{Channel{O}, CNum}
 end
 
-const PolyLindbladian = Lindbladian{QAdd}
-const FormalLindbladian = Lindbladian{QExpr}
-
 """
     hamiltonian(L::Lindbladian)
     channels(L::Lindbladian)
@@ -57,15 +54,49 @@ function accumulate!(b::LindbladianBuilder{O}, L::Lindbladian{O}, scale::CNum = 
     H = L.hamiltonian
     add_hamiltonian!(b.hamiltonian, isequal(scale, CNUM_ONE) ? H : scale_jump(H, scale))
     for (ch, γ) in L.channels
-        rate = mul_cnum(γ, scale)
-        total = add_cnum(get(b.channels, ch, CNUM_ZERO), rate)
-        iszero_cnum(total) ? delete!(b.channels, ch) : (b.channels[ch] = total)
+        add_rate!(b.channels, ch, mul_cnum(γ, scale))
     end
     return b
 end
 
 build(b::LindbladianBuilder{O}) where {O} =
     Lindbladian{O}(built_hamiltonian(b.hamiltonian), copy(b.channels))
+
+"""
+    add_channel!(b::LindbladianBuilder, J, K, γ, scope, ne)
+
+Add `γ Σ_scope 𝒟[J, K]` (under `ne`) in canonical form: jump constants become the
+Hamiltonian correction `G = (iγ/2)(β̄ J - α K')` (normalization rule 2), native content of
+the jumps moves into the rate (rule 3), and unmentioned binders are counted (rule I5).
+"""
+function add_channel!(
+        b::LindbladianBuilder{O}, J::O, K::O, γ::CNum, scope::Vector{Index},
+        ne::Vector{NonEqualPair},
+    ) where {O <: Union{QAdd, QExpr}}
+    iszero_cnum(γ) && return b
+    check_jump(J)
+    check_jump(K)
+    # Rule 2: strip the jump constants α, β and add the Hamiltonian correction
+    # G = (iγ/2)(β̄ J - α K') that keeps the generator unchanged.
+    J0, α = split_constant(J)
+    K0, β = split_constant(K)
+    if !(iszero(α) && iszero(β))
+        G = (adjoint(β) * J0 - α * adjoint(K0)) * mul_cnum(CNUM_HALF, mul_cnum(CNUM_IM, γ))
+        iszero(G) || add_hamiltonian!(b.hamiltonian, sum_under_scope(G, scope, ne))
+    end
+    (iszero(J0) || iszero(K0)) && return b
+    J0, K0, rate = move_content_to_rate(J0, K0, γ)
+    kept, cne, rate = count_unmentioned_binders(J0, K0, rate, scope, ne)
+    iszero_cnum(rate) && return b
+    add_rate!(b.channels, Channel{O}(J0, K0, kept, cne), rate)
+    return b
+end
+
+function add_rate!(channels::Dict{Channel{O}, CNum}, ch::Channel{O}, rate::CNum) where {O}
+    total = add_cnum(get(channels, ch, CNUM_ZERO), rate)
+    iszero_cnum(total) ? delete!(channels, ch) : (channels[ch] = total)
+    return channels
+end
 
 Base.zero(::Type{Lindbladian}) = zero(Lindbladian{QAdd})
 Base.zero(::Type{Lindbladian{QAdd}}) = Lindbladian{QAdd}(zero_qadd(), Dict{Channel{QAdd}, CNum}())
@@ -142,7 +173,7 @@ function channel_lindbladian(
         ::Type{O}, J::O, K::O, γ::CNum, scope::Vector{Index}, ne::Vector{NonEqualPair},
     ) where {O <: Union{QAdd, QExpr}}
     b = LindbladianBuilder{O}()
-    add_channel!(b.hamiltonian, b.channels, J, K, γ, scope, ne)
+    add_channel!(b, J, K, γ, scope, ne)
     return build(b)
 end
 
@@ -185,7 +216,7 @@ function dissipator(J::Union{QSym, QAdd}, Γ::Coefficient, pair::Pair{Index, Ind
     b = LindbladianBuilder{QAdd}()
     for (partners, γ, sc, ne) in specs
         K = isempty(partners) ? Jq : change_index(Jq, partners)
-        add_channel!(b.hamiltonian, b.channels, Jq, K, γ, sc, ne)
+        add_channel!(b, Jq, K, γ, sc, ne)
     end
     return build(b)
 end
@@ -197,33 +228,34 @@ The generator `-i[H, ·] + Σᵢⱼ Γ[i, j] 𝒟[J[i], J[j]]` in the QuantumOpt
 `rates` is `nothing` (all ones), a vector of per-channel rates, or a matrix `Γ` whose entry
 `Γ[i, j]` multiplies `J[i] ρ J[j]'`. An empty `J` gives the coherent part only.
 """
-function liouvillian(H::Union{QField, Coefficient}, J::AbstractVector; rates = nothing)
-    L = hamiltonian_action(H)
+liouvillian(H::Union{QField, Coefficient}, J::AbstractVector; rates = nothing) =
+    hamiltonian_action(H) + channel_family(J, rates)
+
+channel_family(J::AbstractVector, ::Nothing) = sum(dissipator, J; init = zero(Lindbladian))
+
+function channel_family(J::AbstractVector, rates::AbstractVector)
+    length(rates) == length(J) || throw(
+        ArgumentError("liouvillian: $(length(rates)) rates for $(length(J)) jump operators"),
+    )
+    return sum(k -> rates[k] * dissipator(J[k]), eachindex(J, rates); init = zero(Lindbladian))
+end
+
+function channel_family(J::AbstractVector, rates::AbstractMatrix)
     n = length(J)
-    if rates === nothing
-        for k in 1:n
-            L = L + dissipator(J[k])
-        end
-    elseif rates isa AbstractVector
-        length(rates) == n || throw(
-            ArgumentError("liouvillian: $(length(rates)) rates for $n jump operators"),
-        )
-        for k in 1:n
-            L = L + rates[k] * dissipator(J[k])
-        end
-    elseif rates isa AbstractMatrix
-        size(rates) == (n, n) || throw(
-            ArgumentError("liouvillian: rate matrix of size $(size(rates)) for $n jump operators"),
-        )
-        for a in 1:n, b in 1:n
-            iszero(rates[a, b]) && continue
-            L = L + rates[a, b] * (a == b ? dissipator(J[a]) : dissipator(J[a], J[b]))
-        end
-    else
-        throw(ArgumentError("liouvillian: rates must be a vector or a matrix"))
+    size(rates) == (n, n) || throw(
+        ArgumentError("liouvillian: rate matrix of size $(size(rates)) for $n jump operators"),
+    )
+    L = zero(Lindbladian)
+    for a in 1:n, b in 1:n
+        iszero(rates[a, b]) && continue
+        L = L + rates[a, b] * (a == b ? dissipator(J[a]) : dissipator(J[a], J[b]))
     end
     return L
 end
+
+channel_family(::AbstractVector, ::Any) =
+    throw(ArgumentError("liouvillian: rates must be a vector or a matrix"))
+
 liouvillian(H::Union{QField, Coefficient}) = hamiltonian_action(H)
 
 ## Promotion between parameterizations
@@ -337,12 +369,7 @@ function Base.:^(L::Lindbladian{QAdd}, n::Integer)
     return SuperOperator(L)^n
 end
 
-
 ## Summation
-
-function hamiltonian_mentions(H::QAdd, i::Index)
-    return any_depends_on_index(H, i)
-end
 
 function Σ(L::Lindbladian{QAdd}, i::Index, non_equal::Vector{Index} = Index[])
     i.range_id == 0 && throw(ArgumentError("Σ: index $(index_name(i)) has no summation range"))
@@ -351,35 +378,20 @@ function Σ(L::Lindbladian{QAdd}, i::Index, non_equal::Vector{Index} = Index[])
     iszero(L.hamiltonian) || add_hamiltonian!(b.hamiltonian, Σ(L.hamiltonian, i, non_equal))
     for (ch, γ) in L.channels
         i in ch.scope && shared_binder_error(i)
-        ne_aug = ch.ne
-        for j in non_equal
-            ne_aug = merge_ne_pair(ne_aug, i, j)
-        end
+        ne_aug = merge_ne_pairs(ch.ne, i, non_equal)
         scope_i = vcat(ch.scope, Index[i])
         if !channel_mentions(ch.jump, ch.partner, γ, i)
-            add_channel!(b.hamiltonian, b.channels, ch.jump, ch.partner, γ, scope_i, ne_aug)
+            add_channel!(b, ch.jump, ch.partner, γ, scope_i, ne_aug)
             continue
         end
-        diag = Tuple{Index, Index}[]
-        ops = Op[]
-        for t in keys(ch.jump.arguments)
-            append!(ops, t.ops)
-        end
-        for t in keys(ch.partner.arguments)
-            append!(ops, t.ops)
-        end
-        for ext in distinct_op_indices(ops)
-            may_coincide(i, ext, ne_aug) && push!(diag, (i, ext))
-        end
-        add_channel!(
-            b.hamiltonian, b.channels, ch.jump, ch.partner, γ, scope_i,
-            with_diagonals(ne_aug, diag),
-        )
+        ops = Op[o for q in (ch.jump, ch.partner) for t in keys(q.arguments) for o in t.ops]
+        diag = coinciding_pairs(i, ops, ne_aug)
+        add_channel!(b, ch.jump, ch.partner, γ, scope_i, merge_ne_pairs(ne_aug, diag))
         for (_, ext) in diag
             add_channel!(
-                b.hamiltonian, b.channels, change_index(ch.jump, i, ext),
+                b, change_index(ch.jump, i, ext),
                 change_index(ch.partner, i, ext), change_index(γ, i, ext), copy(ch.scope),
-                substitute_ne(ne_aug, i, ext),
+                diagonal_ne(ne_aug, diag, i, ext),
             )
         end
     end

@@ -3,7 +3,7 @@ module SecondQuantizedAlgebraQuantumOpticsBaseExt
 import SecondQuantizedAlgebra as SQA
 using SecondQuantizedAlgebra: QuantumOpticsBackend, Op
 import QuantumOpticsBase as QOB
-import SparseArrays: SparseMatrixCSC, nonzeros, nzrange, rowvals, sparse, spdiagm, spzeros
+import SparseArrays: SparseMatrixCSC, nonzeros, nzrange, rowvals, sparse, spdiagm
 import LinearAlgebra: dot
 
 const QOBState = Union{QOB.StateVector, QOB.AbstractOperator}
@@ -234,23 +234,17 @@ SQA.numeric_expect(::QuantumOpticsBackend, numop, state::QOBState) =
 SQA.numeric_expect(::QuantumOpticsBackend, numop, states::AbstractVector) =
     QOB.expect(QOB.sparse(numop), states)
 
-function side_matrix(ops::Vector{Op}, ctx::SQA.NumericContext, cache::Dict{Tuple{Vector{Op}, Vector{Int}}, SparseMatrixCSC{ComplexF64, Int}})
-    return get!(cache, SQA.side_key(ops, ctx)) do
-        op = SQA.static_operator(SQA.OpTerm[(1.0 + 0.0im, ops)], ctx, SQA.EagerOperator())
-        sparse(ComplexF64.(QOB.sparse(op).data))
-    end
-end
-
 function SQA.numeric_superoperator(::QuantumOpticsBackend, ctx::SQA.NumericContext, terms::Vector{SQA.SandwichTerm})
     b = ctx.basis
     n = length(b)
-    cache = Dict{Tuple{Vector{Op}, Vector{Int}}, SparseMatrixCSC{ComplexF64, Int}}()
-    data = spzeros(ComplexF64, n^2, n^2)
+    cache = Dict{SQA.SideKey, SparseMatrixCSC{ComplexF64, Int}}()
+    rows, cols, vals = Int[], Int[], ComplexF64[]
     for (c, left, right) in terms
         iszero(c) && continue
-        data += c * kron(transpose(side_matrix(right, ctx, cache)), side_matrix(left, ctx, cache))
+        m = kron(transpose(SQA.side_matrix(right, ctx, cache)), SQA.side_matrix(left, ctx, cache))
+        append_scaled!(rows, cols, vals, c, m)
     end
-    return QOB.SuperOperator((b, b), (b, b), data)
+    return QOB.SuperOperator((b, b), (b, b), sparse(rows, cols, vals, n^2, n^2))
 end
 
 SQA.numeric_matrix(::QuantumOpticsBackend, op::QOB.AbstractOperator) = QOB.sparse(op).data

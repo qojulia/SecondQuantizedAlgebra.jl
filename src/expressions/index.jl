@@ -365,6 +365,45 @@ function eliminate_binder(ne::Vector{NonEqualPair}, idx::Index)
     return (true, factor, isempty(reduced) ? EMPTY_NE : reduced)
 end
 
+"""
+    eliminate_binders(mentions, coef, ne, scope) -> (coef, ne)
+
+Eliminate every binder of `scope` for which `mentions(coef, idx)` is `false`, multiplying
+`coef` by its constrained count. Elimination runs to a fixpoint: removing one binder drops
+its constraints, which can make the count of a binder kept earlier known.
+"""
+function eliminate_binders(
+        mentions::F, coef::CNum, ne::Vector{NonEqualPair}, scope::Vector{Index},
+    ) where {F}
+    pending = EMPTY_INDICES
+    for idx in scope
+        mentions(coef, idx) && continue
+        eliminated, factor, ne = eliminate_binder(ne, idx)
+        if eliminated
+            coef = mul_cnum(coef, factor)
+        else
+            pending === EMPTY_INDICES && (pending = Index[])
+            push!(pending, idx)
+        end
+    end
+    progress = true
+    while progress && !isempty(pending)
+        progress = false
+        k = 1
+        while k <= length(pending)
+            eliminated, factor, ne = eliminate_binder(ne, pending[k])
+            if eliminated
+                coef = mul_cnum(coef, factor)
+                deleteat!(pending, k)
+                progress = true
+            else
+                k += 1
+            end
+        end
+    end
+    return (coef, ne)
+end
+
 function any_depends_on_index(s::QAdd, idx::Index)
     for (term, c) in s.arguments
         depends_on_scope_index(c, term.ops, term.ne, idx) && return true
@@ -463,7 +502,7 @@ function sigma_term!(
         sub_c = change_index(c, i, ext_idx)
         # Propagate NE onto the diagonal (i≠β becomes ext_idx≠β); dropping it
         # lets a later sum re-admit ext_idx=β and double-count the diagonal.
-        sub_ne = substitute_ne(ne_aug, i, ext_idx)
+        sub_ne = diagonal_ne(ne_aug, diag_pairs, i, ext_idx)
         canonicalize!(diag, sub_ops, sub_c, sub_ne)
     end
     return nothing

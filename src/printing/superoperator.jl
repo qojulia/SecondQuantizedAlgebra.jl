@@ -59,7 +59,8 @@ function displays_negative(c::CNum)
     return real(z) < 0 || (iszero(real(z)) && imag(z) < 0)
 end
 
-function show_signed!(io::IO, first_term::Bool, c::CNum)
+# Write the separating sign and return the coefficient left to print.
+function write_sign!(io::IO, first_term::Bool, c::CNum)
     negative = !first_term && displays_negative(c)
     first_term || write(io, negative ? " - " : " + ")
     return negative ? neg_cnum(c) : c
@@ -69,7 +70,7 @@ function Base.show(io::IO, S::SuperOperator)
     isempty(S.arguments) && return write(io, "0")
     first_term = true
     for (t, c) in sorted_superterms(S)
-        c = show_signed!(io, first_term, c)
+        c = write_sign!(io, first_term, c)
         first_term = false
         used = bound_indices(t, c, S.indices)
         if !isempty(used)
@@ -94,12 +95,29 @@ function sorted_channels(L::Lindbladian)
     return ps
 end
 
-function show_channel(io::IO, ch::Channel)
+function show_scope_prefix(io::IO, ch::Channel)
     if !isempty(ch.scope)
         show_sum_prefix(io, ch.scope, ch.ne)
         write(io, " ")
     end
     return nothing
+end
+
+function show_dissipator(io::IO, ch::Channel)
+    write(io, "𝒟[")
+    show_side(io, ch.jump)
+    if !is_diagonal(ch)
+        write(io, ", ")
+        show_side(io, ch.partner)
+    end
+    write(io, "]")
+    return nothing
+end
+
+function sorted_formal(X::SuperExpr)
+    ps = collect(X.formal)
+    sort!(ps; by = p -> (sprint(show, p.first.left), sprint(show, p.first.right)))
+    return ps
 end
 
 function Base.show(io::IO, L::Lindbladian)
@@ -111,17 +129,11 @@ function Base.show(io::IO, L::Lindbladian)
         first_term = false
     end
     for (ch, γ) in sorted_channels(L)
-        γ = show_signed!(io, first_term, γ)
+        γ = write_sign!(io, first_term, γ)
         first_term = false
-        show_channel(io, ch)
+        show_scope_prefix(io, ch)
         show_coeff_prefix(io, γ)
-        write(io, "𝒟[")
-        show_side(io, ch.jump)
-        if !is_diagonal(ch)
-            write(io, ", ")
-            show_side(io, ch.partner)
-        end
-        write(io, "]")
+        show_dissipator(io, ch)
     end
     first_term && write(io, "0")
     return
@@ -133,10 +145,8 @@ function Base.show(io::IO, X::SuperExpr)
         show(io, X.poly)
         first_term = false
     end
-    formal = collect(X.formal)
-    sort!(formal; by = p -> (sprint(show, p.first.left), sprint(show, p.first.right)))
-    for (t, c) in formal
-        c = show_signed!(io, first_term, c)
+    for (t, c) in sorted_formal(X)
+        c = write_sign!(io, first_term, c)
         first_term = false
         show_coeff_prefix(io, c)
         if !isone(t.left)
@@ -155,14 +165,9 @@ end
 
 Base.show(io::IO, t::SuperTerm) = show_sandwich(io, t.left, t.right)
 function Base.show(io::IO, ch::Channel)
-    show_channel(io, ch)
-    write(io, "𝒟[")
-    show_side(io, ch.jump)
-    if !is_diagonal(ch)
-        write(io, ", ")
-        show_side(io, ch.partner)
-    end
-    return write(io, "]")
+    show_scope_prefix(io, ch)
+    show_dissipator(io, ch)
+    return nothing
 end
 
 ## LaTeX
@@ -191,18 +196,12 @@ function latex_sandwich(left::String, right::String)
     return string(left, "\\,\\cdot\\,", right)
 end
 
-function latex_signed(io::IOBuffer, first_term::Bool, c::CNum)
-    negative = !first_term && displays_negative(c)
-    first_term || write(io, negative ? " - " : " + ")
-    return negative ? neg_cnum(c) : c
-end
-
 function super_latex(S::SuperOperator)
     isempty(S.arguments) && return "0"
     io = IOBuffer()
     first_term = true
     for (t, c) in sorted_superterms(S)
-        c = latex_signed(io, first_term, c)
+        c = write_sign!(io, first_term, c)
         first_term = false
         used = bound_indices(t, c, S.indices)
         isempty(used) || write(io, latex_sum_prefix(used, t.ne), " ")
@@ -223,7 +222,7 @@ function super_latex(L::Lindbladian)
         first_term = false
     end
     for (ch, γ) in sorted_channels(L)
-        γ = latex_signed(io, first_term, γ)
+        γ = write_sign!(io, first_term, γ)
         first_term = false
         isempty(ch.scope) || write(io, latex_sum_prefix(ch.scope, ch.ne), " ")
         prefix = latex_coeff_prefix(γ)
@@ -243,10 +242,8 @@ function super_latex(X::SuperExpr)
         write(io, super_latex(X.poly))
         first_term = false
     end
-    formal = collect(X.formal)
-    sort!(formal; by = p -> (sprint(show, p.first.left), sprint(show, p.first.right)))
-    for (t, c) in formal
-        c = latex_signed(io, first_term, c)
+    for (t, c) in sorted_formal(X)
+        c = write_sign!(io, first_term, c)
         first_term = false
         write(io, latex_coeff_prefix(c))
         left = isone(t.left) ? "" : qexpr_latex(t.left, QEXPR_PREC_MUL)

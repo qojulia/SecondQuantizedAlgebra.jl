@@ -43,8 +43,6 @@ function SuperOperator(pairs, indices::Vector{Index})
     return superop_pruned(out, copy(indices))
 end
 
-const ZERO_SUPER = superop(SuperTermDict(), Index[])
-
 Base.zero(::Type{SuperOperator}) = superop(SuperTermDict(), Index[])
 Base.zero(::SuperOperator) = zero(SuperOperator)
 Base.one(::Type{SuperOperator}) =

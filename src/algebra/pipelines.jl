@@ -79,27 +79,76 @@ function depends_on_index_ops(c::CNum, ops::Vector{Op}, idx::Index)
     return depends_on_index_term(c, ops, idx)
 end
 
-# When both indices are bound, the two directions (i→j and j→i) describe
-# the same diagonal slice; keeping one (later→earlier) avoids double-counting
-# constant residuals (the `+1` from `a*a' = a'a + 1`) and keeps the survivor
-# invariant under factor order so `Σa * Σa'` and `Σa' * Σa` agree.
-function diagonal_pairs(
-        ops::Vector{Op}, c::CNum, sum_indices::Vector{Index},
-        ne::Vector{NonEqualPair}, distinct::Vector{Index},
+const NO_DIAGONALS = Tuple{Index, Index}[]
+
+# The coincidences that the sum over `s` splits off: every other index of `ops` that `s` may
+# equal. When both indices are bound, the two directions (i→j and j→i) describe the same
+# diagonal slice; keeping one (later→earlier) avoids double-counting constant residuals (the
+# `+1` from `a*a' = a'a + 1`) and keeps the survivor invariant under factor order so
+# `Σa * Σa'` and `Σa' * Σa` agree.
+function binder_diagonals(
+        ops::Vector{Op}, c::CNum, s::Index, bound::Vector{Index}, ne::Vector{NonEqualPair},
     )
-    diag_pairs = Tuple{Index, Index}[]
-    for sum_idx in sum_indices
-        depends_on_index_ops(c, ops, sum_idx) || continue
-        for ext_idx in distinct
-            may_coincide(sum_idx, ext_idx, ne) || continue
-            # Keep one direction of a bound-bound pair.
-            if ext_idx in sum_indices
-                name_rank(sum_idx.name_id) > name_rank(ext_idx.name_id) || continue
-            end
-            push!(diag_pairs, (sum_idx, ext_idx))
-        end
+    pairs = NO_DIAGONALS
+    depends_on_index_ops(c, ops, s) || return pairs
+    for e in distinct_op_indices(ops)
+        may_coincide(s, e, ne) || continue
+        e in bound && name_rank(s.name_id) <= name_rank(e.name_id) && continue
+        pairs === NO_DIAGONALS && (pairs = Tuple{Index, Index}[])
+        push!(pairs, (s, e))
     end
-    return diag_pairs
+    return pairs
+end
+
+function merge_ne_pairs(ne::Vector{NonEqualPair}, pairs::Vector{Tuple{Index, Index}})
+    out = ne
+    for (a, b) in pairs
+        out = merge_ne_pair(out, a, b)
+    end
+    return out
+end
+
+function merge_ne_pairs(ne::Vector{NonEqualPair}, i::Index, others::Vector{Index})
+    out = ne
+    for j in others
+        out = merge_ne_pair(out, i, j)
+    end
+    return out
+end
+
+"""
+    partition_binders!(leaf, sides, c, ne, scope, bound) -> nothing
+
+Split the sum over `scope` by the coincidences of its binders, one binder at a time: the
+off-diagonal part keeps the binder distinct from every index it may equal, each diagonal
+substitutes it, and the next binder is split inside every part. Splitting all binders at
+once would count a joint coincidence such as `i = k, j = l` once per binder.
+
+`sides` are operator strings that share the substitution (one for an operator, two for a
+sandwich). Each part reaches `leaf(sides, c, ne, scope, absorbed)`, with `scope` the binders
+left after substitution and `absorbed` the bound indices a binder was substituted onto.
+"""
+function partition_binders!(
+        leaf::F, sides::NTuple{M, Vector{Op}}, c::CNum, ne::Vector{NonEqualPair},
+        scope::Vector{Index}, bound::Vector{Index},
+        k::Int = 1, absorbed::Vector{Index} = EMPTY_INDICES,
+    ) where {F, M}
+    k > length(scope) && return leaf(sides, c, ne, scope, absorbed)
+    s = scope[k]
+    ops = M == 1 ? sides[1] : reduce(vcat, sides)
+    pairs = binder_diagonals(ops, c, s, bound, ne)
+    partition_binders!(leaf, sides, c, merge_ne_pairs(ne, pairs), scope, bound, k + 1, absorbed)
+    isempty(pairs) && return nothing
+    rest = Index[x for x in scope if x != s]
+    for (_, e) in pairs
+        sub = map(side -> Op[change_index(o, s, e) for o in side], sides)
+        sub_absorbed = e in bound ? vcat(absorbed, Index[e]) : absorbed
+        partition_binders!(
+            leaf, sub, change_index(c, s, e), diagonal_ne(ne, pairs, s, e), rest, bound, k,
+            sub_absorbed,
+        )
+    end
+    return nothing
 end
 
 # Two distinct indices on the same space, not already constrained apart.
@@ -109,59 +158,54 @@ function may_coincide(sum_idx::Index, ext_idx::Index, ne::Vector{NonEqualPair})
     return !ne_contains(ne, sum_idx, ext_idx)
 end
 
+# The diagonals of one sum index partition `sum_idx ∈ {e₁, e₂, …}` exactly when each takes
+# the first external it equals: `sum_idx = eₖ` excludes `eₖ = eₚ` for the earlier `p` only.
+# Excluding every sibling would drop the point where the externals coincide; excluding none
+# would count it once per external.
 function sibling_exclusions(diag_pairs::Vector{Tuple{Index, Index}}, sum_idx::Index, ext_idx::Index)
     sibling_ne = NonEqualPair[]
     for (other_sum, other_ext) in diag_pairs
         other_sum == sum_idx || continue
-        other_ext == ext_idx && continue
+        other_ext == ext_idx && break
         other_ext.space_index == ext_idx.space_index || continue
         push!(sibling_ne, (ext_idx, other_ext))
     end
     return sibling_ne
 end
 
+# Constraints of the diagonal `sum_idx = ext_idx`: those on `sum_idx` move to `ext_idx`, and
+# the earlier siblings are excluded.
+function diagonal_ne(
+        ne::Vector{NonEqualPair}, diag_pairs::Vector{Tuple{Index, Index}}, sum_idx::Index,
+        ext_idx::Index,
+    )
+    sub_ne = substitute_ne(ne, sum_idx, ext_idx)
+    sibling_ne = sibling_exclusions(diag_pairs, sum_idx, ext_idx)
+    return isempty(sibling_ne) ? sub_ne : merge_ne(sub_ne, sibling_ne)
+end
+
 """
     accumulate_with_diag!(out, ops, c, sum_indices, ne) -> out
 
-When summing over indices that may coincide with another operator's index, emit
-both the off-diagonal contribution (under `ne ∪ {(sum_idx, ext_idx)}` enforcing
-the indices differ) and each diagonal contribution (substituting
-`sum_idx -> ext_idx`, with each constraint on `sum_idx` rewritten onto
-`ext_idx`, mirroring the diagonal split in [`Σ`](@ref)).
+When summing over indices that may coincide with another operator's index, emit the
+off-diagonal contribution (under `ne ∪ {(sum_idx, ext_idx)}` enforcing the indices differ)
+and each diagonal contribution (substituting `sum_idx -> ext_idx`, with each constraint on
+`sum_idx` rewritten onto `ext_idx`), partitioned binder by binder with
+[`partition_binders!`](@ref).
 """
 function accumulate_with_diag!(
         out::QTermDict, ops::Vector{Op}, c::CNum,
         sum_indices::Vector{Index}, ne::Vector{NonEqualPair},
     )
-    distinct = distinct_op_indices(ops)
-    if length(distinct) < 2
+    if length(distinct_op_indices(ops)) < 2
         canonicalize!(out, copy(ops), c, ne)
         return out
     end
-
-    diag_pairs = diagonal_pairs(ops, c, sum_indices, ne, distinct)
-
-    if isempty(diag_pairs)
-        canonicalize!(out, copy(ops), c, ne)
-        return out
-    end
-
-    augmented_ne = ne
-    for (a, b) in diag_pairs
-        augmented_ne = merge_ne_pair(augmented_ne, a, b)
-    end
-    canonicalize!(out, copy(ops), c, augmented_ne)
-
-    for (sum_idx, ext_idx) in diag_pairs
-        sub_ops = Op[change_index(o, sum_idx, ext_idx) for o in ops]
-        sub_c = change_index(c, sum_idx, ext_idx)
-        sub_ne = substitute_ne(ne, sum_idx, ext_idx)
-        sibling_ne = sibling_exclusions(diag_pairs, sum_idx, ext_idx)
-        isempty(sibling_ne) || (sub_ne = merge_ne(sub_ne, sibling_ne))
-        if ext_idx in sum_indices
-            emit_scaled_by_scope!(out, sub_ops, sub_c, sub_ne, Index[ext_idx])
+    partition_binders!((ops,), c, ne, sum_indices, sum_indices) do (part,), pc, pne, _, absorbed
+        if isempty(absorbed)
+            canonicalize!(out, copy(part), pc, pne)
         else
-            canonicalize!(out, sub_ops, sub_c, sub_ne)
+            emit_scaled_by_scope!(out, copy(part), pc, pne, absorbed)
         end
     end
     return out
@@ -188,18 +232,13 @@ end
 
 Add the terms of `temp`, all descended from one term bound by `scope`, into `out`. Each
 scope index that a term's operators and coefficient no longer mention is eliminated by
-`eliminate_binder`: the term is multiplied by the index's constrained count
+`eliminate_binders`: the term is multiplied by the index's constrained count
 (`range - |partners|`), or keeps the binder and its constraints when that count is unknown.
 """
 function settle_scope!(out::QTermDict, temp::QTermDict, scope::Vector{Index})
     for (term, cv) in temp
-        coef = cv
-        ne = term.ne
-        for scope_idx in scope
-            depends_on_index_term(coef, term.ops, scope_idx) && continue
-            eliminated, factor, ne = eliminate_binder(ne, scope_idx)
-            eliminated && (coef = mul_cnum(coef, factor))
-        end
+        mentions(c, idx) = depends_on_index_term(c, term.ops, idx)
+        coef, ne = eliminate_binders(mentions, cv, term.ne, scope)
         key = ne === term.ne ? copy_key(term) : QTerm(copy(term.ops), ne)
         addto_key!(out, key, coef)
     end

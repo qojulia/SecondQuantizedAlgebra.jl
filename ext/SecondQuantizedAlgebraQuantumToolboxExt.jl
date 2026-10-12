@@ -201,12 +201,12 @@ function SQA.numeric_assemble(be::QuantumToolboxBackend, basis, terms)
     return QTB.QobjEvo(static_vecsum(coeffs, ops), QTB.Operator(), refid.dimensions)
 end
 
-function SQA.to_numeric_td(q::SQA.QAdd, ctx::SQA.NumericContext{QuantumToolboxBackend}, time_parameter)
-    factor_lists = [SQA.term_factors(term.ops, ctx) for (term, _) in q.arguments]
+function SQA.to_numeric_td(terms::Vector{SQA.CoeffTerm}, ctx::SQA.NumericContext{QuantumToolboxBackend}, time_parameter)
+    factor_lists = [SQA.term_factors(ops, ctx) for (_, ops) in terms]
     isempty(factor_lists) && push!(factor_lists, SQA.term_factors(Op[], ctx))
     be, basis = ctx.backend, ctx.basis
     ops = [SO.MatrixOperator(fuse(be, basis, factors).data) for factors in factor_lists]
-    coeffs = SQA.compile_td_coeffs(q, time_parameter)
+    coeffs = SQA.compile_td_coeffs(terms, time_parameter)
     refid = SQA.numeric_identity(be, basis)
     return QTB.QobjEvo(VecSum(coeffs, zeros(ComplexF64, length(ops)), ops), QTB.Operator(), refid.dimensions)
 end
@@ -369,17 +369,10 @@ SQA.to_numeric(x::Number, state::QTB.QuantumObject) = SQA.to_numeric(x, SQA.nume
 SQA.numeric_average(op, state::QTB.QuantumObject, d::AbstractDict{<:SQA.QSym} = SQA.NO_SUBS) =
     SQA.numeric_average_impl(op, state, d)
 
-const SideCache = Dict{Tuple{Vector{Op}, Vector{Int}}, SparseMatrixCSC{ComplexF64, Int}}
-
-function side_matrix(ops::Vector{Op}, ctx::SQA.NumericContext, cache::SideCache)
-    return get!(cache, SQA.side_key(ops, ctx)) do
-        op = SQA.static_operator(SQA.OpTerm[(1.0 + 0.0im, ops)], ctx, SQA.EagerOperator())
-        sparse(ComplexF64.(op.data))
-    end
-end
+const SideCache = Dict{SQA.SideKey, SparseMatrixCSC{ComplexF64, Int}}
 
 sandwich_matrix(left::Vector{Op}, right::Vector{Op}, ctx::SQA.NumericContext, cache::SideCache) =
-    kron(transpose(side_matrix(right, ctx, cache)), side_matrix(left, ctx, cache))
+    kron(transpose(SQA.side_matrix(right, ctx, cache)), SQA.side_matrix(left, ctx, cache))
 
 super_dimensions(be::QuantumToolboxBackend, basis) =
     QTB.spre(SQA.numeric_identity(be, basis)).dimensions
@@ -387,11 +380,12 @@ super_dimensions(be::QuantumToolboxBackend, basis) =
 function SQA.numeric_superoperator(be::QuantumToolboxBackend, ctx::SQA.NumericContext, terms::Vector{SQA.SandwichTerm})
     n = size(SQA.numeric_identity(be, ctx.basis), 1)
     cache = SideCache()
-    data = spzeros(ComplexF64, n^2, n^2)
+    rows, cols, vals = Int[], Int[], ComplexF64[]
     for (c, left, right) in terms
         iszero(c) && continue
-        data += c * sandwich_matrix(left, right, ctx, cache)
+        append_scaled!(rows, cols, vals, c, sandwich_matrix(left, right, ctx, cache))
     end
+    data = sparse(rows, cols, vals, n^2, n^2)
     return QTB.Qobj(data, QTB.SuperOperator(), super_dimensions(be, ctx.basis))
 end
 

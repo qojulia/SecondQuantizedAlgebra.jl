@@ -1,41 +1,28 @@
 # Summation scope of superoperators: Σ, change_index, assume_distinct_index and
 # expand_completeness, all under the joint counting rule of `emit_sandwich!`.
 
-function any_depends_on_index(S::SuperOperator, idx::Index)
-    for (t, c) in S.arguments
-        depends_on_scope_sandwich(c, t.left, t.right, t.ne, idx) && return true
-    end
-    return false
-end
-
 function Σ(S::SuperOperator, i::Index, non_equal::Vector{Index} = Index[])
     i.range_id == 0 && throw(ArgumentError("Σ: index $(index_name(i)) has no summation range"))
     i in S.indices && shared_binder_error(i)
-    if isempty(non_equal) && !any_depends_on_index(S, i)
+    if isempty(non_equal) && !mentions_index(S, i)
         return S * index_range(i)
     end
     off_diag = SuperTermDict()
     diag = SuperTermDict()
     scope_i = Index[i]
     for (t, c) in S.arguments
-        ne_aug = t.ne
-        for j in non_equal
-            ne_aug = merge_ne_pair(ne_aug, i, j)
-        end
+        ne_aug = merge_ne_pairs(t.ne, i, non_equal)
         if !depends_on_sandwich(c, t.left, t.right, i)
             settle_sandwich!(off_diag, t.left, t.right, c, ne_aug, scope_i)
             continue
         end
-        diag_pairs = Tuple{Index, Index}[]
-        for ext in distinct_op_indices(vcat(t.left, t.right))
-            may_coincide(i, ext, ne_aug) && push!(diag_pairs, (i, ext))
-        end
-        settle_sandwich!(off_diag, t.left, t.right, c, with_diagonals(ne_aug, diag_pairs), scope_i)
+        diag_pairs = coinciding_pairs(i, vcat(t.left, t.right), ne_aug)
+        settle_sandwich!(off_diag, t.left, t.right, c, merge_ne_pairs(ne_aug, diag_pairs), scope_i)
         for (_, ext) in diag_pairs
             canonical_sandwich!(
                 diag, Op[change_index(o, i, ext) for o in t.left],
                 Op[change_index(o, i, ext) for o in t.right], change_index(c, i, ext),
-                substitute_ne(ne_aug, i, ext),
+                diagonal_ne(ne_aug, diag_pairs, i, ext),
             )
         end
     end
@@ -47,20 +34,7 @@ end
 
 Σ(S::SuperOperator, i::Index, j::Index, rest::Index...) = Σ(Σ(S, i), j, rest...)
 
-function change_index(S::SuperOperator, from::Index, to::Index)
-    out = SuperTermDict()
-    new_indices = Index[idx == from ? to : idx for idx in S.indices]
-    for (t, c) in S.arguments
-        ne_becomes_contradictory(t.ne, from, to) && continue
-        bound = Index[idx == from ? to : idx for idx in bound_indices(t, c, S.indices)]
-        emit_sandwich!(
-            out, Op[change_index(o, from, to) for o in t.left],
-            Op[change_index(o, from, to) for o in t.right], change_index(c, from, to),
-            substitute_ne(t.ne, from, to), bound,
-        )
-    end
-    return superop_pruned(out, unique!(new_indices))
-end
+change_index(S::SuperOperator, from::Index, to::Index) = change_index(S, Dict(from => to))
 
 function change_index(S::SuperOperator, pairs::AbstractDict{Index, Index})
     isempty(pairs) && return S
@@ -101,10 +75,7 @@ end
 function assume_distinct_index(S::SuperOperator, pairs::Vector{Tuple{Index, Index}})
     out = SuperTermDict()
     for (t, c) in S.arguments
-        ne = t.ne
-        for (a, b) in pairs
-            ne = merge_ne_pair(ne, a, b)
-        end
+        ne = merge_ne_pairs(t.ne, pairs)
         settle_sandwich!(out, t.left, t.right, c, ne, bound_indices(t, c, S.indices))
     end
     return expand_completeness(superop_pruned(out, copy(S.indices)))
