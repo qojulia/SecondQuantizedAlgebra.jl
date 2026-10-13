@@ -182,6 +182,17 @@ SymbolicUtils has no public registry for extending its default rules, so `simpli
 runs phase normalization, the standard simplifier, and phase normalization once more. Native
 and `Poly` fast paths still avoid the CAS.
 
+**Rational zero test on raw addition.** The raw tier has no canonical form, so two quotients
+whose denominators differ only in expansion, such as `D*conj(D)` and its expanded product,
+would otherwise sum to a nonzero-looking tree that only `simplify` clears. Adding two
+coefficients of which one is raw therefore reads both as rational functions `N/D` over the
+exact `Poly` tier and drops the sum when the cross-multiplied numerator is the zero
+polynomial. The test is exact and treats atoms as independent, so it can only miss a zero,
+never invent one; the sum is zero wherever it is defined. It does not rewrite a nonzero sum.
+Term-pair budgets bound its cost, with a tight one for common denominators inside one
+operand, so a long sum of distinct quotients does not pay a growing failed attempt on every
+addition.
+
 ## Exact coefficients
 
 An exact number is a `GaussianRational{T}`: `(re + im*i) / den` with one positive common

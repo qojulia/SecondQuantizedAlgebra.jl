@@ -35,6 +35,7 @@ This is a breaking release for type stability: public functions no longer use `n
 
 ### Fixed
 
+- Adding symbolic coefficients that are quotients with different denominators drops an identically zero sum, so `iszero` agrees with `iszero(simplify(...))` on, e.g., `abs2` of a steady-state amplitude minus its expanded form.
 - Radicals whose radicand has at most one prime factor above about `2^36`, such as `sqrt(2^127 - 1)`, are exact canonical atoms, so equal products cancel ([#291](https://github.com/qojulia/SecondQuantizedAlgebra.jl/issues/291)).
 - Numeric conversion, expectation values, typed substitution, unitary transforms, printing and `make_time_dependent` run without runtime dispatch; JET `report_opt` now also covers both backend extensions.
 - Eager `to_numeric` on a composite QuantumOptics basis assembles sparse `kron` products directly instead of materializing a `LazySum`.

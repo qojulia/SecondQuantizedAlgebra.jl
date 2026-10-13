@@ -1669,6 +1669,7 @@ end
     elseif tb isa Poly && ta isa Native
         return tiered(constant_added_terms, tb, native_scalar(a))
     end
+    rational_sum_is_zero(a, b) && return CNUM_ZERO
     raw = raw_binary(+, a, b)
     return from_raw_arithmetic(raw, cnum_is_real(a) && cnum_is_real(b))
 end

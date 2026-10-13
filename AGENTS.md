@@ -30,6 +30,7 @@ src/expressions/gaussian.jl         # GaussianRational{T}: exact (re + im*i)/den
 src/expressions/exact.jl            # Exact scalar tiers, the NativeSlot layout, radical-folding primitives
 src/expressions/monomial.jl         # Monomial{E}/Poly structs (radical-canonical by construction), factor-list machinery
 src/expressions/cnum.jl             # Coeff (CNum) arithmetic, recognition, raw lowering, constants
+src/expressions/rational_zero.jl    # exact rational-function zero test for raw coefficient sums
 src/expressions/coeff_linear_algebra.jl # LinearAlgebra hooks for Coeff (dot, norm, det, Symmetric/Hermitian)
 src/expressions/qterm.jl            # QTerm struct (ops, ne) — dict key for QAdd
 src/expressions/qadd.jl             # QAdd — canonical polynomial sum; TermInterface
