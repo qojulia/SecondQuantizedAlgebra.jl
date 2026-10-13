@@ -264,6 +264,25 @@ The representation holds four invariants:
   and each recognition of it pays the failed search again. A canonical radical needs the square-free part of
   the radicand, which is as hard as factoring it.
 
+**Radicals of parameters.** A fractional power `x^r` is the principal power `exp(r Log x)`,
+and a `Real` atom (a parameter, an indexed parameter, a real average or a real function call)
+raised to a fractional power is taken to be nonnegative. This is the domain of Julia's real
+`sqrt`, and the rest of the package already relies on it: `conj` leaves `sqrt(ω)` unchanged and
+`sqrt(ω^2)` is `ω`. Recognition of `(c ∏ sᵢ^eᵢ)^r` for one monomial then distributes `r` over
+every factor, so `sqrt(ω/2)`, `sqrt(2ω)` and `sqrt(ω*ν)` become monomials in `ω^(1/2)`,
+`ν^(1/2)` and prime radical atoms, and `sqrt(ω/2) * sqrt(2ω)` is the monomial `ω`. Without a
+canonical form the radicals stayed raw leaves, and a sum such as `x/y - x/y` of quotients of
+leaves did not cancel. A negative scalar becomes `i^p` for a square root, `-1` for `cbrt`, and
+a raw leaf otherwise.
+
+An atom that is not `Real` gets no assumption, so only identities valid for every complex
+value are applied: a positive scalar and nonnegative atoms always factor out, and the power
+distributes over one remaining atom only when its exponent lies in `(-1, 1]`, where
+`Log(s^e) = e Log(s)`. `sqrt(2z)` and `sqrt(ω*z)` split, while `sqrt(-z)`, `sqrt(z^2)` and
+`sqrt(1/z)` stay raw leaves. A parameter that can be negative must therefore not appear under
+a fractional power; write `abs(Δ)` rather than `sqrt(Δ^2)`. SymbolicUtils has no positivity
+assumptions to consult, so the contract is per symtype rather than per symbol.
+
 ## QAdd internals
 
 ```julia

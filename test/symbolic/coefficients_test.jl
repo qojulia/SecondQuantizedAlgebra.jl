@@ -94,6 +94,35 @@ import SecondQuantizedAlgebra: Coeff, CNum, to_cnum, to_num, Monomial, ExactComp
         @test iszero(simplify(g^2 * a - g * g * a))
     end
 
+    @testset "radicals of parameters factor exactly" begin
+        @variables ω ν
+        # A positive scalar and `Real` parameters, nonnegative under a root, factor out.
+        @test isequal(sqrt(ω / 2) * sqrt(2ω) * a, ω * a)
+        @test isequal(sqrt(2ω) * a, sqrt(Num(2)) * sqrt(ω) * a)
+        @test isequal(sqrt(4ω) * a, 2 * sqrt(ω) * a)
+        @test isequal(sqrt(ω * ν) * a, sqrt(ω) * sqrt(ν) * a)
+        @test isequal(sqrt(ω * ν) * sqrt(ω * ν) * a, ω * ν * a)
+        @test isequal((ω * ν)^(-1 // 2) * a, a / (sqrt(ω) * sqrt(ν)))
+        @test isequal(sqrt(-ω) * a, im * sqrt(ω) * a)
+        @test isequal(cbrt(-8ω) * a, -2 * cbrt(ω) * a)
+        @test iszero(a / sqrt(2ω) - sqrt(ω / 2) * a / ω)
+        @test isequal(sqrt(2.0ω) * a, sqrt(2.0) * sqrt(ω) * a)
+        @test SecondQuantizedAlgebra.to_complex(
+            stored_coefficient(substitute(sqrt(ω / 2) * sqrt(3ν) * a, Dict(ω => 2.5, ν => 0.7))),
+        ) ≈ sqrt(2.5 / 2) * sqrt(3 * 0.7)
+
+        # A principal root of a complex atom splits only where `Log` is additive.
+        @variables Z::Number
+        @test isequal(sqrt(2Z) * a, sqrt(Num(2)) * sqrt(Z) * a)
+        @test isequal(sqrt(ω * Z) * a, sqrt(ω) * sqrt(Z) * a)
+        @test isequal(sqrt(Z) * sqrt(Z) * a, Z * a)
+        @test !isequal(sqrt(Z^2) * a, Z * a)
+        @test !isequal(sqrt(-Z) * a, im * sqrt(Z) * a)
+        @test !isequal(sqrt(1 / Z) * a, a / sqrt(Z))
+        @test !isequal((-ω)^(1 // 3) * a, -cbrt(ω) * a)
+        @test iszero(sqrt(-Z) * a - sqrt(-Z) * a)
+    end
+
     @testset "radicals of exact numbers stay exact" begin
         function contains_float(x)
             x = SymbolicUtils.unwrap(x)

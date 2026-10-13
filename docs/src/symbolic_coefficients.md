@@ -144,3 +144,27 @@ simplify((cosh(r)^2 - sinh(r)^2) * (a + a'))
 Composite arguments such as `ω*t` are supported. Reduction is exact and conservative: if
 an identity cannot be applied safely without excessive expression growth, the original
 coefficient is returned unchanged.
+
+## Radicals of parameters
+
+A square root or rational power of a monomial in parameters is exact and canonical. A real
+parameter under a fractional power is taken to be nonnegative, the domain of Julia's real
+`sqrt`, so the power distributes over every factor. Zero-point factors can be written
+directly:
+
+```@example coefficient-radicals
+using SecondQuantizedAlgebra
+
+h = FockSpace(:radical_example)
+@qnumbers a::Destroy(h)
+@variables ω
+
+x = (a + a') / sqrt(2ω)
+p = im * sqrt(ω / 2) * (a' - a)
+commutator(x, p)
+```
+
+A parameter that can be negative should not appear under a fractional power: `sqrt(Δ^2)` is
+`Δ`, so write `abs(Δ)` for the magnitude. A complex parameter declared with `::Number` gets no
+such assumption, and only principal-branch identities apply: `sqrt(2η)` becomes
+`sqrt(2) * sqrt(η)`, while `sqrt(-η)` and `sqrt(η^2)` are kept as written.

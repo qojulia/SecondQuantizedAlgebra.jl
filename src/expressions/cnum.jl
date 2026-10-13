@@ -854,7 +854,7 @@ function negative_radical(value::Rational{BigInt}, r::Rational{Int}, x, real_roo
     return mul_native(native_scalar(magnitude), unit)
 end
 
-function rational_power(basearg, r::Rational{Int}, x)
+function rational_power(basearg, r::Rational{Int}, x, real_root::Bool = false)
     if is_exact_number(basearg)
         value = exact_number(basearg)
         value >= 0 && return numeric_radical(value, r, x)
@@ -863,14 +863,57 @@ function rational_power(basearg, r::Rational{Int}, x)
     base = recognize(basearg)
     is_native(base) && return native(native_float(native_scalar(base))^r)
     if base.tail isa Poly && length(base.tail.terms) == 1
-        m = only(base.tail.terms)
-        if length(m.syms) == 1 && isone(monomial_scalar(m))
-            is_phase(only(m.syms)) &&
-                throw(ArgumentError("a unit phase cannot have a fractional power"))
-            return tiered(monomial_terms, EXACT_ONE, m.syms, Rational{Int}[m.exps[1] * r])
-        end
+        return monomial_power(only(base.tail.terms), r, x, real_root)
     end
     return sym_leaf(x)
+end
+
+# A `Real` atom under a fractional power is a nonnegative parameter (see devdocs), so every
+# power of it distributes; a radical atom is a positive prime.
+@inline nonnegative_atom(s::RawExpression) =
+    is_radical_atom(s) || (SymbolicUtils.symtype(s) <: Real && !is_imaginary_unit(s))
+
+# `(c ∏ sᵢ^eᵢ)^r` as a principal power: a positive scalar and nonnegative atoms always factor
+# out, and at most one other atom may remain, with its exponent in (-1, 1], where
+# `Log(s^e) = e Log(s)` holds for every complex `s`.
+function monomial_power(m::Monomial, r::Rational{Int}, x, real_root::Bool)
+    scalar = monomial_scalar(m)
+    if any(is_phase, m.syms)
+        length(m.syms) == 1 && isone(scalar) &&
+            throw(ArgumentError("a unit phase cannot have a fractional power"))
+        return sym_leaf(x)
+    end
+    iszero(imag(scalar)) || return sym_leaf(x)
+    nonnegative = all(nonnegative_atom, m.syms)
+    if !nonnegative
+        other = false
+        @inbounds for i in eachindex(m.syms)
+            nonnegative_atom(m.syms[i]) && continue
+            (!other && -1 < m.exps[i] <= 1) || return sym_leaf(x)
+            other = true
+        end
+    end
+    value = real(scalar)
+    unit = EXACT_ONE
+    if value < 0
+        nonnegative || return sym_leaf(x)
+        if real_root
+            unit = EXACT_NEG1
+        elseif denominator(r) == 2
+            unit = EXACT_IM^numerator(r)
+        else
+            return sym_leaf(x)
+        end
+        value = -value
+    end
+    magnitude = if value isa Float64
+        native(ComplexF64(value^Float64(r)))
+    else
+        numeric_radical(Rational{BigInt}(value), r, x)
+    end
+    magnitude.tail isa RawSymbolicCoeff && return sym_leaf(x)
+    exps = Rational{Int}[e * r for e in m.exps]
+    return mul_cnum(magnitude, tiered(monomial_terms, unit, m.syms, exps))
 end
 
 recognize(x::Number) = to_cnum(x)
@@ -920,7 +963,7 @@ function recognize(x::RawExpression)
         if is_exact_number(radicand) && exact_number(radicand) < 0
             return negative_radical(exact_number(radicand), 1 // 3, x, true)
         end
-        return rational_power(radicand, 1 // 3, x)
+        return rational_power(radicand, 1 // 3, x, true)
     end
     if length(args) == 1 && (is_one_at_zero(op) || is_zero_at_zero(op))
         a1 = recognize(only(args))
