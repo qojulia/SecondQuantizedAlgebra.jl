@@ -3,7 +3,7 @@ using Symbolics: @variables
 using Test
 
 import SecondQuantizedAlgebra: CoefficientTerm, coefficient_terms, has_coefficient_terms,
-    n_levels, ground_state, transition_levels, operator_axis, to_cnum
+    n_levels, ground_state, transition_levels, operator_axis
 
 rebuild(terms) = sum((t.scalar * prod((x^e for (x, e) in t.powers); init = 1) for t in terms); init = 0)
 
@@ -11,8 +11,9 @@ rebuild(terms) = sum((t.scalar * prod((x^e for (x, e) in t.powers); init = 1) fo
     @variables g κ
 
     @testset "terms rebuild the coefficient" begin
+        @qnumbers b::Destroy(FockSpace(:rebuild))
         for x in (2g^2 * κ + 1 // 3, (1 + 2im) * g - κ^3 / 7, sqrt(2) * g, 1 / g, sin(g) * κ, big(2)^70 * g + 3)
-            @test isequal(to_cnum(rebuild(coefficient_terms(x))), to_cnum(x))
+            @test rebuild(coefficient_terms(x)) * b == x * b
         end
     end
 

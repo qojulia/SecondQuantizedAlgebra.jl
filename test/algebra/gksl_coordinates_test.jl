@@ -1,11 +1,13 @@
 using SecondQuantizedAlgebra
-using Symbolics: @variables
+using Symbolics: Symbolics, @variables
 using Test
 
 import SecondQuantizedAlgebra: SuperOperator, sprepost, spre, spost, hamiltonian, channels,
-    channel_order_key, independent_basis, support_basis, GKSLFormError, QAdd, to_complex
+    channel_order_key, independent_basis, support_basis, GKSLFormError, QAdd, to_num, jump,
+    partner
 
 side(x) = x * one(x)
+numeric(c) = complex(Symbolics.value(real(to_num(c))), Symbolics.value(imag(to_num(c))))
 same_map(A, B) = expand_completeness(SuperOperator(A)) == expand_completeness(SuperOperator(B))
 
 function coordinates(S, basis)
@@ -154,7 +156,7 @@ end
         @test occursin("1//10", sprint(showerror, err))
         recovered = Lindbladian(S; rtol = 1.0e-12)
         difference = expand_completeness(SuperOperator(recovered)) - expand_completeness(S)
-        @test all(c -> abs(to_complex(c)) < 1.0e-14, values(difference.arguments))
+        @test all(((_, c),) -> abs(numeric(c)) < 1.0e-14, difference)
         exact_err = try
             Lindbladian(spre(a))
         catch e
@@ -179,7 +181,7 @@ end
         L = 0.1 * dissipator(a) + 0.3 * dissipator(a' * a)
         for s in (1.0e-6, 1.0, 1.0e6)
             d = kossakowski(SuperOperator(L), JumpBasis(s * a, s * a' * a); rtol = 1.0e-12)
-            @test map(c -> to_complex(c) * s^2, d) ≈ [0.1 0; 0 0.3]
+            @test map(c -> numeric(c) * s^2, d) ≈ [0.1 0; 0 0.3]
         end
     end
 
@@ -188,7 +190,8 @@ end
         entries = channels(L)
         @test entries isa Vector
         @test issorted(entries; by = entry -> channel_order_key(entry.first))
-        @test Set(entries) == Set(collect(L.channels))
+        @test length(entries) == 3
+        @test sum(rate * dissipator(jump(ch), partner(ch)) for (ch, rate) in entries) == L
     end
 
     @testset "complex coherences and identity shifts of H are exact" begin
