@@ -91,21 +91,21 @@ Lc = dissipator(s(1, 2, i), DoubleIndexedVariable(:Γ, i, j), i => j)
 
 ## GKSL coordinates
 
-A `SuperOperator` that came out of an algebraic computation can be read back as a `Lindbladian`. The extraction is exact in the operator algebra: the two-sided sandwiches give the Kossakowski matrix in an ordered `DissipativeFrame`, and the one-sided remainder must be a Hamiltonian commutator. A constant in a jump comes back as a Hamiltonian change, as in the normalization above:
+A `SuperOperator` that came out of an algebraic computation can be read back as a `Lindbladian`. The extraction is exact in the operator algebra: the two-sided sandwiches give the Kossakowski matrix in an ordered `JumpBasis`, and the one-sided remainder must be a Hamiltonian commutator. A constant in a jump comes back as a Hamiltonian change, as in the normalization above:
 
 ```@example open
 S = SuperOperator(dissipator(a + 3))
 Lindbladian(S)
 ```
 
-The coordinates depend on the frame. In the frame `(a, a + a†a)`, independent dephasing and loss become a correlated Kossakowski matrix:
+The coordinates depend on the basis. In the basis `(a, a + a†a)`, independent dephasing and loss become a correlated Kossakowski matrix:
 
 ```@example open
 Ld2 = κ * dissipator(a) + γ * dissipator(a' * a)
-kossakowski(Ld2, DissipativeFrame(a, a + a' * a))
+kossakowski(Ld2, JumpBasis(a, a + a' * a))
 ```
 
-Directions are taken modulo the identity and with `expand_completeness` applied, so `σ¹¹` on a two-level atom is the direction `-σ²²`. A map with a direction outside the frame throws an `ArgumentError`, and a map that is not of GKSL form throws a `GKSLFormError`. Positivity of the rates is not checked.
+Basis operators are taken modulo the identity and with `expand_completeness` applied, so `σ¹¹` on a two-level atom becomes `-σ²²`. A map with a jump outside the basis throws an `ArgumentError`, and a map that is not of GKSL form throws a `GKSLFormError`. The extraction is exact, so write rates as rationals such as `1//10` or as symbolic parameters. Floating-point rates carry roundoff from building the map, and a float map is usually rejected; a positive `rtol` opts into treating small float leftovers as roundoff, at the price of dropping genuine terms below that size. Positivity of the rates is not checked.
 
 ## Index rules
 

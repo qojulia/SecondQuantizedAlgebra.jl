@@ -152,7 +152,7 @@ export FockSpace, ProductSpace,
     qadjoint, qconj, dagger, inner_adjoint,
     Op, operator_name, operator_index, is_destroy, is_create, is_transition, is_collective_transition,
     is_pauli, is_spin, is_position, is_momentum, optype,
-    Lindbladian, hamiltonian_action, dissipator, DissipativeFrame, kossakowski
+    Lindbladian, hamiltonian_action, dissipator, JumpBasis, kossakowski
 
 @public HilbertSpace, QField, QSym, OpKind,
     NumericContext, expect,
@@ -169,7 +169,7 @@ export FockSpace, ProductSpace,
     spre, spost, sprepost, liouvillian, compose, superterm, left_operator, right_operator,
     hamiltonian, channels, jump, partner, scope, formal_terms, poly, accumulate!, build,
     superterm_order_key, superoperator_order_key, channel_order_key,
-    directions, independent_frame, support_frame, gksl_coordinates, GKSLFormError,
+    independent_basis, support_basis, GKSLFormError,
     to_numeric_master, numeric_superoperator, numeric_matrix, numeric_scaled_td
 
 include("precompile.jl")

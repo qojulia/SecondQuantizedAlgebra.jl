@@ -45,13 +45,11 @@ channel_order_key
 ## GKSL coordinates
 
 ```@docs
-DissipativeFrame
-directions
-independent_frame
-support_frame
+JumpBasis
+independent_basis
+support_basis
 kossakowski
-gksl_coordinates
-Lindbladian(::SuperOperator, ::DissipativeFrame)
+Lindbladian(::SuperOperator, ::JumpBasis)
 GKSLFormError
 ```
 
