@@ -63,6 +63,15 @@ expim(θ)^3 / expim(ω * t)
 expim(ω * t) * expim(-ω * t) * a
 ```
 
+A complex amplitude declared as `@variables β::Number` stays a single atom next to a phase,
+and its conjugate is the symbolic `conj(β)`. Prefer it over `::Complex`, which splits the
+parameter into `real(β) + im*imag(β)` in every coefficient:
+
+```@example phase-representations
+@variables β::Number
+β * expim(ω * t) * a + conj(β) * expim(-ω * t) * a'
+```
+
 Arguments are expanded when a phase is constructed or merged. Thus equivalent expressions
 such as `(ω + 2θ)*t` and `ω*t + 2θ*t` produce the same stored phase. This is algebraic
 normalization only; arguments are not guessed modulo ``2π``.

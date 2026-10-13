@@ -102,6 +102,28 @@ import SecondQuantizedAlgebra: expim, exponential_form, phase_terms, to_num,
         @test isequal(trigonometric_form(exponential_form(oscillation)), oscillation)
     end
 
+    @testset "bare symbolic scalars combine with phases" begin
+        @variables β::Number ω t
+        @test !(β isa Number)
+        p = expim(ω * t)
+        b = SecondQuantizedAlgebra.to_cnum(β)
+
+        for f in (*, +, -, /)
+            @test isequal(f(β, p), f(b, p))
+            @test isequal(f(p, β), f(p, b))
+        end
+        @test β * p * a == p * β * a == a * β * p == b * p * a
+        @test conj(β * p) == conj(b) * conj(p)
+        @test isequal((β * p) / β, p)
+
+        e = β * p * a + conj(β) * conj(p) * a'
+        @test substitute(e, Dict(β => 1 + 2im)) ==
+            (1 + 2im) * p * a + (1 - 2im) * conj(p) * a'
+        @test substitute(e, Dict(β => 1 + 2im, ω => 2, t => 0)) ==
+            (1 + 2im) * a + (1 - 2im) * a'
+        @test substitute(β * p, Dict(β => 3)) == 3 * p
+    end
+
     @testset "public coefficient boundaries remain inferable" begin
         @variables ω t
         @test get_prefactor(expim(ω * t) * a) isa Complex{Num}

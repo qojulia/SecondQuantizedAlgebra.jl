@@ -1365,6 +1365,14 @@ Base.:-(a::Number, b::Coeff) = add_cnum(to_cnum(a), neg_cnum(b))
 Base.:*(a::Coeff, b::Coeff) = mul_cnum(a, b)
 Base.:*(a::Coeff, b::Number) = mul_cnum(a, to_cnum(b))
 Base.:*(a::Number, b::Coeff) = mul_cnum(to_cnum(a), b)
+# A bare `BasicSymbolic` (e.g. `@variables β::Number`) is not a `Number`, so it needs its own
+# promotion to combine with a `Coeff` the way `Num` does.
+Base.:+(a::Coeff, b::RawExpression) = add_cnum(a, to_cnum(b))
+Base.:+(a::RawExpression, b::Coeff) = add_cnum(to_cnum(a), b)
+Base.:-(a::Coeff, b::RawExpression) = add_cnum(a, neg_cnum(to_cnum(b)))
+Base.:-(a::RawExpression, b::Coeff) = add_cnum(to_cnum(a), neg_cnum(b))
+Base.:*(a::Coeff, b::RawExpression) = mul_cnum(a, to_cnum(b))
+Base.:*(a::RawExpression, b::Coeff) = mul_cnum(to_cnum(a), b)
 function div_cnum(a::Coeff, b::Coeff)
     (is_native(a) && is_native(b)) && return native_div(native_scalar(a), native_scalar(b))
     ta, tb = a.tail, b.tail
@@ -1388,6 +1396,8 @@ end
 Base.:/(a::Coeff, b::Coeff) = div_cnum(a, b)
 Base.:/(a::Coeff, b::Number) = a / to_cnum(b)
 Base.:/(a::Number, b::Coeff) = to_cnum(a) / b
+Base.:/(a::Coeff, b::RawExpression) = a / to_cnum(b)
+Base.:/(a::RawExpression, b::Coeff) = to_cnum(a) / b
 
 is_conj_call(x) =
     SymbolicUtils.iscall(x) && SymbolicUtils.operation(x) === conj
