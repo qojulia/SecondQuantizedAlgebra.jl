@@ -101,6 +101,46 @@ Bnum = substitute(B, Dict(u => 5 // 3, v => 4 // 3))
 The same contract applies after substitution: the caller is responsible for
 preserving any symbolic preconditions they supplied.
 
+## Ladder bases at different frequencies
+
+One oscillator with quadratures ``x`` and ``p`` has a ladder operator for
+every reference frequency, ``a_\omega = (\omega x + i p)/\sqrt{2\omega}``
+(unit mass, ``\hbar = 1``). A driven oscillator is often best written in the
+basis of the drive frequency ``\omega_r`` rather than its bare frequency
+``\omega_0``. The two bases are related by a single-mode squeeze,
+
+```math
+a_{\omega_0} = u\, a_{\omega_r} + v\, a_{\omega_r}^\dagger, \qquad
+u = \frac{\omega_0 + \omega_r}{2\sqrt{\omega_0\omega_r}}, \quad
+v = \frac{\omega_0 - \omega_r}{2\sqrt{\omega_0\omega_r}},
+```
+
+which is `Squeeze(a, log(ω0/ωr)/2)` with algebraic coefficients.
+[`quadratures(a, ω)`](@ref quadratures) returns ``(x, p)`` in terms of a Fock
+mode taken at frequency `ω`, and [`ladder_operator(x, p, ω)`](@ref ladder_operator)
+is its inverse. Writing the Hamiltonian in ``x`` and ``p`` selects the basis
+through the frequency passed to `quadratures`:
+
+```julia
+import SecondQuantizedAlgebra: quadratures, ladder_operator, FrequencyChange
+
+@qnumbers b::Destroy(FockSpace(:b))
+@variables ω0::Real ωr::Real
+
+x, p = quadratures(b, ωr)
+H = simplify(p * p / 2 + ω0^2 * x * x / 2)
+# (ω0²+ωr²)/(2ωr) (b'b + 1/2) + (ω0²-ωr²)/(4ωr) (b² + b'²)
+```
+
+An expression already written in the ``\omega_0`` basis is moved to the
+``\omega_r`` basis by the unitary transformation
+[`FrequencyChange(a, ω0, ωr)`](@ref FrequencyChange), and
+`ladder_operator(quadratures(a, ω0)..., ωr)` gives ``a_{\omega_r}`` expressed
+through ``a_{\omega_0}``. Integer and rational frequencies give exact radicals.
+Symbolic frequencies are taken to be positive; since ``\sqrt{\omega^2}`` is not
+folded to ``\omega`` for an unsigned symbol, the coefficients are built from
+``\sqrt{2\omega_0}`` and ``\sqrt{2\omega_r}`` so that their squares cancel.
+
 ## Static and time-dependent transformations
 
 Use [`conjugate`](@ref) for observables and static changes of basis. For a

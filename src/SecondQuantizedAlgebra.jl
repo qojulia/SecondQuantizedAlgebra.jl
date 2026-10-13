@@ -57,6 +57,7 @@ include("algebra/unitary_affine_provenance.jl")
 include("algebra/unitary_constructors.jl")
 include("algebra/unitary_displacement_frames.jl")
 include("algebra/unitary_bogoliubov.jl")
+include("algebra/quadratures.jl")
 include("algebra/unitary_generators.jl")
 
 include("superoperators/superterm.jl")
@@ -165,6 +166,7 @@ export FockSpace, ProductSpace,
     transition_superscript, constraint_pairs,
     to_num, order_key, term_order_key, qadd_order_key,
     exponential_form, trigonometric_form, phase_terms,
+    quadratures, ladder_operator, FrequencyChange,
     SuperOperator, SuperTerm, SuperExpr, Channel, SuperBuilder, LindbladianBuilder,
     spre, spost, sprepost, liouvillian, compose, superterm, left_operator, right_operator,
     hamiltonian, channels, jump, partner, scope, formal_terms, poly, accumulate!, build,

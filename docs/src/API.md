@@ -282,6 +282,12 @@ RotatingFrame
 DisplacementFrame
 ```
 
+```@docs
+FrequencyChange
+quadratures
+ladder_operator
+```
+
 
 ## [Average](@id API: Average)
 
