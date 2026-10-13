@@ -138,6 +138,19 @@ U = DisplacementFrame(b, Lth)
 transpose(transform(Lth, U))(b)
 ```
 
+The generator may be any `SuperOperator` whose drift is affine in the mode, `d/dt (a, a') = M (a, a') + c(t)`, such as the Caldeira–Leggett master equation of quantum Brownian motion. Its damping acts on the momentum alone, so the drift of `a` mixes in `a'`. `DisplacementFrame(x, p, L)` works on a quadrature pair, and with a time argument each harmonic of the drive gets its exact bounded response:
+
+```@example open
+m = PhaseSpace(:m)
+xq, pq = Position(m, :x), Momentum(m, :p)
+@variables ω0::Real η::Real Dp::Real
+ad(A) = spre(A) - spost(A)
+anti(A) = spre(A) + spost(A)
+Lqbm = SuperOperator(hamiltonian_action(pq^2 / 2 + ω0^2 * xq^2 / 2 - F * xq)) -
+    Dp / 2 * ad(xq) ∘ ad(xq) - im * η / 2 * ad(xq) ∘ anti(pq)
+conjugate(xq, DisplacementFrame(xq, pq, Lqbm))
+```
+
 ## Formal operator functions
 
 A Hamiltonian or a jump that contains `cos`, `sin` or `expim` gives a `Lindbladian{QExpr}`; `taylor(L, 0:n)` lowers it to a polynomial one.

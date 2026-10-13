@@ -25,6 +25,7 @@ This is a breaking release for type stability: public functions no longer use `n
 
 - `Lindbladian(S[, basis])` reads a `SuperOperator` back in GKSL form, and `kossakowski(S, basis)` returns its Kossakowski matrix in a `JumpBasis`, with `support_basis`, `independent_basis` and `GKSLFormError`. The extraction is exact and needs no Hilbert-space cutoff; float roundoff is tolerated only with an explicit `rtol`.
 - `coefficient_terms`, `CoefficientTerm` and `has_coefficient_terms` read the exact or floating scalar and the atom powers of each term of a coefficient.
+- `DisplacementFrame(a, L[, t])` accepts any `SuperOperator`, such as the Caldeira–Leggett master equation, and drifts that mix `a` and `a'`, solving the 2×2 linear response exactly per drive harmonic. `DisplacementFrame(x, p, L[, t])` does the same for a quadrature pair.
 - `n_levels`, `ground_state` and `transition_levels` read the level count, ground level and levels of a `Transition`, and `operator_axis` the axis of a `Pauli` or `Spin` operator.
 
 ### Changed
