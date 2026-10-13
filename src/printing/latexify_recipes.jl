@@ -238,6 +238,7 @@ end
             latex_term(c, ops)
         end for t in st
     ]
+    isempty(terms) && return 0
     return Expr(:call, :+, terms...)
 end
 

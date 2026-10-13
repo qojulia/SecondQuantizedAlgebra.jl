@@ -15,6 +15,9 @@ This is a breaking release for type stability: public functions no longer use `n
 - Dissipative dynamics as first-class objects: `Lindbladian` (`hamiltonian_action`, `dissipator`, collective `dissipator(J, Γ, i => j)`), general `SuperOperator` maps (`spre`, `spost`, `sprepost`, composition, `transpose` as the Heisenberg generator) and formal `SuperExpr` maps. They support `Σ`, frames, substitution and printing, and convert to backend superoperators or, via `to_numeric_master`, to Hamiltonian and collapse operators.
 - `UnitaryTransform(G, θ)` accepts generators that couple two operators symmetrically, such as the hopping term `a'b + b'a` and the squeezer `a^2 + a'^2`.
 - The indexed form of `to_numeric` takes `parameter` and `operators` as keywords.
+- `Lindbladian(S[, basis])` reads a `SuperOperator` back in GKSL form, and `kossakowski(S, basis)` returns its Kossakowski matrix in a `JumpBasis`, with `support_basis`, `independent_basis` and `GKSLFormError`. The extraction is exact and needs no Hilbert-space cutoff; float roundoff is tolerated only with an explicit `rtol`.
+- `coefficient_terms`, `CoefficientTerm` and `has_coefficient_terms` read the exact or floating scalar and the atom powers of each term of a coefficient.
+- `n_levels`, `ground_state` and `transition_levels` read the level count, ground level and levels of a `Transition`, and `operator_axis` the axis of a `Pauli` or `Spin` operator.
 
 ### Changed (breaking)
 
@@ -27,12 +30,6 @@ This is a breaking release for type stability: public functions no longer use `n
 - `numeric_basis(state)` returns a tuple of dimensions for a composite QuantumToolbox state.
 - Solver-parameter-aware time coefficients reach `numeric_assemble_td` as plain `(p, t)` closures; the internal `PControlCoeff` wrapper is removed.
 
-### Added
-
-- `Lindbladian(S[, basis])` reads a `SuperOperator` back in GKSL form, and `kossakowski(S, basis)` returns its Kossakowski matrix in a `JumpBasis`, with `support_basis`, `independent_basis` and `GKSLFormError`. The extraction is exact and needs no Hilbert-space cutoff; float roundoff is tolerated only with an explicit `rtol`.
-- `coefficient_terms`, `CoefficientTerm` and `has_coefficient_terms` read the exact or floating scalar and the atom powers of each term of a coefficient.
-- `n_levels`, `ground_state` and `transition_levels` read the level count, ground level and levels of a `Transition`, and `operator_axis` the axis of a `Pauli` or `Spin` operator.
-
 ### Changed
 
 - `substitute` rejects a scalar replacement that is not a number or symbolic expression with an `ArgumentError`.
@@ -43,6 +40,7 @@ This is a breaking release for type stability: public functions no longer use `n
 
 - `Squeeze(a, r * t, t)` throws instead of silently using `t` as the squeezing phase; a time-dependent squeeze is written `Squeeze(a, r, ϕ, t)`.
 - An expression that reduces to a single operator compares equal to it, so `2a - a == a`.
+- A zero expression renders as `0` in LaTeX instead of an empty equation.
 - `qadjoint` and `inner_adjoint` accept averages and phase coefficients: `qadjoint(average(a))` gives `⟨a'⟩`, where it threw before.
 - The indexed form of `to_numeric` applies `parameter` to an expression without sums instead of throwing.
 - `numeric_average` evaluates an expression of averages with a constant imaginary term, such as `-im * η`, where it threw before.

@@ -58,31 +58,12 @@ dissipator(2a) == 4 * dissipator(a)
 dissipator(a + 3)
 ```
 
-Every Lindbladian preserves the trace. The identity map does not, so it is not a Lindbladian: `L^0`, like a Lindbladian plus a scalar, is a general map.
-
-```@example open
-L^0
-```
-
 ## Rotating frame
 
 The drive oscillates at ``\omega_d``. [`transform`](@ref) moves the generator into the frame rotating with ``\omega_d (a^\dagger a + \sigma^{ee})``: the Hamiltonian is transformed and every jump is conjugated. The drive becomes static, the frequencies become the detunings ``\Delta_c = \omega_c - \omega_d`` and ``\Delta_a = \omega_a - \omega_d``, and the jumps are unchanged, since a loss channel only picks up a phase.
 
 ```@example open
 Lrot = transform(L, RotatingFrame(ωd * (a' * a + σ(:e, :e)), t))
-```
-
-A damped linear mode can also be displaced to its steady state. [`DisplacementFrame`](@ref) takes the amplitude from the fixed point of the full drift, so loss and thermal heating both enter it, and the drive is gone in the displaced frame.
-
-```@example displaced
-using SecondQuantizedAlgebra
-b = Destroy(FockSpace(:c), :b)
-Lth = hamiltonian_action(2 * b' * b + 3 * (b + b')) + (1 // 2) * dissipator(b) + (1 // 10) * dissipator(b')
-U = DisplacementFrame(b, Lth)
-```
-
-```@example displaced
-transpose(transform(Lth, U))(b)
 ```
 
 ## Equations of motion
@@ -115,6 +96,47 @@ transpose(Lrot)(1)
 transpose(::SuperOperator)
 ```
 
+## Numerics
+
+[`to_numeric`](@ref) converts a generator to the backend's superoperator, with the same `parameter`, `time_parameter` and indexed `sites` arguments as for operators. The steady state of the rotating-frame Liouvillian at weak drive reproduces the vacuum-Rabi amplitude.
+
+```@example open
+import QuantumToolbox as QT
+p = Dict(ωc => 1.0, ωa => 1.1, ωd => 0.95, g => 0.2, η => 0.002, κ => 0.1, γ => 0.05)
+backend = QuantumToolboxBackend()
+Lnum = to_numeric(Lrot, h, (10, 2); backend, parameter = p)
+anum = to_numeric(a, h, (10, 2); backend)
+Δc, Δa = 0.05, 0.15
+QT.expect(anum, QT.steadystate(Lnum)), -0.002im / (0.05 + Δc * im + 0.2^2 / (0.025 + Δa * im))
+```
+
+Solvers that take a Hamiltonian and collapse operators get them from [`to_numeric_master`](@ref), here ``\sqrt\kappa\, a`` and ``\sqrt\gamma\, \sigma^{ge}``.
+
+```@example open
+using SecondQuantizedAlgebra: to_numeric_master
+Hnum, c_ops = to_numeric_master(Lrot, h, (10, 2); backend, parameter = p)
+QT.expect(anum, QT.steadystate(Hnum, c_ops))
+```
+
+```@docs
+to_numeric_master
+```
+
+## Displacement frames
+
+A damped linear mode is displaced to its steady state. [`DisplacementFrame`](@ref) takes the amplitude from the fixed point of the full drift, so loss and thermal heating both enter it, and the drive is gone in the displaced frame.
+
+```@example displaced
+using SecondQuantizedAlgebra
+b = Destroy(FockSpace(:c), :b)
+Lth = hamiltonian_action(2 * b' * b + 3 * (b + b')) + (1 // 2) * dissipator(b) + (1 // 10) * dissipator(b')
+U = DisplacementFrame(b, Lth)
+```
+
+```@example displaced
+transpose(transform(Lth, U))(b)
+```
+
 ## Superoperators
 
 A Lindbladian is one kind of linear map on operators. The general polynomial map ``\rho \mapsto \sum c\, A \rho B`` is a [`SuperOperator`](@ref), built from the sandwich [`sprepost`](@ref) and its one-sided forms [`spre`](@ref) and [`spost`](@ref). `SuperOperator(L)` lowers a Lindbladian to its sandwiches.
@@ -136,6 +158,12 @@ Maps compose with `∘` or `*`, and the right factor acts first. Composing, tran
 (spre(a) ∘ spost(a'))(σ(:e, :e))
 ```
 
+Every Lindbladian preserves the trace. The identity map does not, so it is not a Lindbladian: `L^0`, like a Lindbladian plus a scalar, is a general map. It prints as the bare placeholder of ``\rho \mapsto \rho``.
+
+```@example open
+L^0
+```
+
 `transpose` and `adjoint` are different maps. The adjoint belongs to the Hilbert–Schmidt product ``\operatorname{Tr}(X^\dagger S\rho)`` and takes the adjoint of both sides, so the two agree only for maps that preserve Hermiticity.
 
 ```@example open
@@ -154,10 +182,14 @@ adjoint(::SuperOperator)
 
 ## GKSL form of a map
 
-A `SuperOperator` that comes out of an algebraic computation is read back as a `Lindbladian`. The two-sided sandwiches give the Kossakowski matrix and the one-sided remainder must be a Hamiltonian commutator, both exactly in the operator algebra and without a Hilbert-space cutoff. A constant in a jump comes back as a change of the Hamiltonian, as in the normalization above.
+A map written in sandwiches, or one that comes out of a composition or a frame change, is read back as a `Lindbladian`. The extraction is exact in the operator algebra and needs no Hilbert-space cutoff.
 
 ```@example open
-Lindbladian(SuperOperator(dissipator(a + 3)))
+Lindbladian(κ * (sprepost(a, a') - (1 // 2) * spre(a' * a) - (1 // 2) * spost(a' * a)))
+```
+
+```@example open
+Lindbladian(SuperOperator(Lrot)) == Lrot
 ```
 
 The Kossakowski matrix depends on the basis of jumps. In the basis ``(a, a + a^\dagger a)``, independent loss and dephasing become a correlated matrix.
@@ -166,7 +198,11 @@ The Kossakowski matrix depends on the basis of jumps. In the basis ``(a, a + a^\
 kossakowski(κ * dissipator(a) + γ * dissipator(a' * a), JumpBasis(a, a + a' * a))
 ```
 
-Basis operators are taken modulo the identity and with `expand_completeness` applied, so ``\sigma^{gg}`` on a two-level atom becomes ``-\sigma^{ee}``. A jump outside the basis throws an `ArgumentError` and a map that is not of GKSL form a [`GKSLFormError`](@ref). Rates should be rationals such as `1//10` or symbolic parameters: a float map carries roundoff from its construction and is usually rejected unless a positive `rtol` is passed. Positivity of the rates is not checked.
+Basis operators are taken modulo the identity and with the completeness relation expanded.
+
+```@example open
+JumpBasis(σ(:g, :g), a + 1)
+```
 
 ```@docs
 Lindbladian(::SuperOperator, ::JumpBasis)
@@ -256,33 +292,6 @@ taylor(sprepost(cos(φ), φ), 0:2)
 SuperExpr
 ```
 
-## Numerics
-
-[`to_numeric`](@ref) converts a generator to the backend's superoperator, with the same `parameter`, `time_parameter` and indexed `sites` arguments as for operators. The steady state of the rotating-frame Liouvillian at weak drive reproduces the vacuum-Rabi amplitude.
-
-```@example open
-import QuantumToolbox as QT
-p = Dict(ωc => 1.0, ωa => 1.1, ωd => 0.95, g => 0.2, η => 0.002, κ => 0.1, γ => 0.05)
-backend = QuantumToolboxBackend()
-dims = (10, nothing)
-Lnum = to_numeric(Lrot, h, dims; backend, parameter = p)
-anum = to_numeric(a, h, dims; backend)
-Δc, Δa = 0.05, 0.15
-QT.expect(anum, QT.steadystate(Lnum)), -0.002im / (0.05 + Δc * im + 0.2^2 / (0.025 + Δa * im))
-```
-
-Solvers that take a Hamiltonian and collapse operators get them from [`to_numeric_master`](@ref), here ``\sqrt\kappa\, a`` and ``\sqrt\gamma\, \sigma^{ge}``.
-
-```@example open
-using SecondQuantizedAlgebra: to_numeric_master
-Hnum, c_ops = to_numeric_master(Lrot, h, dims; backend, parameter = p)
-QT.expect(anum, QT.steadystate(Hnum, c_ops))
-```
-
-```@docs
-to_numeric_master
-```
-
 ## Inspecting and building maps
 
 The parts of a generator are read back with accessors. [`hamiltonian`](@ref) and `channels` split a Lindbladian into its Hamiltonian and its `Channel => rate` pairs, and [`jump`](@ref), `partner` and `scope` read a channel.
@@ -297,8 +306,8 @@ Iterating a `SuperOperator` gives its `SuperTerm => coefficient` pairs, whose si
 
 ```@example open
 using SecondQuantizedAlgebra: left_operator, right_operator
-t, c = first(D)
-left_operator(t), right_operator(t), c
+term, c = first(D)
+left_operator(term), right_operator(term), c
 ```
 
 `sum` over an array of Lindbladians or `SuperOperator`s accumulates in place, like `sum` over operators, so a generator with many channels costs linear time. A loop uses a builder directly.

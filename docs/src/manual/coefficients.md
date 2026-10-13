@@ -177,7 +177,7 @@ to_num
 
 ```@example params
 using SecondQuantizedAlgebra: coefficient_terms
-coefficient_terms(first(3ω * a' * a)[2])
+coefficient_terms(3ω^2 - 1 // 2)
 ```
 
 ```@docs

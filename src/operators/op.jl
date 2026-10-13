@@ -284,7 +284,20 @@ operator_index(o::Op) = o.index
     ground_state(o::Op) -> Int
 
 The number of levels and the ground level of the [`NLevelSpace`](@ref) a [`Transition`](@ref)
-acts on. Throw an `ArgumentError` for any other operator.
+acts on. Throws an `ArgumentError` for any other operator.
+
+# Examples
+
+```jldoctest
+julia> using SecondQuantizedAlgebra: n_levels, ground_state
+
+julia> σ = Transition(NLevelSpace(:atom, 3), :σ, 3, 1);
+
+julia> n_levels(σ), ground_state(σ)
+(3, 1)
+```
+
+See also [`transition_levels`](@ref).
 """
 function n_levels(o::Op)
     is_transition(o) || throw(ArgumentError("`n_levels` is defined for a Transition, got $(o.kind)"))
@@ -302,6 +315,17 @@ end
 
 The levels `(i, j)` of a [`Transition`](@ref) ``|i\\rangle\\langle j|``. Throws an
 `ArgumentError` for any other operator.
+
+# Examples
+
+```jldoctest
+julia> using SecondQuantizedAlgebra: transition_levels
+
+julia> transition_levels(Transition(NLevelSpace(:atom, 3), :σ, 3, 1))
+(3, 1)
+```
+
+See also [`n_levels`](@ref).
 """
 function transition_levels(o::Op)
     is_transition(o) ||
@@ -314,6 +338,15 @@ end
 
 The axis `1`, `2` or `3` of a [`Pauli`](@ref) or [`Spin`](@ref) operator. Throws an
 `ArgumentError` for any other operator.
+
+# Examples
+
+```jldoctest
+julia> using SecondQuantizedAlgebra: operator_axis
+
+julia> operator_axis(Pauli(PauliSpace(:q), :σ, 2))
+2
+```
 """
 function operator_axis(o::Op)
     (is_pauli(o) || is_spin(o)) ||

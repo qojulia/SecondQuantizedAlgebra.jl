@@ -98,6 +98,19 @@ Atoms, qudits and other discrete systems are written in terms of transitions bet
 Transition
 ```
 
+A transition stores its levels as numbers, in the order the space names them, together with the level count and the ground level.
+
+```@example hybrid
+using SecondQuantizedAlgebra: n_levels, ground_state, transition_levels
+transition_levels(σ(:g, :e)), n_levels(σ(:g, :e)), ground_state(σ(:g, :e))
+```
+
+```@docs
+transition_levels
+n_levels
+ground_state
+```
+
 ### Pauli and spin operators
 
 A two-level system can equally be written with Pauli matrices, which reduce every product to a single matrix or a number.
@@ -117,6 +130,17 @@ S(1), S(2), S(3)
 ```@docs
 Pauli
 Spin
+```
+
+The axis of a Pauli or spin operator is read back as `1`, `2` or `3`.
+
+```@example hybrid
+using SecondQuantizedAlgebra: operator_axis
+operator_axis(τ(2)), operator_axis(S(3))
+```
+
+```@docs
+operator_axis
 ```
 
 ### Quadratures
@@ -167,20 +191,6 @@ operator_name
 operator_index
 acts_on
 set_acts_on
-```
-
-A `Transition` carries its level count, ground level and levels, and a `Pauli` or `Spin` operator its axis.
-
-```@example hybrid
-using SecondQuantizedAlgebra: n_levels, ground_state, transition_levels
-n_levels(σ(:g, :e)), ground_state(σ(:g, :e)), transition_levels(σ(:g, :e))
-```
-
-```@docs
-n_levels
-ground_state
-transition_levels
-operator_axis
 ```
 
 ### Adjoints
