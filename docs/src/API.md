@@ -277,6 +277,10 @@ generators
 ```
 
 ```@docs
+displacement
+```
+
+```@docs
 Bogoliubov
 RotatingFrame
 DisplacementFrame

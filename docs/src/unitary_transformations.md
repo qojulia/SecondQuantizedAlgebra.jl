@@ -161,6 +161,8 @@ applying the two frame changes successively.
 
 [`generators(U)`](@ref generators) returns the fundamental operators acted on
 by a transformation.
+[`displacement(U, a)`](@ref displacement) returns the c-number part of
+`conjugate(a, U)`, i.e. the displacement amplitude of a Fock or phase-space frame.
 
 ## N-level basis rotations
 
