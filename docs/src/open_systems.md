@@ -129,6 +129,14 @@ Ld = hamiltonian_action(ω * b' * b + F * (b' * exp(-im * ωd * t) + b * exp(im 
 exponential_form(transform(Ld, RotatingFrame(ωd * b' * b, t)))
 ```
 
+When phases remain after the transformation, [`secular`](@ref) keeps the time-independent part of the Hamiltonian, the rates and the jumps, and returns a `Lindbladian`. For a quadrature jump this is the rotating-wave dissipator:
+
+```@example open
+import SecondQuantizedAlgebra: secular
+Lx = hamiltonian_action(ω * b' * b) + κ * dissipator(b + b')
+secular(transform(Lx, Rotation(b, ωd * t, t)), ωd, t)
+```
+
 `DisplacementFrame(a, L)` removes a coherent drive from a damped linear generator. The displacement is the fixed point of the exact drift `transpose(L)(a) = λa + c`, so thermal heating and loss both enter:
 
 ```@example open

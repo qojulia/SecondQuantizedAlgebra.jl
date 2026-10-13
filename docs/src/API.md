@@ -184,6 +184,12 @@ phase_terms
 ```
 
 ```@docs
+harmonics
+harmonic
+secular
+```
+
+```@docs
 trigonometric_form
 ```
 
