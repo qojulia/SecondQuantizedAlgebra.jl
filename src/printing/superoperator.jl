@@ -86,12 +86,6 @@ function show_side(io::IO, q::QField)
     return
 end
 
-function sorted_channels(L::Lindbladian)
-    ps = collect(L.channels)
-    sort!(ps; by = p -> channel_order_key(p.first))
-    return ps
-end
-
 function show_scope_prefix(io::IO, ch::Channel)
     if !isempty(ch.scope)
         show_sum_prefix(io, ch.scope, ch.ne)
@@ -125,7 +119,7 @@ function Base.show(io::IO, L::Lindbladian)
         write(io, ", ·]")
         first_term = false
     end
-    for (ch, γ) in sorted_channels(L)
+    for (ch, γ) in channels(L)
         γ = write_sign!(io, first_term, γ)
         first_term = false
         show_scope_prefix(io, ch)
@@ -216,7 +210,7 @@ function super_latex(L::Lindbladian)
         write(io, "-i\\left[", latex_part(L.hamiltonian), ",\\cdot\\right]")
         first_term = false
     end
-    for (ch, γ) in sorted_channels(L)
+    for (ch, γ) in channels(L)
         γ = write_sign!(io, first_term, γ)
         first_term = false
         isempty(ch.scope) || write(io, latex_sum_prefix(ch.scope, ch.ne), " ")

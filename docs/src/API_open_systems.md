@@ -42,6 +42,17 @@ superoperator_order_key
 channel_order_key
 ```
 
+## GKSL coordinates
+
+```@docs
+JumpBasis
+independent_basis
+support_basis
+kossakowski
+Lindbladian(::SuperOperator, ::JumpBasis)
+GKSLFormError
+```
+
 ## Numerics
 
 ```@docs
