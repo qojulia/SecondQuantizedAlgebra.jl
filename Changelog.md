@@ -25,6 +25,7 @@ This is a breaking release for type stability: public functions no longer use `n
 
 - `Lindbladian(S[, basis])` reads a `SuperOperator` back in GKSL form, and `kossakowski(S, basis)` returns its Kossakowski matrix in a `JumpBasis`, with `support_basis`, `independent_basis` and `GKSLFormError`. The extraction is exact and needs no Hilbert-space cutoff; float roundoff is tolerated only with an explicit `rtol`.
 - `coefficient_terms`, `CoefficientTerm` and `has_coefficient_terms` read the exact or floating scalar and the atom powers of each term of a coefficient.
+- `map_coefficients(f, x)` (public) applies a function to every coefficient of a `QAdd`, `SuperOperator` or `Lindbladian` and rebuilds it canonically, e.g. `map_coefficients(c -> substitute(c, rules), S)`.
 - `n_levels`, `ground_state` and `transition_levels` read the level count, ground level and levels of a `Transition`, and `operator_axis` the axis of a `Pauli` or `Spin` operator.
 
 ### Changed
@@ -44,6 +45,7 @@ This is a breaking release for type stability: public functions no longer use `n
 - `substitute` keeps the site count of a sum whose summand becomes site-independent: `Σ(a_i, i)` with `a_i => 2` gives `2N` instead of `2`.
 - A sum index that may equal several free indices, as in `Σ(σ_i * σ_k * σ_l, i)`, counts the point `k = l` once: `Σ` counted it twice and products crossing a sum dropped it.
 - A product of several sums applied to an operator, such as `(Σ_i P_i * Σ_j Q_j) * (P_k * Q_l)`, counts the joint coincidence `i = k, j = l` once instead of twice.
+- `simplify`, `expand`, `exponential_form` and `trigonometric_form` count a summation index whose dependence the coefficient loses: `simplify(Σ((cos(gᵢ)^2 + sin(gᵢ)^2) a'a, i))` gives `N a'a` instead of `a'a`.
 - A sum index whose count becomes known only after other binders are eliminated keeps its count, e.g. `Σ_{i,k,l}` with `i ≠ k, i ≠ l` over a constant gives `N(N-1)²`.
 
 ### Added

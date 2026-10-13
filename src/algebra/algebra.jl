@@ -231,14 +231,89 @@ SymbolicUtils.simplify(op::QSym; kwargs...) = single_qadd(CNUM_ONE, Op[op])
 SymbolicUtils.simplify(q::QAdd; kwargs...) =
     map_coefficients(simplify_prefactor, normal_order(q))
 
+"""
+    map_coefficients(f, x)
+
+Apply `f` to every coefficient of `x` and rebuild it in canonical form. `x` is a
+[`QAdd`](@ref) (or a single operator), a [`SuperOperator`](@ref) or a polynomial
+[`Lindbladian`](@ref). `f` receives a [`Coeff`](@ref) and may return a `Number`, a
+Symbolics `Num` or a `Coeff`; the result is converted exactly. Terms that map to zero are
+dropped and like terms merge.
+
+`f` acts per coefficient, so the operators are kept as they are. Summation scopes are kept:
+a term whose coefficient loses its dependence on a summation index is multiplied by that
+index's count, as with [`substitute`](@ref), so `Σᵢ gᵢ a'a` with `gᵢ ↦ g` gives `N g a'a`.
+`f` must not introduce a summation index into a term it does not bind; that throws an
+`ArgumentError`.
+
+For a `Lindbladian`, `f` maps the coefficients of the Hamiltonian, of every jump and every
+rate, and each channel is renormalized. This agrees with mapping the lowered
+`SuperOperator` when `f` is a substitution of real parameters or preserves values, such as
+`simplify`; a general `f` need not commute with lowering, because a lowered coefficient
+`γ c_J conj(c_K)` is a product of the stored ones.
+
+# Examples
+
+```jldoctest
+julia> h = FockSpace(:f);
+
+julia> @qnumbers a::Destroy(h);
+
+julia> @variables x;
+
+julia> SecondQuantizedAlgebra.map_coefficients(c -> substitute(c, Dict(x => 2)), x * a' * a + a)
+a + 2 * a' * a
+```
+
+See also [`simplify`](@ref), [`substitute`](@ref).
+"""
 function map_coefficients(f::F, q::QAdd) where {F}
     out = QTermDict()
     for (term, c) in q.arguments
-        new_c = f(c)
+        new_c = to_cnum(f(c))
         iszero_cnum(new_c) && continue
-        addto_key!(out, copy_key(term), new_c)
+        if isempty(q.indices) || new_c === c
+            addto_key!(out, copy_key(term), new_c)
+            continue
+        end
+        mentions(x, idx) = depends_on_index_term(x, term.ops, idx)
+        coef, ne = settle_mapped(mentions, c, new_c, term.ne, q.indices)
+        key = ne === term.ne ? copy_key(term) : QTerm(copy(term.ops), ne)
+        addto_key!(out, key, coef)
     end
     return QAdd(out, drop_unused_indices(out, q.indices))
+end
+map_coefficients(f::F, op::QSym) where {F} =
+    map_coefficients(f, single_qadd(CNUM_ONE, Op[op]))
+
+"""
+    settle_mapped(mentions, c, new_c, ne, indices) -> (coef, ne)
+
+Settle the scope of one term whose coefficient changed from `c` to `new_c`: a binder of the
+term that `new_c` no longer needs is counted, and a scope index that `new_c` adds to a term
+it did not bind is refused.
+"""
+function settle_mapped(
+        mentions::M, c::CNum, new_c::CNum, ne::Vector{NonEqualPair}, indices::Vector{Index},
+    ) where {M}
+    bound = Index[]
+    for idx in indices
+        if mentions(c, idx) || any(p -> p[1] == idx || p[2] == idx, ne)
+            push!(bound, idx)
+        elseif mentions(new_c, idx)
+            mapped_capture_error(idx)
+        end
+    end
+    return eliminate_binders(mentions, new_c, ne, bound)
+end
+
+@noinline function mapped_capture_error(idx::Index)
+    throw(
+        ArgumentError(
+            "the coefficient map introduced summation index $(index_name(idx)) into a term " *
+                "that the sum does not bind; rename the index with `change_index`.",
+        ),
+    )
 end
 
 exponential_form(op::QSym) =

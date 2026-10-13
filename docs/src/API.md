@@ -194,6 +194,10 @@ simplify
 ```
 
 ```@docs
+map_coefficients
+```
+
+```@docs
 normal_order
 ```
 
