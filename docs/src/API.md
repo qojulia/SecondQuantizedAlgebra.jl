@@ -333,6 +333,10 @@ get_prefactor
 ```
 
 ```@docs
+coefficient
+```
+
+```@docs
 to_num
 ```
 

@@ -24,6 +24,7 @@ This is a breaking release for type stability: public functions no longer use `n
 ### Added
 
 - `Lindbladian(S[, basis])` reads a `SuperOperator` back in GKSL form, and `kossakowski(S, basis)` returns its Kossakowski matrix in a `JumpBasis`, with `support_basis`, `independent_basis` and `GKSLFormError`. The extraction is exact and needs no Hilbert-space cutoff; float roundoff is tolerated only with an explicit `rtol`.
+- `coefficient(expr, term)` reads the coefficient of one operator product, such as `a' * a` or `1`, in a polynomial, and `coefficient(S, sandwich)` that of one sandwich in a `SuperOperator`. Ambiguous index constraints and summed expressions throw instead of reading as zero.
 - `coefficient_terms`, `CoefficientTerm` and `has_coefficient_terms` read the exact or floating scalar and the atom powers of each term of a coefficient.
 - `n_levels`, `ground_state` and `transition_levels` read the level count, ground level and levels of a `Transition`, and `operator_axis` the axis of a `Pauli` or `Spin` operator.
 

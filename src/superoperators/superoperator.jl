@@ -98,6 +98,41 @@ function get_prefactor(S::SuperOperator)
     return to_num(first(values(S.arguments)))
 end
 
+"""
+    coefficient(S::SuperOperator, sandwich::SuperOperator) -> Coeff
+
+The coefficient of the single sandwich `sandwich`, such as `sprepost(a, a')` or `spre(a' * a)`,
+in the map `S`, or zero when `S` has no such sandwich. The rules for operator products apply
+to both sides: the sandwich must be one canonical term with unit coefficient, index
+constraints must match, and summed maps are refused.
+"""
+function coefficient(S::SuperOperator, sandwich::SuperOperator)
+    isempty(S.indices) || summed_coefficient_error()
+    isempty(sandwich.indices) || summed_coefficient_error()
+    length(sandwich.arguments) == 1 || throw(
+        ArgumentError(
+            "`coefficient` needs a single sandwich with unit coefficient, but the map has " *
+                "$(length(sandwich.arguments)) canonical terms"
+        )
+    )
+    key, kc = first(sandwich.arguments)
+    isone(kc) || throw(
+        ArgumentError(
+            "`coefficient` needs a single sandwich with unit coefficient, but the map has " *
+                "coefficient $(to_num(kc))"
+        )
+    )
+    found = CNUM_ZERO
+    matched = false
+    for (t, c) in S.arguments
+        (isequal(t.left, key.left) && isequal(t.right, key.right)) || continue
+        (matched || !isequal(t.ne, key.ne)) && ambiguous_coefficient_error()
+        found = c
+        matched = true
+    end
+    return found
+end
+
 @noinline function shared_binder_error(idx::Index)
     throw(
         ArgumentError(
