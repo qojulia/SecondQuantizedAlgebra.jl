@@ -5,7 +5,7 @@ CurrentModule = SecondQuantizedAlgebra
 
 # Open quantum systems
 
-A system coupled to a Markovian environment evolves under a master equation ``\dot\rho = \mathcal{L}\rho``. Its generator has the Gorini–Kossakowski–Sudarshan–Lindblad form
+A cavity that leaks photons or an atom that emits into free space does not evolve unitarily. For a memoryless environment the density matrix obeys a master equation ``\dot\rho = \mathcal{L}\rho``, whose generator has the Gorini–Kossakowski–Sudarshan–Lindblad form
 
 ```math
 \mathcal{L}\rho = -i[H, \rho] + \sum \gamma\, \mathcal{D}[J, K]\rho,
@@ -13,13 +13,13 @@ A system coupled to a Markovian environment evolves under a master equation ``\d
 \mathcal{D}[J, K]\rho = J \rho K^\dagger - \tfrac12 \left\{K^\dagger J, \rho\right\},
 ```
 
-with ``\mathcal{D}[J] = \mathcal{D}[J, J]`` for an independent decay channel. The generator is an object of its own: it is built from operators, moved into a frame, summed over sites and converted to a numerical superoperator. Calling it on an operator applies it, and its transpose gives the Heisenberg drift of an observable. We follow a two-level atom in a driven, lossy cavity,
+with ``\mathcal{D}[J] = \mathcal{D}[J, J]`` for an independent decay channel. Consider a two-level atom in a driven cavity,
 
 ```math
 H = \omega_c a^\dagger a + \omega_a \sigma^{ee} + g\left(a^\dagger \sigma^{ge} + \sigma^{eg} a\right) + \eta\left(e^{-i\omega_d t} a^\dagger + e^{i\omega_d t} a\right),
 ```
 
-with cavity loss ``\kappa`` and spontaneous emission ``\gamma``, from its generator to its numerical steady state.
+with cavity loss ``\kappa`` and spontaneous emission ``\gamma``.
 
 ```@contents
 Pages = ["open_systems.md"]

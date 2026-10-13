@@ -4,13 +4,11 @@ CurrentModule = SecondQuantizedAlgebra
 
 # Averages and numerics
 
-Measured quantities are expectation values, and the equations of motion of an open or closed system are usually written for them. The Heisenberg equation turns into ``\frac{d}{dt}\langle X \rangle = i \langle [H, X] \rangle``, a relation between averages of operator products. We follow a driven Jaynes–Cummings model,
+Measured quantities are expectation values, and the equations of motion of an open or closed system are usually written for them. The Heisenberg equation turns into ``\frac{d}{dt}\langle X \rangle = i \langle [H, X] \rangle``, a relation between averages of operator products. Consider a driven Jaynes–Cummings model,
 
 ```math
-H = \Delta a^\dagger a + g \left(a^\dagger \sigma^{ge} + \sigma^{eg} a\right) + \eta \left(a + a^\dagger\right),
+H = \Delta a^\dagger a + g \left(a^\dagger \sigma^{ge} + \sigma^{eg} a\right) + \eta \left(a + a^\dagger\right).
 ```
-
-from its symbolic moment equations to their numerical evaluation in a truncated Hilbert space.
 
 ```@contents
 Pages = ["averages_numerics.md"]
