@@ -256,8 +256,7 @@ julia> @qnumbers a::Destroy(h);
 
 julia> @variables x y;
 
-julia> expr = exp(x * (x + y)) * a
-exp((x + y)*x) * a
+julia> expr = exp(x * (x + y)) * a;
 
 julia> expand(expr)
 exp(x^2 + x*y) * a
