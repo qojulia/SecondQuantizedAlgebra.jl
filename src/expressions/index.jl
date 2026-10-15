@@ -89,10 +89,13 @@ Base.show(io::IO, ::DeltaFunc) = print(io, "δ")
 SymbolicUtils.promote_symtype(::DeltaFunc, Ts...) = Real
 (::DeltaFunc)(a::Integer, b::Integer) = Int(a == b)
 
-delta_site(x::Integer) = x
+delta_site(x::Integer) = BigInt(x)
 function delta_site(x::RawExpression)
-    SymbolicUtils.isconst(x) && x.val isa Integer && return x.val
-    slot = index_slot(x)
+    if SymbolicUtils.isconst(x)
+        value = x.val
+        value isa Integer && return delta_site(value)
+    end
+    slot = index_slot(x)::Int
     return iszero(slot) ? nothing : slot
 end
 delta_site(::Any) = nothing
