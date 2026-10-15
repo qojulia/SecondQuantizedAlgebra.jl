@@ -51,8 +51,8 @@ function bogoliubov_matrix(U::AbstractMatrix, V::AbstractMatrix, n::Int)
         v = to_cnum(V[i, j])
         matrix[i, j] = u
         matrix[i, n + j] = v
-        matrix[n + i, j] = conj_cnum(v)
-        matrix[n + i, n + j] = conj_cnum(u)
+        matrix[n + i, j] = conj(v)
+        matrix[n + i, n + j] = conj(u)
     end
     return matrix
 end

@@ -108,6 +108,8 @@ Each invariant states the rule, the reason, and the test that pins it, or "not t
 
 **Radicals are canonical.** A radical is a product of prime square roots (or other roots) with exponents in ``(0, 1)``, so ``\sqrt{6}``, ``\sqrt{2}\sqrt{3}`` and ``\sqrt{24}/2`` are the same value with the same hash. Pinned by `test/symbolic/coefficients_test.jl`.
 
+**Only plain products become compound atoms.** A function of an atom, or of a product of real atoms such as `cos(ω*t)`, is a polynomial atom, which keeps its arithmetic on the fast path. Scaled or summed arguments stay raw, since `sin(2θ)` must reach the trigonometric reduction and `exp(-r)` must cancel `1/exp(r)`. Pinned by `test/symbolic/reduction_test.jl` and `test/algebra/unitary_transformations_test.jl`.
+
 **`GaussianRational` is not a `Number`.** Methods of a new `Number` subtype on `==`, `hash` and arithmetic invalidate SymbolicUtils code compiled for abstract numbers, which slowed its `simplify` by about a fifth. Not tested.
 
 ### Averages

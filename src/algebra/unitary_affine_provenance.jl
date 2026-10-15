@@ -6,9 +6,9 @@ function canonical_block_inverse(block::AffineBlock, relations::Vector{ParamRela
     for i in 1:n
         value = CNUM_ZERO
         for j in 1:n
-            value = add_cnum(value, mul_cnum(linear[i, j], block.shift[j]))
+            value = value + linear[i, j] * block.shift[j]
         end
-        shift[i] = reduce_affine(neg_cnum(value), relations, scratch)
+        shift[i] = reduce_affine(-value, relations, scratch)
     end
     return AffineBlock(block.structure, block.basis, linear, shift)
 end

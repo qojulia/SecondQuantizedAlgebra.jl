@@ -253,7 +253,7 @@ function sprepost_poly(A::QAdd, B::QAdd)
     isempty(B.indices) || summed_side_error("`sprepost`")
     out = SuperTermDict()
     for (ta, ca) in A.arguments, (tb, cb) in B.arguments
-        canonical_sandwich!(out, ta.ops, tb.ops, mul_cnum(ca, cb), merge_ne(ta.ne, tb.ne))
+        canonical_sandwich!(out, ta.ops, tb.ops, ca * cb, merge_ne(ta.ne, tb.ne))
     end
     return superop(out, Index[])
 end
@@ -309,20 +309,20 @@ function Base.:-(a::SuperOperator)
     d = SuperTermDict()
     sizehint!(d, length(a.arguments))
     for (t, c) in a.arguments
-        d[copy_key(t)] = neg_cnum(c)
+        d[copy_key(t)] = -c
     end
     return superop(d, copy(a.indices))
 end
 Base.:-(a::SuperOperator, b::SuperOperator) = a + (-b)
 
 function scale(S::SuperOperator, c::CNum)
-    iszero_cnum(c) && return zero(SuperOperator)
+    iszero(c) && return zero(SuperOperator)
     isequal(c, CNUM_ONE) && return S
     d = SuperTermDict()
     sizehint!(d, length(S.arguments))
     for (t, v) in S.arguments
-        nv = mul_cnum(v, c)
-        iszero_cnum(nv) || addto_key!(d, copy_key(t), nv)
+        nv = v * c
+        iszero(nv) || addto_key!(d, copy_key(t), nv)
     end
     return superop_pruned(d, copy(S.indices))
 end
@@ -370,7 +370,7 @@ function compose(A::SuperOperator, B::SuperOperator)
         for (tb, cb) in B.arguments
             bb = bound_indices(tb, cb, B.indices)
             emit_sandwich!(
-                out, vcat(ta.left, tb.left), vcat(tb.right, ta.right), mul_cnum(ca, cb),
+                out, vcat(ta.left, tb.left), vcat(tb.right, ta.right), ca * cb,
                 merge_ne(ta.ne, tb.ne), merge_unique(ba, bb),
             )
         end
@@ -389,7 +389,7 @@ function apply_map(S::SuperOperator, ρ::QAdd)
         for (r, cr) in ρ.arguments
             br = bound_indices(r, cr, ρ.indices)
             emit_applied!(
-                out, vcat(t.left, r.ops, t.right), mul_cnum(c, cr), merge_ne(t.ne, r.ne),
+                out, vcat(t.left, r.ops, t.right), c * cr, merge_ne(t.ne, r.ne),
                 merge_unique(bt, br),
             )
         end
@@ -497,7 +497,7 @@ function Base.adjoint(S::SuperOperator)
     out = SuperTermDict()
     for (t, c) in S.arguments
         emit_sandwich!(
-            out, reversed_adjoint(t.left), reversed_adjoint(t.right), conj_cnum(c), t.ne,
+            out, reversed_adjoint(t.left), reversed_adjoint(t.right), conj(c), t.ne,
             bound_indices(t, c, S.indices),
         )
     end

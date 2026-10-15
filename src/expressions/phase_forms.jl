@@ -3,13 +3,13 @@
 
 @inline function euler_cos(argument)
     phase = phase_coeff(argument)
-    return mul_cnum(CNUM_HALF, add_cnum(phase, conj_cnum(phase)))
+    return CNUM_HALF * (phase + conj(phase))
 end
 
 @inline function euler_sin(argument)
     phase = phase_coeff(argument)
-    difference = add_cnum(phase, neg_cnum(conj_cnum(phase)))
-    return mul_cnum(mul_cnum(CNUM_NEG_IM, CNUM_HALF), difference)
+    difference = phase - conj(phase)
+    return CNUM_NEG_IM * CNUM_HALF * difference
 end
 
 function is_exponential_phase(argument)
@@ -49,14 +49,14 @@ function map_factors(f::F, terms::Vector{<:Monomial}) where {F}
     for m in terms
         term = to_cnum(monomial_scalar(m))
         @inbounds for i in eachindex(m.syms)
-            term = mul_cnum(term, f(m.syms[i], m.exps[i]))
+            term = term * f(m.syms[i], m.exps[i])
         end
-        result = add_cnum(result, term)
+        result = result + term
     end
     return result
 end
 
-function exponential_cnum(c::Coeff)
+function exponential_form(c::Coeff)
     tail = c.tail
     tail isa Native && return c
     tail isa Poly && return map_factors(exponential_factor, tail.terms)
@@ -67,7 +67,7 @@ function trigonometric_factor(symbol::RawExpression, exponent::Rational{Int})
     (is_phase(symbol) && denominator(exponent) == 1) || return factor_cnum(symbol, exponent)
     angle, flipped = canonical_angle(Num(only(SymbolicUtils.arguments(symbol))), numerator(exponent))
     sine = to_cnum(sin(angle))
-    return add_cnum(to_cnum(cos(angle)), mul_cnum(flipped ? CNUM_NEG_IM : CNUM_IM, sine))
+    return to_cnum(cos(angle)) + (flipped ? CNUM_NEG_IM : CNUM_IM) * sine
 end
 
 @inline function rewrite_phase_to_trig(x)
@@ -80,7 +80,7 @@ const TRIGONOMETRIC_REWRITER = SymbolicUtils.Rewriters.PassThrough(
     SymbolicUtils.Rewriters.Postwalk(rewrite_phase_to_trig),
 )
 
-function trigonometric_cnum(c::Coeff)
+function trigonometric_form(c::Coeff)
     tail = c.tail
     tail isa Native && return c
     if tail isa RawSymbolicCoeff
@@ -88,7 +88,7 @@ function trigonometric_cnum(c::Coeff)
         return raw_leaf(simplify_raw(expanded))
     end
     result = map_factors(trigonometric_factor, tail.terms)
-    return result.tail isa RawSymbolicCoeff ? normalized_leaf(result.tail.expr, false) : result
+    return result.tail isa RawSymbolicCoeff ? raw_leaf(normalize_phase(result.tail.expr)) : result
 end
 
 """
@@ -114,11 +114,10 @@ julia> exponential_form(cos(ω * t) * a)
 
 See also [`trigonometric_form`](@ref), [`expim`](@ref).
 """
-exponential_form(x::Coeff) = exponential_cnum(x)
 exponential_form(x::Num) = exponential_tree(x)
 exponential_form(x::SymbolicUtils.BasicSymbolic) = exponential_tree(x)
 exponential_form(x::Number) = x
-exponential_form(x::Complex{Num}) = exponential_cnum(to_cnum(x))
+exponential_form(x::Complex{Num}) = exponential_form(to_cnum(x))
 
 """
     PhaseTerm
@@ -167,7 +166,7 @@ function multiply_phase_terms(left::Vector{PhaseTerm}, right::Vector{PhaseTerm})
     result = PhaseTerm[]
     sizehint!(result, length(left) * length(right))
     for a in left, b in right
-        amplitude = mul_cnum(a.amplitude, b.amplitude)
+        amplitude = a.amplitude * b.amplitude
         iszero(amplitude) && continue
         push!(result, PhaseTerm(amplitude, expand(a.phase + b.phase)))
     end
@@ -220,7 +219,7 @@ function raw_phase_terms(x::RawExpression)
         )
         denominator_coeff = to_cnum(denominator_)
         return PhaseTerm[
-            PhaseTerm(div_cnum(term.amplitude, denominator_coeff), term.phase) for
+            PhaseTerm(term.amplitude / denominator_coeff, term.phase) for
                 term in raw_phase_terms(numerator)
         ]
     elseif op === (^) && length(args) == 2
@@ -274,7 +273,7 @@ julia> terms[2].amplitude, terms[2].phase
 See also [`exponential_form`](@ref), [`expim`](@ref).
 """
 function phase_terms(c::Coeff)
-    normalized = exponential_cnum(c)
+    normalized = exponential_form(c)
     tail = normalized.tail
     if tail isa Native
         return iszero(normalized) ? PhaseTerm[] : PhaseTerm[constant_phase_term(normalized)]
@@ -308,8 +307,5 @@ julia> trigonometric_form((expim(ω * t) + expim(-ω * t)) * a)
 
 See also [`exponential_form`](@ref), [`expim`](@ref).
 """
-trigonometric_form(x::Coeff) = trigonometric_cnum(x)
-trigonometric_form(x::Num) = trigonometric_cnum(to_cnum(x))
-trigonometric_form(x::SymbolicUtils.BasicSymbolic) = trigonometric_cnum(to_cnum(x))
+trigonometric_form(x::Union{Num, SymbolicUtils.BasicSymbolic, Complex{Num}}) = trigonometric_form(to_cnum(x))
 trigonometric_form(x::Number) = x
-trigonometric_form(x::Complex{Num}) = trigonometric_cnum(to_cnum(x))

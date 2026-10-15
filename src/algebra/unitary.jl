@@ -382,7 +382,7 @@ function compose_rule_image(image::QAdd, rules::Dict{Op, QAdd})
             for (replacement_term, replacement_coefficient) in replacement
                 addto_key!(
                     out, copy_key(replacement_term),
-                    mul_cnum(coefficient, replacement_coefficient),
+                    coefficient * replacement_coefficient,
                 )
             end
         elseif length(term.ops) == 1
@@ -412,25 +412,14 @@ function add_gauges(left::QAdd, right::QAdd)
         first_term, first_coefficient = first(left.arguments)
         second_term, second_coefficient = first(right.arguments)
         if isequal(first_term, second_term)
-            coefficient = add_cnum(first_coefficient, second_coefficient)
-            iszero_cnum(coefficient) && return zero_qadd()
+            coefficient = first_coefficient + second_coefficient
+            iszero(coefficient) && return zero_qadd()
             return QAdd(QTermDict(first_term => coefficient), EMPTY_INDICES)
         end
     end
     return left + right
 end
 
-function coefficient_depends_on(c::CNum, variable)
-    tail = c.tail
-    tail isa Native && return false
-    if tail isa Poly
-        for monomial in tail.terms, factor in monomial.syms
-            raw_depends_on(factor, variable) && return true
-        end
-        return false
-    end
-    return raw_depends_on(tail.expr, variable)
-end
 
 function rules_depend_on(U::UnitaryTransform{StaticTime}, t::Num)
     variable = SymbolicUtils.unwrap(t)
@@ -523,7 +512,7 @@ end
 function rule_qadd(pairs::Vector{Tuple{CNum, Vector{Op}}})
     out = QTermDict()
     for (coefficient, operators) in pairs
-        iszero_cnum(coefficient) || addto!(out, operators, coefficient)
+        iszero(coefficient) || addto!(out, operators, coefficient)
     end
     return QAdd(out, EMPTY_INDICES)
 end
@@ -533,11 +522,11 @@ rule_qadd(pairs::Vararg{Tuple{CNum, Vector{Op}}}) =
 scaled(coefficient::CNum, operator::Op) = rule_qadd((coefficient, Op[operator]))
 
 phase(ϕ::Real) = phase_coeff(as_num(ϕ))
-conj_phase(ϕ::Real) = conj_cnum(phase(ϕ))
+conj_phase(ϕ::Real) = conj(phase(ϕ))
 trig_rel(θ::Real) = ParamRelation(cos(θ), sin(θ), -1)
 hyp_rel(r::Real) = ParamRelation(cosh(r), sinh(r), 1)
 
 dt(c::CNum, t::Num) = Symbolics.derivative(c, t)
 dt(x::Coefficient, t::Num) = dt(to_cnum(x), t)
 
-gauge(generator::QAdd, θ::Real, t::Num) = generator * neg_cnum(dt(θ, t))
+gauge(generator::QAdd, θ::Real, t::Num) = generator * (-dt(θ, t))

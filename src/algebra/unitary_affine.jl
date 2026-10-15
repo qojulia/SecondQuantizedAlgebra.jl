@@ -108,7 +108,7 @@ function inverse_bosonic_nambu(linear::Matrix{CNum})
     for j in 1:n, i in 1:n
         left_sign = i <= half ? 1 : -1
         right_sign = j <= half ? 1 : -1
-        left_sign == right_sign || (out[i, j] = neg_cnum(out[i, j]))
+        left_sign == right_sign || (out[i, j] = -out[i, j])
     end
     return out
 end
@@ -122,7 +122,7 @@ function inverse_symplectic(linear::Matrix{CNum})
         source_i = i <= half ? i + half : i - half
         source_j = j <= half ? j + half : j - half
         value = linear[source_j, source_i]
-        (i <= half) == (j <= half) || (value = neg_cnum(value))
+        (i <= half) == (j <= half) || (value = -value)
         out[i, j] = value
     end
     return out
@@ -146,10 +146,10 @@ function affine_rules(action::AffineAction)
             sizehint!(terms, n + 1)
             for j in 1:n
                 coefficient = block.linear[i, j]
-                iszero_cnum(coefficient) || addto!(terms, Op[block.basis[j]], coefficient)
+                iszero(coefficient) || addto!(terms, Op[block.basis[j]], coefficient)
             end
             offset = block.shift[i]
-            iszero_cnum(offset) || addto!(terms, Op[], offset)
+            iszero(offset) || addto!(terms, Op[], offset)
             rules[block.basis[i]] = QAdd(terms, EMPTY_INDICES)
         end
     end
@@ -222,7 +222,7 @@ function is_identity_affine_linear(linear::Matrix{CNum})
         if i == j
             isequal(coefficient, CNUM_ONE) || return false
         else
-            iszero_cnum(coefficient) || return false
+            iszero(coefficient) || return false
         end
     end
     return true
@@ -230,7 +230,7 @@ end
 
 function is_zero_affine_shift(shift::Vector{CNum})
     for coefficient in shift
-        iszero_cnum(coefficient) || return false
+        iszero(coefficient) || return false
     end
     return true
 end
@@ -250,12 +250,7 @@ function compose_subset_block(
         for local_j in 1:m, i in 1:n
             value = CNUM_ZERO
             for local_k in 1:m
-                value = add_cnum(
-                    value,
-                    mul_cnum(
-                        first.linear[i, positions[local_k]], second.linear[local_k, local_j],
-                    ),
-                )
+                value = value + first.linear[i, positions[local_k]] * second.linear[local_k, local_j]
             end
             out[i, positions[local_j]] = reduce_affine(value, relations, scratch)
         end
@@ -270,10 +265,7 @@ function compose_subset_block(
         for i in 1:n
             value = first.shift[i]
             for local_k in 1:m
-                value = add_cnum(
-                    value,
-                    mul_cnum(first.linear[i, positions[local_k]], second.shift[local_k]),
-                )
+                value = value + first.linear[i, positions[local_k]] * second.shift[local_k]
             end
             out[i] = reduce_affine(value, relations, scratch)
         end
@@ -296,14 +288,14 @@ function compose_affine_data(
     for j in 1:n, i in 1:n
         value = CNUM_ZERO
         for k in 1:n
-            value = add_cnum(value, mul_cnum(first_linear[i, k], second_linear[k, j]))
+            value = value + first_linear[i, k] * second_linear[k, j]
         end
         linear[i, j] = reduce_affine(value, relations, scratch)
     end
     for i in 1:n
         value = first_shift[i]
         for k in 1:n
-            value = add_cnum(value, mul_cnum(first_linear[i, k], second_shift[k]))
+            value = value + first_linear[i, k] * second_shift[k]
         end
         shift[i] = reduce_affine(value, relations, scratch)
     end

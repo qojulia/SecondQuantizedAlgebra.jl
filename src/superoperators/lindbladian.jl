@@ -102,11 +102,11 @@ LindbladianBuilder{O}() where {O <: Union{QAdd, QExpr}} =
 )
 
 function accumulate!(b::LindbladianBuilder{O}, L::Lindbladian{O}, scale::CNum = CNUM_ONE) where {O}
-    iszero_cnum(scale) && return b
+    iszero(scale) && return b
     H = L.hamiltonian
     add_hamiltonian!(b.hamiltonian, isequal(scale, CNUM_ONE) ? H : scale_jump(H, scale))
     for (ch, γ) in L.channels
-        add_rate!(b.channels, ch, mul_cnum(γ, scale))
+        add_rate!(b.channels, ch, γ * scale)
     end
     return b
 end
@@ -125,26 +125,26 @@ function add_channel!(
         b::LindbladianBuilder{O}, J::O, K::O, γ::CNum, scope::Vector{Index},
         ne::Vector{NonEqualPair},
     ) where {O <: Union{QAdd, QExpr}}
-    iszero_cnum(γ) && return b
+    iszero(γ) && return b
     check_jump(J)
     check_jump(K)
     J0, α = split_constant(J)
     K0, β = split_constant(K)
     if !(iszero(α) && iszero(β))
-        G = (adjoint(β) * J0 - α * adjoint(K0)) * mul_cnum(CNUM_HALF, mul_cnum(CNUM_IM, γ))
+        G = (adjoint(β) * J0 - α * adjoint(K0)) * (CNUM_HALF * (CNUM_IM * γ))
         iszero(G) || add_hamiltonian!(b.hamiltonian, sum_under_scope(G, scope, ne))
     end
     (iszero(J0) || iszero(K0)) && return b
     J0, K0, rate = move_content_to_rate(J0, K0, γ)
     kept, cne, rate = count_unmentioned_binders(J0, K0, rate, scope, ne)
-    iszero_cnum(rate) && return b
+    iszero(rate) && return b
     add_rate!(b.channels, Channel{O}(J0, K0, kept, cne), rate)
     return b
 end
 
 function add_rate!(channels::Dict{Channel{O}, CNum}, ch::Channel{O}, rate::CNum) where {O}
-    total = add_cnum(get(channels, ch, CNUM_ZERO), rate)
-    iszero_cnum(total) ? delete!(channels, ch) : (channels[ch] = total)
+    total = get(channels, ch, CNUM_ZERO) + rate
+    iszero(total) ? delete!(channels, ch) : (channels[ch] = total)
     return channels
 end
 
@@ -374,7 +374,7 @@ Base.:+(a::Lindbladian{QExpr}, b::Lindbladian{QAdd}) = a + formal_lindbladian(b)
 Base.:+(a::Lindbladian) = a
 
 function scale(L::Lindbladian{O}, c::CNum) where {O}
-    iszero_cnum(c) && return zero(Lindbladian{O})
+    iszero(c) && return zero(Lindbladian{O})
     isequal(c, CNUM_ONE) && return L
     builder = LindbladianBuilder{O}()
     accumulate!(builder, L, c)
@@ -402,8 +402,8 @@ end
 
 function lower_hamiltonian!(out::SuperTermDict, H::QAdd)
     for (t, c) in H.arguments
-        addto_key!(out, SuperTerm(copy(t.ops), Op[], copy_ne(t.ne)), mul_cnum(CNUM_NEG_IM, c))
-        addto_key!(out, SuperTerm(Op[], copy(t.ops), copy_ne(t.ne)), mul_cnum(CNUM_IM, c))
+        addto_key!(out, SuperTerm(copy(t.ops), Op[], copy_ne(t.ne)), CNUM_NEG_IM * c)
+        addto_key!(out, SuperTerm(Op[], copy(t.ops), copy_ne(t.ne)), CNUM_IM * c)
     end
     return H.indices
 end
@@ -412,17 +412,17 @@ function lower_channel!(
         out::SuperTermDict, J::QAdd, K::QAdd, γ::CNum, scope::Vector{Index},
         ne::Vector{NonEqualPair},
     )
-    minus_half = mul_cnum(CNUM_NEG1, mul_cnum(CNUM_HALF, γ))
+    minus_half = CNUM_NEG1 * (CNUM_HALF * γ)
     for (tj, cj) in J.arguments, (tk, ck) in K.arguments
         emit_sandwich!(
-            out, tj.ops, reversed_adjoint(tk.ops), mul_cnum(γ, mul_cnum(cj, conj_cnum(ck))),
+            out, tj.ops, reversed_adjoint(tk.ops), γ * (cj * conj(ck)),
             merge_ne(ne, merge_ne(tj.ne, tk.ne)), scope,
         )
     end
     for (t, c) in adjoint(K) * J
         term_ne = merge_ne(ne, t.ne)
-        emit_sandwich!(out, t.ops, EMPTY_OPS, mul_cnum(minus_half, c), term_ne, scope)
-        emit_sandwich!(out, EMPTY_OPS, t.ops, mul_cnum(minus_half, c), term_ne, scope)
+        emit_sandwich!(out, t.ops, EMPTY_OPS, minus_half * c, term_ne, scope)
+        emit_sandwich!(out, EMPTY_OPS, t.ops, minus_half * c, term_ne, scope)
     end
     return out
 end

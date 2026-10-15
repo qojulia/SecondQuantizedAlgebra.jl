@@ -79,7 +79,7 @@ symmetric_to_normal(op::QSym) = symmetric_to_normal(single_qadd(CNUM_ONE, Op[op]
 function convert_ordering(s::QAdd, α::Rational)
     d = QTermDict()
     for (term, c) in s.arguments
-        iszero_cnum(c) && continue
+        iszero(c) && continue
         convert_term!(d, c, term.ops, term.ne, α)
     end
     return QAdd(d, copy(s.indices))
@@ -165,7 +165,7 @@ end
         current::Vector{OrderedTerm},
         m::Int, n::Int, K::CNum, α::Rational, remove::F,
     ) where {F}
-    Kα = mul_cnum(K, to_cnum(α))
+    Kα = K * to_cnum(α)
     kmax = min(m, n)
     next = OrderedTerm[]
     sizehint!(next, length(current) * (kmax + 1))
@@ -173,11 +173,11 @@ end
         push!(next, OrderedTerm(t.prefactor, copy(t.ops)))
         Kα_pow = CNUM_ONE
         for k in 1:kmax
-            Kα_pow = mul_cnum(Kα_pow, Kα)
+            Kα_pow = Kα_pow * Kα
             r = binomial(m, k) * binomial(n, k) * factorial(k)
-            coeff = mul_cnum(to_cnum(r), Kα_pow)
+            coeff = to_cnum(r) * Kα_pow
             new_ops = remove(copy(t.ops), k)
-            push!(next, OrderedTerm(mul_cnum(t.prefactor, coeff), new_ops))
+            push!(next, OrderedTerm(t.prefactor * coeff, new_ops))
         end
     end
     return next

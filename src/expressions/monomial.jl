@@ -23,23 +23,8 @@ struct Monomial{E <: ExactScalar}
             exps::Vector{Rational{Int}},
         ) where {E <: ExactScalar}
         needs_radical_fold(syms, exps) || return new{E}(pack_scalar(E, scalar), syms, exps)
-        osyms = RawExpression[]
-        oexps = Rational{Int}[]
-        sizehint!(osyms, length(syms)); sizehint!(oexps, length(exps))
-        @inbounds for i in eachindex(syms)
-            s = syms[i]
-            e = exps[i]
-            if is_radical_atom(s)
-                q = fld(numerator(e), denominator(e))
-                if q != 0
-                    scalar = scalar_mul(scalar, radical_power(E, s.val::RadicalPrime, q))
-                    e -= q
-                end
-                iszero(e) && continue
-            end
-            push!(osyms, s); push!(oexps, e)
-        end
-        return new{E}(pack_scalar(E, scalar), osyms, oexps)
+        scalar, syms, exps = fold_radicals(E, scalar, syms, exps)
+        return new{E}(pack_scalar(E, scalar), syms, exps)
     end
 
     Monomial{E}(::Unchecked, scalar::Union{ComplexF64, E}, m::Monomial) where {E <: ExactScalar} =
@@ -66,9 +51,6 @@ end
 as_tier(::Type{E}, terms::Vector{<:Monomial}) where {E <: ExactScalar} =
     Monomial{E}[as_tier(E, m) for m in terms]
 
-@inline with_factors(
-    m::Monomial{E}, syms::Vector{RawExpression}, exps::Vector{Rational{Int}},
-) where {E} = Monomial{E}(monomial_scalar(m), syms, exps)
 @inline function scalar_iszero(m::Monomial)
     s = m.slot
     iszero(s.re) && iszero(s.im) && return true
@@ -82,10 +64,6 @@ end
     scalar isa ComplexF64 || return m
     return with_scalar(m, normalize_scalar(scalar))
 end
-@inline conj_monomial(
-    m::Monomial{E}, syms::Vector{RawExpression}, exps::Vector{Rational{Int}},
-) where {E} =
-    Monomial{E}(conj(monomial_scalar(m)), syms, exps)
 
 @inline function add_scalars(a::Monomial{E}, b::Monomial{E}) where {E}
     sa, sb = a.slot, b.slot
@@ -99,7 +77,7 @@ end
         ::Type{E}, scalar::CoeffScalar, syms::Vector{RawExpression},
         exps::Vector{Rational{Int}},
     ) where {E <: ExactScalar}
-    return Monomial{E}[Monomial{E}(as_tier(E, scalar), syms, exps)]
+    return Monomial{E}[monomial(E, as_tier(E, scalar), syms, exps)]
 end
 
 function sort_factors!(syms::Vector{RawExpression}, exps::Vector{Rational{Int}})
@@ -110,6 +88,7 @@ function sort_factors!(syms::Vector{RawExpression}, exps::Vector{Rational{Int}})
             syms[j + 1] = syms[j]; exps[j + 1] = exps[j]
             j -= 1
         end
+        j == i - 1 && continue
         syms[j + 1] = s; exps[j + 1] = e
     end
     return syms
@@ -119,6 +98,7 @@ function merge_factor_list(syms::Vector{RawExpression}, exps::Vector{Rational{In
     n = length(syms)
     n <= 1 && return (syms, exps)
     sort_factors!(syms, exps)
+    is_merged(syms, exps) && return (syms, exps)
     osyms = RawExpression[]
     oexps = Rational{Int}[]
     sizehint!(osyms, n); sizehint!(oexps, n)
@@ -135,6 +115,32 @@ function merge_factor_list(syms::Vector{RawExpression}, exps::Vector{Rational{In
         i = j
     end
     return (osyms, oexps)
+end
+
+@inline function is_merged(syms::Vector{RawExpression}, exps::Vector{Rational{Int}})
+    @inbounds for i in eachindex(syms)
+        iszero(exps[i]) && return false
+        i > 1 && syms[i] === syms[i - 1] && return false
+    end
+    return true
+end
+
+"""
+    monomial(E, scalar, syms, exps)
+
+The canonical monomial `scalar * ∏ symsᵢ^expsᵢ` from factors in any order. Equal factors
+merge, zero exponents drop, several unit phases fold into one and radical exponents fold into
+`(0, 1)`. It takes ownership of `syms` and `exps`; `Monomial{E}` itself expects factors that
+are already sorted and merged.
+"""
+function monomial(
+        ::Type{E}, scalar::Union{ComplexF64, E}, syms::Vector{RawExpression},
+        exps::Vector{Rational{Int}},
+    ) where {E <: ExactScalar}
+    several_phases = count(is_phase, syms) > 1
+    syms, exps = merge_factor_list(syms, exps)
+    several_phases && return canonical_phase_monomial!(E, scalar, syms, exps)
+    return Monomial{E}(normalize_scalar(scalar), syms, exps)
 end
 
 """

@@ -6,34 +6,6 @@ function num_from_scalar(x::Rational{BigInt})
     return denominator(x) == 1 ? Num(numerator(x)) : Num(x)
 end
 
-function radical_factors(m::Monomial)
-    factors = Tuple{Rational{Int}, RadicalPrime}[]
-    @inbounds for i in eachindex(m.syms)
-        s = m.syms[i]
-        is_radical_atom(s) || continue
-        e = m.exps[i]
-        p = s.val::RadicalPrime
-        mergeable = p isa Int && p < RADICAL_TRIAL_BOUND
-        k = mergeable ? findfirst(f -> f[1] == e && f[2] isa Int, factors) : nothing
-        if k === nothing
-            push!(factors, (e, p))
-        else
-            product, overflow = Base.mul_with_overflow(factors[k][2]::Int, p::Int)
-            overflow ? push!(factors, (e, p)) : (factors[k] = (e, product))
-        end
-    end
-    return insertion_sort!(factors, radical_factor_less)
-end
-@inline radical_factor_less(a::Tuple{Rational{Int}, RadicalPrime}, b::Tuple{Rational{Int}, RadicalPrime}) =
-    a[1] == b[1] ? a[2] < b[2] : a[1] < b[1]
-
-function radical_expression(n::RadicalPrime, f::Rational{Int})
-    base = SymbolicUtils.Const{SymbolicUtils.SymReal}(n)
-    f == 1 // 2 && return sqrt(base)
-    f == 1 // 3 && return cbrt(base)
-    return SymbolicUtils.term(^, base, f; type = Real)
-end
-
 function term_to_num(m::Monomial)
     prod = Num(factors_to_raw(m, num_power))
     scalar = monomial_scalar(m)
@@ -216,23 +188,23 @@ function raw_realimag(x::RawExpression)
     return (real(x), imag(x))
 end
 
-function Base.real(c::Coeff)
-    is_native(c) && return num_from_scalar(real(native_scalar(c)))
-    tail = c.tail
-    tail isa Poly && return poly_part(tail, false)
-    expr = normalize_phase(raw_tail(c))
-    re, _ = cnum_is_real(c) ? (expr, RAW_ZERO) : raw_realimag(expr)
-    return Num(normalize_phase(re))
+function raw_parts(c::Coeff)
+    expr = normalize_phase(c.tail.expr)
+    return cnum_is_real(c) ? (expr, RAW_ZERO) : raw_realimag(expr)
 end
 
-function Base.imag(c::Coeff)
-    is_native(c) && return num_from_scalar(imag(native_scalar(c)))
-    tail = c.tail
-    tail isa Poly && return poly_part(tail, true)
-    expr = normalize_phase(raw_tail(c))
-    _, im = cnum_is_real(c) ? (RAW_ZERO, RAW_ZERO) : raw_realimag(expr)
-    return Num(normalize_phase(im))
+function coefficient_part(c::Coeff, imaginary::Bool)
+    t = c.tail
+    if t isa Native
+        z = native_scalar(c)
+        return num_from_scalar(imaginary ? imag(z) : real(z))
+    end
+    t isa Poly && return poly_part(t, imaginary)
+    return Num(normalize_phase(raw_parts(c)[imaginary ? 2 : 1]))
 end
+Base.real(c::Coeff) = coefficient_part(c, false)
+Base.imag(c::Coeff) = coefficient_part(c, true)
+@inline realimag(c::Coeff) = reim(to_num(c))
 
 for f in (:abs, :abs2)
     @eval function Base.$f(c::Coeff)
@@ -240,11 +212,6 @@ for f in (:abs, :abs2)
         is_pure_phase(c) || throw(MethodError($f, (c,)))
         return NUM_ONE
     end
-end
-
-@inline function realimag(c::Coeff)
-    is_native(c) && return (num_from_scalar(real(native_scalar(c))), num_from_scalar(imag(native_scalar(c))))
-    return reim(to_num(c))
 end
 
 """
@@ -271,8 +238,7 @@ function to_num(c::Coeff)
     t = c.tail
     t isa Native && return Complex(num_from_scalar(real(native_scalar(c))), num_from_scalar(imag(native_scalar(c))))
     t isa Poly && return poly_to_num(t)
-    expr = normalize_phase(t.expr)
-    re, im = cnum_is_real(c) ? (expr, RAW_ZERO) : raw_realimag(expr)
+    re, im = raw_parts(c)
     return Complex(Num(normalize_phase(re)), Num(normalize_phase(im)))
 end
 
@@ -281,8 +247,7 @@ Base.show(io::IO, c::Coeff) = show(io, to_num(c))
 
 @inline function rewrite_complex_slots(x)
     x isa SymbolicUtils.BasicSymbolic || return x
-    SymbolicUtils.iscall(x) || return x
-    SymbolicUtils.operation(x) === complex || return x
+    is_call_of(x, complex) || return x
     args = SymbolicUtils.arguments(x)
     length(args) == 2 || return x
     return args[1] + im * args[2]
@@ -293,14 +258,13 @@ const COMPLEX_SLOT_REWRITER = SymbolicUtils.Rewriters.PassThrough(
 )
 
 @inline lower_complex_slots(x) = COMPLEX_SLOT_REWRITER(x)
-@inline derivative_expression(c::Coeff) = lower_complex_slots(raw_tail(c))
 
 (D::Symbolics.Differential)(c::Coeff) =
-    is_native(c) ? D(to_num(c)) : D(derivative_expression(c))
+    is_native(c) ? D(to_num(c)) : D(raw_rule(c))
 
 function Symbolics.derivative(c::Coeff, var; simplify = false, kwargs...)
     is_native(c) && return CNUM_ZERO
-    input = derivative_expression(c)
+    input = raw_rule(c)
     differentiated = Symbolics.expand_derivatives(
         Symbolics.Differential(var)(input), simplify; kwargs...,
     )

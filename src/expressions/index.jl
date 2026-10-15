@@ -117,7 +117,7 @@ function change_index(x::CNum, from::Index, to::Index)
         isequal(raw, Num(tail.expr)) && return x
         result = SymbolicUtils.unwrap(raw)
         is_numeric_const(result) && return const_coeff(result)
-        return from_raw(result, tail.known_real)
+        return raw_coeff(result, tail.known_real)
     end
     raw_re, raw_im = realimag(x)
     re = change_index(raw_re, from, to)
@@ -170,7 +170,7 @@ function change_index(x::CNum, pairs::AbstractDict{Index, Index})
         isequal(raw, Num(tail.expr)) && return x
         result = SymbolicUtils.unwrap(raw)
         is_numeric_const(result) && return const_coeff(result)
-        return from_raw(result, tail.known_real)
+        return raw_coeff(result, tail.known_real)
     end
     raw_re, raw_im = realimag(x)
     re = change_index(raw_re, pairs)
@@ -274,30 +274,12 @@ function collect_identical_zeros!(acc, x)
     return acc
 end
 
-function contains_leaf(x::RawExpression, v::RawExpression)
-    isequal(x, v) && return true
-    SymbolicUtils.iscall(x) || return false
-    for a in SymbolicUtils.arguments(x)
-        a isa RawExpression && contains_leaf(a, v) && return true
-    end
-    return false
-end
 
 function depends_on_index_term(c::CNum, ops::Vector{Op}, idx::Index)
     for op in ops
         op.index == idx && return true
     end
-    is_native(c) && return false
-    isym = SymbolicUtils.unwrap(index_sym(idx))
-    tail = c.tail
-    if tail isa Poly
-        for m in tail.terms, s in m.syms
-            contains_leaf(s, isym) && return true
-        end
-        return false
-    end
-    tail isa RawSymbolicCoeff || return false
-    return contains_leaf(tail.expr, isym)
+    return coefficient_depends_on(c, SymbolicUtils.unwrap(index_sym(idx)))
 end
 
 function depends_on_scope_index(
@@ -357,7 +339,7 @@ function eliminate_binders(
         mentions(coef, idx) && continue
         eliminated, factor, ne = eliminate_binder(ne, idx)
         if eliminated
-            coef = mul_cnum(coef, factor)
+            coef = coef * factor
         else
             pending === EMPTY_INDICES && (pending = Index[])
             push!(pending, idx)
@@ -370,7 +352,7 @@ function eliminate_binders(
         while k <= length(pending)
             eliminated, factor, ne = eliminate_binder(ne, pending[k])
             if eliminated
-                coef = mul_cnum(coef, factor)
+                coef = coef * factor
                 deleteat!(pending, k)
                 progress = true
             else

@@ -74,33 +74,28 @@ const_coeff(x::RawExpression) = with_const(to_cnum, x)
 const_complex(x::RawExpression) = with_const(ComplexF64, x)
 
 """
-    from_raw(x, known_real)
+    raw_coeff(x, known_real)
 
 The coefficient of the raw expression `x`: a number when `x` is a numeric constant, the raw
 expression otherwise.
 """
-@inline function from_raw(x::RawExpression, known_real::Bool)
+@inline function raw_coeff(x::RawExpression, known_real::Bool)
     is_numeric_const(x) && return const_coeff(x)
-    return raw_coeff(x, known_real)
+    return symbolic_coeff(x, known_real)
 end
 
 """
     raw_leaf(x, known_real = false)
 
-The coefficient of a raw expression that has no polynomial form. Unlike `from_raw`, it
+The coefficient of a raw expression that has no polynomial form. Unlike `raw_coeff`, it
 also recognizes a real expression and a lone unit phase.
 """
 function raw_leaf(x::RawExpression, known_real::Bool = false)
-    is_numeric_const(x) && return const_coeff(x)
-    real_part, imaginary_part = raw_realimag(x)
-    if is_const_zero(imaginary_part)
-        is_numeric_const(real_part) && return const_coeff(real_part)
-        return raw_coeff(real_part, true)
-    end
     is_phase(x) && return phase_coeff(only(SymbolicUtils.arguments(x)))
+    real_part, imaginary_part = raw_realimag(x)
+    is_const_zero(imaginary_part) && return raw_coeff(real_part, true)
     return raw_coeff(x, known_real)
 end
-normalized_leaf(x::RawExpression, known_real::Bool) = raw_leaf(normalize_phase(x), known_real)
 
 @inline function is_atom(b)
     b isa SymbolicUtils.BasicSymbolic || return false
@@ -112,7 +107,12 @@ normalized_leaf(x::RawExpression, known_real::Bool) = raw_leaf(normalize_phase(x
     (op === (+) || op === (*) || op === (^) || op === (/) || op === complex) &&
         return false
     args = SymbolicUtils.arguments(b)
-    return length(args) == 1 && is_atom(only(args))
+    length(args) == 1 || return false
+    argument = only(args)
+    is_atom(argument) && return true
+    is_call_of(argument, *) || return false
+    SymbolicUtils.symtype(argument) <: Real || return false
+    return all(is_atom, SymbolicUtils.arguments(argument))
 end
 
 @inline atom_coeff(x::SymbolicUtils.BasicSymbolic) = poly_coeff(
@@ -123,53 +123,13 @@ end
     ),
 )
 
-function is_rational_power(value::Rational{BigInt}, r::Rational{Int})
-    q = denominator(r)
-    (is_integer_power(numerator(value), q) && is_integer_power(denominator(value), q)) ||
-        return false
-    return !(iszero(value) && numerator(r) < 0)
-end
-function rational_power_value(value::Rational{BigInt}, r::Rational{Int})
-    q = denominator(r)
-    return (integer_root(numerator(value), q) // integer_root(denominator(value), q))^numerator(r)
-end
-
-function numeric_radical(value::Rational{BigInt}, r::Rational{Int}, x)
-    is_rational_power(value, r) && return to_cnum(rational_power_value(value, r))
-    value > 0 || return raw_coeff(x, true)
-    numerator_factors = Tuple{RadicalPrime, Int}[]
-    denominator_factors = Tuple{RadicalPrime, Int}[]
-    prime_factorization!(numerator_factors, numerator(value)) || return raw_coeff(x, true)
-    prime_factorization!(denominator_factors, denominator(value)) || return raw_coeff(x, true)
-    syms = RawExpression[]
-    exps = Rational{Int}[]
-    for (p, k) in numerator_factors
-        push!(syms, radical_atom(p)); push!(exps, k * r)
-    end
-    for (p, k) in denominator_factors
-        push!(syms, radical_atom(p)); push!(exps, -k * r)
-    end
-    sort_factors!(syms, exps)
-    return tiered(monomial_terms, EXACT_ONE, syms, exps)
-end
-
-
-function negative_radical(value::Rational{BigInt}, r::Rational{Int}, x, real_root::Bool)
-    magnitude = numeric_radical(-value, r, x)
-    if magnitude.tail isa RawSymbolicCoeff
-        real_root && return raw_coeff(x, true)
-        return native(ComplexF64(Float64(value))^r)
-    end
-    unit = real_root ? EXACT_NEG1 : EXACT_IM^numerator(r)
-    return mul_cnum(magnitude, native(unit))
-end
-
-function rational_power(basearg, r::Rational{Int}, x)
+function rational_power(basearg, r::Rational{Int}, x, real_root::Bool)
     if is_exact_number(basearg)
         value = exact_number(basearg)
         value >= 0 && return numeric_radical(value, r, x)
-        denominator(r) == 2 && return negative_radical(value, r, x, false)
+        (real_root || denominator(r) == 2) && return negative_radical(value, r, x, real_root)
     end
+    real_root && return raw_leaf(x)
     base = to_cnum(basearg)
     is_native(base) && return native(to_float_scalar(native_scalar(base))^r)
     if base.tail isa Poly && length(base.tail.terms) == 1
@@ -195,7 +155,7 @@ function monomial_power(m::Monomial, r::Rational{Int}, x)
         numeric_radical(Rational{BigInt}(value), r, x)
     end
     magnitude.tail isa RawSymbolicCoeff && return raw_leaf(x)
-    return mul_cnum(magnitude, tiered(monomial_terms, EXACT_ONE, m.syms, Rational{Int}[r]))
+    return magnitude * tiered(monomial_terms, EXACT_ONE, m.syms, Rational{Int}[r])
 end
 
 function to_cnum(x::RawExpression)
@@ -214,11 +174,7 @@ function to_cnum(x::RawExpression)
             return pow_cnum_integer(to_cnum(args[1]), const_int(args[2]))
         base, r = radical_form(x)
         iszero(r) && return raw_leaf(x)
-        op === cbrt || return rational_power(base, r, x)
-        is_exact_number(base) || return raw_leaf(x)
-        value = exact_number(base)
-        value < 0 && return negative_radical(value, r, x, true)
-        return numeric_radical(value, r, x)
+        return rational_power(base, r, x, op === cbrt)
     elseif op === getindex
         return atom_coeff(x)
     elseif op === expim
@@ -226,13 +182,13 @@ function to_cnum(x::RawExpression)
         return raw_leaf(x)
     elseif op === conj
         inner = to_cnum(args[1])
-        (is_native(inner) || is_phase(args[1])) && return conj_cnum(inner)
+        (is_native(inner) || is_phase(args[1])) && return conj(inner)
         return is_atom(x) ? atom_coeff(x) : raw_leaf(x)
     elseif op === (/)
         length(args) == 2 || return raw_leaf(x)
         numerator = to_cnum(args[1])
-        is_const_int(args[2]) && return mul_cnum(numerator, to_cnum(1 // const_int(args[2])))
-        return div_cnum(numerator, to_cnum(args[2]))
+        is_const_int(args[2]) && return numerator * to_cnum(1 // const_int(args[2]))
+        return numerator / to_cnum(args[2])
     elseif op === complex
         length(args) == 2 && return cnum(Num(args[1]), Num(args[2]))
         return raw_leaf(x)
@@ -271,17 +227,17 @@ function recognize_sum(args)
         ca = to_cnum(a)
         t = ca.tail
         if t isa Native
-            znative = add_cnum(znative, ca)
+            znative = znative + ca
         elseif t isa Poly
             push!(parts, ca)
         else
-            sym = add_cnum(sym, ca)
+            sym = sym + ca
             have_sym = true
         end
     end
     iszero(znative) || push!(parts, znative)
     poly = tiered(summed_terms, parts)
-    return have_sym ? add_cnum(poly, sym) : poly
+    return have_sym ? poly + sym : poly
 end
 
 function summed_terms(::Type{E}, parts::Vector{Coeff}) where {E}
@@ -307,12 +263,12 @@ function recognize_prod(args)
         if t isa Native || (t isa Poly && length(t.terms) == 1)
             push!(factors, ca)
         else
-            other = mul_cnum_slow(other, ca)
+            other = mul_coeff_slow(other, ca)
             have_other = true
         end
     end
     mono = tiered(product_terms, factors)
-    return have_other ? mul_cnum_slow(mono, other) : mono
+    return have_other ? mul_coeff_slow(mono, other) : mono
 end
 
 function product_terms(::Type{E}, factors::Vector{Coeff}) where {E}
@@ -331,49 +287,14 @@ function product_terms(::Type{E}, factors::Vector{Coeff}) where {E}
         end
     end
     iszero(scalar) && return Monomial{E}[]
-    several_phases = count(is_phase, syms) > 1
-    syms, exps = merge_factor_list(syms, exps)
-    several_phases && return Monomial{E}[canonical_phase_monomial!(E, scalar, syms, exps)]
-    return Monomial{E}[Monomial{E}(normalize_scalar(scalar), syms, exps)]
-end
-
-function radical_form(x::RawExpression)
-    SymbolicUtils.iscall(x) || return (x, 0 // 1)
-    op = SymbolicUtils.operation(x)
-    args = SymbolicUtils.arguments(x)
-    if length(args) == 1
-        op === sqrt && return (only(args), 1 // 2)
-        op === cbrt && return (only(args), 1 // 3)
-    elseif op === (^) && length(args) == 2 && is_rational_exponent(args[2])
-        return (args[1], rational_exponent(args[2]))
-    end
-    return (x, 0 // 1)
-end
-
-function split_radicals(x::RawExpression)
-    factors = is_call_of(x, *) ? SymbolicUtils.arguments(x) : (x,)
-    radicals = CNUM_ONE
-    rest = RawExpression[]
-    for f in factors
-        f isa RawExpression || return (CNUM_ONE, RawExpression[x])
-        base, r = radical_form(f)
-        if !iszero(r) && is_exact_number(base) && exact_number(base) >= 0
-            c = numeric_radical(exact_number(base), r, f)
-            if is_polynomial_coeff(c)
-                radicals = mul_cnum(radicals, c)
-                continue
-            end
-        end
-        push!(rest, f)
-    end
-    return (radicals, rest)
+    return Monomial{E}[monomial(E, scalar, syms, exps)]
 end
 
 function raw_product(x::RawExpression, y::RawExpression)
     rx, restx = split_radicals(x)
     ry, resty = split_radicals(y)
     (is_native(rx) && is_native(ry)) && return x * y
-    result = raw_tail(mul_cnum(rx, ry))
+    result = raw_tail(rx * ry)
     for f in restx
         result = result * f
     end

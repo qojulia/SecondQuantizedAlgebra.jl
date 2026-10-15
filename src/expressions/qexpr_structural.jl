@@ -14,7 +14,7 @@ function substitute_qexpr_split(
         phase_rules::PhaseRules,
     )
     new_coeff = substitute_cnum(q.coeff, scalar_rules, phase_rules)
-    iszero_cnum(new_coeff) && return qexpr_zero()
+    iszero(new_coeff) && return qexpr_zero()
 
     args = QExprArg[]
     sizehint!(args, length(q.args))

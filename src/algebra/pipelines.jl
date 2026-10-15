@@ -53,7 +53,7 @@ indices may collapse).
     copyto!(ops, 1, ta_ops, 1, length(ta_ops))
     copyto!(ops, length(ta_ops) + 1, tb_ops, 1, length(tb_ops))
     ne = merge_ne(ta_ne, tb_ne)
-    c = mul_cnum(ca, cb)
+    c = ca * cb
     if needs_diag_split
         accumulate_with_diag!(out, ops, c, sum_indices, ne)
     else

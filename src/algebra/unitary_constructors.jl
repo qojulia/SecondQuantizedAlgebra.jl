@@ -5,7 +5,7 @@ function fock_displacement(d::Op, c::CNum)
             CNUM_ONE CNUM_ZERO
             CNUM_ZERO CNUM_ONE
         ],
-        CNum[c, conj_cnum(c)],
+        CNum[c, conj(c)],
     )
     return canonical_transform(action)
 end
@@ -14,16 +14,7 @@ function fock_displacement_gauge(
         d::Op, c::CNum, derivative::CNum, derivative_adjoint::CNum,
         raising_coefficient::CNum, lowering_coefficient::CNum,
     )
-    scalar = mul_cnum(
-        CNUM_NEG_IM,
-        mul_cnum(
-            CNUM_HALF,
-            add_cnum(
-                mul_cnum(conj_cnum(c), derivative),
-                neg_cnum(mul_cnum(c, derivative_adjoint)),
-            ),
-        ),
-    )
+    scalar = CNUM_NEG_IM * (CNUM_HALF * (conj(c) * derivative - c * derivative_adjoint))
     return rule_qadd(
         (raising_coefficient, Op[adjoint(d)]),
         (lowering_coefficient, Op[d]),
@@ -73,11 +64,11 @@ function Displace(a::Op, α::Coefficient, t::Num)
     tt = time_or_throw(t)
     c = to_cnum(α)
     derivative = dt(c, tt)
-    derivative_adjoint = conj_cnum(derivative)
+    derivative_adjoint = conj(derivative)
     gauge = fock_displacement_gauge(
         d, c, derivative, derivative_adjoint,
-        mul_cnum(CNUM_NEG_IM, derivative),
-        mul_cnum(CNUM_IM, derivative_adjoint),
+        CNUM_NEG_IM * derivative,
+        CNUM_IM * derivative_adjoint,
     )
     return timed_transform(fock_displacement(d, c), gauge, tt)
 end
@@ -202,12 +193,12 @@ end
 function single_mode_squeeze(a::Op, r::Real, ϕ::Real)
     d = fock_or_throw(a, "`Squeeze`")
     ch = to_cnum(cosh(r))
-    sh = mul_cnum(phase(ϕ), to_cnum(sinh(r)))
+    sh = phase(ϕ) * to_cnum(sinh(r))
     action = AffineAction(
         Op[d, adjoint(d)],
         CNum[
             ch sh
-            conj_cnum(sh) conj_cnum(ch)
+            conj(sh) conj(ch)
         ],
         CNum[CNUM_ZERO, CNUM_ZERO];
         relations = ParamRelation[hyp_rel(r)],
@@ -218,25 +209,19 @@ end
 function squeeze_gauge(d::Op, r::Real, ϕ::Real, t::Num)
     sh = to_cnum(sinh(r))
     ch = to_cnum(cosh(r))
-    imaginary_dr = mul_cnum(CNUM_IM, dt(r, t))
+    imaginary_dr = CNUM_IM * dt(r, t)
     dϕ = dt(ϕ, t)
-    diagonal = mul_cnum(dϕ, mul_cnum(sh, sh))
-    mixing = mul_cnum(dϕ, mul_cnum(sh, ch))
+    diagonal = dϕ * (sh * sh)
+    mixing = dϕ * (sh * ch)
     return rule_qadd(
         (diagonal, Op[adjoint(d), d]),
-        (mul_cnum(CNUM_HALF, diagonal), Op[]),
+        (CNUM_HALF * diagonal, Op[]),
         (
-            mul_cnum(
-                CNUM_HALF,
-                mul_cnum(phase(ϕ), add_cnum(mixing, neg_cnum(imaginary_dr))),
-            ),
+            CNUM_HALF * (phase(ϕ) * (mixing - imaginary_dr)),
             Op[adjoint(d), adjoint(d)],
         ),
         (
-            mul_cnum(
-                CNUM_HALF,
-                mul_cnum(conj_phase(ϕ), add_cnum(mixing, imaginary_dr)),
-            ),
+            CNUM_HALF * (conj_phase(ϕ) * (mixing + imaginary_dr)),
             Op[d, d],
         ),
     )
@@ -269,14 +254,14 @@ function fock_mode_rotation(a::Op, b::Op, θ::Real)
     x, y = two_modes(a, b, "`Rotation`")
     c = to_cnum(cos(θ))
     s = to_cnum(sin(θ))
-    negative_s = neg_cnum(s)
+    negative_s = -s
     action = AffineAction(
         Op[x, y, adjoint(x), adjoint(y)],
         CNum[
             c s CNUM_ZERO CNUM_ZERO
             negative_s c CNUM_ZERO CNUM_ZERO
-            CNUM_ZERO CNUM_ZERO conj_cnum(c) conj_cnum(s)
-            CNUM_ZERO CNUM_ZERO neg_cnum(conj_cnum(s)) conj_cnum(c)
+            CNUM_ZERO CNUM_ZERO conj(c) conj(s)
+            CNUM_ZERO CNUM_ZERO -conj(s) conj(c)
         ],
         CNum[CNUM_ZERO, CNUM_ZERO, CNUM_ZERO, CNUM_ZERO];
         relations = ParamRelation[trig_rel(θ)],
@@ -292,7 +277,7 @@ function quadrature_rotation(x::Op, p::Op, θ::Real)
         Op[x, p],
         CNum[
             c s
-            neg_cnum(s) c
+            -s c
         ],
         CNum[CNUM_ZERO, CNUM_ZERO];
         relations = ParamRelation[trig_rel(θ)],
@@ -324,8 +309,8 @@ function fock_two_mode_squeeze(a::Op, b::Op, r::Real)
         CNum[
             u CNUM_ZERO CNUM_ZERO v
             CNUM_ZERO u v CNUM_ZERO
-            CNUM_ZERO conj_cnum(v) conj_cnum(u) CNUM_ZERO
-            conj_cnum(v) CNUM_ZERO CNUM_ZERO conj_cnum(u)
+            CNUM_ZERO conj(v) conj(u) CNUM_ZERO
+            conj(v) CNUM_ZERO CNUM_ZERO conj(u)
         ],
         CNum[CNUM_ZERO, CNUM_ZERO, CNUM_ZERO, CNUM_ZERO];
         relations = ParamRelation[hyp_rel(r)],
@@ -380,13 +365,7 @@ function quadrature_displacement_gauge(
         derivative_x::CNum, derivative_p::CNum,
         x_coefficient::CNum, p_coefficient::CNum,
     )
-    scalar = mul_cnum(
-        neg_cnum(CNUM_HALF),
-        add_cnum(
-            mul_cnum(cp, derivative_x),
-            neg_cnum(mul_cnum(cx, derivative_p)),
-        ),
-    )
+    scalar = -CNUM_HALF * (cp * derivative_x - cx * derivative_p)
     return rule_qadd(
         (x_coefficient, Op[x]), (p_coefficient, Op[p]), (scalar, Op[]),
     )
@@ -406,7 +385,7 @@ function Displace(x::Op, p::Op, dx::Real, dp::Real, t::Num)
     derivative_p = dt(cp, tt)
     gauge = quadrature_displacement_gauge(
         x, p, cx, cp, derivative_x, derivative_p,
-        derivative_p, neg_cnum(derivative_x),
+        derivative_p, -derivative_x,
     )
     return timed_transform(quadrature_displacement(x, p, cx, cp), gauge, tt)
 end
@@ -434,7 +413,7 @@ function Rotation(S::Op, axis::Integer, θ::Real)
     action = AffineAction(
         Op[u, v, fixed],
         CNum[
-            c neg_cnum(s) CNUM_ZERO
+            c -s CNUM_ZERO
             s c CNUM_ZERO
             CNUM_ZERO CNUM_ZERO CNUM_ONE
         ],
@@ -484,8 +463,8 @@ function matrix_unit_action(σ::Op, W::Matrix{Coeff}, Wdagger::Matrix{Coeff})
     for i in 1:n, j in 1:n
         row = (i - 1) * n + j
         for k in 1:n, l in 1:n
-            coefficient = mul_cnum(Wdagger[k, i], W[j, l])
-            iszero_cnum(coefficient) && continue
+            coefficient = Wdagger[k, i] * W[j, l]
+            iszero(coefficient) && continue
             column = (k - 1) * n + l
             linear[row, column] = coefficient
         end
@@ -499,7 +478,7 @@ function dagger_coefficients(W::Matrix{Coeff})
     n = size(W, 1)
     out = Matrix{Coeff}(undef, n, n)
     for j in 1:n, i in 1:n
-        out[i, j] = conj_cnum(W[j, i])
+        out[i, j] = conj(W[j, i])
     end
     return out
 end
@@ -521,18 +500,16 @@ function nlevel_gauge(σ::Op, W::Matrix{Coeff}, t::Num)
     n = size(W, 1)
     conjugated_derivatives = Matrix{Coeff}(undef, n, n)
     for j in 1:n, k in 1:n
-        conjugated_derivatives[k, j] = conj_cnum(dt(W[k, j], t))
+        conjugated_derivatives[k, j] = conj(dt(W[k, j], t))
     end
     gauge = QTermDict()
     for j in 1:n, l in 1:n
         coefficient = CNUM_ZERO
         for k in 1:n
-            coefficient = add_cnum(
-                coefficient, mul_cnum(conjugated_derivatives[k, j], W[k, l]),
-            )
+            coefficient = coefficient + conjugated_derivatives[k, j] * W[k, l]
         end
-        coefficient = mul_cnum(CNUM_IM, coefficient)
-        iszero_cnum(coefficient) ||
+        coefficient = CNUM_IM * coefficient
+        iszero(coefficient) ||
             addto!(gauge, Op[transition_op(σ, j, l)], coefficient)
     end
     return QAdd(gauge, EMPTY_INDICES)

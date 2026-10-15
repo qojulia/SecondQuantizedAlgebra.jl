@@ -5,7 +5,7 @@ function map_sides(f::F, S::SuperOperator) where {F}
         rt = f(t.right, t.ne)
         temp = SuperTermDict()
         for (a, ca) in lt, (b, cb) in rt
-            addto_key!(temp, SuperTerm(a.ops, b.ops, t.ne), mul_cnum(c, mul_cnum(ca, cb)))
+            addto_key!(temp, SuperTerm(a.ops, b.ops, t.ne), c * (ca * cb))
         end
         settle_scope!(out, temp, bound_indices(t, c, S.indices))
     end
@@ -24,7 +24,7 @@ function map_coefficients(f::F, S::SuperOperator) where {F}
     out = SuperTermDict()
     for (t, c) in S.arguments
         nc = to_cnum(f(c))
-        iszero_cnum(nc) && continue
+        iszero(nc) && continue
         if isempty(S.indices) || nc === c
             addto_key!(out, copy_key(t), nc)
             continue
@@ -61,13 +61,13 @@ function substitute_split(S::SuperOperator, op_rules::OpRules, scalar_rules::Sca
     out = SuperTermDict()
     for (t, c) in S.arguments
         nc = substitute_cnum(c, scalar_rules, phase_rules)
-        iszero_cnum(nc) && continue
+        iszero(nc) && continue
         lt = substitute_side(t.left, t.ne, op_rules, scalar_rules)
         rt = substitute_side(t.right, t.ne, op_rules, scalar_rules)
         bound = bound_indices(t, c, S.indices)
         for (a, ca) in lt.arguments, (b, cb) in rt.arguments
             settle_sandwich!(
-                out, a.ops, b.ops, mul_cnum(nc, mul_cnum(ca, cb)),
+                out, a.ops, b.ops, nc * (ca * cb),
                 merge_ne(t.ne, merge_ne(a.ne, b.ne)), bound,
             )
         end
@@ -288,13 +288,13 @@ accumulate!(b::SuperBuilder, L::Lindbladian{QAdd}) = accumulate!(b, SuperOperato
 
 function accumulate!(b::SuperBuilder, c::Coefficient, A::Union{QField, Coefficient}, B::Union{QField, Coefficient})
     cc = to_cnum(c)
-    iszero_cnum(cc) && return b
+    iszero(cc) && return b
     Aq = as_side(A)
     Bq = as_side(B)
     isempty(Aq.indices) || summed_side_error("`accumulate!`")
     isempty(Bq.indices) || summed_side_error("`accumulate!`")
     for (ta, ca) in Aq.arguments, (tb, cb) in Bq.arguments
-        canonical_sandwich!(b.args, ta.ops, tb.ops, mul_cnum(cc, mul_cnum(ca, cb)), merge_ne(ta.ne, tb.ne))
+        canonical_sandwich!(b.args, ta.ops, tb.ops, cc * (ca * cb), merge_ne(ta.ne, tb.ne))
     end
     return b
 end

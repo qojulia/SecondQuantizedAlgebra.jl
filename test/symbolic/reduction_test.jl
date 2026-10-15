@@ -39,6 +39,7 @@ import SecondQuantizedAlgebra: exponential_form, trigonometric_form
         @test iszero(simplify((identity - 1) * a))
         @test iszero(simplify(substitute((identity - 1) * a, Dict(t => 2))))
         @test iszero(simplify((cos(θ) * sin(θ) - sin(2θ) / 2) * a))
+        @test isequal(simplify((identity + cos(θ)^2) * a), (1 + cos(θ)^2) * a)
         @test isequal(simplify(g * a), g * a)
     end
 

@@ -26,7 +26,7 @@ end
     return 0
 end
 
-function replace_exps(m::Monomial, i::Int, ei::Rational{Int}, j::Int, ej::Rational{Int})
+function replace_exps(m::Monomial{E}, i::Int, ei::Rational{Int}, j::Int, ej::Rational{Int}) where {E}
     n = length(m.syms)
     syms = RawExpression[]
     exps = Rational{Int}[]
@@ -38,7 +38,7 @@ function replace_exps(m::Monomial, i::Int, ei::Rational{Int}, j::Int, ej::Ration
         push!(syms, m.syms[k])
         push!(exps, e)
     end
-    return with_factors(m, syms, exps)
+    return Monomial{E}(monomial_scalar(m), syms, exps)
 end
 
 @inline reducible_power(m::Monomial, i::Int) =
@@ -76,14 +76,7 @@ function exceeds_relation_budget(terms::Vector{<:Monomial}, hi)
 end
 
 function reduce_pythagorean(terms::Vector{Monomial{E}}, hi, lo, sign::Int8) where {E}
-    reducible = false
-    for m in terms
-        if reducible_power(m, find_factor(m, hi))
-            reducible = true
-            break
-        end
-    end
-    reducible || return (terms, false)
+    any(m -> reducible_power(m, find_factor(m, hi)), terms) || return (terms, false)
     exceeds_relation_budget(terms, hi) && return (terms, false)
     out = Monomial{E}[]
     pow = Monomial{E}[]
@@ -108,19 +101,17 @@ function reduce_pythagorean(terms::Vector{Monomial{E}}, hi, lo, sign::Int8) wher
     return (canonical_terms!(out), true)
 end
 
-apply_relation(terms::Vector{<:Monomial}, r::ParamRelation) = reduce_pythagorean(
-    terms, SymbolicUtils.unwrap(r.hi), SymbolicUtils.unwrap(r.lo), r.sign,
-)
-
 const MAX_REDUCE_PASSES = 8
 
-function reduce_terms(terms::Vector{<:Monomial}, rels::Vector{ParamRelation}, gated::Bool)
+function reduce_terms(::Type{E}, terms::Vector{Monomial{E}}, rels::Vector{ParamRelation}, gated::Bool) where {E}
     isempty(rels) && return terms
     cur = terms
     for _ in 1:MAX_REDUCE_PASSES
         progress = false
         for r in rels
-            new, changed = apply_relation(cur, r)
+            new, changed = reduce_pythagorean(
+                cur, SymbolicUtils.unwrap(r.hi), SymbolicUtils.unwrap(r.lo), r.sign,
+            )
             changed || continue
             (gated && length(new) >= length(cur)) && continue
             cur = new
@@ -140,8 +131,6 @@ end
 @inline is_unary_call(x) =
     x isa SymbolicUtils.BasicSymbolic && SymbolicUtils.iscall(x) &&
     length(SymbolicUtils.arguments(x)) == 1
-
-trig_relations(terms::Vector{<:Monomial}) = trig_relations!(ParamRelation[], terms)
 
 function trig_relations!(rels::Vector{ParamRelation}, terms::Vector{<:Monomial})
     from = length(rels) + 1
@@ -194,15 +183,13 @@ function sort_rels!(rels::Vector{ParamRelation}, from::Int)
 end
 
 reduce_tail(t::Poly, rels::Vector{ParamRelation}, gated::Bool) =
-    tiered(reduced_terms, t, rels, gated)
-@inline reduced_terms(::Type{E}, terms::Vector{Monomial{E}}, rels, gated::Bool) where {E} =
-    reduce_terms(terms, rels, gated)
+    tiered(reduce_terms, t, rels, gated)
 
 function reduce_trig(c::Coeff)
     t = c.tail
     t isa Poly || return c
     has_trig_factor(t.terms) || return c
-    rels = trig_relations(t.terms)
+    rels = trig_relations!(ParamRelation[], t.terms)
     isempty(rels) && return c
     return reduce_tail(t, rels, true)
 end
@@ -256,7 +243,7 @@ function reduce_raw_via_transient(
     reduced.tail isa Native && return reduced
     result = SymbolicUtils.unwrap(Symbolics.substitute(Num(raw_tail(reduced)), back))
     result isa RawExpression || return c
-    return from_raw(result, tail.known_real)
+    return raw_coeff(result, tail.known_real)
 end
 
 function has_symbolic_trig(x)
@@ -312,10 +299,7 @@ function reduce_all(
     end
     if has_symbolic_trig(t.expr)
         trig_relations!(scratch, collect_trig!(RawExpression[], t.expr))
-        isempty(scratch) && return c
-        return reduce_raw_via_transient(c, scratch, gated)
-    end
-    if all(is_trig_relation, rels)
+    elseif all(is_trig_relation, rels)
         any(r -> raw_uses_trig_relation(t.expr, r), rels) || return c
     end
     isempty(scratch) && return c

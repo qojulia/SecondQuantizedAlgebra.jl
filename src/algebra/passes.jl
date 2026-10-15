@@ -30,7 +30,7 @@ must not mutate after this call. Pre-condition: `ops` is in canonical form.
 @inline function canonicalize_to_dict!(
         out::QTermDict, ops::Vector{Op}, c::CNum, ne::Vector{NonEqualPair},
     )
-    iszero_cnum(c) && return out
+    iszero(c) && return out
     return addto_key!(out, QTerm(ops, canonical_ne(ne)), c)
 end
 
@@ -57,8 +57,8 @@ same-site pair `(a, b)` for which `reduce_pair(a, b)` returns a reduction.
         if kind === NoReduction
             i += 1
         else
-            iszero_cnum(factor) && return
-            c = mul_cnum(c, factor)
+            iszero(factor) && return
+            c = c * factor
             if kind === ScalarReduction
                 deleteat!(ops, i:(i + 1))
             else
@@ -101,17 +101,17 @@ function commute_ops_at(sink::F, ops::Vector{Op}, c::CNum, start::Int) where {F}
             swapped[i] = sw_b
             swapped[i + 1] = sw_a
             commute_ops_at(sink, swapped, c, max(i - 1, 1))
-            new_c2 = mul_cnum(c, residual2_coeff)
-            if !iszero_cnum(new_c2)
+            new_c2 = c * residual2_coeff
+            if !iszero(new_c2)
                 residual2 = copy(ops)
                 deleteat!(residual2, i:(i + 1))
                 for (k, op) in enumerate(residual2_ops)
                     insert!(residual2, i + k - 1, op)
                 end
-                iszero_cnum(residual2_coeff) || commute_ops_at(sink, residual2, new_c2, max(i - 1, 1))
+                iszero(residual2_coeff) || commute_ops_at(sink, residual2, new_c2, max(i - 1, 1))
             end
-            new_c = mul_cnum(c, residual_coeff)
-            iszero_cnum(new_c) && return
+            new_c = c * residual_coeff
+            iszero(new_c) && return
             deleteat!(ops, i:(i + 1))
             for (k, op) in enumerate(residual_ops)
                 insert!(ops, i + k - 1, op)
@@ -153,7 +153,7 @@ function expand_gs_ops(sink::F, ops::Vector{Op}, c::CNum) where {F}
         k == idx || push!(id_ops, ops[k])
     end
     expand_gs_ops(sink, id_ops, c)
-    neg_c = neg_cnum(c)
+    neg_c = -c
     for k in 1:n_levels
         k == g && continue
         new_ops = copy(ops)
@@ -169,15 +169,6 @@ end
     SymbolicUtils.symtype(x) <: Real
 @inline provably_real_replacement(x) = false
 
-@inline function raw_depends_on(x, variable)
-    isequal(x, variable) && return true
-    x isa SymbolicUtils.BasicSymbolic || return false
-    SymbolicUtils.iscall(x) || return false
-    for argument in SymbolicUtils.arguments(x)
-        raw_depends_on(argument, variable) && return true
-    end
-    return false
-end
 
 const ScalarRules = Dict{RawExpression, RawExpression}
 const PhaseRules = Vector{Pair{RawExpression, RawExpression}}
@@ -250,7 +241,7 @@ function substitute_cnum(c::CNum, d::ScalarRules, phase_rules::PhaseRules = nonr
     isempty(d) && return c
     is_native(c) && return c
     validate_phase_substitutions(c, phase_rules)
-    raw = lower_complex_slots(raw_tail(c))
+    raw = raw_rule(c)
     new_raw = SymbolicUtils.substitute(raw, d)
     isequal(new_raw, raw) && return c
     return to_cnum(new_raw)

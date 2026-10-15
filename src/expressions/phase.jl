@@ -109,7 +109,7 @@ function phase_coeff_expanded(a::Num)
     SymbolicUtils.symtype(u) <: Real || return nonreal_phase_argument(a)
     angle, flipped = canonical_angle(a, 1)
     c = atom_coeff(expim_expanded(angle))
-    return flipped ? conj_cnum(c) : c
+    return flipped ? conj(c) : c
 end
 
 function canonical_angle(argument::Num, n::Int)
@@ -132,6 +132,24 @@ end
     return (only(SymbolicUtils.arguments(args[1])), const_int(args[2]))
 end
 
+function split_phase_factors(factors)
+    ordinary = RawExpression[]
+    angle = RAW_ZERO
+    phase_factors = 0
+    changed = false
+    for factor in factors
+        if is_phase_power(factor)
+            argument, exponent = phase_power(factor)
+            angle += exponent * argument
+            phase_factors += 1
+            changed |= exponent != 1
+        else
+            push!(ordinary, factor)
+        end
+    end
+    return (ordinary, angle, phase_factors, changed)
+end
+
 function rewrite_phase(x::RawExpression)
     SymbolicUtils.iscall(x) || return x
     op = SymbolicUtils.operation(x)
@@ -145,38 +163,12 @@ function rewrite_phase(x::RawExpression)
     elseif op === (/) && length(args) == 2
         denominator = args[2]
         factors = is_call_of(denominator, *) ? SymbolicUtils.arguments(denominator) : (denominator,)
-        angle = RAW_ZERO
-        found_phase = false
-        ordinary = RAW_ONE
-        has_ordinary = false
-        for factor in factors
-            if is_phase_power(factor)
-                argument, exponent = phase_power(factor)
-                angle += exponent * argument
-                found_phase = true
-            else
-                ordinary *= factor
-                has_ordinary = true
-            end
-        end
-        found_phase || return x
-        amplitude = has_ordinary ? args[1] / ordinary : args[1]
+        any(is_phase_power, factors) || return x
+        ordinary, angle, _, _ = split_phase_factors(factors)
+        amplitude = isempty(ordinary) ? args[1] : args[1] / foldl(*, ordinary; init = RAW_ONE)
         return amplitude * expim_expanded(SymbolicUtils.expand(-angle))
     elseif op === (*)
-        ordinary = RawExpression[]
-        angle = RAW_ZERO
-        phase_factors = 0
-        changed = false
-        for factor in args
-            if !is_phase_power(factor)
-                push!(ordinary, factor)
-                continue
-            end
-            argument, exponent = phase_power(factor)
-            angle += exponent * argument
-            phase_factors += 1
-            changed |= exponent != 1
-        end
+        ordinary, angle, phase_factors, changed = split_phase_factors(args)
         (phase_factors >= 2 || changed) || return x
         expanded_angle = SymbolicUtils.expand(angle)
         no_phase = is_const_zero(expanded_angle)

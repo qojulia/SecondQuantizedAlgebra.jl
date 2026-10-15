@@ -42,6 +42,7 @@ This is a breaking release for type stability: public functions no longer use `n
 - `substitute` rejects a scalar replacement that is not a number or symbolic expression with an `ArgumentError`.
 - QuantumToolbox time-dependent operators compile all coefficients into one function, so applying them in `sesolve`/`mesolve` no longer dispatches per term.
 - Symbolic coefficient arithmetic is faster: a parameter-polynomial term stores its scalar in a concrete slot instead of a union-typed field ([#292](https://github.com/qojulia/SecondQuantizedAlgebra.jl/issues/292)).
+- A function of a product of real parameters, such as `cos(ω*t)`, is a polynomial atom: arithmetic on it is about ten times faster, and `simplify` cancels `cos(ω*t)^2 + sin(ω*t)^2` inside larger sums.
 
 ### Fixed
 
