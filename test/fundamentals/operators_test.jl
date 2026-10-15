@@ -193,6 +193,9 @@ end
         h = FockSpace(:f) ⊗ NLevelSpace(:n, 2, 1)
         @test acts_on(Destroy(FockSpace(:solo), :a)) == [1]
         @test length(find_operators(h, 1)) == length(fundamental_operators(h))
+        second = find_operators(h, 2)
+        @test count(x -> isequal(x, Transition(h, :σ, 2, 2, 2)), second) == 1
+        @test allunique(second)
         dup = FockSpace(:left) ⊗ FockSpace(:right)
         @test Set(operator_name.(find_operators(dup, 1))) == Set([:a, :b])
         hs = SpinSpace(:s)

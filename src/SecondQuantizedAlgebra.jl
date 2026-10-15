@@ -88,22 +88,26 @@ include("printing/superoperator.jl")
 """
     @qnumbers ops...
 
-Convenience macro for constructing named quantum operators.
+Define operators and bind each to a variable of the same name.
 
-Each argument has the form `name::OperatorType(hilbert_space, args...)`. The macro
-calls `OperatorType(hilbert_space, :name, args...)` and binds the result to `name`
-in the calling scope. Multiple operators can be declared in one call.
+Each argument reads `name::Constructor(space, args...)` and stands for
+`name = Constructor(space, :name, args...)`, so the operator name is written once.
+Several operators can be declared in one call.
 
 # Examples
-```jldoctest
-julia> h = FockSpace(:fock);
 
-julia> @qnumbers a::Destroy(h)
-(a,)
+```jldoctest
+julia> h = FockSpace(:cavity) ⊗ NLevelSpace(:atom, 2);
+
+julia> @qnumbers a::Destroy(h, 1) σ::Transition(h, 1, 2, 2)
+(a, σ₁₂)
+
+julia> a' * σ
+a' * σ₁₂
 ```
 
-See also [`Destroy`](@ref), [`Transition`](@ref), [`CollectiveTransition`](@ref),
-[`Pauli`](@ref), [`Spin`](@ref).
+See also [`Destroy`](@ref), [`Transition`](@ref), [`Pauli`](@ref), [`Spin`](@ref),
+[`Position`](@ref), [`Momentum`](@ref), [`CollectiveTransition`](@ref).
 """
 macro qnumbers(qs...)
     ex = Expr(:block)

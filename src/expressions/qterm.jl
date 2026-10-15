@@ -1,15 +1,22 @@
 """
     QTerm
 
-A single entry of a [`QAdd`](@ref) sum: an ordered operator product plus the
-pairwise index inequality constraints that scope that product.
+Operator product of one term of an expression.
 
-# Fields
-- `ops::Vector{Op}` — the ordered operator product
-- `ne::Vector{NonEqualPair}` — pairwise `α ≠ β` constraints (canonicalized)
+Iterating an expression gives pairs `term => coefficient` of a `QTerm` and a
+[`Coeff`](@ref). The field `ops` holds the operators in canonical order, and `ne` the pairs
+of indices the term requires to differ. It is public but not exported.
 
-`QTerm` is the dict key in [`QTermDict`](@ref); iterating a `QAdd` yields
-`Pair{QTerm, CNum}`, and callers reach `term.ops` / `term.ne` directly.
+# Examples
+```jldoctest
+julia> a = Destroy(FockSpace(:cavity), :a);
+
+julia> [term.ops for (term, c) in 2 * a' * a]
+1-element Vector{Vector{Op}}:
+ [a', a]
+```
+
+See also [`Coeff`](@ref), [`get_operators`](@ref).
 """
 struct QTerm
     ops::Vector{Op}
@@ -29,7 +36,7 @@ Base.hash(term::QTerm, h::UInt) = hash(term.hash, h)
 """
     QTermDict
 
-Alias for `Dict{QTerm, CNum}` — the storage type backing every [`QAdd`](@ref).
+Alias for `Dict{QTerm, CNum}`, the storage type backing every [`QAdd`](@ref).
 Each entry maps an exact term identity `(ops, ne)` to its prefactor. Iteration
 yields `Pair{QTerm, CNum}`; callers reach `term.ops` and `term.ne` directly.
 """
