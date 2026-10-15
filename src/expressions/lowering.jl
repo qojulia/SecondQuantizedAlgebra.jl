@@ -35,38 +35,7 @@ function radical_expression(n::RadicalPrime, f::Rational{Int})
 end
 
 function term_to_num(m::Monomial)
-    prod = NUM_ONE
-    @inbounds for i in eachindex(m.syms)
-        s = m.syms[i]
-        e = m.exps[i]
-        is_radical_atom(s) && continue
-        if e < 0 && is_phase(s)
-            s = expim_symbolic(-only(SymbolicUtils.arguments(s)))
-            e = -e
-        end
-        base = Num(s)
-        q = div(numerator(e), denominator(e))
-        if q >= 0
-            for _ in 1:q
-                prod = prod * base
-            end
-        else
-            for _ in 1:(-q)
-                prod = prod / base
-            end
-        end
-        f = e - q
-        if f == 1 // 2
-            prod = prod * sqrt(base)
-        elseif f == -1 // 2
-            prod = prod / sqrt(base)
-        elseif f != 0
-            prod = prod * Num(SymbolicUtils.unwrap(base)^f)
-        end
-    end
-    for (f, n) in radical_factors(m)
-        prod = prod * Num(radical_expression(n, f))
-    end
+    prod = Num(factors_to_raw(m, num_power))
     scalar = monomial_scalar(m)
     real_scalar, imag_scalar = real(scalar), imag(scalar)
     re = iszero(real_scalar) ? NUM_ZERO : num_from_scalar(real_scalar) * prod
@@ -142,16 +111,31 @@ function raw_power(symbol::RawExpression, exponent::Rational{Int})
     return symbol^exponent
 end
 
-function factors_to_raw(m::Monomial)
+function num_power(symbol::RawExpression, exponent::Rational{Int})
+    if exponent < 0 && is_phase(symbol)
+        symbol = SymbolicUtils.unwrap(expim_symbolic(-only(SymbolicUtils.arguments(symbol))))
+        exponent = -exponent
+    end
+    q = div(numerator(exponent), denominator(exponent))
+    whole = q >= 0 ? symbol^q : 1 / symbol^(-q)
+    f = exponent - q
+    f == 1 // 2 && return whole * sqrt(symbol)
+    f == -1 // 2 && return whole / sqrt(symbol)
+    f == 0 && return whole
+    return whole * symbol^f
+end
+
+function factors_to_raw(m::Monomial, power::F = raw_power) where {F}
     factors = RawExpression[]
     @inbounds for i in eachindex(m.syms)
         symbol = m.syms[i]
         is_radical_atom(symbol) && continue
-        push!(factors, raw_power(symbol, m.exps[i]))
+        push!(factors, power(symbol, m.exps[i]))
     end
     for (f, n) in radical_factors(m)
         push!(factors, radical_expression(n, f))
     end
+    isempty(factors) && return RAW_ONE
     return reduce(*, factors)
 end
 

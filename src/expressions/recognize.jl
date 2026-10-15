@@ -244,6 +244,24 @@ function to_cnum(x::RawExpression)
     return is_atom(x) ? atom_coeff(x) : raw_leaf(x)
 end
 
+function fold_tree(leaf::F, x::RawExpression) where {F}
+    SymbolicUtils.iscall(x) || return leaf(x)
+    op = SymbolicUtils.operation(x)
+    args = SymbolicUtils.arguments(x)
+    if op === (+) || op === (*)
+        result = fold_tree(leaf, args[1])
+        for k in 2:lastindex(args)
+            result = op(result, fold_tree(leaf, args[k]))
+        end
+        return result
+    elseif op === (/) && length(args) == 2
+        return fold_tree(leaf, args[1]) / fold_tree(leaf, args[2])
+    elseif op === (^) && length(args) == 2 && is_const_int(args[2])
+        return fold_tree(leaf, args[1])^const_int(args[2])
+    end
+    return leaf(x)
+end
+
 function recognize_sum(args)
     parts = Coeff[]
     znative = CNUM_ZERO

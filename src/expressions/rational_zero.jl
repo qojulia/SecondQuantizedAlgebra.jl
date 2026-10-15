@@ -19,7 +19,7 @@ function checked_rational_form(num::Coeff, den::Coeff)
     return RationalForm(num, den)
 end
 
-function rational_form_mul(a::RationalForm, b::RationalForm)
+function Base.:*(a::RationalForm, b::RationalForm)
     (is_failed_form(a) || is_failed_form(b)) && return RATIONAL_FAIL
     (within_term_budget(a.num, b.num) && within_term_budget(a.den, b.den)) ||
         return RATIONAL_FAIL
@@ -37,18 +37,22 @@ function rational_form_add(a::RationalForm, b::RationalForm, budget::Int)
     return checked_rational_form(num, mul_cnum(a.den, b.den))
 end
 
-@inline rational_form_inv(a::RationalForm) =
+@inline Base.inv(a::RationalForm) =
     (is_failed_form(a) || iszero_cnum(a.num)) ? RATIONAL_FAIL : RationalForm(a.den, a.num)
 
-function rational_form_pow(base::RationalForm, n::Int)
-    n < 0 && return rational_form_pow(rational_form_inv(base), -n)
+function Base.:^(base::RationalForm, n::Int)
+    n == typemin(Int) && return RATIONAL_FAIL
+    n < 0 && return inv(base)^(-n)
     result = RationalForm(CNUM_ONE, CNUM_ONE)
     for _ in 1:n
-        result = rational_form_mul(result, base)
+        result *= base
         is_failed_form(result) && return RATIONAL_FAIL
     end
     return result
 end
+
+Base.:+(a::RationalForm, b::RationalForm) = rational_form_add(a, b, RATIONAL_INNER_SUM_BUDGET)
+Base.:/(a::RationalForm, b::RationalForm) = a * inv(b)
 
 function rational_form(c::Coeff)
     tail = c.tail
@@ -56,37 +60,8 @@ function rational_form(c::Coeff)
     return RationalForm(c, CNUM_ONE)
 end
 
-function rational_form(x::RawExpression)
-    is_numeric_const(x) && return checked_rational_form(const_coeff(x), CNUM_ONE)
-    if SymbolicUtils.iscall(x)
-        op = SymbolicUtils.operation(x)
-        args = SymbolicUtils.arguments(x)
-        if op === (+)
-            result = rational_form(args[1])
-            for k in 2:lastindex(args)
-                is_failed_form(result) && return RATIONAL_FAIL
-                result = rational_form_add(result, rational_form(args[k]), RATIONAL_INNER_SUM_BUDGET)
-            end
-            return result
-        elseif op === (*)
-            result = rational_form(args[1])
-            for k in 2:lastindex(args)
-                is_failed_form(result) && return RATIONAL_FAIL
-                result = rational_form_mul(result, rational_form(args[k]))
-            end
-            return result
-        elseif op === (/) && length(args) == 2
-            num = rational_form(args[1])
-            is_failed_form(num) && return RATIONAL_FAIL
-            return rational_form_mul(num, rational_form_inv(rational_form(args[2])))
-        elseif op === (^) && length(args) == 2 && is_const_int(args[2])
-            n = const_int(args[2])
-            n == typemin(Int) && return RATIONAL_FAIL
-            return rational_form_pow(rational_form(args[1]), n)
-        end
-    end
-    return checked_rational_form(to_cnum(x), CNUM_ONE)
-end
+rational_form(x::RawExpression) = fold_tree(rational_leaf, x)
+rational_leaf(x::RawExpression) = checked_rational_form(to_cnum(x), CNUM_ONE)
 rational_form(x) = RATIONAL_FAIL
 
 function rational_sum_is_zero(a::Coeff, b::Coeff)

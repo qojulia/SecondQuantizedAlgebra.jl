@@ -20,39 +20,20 @@ phase_from_exponential_argument(argument) = phase_coeff(last(realimag(to_cnum(ar
 
 function exponential_tree(x)
     u = SymbolicUtils.unwrap(x)
-    u isa Number && return to_cnum(u)
-    u isa SymbolicUtils.BasicSymbolic || return to_cnum(u)
+    u isa RawExpression || return to_cnum(u)
+    return fold_tree(exponential_leaf, u)
+end
+
+function exponential_leaf(u::RawExpression)
     SymbolicUtils.iscall(u) || return to_cnum(u)
     op = SymbolicUtils.operation(u)
     args = SymbolicUtils.arguments(u)
-    if op === exp && length(args) == 1
-        is_exponential_phase(only(args)) && return phase_from_exponential_argument(only(args))
-        return to_cnum(u)
-    elseif op === cis && length(args) == 1
-        return phase_coeff(only(args))
-    elseif op === cos && length(args) == 1
-        return euler_cos(only(args))
-    elseif op === sin && length(args) == 1
-        return euler_sin(only(args))
-    elseif op === (+)
-        result = CNUM_ZERO
-        for arg in args
-            result = add_cnum(result, exponential_tree(arg))
-        end
-        return result
-    elseif op === (*)
-        result = CNUM_ONE
-        for arg in args
-            result = mul_cnum(result, exponential_tree(arg))
-        end
-        return result
-    elseif op === (/) && length(args) == 2
-        return div_cnum(exponential_tree(args[1]), exponential_tree(args[2]))
-    elseif op === (^) && length(args) == 2
-        exponent = args[2]
-        (exponent isa RawExpression && is_const_int(exponent)) || return to_cnum(u)
-        return pow_cnum_integer(exponential_tree(args[1]), const_int(exponent))
-    end
+    length(args) == 1 || return to_cnum(u)
+    argument = only(args)
+    op === exp && is_exponential_phase(argument) && return phase_from_exponential_argument(argument)
+    op === cis && return phase_coeff(argument)
+    op === cos && return euler_cos(argument)
+    op === sin && return euler_sin(argument)
     return to_cnum(u)
 end
 
