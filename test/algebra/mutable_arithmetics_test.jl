@@ -3,7 +3,7 @@ using MutableArithmetics: add_mul, operate!!
 using Symbolics: @variables
 using Test
 import MutableArithmetics
-import SecondQuantizedAlgebra: constraint_pairs
+import SecondQuantizedAlgebra: constraint_pairs, QAddBuilder, accumulate!, build, coefficient
 
 struct TestMAInit end
 Base.:+(::TestMAInit, x::SecondQuantizedAlgebra.QAdd) = x
@@ -28,6 +28,18 @@ Base.:+(::TestMAInit, x::SecondQuantizedAlgebra.QAdd) = x
         @test iszero(sum(x -> a, [a + ad]) - a)
         @test iszero(sum(x -> 2, [a + ad]) - 2)
         @test iszero(sum(x -> 0, [a + ad]))
+    end
+
+    @testset "builder matches the chain of +" begin
+        @variables x
+        i = Index(h, :i, 10, h)
+        ai = IndexedOperator(a, i)
+        b = QAddBuilder()
+        accumulate!(b, a)
+        accumulate!(b, x * ad + a, coefficient(2x * a, a))
+        accumulate!(b, Σ(ai' * ai, i))
+        accumulate!(b, 3)
+        @test build(b) == a + 2x * (x * ad + a) + Σ(ai' * ai, i) + 3
     end
 
     @testset "indexed expressions retain public scope" begin

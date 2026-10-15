@@ -3,7 +3,7 @@ using Symbolics: @variables
 using Test
 
 import SecondQuantizedAlgebra: SuperOperator, SuperExpr, QAdd, QExpr, sprepost, spre, spost,
-    liouvillian, hamiltonian, channels, jump, partner, scope
+    liouvillian, hamiltonian, channels, jump, partner, scope, is_diagonal, effective_hamiltonian
 
 # 𝒟[J, K] by hand: JρK† - ½K†Jρ - ½ρK†J.
 raw_dissipator(J, K = J) = sprepost(J, K') - (1 // 2) * spre(K' * J) - (1 // 2) * spost(K' * J)
@@ -51,6 +51,32 @@ raw_dissipator(J, K = J) = sprepost(J, K') - (1 // 2) * spre(K' * J) - (1 // 2) 
         @test SuperOperator(L) == SuperOperator(Lsplit)
         @test SuperOperator(dissipator(a1, b1)) == raw_dissipator(a1, b1)
         @test (L == SuperOperator(L)) == false
+        @test is_diagonal(only(channels(L)).first)
+        @test !is_diagonal(only(channels(dissipator(a1, b1))).first)
+    end
+
+    @testset "effective Hamiltonian" begin
+        no_jump(Hl, Hr = Hl') = -im * spre(Hl) + im * spost(Hr)
+        H = Δ * a1' * a1 + g * (a1' * b1 + b1' * a1)
+        L = hamiltonian_action(H) + liouvillian(0, [a1, b1]; rates = [κ g; g γ])
+        Heff = effective_hamiltonian(L)
+        @test Heff == H - (im // 2) * (κ * a1' * a1 + g * (b1' * a1 + a1' * b1) + γ * b1' * b1)
+        jumps = κ * sprepost(a1, a1') + g * (sprepost(a1, b1') + sprepost(b1, a1')) +
+            γ * sprepost(b1, b1')
+        @test no_jump(Heff) + jumps == SuperOperator(L)
+
+        hσ = PauliSpace(:q)
+        σx = Pauli(hσ, :σ, 1)
+        @test effective_hamiltonian(γ * dissipator(σx)) == -(im // 2) * γ * σx * σx
+        @test no_jump(effective_hamiltonian(γ * dissipator(σx))) + γ * sprepost(σx, σx) ==
+            SuperOperator(γ * dissipator(σx))
+
+        Lc = κ * dissipator(a, a')
+        @test no_jump(effective_hamiltonian(Lc), (im // 2) * κ * a * a) + κ * sprepost(a, a) ==
+            SuperOperator(Lc)
+
+        φ = Position(PhaseSpace(:t), :φ)
+        @test @inferred(effective_hamiltonian(hamiltonian_action(cos(φ)) + dissipator(φ))) isa QExpr
     end
 
     @testset "lowering" begin

@@ -260,6 +260,36 @@ import SecondQuantizedAlgebra: Coeff, CNum, to_cnum, to_num, Monomial, ExactComp
         @test occursin("sqrt", string(get_prefactor(retained)))
     end
 
+    @testset "square roots of coefficients take the principal branch" begin
+        @variables ω::Real Z::Number θ::Real
+        value(c, rules = Dict()) = SecondQuantizedAlgebra.to_complex(substitute(c, rules))
+        for x in (8, -8, 9 // 4, 4ω, ω / 2, 3Z)
+            c = stored_coefficient(x * a)
+            @test sqrt(c)^2 == c
+        end
+        @test sqrt(to_cnum(8)) == stored_coefficient(sqrt(Num(8)) * a)
+        @test sqrt(to_cnum(-8)) == 2im * stored_coefficient(sqrt(Num(2)) * a)
+        @test sqrt(stored_coefficient(4ω * a)) == stored_coefficient(2sqrt(ω) * a)
+        @test value(sqrt(to_cnum(3 + 4im))) ≈ 2 + im
+        @test sqrt(to_cnum(2.0)) == to_cnum(sqrt(2.0))
+        for x in (-ω, ω^2, ω + Z, im * ω), z in (-1 + 0.25im, -1 - 0.25im, 2.0)
+            rules = Dict(ω => real(z), Z => z)
+            @test value(sqrt(stored_coefficient(x * a)), rules) ≈ sqrt(value(stored_coefficient(x * a), rules))
+        end
+        @test_throws ArgumentError sqrt(stored_coefficient(expim(θ) * a))
+        @test occursin("sqrt", string(sqrt(stored_coefficient(2expim(θ) * a))))
+        @test_throws ArgumentError value(sqrt(stored_coefficient(ω * a)))
+    end
+
+    @testset "variables of a coefficient" begin
+        @variables ω::Real t::Real g::Real Z::Number
+        u = Symbolics.unwrap
+        c = stored_coefficient((sqrt(Num(2)) * g * expim(ω * t) + sqrt(g + Z)) * a)
+        @test isequal(get_variables(c), sort([u(g), u(t), u(ω), u(Z)]; by = string))
+        @test isequal(get_variables(c, [g, Z]), [u(Z), u(g)])
+        @test isempty(get_variables(stored_coefficient(sqrt(Num(2)) * a)))
+    end
+
     @testset "numeric radicals multiply exactly" begin
         inverse_root_six = 1 / sqrt(Num(6))
         weighted = inverse_root_six * a

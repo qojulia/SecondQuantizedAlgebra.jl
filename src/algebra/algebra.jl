@@ -395,6 +395,39 @@ end
 expand_completeness(op::QSym) = expand_completeness(single_qadd(CNUM_ONE, Op[op]))
 
 """
+    ishermitian(expr)
+
+Whether an operator expression is provably Hermitian.
+
+A polynomial is Hermitian when `expr - expr'` simplifies to zero, and when that fails, when
+it vanishes after [`expand_completeness`](@ref), so `im * (σ¹¹ + σ²² - 1)` counts as
+Hermitian although the ground-state projector stays atomic in `expr` itself. Parameters are
+treated as written: a real `@variables g` gives a Hermitian `g * (a + a')`, while a
+`g::Complex` does not. A formal expression is compared structurally with its adjoint. A
+`false` means that hermiticity could not be shown, not that it fails.
+
+# Examples
+```jldoctest
+julia> using LinearAlgebra: ishermitian
+
+julia> @variables g;
+
+julia> a = Destroy(FockSpace(:c), :a);
+
+julia> ishermitian(g * (a + a')), ishermitian(im * (a - a')), ishermitian(a)
+(true, true, false)
+```
+
+See also [`simplify`](@ref), [`expand_completeness`](@ref).
+"""
+function LinearAlgebra.ishermitian(q::QAdd)
+    difference = simplify(q - adjoint(q))
+    iszero(difference) && return true
+    return iszero(simplify(expand_completeness(difference)))
+end
+LinearAlgebra.ishermitian(q::QSym) = LinearAlgebra.ishermitian(single_qadd(CNUM_ONE, Op[q]))
+
+"""
     assume_distinct_index(expr, pairs::Vector{Tuple{Index, Index}})
 
 Treat each pair of free indices in `pairs` as different sites.

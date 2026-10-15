@@ -28,7 +28,7 @@ function substitute_qexpr_split(
 
     if q.kind == QEXPR_EXPIM
         argument = only(args)
-        qexpr_provably_hermitian(argument) || throw(
+        LinearAlgebra.ishermitian(argument) || throw(
             ArgumentError(
                 "substitution made the argument of `expim(::QField)` non-Hermitian",
             ),

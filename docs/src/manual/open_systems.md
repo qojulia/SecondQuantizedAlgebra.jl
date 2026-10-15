@@ -325,14 +325,17 @@ build(builder) == sum([κ * dissipator(m) for m in modes])
 
 ```@docs
 hamiltonian
+effective_hamiltonian
 Channel
 jump
+is_diagonal
 SuperTerm
 superterm
 left_operator
 poly
 SuperBuilder
 LindbladianBuilder
+QAddBuilder
 accumulate!
 build
 ```

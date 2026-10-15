@@ -3,7 +3,7 @@ using Symbolics: @variables
 using Test
 
 import SecondQuantizedAlgebra: SuperOperator, sprepost, spre, spost, liouvillian, channels,
-    scope, get_sum_indices
+    scope, get_sum_indices, effective_hamiltonian
 
 @testset "Indexed superoperators" begin
     ha = NLevelSpace(:atom, 2)
@@ -36,6 +36,18 @@ import SecondQuantizedAlgebra: SuperOperator, sprepost, spre, spost, liouvillian
         @test iszero(transpose(Lnd)(1))
         @test_throws ArgumentError dissipator(σ(1, 2, i), Γ, j => i)
         @test_throws ArgumentError dissipator(σ(1, 2, i) * σ(1, 2, j), Γ, i => j)
+    end
+
+    @testset "effective Hamiltonian of summed channels" begin
+        @variables γ::Real
+        L = Σ(γ * dissipator(σ(1, 2, i)) + hamiltonian_action(σ(2, 2, i)), i)
+        Hᵢ = (1 - (im // 2) * γ) * σ(2, 2, i)
+        @test effective_hamiltonian(L) == Σ(Hᵢ, i)
+        @test -im * Σ(spre(Hᵢ), i) + im * Σ(spost(Hᵢ'), i) +
+            Σ(γ * sprepost(σ(1, 2, i), σ(2, 1, i)), i) == SuperOperator(L)
+        Γ = DoubleIndexedVariable(:Γ, i, j)
+        Hᵢⱼ = -(im // 2) * Γ * σ(2, 1, j) * σ(1, 2, i)
+        @test effective_hamiltonian(dissipator(σ(1, 2, i), Γ, i => j)) == Σ(Σ(Hᵢⱼ, j), i)
     end
 
     @testset "multi-index families" begin

@@ -880,11 +880,21 @@ function rational_power(basearg, r::Rational{Int}, x)
         value >= 0 && return numeric_radical(value, r, x)
         denominator(r) == 2 && return negative_radical(value, r, x, false)
     end
-    base = recognize(basearg)
-    is_native(base) && return native(native_float(native_scalar(base))^r)
-    if base.tail isa Poly && length(base.tail.terms) == 1
-        return monomial_power(only(base.tail.terms), r, x)
+    return coeff_power(recognize(basearg), r, x)
+end
+
+function coeff_power(base::Coeff, r::Rational{Int}, x)
+    if is_native(base)
+        z = native_scalar(base)
+        if z isa ExactComplex && iszero(z.im)
+            value = Rational{BigInt}(real(z))
+            value >= 0 && return numeric_radical(value, r, x)
+            denominator(r) == 2 && return negative_radical(value, r, x, false)
+        end
+        return native(native_float(z)^r)
     end
+    tail = base.tail
+    tail isa Poly && length(tail.terms) == 1 && return monomial_power(only(tail.terms), r, x)
     return sym_leaf(x)
 end
 
@@ -907,6 +917,35 @@ function monomial_power(m::Monomial, r::Rational{Int}, x)
     magnitude.tail isa RawSymbolicCoeff && return sym_leaf(x)
     return mul_cnum(magnitude, tiered(monomial_terms, EXACT_ONE, m.syms, Rational{Int}[r]))
 end
+
+"""
+    sqrt(c::Coeff)
+
+Principal square root of a coefficient, exact wherever the result has an exact form.
+
+A nonnegative rational gives a canonical radical, `sqrt(8) = 2√2`, and a negative one the
+principal root `sqrt(-8) = 2im√2`. A single term `c x` with a positive exact scalar `c` and
+a parameter `x` splits as `√c √x`, which holds on the principal branch for every complex
+`x`. No sign is assumed for a parameter, so `sqrt(-x)` and `sqrt(x^2)` stay unevaluated, as
+does any other coefficient, such as a sum. A float or non-real number is evaluated in
+floating point, and the root of a bare phase `expim(θ)` throws, since it would have to pick
+a branch.
+
+# Examples
+```jldoctest
+julia> using SecondQuantizedAlgebra: channels
+
+julia> @variables κ;
+
+julia> _, rate = first(channels(4κ * dissipator(Destroy(FockSpace(:c), :a))));
+
+julia> sqrt(rate)
+2sqrt(κ)
+```
+
+See also [`Coeff`](@ref), [`to_num`](@ref).
+"""
+Base.sqrt(c::Coeff) = coeff_power(c, 1 // 2, sqrt(raw_tail(c)))
 
 recognize(x::Number) = to_cnum(x)
 recognize(x::Num) = recognize(SymbolicUtils.unwrap(x))
@@ -1796,6 +1835,63 @@ function Symbolics.derivative(c::Coeff, var; simplify = false, kwargs...)
     )
     return to_cnum(differentiated)
 end
+
+"""
+    get_variables(c::Coeff)
+    get_variables(c::Coeff, varlist)
+
+Symbolic parameters occurring in a coefficient, sorted by name.
+
+They are read from the stored terms, so radicals such as `√2` and exact numbers contribute
+nothing, and a phase `expim(ω*t)` contributes `ω` and `t`. An optional second argument
+restricts the result to a given list of variables.
+
+# Examples
+```jldoctest
+julia> using SecondQuantizedAlgebra: coefficient
+
+julia> @variables ω t g;
+
+julia> a = Destroy(FockSpace(:c), :a);
+
+julia> string.(get_variables(coefficient(2g * expim(ω * t) * a, a)))
+3-element Vector{String}:
+ "g"
+ "t"
+ "ω"
+```
+
+See also [`get_variables`](@ref get_variables(::QAdd)), [`Coeff`](@ref).
+"""
+function Symbolics.get_variables(c::Coeff; kwargs...)
+    vars = SymbolicUtils.BasicSymbolic[]
+    return sorted_variables!(coeff_variables!(vars, c; kwargs...))
+end
+
+function Symbolics.get_variables(
+        c::Coeff,
+        varlist;
+        is_atomic = SymbolicUtils.default_is_atomic,
+        kwargs...,
+    )
+    vars = SymbolicUtils.BasicSymbolic[]
+    coeff_variables!(vars, c, varlist; is_atomic = is_atomic, kwargs...)
+    return sorted_variables!(vars)
+end
+
+function coeff_variables!(vars::Vector{SymbolicUtils.BasicSymbolic}, c::Coeff, varlist...; kwargs...)
+    tail = c.tail
+    if tail isa Poly
+        for m in tail.terms, s in m.syms
+            append!(vars, Symbolics.get_variables(s, varlist...; kwargs...))
+        end
+    elseif tail isa RawSymbolicCoeff
+        append!(vars, Symbolics.get_variables(tail.expr, varlist...; kwargs...))
+    end
+    return vars
+end
+
+sorted_variables!(vars::Vector{SymbolicUtils.BasicSymbolic}) = sort!(unique!(vars); by = string)
 
 @inline factor_cnum(s::SymbolicUtils.BasicSymbolic, e::Rational{Int}) =
     tiered(monomial_terms, EXACT_ONE, RawExpression[s], Rational{Int}[e])

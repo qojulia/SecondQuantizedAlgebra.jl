@@ -491,21 +491,15 @@ See also [`sin`](@ref sin(::QField)), [`expim`](@ref expim(::QField)), [`taylor`
 """
 Base.cos(q::QField) = qexpr_call(QEXPR_COS, qexpr_arg(q))
 
-function qexpr_provably_hermitian(q::QSym)
-    return iszero(simplify((+q) - (+adjoint(q))))
-end
-function qexpr_provably_hermitian(q::QAdd)
-    return iszero(simplify(q - adjoint(q)))
-end
-qexpr_provably_hermitian(q::QExpr) = isequal(q, adjoint(q))
+LinearAlgebra.ishermitian(q::QExpr) = isequal(q, adjoint(q))
 
 """
     expim(A)
 
 Exponential of `im` times a Hermitian operator expression, kept as a formal function.
 
-The result is the unitary ``e^{iA}``. `A` must be Hermitian as written, meaning that
-`A - A'` simplifies to zero; parameters in it must therefore be real. Otherwise an
+The result is the unitary ``e^{iA}``. `A` must be provably Hermitian, as decided by
+`LinearAlgebra.ishermitian`, so parameters in it must be real. Otherwise an
 `ArgumentError` is thrown. No series is expanded until [`taylor`](@ref) is called, and
 products such as ``e^{iA} e^{-iA}`` are not combined. To change the frame of an expression
 by such a unitary, use a [`UnitaryTransform`](@ref), which applies ``e^{iA} X e^{-iA}``
@@ -531,7 +525,7 @@ ERROR: ArgumentError: `expim(::QField)` requires a provably Hermitian argument
 See also [`taylor`](@ref), [`UnitaryTransform`](@ref), [`expim(::Real)`](@ref expim(::Real)).
 """
 function expim(q::QField)
-    qexpr_provably_hermitian(q) || throw(
+    LinearAlgebra.ishermitian(q) || throw(
         ArgumentError("`expim(::QField)` requires a provably Hermitian argument"),
     )
     return qexpr_call(QEXPR_EXPIM, qexpr_arg(q))

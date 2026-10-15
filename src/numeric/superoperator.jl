@@ -309,7 +309,7 @@ hermitian_matrix(m) = hermitian_matrix(m, max(1.0, maximum(abs, m; init = 0.0)))
 function check_td_hermitian(H::QAdd, terms::Vector{CoeffTerm}, ctx::NumericContext, tp)
     basevars, valuefuncs, p_aware = time_basis(tp)
     if p_aware
-        iszero(simplify(H - adjoint(H))) || non_hermitian_error()
+        LinearAlgebra.ishermitian(H) || non_hermitian_error()
         return nothing
     end
     coeffs = [td_coeff(to_num(c), basevars, valuefuncs, false) for (c, _) in terms]

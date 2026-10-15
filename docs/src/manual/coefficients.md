@@ -158,6 +158,7 @@ sorted_arguments
 get_prefactor
 get_operators
 get_variables(::QAdd)
+get_variables(::Coeff)
 ```
 
 Iterating an expression gives its terms as pairs of an operator product and a coefficient, kept in exact form. `to_num` converts a coefficient to Symbolics.
@@ -171,6 +172,8 @@ using SecondQuantizedAlgebra: to_num
 QTerm
 Coeff
 to_num
+to_complex
+sqrt(::Coeff)
 ```
 
 [`coefficient_terms`](@ref) splits a coefficient into its terms, each an exact or floating scalar times powers of parameters, without going through Symbolics.
