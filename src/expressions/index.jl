@@ -117,7 +117,7 @@ function change_index(x::CNum, from::Index, to::Index)
         isequal(raw, Num(tail.expr)) && return x
         result = SymbolicUtils.unwrap(raw)
         is_numeric_const(result) && return const_coeff(result)
-        return from_raw_arithmetic(result, tail.real_slot)
+        return from_raw(result, tail.known_real)
     end
     raw_re, raw_im = realimag(x)
     re = change_index(raw_re, from, to)
@@ -170,7 +170,7 @@ function change_index(x::CNum, pairs::AbstractDict{Index, Index})
         isequal(raw, Num(tail.expr)) && return x
         result = SymbolicUtils.unwrap(raw)
         is_numeric_const(result) && return const_coeff(result)
-        return from_raw_arithmetic(result, tail.real_slot)
+        return from_raw(result, tail.known_real)
     end
     raw_re, raw_im = realimag(x)
     re = change_index(raw_re, pairs)

@@ -46,7 +46,16 @@ struct Monomial{E <: ExactScalar}
         new{E}(pack_scalar(E, scalar), m.syms, m.exps)
 end
 
+const EMPTY_SYMS = RawExpression[]
+const EMPTY_EXPS = Rational{Int}[]
+
 @inline monomial_scalar(m::Monomial) = unpack_scalar(m.slot)
+@inline constant_term(::Type{E}, z) where {E <: ExactScalar} =
+    Monomial{E}(as_tier(E, z), EMPTY_SYMS, EMPTY_EXPS)
+@inline function fits_small(m::Monomial{BigExactComplex})
+    scalar = monomial_scalar(m)
+    return scalar isa ComplexF64 || fits_small(scalar)
+end
 @inline with_scalar(m::Monomial{E}, z::Union{ComplexF64, E}) where {E} =
     Monomial{E}(Unchecked(), z, m)
 
@@ -85,6 +94,48 @@ end
 end
 @inline scale_monomial(t::Monomial{E}, z::Union{ComplexF64, E}) where {E} =
     with_scalar(t, scalar_mul(monomial_scalar(t), z))
+
+@inline function monomial_terms(
+        ::Type{E}, scalar::CoeffScalar, syms::Vector{RawExpression},
+        exps::Vector{Rational{Int}},
+    ) where {E <: ExactScalar}
+    return Monomial{E}[Monomial{E}(as_tier(E, scalar), syms, exps)]
+end
+
+function sort_factors!(syms::Vector{RawExpression}, exps::Vector{Rational{Int}})
+    @inbounds for i in 2:length(syms)
+        s = syms[i]; e = exps[i]; k = fkey(s)
+        j = i - 1
+        while j >= 1 && fkey(syms[j]) > k
+            syms[j + 1] = syms[j]; exps[j + 1] = exps[j]
+            j -= 1
+        end
+        syms[j + 1] = s; exps[j + 1] = e
+    end
+    return syms
+end
+
+function merge_factor_list(syms::Vector{RawExpression}, exps::Vector{Rational{Int}})
+    n = length(syms)
+    n <= 1 && return (syms, exps)
+    sort_factors!(syms, exps)
+    osyms = RawExpression[]
+    oexps = Rational{Int}[]
+    sizehint!(osyms, n); sizehint!(oexps, n)
+    i = 1
+    @inbounds while i <= n
+        s = syms[i]
+        e = exps[i]
+        j = i + 1
+        while j <= n && syms[j] === s
+            e += exps[j]
+            j += 1
+        end
+        e != 0 && (push!(osyms, s); push!(oexps, e))
+        i = j
+    end
+    return (osyms, oexps)
+end
 
 """
     Poly

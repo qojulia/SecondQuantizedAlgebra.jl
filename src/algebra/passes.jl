@@ -253,7 +253,7 @@ function substitute_cnum(c::CNum, d::ScalarRules, phase_rules::PhaseRules = nonr
     raw = lower_complex_slots(raw_tail(c))
     new_raw = SymbolicUtils.substitute(raw, d)
     isequal(new_raw, raw) && return c
-    return recognize(new_raw)
+    return to_cnum(new_raw)
 end
 substitute_cnum(c::CNum, d::AbstractDict) = substitute_cnum(c, scalar_substitution_rules(d))
 

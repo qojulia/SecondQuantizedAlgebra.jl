@@ -132,7 +132,7 @@ function reduce_terms(terms::Vector{<:Monomial}, rels::Vector{ParamRelation}, ga
 end
 
 @inline function strip_conj(s)
-    (s isa SymbolicUtils.BasicSymbolic && is_conj_call(s)) &&
+    (s isa SymbolicUtils.BasicSymbolic && is_call_of(s, conj)) &&
         return (SymbolicUtils.arguments(s)[1], true)
     return (s, false)
 end
@@ -286,19 +286,14 @@ function reduce_raw_via_transient(
         push!(trels, ParamRelation(th, tl, r.sign))
     end
     substituted = SymbolicUtils.unwrap(Symbolics.substitute(Num(raw), fwd))
-    sub = recognize(substituted)
+    sub = to_cnum(substituted)
     sub.tail isa Poly || return c
     reduced = reduce_tail(sub.tail, trels, gated)
     isequal(reduced, sub) && return c
     reduced.tail isa Native && return reduced
     result = SymbolicUtils.unwrap(Symbolics.substitute(Num(raw_tail(reduced)), back))
     result isa RawExpression || return c
-    is_numeric_const(result) && return const_coeff(result)
-    return from_raw_arithmetic(result, tail.real_slot)
-end
-
-function reduce_via_transient(c::Coeff, rels::Vector{ParamRelation}, gated::Bool)
-    return reduce_raw_via_transient(c, rels, gated)
+    return from_raw(result, tail.known_real)
 end
 
 function has_symbolic_trig(x)
@@ -393,11 +388,11 @@ function reduce_all(
     if has_symbolic_trig(t.expr)
         sym_trig_relations!(scratch, c)
         isempty(scratch) && return c
-        return reduce_via_transient(c, scratch, gated)
+        return reduce_raw_via_transient(c, scratch, gated)
     end
     if all(is_trig_relation, rels)
         any(r -> raw_uses_trig_relation(t.expr, r), rels) || return c
     end
     isempty(scratch) && return c
-    return reduce_via_transient(c, scratch, gated)
+    return reduce_raw_via_transient(c, scratch, gated)
 end

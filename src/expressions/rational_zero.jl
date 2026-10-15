@@ -85,7 +85,7 @@ function rational_form(x::RawExpression)
             return rational_form_pow(rational_form(args[1]), n)
         end
     end
-    return checked_rational_form(recognize(x), CNUM_ONE)
+    return checked_rational_form(to_cnum(x), CNUM_ONE)
 end
 rational_form(x) = RATIONAL_FAIL
 

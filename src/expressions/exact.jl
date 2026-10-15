@@ -7,7 +7,7 @@ The two tiers of exact numbers, `GaussianRational{Int}` and `GaussianRational{Bi
 Exactness is a property of the type: an exact value is a `GaussianRational`, and a
 `ComplexF64` is always inexact. Every function that can produce an exact scalar takes the
 exact type `E` of its tier. Arithmetic in `ExactComplex` is checked and throws
-`OverflowError`; `tiered` (`cnum.jl`) catches that and redoes the whole computation in
+`OverflowError`; `tiered` (`coeff.jl`) catches that and redoes the whole computation in
 `BigExactComplex`, so the steps must not mutate their inputs. A result returns to
 `ExactComplex` whenever every scalar fits.
 
@@ -31,7 +31,7 @@ struct NativeSlot
 end
 const FLOAT_DENOMINATOR = 0
 
-@inline holds_float(s::NativeSlot) = s.den == FLOAT_DENOMINATOR
+@inline holds_float(s::Union{NativeSlot, ExactScalar}) = s.den == FLOAT_DENOMINATOR
 @inline NativeSlot(z::ExactComplex) = NativeSlot(z.re, z.im, z.den)
 @inline NativeSlot(z::ComplexF64) =
     NativeSlot(reinterpret(Int, real(z)), reinterpret(Int, imag(z)), FLOAT_DENOMINATOR)
@@ -44,7 +44,6 @@ end
 @inline pack_scalar(::Type{GaussianRational{T}}, z::ComplexF64) where {T} = unsafe_gaussian(
     T(reinterpret(Int, real(z))), T(reinterpret(Int, imag(z))), T(FLOAT_DENOMINATOR),
 )
-@inline holds_float(s::ExactScalar) = s.den == FLOAT_DENOMINATOR
 @inline function unpack_scalar(s::ExactScalar)
     holds_float(s) || return s
     return ComplexF64(reinterpret(Float64, Int(s.re)), reinterpret(Float64, Int(s.im)))
@@ -58,7 +57,6 @@ end
 @inline fits_small(z::BigExactComplex) = fits_small(z.re) && fits_small(z.im) && fits_small(z.den)
 
 @inline as_tier(::Type{E}, z::E) where {E <: ExactScalar} = z
-@inline as_tier(::Type{<:ExactScalar}, z::ComplexF64) = z
 @inline as_tier(::Type{BigExactComplex}, z::ExactComplex) = BigExactComplex(z)
 @inline as_tier(::Type{<:ExactScalar}, x) = x
 @inline function as_tier(::Type{ExactComplex}, z::BigExactComplex)
@@ -78,7 +76,6 @@ end
 
 const RadicalPrime = Union{Int, BigInt}
 @inline radical_prime(p::Integer) = typemin(Int) < p <= typemax(Int) ? Int(p) : BigInt(p)
-@inline radical_prime(p::Int) = p
 @inline radical_atom(p::Integer) = SymbolicUtils.Const{SymbolicUtils.SymReal}(radical_prime(p))
 
 @inline function is_radical_atom(s::SymbolicUtils.BasicSymbolic)

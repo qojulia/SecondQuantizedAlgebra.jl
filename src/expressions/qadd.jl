@@ -229,6 +229,8 @@ operator-by-operator, then the canonical-sorted non-equal constraints.
 """
 term_order_key(t::QTerm) = (length(t.ops), map(order_key, t.ops), ne_sort_key(t.ne))
 
+sort_key(op::QSym) = (op.space_index, name_rank(op.index.name_id))
+
 """
     qadd_order_key(q::QAdd) -> Vector
 
