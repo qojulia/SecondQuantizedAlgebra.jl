@@ -25,6 +25,7 @@ This is a breaking release for type stability: public functions no longer use `n
 
 - `Lindbladian(S[, basis])` reads a `SuperOperator` back in GKSL form, and `kossakowski(S, basis)` returns its Kossakowski matrix in a `JumpBasis`, with `support_basis`, `independent_basis` and `GKSLFormError`. The extraction is exact and needs no Hilbert-space cutoff; float roundoff is tolerated only with an explicit `rtol`.
 - `coefficient_terms`, `CoefficientTerm` and `has_coefficient_terms` read the exact or floating scalar and the atom powers of each term of a coefficient.
+- `get_sum_indices(q)` returns the summation indices bound by a `QAdd` (none for a `QSym`), as it already did for a `SuperOperator` and a `Lindbladian`.
 - `n_levels`, `ground_state` and `transition_levels` read the level count, ground level and levels of a `Transition`, and `operator_axis` the axis of a `Pauli` or `Spin` operator.
 
 ### Changed
