@@ -3,23 +3,33 @@ struct CanonicalTerms end
 
 """
     SuperOperator
-
-A polynomial linear map on operators, `ρ ↦ Σ c * L * ρ * R`, stored as a dictionary of
-[`SuperTerm`](@ref) sandwiches with their coefficients, plus a summation scope `indices`
-shared by both sides and the coefficient.
-
-Build maps with [`spre`](@ref), [`spost`](@ref), [`sprepost`](@ref), or by lowering a
-[`Lindbladian`](@ref). Maps compose with `*` or `∘` (the right factor acts first), apply to
-operators by calling them, and support `transpose` (the Heisenberg-picture map) and the
-Hilbert–Schmidt `adjoint`. Iteration yields `Pair{SuperTerm, CNum}`.
-
-`SuperOperator` is not a [`QField`](@ref): a map is not an operator, so it never enters
-operator products or averages by accident.
-
+    SuperOperator(L::Lindbladian)
     SuperOperator(pairs, indices)
 
-Rebuild a map from `SuperTerm => coefficient` pairs and a summation scope. Every sandwich is
-canonicalized and unused constraints are pruned.
+A polynomial linear map on operators.
+
+The map acts as `ρ ↦ Σ c * A * ρ * B`. Build maps with [`sprepost`](@ref), [`spre`](@ref) and [`spost`](@ref), or lower a
+[`Lindbladian`](@ref) with `SuperOperator(L)`. `SuperOperator(pairs, indices)` rebuilds a
+map from `SuperTerm => coefficient` pairs and a summation scope. Maps compose with `∘` or
+`*`, the right factor acting first, and `S(ρ)` applies a map. `transpose(S)` satisfies
+`Tr(A * S(ρ)) == Tr(transpose(S)(A) * ρ)` and is the Heisenberg-picture map, while
+`adjoint(S)` is the Hilbert–Schmidt adjoint. Iterating a map gives its
+`SuperTerm => coefficient` pairs.
+
+A map is not an operator, so it does not enter operator products or averages. The name is
+public but not exported, since the numeric backends export a `SuperOperator` of their own.
+
+# Examples
+```jldoctest
+julia> using SecondQuantizedAlgebra: SuperOperator
+
+julia> h = FockSpace(:c); a = Destroy(h, :a);
+
+julia> SuperOperator(dissipator(a))
+-1//2 * (·) ⋅ a' * a + a ⋅ (·) ⋅ a' - 1//2 * a' * a ⋅ (·)
+```
+
+See also [`Lindbladian`](@ref), [`SuperExpr`](@ref), [`compose`](@ref).
 """
 struct SuperOperator
     arguments::SuperTermDict
@@ -74,11 +84,22 @@ function Base.hash(S::SuperOperator, h::UInt)
 end
 
 """
-    left_operator(t::SuperTerm) -> QAdd
-    right_operator(t::SuperTerm) -> QAdd
+    left_operator(t::SuperTerm)
+    right_operator(t::SuperTerm)
 
-The left or right side of a sandwich as a unit-coefficient [`QAdd`](@ref) under the term's
-constraints.
+The operator acting from the left or from the right in the sandwich `t`.
+
+# Examples
+```jldoctest
+julia> using SecondQuantizedAlgebra: sprepost, left_operator, right_operator
+
+julia> h = FockSpace(:c); a = Destroy(h, :a);
+
+julia> t, c = first(sprepost(a, a')); left_operator(t), right_operator(t)
+(a, a')
+```
+
+See also [`SuperTerm`](@ref).
 """
 left_operator(t::SuperTerm) = side_qadd(t.left, t.ne)
 right_operator(t::SuperTerm) = side_qadd(t.right, t.ne)
@@ -200,13 +221,28 @@ as_side(x::QSym) = single_qadd(CNUM_ONE, Op[x])
 as_side(x::Coefficient) = single_qadd(to_cnum(x), Op[])
 
 """
-    sprepost(A, B) -> SuperOperator
+    sprepost(A, B)
 
-The sandwich map `ρ ↦ A * ρ * B`. `A` and `B` are operators or scalars. A side carrying its
-own bound sum is refused; sum the map instead, `Σ(sprepost(Aᵢ, Bᵢ), i)`. A formal side
-([`QExpr`](@ref)) gives a `SuperExpr`.
+The map that multiplies an operator by `A` from the left and by `B` from the right.
 
-See also [`spre`](@ref), [`spost`](@ref).
+It acts as `ρ ↦ A * ρ * B`. `A` and `B` are operators or scalars. A side with a formal operator function gives a
+[`SuperExpr`](@ref). A side that carries its own `Σ` throws; sum the map instead,
+`Σ(sprepost(Aᵢ, Bᵢ), i)`.
+
+# Examples
+```jldoctest
+julia> using SecondQuantizedAlgebra: sprepost
+
+julia> h = FockSpace(:c); a = Destroy(h, :a);
+
+julia> S = sprepost(a, a')
+a ⋅ (·) ⋅ a'
+
+julia> S(a' * a)
+1 + 3 * a' * a + a' * a' * a * a
+```
+
+See also [`spre`](@ref), [`spost`](@ref), [`SuperOperator`](@ref).
 """
 function sprepost(A::Union{QField, Coefficient}, B::Union{QField, Coefficient})
     return sandwich_of(as_part(A), as_part(B))
@@ -223,16 +259,40 @@ function sprepost_poly(A::QAdd, B::QAdd)
 end
 
 """
-    spre(A) -> SuperOperator
+    spre(A)
 
-Left multiplication `ρ ↦ A * ρ`. See [`sprepost`](@ref).
+The map that multiplies an operator by `A` from the left, `ρ ↦ A * ρ`.
+
+# Examples
+```jldoctest
+julia> using SecondQuantizedAlgebra: spre
+
+julia> h = FockSpace(:c); a = Destroy(h, :a);
+
+julia> spre(a)(a')
+1 + a' * a
+```
+
+See also [`spost`](@ref), [`sprepost`](@ref).
 """
 spre(A::Union{QField, Coefficient}) = sprepost(A, 1)
 
 """
-    spost(B) -> SuperOperator
+    spost(B)
 
-Right multiplication `ρ ↦ ρ * B`. See [`sprepost`](@ref).
+The map that multiplies an operator by `B` from the right, `ρ ↦ ρ * B`.
+
+# Examples
+```jldoctest
+julia> using SecondQuantizedAlgebra: spost
+
+julia> h = FockSpace(:c); a = Destroy(h, :a);
+
+julia> spost(a)(a')
+a' * a
+```
+
+See also [`spre`](@ref), [`sprepost`](@ref).
 """
 spost(B::Union{QField, Coefficient}) = sprepost(1, B)
 
@@ -282,8 +342,25 @@ Base.:-(c::Coefficient, S::SuperOperator) = (-S) + c
 
 """
     compose(A, B)
+    A ∘ B
+    A * B
 
-`A ∘ B`, the map that applies `B` first. Also available as `A * B` and `A ∘ B`.
+The composition of two maps, applying `B` first.
+
+Composing maps that bind the same summation index throws; rename one with
+[`change_index`](@ref).
+
+# Examples
+```jldoctest
+julia> using SecondQuantizedAlgebra: spre, spost, compose
+
+julia> h = FockSpace(:c); a = Destroy(h, :a);
+
+julia> compose(spre(a), spost(a'))
+a ⋅ (·) ⋅ a'
+```
+
+See also [`SuperOperator`](@ref).
 """
 function compose(A::SuperOperator, B::SuperOperator)
     check_operands(A, B)
@@ -371,8 +448,22 @@ end
 """
     ⊗(A::SuperOperator, B::SuperOperator)
 
-The map acting as `A` and `B` on disjoint subsystems, `A ∘ B`. Throws when the two maps act
-on a common subspace.
+The map that acts as `A` and `B` on two disjoint subsystems.
+
+It equals `A ∘ B`, and throws when the two maps act on a common subspace.
+
+# Examples
+```jldoctest
+julia> using SecondQuantizedAlgebra: SuperOperator
+
+julia> h = FockSpace(:a) ⊗ FockSpace(:b); a = Destroy(h, :a, 1); b = Destroy(h, :b, 2);
+
+julia> SuperOperator(dissipator(a)) ⊗ SuperOperator(dissipator(b)) ==
+           SuperOperator(dissipator(a)) ∘ SuperOperator(dissipator(b))
+true
+```
+
+See also [`compose`](@ref).
 """
 function ⊗(A::SuperOperator, B::SuperOperator)
     isdisjoint(acts_on(A), acts_on(B)) || throw(
@@ -384,9 +475,23 @@ end
 """
     adjoint(S::SuperOperator)
 
-The Hilbert–Schmidt adjoint, `Tr(X' * S(ρ)) == Tr(S'(X)' * ρ)`: each sandwich `c * L ρ R`
-becomes `conj(c) * L' X R'`. It is the Heisenberg-picture generator only for maps that
-preserve Hermiticity; use `transpose` for the general case.
+The adjoint of a map with respect to the Hilbert–Schmidt inner product.
+
+It satisfies `Tr(X' * S(ρ)) == Tr(S'(X)' * ρ)`, and turns each term `c * A ρ B` into
+`conj(c) * A' X B'`. It is the Heisenberg-picture map only for maps that preserve
+Hermiticity; `transpose` is the Heisenberg-picture map in general.
+
+# Examples
+```jldoctest
+julia> using SecondQuantizedAlgebra: spre
+
+julia> h = FockSpace(:c); a = Destroy(h, :a);
+
+julia> adjoint(spre(a))(a' * a)
+a' * a' * a
+```
+
+See also `transpose`.
 """
 function Base.adjoint(S::SuperOperator)
     out = SuperTermDict()
@@ -402,10 +507,21 @@ end
 """
     transpose(S::SuperOperator)
 
-The bilinear transpose, `Tr(A * S(ρ)) == Tr(transpose(S)(A) * ρ)`: each sandwich
-`c * L ρ R` becomes `c * R A L`. For a generator `L`, `transpose(L)(A)` is the
-Heisenberg-picture drift of the observable `A`, and `average(transpose(L)(A))` its moment
-equation.
+The Heisenberg-picture map of a map on operators.
+
+It satisfies `Tr(A * S(ρ)) == Tr(transpose(S)(A) * ρ)`, and turns each term `c * L ρ R`
+into `c * R A L`. For a generator `L`, `transpose(L)(A)` is the drift of the observable
+`A`, and `average(transpose(L)(A))` its equation of motion.
+
+# Examples
+```jldoctest
+julia> h = FockSpace(:c); a = Destroy(h, :a);
+
+julia> transpose(2 * dissipator(a))(a' * a)
+-2 * a' * a
+```
+
+See also [`Lindbladian`](@ref).
 """
 function Base.transpose(S::SuperOperator)
     out = SuperTermDict()

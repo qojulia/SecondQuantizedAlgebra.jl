@@ -4,10 +4,12 @@ const EMPTY_SITES = Dict{Int, Vector{Int}}()
 """
     NumericContext(backend, basis, op_subs, scalar_subs, sites)
 
-Immutable, all-concrete-fields bundle threaded through the numeric core: the backend
-singleton, the opaque per-backend `basis`, the operator-substitution dict `op_subs`, the
-indexed `scalar_subs`, and the indexed `sites` map (empty for the non-indexed path). All
-fields are concrete via the type parameters, so the context never widens inference.
+Settings of one numeric conversion, passed through the numeric core.
+
+It holds the backend singleton, the opaque per-backend `basis`, the operator-substitution
+dict `op_subs`, the indexed `scalar_subs`, and the indexed `sites` map (empty for the
+non-indexed path). All fields are concrete via the type parameters, so the context never
+widens inference.
 """
 struct NumericContext{BE <: NumericBackend, B, SUBS <: AbstractDict, SS <: AbstractDict}
     backend::BE
