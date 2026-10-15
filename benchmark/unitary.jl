@@ -138,17 +138,17 @@ function benchmark_unitary!(SUITE)
     )
 
     group = SUITE["Unitary and exact phase workflows"]
-    group["Gaussian transformations"]["Fock Gaussian constructor family"] = @benchmarkable gaussian_family_workflow(
+    group["Transformations"]["Fock Gaussian constructor family"] = @benchmarkable gaussian_family_workflow(
         $a, $b, $t, $Δa, $Δb, $J, $η, $κ, $θ, $r, $ϕ, $ω, $α,
     ) seconds = 3 evals = 1
-    group["Frame composition"]["Static and timed frame composition"] = @benchmarkable frame_composition_workflow(
+    group["Transformations"]["Static and timed frame composition"] = @benchmarkable frame_composition_workflow(
         $a, $b, $t, $Δa, $Δb, $J, $η, $θ, $ω,
     ) seconds = 3 evals = 1
-    group["Operator families"]["Phase-space, spin, and Pauli family"] =
+    group["Transformations"]["Phase-space, spin, and Pauli family"] =
         @benchmarkable phase_space_spin_workflow(
         $x, $p, $Sx, $Sy, $Sz, $σx, $σy, $σz, $t, $ω, $Ω, $δ, $g, $dx, $dp, $r,
     ) seconds = 3 evals = 1
-    group["Operator families"]["Static and moving two-level basis"] = @benchmarkable moving_two_level_workflow(
+    group["Transformations"]["Static and moving two-level basis"] = @benchmarkable moving_two_level_workflow(
         $σ, $transitions, $t, $Ω, $Δ1, $Δ2, $g,
     ) seconds = 3 evals = 1
     group["Exact phases"]["Thirty-three-sideband exact phase pipeline"] = @benchmarkable phase_harmonic_workflow(
