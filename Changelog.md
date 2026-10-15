@@ -8,64 +8,38 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [v0.14.0]
 
-This is a breaking release for type stability: public functions no longer use `nothing` as a sentinel.
+Adds symbolic dissipative dynamics and exact GKSL extraction, with breaking API changes for type stability.
 
 ### Added
 
-- `coefficient(expr, term)` reads the coefficient of one operator product, such as `a' * a` or `1`, in a polynomial, and `coefficient(S, sandwich)` that of one sandwich in a `SuperOperator`. Ambiguous index constraints and summed expressions throw instead of reading as zero.
-- `map_coefficients(f, x)` (public) applies a function to every coefficient of a `QAdd`, `SuperOperator` or `Lindbladian` and rebuilds it canonically, e.g. `map_coefficients(c -> substitute(c, rules), S)`.
-- `simplify`, `expand`, `exponential_form` and `trigonometric_form` count a summation index whose dependence the coefficient loses: `simplify(Σ((cos(gᵢ)^2 + sin(gᵢ)^2) a'a, i))` gives `N a'a` instead of `a'a`.
-- `get_sum_indices(q)` returns the summation indices bound by a `QAdd` (none for a `QSym`), as it already did for a `SuperOperator` and a `Lindbladian`.
-- `harmonics`, `harmonic` and `secular` project a coefficient, operator, `SuperOperator` or `Lindbladian` onto exact Fourier components `expim(n*ω*t)`; phases that are not integer harmonics of `ω` throw instead of being dropped.
-- `displacement(U, a)` returns the displacement amplitude of a frame, the c-number part of `conjugate(a, U)`, for Fock and phase-space operators.
-
-- Dissipative dynamics as first-class objects: `Lindbladian` (`hamiltonian_action`, `dissipator`, collective `dissipator(J, Γ, i => j)`), general `SuperOperator` maps (`spre`, `spost`, `sprepost`, composition, `transpose` as the Heisenberg generator) and formal `SuperExpr` maps. They support `Σ`, frames, substitution and printing, and convert to backend superoperators or, via `to_numeric_master`, to Hamiltonian and collapse operators.
-- `UnitaryTransform(G, θ)` accepts generators that couple two operators symmetrically, such as the hopping term `a'b + b'a` and the squeezer `a^2 + a'^2`.
-- The indexed form of `to_numeric` takes `parameter` and `operators` as keywords.
-- `Lindbladian(S[, basis])` reads a `SuperOperator` back in GKSL form, and `kossakowski(S, basis)` returns its Kossakowski matrix in a `JumpBasis`, with `support_basis`, `independent_basis` and `GKSLFormError`. The extraction is exact and needs no Hilbert-space cutoff; float roundoff is tolerated only with an explicit `rtol`.
-- `coefficient_terms`, `CoefficientTerm` and `has_coefficient_terms` read the exact or floating scalar and the atom powers of each term of a coefficient.
-- `n_levels`, `ground_state` and `transition_levels` read the level count, ground level and levels of a `Transition`, and `operator_axis` the axis of a `Pauli` or `Spin` operator.
+- Symbolic `Lindbladian`, `SuperOperator` and `SuperExpr` maps, including collective dissipators, composition, Heisenberg generators, indexed sums and frame transformations. Use `to_numeric` for backend superoperators and `to_numeric_master` for Hamiltonian/collapse operators.
+- Exact GKSL extraction through `Lindbladian(S[, basis])` and `kossakowski(S, basis)`, with `JumpBasis`, `support_basis`, `independent_basis` and `GKSLFormError`. No Hilbert-space cutoff is needed; accepting floating-point roundoff requires an explicit `rtol`.
+- `coefficient` reads an operator-product or superoperator-sandwich coefficient; ambiguous constraints and summed expressions throw. `map_coefficients` transforms coefficients, while `coefficient_terms`, `CoefficientTerm` and `has_coefficient_terms` expose their scalar factors and atom powers.
+- `harmonics`, `harmonic` and `secular` extract exact Fourier components from coefficients, operators and dissipative maps. Noninteger harmonics throw.
+- `displacement(U, a)` reads a frame's displacement amplitude; `UnitaryTransform(G, θ)` supports symmetric hopping and squeezing generators.
+- Introspection through `get_sum_indices(::QAdd)`, `n_levels`, `ground_state`, `transition_levels` and `operator_axis`. Indexed `to_numeric` accepts `parameter` and `operators` keywords.
 
 ### Changed (breaking)
 
-- `index_slot` returns `0` instead of `nothing` for an abstract index; check `iszero(index_slot(x))`.
-- The default `op_type` of `to_numeric`, `numeric_average` and `expect` is now `EagerOperator()` instead of `nothing`; custom backends dispatch `numeric_materialize` on `::EagerOperator`.
-- `fundamental_operators` and `find_operators` take `names = Symbol[]` (empty means auto-generated) instead of `names = nothing`.
-- `find_operators` returns a `Vector{Union{Op, QAdd}}` instead of a `Vector{QField}`.
-- `channels(L)` returns a `Vector` of `Channel => rate` pairs in `channel_order_key` order instead of the unordered `pairs` of the internal `Dict`.
-- The backend-specific `numeric_operator(be, ::Val{kind}, op, subbasis)` fallthrough is removed; an unsupported role throws directly.
-- `numeric_basis(state)` returns a tuple of dimensions for a composite QuantumToolbox state.
-- Solver-parameter-aware time coefficients reach `numeric_assemble_td` as plain `(p, t)` closures; the internal `PControlCoeff` wrapper is removed.
+- `index_slot` returns `0` instead of `nothing` for an abstract index; use `iszero(index_slot(x))`.
+- `to_numeric`, `numeric_average` and `expect` default to `op_type = EagerOperator()`. Custom backends must dispatch `numeric_materialize` on `::EagerOperator` instead of `::Nothing`.
+- `fundamental_operators` and `find_operators` use `names = Symbol[]` instead of `nothing` for automatic names. `find_operators` returns `Vector{Union{Op, QAdd}}` instead of `Vector{QField}`.
+- `channels(L)` returns a sorted vector of `Channel => rate` pairs in `channel_order_key` order, replacing unordered dictionary pairs.
+- For custom numeric backends, the `numeric_operator(be, ::Val{kind}, op, subbasis)` fallback is removed; unsupported roles throw. `numeric_assemble_td` receives plain `(p, t)` closures instead of `PControlCoeff` wrappers.
+- `numeric_basis` returns a tuple of dimensions for composite QuantumToolbox states.
 
 ### Changed
 
-- `substitute` rejects a scalar replacement that is not a number or symbolic expression with an `ArgumentError`.
-- QuantumToolbox time-dependent operators compile all coefficients into one function, so applying them in `sesolve`/`mesolve` no longer dispatches per term.
-- Symbolic coefficient arithmetic is faster: a parameter-polynomial term stores its scalar in a concrete slot instead of a union-typed field ([#292](https://github.com/qojulia/SecondQuantizedAlgebra.jl/issues/292)).
+- Faster symbolic coefficient arithmetic, sparse QuantumOptics conversion on composite bases, `LazyKet` expectation values and QuantumToolbox time-dependent coefficient evaluation. Runtime-dispatch checks now cover both backend extensions.
+- `substitute` rejects parameter values that are neither numeric nor symbolic scalars with `ArgumentError`.
 
 ### Fixed
 
-- Positive numeric factors in roots of a parameter now cancel exactly in oscillator coefficients, while symbolic products and nested powers retain their root branches without assuming real parameters are positive.
-- Adding symbolic coefficients that are quotients with different denominators drops an identically zero sum, so `iszero` agrees with `iszero(simplify(...))` on, e.g., `abs2` of a steady-state amplitude minus its expanded form.
-- A bare symbolic scalar such as `@variables β::Number` now combines with a phase or other coefficient under `+`, `-`, `*` and `/` in either order, as `Num` already did; previously `β * expim(ω*t)` threw a `MethodError`.
-
-- `Squeeze(a, r * t, t)` throws instead of silently using `t` as the squeezing phase; a time-dependent squeeze is written `Squeeze(a, r, ϕ, t)`.
-- An expression that reduces to a single operator compares equal to it, so `2a - a == a`.
-- A zero expression renders as `0` in LaTeX instead of an empty equation.
-- `qadjoint` and `inner_adjoint` accept averages and phase coefficients: `qadjoint(average(a))` gives `⟨a'⟩`, where it threw before.
-- The indexed form of `to_numeric` applies `parameter` to an expression without sums instead of throwing.
-- `numeric_average` evaluates an expression of averages with a constant imaginary term, such as `-im * η`, where it threw before.
-- `find_operators` no longer lists the same operator twice.
-- Radicals whose radicand has at most one prime factor above about `2^36`, such as `sqrt(2^127 - 1)`, are exact canonical atoms, so equal products cancel ([#291](https://github.com/qojulia/SecondQuantizedAlgebra.jl/issues/291)).
-- Numeric conversion, expectation values, typed substitution, unitary transforms, printing and `make_time_dependent` run without runtime dispatch; JET `report_opt` now also covers both backend extensions.
-- Eager `to_numeric` on a composite QuantumOptics basis assembles sparse `kron` products directly instead of materializing a `LazySum`.
-- `numeric_average` on a QuantumOptics `LazyKet` contracts each term slot by slot instead of going through a `LazySum`.
-- LaTeX output brackets a complex prefactor with nonzero real and imaginary parts, e.g. `\left(g + \kappa ~ \mathit{i}\right) a`.
-- A constrained sum over a summand independent of its index, such as `Σ(a_i*a_i', i, [j])`, counts `N - 1` terms instead of `N`; when the excluded indices are not known to be distinct, the sum is kept with its constraints until `assume_distinct_index` settles it.
-- `substitute` keeps the site count of a sum whose summand becomes site-independent: `Σ(a_i, i)` with `a_i => 2` gives `2N` instead of `2`.
-- A sum index that may equal several free indices, as in `Σ(σ_i * σ_k * σ_l, i)`, counts the point `k = l` once: `Σ` counted it twice and products crossing a sum dropped it.
-- A product of several sums applied to an operator, such as `(Σ_i P_i * Σ_j Q_j) * (P_k * Q_l)`, counts the joint coincidence `i = k, j = l` once instead of twice.
-- A sum index whose count becomes known only after other binders are eliminated keeps its count, e.g. `Σ_{i,k,l}` with `i ≠ k, i ≠ l` over a constant gives `N(N-1)²`.
+- Indexed sums preserve site counts after substitution or coefficient simplification, respect excluded sites and count overlapping diagonal cases once, including products of sums and dependent binders.
+- Coefficient arithmetic cancels positive numeric factors in roots without changing symbolic root branches, recognizes zero sums across different denominators and accepts bare symbolic scalars alongside phases. More large-prime radicals are canonical ([#291]).
+- Time-dependent squeezing requires `Squeeze(a, r, ϕ, t)`; ambiguous `Squeeze(a, r * t, t)` calls now throw.
+- Indexed numeric conversion applies parameters even without sums; `numeric_average` handles constant imaginary terms. `qadjoint` and `inner_adjoint` accept averages and phase coefficients.
+- Single-operator expressions compare correctly (`2a - a == a`), `find_operators` removes duplicates, and LaTeX renders zero expressions and brackets complex prefactors correctly.
 
 ## [v0.13.0]
 
