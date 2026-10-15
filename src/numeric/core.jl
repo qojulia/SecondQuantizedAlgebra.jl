@@ -111,21 +111,20 @@ function to_numeric_kw(be::NumericBackend, op, b; parameter, time_parameter, ope
     return to_numeric_translated(op, ctx, rules, tp, op_type)
 end
 
-apply_parameter(q::QAdd, (op_rules, scalar_rules)::Tuple{OpRules, ScalarRules}) =
-    isempty(op_rules) && isempty(scalar_rules) ? q : substitute_split(q, op_rules, scalar_rules)
+apply_parameter(q::QAdd, r::SubstitutionRules) = substitute_with(q, r)
 
-apply_parameter(x::Complex{Num}, (_, scalar_rules)::Tuple{OpRules, ScalarRules}) =
-    isempty(scalar_rules) ? x : Complex{Num}(
-        Num(SymbolicUtils.substitute(raw_rule(real(x)), scalar_rules)),
-        Num(SymbolicUtils.substitute(raw_rule(imag(x)), scalar_rules)),
+apply_parameter(x::Complex{Num}, r::SubstitutionRules) =
+    isempty(r.scalars) ? x : Complex{Num}(
+        Num(SymbolicUtils.substitute(raw_rule(real(x)), r.scalars)),
+        Num(SymbolicUtils.substitute(raw_rule(imag(x)), r.scalars)),
     )
-apply_parameter(x::Number, (_, scalar_rules)::Tuple{OpRules, ScalarRules}) =
-    isempty(scalar_rules) ? x : SymbolicUtils.substitute(raw_rule(x), scalar_rules)
-apply_parameter(x::SymbolicUtils.BasicSymbolic, (_, scalar_rules)::Tuple{OpRules, ScalarRules}) =
-    isempty(scalar_rules) ? x : SymbolicUtils.substitute(x, scalar_rules)
+apply_parameter(x::Number, r::SubstitutionRules) =
+    isempty(r.scalars) ? x : SymbolicUtils.substitute(raw_rule(x), r.scalars)
+apply_parameter(x::SymbolicUtils.BasicSymbolic, r::SubstitutionRules) =
+    isempty(r.scalars) ? x : SymbolicUtils.substitute(x, r.scalars)
 
 to_numeric_translated(op::QSym, ctx::NumericContext, parameter, time_parameter, op_type) =
-    to_numeric_translated(single_qadd(CNUM_ONE, Op[op]), ctx, parameter, time_parameter, op_type)
+    to_numeric_translated(to_qadd(op), ctx, parameter, time_parameter, op_type)
 
 function to_numeric_translated(op::QAdd, ctx::NumericContext, parameter, time_parameter, op_type)
     op_ = apply_parameter(op, parameter)

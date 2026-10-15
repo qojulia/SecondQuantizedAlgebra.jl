@@ -188,7 +188,7 @@ function validate_coverage(q::QAdd, U::UnitaryTransform)
     return q
 end
 
-apply_rules(q::QAdd, rules::Dict{Op, QAdd}) = substitute_op_rules(q, rules)
+apply_rules(q::QAdd, rules::Dict{Op, QAdd}) = substitute_with(q, SubstitutionRules(rules))
 
 function reduce_params(q::QAdd, relations::Vector{ParamRelation}, gated::Bool)
     isempty(relations) && return q
@@ -227,7 +227,7 @@ function conjugate(q::QAdd, U::UnitaryTransform)
 end
 
 conjugate(o::QSym, U::UnitaryTransform) =
-    conjugate(single_qadd(CNUM_ONE, Op[o]), U)
+    conjugate(to_qadd(o), U)
 
 """
     transform(H, U::UnitaryTransform)
@@ -258,7 +258,7 @@ See also [`conjugate`](@ref), [`gauge_term`](@ref), [`RotatingFrame`](@ref).
 transform(q::QAdd, U::UnitaryTransform{StaticTime}) = conjugate(q, U)
 transform(q::QAdd, U::UnitaryTransform{DynamicTime}) = conjugate(q, U) + U.gauge
 transform(o::QSym, U::UnitaryTransform) =
-    transform(single_qadd(CNUM_ONE, Op[o]), U)
+    transform(to_qadd(o), U)
 
 """
     gauge_term(U::UnitaryTransform)

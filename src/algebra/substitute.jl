@@ -1,14 +1,11 @@
 @inline provably_real_replacement(x::Real) = true
-@inline provably_real_replacement(x::Num) = SymbolicUtils.symtype(x) <: Real
-@inline provably_real_replacement(x::SymbolicUtils.BasicSymbolic) =
+@inline provably_real_replacement(x::Union{Num, SymbolicUtils.BasicSymbolic}) =
     SymbolicUtils.symtype(x) <: Real
 @inline provably_real_replacement(x) = false
-
 
 const ScalarRules = Dict{RawExpression, RawExpression}
 const PhaseRules = Vector{Pair{RawExpression, RawExpression}}
 
-const EMPTY_SCALAR_RULES = ScalarRules()
 const EMPTY_PHASE_SUBSTITUTIONS = PhaseRules()
 
 raw_rule(x::RawExpression) = x
@@ -41,33 +38,21 @@ function nonreal_phase_substitutions(d::ScalarRules)
     return rules
 end
 
-function collect_phase_arguments!(out::Vector{RawExpression}, x::RawExpression)
-    if is_phase(x)
-        push!(out, only(SymbolicUtils.arguments(x)))
-        return out
-    end
-    SymbolicUtils.iscall(x) || return out
-    for argument in SymbolicUtils.arguments(x)
-        collect_phase_arguments!(out, argument)
-    end
-    return out
-end
-
 @noinline function validate_phase_substitutions(c::Coeff, phase_rules::PhaseRules)
     isempty(phase_rules) && return c
-    tail = c.tail
-    phase_arguments = RawExpression[]
-    if tail isa Poly
-        for monomial in tail.terms, symbol in monomial.syms
-            is_phase(symbol) && push!(phase_arguments, only(SymbolicUtils.arguments(symbol)))
-        end
-    elseif tail isa RawSymbolicCoeff
-        collect_phase_arguments!(phase_arguments, tail.expr)
-    end
-    for argument in phase_arguments
+    function check(x)
+        is_phase(x) || return false
+        argument = only(SymbolicUtils.arguments(x))
         for (from, to) in phase_rules
             raw_depends_on(argument, from) && nonreal_phase_argument(to)
         end
+        return false
+    end
+    tail = c.tail
+    if tail isa Poly
+        foreach(check, (symbol for monomial in tail.terms for symbol in monomial.syms))
+    elseif tail isa RawSymbolicCoeff
+        has_subterm(check, tail.expr)
     end
     return c
 end
@@ -111,48 +96,55 @@ conj(α)*α + conj(α) * a + α * a' + a' * a
 
 See also [`change_index`](@ref), [`Displace`](@ref).
 """
-function SymbolicUtils.substitute(op::QSym, rules::AbstractDict; replace_adjoint = true)
-    return SymbolicUtils.substitute(
-        single_qadd(CNUM_ONE, Op[op]), rules; replace_adjoint = replace_adjoint
-    )
+function SymbolicUtils.substitute(op::QSym, rules::AbstractDict; replace_adjoint::Bool = true)
+    return substitute_with(to_qadd(op), SubstitutionRules(rules, replace_adjoint))
 end
 
 function SymbolicUtils.substitute(q::QAdd, rules::AbstractDict; replace_adjoint::Bool = true)
-    iszero(q) && return q
-    op_rules, scalar_rules = split_substitution_rules(rules, replace_adjoint)
-    return substitute_split(q, op_rules, scalar_rules)
+    return substitute_with(q, SubstitutionRules(rules, replace_adjoint))
 end
 
 const OpRules = Dict{Op, QAdd}
 
-const EMPTY_OP_RULES = OpRules()
+"""
+    SubstitutionRules
 
-substitute_op_rules(q::QAdd, op_rules::OpRules) =
-    iszero(q) ? q : substitute_split(q, op_rules, EMPTY_SCALAR_RULES)
-
-function substitute_split(q::QAdd, op_rules::OpRules, scalar_rules::ScalarRules)
-    out = QTermDict()
-    indices = copy(q.indices)
-    phase_rules = nonreal_phase_substitutions(scalar_rules)
-    for (t, c) in q
-        temp = QTermDict()
-        replacement_indices = stream_substitution_once!(
-            temp, t.ops, c, t.ne, op_rules, scalar_rules, phase_rules,
-        )
-        settle_scope!(out, temp, bound_indices(t, c, q.indices))
-        indices = merge_unique(indices, replacement_indices)
-    end
-    return QAdd(out, drop_unused_indices(out, indices))
+The rules of one substitution: operator rules, scalar rules, and the scalar rules whose
+replacement is not provably real, which must not reach the argument of a phase.
+"""
+struct SubstitutionRules
+    ops::OpRules
+    scalars::ScalarRules
+    phases::PhaseRules
 end
+SubstitutionRules(ops::OpRules = OpRules(), scalars::ScalarRules = ScalarRules()) =
+    SubstitutionRules(ops, scalars, nonreal_phase_substitutions(scalars))
 
-function split_substitution_rules(rules::AbstractDict, replace_adjoint::Bool)
+function SubstitutionRules(rules::AbstractDict, replace_adjoint::Bool)
     op_rules = OpRules()
     scalar_rules = ScalarRules()
     for (k, v) in rules
         add_substitution_rule!(op_rules, scalar_rules, k, v)
     end
     replace_adjoint && add_adjoint_rules!(op_rules)
-    return op_rules, scalar_rules
+    return SubstitutionRules(op_rules, scalar_rules)
+end
+
+Base.isempty(r::SubstitutionRules) = isempty(r.ops) && isempty(r.scalars)
+
+substitute_cnum(c::CNum, r::SubstitutionRules) = substitute_cnum(c, r.scalars, r.phases)
+
+function substitute_with(q::QAdd, r::SubstitutionRules)
+    (iszero(q) || isempty(r)) && return q
+    out = QTermDict()
+    indices = copy(q.indices)
+    for (t, c) in q
+        temp = QTermDict()
+        replacement_indices = substitute_term!(temp, t.ops, c, t.ne, r)
+        settle_scope!(out, temp, bound_indices(t, c, q.indices))
+        indices = merge_unique(indices, replacement_indices)
+    end
+    return QAdd(out, drop_unused_indices(out, indices))
 end
 
 function add_substitution_rule!(op_rules::OpRules, scalar_rules::ScalarRules, k::Op, v)
@@ -172,28 +164,20 @@ function add_adjoint_rules!(op_rules::OpRules)
     return op_rules
 end
 
-function has_operator_rule(ops::Vector{Op}, dict::OpRules)
-    for op in ops
-        haskey(dict, op) && return true
-    end
-    return false
-end
-
-function stream_substitution_once!(
-        out::QTermDict, ops::Vector{Op}, c::CNum, ne::Vector{NonEqualPair},
-        op_rules::OpRules, scalar_rules::ScalarRules, phase_rules::PhaseRules,
+function substitute_term!(
+        out::QTermDict, ops::Vector{Op}, c::CNum, ne::Vector{NonEqualPair}, r::SubstitutionRules,
     )
-    if !has_operator_rule(ops, op_rules)
-        new_c = substitute_cnum(c, scalar_rules, phase_rules)
+    if !any(op -> haskey(r.ops, op), ops)
+        new_c = substitute_cnum(c, r)
         iszero(new_c) || stream!(out, copy(ops), new_c, ne)
         return EMPTY_INDICES
     end
     indices = EMPTY_INDICES
     for op in ops
-        haskey(op_rules, op) && (indices = merge_unique(indices, op_rules[op].indices))
+        indices = merge_unique(indices, get(r.ops, op, ZERO_QADD).indices)
     end
-    substitute_ops(Op[], c, ne, ops, 1, op_rules) do new_ops, new_c, new_ne
-        new_c = substitute_cnum(new_c, scalar_rules, phase_rules)
+    substitute_ops(Op[], c, ne, ops, 1, r.ops) do new_ops, new_c, new_ne
+        new_c = substitute_cnum(new_c, r)
         iszero(new_c) || canonicalize!(out, new_ops, new_c, new_ne)
     end
     return indices
@@ -217,7 +201,7 @@ function substitute_ops(
 end
 
 replacement_qadd(::Op, v::QAdd) = v
-replacement_qadd(::Op, v::Op) = single_qadd(CNUM_ONE, Op[v])
+replacement_qadd(::Op, v::Op) = to_qadd(v)
 replacement_qadd(::Op, v::Union{Number, SymbolicUtils.BasicSymbolic, Coeff}) = single_qadd(to_cnum(v), Op[])
 replacement_qadd(op::Op, v) =
     throw(ArgumentError("operator replacement for `$op` has unsupported value `$v`"))

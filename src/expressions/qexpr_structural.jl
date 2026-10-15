@@ -7,23 +7,15 @@ function qexpr_rebuild(kind::QExprKind, coeff::CNum, args::Vector{QExprArg})
     return qexpr_scale(qexpr_call(kind, only(args)), coeff)
 end
 
-function substitute_qexpr_split(
-        q::QExpr,
-        op_rules::OpRules,
-        scalar_rules::ScalarRules,
-        phase_rules::PhaseRules,
-    )
-    new_coeff = substitute_cnum(q.coeff, scalar_rules, phase_rules)
+function substitute_with(q::QExpr, r::SubstitutionRules)
+    (iszero(q) || isempty(r)) && return q
+    new_coeff = substitute_cnum(q.coeff, r)
     iszero(new_coeff) && return qexpr_zero()
 
     args = QExprArg[]
     sizehint!(args, length(q.args))
     for arg in q.args
-        if arg isa QAdd
-            push!(args, substitute_split(arg, op_rules, scalar_rules))
-        else
-            push!(args, substitute_qexpr_split(arg, op_rules, scalar_rules, phase_rules))
-        end
+        push!(args, substitute_with(arg, r))
     end
 
     if q.kind == QEXPR_EXPIM
@@ -37,12 +29,8 @@ function substitute_qexpr_split(
     return qexpr_rebuild(q.kind, new_coeff, args)
 end
 
-function SymbolicUtils.substitute(q::QExpr, rules::AbstractDict; replace_adjoint = true)
-    iszero(q) && return q
-    op_rules, scalar_rules = split_substitution_rules(rules, replace_adjoint)
-    phase_rules = nonreal_phase_substitutions(scalar_rules)
-    return substitute_qexpr_split(q, op_rules, scalar_rules, phase_rules)
-end
+SymbolicUtils.substitute(q::QExpr, rules::AbstractDict; replace_adjoint::Bool = true) =
+    substitute_with(q, SubstitutionRules(rules, replace_adjoint))
 
 function change_index(q::QExpr, from::Index, to::Index)
     coeff = change_index(q.coeff, from, to)

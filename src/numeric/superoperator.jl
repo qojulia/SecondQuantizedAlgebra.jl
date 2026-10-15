@@ -75,8 +75,7 @@ end
 sandwich_terms(S::SuperOperator) =
     SandwichTerm[(to_complex(c), t.left, t.right) for (t, c) in S.arguments]
 
-apply_parameter(S::SuperOperator, (op_rules, scalar_rules)::Tuple{OpRules, ScalarRules}) =
-    isempty(op_rules) && isempty(scalar_rules) ? S : substitute_split(S, op_rules, scalar_rules)
+apply_parameter(S::SuperOperator, r::SubstitutionRules) = substitute_with(S, r)
 
 materialize_map(m, ::EagerOperator) = m
 materialize_map(m, ::typeof(identity)) = m
@@ -123,7 +122,7 @@ function to_numeric(
 end
 
 to_numeric(S::NumericMap, b::Basis, d::AbstractDict{<:QSym}) =
-    to_numeric_translated(S, NumericContext(QuantumOpticsBackend(), b, d), (OpRules(), ScalarRules()), NO_TIME_PARAMETER, EagerOperator())
+    to_numeric_translated(S, NumericContext(QuantumOpticsBackend(), b, d), SubstitutionRules(), NO_TIME_PARAMETER, EagerOperator())
 to_numeric(::FormalMap, ::Basis, ::AbstractDict{<:QSym}) = formal_map_numeric_error()
 to_numeric(S::Union{NumericMap, FormalMap}, state::QuantumState, d::AbstractDict{<:QSym}) =
     to_numeric(S, numeric_basis(state), d)
@@ -261,7 +260,7 @@ end
 to_numeric_master(::Lindbladian{QExpr}, h::HilbertSpace, dims; kwargs...) = formal_map_numeric_error()
 
 struct CoefficientRules
-    parameter::Tuple{OpRules, ScalarRules}
+    parameter::SubstitutionRules
     sub_re::ScalarRules
     sub_im::ScalarRules
     has_imag::Bool

@@ -386,7 +386,7 @@ function apply_map(X::SuperExpr, ρ::QExprArg)
 end
 
 (X::SuperExpr)(ρ::Union{QAdd, QExpr}) = apply_map(X, ρ)
-(X::SuperExpr)(ρ::QSym) = apply_map(X, single_qadd(CNUM_ONE, Op[ρ]))
+(X::SuperExpr)(ρ::QSym) = apply_map(X, to_qadd(ρ))
 (X::SuperExpr)(ρ::Coefficient) = apply_map(X, single_qadd(to_cnum(ρ), Op[]))
 (L::Lindbladian{QExpr})(ρ::Union{QSym, QField, Coefficient}) = SuperExpr(L)(ρ)
 
@@ -443,13 +443,8 @@ change_index(X::SuperExpr, pairs::AbstractDict{Index, Index}) = map_formal(
 )
 
 function SymbolicUtils.substitute(X::SuperExpr, rules::AbstractDict; replace_adjoint::Bool = true)
-    op_rules, scalar_rules = split_substitution_rules(rules, replace_adjoint)
-    phase_rules = nonreal_phase_substitutions(scalar_rules)
-    return map_formal(
-        S -> iszero(S) ? S : substitute_split(S, op_rules, scalar_rules),
-        q -> substitute_part(q, op_rules, scalar_rules, phase_rules),
-        c -> substitute_cnum(c, scalar_rules, phase_rules), X,
-    )
+    r = SubstitutionRules(rules, replace_adjoint)
+    return map_formal(S -> substitute_with(S, r), q -> substitute_with(q, r), c -> substitute_cnum(c, r), X)
 end
 
 conjugate(X::SuperExpr, U::UnitaryTransform) =

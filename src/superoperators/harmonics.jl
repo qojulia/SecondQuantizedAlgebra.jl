@@ -7,11 +7,7 @@ function harmonics(S::SuperOperator, ω::Real, t::Num)
     return Dict{Int, SuperOperator}(n => superop_pruned(d, copy(S.indices)) for (n, d) in parts)
 end
 
-function harmonic(S::SuperOperator, ω::Real, t::Num, n::Integer)
-    frequency = harmonic_frequency_coeff(ω, t)
-    order = Int(n)
-    return map_coefficients(c -> get(coefficient_harmonics(c, Num(ω), frequency, t), order, CNUM_ZERO), S)
-end
+harmonic(S::SuperOperator, ω::Real, t::Num, n::Integer) = map_coefficients(harmonic_map(ω, t, n), S)
 
 function harmonics(L::Lindbladian{QAdd}, ω::Real, t::Num)
     builders = Dict{Int, typeof(LindbladianBuilder{QAdd}())}()

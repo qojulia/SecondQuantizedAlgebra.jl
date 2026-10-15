@@ -173,7 +173,7 @@ Base.hash(L::Lindbladian, h::UInt) = hash(:Lindbladian, hash(L.hamiltonian, hash
 
 as_generator_operator(x::QAdd) = x
 as_generator_operator(x::QExpr) = x
-as_generator_operator(x::QSym) = single_qadd(CNUM_ONE, Op[x])
+as_generator_operator(x::QSym) = to_qadd(x)
 as_generator_operator(x::Coefficient) = single_qadd(to_cnum(x), Op[])
 
 function lindbladian_from(H::O) where {O <: Union{QAdd, QExpr}}

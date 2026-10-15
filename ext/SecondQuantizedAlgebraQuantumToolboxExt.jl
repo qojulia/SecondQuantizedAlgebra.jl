@@ -422,7 +422,7 @@ end
 
 SQA.to_numeric(S::SQA.NumericMap, dims::QTBDims, d::AbstractDict{<:SQA.QSym}) =
     SQA.to_numeric_translated(
-    S, SQA.NumericContext(QuantumToolboxBackend(), dims, d), (SQA.OpRules(), SQA.ScalarRules()),
+    S, SQA.NumericContext(QuantumToolboxBackend(), dims, d), SQA.SubstitutionRules(),
     SQA.NO_TIME_PARAMETER, SQA.EagerOperator(),
 )
 SQA.to_numeric(::SQA.FormalMap, ::QTBDims, ::AbstractDict{<:SQA.QSym}) = SQA.formal_map_numeric_error()

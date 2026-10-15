@@ -49,7 +49,9 @@ include("algebra/pipelines.jl")
 
 include("expressions/index.jl")
 
-include("algebra/algebra.jl")
+include("algebra/arithmetic.jl")
+include("algebra/canonical_forms.jl")
+include("algebra/commutator.jl")
 include("algebra/substitute.jl")
 include("expressions/coefficient_terms.jl")
 include("algebra/mutable_arithmetics.jl")
