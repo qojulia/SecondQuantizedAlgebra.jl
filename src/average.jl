@@ -669,7 +669,6 @@ qadjoint(x::Num) = qadjoint(SymbolicUtils.unwrap(x))
 qadjoint(x::QField) = adjoint(x)
 
 const qconj = qadjoint
-@doc (@doc qadjoint) qconj
 
 """
     dagger(x::QField)
