@@ -189,3 +189,14 @@ Formal operator functions are transformed through their arguments, so the result
 ```@example generators
 conjugate(cos(a + a'), Rotation(a, θ))
 ```
+
+
+## Reading displacement amplitudes
+
+[`displacement(U, a)`](@ref displacement) returns the c-number part of
+`conjugate(a, U)`, i.e. the displacement amplitude of a Fock or phase-space frame.
+
+
+```@docs
+displacement
+```
