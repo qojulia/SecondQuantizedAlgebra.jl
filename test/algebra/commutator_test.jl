@@ -36,11 +36,12 @@ import SecondQuantizedAlgebra: QAdd
     end
 
     @testset "zero-point radicals of a frequency cancel" begin
-        @variables ω
+        @variables ω::Number
         x = (a + ad) / sqrt(2ω)
         p = im * sqrt(ω / 2) * (ad - a)
         @test iszero(commutator(x, p) - im)
-        @test iszero(p' - p)
+        positive_p = substitute(p, Dict(ω => 2))
+        @test iszero(positive_p' - positive_p)
         @test iszero(p * p / 2 + ω^2 * x * x / 2 - ω * (ad * a + 1 // 2))
     end
 

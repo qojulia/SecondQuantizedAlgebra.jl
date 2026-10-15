@@ -94,33 +94,37 @@ import SecondQuantizedAlgebra: Coeff, CNum, to_cnum, to_num, Monomial, ExactComp
         @test iszero(simplify(g^2 * a - g * g * a))
     end
 
-    @testset "radicals of parameters factor exactly" begin
-        @variables ω ν
-        # A positive scalar and `Real` parameters, nonnegative under a root, factor out.
+    @testset "positive numeric factors leave symbolic root branches intact" begin
+        @variables ω ν Z::Number
         @test isequal(sqrt(ω / 2) * sqrt(2ω) * a, ω * a)
         @test isequal(sqrt(2ω) * a, sqrt(Num(2)) * sqrt(ω) * a)
         @test isequal(sqrt(4ω) * a, 2 * sqrt(ω) * a)
-        @test isequal(sqrt(ω * ν) * a, sqrt(ω) * sqrt(ν) * a)
-        @test isequal(sqrt(ω * ν) * sqrt(ω * ν) * a, ω * ν * a)
-        @test isequal((ω * ν)^(-1 // 2) * a, a / (sqrt(ω) * sqrt(ν)))
-        @test isequal(sqrt(-ω) * a, im * sqrt(ω) * a)
-        @test isequal(cbrt(-8ω) * a, -2 * cbrt(ω) * a)
         @test iszero(a / sqrt(2ω) - sqrt(ω / 2) * a / ω)
         @test isequal(sqrt(2.0ω) * a, sqrt(2.0) * sqrt(ω) * a)
-        @test SecondQuantizedAlgebra.to_complex(
-            stored_coefficient(substitute(sqrt(ω / 2) * sqrt(3ν) * a, Dict(ω => 2.5, ν => 0.7))),
-        ) ≈ sqrt(2.5 / 2) * sqrt(3 * 0.7)
-
-        # A principal root of a complex atom splits only where `Log` is additive.
-        @variables Z::Number
         @test isequal(sqrt(2Z) * a, sqrt(Num(2)) * sqrt(Z) * a)
-        @test isequal(sqrt(ω * Z) * a, sqrt(ω) * sqrt(Z) * a)
         @test isequal(sqrt(Z) * sqrt(Z) * a, Z * a)
+        @test !isequal(sqrt(ω * ν) * a, sqrt(ω) * sqrt(ν) * a)
+        @test !isequal(sqrt(ω * Z) * a, sqrt(ω) * sqrt(Z) * a)
+        @test !isequal(sqrt(-ω) * a, im * sqrt(ω) * a)
         @test !isequal(sqrt(Z^2) * a, Z * a)
         @test !isequal(sqrt(-Z) * a, im * sqrt(Z) * a)
         @test !isequal(sqrt(1 / Z) * a, a / sqrt(Z))
         @test !isequal((-ω)^(1 // 3) * a, -cbrt(ω) * a)
         @test iszero(sqrt(-Z) * a - sqrt(-Z) * a)
+
+        value(expr, rules) = SecondQuantizedAlgebra.to_complex(stored_coefficient(substitute(expr, rules)))
+        @test value(sqrt(ω * ν) * a, Dict(ω => -1, ν => -1)) ≈ 1
+        square_root = Num(SymbolicUtils.Term{SymbolicUtils.SymReal}(sqrt, [Symbolics.unwrap(ω^2)]; type = Real))
+        @test !isequal(square_root * a, ω * a)
+        @test value(square_root * a, Dict(ω => -2)) ≈ 2
+        @test value(cbrt(ω) * a, Dict(ω => -8)) ≈ -2
+        for z in (-2 + 0im, -1 + 0.25im, -1 - 0.25im, 1 + 0.25im)
+            rules = Dict(Z => z)
+            @test value(sqrt(2Z) * a, rules) ≈ sqrt(2z)
+            @test value(sqrt(Z^2) * a, rules) ≈ sqrt(z^2)
+            @test value(sqrt(-Z) * a, rules) ≈ sqrt(-z)
+            @test value(sqrt(1 / Z) * a, rules) ≈ sqrt(1 / z)
+        end
     end
 
     @testset "radicals of exact numbers stay exact" begin

@@ -38,7 +38,7 @@ This is a breaking release for type stability: public functions no longer use `n
 
 ### Fixed
 
-- Radicals of monomials in parameters are exact and canonical, so `sqrt(ω/2) * sqrt(2ω)` is `ω` and `commutator((a + a')/sqrt(2ω), im*sqrt(ω/2)*(a' - a))` is `im`; `Real` parameters under a fractional power are taken nonnegative, and roots of non-real atoms split only where the principal branch allows it, so `sqrt(z^2)` no longer becomes `z`.
+- Positive numeric factors in roots of a parameter now cancel exactly in oscillator coefficients, while symbolic products and nested powers retain their root branches without assuming real parameters are positive.
 - Adding symbolic coefficients that are quotients with different denominators drops an identically zero sum, so `iszero` agrees with `iszero(simplify(...))` on, e.g., `abs2` of a steady-state amplitude minus its expanded form.
 - A bare symbolic scalar such as `@variables β::Number` now combines with a phase or other coefficient under `+`, `-`, `*` and `/` in either order, as `Num` already did; previously `β * expim(ω*t)` threw a `MethodError`.
 

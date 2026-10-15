@@ -202,10 +202,8 @@ h = FockSpace(:harmonic_example)
 
 ## Radicals of parameters
 
-A square root or rational power of a monomial in parameters is exact and canonical. A real
-parameter under a fractional power is taken to be nonnegative, the domain of Julia's real
-`sqrt`, so the power distributes over every factor. Zero-point factors can be written
-directly:
+Positive numeric factors are extracted from roots of a parameter, so `sqrt(2ω)` and
+`sqrt(ω/2)` share the same symbolic root and cancel exactly in zero-point factors:
 
 ```@example coefficient-radicals
 using SecondQuantizedAlgebra
@@ -219,7 +217,7 @@ p = im * sqrt(ω / 2) * (a' - a)
 commutator(x, p)
 ```
 
-A parameter that can be negative should not appear under a fractional power: `sqrt(Δ^2)` is
-`Δ`, so write `abs(Δ)` for the magnitude. A complex parameter declared with `::Number` gets no
-such assumption, and only principal-branch identities apply: `sqrt(2η)` becomes
-`sqrt(2) * sqrt(η)`, while `sqrt(-η)` and `sqrt(η^2)` are kept as written.
+A real parameter is not assumed positive. Products and powers inside a symbolic radicand
+are kept intact: `sqrt(ω*ν)` does not split into `sqrt(ω)*sqrt(ν)`, and `sqrt(Δ^2)` is not
+replaced by `Δ`. Complex roots retain their principal branch; `cbrt` retains its real-root
+semantics. The oscillator coordinates above are Hermitian on the physical domain `ω > 0`.
