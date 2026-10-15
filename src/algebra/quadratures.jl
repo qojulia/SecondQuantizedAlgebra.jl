@@ -9,7 +9,6 @@ function positive_frequency_or_throw(ω::Real, what::AbstractString)
     return ω
 end
 
-# `sqrt` of a `Num` keeps integer and rational radicands exact.
 frequency_root(x::Real) = sqrt(Num(x))
 
 """
@@ -119,8 +118,6 @@ function FrequencyChange(a::Op, ω0::Real, ωr::Real)
     d = fock_or_throw(a, "`FrequencyChange`")
     positive_frequency_or_throw(ω0, "`FrequencyChange`")
     positive_frequency_or_throw(ωr, "`FrequencyChange`")
-    # `sqrt(2ω0)*sqrt(2ωr)` rather than `sqrt(4ω0*ωr)`: the factors square to their
-    # radicands, so `u^2 - v^2 = 1` cancels exactly for symbolic frequencies.
     root = frequency_root(2 * ω0) * frequency_root(2 * ωr)
     u = to_cnum((ω0 + ωr) / root)
     v = to_cnum((ω0 - ωr) / root)
