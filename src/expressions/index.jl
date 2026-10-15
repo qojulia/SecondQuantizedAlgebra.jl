@@ -421,4 +421,3 @@ function Σ(expr::Union{QField, Number}, i::Index, j::Index, rest::Index...)
 end
 
 const ∑ = Σ
-@doc (@doc Σ) ∑
