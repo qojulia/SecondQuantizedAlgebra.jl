@@ -337,7 +337,7 @@ import SecondQuantizedAlgebra: Coeff, CNum, to_cnum, to_num, Monomial, ExactComp
 
         # Lowering keeps one root per wide prime and rebuilds the same coefficient.
         wide = sqrt(Num(P)) * sqrt(Num(q)) * g * a
-        @test string(real(get_prefactor(wide))) == "g*sqrt($P)*sqrt($q)"
+        @test sort(split(string(real(get_prefactor(wide))), '*')) == sort(["g", "sqrt($P)", "sqrt($q)"])
         @test isequal(get_prefactor(wide) * a, wide)
     end
 
