@@ -216,15 +216,19 @@ function scalar_drift_rate(row::AffineDrift)
 end
 
 """
-    DisplacementFrame(a, L::Union{Lindbladian, SuperOperator})
+    DisplacementFrame(a, L::Union{Lindbladian{QAdd}, SuperOperator}) -> UnitaryTransform
 
-Construct the static displacement `a ↦ a + α` that removes the coherent drive from the
-linear generator `L`, a [`Lindbladian`](@ref) or any [`SuperOperator`](@ref) such as a
-Caldeira–Leggett master equation. The Heisenberg drift must be affine in the mode,
-`d/dt (a, a') = M (a, a') + c`, and `(α, conj(α)) = -M⁻¹ c` is its fixed point, so heating
-and loss enter through the exact drift rather than through a no-jump Hamiltonian. The drift
-must preserve Hermiticity, including when it does not mix `a` with `a'`:
-`transpose(L)(a') == transpose(L)(a)'`. A structurally singular `M` is rejected.
+Return the static displacement `a ↦ a + α` that cancels the constant part of the
+Heisenberg drift of a Fock mode. `L` must be a generator that preserves trace.
+With `z = (a, a')`, the drift must have the affine form
+`M*z + c`, without bound sums, and preserve adjoints:
+`transpose(L)(a') == transpose(L)(a)'`.
+
+The shift `(α, conj(α))` solves `M*(α, conj(α)) + c = 0`. A driven response whose
+denominator is structurally zero throws an `ArgumentError`; symbolic denominators
+restrict the result to parameter values where they are nonzero.
+
+See also [`Displace`](@ref), [`transform`](@ref).
 """
 function DisplacementFrame(a::Op, L::Union{Lindbladian{QAdd}, SuperOperator})
     d = fock_or_throw(a, "`DisplacementFrame`")
@@ -239,16 +243,21 @@ function DisplacementFrame(a::Op, L::Union{Lindbladian{QAdd}, SuperOperator})
 end
 
 """
-    DisplacementFrame(a, L::Union{Lindbladian, SuperOperator}, t)
+    DisplacementFrame(a, L::Union{Lindbladian{QAdd}, SuperOperator}, t) -> UnitaryTransform
 
-Construct the bounded moving displacement of the linear generator `L`, whose drift
-`d/dt (a, a') = M (a, a') + c(t)` has a time-independent matrix `M` and a drive `c(t)` that
-is a finite sum of exact harmonic phases. The displacement solves `α̇ = M₁₁ α + M₁₂ conj(α)
-+ c₁(t)` with the free homogeneous solution set to zero: each harmonic `expim(ν*t)` is
-answered by the exact solution of `(im*ν - M) v = c_ν`.
+Return the moving displacement `a ↦ a + α(t)` that cancels the forcing in an affine
+Fock-mode drift `ż = M*z + c(t)`, where `z = (a, a')`. `L` must preserve trace, and
+its drift must preserve adjoints.
+The drift must have no bound sums, `M` must be independent of the symbolic time variable
+`t`, and `c(t)` must be a finite sum of harmonic phases with time-independent amplitudes
+and frequencies.
 
-A structurally resonant harmonic is rejected. Symbolic determinants are retained as exact
-quotients and therefore describe the response away from their resonance surfaces.
+The shift `s = (α, conj(α))` solves `ṡ = M*s + c(t)`, selecting the harmonic particular
+solution with the homogeneous solution set to zero. A response denominator recognized as zero
+throws an `ArgumentError`; symbolic quotients apply away from resonance. The returned
+frame includes the time-dependent gauge term used by [`transform`](@ref).
+
+See also [`Displace`](@ref).
 """
 function DisplacementFrame(a::Op, L::Union{Lindbladian{QAdd}, SuperOperator}, t::Num)
     d = fock_or_throw(a, "`DisplacementFrame`")
@@ -276,12 +285,19 @@ function DisplacementFrame(a::Op, L::Union{Lindbladian{QAdd}, SuperOperator}, t:
 end
 
 """
-    DisplacementFrame(x, p, L::Union{Lindbladian, SuperOperator})
+    DisplacementFrame(x, p, L::Union{Lindbladian{QAdd}, SuperOperator}) -> UnitaryTransform
 
-Construct the static translation `x ↦ x + X`, `p ↦ p + P` that removes the drive from the
-linear generator `L` of a canonical `(Position, Momentum)` pair. The real Heisenberg drift
-`d/dt (x, p) = M (x, p) + c` must be affine in the pair, and `(X, P) = -M⁻¹ c` is its
-fixed point. A structurally singular driven response is rejected.
+Return the static translation `x ↦ x + X`, `p ↦ p + P` that cancels the constant part
+of the Heisenberg drift. `L` must preserve trace. `x` and `p` must be a
+[`Position`](@ref) and [`Momentum`](@ref)
+on the same site, in that order. Their drift must be affine in this pair, with real
+coefficients and no bound sums.
+
+For `z = (x, p)` and `ż = M*z + c`, the shift satisfies `M*(X, P) + c = 0`.
+Zero forcing selects zero translation. A driven response denominator recognized as
+zero throws an `ArgumentError`; symbolic quotients require nonzero denominators.
+
+See also [`Displace`](@ref), [`transform`](@ref).
 """
 function DisplacementFrame(x::Op, p::Op, L::Union{Lindbladian{QAdd}, SuperOperator})
     phase_pair(x, p, "`DisplacementFrame`")
@@ -291,13 +307,20 @@ function DisplacementFrame(x::Op, p::Op, L::Union{Lindbladian{QAdd}, SuperOperat
 end
 
 """
-    DisplacementFrame(x, p, L::Union{Lindbladian, SuperOperator}, t)
+    DisplacementFrame(x, p, L::Union{Lindbladian{QAdd}, SuperOperator}, t) -> UnitaryTransform
 
-Construct the bounded moving translation of a canonical `(Position, Momentum)` pair driven
-by the linear generator `L`, whose real drift `d/dt (x, p) = M (x, p) + c(t)` has a
-time-independent `M` and finite harmonic drives. The homogeneous solution is set to zero,
-the moving-frame gauge is the exact Weyl gauge of [`Displace`](@ref), and structural
-resonances are rejected.
+Return the moving translation `x ↦ x + X(t)`, `p ↦ p + P(t)` that cancels the forcing
+in the real affine drift of a `(Position, Momentum)` pair on the same site, in that order.
+`L` must preserve trace. The drift must have no bound sums, its matrix must be independent of the symbolic time
+variable `t`, and its forcing must be a finite sum of harmonic phases with time-independent
+amplitudes and frequencies.
+
+The shift solves the drift equation with the homogeneous solution set to zero.
+A response denominator recognized as zero throws an `ArgumentError`; symbolic quotients
+apply away from resonance. The returned frame includes the Weyl gauge term used by
+[`transform`](@ref).
+
+See also [`Displace`](@ref).
 """
 function DisplacementFrame(
         x::Op, p::Op, L::Union{Lindbladian{QAdd}, SuperOperator}, t::Num,
