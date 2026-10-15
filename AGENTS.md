@@ -8,63 +8,6 @@ A Julia package for symbolic manipulation of second-quantized operators used in 
 
 **Always read [`docs/src/dev/architecture.md`](docs/src/dev/architecture.md) before changing anything under `src/` or `ext/`.** It lists the invariants a change must keep, each with its reason and the test that pins it: eager canonical form, the pipeline order, why `σᵍᵍ` stays atomic, the naming policy (the algebra never mints `Index` objects on the user's behalf), diagonal splitting, the dead-NE rule, the `QAdd`/`QExpr` split, and the coefficient tiers. Several of them are not covered by tests, and many "obvious" changes are deliberately not made for reasons recorded there. The developer manual in `docs/src/dev/` also covers the workflow (`contributing.md`), adding an operator kind or a numeric backend (`extending.md`), and the internal docstrings (`internals.md`).
 
-## Package layout
-
-```
-src/SecondQuantizedAlgebra.jl       # Main module, exports, imports
-src/types.jl                        # QField, QSym abstract hierarchy, SiteCmp, ReduceKind
-src/precompile.jl                   # PrecompileTools workload
-src/average.jl                      # AvgFunc/SumFunc nodes, average(), undo_average(), Hermitian-Real symtype
-
-src/numeric/backend.jl              # NumericBackend + singletons; open hooks; default backend
-src/numeric/coeff.jl                # coefficient folding, parameter/time splitting
-src/numeric/core.jl                 # NumericContext and the static/time-dependent conversion core
-src/numeric/indexed.jl              # backend-neutral indexed unroll (sites, ne)
-src/numeric/api.jl                  # public to_numeric / numeric_average / expect
-src/numeric/qexpr.jl                # deliberate numeric refusal for unlowered QExpr
-src/numeric/superoperator.jl        # superoperator conversion and to_numeric_master
-
-ext/SecondQuantizedAlgebraQuantumOpticsBaseExt.jl  # QuantumOpticsBase backend (vector LazySum)
-ext/SecondQuantizedAlgebraQuantumToolboxExt.jl     # QuantumToolbox backend (VecSum over QobjEvo)
-
-src/expressions/intern.jl           # name and range interning tables, name ranks
-src/expressions/gaussian.jl         # GaussianRational{T}: exact (re + im*i)/den numbers, checked Int kernels
-src/expressions/exact.jl            # exact scalar tiers, the NativeSlot layout, radical-folding primitives
-src/expressions/monomial.jl         # Monomial{E}/Poly structs (radical-canonical by construction)
-src/expressions/cnum.jl             # Coeff (CNum) arithmetic, recognition, raw lowering, LinearAlgebra hooks
-src/expressions/reduce.jl           # trigonometric and hyperbolic coefficient reduction
-src/expressions/qterm.jl            # QTerm struct (ops, ne), dict key for QAdd
-src/expressions/qadd.jl             # QAdd, canonical polynomial sum; TermInterface
-src/expressions/qexpr.jl            # QExpr, cold-path formal non-polynomial expressions
-src/expressions/qexpr_structural.jl # structural rewrites/introspection for QExpr
-src/expressions/qexpr_taylor.jl     # explicit exact-coefficient Taylor lowering to QAdd
-src/expressions/index_types.jl      # Index type, NO_INDEX constant
-src/expressions/index.jl            # IndexedVariable, DoubleIndexedVariable, Σ
-
-src/operators/hilbertspace.jl       # HilbertSpace, FockSpace, ProductSpace, ⊗
-src/operators/op.jl                 # OpKind enum, Op struct, hash/isequal, is_* predicates, optype
-src/operators/fock.jl               # Destroy, Create constructors
-src/operators/nlevel.jl             # NLevelSpace, Transition, CollectiveNLevelSpace, CollectiveTransition
-src/operators/pauli.jl              # PauliSpace, Pauli constructor
-src/operators/spin.jl               # SpinSpace, Spin constructor
-src/operators/phase_space.jl        # PhaseSpace, Position, Momentum constructors
-src/operators/operators.jl          # the operator hooks (kind-branched), order_key, adjoint, qadjoint
-
-src/algebra/algebra.jl              # normal_order(), simplify(), expand_completeness(), commutator(), substitute()
-src/algebra/passes.jl               # partial_sort! and the reduce/commute/ground-state passes
-src/algebra/pipelines.jl            # stream!, canonicalize!, products and diagonal splitting
-src/algebra/mutable_arithmetics.jl  # in-place sum/reduce accumulation (QAddBuilder)
-src/algebra/weyl.jl                 # normal_to_symmetric(), symmetric_to_normal()
-src/algebra/unitary*.jl             # UnitaryTransform: affine actions, constructors, generators, frames, QExpr recursion
-
-src/printing/printing.jl            # Unicode display
-src/printing/latexify_recipes.jl    # LaTeX rendering via Latexify.jl
-src/printing/qexpr.jl               # precedence-aware text/LaTeX rendering for QExpr
-src/printing/superoperator.jl       # rendering of maps and Lindbladians
-
-src/superoperators/                 # SuperTerm, SuperOperator, Channel, Lindbladian, SuperExpr, scope, frames
-```
-
 ## Git policy
 
 **Never commit or push.** Neither Claude nor any subagent may run `git commit`, `git push`, or any git command that modifies history. All commits are made by the user.
