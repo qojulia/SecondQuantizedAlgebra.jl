@@ -59,6 +59,7 @@ include("algebra/unitary_constructors.jl")
 include("algebra/unitary_displacement_frames.jl")
 include("algebra/unitary_bogoliubov.jl")
 include("algebra/unitary_generators.jl")
+include("algebra/harmonics.jl")
 
 include("superoperators/superterm.jl")
 include("superoperators/superoperator.jl")
@@ -69,6 +70,7 @@ include("superoperators/structural.jl")
 include("superoperators/gksl.jl")
 include("superoperators/superexpr.jl")
 include("superoperators/frames.jl")
+include("superoperators/harmonics.jl")
 
 include("average.jl")
 
@@ -146,7 +148,7 @@ export FockSpace, ProductSpace,
     substitute,
     normal_order, normal_to_symmetric, symmetric_to_normal,
     UnitaryTransform, RotatingFrame, Displace, DisplacementFrame, Rotation, Squeeze, Bogoliubov,
-    transform, conjugate, gauge_term, generators,
+    transform, conjugate, gauge_term, generators, displacement,
     simplify, expand, taylor, expim, expand_completeness, assume_distinct_index, commutator, anticommutator,
     to_numeric, numeric_average,
     NumericBackend, QuantumOpticsBackend, QuantumToolboxBackend,
@@ -169,7 +171,7 @@ export FockSpace, ProductSpace,
     CoefficientTerm, coefficient_terms, has_coefficient_terms,
     transition_superscript, constraint_pairs,
     to_num, order_key, term_order_key, qadd_order_key,
-    exponential_form, trigonometric_form, phase_terms,
+    exponential_form, trigonometric_form, phase_terms, harmonic, harmonics, secular,
     SuperOperator, SuperTerm, SuperExpr, Channel, SuperBuilder, LindbladianBuilder,
     spre, spost, sprepost, liouvillian, compose, superterm, left_operator, right_operator,
     hamiltonian, channels, jump, partner, scope, formal_terms, poly, accumulate!, build,

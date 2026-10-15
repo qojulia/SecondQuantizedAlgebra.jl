@@ -309,6 +309,23 @@ See also [`UnitaryTransform`](@ref).
 """
 generators(U::UnitaryTransform) = copy(U.generators)
 
+"""
+    displacement(U::UnitaryTransform, o::Op)
+
+Return the c-number part of [`conjugate(o, U)`](@ref conjugate) for a Fock or phase-space
+operator `o`: `α` for `conjugate(a, U) = L(a) + α` with `L` linear. For a moving frame the
+result is the time-dependent amplitude; a site `U` does not act on gives zero.
+"""
+function displacement(U::UnitaryTransform, o::Op)
+    is_fock(o) || is_phase_space(o) || unitary_error(
+        "`displacement` needs a Fock or phase-space operator, got `$o`",
+    )
+    for (term, c) in conjugate(o, U).arguments
+        isempty(term.ops) && return c
+    end
+    return CNUM_ZERO
+end
+
 function Base.inv(U::UnitaryTransform{T}) where {T}
     inverse_action = canonical_affine_inverse(U.action)
     inverse_rules = affine_rules(inverse_action)
