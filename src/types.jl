@@ -1,32 +1,34 @@
 """
     QField
 
-Abstract supertype for all second-quantized operator expressions.
+Supertype of every operator expression.
 
-Expression layers:
-- [`QSym`](@ref): atomic operator leaves; [`Op`](@ref) is the sole concrete subtype.
-- [`QAdd`](@ref): canonical polynomial expressions, stored as sums of [`QTerm`](@ref)
-  operator products. Ordinary polynomial arithmetic stays on this eager hot path.
-- [`QExpr`](@ref): cold-path formal non-polynomial expressions such as `sin(A)`, `cos(A)`,
-  and `expim(A)`. Formal functions are not expanded implicitly; use [`taylor`](@ref) to
-  lower them explicitly to a finite `QAdd` polynomial.
+Operators ([`QSym`](@ref)), their polynomials ([`QAdd`](@ref)) and expressions with formal
+functions ([`QExpr`](@ref)) are all `QField`s. They support `+`, `-`, `*`, `/` by numbers,
+integer powers, `adjoint`, and comparison with `==` and `isequal`. A method written for
+`QField` accepts any of them.
 
-Supports arithmetic (`+`, `-`, `*`, `^`, `/`), `adjoint`, and comparison via
-`==`/`isequal`. Polynomial multiplication eagerly applies the canonical operator algebra;
-operations involving a formal function preserve a `QExpr` outer representation until an
-explicit lowering operation is requested.
+# Examples
+```jldoctest
+julia> a = Destroy(FockSpace(:cavity), :a);
+
+julia> (a, a' * a, cos(a + a')) isa NTuple{3, SecondQuantizedAlgebra.QField}
+true
+```
+
+See also [`QSym`](@ref), [`QAdd`](@ref), [`QExpr`](@ref).
 """
 abstract type QField end
 
 """
     QSym <: QField
 
-Abstract type for fundamental operator leaves.
+Supertype of single operators.
 
-[`Op`](@ref) is the sole concrete subtype. Its compact tagged representation stores the
-operator role (`Destroy`, `Create`, `Transition`, `Pauli`, `Spin`, `Position`, `Momentum`,
-etc.), display name, product-space slot, and optional symbolic index without introducing a
-runtime subtype hierarchy for individual operator roles.
+Every operator, whatever its kind, is an [`Op`](@ref), the only subtype; its kind is read
+with [`optype`](@ref).
+
+See also [`QField`](@ref), [`Op`](@ref).
 """
 abstract type QSym <: QField end
 
@@ -36,9 +38,13 @@ Base.zero(::Type{<:QField}) = 0
 """
     SiteCmp
 
-Three-way site comparison for the canonical partial-sort. `Equal` and
-`Undetermined` both mean "do not reorder," but distinguishing them in the type
-prevents the "I returned 0 but meant Equal" bug class.
+Result of `site_compare`, the site relation of two operators in the canonical sort.
+
+`Less` and `Greater` order operators on distinct sites. `Equal` marks a provably shared
+site, where the reduce and commute passes may act. `Undetermined` marks two free indices
+that may or may not coincide, where no rule may act. Both of the latter leave the pair in
+place; they are separate values so that a comparison cannot return one where the other
+is meant.
 """
 @enum SiteCmp::UInt8 Less Equal Undetermined Greater
 

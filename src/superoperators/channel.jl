@@ -1,14 +1,23 @@
 """
     Channel{O}
 
-The structured dissipator `Σ_scope 𝒟[jump, partner]` of a [`Lindbladian`](@ref), with
-`𝒟[J, K](ρ) = J ρ K' - (K'J ρ + ρ K'J)/2`. The rate is stored as the channel's value in
-the Lindbladian, not in the key. A diagonal channel stores the jump as its own partner.
-Read the fields with [`jump`](@ref), [`partner`](@ref) and [`scope`](@ref).
+One decay channel of a [`Lindbladian`](@ref), without its rate.
 
-Channels are normalized on construction: constants are stripped from the jumps and folded
-into the Hamiltonian, native numeric content of the jumps moves into the rate, jumps carry
-no bound sums, and a summation index the channel does not mention is counted into the rate.
+A channel `Σ 𝒟[J, K]` has a jump `J`, a partner `K` and the summation indices of its sum.
+An independent channel `𝒟[J]` has `K == J`. `channels(L)` pairs each channel with its rate,
+and constants and numeric factors of a jump are moved out of the channel when it is built.
+
+# Examples
+```jldoctest
+julia> using SecondQuantizedAlgebra: channels
+
+julia> h = FockSpace(:c); a = Destroy(h, :a);
+
+julia> first(channels(dissipator(2a)))
+𝒟[a] => 4
+```
+
+See also [`jump`](@ref), [`hamiltonian`](@ref).
 """
 struct Channel{O <: Union{QAdd, QExpr}}
     jump::O
@@ -35,8 +44,24 @@ Base.hash(c::Channel, h::UInt) = hash(c.hash, h)
     partner(c::Channel)
     scope(c::Channel)
 
-The jump operator `J`, the partner `K` (identical to `J` for a diagonal channel) and the
-bound summation indices of the channel `Σ_scope 𝒟[J, K]`.
+The jump operator, the partner and the summation indices of a decay channel.
+
+For a channel `Σ 𝒟[J, K]` these are `J`, `K` and the indices of the sum. The partner of an
+independent channel `𝒟[J]` is `J` itself.
+
+# Examples
+```jldoctest
+julia> using SecondQuantizedAlgebra: channels, jump, partner, scope
+
+julia> h = FockSpace(:c); a = Destroy(h, :a);
+
+julia> ch, rate = first(channels(dissipator(a, a')));
+
+julia> jump(ch), partner(ch), isempty(scope(ch))
+(a, a', true)
+```
+
+See also [`Channel`](@ref), [`hamiltonian`](@ref).
 """
 jump(c::Channel) = c.jump
 partner(c::Channel) = c.partner

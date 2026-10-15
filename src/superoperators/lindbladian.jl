@@ -1,23 +1,35 @@
 """
     Lindbladian{O}
 
-A generator in GKSL form with its structure retained,
+A Lindblad generator that keeps its Hamiltonian and decay channels.
 
-    L = -i[H, ·] + Σ γ Σ_scope 𝒟[J, K],
+The generator is `L = -i[H, ·] + Σ γ 𝒟[J, K]`. `O` is `QAdd` for a polynomial model and `QExpr` when the Hamiltonian or a jump contains a
+formal operator function. Build a generator with [`hamiltonian_action`](@ref),
+[`dissipator`](@ref) and [`liouvillian`](@ref), and combine generators with `+`, scalar `*`
+and [`Σ`](@ref). `L(ρ)` applies the generator, and `transpose(L)(A)` is the Heisenberg drift
+of the observable `A`.
 
-with `O = QAdd` for polynomial models and `O = QExpr` when the Hamiltonian or a jump is a
-formal operator function. Build it with [`hamiltonian_action`](@ref), [`dissipator`](@ref)
-and [`liouvillian`](@ref), and combine with `+`, scalar `*` and [`Σ`](@ref).
+A `Lindbladian` is a form, not a claim of physicality: `H` may be non-Hermitian and the
+rates complex or negative. It always preserves the trace. It preserves Hermiticity when `H`
+and the rate matrix are Hermitian, and it generates a completely positive evolution when
+the rate matrix is also positive semidefinite.
 
-`Lindbladian` is a form, not a physicality claim: `H` may be non-Hermitian and rates may be
-complex or negative. Every Lindbladian is trace preserving, `transpose(L)(1) == 0`. It
-preserves Hermiticity when `H` is Hermitian and the rates are Hermitian over channel pairs,
-and it generates a completely positive semigroup when, in addition, every rate matrix is
-positive semidefinite.
-
-Composition, `transpose`, `adjoint` and application lower `L` to a [`SuperOperator`](@ref)
-(or a `SuperExpr` for formal models). Equality is structural; compare maps with
+Equality is structural. Equal spellings of one channel compare equal, but a cross term is
+not expanded, so two generators that act alike are compared with
 `SuperOperator(L₁) == SuperOperator(L₂)`.
+
+# Examples
+```jldoctest
+julia> h = FockSpace(:c); a = Destroy(h, :a);
+
+julia> L = hamiltonian_action(a' * a) + 2 * dissipator(a)
+-i[a' * a, ·] + 2 * 𝒟[a]
+
+julia> transpose(L)(a)
+(-1 + -1im) * a
+```
+
+See also [`SuperOperator`](@ref), [`to_numeric_master`](@ref).
 """
 struct Lindbladian{O <: Union{QAdd, QExpr}}
     hamiltonian::O
@@ -28,8 +40,25 @@ end
     hamiltonian(L::Lindbladian)
     channels(L::Lindbladian)
 
-The Hamiltonian of `L`, and a vector of its `Channel => rate` pairs in
+The Hamiltonian of a Lindbladian, and a vector of its `Channel => rate` pairs in
 [`channel_order_key`](@ref) order.
+
+# Examples
+```jldoctest
+julia> using SecondQuantizedAlgebra: hamiltonian, channels, jump
+
+julia> h = FockSpace(:c); a = Destroy(h, :a);
+
+julia> L = hamiltonian_action(a' * a) + 2 * dissipator(a);
+
+julia> hamiltonian(L)
+a' * a
+
+julia> ch, rate = first(channels(L)); jump(ch), rate
+(a, 2)
+```
+
+See also [`Channel`](@ref), [`jump`](@ref).
 """
 hamiltonian(L::Lindbladian) = L.hamiltonian
 function channels(L::Lindbladian)
@@ -42,8 +71,26 @@ end
 """
     LindbladianBuilder{O}()
 
-Mutable accumulator for building a [`Lindbladian`](@ref) by repeated addition in linear
-time. Add with `accumulate!(b, L)` and finish with `build(b)`.
+An accumulator that builds a `Lindbladian{O}` from many terms in linear time.
+
+Add generators with [`accumulate!`](@ref) and finish with [`build`](@ref). `sum` over an
+array of Lindbladians uses it already.
+
+# Examples
+```jldoctest
+julia> using SecondQuantizedAlgebra: LindbladianBuilder, QAdd, accumulate!, build
+
+julia> h = FockSpace(:c); a = Destroy(h, :a);
+
+julia> b = LindbladianBuilder{QAdd}();
+
+julia> accumulate!(b, dissipator(a)); accumulate!(b, dissipator(a));
+
+julia> build(b)
+2 * 𝒟[a]
+```
+
+See also [`SuperBuilder`](@ref).
 """
 struct LindbladianBuilder{O <: Union{QAdd, QExpr}, HB}
     hamiltonian::HB
@@ -134,10 +181,22 @@ function lindbladian_from(H::O) where {O <: Union{QAdd, QExpr}}
 end
 
 """
-    hamiltonian_action(H) -> Lindbladian
+    hamiltonian_action(H)
 
-The coherent generator `ρ ↦ -i[H, ρ]`. The identity component of `H` is dropped, since it
-commutes with every state. A summed `H` keeps its summation scope.
+The coherent part of a Lindblad generator with Hamiltonian `H`.
+
+It acts as `ρ ↦ -i[H, ρ]`. The identity part of `H` is dropped, since it commutes with every state. A summed `H` keeps
+its summation scope.
+
+# Examples
+```jldoctest
+julia> h = FockSpace(:c); a = Destroy(h, :a);
+
+julia> hamiltonian_action(a' * a + 1)
+-i[a' * a, ·]
+```
+
+See also [`dissipator`](@ref), [`Lindbladian`](@ref).
 """
 hamiltonian_action(H::Union{QField, Coefficient}) = lindbladian_from(as_generator_operator(H))
 
@@ -149,17 +208,33 @@ promote_jump(::Type{QExpr}, x::QAdd) = qexpr_from_qadd(x)
 promote_jump(::Type{QExpr}, x::QExpr) = x
 
 """
-    dissipator(J) -> Lindbladian
-    dissipator(J, K) -> Lindbladian
-    dissipator(J, Γ, i => j, ...) -> Lindbladian
+    dissipator(J)
+    dissipator(J, K)
+    dissipator(J, Γ, i => j, ...)
 
-`dissipator(J)` is `𝒟[J](ρ) = J ρ J' - (J'J ρ + ρ J'J)/2`, and `dissipator(J, K)` the
-cross term `𝒟[J, K](ρ) = J ρ K' - (K'J ρ + ρ K'J)/2`. Write rates as scalar prefactors,
-`κ * dissipator(a)`.
+A decay channel of a Lindblad generator with jump operator `J`.
 
-`dissipator(J, Γ, i => j)` is the correlated family `Σᵢ Σⱼ Γ 𝒟[Jᵢ, Jⱼ]`, where `i` is a free
-index of `J` and `j` a fresh index on the same space and range, chosen by the caller. The
-diagonal `i = j` is split off as `Γ(i, i) 𝒟[Jᵢ]`. Several pairs give a multi-index family.
+`dissipator(J)` acts as `𝒟[J](ρ) = J ρ J' - (J'J ρ + ρ J'J)/2`, and `dissipator(J, K)` is the cross channel `𝒟[J, K](ρ) = J ρ K' - (K'J ρ + ρ K'J)/2`. Rates are
+scalar prefactors, `κ * dissipator(a)`. A numeric factor of a jump moves into the rate, and
+a constant in a jump moves into the Hamiltonian as the drive it generates.
+
+`dissipator(J, Γ, i => j)` is the correlated family `Σᵢ Σⱼ Γ(i, j) 𝒟[Jᵢ, Jⱼ]`, where `i` is
+a free index of `J` and `j` a second index on the same space and range. The diagonal
+`i = j` is split off as `Γ(i, i) 𝒟[Jᵢ]`. Several pairs give a family over several indices.
+A jump that carries its own `Σ` throws.
+
+# Examples
+```jldoctest
+julia> h = FockSpace(:c); a = Destroy(h, :a);
+
+julia> dissipator(a)(a' * a)
+1 + 2 * a' * a
+
+julia> dissipator(2a) == 4 * dissipator(a)
+true
+```
+
+See also [`hamiltonian_action`](@ref), [`liouvillian`](@ref), [`Lindbladian`](@ref).
 """
 dissipator(J::Union{QField, Coefficient}) = dissipator_pair(as_generator_operator(J), as_generator_operator(J))
 dissipator(J::Union{QField, Coefficient}, K::Union{QField, Coefficient}) =
@@ -223,11 +298,27 @@ function dissipator(J::Union{QSym, QAdd}, Γ::Coefficient, pair::Pair{Index, Ind
 end
 
 """
-    liouvillian(H, J; rates = nothing) -> Lindbladian
+    liouvillian(H, J; rates = nothing)
 
-The generator `-i[H, ·] + Σᵢⱼ Γ[i, j] 𝒟[J[i], J[j]]` in the QuantumOpticsBase convention.
-`rates` is `nothing` (all ones), a vector of per-channel rates, or a matrix `Γ` whose entry
-`Γ[i, j]` multiplies `J[i] ρ J[j]'`. An empty `J` gives the coherent part only.
+The Lindblad generator of the Hamiltonian `H` and the jump operators `J`, in the
+QuantumOptics convention.
+
+The generator is `-i[H, ·] + Σᵢⱼ Γ[i, j] 𝒟[J[i], J[j]]`. `rates` is `nothing` for unit
+rates, a vector of rates, or a matrix `Γ` whose entry `Γ[i, j]` multiplies
+`J[i] ρ J[j]'`. An empty `J` gives the coherent part only. The name is public but not
+exported, since QuantumOpticsBase exports a numerical `liouvillian`.
+
+# Examples
+```jldoctest
+julia> using SecondQuantizedAlgebra: liouvillian
+
+julia> h = FockSpace(:c); a = Destroy(h, :a);
+
+julia> liouvillian(a' * a, [a, a']; rates = [1, 2])
+-i[a' * a, ·] + 𝒟[a] + 2 * 𝒟[a']
+```
+
+See also [`dissipator`](@ref), [`hamiltonian_action`](@ref).
 """
 liouvillian(H::Union{QField, Coefficient}, J::AbstractVector; rates = nothing) =
     hamiltonian_action(H) + channel_family(J, rates)
@@ -299,11 +390,6 @@ Base.:/(L::Lindbladian, b::Coefficient) = L * inv(b)
 Base.://(L::Lindbladian, b::Integer) = L * (1 // b)
 Base.://(L::Lindbladian, b::Coefficient) = L / b
 
-"""
-    SuperOperator(L::Lindbladian{QAdd}) -> SuperOperator
-
-Lower a polynomial Lindbladian to its sandwich form.
-"""
 function SuperOperator(L::Lindbladian{QAdd})
     out = SuperTermDict()
     indices = lower_hamiltonian!(out, L.hamiltonian)

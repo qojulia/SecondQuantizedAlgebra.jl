@@ -26,6 +26,18 @@ import SecondQuantizedAlgebra: SuperOperator, SuperTerm, sprepost, spre, spost, 
         @test sprepost(a + a', 1) == spre(a) + spre(a')
         @test iszero(sprepost(0, a))
         @test iszero(zero(SuperOperator))
+        Z = zero(SuperOperator)
+        @test zero(A) == Z && Z == 0 * spre(1) && Z == A - A
+        @test hash(Z) == hash(A - A)
+        @test iszero(Z(ρ)) && Z + A == A
+        @test sum(SuperOperator[]) == Z
+        @test sum((sprepost(a, a') for _ in 1:0); init = zero(SuperOperator)) == Z
+        @test sum(c * sprepost(a, a') for c in 1:2; init = zero(SuperOperator)) == 3A
+        acc = zero(SuperOperator)
+        for c in 1:2
+            acc += c * sprepost(a, a')
+        end
+        @test acc == 3A
         @test isone(one(SuperOperator))
         @test one(SuperOperator)(ρ) == ρ
         t = superterm(Op[a], Op[a'])

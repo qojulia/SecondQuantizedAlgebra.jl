@@ -3,27 +3,32 @@
     NLevelSpace(name::Symbol, n::Int, ground_state::Int)
     NLevelSpace(name::Symbol, levels::Tuple{Vararg{Symbol}})
 
-Hilbert space for an N-level system (atoms, qubits, qudits). Hosts
-[`Transition`](@ref) operators
-``|i\\rangle\\langle j| \\cdot |k\\rangle\\langle l| = \\delta_{jk} |i\\rangle\\langle l|``.
+Hilbert space of a system with `n` discrete levels, home of the [`Transition`](@ref)
+operators.
 
-The `ground_state` (default `1`) selects the projector ``|g\\rangle\\langle g|``
-that the canonical basis omits; arithmetic keeps it atomic and
-[`expand_completeness`](@ref) materialises
-``|g\\rangle\\langle g| = 1 - \\sum_{k \\neq g}|k\\rangle\\langle k|`` on
-demand. Levels can be integers (default `1:n`) or symbolic names.
+Levels are numbered `1:n`, or named by a tuple of symbols in the order of the basis.
+The `ground_state` (default `1`; the first name for named levels) marks the
+projector ``|g\\rangle\\langle g|`` that [`expand_completeness`](@ref) can eliminate
+through ``|g\\rangle\\langle g| = 1 - \\sum_{k \\neq g}|k\\rangle\\langle k|``.
 
 # Examples
 
 ```jldoctest
-julia> NLevelSpace(:atom, 3)
+julia> h = NLevelSpace(:atom, (:g, :e))
 ℋ(atom)
 
-julia> NLevelSpace(:atom, (:g, :e))
-ℋ(atom)
+julia> σ = Transition(h, :σ, :g, :e);
+
+julia> σ' * σ
+σ₂₂
+
+julia> h3 = NLevelSpace(:atom, 3, 2);
+
+julia> expand_completeness(Transition(h3, :σ, 2, 2))
+1 - σ₁₁ - σ₃₃
 ```
 
-See also [`Transition`](@ref), [`expand_completeness`](@ref).
+See also [`Transition`](@ref), [`expand_completeness`](@ref), [`PauliSpace`](@ref).
 """
 struct NLevelSpace <: HilbertSpace
     name::Symbol
@@ -63,10 +68,26 @@ Base.hash(a::NLevelSpace, h::UInt) = hash(:NLevelSpace, hash(a.name, hash(a.n, h
     CollectiveNLevelSpace(name::Symbol, n::Int)
     CollectiveNLevelSpace(name::Symbol, levels::Tuple{Vararg{Symbol}})
 
-Hilbert space for collective transitions of identical N-level systems. It hosts
-[`CollectiveTransition`](@ref) operators and deliberately carries no ground-state
-projector convention: collectively, the diagonal sum is the particle-number
-operator rather than the identity.
+Hilbert space of an ensemble of identical `n`-level systems, home of the
+[`CollectiveTransition`](@ref) operators.
+
+The number of systems is not part of the space; it is fixed only by the basis chosen for
+numerics. Levels are numbered or named as for [`NLevelSpace`](@ref). There is no ground
+state to eliminate, since the collective projectors add up to the number of systems rather
+than to one.
+
+# Examples
+```jldoctest
+julia> h = CollectiveNLevelSpace(:atoms, (:g, :e))
+ℋ(atoms)
+
+julia> S = CollectiveTransition(h, :S, :e, :g);
+
+julia> commutator(S, S')
+-S₁₁ + S₂₂
+```
+
+See also [`CollectiveTransition`](@ref), [`NLevelSpace`](@ref).
 """
 struct CollectiveNLevelSpace <: HilbertSpace
     name::Symbol
@@ -95,32 +116,30 @@ function level_index(h::CollectiveNLevelSpace, s::Symbol)
 end
 
 """
-    Transition(h::NLevelSpace, name::Symbol, i, j) -> Op
+    Transition(h::NLevelSpace, name::Symbol, i, j)
+    Transition(h::ProductSpace, name::Symbol, i, j, [subsystem::Int])
 
-Transition operator ``|i\\rangle\\langle j|`` on an [`NLevelSpace`](@ref).
-Satisfies the composition rule
-``|i\\rangle\\langle j| \\cdot |k\\rangle\\langle l| = \\delta_{jk} |i\\rangle\\langle l|``,
-with adjoint ``|i\\rangle\\langle j|^\\dagger = |j\\rangle\\langle i|``. Returns an
-[`Op`](@ref) tagged `OP_TRANSITION`, packing `i`, `j`, the ground state, and the
-number of levels into `l1`, `l2`, `g`, `nlev`.
+Transition operator from level `j` to level `i`.
 
-The carried ground-state level and level count let the eager arithmetic keep
-``\\sigma^{gg}`` atomic in canonical form (use [`expand_completeness`](@ref) to
-materialise ``|g\\rangle\\langle g| = 1 - \\sum_{k \\neq g}|k\\rangle\\langle k|``
-when needed).
+The operator is ``\\sigma^{ij} = |i\\rangle\\langle j|``. The levels are integers or
+the symbolic names of the [`NLevelSpace`](@ref); either way it prints with level
+numbers.
+Transitions on the same system compose,
+``\\sigma^{ij}\\sigma^{kl} = \\delta_{jk}\\sigma^{il}``, and the adjoint swaps the
+levels. The ground-state projector ``\\sigma^{gg}`` is kept as it is; call
+[`expand_completeness`](@ref) to rewrite it in terms of the other projectors.
+On a [`ProductSpace`](@ref), `subsystem` selects the factor and may be omitted
+when only one [`NLevelSpace`](@ref) is present.
 
 # Examples
 
 ```jldoctest
-julia> h = NLevelSpace(:atom, 3);
+julia> h = FockSpace(:cavity) ⊗ NLevelSpace(:atom, 2);
 
 julia> σ = Transition(h, :σ, 1, 2);
 
-julia> σ * σ'
-σ₁₁
-
-julia> σ' * σ
-σ₂₂
+julia> σ * σ', σ' * σ, σ * σ
+(σ₁₁, σ₂₂, 0)
 ```
 
 See also [`NLevelSpace`](@ref), [`expand_completeness`](@ref), [`@qnumbers`](@ref).
@@ -159,11 +178,29 @@ Transition(h::ProductSpace, name::Symbol, i::Symbol, j::Symbol) =
 Transition(::HilbertSpace, name::AbstractString, args...) = name_must_be_symbol(name)
 
 """
-    CollectiveTransition(h::CollectiveNLevelSpace, name::Symbol, i, j) -> Op
+    CollectiveTransition(h::CollectiveNLevelSpace, name::Symbol, i, j)
+    CollectiveTransition(h::ProductSpace, name::Symbol, i, j, [subsystem::Int])
 
-Collective transition ``S^{ij} = \\sum_k |i\\rangle_k\\langle j|``. These operators
-obey ``[S^{ij},S^{kl}] = \\delta_{jk}S^{il}-\\delta_{li}S^{kj}`` and do not compose
-like single-site [`Transition`](@ref) operators.
+Collective transition from level `j` to level `i`, summed over all systems of the ensemble.
+
+The operator is ``S^{ij} = \\sum_k |i\\rangle_k\\langle j|``. Collective transitions obey
+``[S^{ij}, S^{kl}] = \\delta_{jk}S^{il} - \\delta_{li}S^{kj}`` and are normal ordered like
+ladder operators. Unlike a single [`Transition`](@ref), a product of two of them does not
+compose, since it includes pairs of different systems. On a [`ProductSpace`](@ref),
+`subsystem` selects the [`CollectiveNLevelSpace`](@ref) factor and may be omitted when there
+is only one.
+
+# Examples
+```jldoctest
+julia> h = CollectiveNLevelSpace(:atoms, (:g, :e));
+
+julia> @qnumbers S::CollectiveTransition(h, :e, :g);
+
+julia> S' * S
+S₁₁ - S₂₂ + S₂₁ * S₁₂
+```
+
+See also [`CollectiveNLevelSpace`](@ref), [`Transition`](@ref).
 """
 CollectiveTransition(name::Symbol, i::Integer, j::Integer, si::Integer) =
     Op(OP_COLLECTIVE_TRANSITION, name_id(name), si, NO_INDEX, i, j, 0, 0)

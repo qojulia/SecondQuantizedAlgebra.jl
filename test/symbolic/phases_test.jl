@@ -383,6 +383,20 @@ import SecondQuantizedAlgebra: expim, exponential_form, phase_terms, to_num,
         )
     end
 
+    @testset "phases with complex atomic parameters" begin
+        @variables θ ω t z::Number
+        a = Destroy(FockSpace(:f), :a)
+        phase = expim(θ)
+        @test isequal(z * phase, phase * z)
+        @test isequal((z * phase) * a, phase * (z * a))
+        @test iszero(((z + phase) - phase) - z)
+        @test isequal(phase - z, -(z - phase))
+        @test iszero((z * phase) / phase - z)
+        @test isequal(phase / z * z, phase)
+        U = Displace(a, z * expim(-ω * t), t)
+        @test isequal(conjugate(a, U), a + z * expim(-ω * t))
+    end
+
     @testset "public symbolic conversion boundaries" begin
         @variables θ ω t z::Number
         raw_exp = SymbolicUtils.term(
