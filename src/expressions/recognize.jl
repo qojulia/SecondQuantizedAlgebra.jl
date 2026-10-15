@@ -209,12 +209,16 @@ function to_cnum(x::RawExpression)
         return recognize_sum(args)
     elseif op === (*)
         return recognize_prod(args)
-    elseif op === (^)
-        length(args) == 2 || return raw_leaf(x)
-        is_const_int(args[2]) && return pow_cnum_integer(to_cnum(args[1]), const_int(args[2]))
-        is_rational_exponent(args[2]) &&
-            return rational_power(args[1], rational_exponent(args[2]), x)
-        return raw_leaf(x)
+    elseif op === (^) || op === sqrt || op === cbrt
+        op === (^) && length(args) == 2 && is_const_int(args[2]) &&
+            return pow_cnum_integer(to_cnum(args[1]), const_int(args[2]))
+        base, r = radical_form(x)
+        iszero(r) && return raw_leaf(x)
+        op === cbrt || return rational_power(base, r, x)
+        is_exact_number(base) || return raw_leaf(x)
+        value = exact_number(base)
+        value < 0 && return negative_radical(value, r, x, true)
+        return numeric_radical(value, r, x)
     elseif op === getindex
         return atom_coeff(x)
     elseif op === expim
@@ -232,14 +236,6 @@ function to_cnum(x::RawExpression)
     elseif op === complex
         length(args) == 2 && return cnum(Num(args[1]), Num(args[2]))
         return raw_leaf(x)
-    elseif op === sqrt
-        length(args) == 1 && return rational_power(only(args), 1 // 2, x)
-        return raw_leaf(x)
-    elseif op === cbrt
-        (length(args) == 1 && is_exact_number(only(args))) || return raw_leaf(x)
-        value = exact_number(only(args))
-        value < 0 && return negative_radical(value, 1 // 3, x, true)
-        return numeric_radical(value, 1 // 3, x)
     end
     if length(args) == 1 && (is_one_at_zero(op) || is_zero_at_zero(op))
         a1 = to_cnum(only(args))
@@ -323,39 +319,28 @@ function product_terms(::Type{E}, factors::Vector{Coeff}) where {E}
     return Monomial{E}[Monomial{E}(normalize_scalar(scalar), syms, exps)]
 end
 
-function is_numeric_radical(x::RawExpression)
-    SymbolicUtils.iscall(x) || return false
+function radical_form(x::RawExpression)
+    SymbolicUtils.iscall(x) || return (x, 0 // 1)
     op = SymbolicUtils.operation(x)
     args = SymbolicUtils.arguments(x)
-    if (op === sqrt || op === cbrt) && length(args) == 1
-        arg = only(args)
-        return arg isa RawExpression && is_exact_number(arg) && exact_number(arg) >= 0
-    elseif op === (^) && length(args) == 2
-        base, exponent = args[1], args[2]
-        (base isa RawExpression && exponent isa RawExpression) || return false
-        return is_exact_number(base) && is_rational_exponent(exponent) &&
-            exact_number(base) >= 0
+    if length(args) == 1
+        op === sqrt && return (only(args), 1 // 2)
+        op === cbrt && return (only(args), 1 // 3)
+    elseif op === (^) && length(args) == 2 && is_rational_exponent(args[2])
+        return (args[1], rational_exponent(args[2]))
     end
-    return false
-end
-
-function radical_factor(x::RawExpression)
-    op = SymbolicUtils.operation(x)
-    args = SymbolicUtils.arguments(x)
-    op === sqrt && return numeric_radical(exact_number(only(args)), 1 // 2, x)
-    op === cbrt && return numeric_radical(exact_number(only(args)), 1 // 3, x)
-    return numeric_radical(exact_number(args[1]), rational_exponent(args[2]), x)
+    return (x, 0 // 1)
 end
 
 function split_radicals(x::RawExpression)
-    product = SymbolicUtils.iscall(x) && SymbolicUtils.operation(x) === (*)
-    factors = product ? SymbolicUtils.arguments(x) : (x,)
+    factors = is_call_of(x, *) ? SymbolicUtils.arguments(x) : (x,)
     radicals = CNUM_ONE
     rest = RawExpression[]
     for f in factors
         f isa RawExpression || return (CNUM_ONE, RawExpression[x])
-        if is_numeric_radical(f)
-            c = radical_factor(f)
+        base, r = radical_form(f)
+        if !iszero(r) && is_exact_number(base) && exact_number(base) >= 0
+            c = numeric_radical(exact_number(base), r, f)
             if is_polynomial_coeff(c)
                 radicals = mul_cnum(radicals, c)
                 continue

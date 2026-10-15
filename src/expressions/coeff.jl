@@ -52,6 +52,7 @@ const CNum = Coeff
 
 const NUM_ZERO = Num(0)
 const NUM_ONE = Num(1)
+const NUM_NEG_ONE = Num(-1)
 const EXACT_ONE = one(ExactComplex)
 const EXACT_IM = ExactComplex(0, 1)
 const EXACT_NEG1 = ExactComplex(-1, 0)

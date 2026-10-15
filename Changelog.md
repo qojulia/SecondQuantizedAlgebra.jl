@@ -45,6 +45,7 @@ This is a breaking release for type stability: public functions no longer use `n
 
 ### Fixed
 
+- `real` and `imag` of a coefficient whose phase has a symbolic amplitude now split the phase into cosine and sine: `real(2p * expim(θ))` gives `2p*cos(θ)` instead of `2p*expim(θ)` with a zero imaginary part.
 - Positive numeric factors in roots of a parameter now cancel exactly in oscillator coefficients, while symbolic products and nested powers retain their root branches without assuming real parameters are positive.
 - Adding symbolic coefficients that are quotients with different denominators drops an identically zero sum, so `iszero` agrees with `iszero(simplify(...))` on, e.g., `abs2` of a steady-state amplitude minus its expanded form.
 - A bare symbolic scalar such as `@variables β::Number` now combines with a phase or other coefficient under `+`, `-`, `*` and `/` in either order, as `Num` already did; previously `β * expim(ω*t)` threw a `MethodError`.

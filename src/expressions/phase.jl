@@ -261,31 +261,3 @@ function is_pure_phase(tail::Poly)
     denominator(only(monomial.exps)) == 1 || return false
     return unit_modulus(monomial_scalar(monomial))
 end
-
-function pure_phase_parts(tail::Poly)
-    monomial = only(tail.terms)
-    symbol = only(monomial.syms)
-    exponent = only(monomial.exps)
-    scalar = monomial_scalar(monomial)
-    angle, flip_sine = canonical_angle(Num(only(SymbolicUtils.arguments(symbol))), numerator(exponent))
-    return (scalar, angle, flip_sine)
-end
-
-@inline function scaled_trig(a::Real, trig, angle::Num)
-    iszero(a) && return NUM_ZERO
-    isone(a) && return trig(angle)
-    a == -1 && return -trig(angle)
-    return num_from_scalar(a) * trig(angle)
-end
-
-function pure_phase_real(tail::Poly)
-    scalar, angle, flip_sine = pure_phase_parts(tail)
-    sine = flip_sine ? -imag(scalar) : imag(scalar)
-    return scaled_trig(real(scalar), cos, angle) - scaled_trig(sine, sin, angle)
-end
-
-function pure_phase_imag(tail::Poly)
-    scalar, angle, flip_sine = pure_phase_parts(tail)
-    sine = flip_sine ? -real(scalar) : real(scalar)
-    return scaled_trig(sine, sin, angle) + scaled_trig(imag(scalar), cos, angle)
-end

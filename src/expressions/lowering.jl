@@ -75,6 +75,44 @@ function term_to_num(m::Monomial)
 end
 
 poly_to_num(p::Poly) = terms_to_num(p.terms)
+
+function poly_part(p::Poly, imaginary::Bool)
+    result = monomial_part(p.terms[1], imaginary)
+    @inbounds for i in 2:length(p.terms)
+        result += monomial_part(p.terms[i], imaginary)
+    end
+    return result
+end
+
+function monomial_part(m::Monomial, imaginary::Bool)
+    i = phase_factor_index(m.syms)
+    if i == 0
+        a = term_to_num(m)
+        return imaginary ? imag(a) : real(a)
+    end
+    re, im = if length(m.syms) == 1
+        s = monomial_scalar(m)
+        (num_from_scalar(real(s)), num_from_scalar(imag(s)))
+    else
+        reim(term_to_num(replace_exps(m, i, 0 // 1, 0, 0 // 1)))
+    end
+    angle, flipped = canonical_angle(Num(only(SymbolicUtils.arguments(m.syms[i]))), numerator(m.exps[i]))
+    imaginary && return combine(scale_trig(im, cos, angle), scale_trig(re, sin, angle), flipped)
+    return combine(scale_trig(re, cos, angle), scale_trig(im, sin, angle), !flipped)
+end
+
+function scale_trig(a::Num, trig::F, angle::Num) where {F}
+    iszero_num(a) && return NUM_ZERO
+    isequal(a, NUM_ONE) && return trig(angle)
+    isequal(a, NUM_NEG_ONE) && return -trig(angle)
+    return a * trig(angle)
+end
+
+function combine(x::Num, y::Num, subtract::Bool)
+    iszero_num(y) && return x
+    iszero_num(x) && return subtract ? -y : y
+    return subtract ? x - y : x + y
+end
 function terms_to_num(terms::Vector{<:Monomial})
     isempty(terms) && return Complex(NUM_ZERO, NUM_ZERO)
     acc = term_to_num(terms[1])
@@ -197,10 +235,7 @@ end
 function Base.real(c::Coeff)
     is_native(c) && return num_from_scalar(real(native_scalar(c)))
     tail = c.tail
-    if tail isa Poly
-        is_pure_phase(tail) && return pure_phase_real(tail)
-        return real(poly_to_num(tail))
-    end
+    tail isa Poly && return poly_part(tail, false)
     expr = normalize_phase(raw_tail(c))
     re, _ = cnum_is_real(c) ? (expr, RAW_ZERO) : raw_realimag(expr)
     return Num(normalize_phase(re))
@@ -209,10 +244,7 @@ end
 function Base.imag(c::Coeff)
     is_native(c) && return num_from_scalar(imag(native_scalar(c)))
     tail = c.tail
-    if tail isa Poly
-        is_pure_phase(tail) && return pure_phase_imag(tail)
-        return imag(poly_to_num(tail))
-    end
+    tail isa Poly && return poly_part(tail, true)
     expr = normalize_phase(raw_tail(c))
     _, im = cnum_is_real(c) ? (RAW_ZERO, RAW_ZERO) : raw_realimag(expr)
     return Num(normalize_phase(im))
