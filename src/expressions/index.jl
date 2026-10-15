@@ -87,9 +87,23 @@ const sym_delta = DeltaFunc()
 Base.nameof(::DeltaFunc) = :δ
 Base.show(io::IO, ::DeltaFunc) = print(io, "δ")
 SymbolicUtils.promote_symtype(::DeltaFunc, Ts...) = Real
+(::DeltaFunc)(a::Integer, b::Integer) = Int(a == b)
+
+delta_site(x::Integer) = x
+function delta_site(x::RawExpression)
+    SymbolicUtils.isconst(x) && x.val isa Integer && return x.val
+    slot = index_slot(x)
+    return iszero(slot) ? nothing : slot
+end
+delta_site(::Any) = nothing
 
 function delta_node(a, b)
     isequal(a, b) && return convert(SymbolicUtils.BasicSymbolic{SymbolicUtils.SymReal}, 1)
+    left = delta_site(a)
+    right = delta_site(b)
+    if left !== nothing && right !== nothing
+        return convert(SymbolicUtils.BasicSymbolic{SymbolicUtils.SymReal}, Int(left == right))
+    end
     x, y = string(a) <= string(b) ? (a, b) : (b, a)
     return SymbolicUtils.Term{SymbolicUtils.SymReal}(sym_delta, Any[x, y]; type = Real)
 end

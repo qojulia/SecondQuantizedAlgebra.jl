@@ -191,6 +191,10 @@ end
             expect(change_index(q, j, i), Vacuum()),
         )
         @test expect(assume_distinct_index(q, [(i, j)]), Vacuum()) == 0
+        @test Symbolics.substitute(r, Dict(index_sym(i) => 1, index_sym(j) => 2)) == 0
+        @test Symbolics.substitute(r, Dict(index_sym(i) => 2, index_sym(j) => 2)) == 1
+        concrete = σ(1, 2, i(1)) * σ(2, 1, j(2))
+        @test expect(concrete, Vacuum()) == 0
 
         @test isequal(
             expect(q + 2, Vacuum()),
@@ -203,6 +207,14 @@ end
         i, j = Index(h, :i, 5, h), Index(h, :j, 5, h)
 
         @test kronecker_delta(i, i) == 1
+        @test kronecker_delta(i(1), i(2)) == 0
+        @test kronecker_delta(i(2), i(1)) == 0
+        @test kronecker_delta(i(1), j(1)) == 1
+        @test kronecker_delta(i(1), j(2)) == 0
+        for (left, right) in ((1, 1), (1, 2), (2, 1))
+            rules = Dict(index_sym(i) => left, index_sym(j) => right)
+            @test Symbolics.substitute(kronecker_delta(i, j), rules) == Int(left == right)
+        end
         @test is_kronecker_delta(kronecker_delta(i, j))
         @test !is_kronecker_delta(kronecker_delta(i, i))
         @test !is_kronecker_delta(1)
