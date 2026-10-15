@@ -257,9 +257,10 @@ function vac_site(
     if k === OP_DESTROY || k === OP_CREATE
         return CNUM_ZERO                    # canonical (a†)ᵐaⁿ with m+n ≥ 1 kills |0⟩
     elseif k === OP_TRANSITION
-        return vac_transition(ops, i, j)
+        # Canonicalization has already collapsed each transition or Pauli run.
+        return ops[i].l1 == ops[i].g && ops[i].l2 == ops[i].g ? CNUM_ONE : CNUM_ZERO
     elseif k === OP_PAULI
-        return vac_pauli(ops, i, j)
+        return ops[i].l1 == 3 ? CNUM_ONE : CNUM_ZERO
     elseif k === OP_POSITION || k === OP_MOMENTUM
         return vac_quadrature(ops, i, j)
     elseif k === OP_SPIN
@@ -269,33 +270,6 @@ function vac_site(
             ops, i, j, vac_count(ops[i], particles, "particles", "`particles = 4`"),
         )
     end
-end
-
-# ⟨g| σ^{a₁b₁} … σ^{aₙbₙ} |g⟩ = δ_{a₁g} (∏ δ_{bₖaₖ₊₁}) δ_{bₙg}.
-function vac_transition(ops::Vector{Op}, i::Int, j::Int)
-    ops[i].l1 == ops[i].g || return CNUM_ZERO
-    for m in i:(j - 1)
-        ops[m].l2 == ops[m + 1].l1 || return CNUM_ZERO
-    end
-    return ops[j].l2 == ops[j].g ? CNUM_ONE : CNUM_ZERO
-end
-
-# Fold σⱼσₖ = δⱼₖI + iϵⱼₖₗσₗ over the run; `axis == 0` is the identity.
-function vac_pauli(ops::Vector{Op}, i::Int, j::Int)
-    c = CNUM_ONE
-    axis = 0
-    for m in i:j
-        b = Int(ops[m].l1)
-        if axis == 0
-            axis = b
-        elseif axis == b
-            axis = 0
-        else
-            c = mul_cnum(c, to_cnum(im * levi_civita[axis][b]))
-            axis = 6 - axis - b
-        end
-    end
-    return (axis == 0 || axis == 3) ? c : CNUM_ZERO
 end
 
 @inline function vac_add!(d::Dict{K, VacAmp}, k::K, v::VacAmp) where {K}

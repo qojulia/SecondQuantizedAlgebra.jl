@@ -3,6 +3,8 @@ using QuantumOpticsBase
 using Latexify: latexify
 using Symbolics: Symbolics, @variables
 using Test
+using TermInterface: operation
+using SymbolicUtils: SymbolicUtils
 
 # Reduce a `Complex{Num}` result to a plain number for comparison against the
 # numeric backend.
@@ -213,6 +215,10 @@ end
             1,
         )
         @test sprint(show, kronecker_delta(i, j)) == "δ(i, j)"
+        delta_operation = operation(Symbolics.unwrap(kronecker_delta(i, j)))
+        @test nameof(delta_operation) == :δ
+        @test sprint(show, delta_operation) == "δ"
+        @test SymbolicUtils.promote_symtype(delta_operation, Int, Int) === Real
         @test occursin("\\delta_{i,j}", string(latexify(kronecker_delta(i, j))))
     end
 
