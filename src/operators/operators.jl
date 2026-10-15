@@ -278,8 +278,11 @@ function inner_adjoint(v::SymbolicUtils.BasicSymbolic)
             return inner_adjoint(args[1])
         elseif f === expim
             return expim_symbolic(-only(args))
+        elseif f isa DeltaFunc
+            return v
         else
-            return TermInterface.maketerm(
+            return Base.invoke(
+                TermInterface.maketerm, Tuple{Type{typeof(v)}, Any, Any, Any},
                 typeof(v), f, map(inner_adjoint, args), TermInterface.metadata(v),
             )
         end
