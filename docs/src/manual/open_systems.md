@@ -350,21 +350,3 @@ import SecondQuantizedAlgebra: secular
 Lx = hamiltonian_action(ω * b' * b) + κ * dissipator(b + b')
 secular(transform(Lx, Rotation(b, ωd * t, t)), ωd, t)
 ```
-
-## General linear displacement frames
-
-The generator may be any `SuperOperator` whose drift is affine in the mode, `d/dt (a, a') = M (a, a') + c(t)`, such as the Caldeira–Leggett master equation of quantum Brownian motion. Its damping acts on the momentum alone, so the drift of `a` mixes in `a'`. `DisplacementFrame(x, p, L)` works on a quadrature pair, and with a time argument each harmonic of the drive gets its exact bounded response:
-
-```@example linear-displacement
-using SecondQuantizedAlgebra
-import SecondQuantizedAlgebra: SuperOperator, spre, spost, conjugate
-@variables F::Real
-m = PhaseSpace(:m)
-xq, pq = Position(m, :x), Momentum(m, :p)
-@variables ω0::Real η::Real Dp::Real
-ad(A) = spre(A) - spost(A)
-anti(A) = spre(A) + spost(A)
-Lqbm = SuperOperator(hamiltonian_action(pq^2 / 2 + ω0^2 * xq^2 / 2 - F * xq)) -
-    Dp / 2 * ad(xq) ∘ ad(xq) - im * η / 2 * ad(xq) ∘ anti(pq)
-conjugate(xq, DisplacementFrame(xq, pq, Lqbm))
-```
