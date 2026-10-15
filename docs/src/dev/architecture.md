@@ -110,8 +110,6 @@ Each invariant states the rule, the reason, and the test that pins it, or "not t
 
 **`GaussianRational` is not a `Number`.** Methods of a new `Number` subtype on `==`, `hash` and arithmetic invalidate SymbolicUtils code compiled for abstract numbers, which slowed its `simplify` by about a fifth. Not tested.
 
-**Fractional powers must respect the coefficient domain.** Real atoms under fractional powers are treated as nonnegative; complex atoms retain principal-branch restrictions, so distributing powers must not introduce invalid identities. Pinned by `test/symbolic/coefficients_test.jl`.
-
 ### Averages
 
 **An average is real when its operator is Hermitian.** The average and sum nodes override `maketerm` to derive their type from the operator, since the default rebuild in `substitute` would silently turn a real average back into a complex one. The index scope of a sum node is an argument, not metadata, because SymbolicUtils ignores metadata in `isequal` and two sums with different scopes would otherwise cancel. Pinned by `test/symbolic/average_test.jl`.
