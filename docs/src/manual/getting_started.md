@@ -4,13 +4,13 @@ CurrentModule = SecondQuantizedAlgebra
 
 # Getting started
 
-Consider a cavity mode on resonance with a two-level atom, described by the Jaynes–Cummings Hamiltonian
+We use units with ``\hbar = 1``. Consider a cavity mode on resonance with a two-level atom, described by the Jaynes–Cummings Hamiltonian
 
 ```math
 H = \omega a^\dagger a + \omega \sigma^{22} + g \left( a^\dagger \sigma^{12} + a \sigma^{21} \right).
 ```
 
-The cavity lives on a [`FockSpace`](@ref) and the atom on an [`NLevelSpace`](@ref); their tensor product [`⊗`](@ref) is the space of the full system. Operators refer to a factor of that product by its position, so the annihilation operator ``a`` acts on the first and the transitions ``\sigma^{ij} = |i\rangle\langle j|`` on the second. The couplings are ordinary Symbolics variables.
+The cavity lives on a [`FockSpace`](@ref) and the atom on an [`NLevelSpace`](@ref); their tensor product [`⊗`](@ref) is the space of the full system. Each space in the tensor product represents one subsystem. In the constructors below, the final argument selects that subsystem: `1` for the cavity and `2` for the atom. Thus the annihilation operator ``a`` acts on the cavity, while the transitions ``\sigma^{ij} = |i\rangle\langle j|`` act on the atom. The couplings are ordinary Symbolics variables.
 
 ```@example getting-started
 using SecondQuantizedAlgebra
@@ -24,13 +24,19 @@ h = FockSpace(:cavity) ⊗ NLevelSpace(:atom, 2)
 H = ω * a' * a + ω * σ(2, 2) + g * (a' * σ(1, 2) + a * σ(2, 1))
 ```
 
-Products are simplified as they are formed. Ladder operators come out normal ordered and transitions on the same atom compose, so there is never an unsimplified expression to clean up afterwards.
+Products apply the local algebraic identities as they are formed: ladder operators come out normal ordered, and transitions on the same atom compose.
 
 ```@example getting-started
 a * a', σ(1, 2) * σ(2, 1), σ(2, 1) * σ(2, 1)
 ```
 
-The ground-state projector ``\sigma^{11}`` is kept as is rather than rewritten as ``1 - \sigma^{22}``; [`expand_completeness`](@ref) does that on request. Because every product is already in canonical form, a commutator reduces to a subtraction, and the Heisenberg equation ``\dot{a} = i[H, a]`` is one line.
+Here ``\sigma^{11} = |1\rangle\langle 1|`` projects onto the atomic ground state, and ``\sigma^{22} = |2\rangle\langle 2|`` onto the excited state. Since these are the only two states, their projectors satisfy ``\sigma^{11} + \sigma^{22} = 1``. The algebra keeps ``\sigma^{11}`` as a single operator; call [`expand_completeness`](@ref) to replace it using this identity.
+
+```@example getting-started
+expand_completeness(σ(1, 1))
+```
+
+Because every product is already in canonical form, a commutator reduces to a subtraction, and the Heisenberg equation ``\dot{a} = i[H, a]`` is one line.
 
 ```@example getting-started
 1im * commutator(H, a)
@@ -42,7 +48,7 @@ Taking expectation values with [`average`](@ref) turns the operator equation for
 average(1im * commutator(H, σ(1, 2)))
 ```
 
-To compute with the model, [`to_numeric`](@ref) builds its matrix on a truncated basis, here with ten photons and through QuantumOpticsBase.
+To compute with the model, [`to_numeric`](@ref) builds its matrix through QuantumOptics on a truncated basis, here with cavity Fock states from zero to ten photons.
 
 ```@example getting-started
 using QuantumOpticsBase

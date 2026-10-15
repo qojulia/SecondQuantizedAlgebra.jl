@@ -4,7 +4,7 @@ CurrentModule = SecondQuantizedAlgebra
 
 # Algebra and ordering
 
-The Heisenberg equation of a Kerr oscillator, ``\dot a = i[H, a]`` with ``H = K a^{\dagger 2} a^2``, asks to move an annihilation operator past two creation operators. Done by hand, this is a page of commutation relations; here the result comes out in normal order directly.
+The Heisenberg equation of a Kerr oscillator, ``\dot a = i[H, a]`` with ``H = K a^{\dagger 2} a^2``, asks to move an annihilation operator past two creation operators. Using ``[a, a^\dagger] = 1`` gives ``\dot a = -2iK a^\dagger a^2``; the same result comes out in normal order directly:
 
 ```@example kerr
 using SecondQuantizedAlgebra

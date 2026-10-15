@@ -58,7 +58,7 @@ pkg> add SecondQuantizedAlgebra
 
 Construct a composite cavity–atom space and manipulate its operators directly:
 
-```julia
+```@example home
 using SecondQuantizedAlgebra
 
 hc = FockSpace(:cavity)

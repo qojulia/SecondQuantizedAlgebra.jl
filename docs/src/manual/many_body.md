@@ -47,6 +47,10 @@ An operator is placed on a site with [`IndexedOperator`](@ref). Wrapping it in a
 σ(2, 1, i)
 ```
 
+Operators on different sites commute, while operators on the same site obey the local operator algebra. To retain individual atom labels, use indexed [`Transition`](@ref) operators as above and [`Σ`](@ref) to form their collective sums.
+
+A [`CollectiveTransition`](@ref) instead represents an entire ensemble; see [Collective systems](@ref). An index on such an operator could label separate ensembles, each with its own collective algebra, but `IndexedOperator` does not currently support this. For a fixed number of ensembles, give each its own [`CollectiveNLevelSpace`](@ref) in a product space.
+
 Site-dependent parameters such as the couplings ``g_i`` are made with [`IndexedVariable`](@ref), and pair parameters with [`DoubleIndexedVariable`](@ref).
 
 ```@example tc
@@ -211,7 +215,7 @@ Products are not affected; their cost lies in the reordering itself. A symbolic 
 
 ## Collective systems
 
-When the atoms are identical and only permutation-symmetric states matter, the site label can be dropped altogether. Collective operators ``S^{ij} = \sum_k \sigma_k^{ij}`` act on the ensemble as a whole and form a closed algebra of their own. The two descriptions suit different problems:
+Collective operators ``S^{ij} = \sum_k \sigma_k^{ij}`` act on the ensemble as a whole and form a closed algebra without individual site labels. This algebra holds on the full atomic Hilbert space as well as within its permutation-symmetric sector. The numerical example below chooses a basis for that sector; this restriction belongs to the numerical representation, not to the symbolic commutation relations. The two descriptions suit different problems:
 
 | | Indexed sites | Collective operators |
 | --- | --- | --- |
@@ -219,7 +223,7 @@ When the atoms are identical and only permutation-symmetric states matter, the s
 | Number of atoms | symbolic | fixed by the numerical basis |
 | Site-dependent parameters | yes | no |
 | Site-resolved moments and correlations | yes | no |
-| Numerics | cumulant equations for any ``N``, full product space for a concrete ``N`` | exact in the symmetric sector |
+| Numerical basis | full product space for a concrete ``N`` | permutation-symmetric sector in the example below |
 
 They encode different physical roles and live on different Hilbert-space types, so they do not mix on one subsystem.
 

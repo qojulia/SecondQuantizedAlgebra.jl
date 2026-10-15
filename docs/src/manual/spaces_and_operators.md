@@ -14,7 +14,7 @@ A model starts from the Hilbert space of each subsystem. The type of the space f
 | [Angular momentum](@ref "Pauli and spin operators") | [`SpinSpace`](@ref) | [`Spin`](@ref) | ``[S_j, S_k] = i\epsilon_{jkl}S_l`` |
 | [Canonical quadratures](@ref "Quadratures") | [`PhaseSpace`](@ref) | [`Position`](@ref), [`Momentum`](@ref) | ``[x, p] = i`` |
 
-We build a hybrid quantum system step by step: a cavity mode coupled to an atom with a ground and an excited state, a collective spin, and a mechanical mirror described by its position and momentum.
+The examples below illustrate these spaces with a cavity mode, a two-level atom, a spin, and the position and momentum of a mechanical mirror. We combine them in one product space to show how operators address individual subsystems. Choose the spaces needed for your own model; no coupling between subsystems is implied by the product space.
 
 ```@contents
 Pages = ["spaces_and_operators.md"]
