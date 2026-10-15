@@ -58,6 +58,17 @@ jobs:
         with:
           repository: ${{ matrix.package.user }}/${{ matrix.package.repo }}
           path: downstream
+      - name: Diagnose unexpected Floquet GKSL residuals
+        if: ${{ matrix.package.repo == 'FloquetExpansions.jl' }}
+        shell: python
+        run: |
+          from pathlib import Path
+          path = Path("downstream/src/gksl/coordinates.jl")
+          source = path.read_text()
+          old = '      throw(GKSLCoordinateError("Liouvillian residual is not a Hamiltonian commutator"))'
+          new = '      @error "Unexpected GKSL residual" left right coefficient simplified=simplify_coefficient(coefficient)\n' + old
+          assert source.count(old) == 1
+          path.write_text(source.replace(old, new))
       - name: Load this and run the downstream tests
         shell: julia --color=yes --project=downstream --depwarn=yes {0}
         run: |
