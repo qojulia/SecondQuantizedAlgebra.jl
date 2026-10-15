@@ -12,6 +12,7 @@ This is a breaking release for type stability: public functions no longer use `n
 
 ### Added
 
+- `harmonics`, `harmonic` and `secular` project a coefficient, operator, `SuperOperator` or `Lindbladian` onto exact Fourier components `expim(n*ω*t)`; phases that are not integer harmonics of `ω` throw instead of being dropped.
 - `displacement(U, a)` returns the displacement amplitude of a frame, the c-number part of `conjugate(a, U)`, for Fock and phase-space operators.
 
 - Dissipative dynamics as first-class objects: `Lindbladian` (`hamiltonian_action`, `dissipator`, collective `dissipator(J, Γ, i => j)`), general `SuperOperator` maps (`spre`, `spost`, `sprepost`, composition, `transpose` as the Heisenberg generator) and formal `SuperExpr` maps. They support `Σ`, frames, substitution and printing, and convert to backend superoperators or, via `to_numeric_master`, to Hamiltonian and collapse operators.
