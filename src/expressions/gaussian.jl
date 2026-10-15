@@ -117,15 +117,17 @@ end
 @inline Base.:-(a::GaussianRational{T}, b::GaussianRational{T}) where {T} = a + (-b)
 @inline Base.conj(z::GaussianRational) = unsafe_gaussian(z.re, -z.im, z.den)
 
-function Base.inv(z::GaussianRational)
-    iszero(z) && throw(DivideError())
-    r2, o1 = Base.mul_with_overflow(z.re, z.re)
-    i2, o2 = Base.mul_with_overflow(z.im, z.im)
-    den, o3 = Base.add_with_overflow(r2, i2)
-    re, o4 = Base.mul_with_overflow(z.den, z.re)
-    im, o5 = Base.mul_with_overflow(z.den, z.im)
-    overflow = o1 | o2 | o3 | o4 | o5 | is_edge(den) | is_edge(re) | is_edge(im)
-    return overflow_result(overflow ? z : normalized(re, -im, den), overflow)
+for T in (Int, BigInt)
+    @eval function Base.inv(z::GaussianRational{$T})
+        iszero(z) && throw(DivideError())
+        r2, o1 = Base.mul_with_overflow(z.re, z.re)
+        i2, o2 = Base.mul_with_overflow(z.im, z.im)
+        den, o3 = Base.add_with_overflow(r2, i2)
+        re, o4 = Base.mul_with_overflow(z.den, z.re)
+        im, o5 = Base.mul_with_overflow(z.den, z.im)
+        overflow = o1 | o2 | o3 | o4 | o5 | is_edge(den) | is_edge(re) | is_edge(im)
+        return overflow_result(overflow ? z : normalized(re, -im, den), overflow)
+    end
 end
 
 function Base.:^(z::GaussianRational, n::Integer)
