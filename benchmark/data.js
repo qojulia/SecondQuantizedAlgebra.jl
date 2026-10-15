@@ -9284,31 +9284,31 @@ window.BENCHMARK_DATA = {
             "extra": "gctime=0\nmemory=4992\nallocs=29\nparams={\"evals\":9,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Unitary and exact phase workflows/Fock Gaussian constructor family",
+            "name": "Unitary and exact phase workflows/Gaussian transformations/Fock Gaussian constructor family",
             "value": 5846950,
             "unit": "ns",
             "extra": "gctime=0\nmemory=2270368\nallocs=30988\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Unitary and exact phase workflows/Phase-space, spin, and Pauli family",
+            "name": "Unitary and exact phase workflows/Operator families/Phase-space, spin, and Pauli family",
             "value": 1862936,
             "unit": "ns",
             "extra": "gctime=0\nmemory=841072\nallocs=11691\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Unitary and exact phase workflows/Static and moving two-level basis",
+            "name": "Unitary and exact phase workflows/Operator families/Static and moving two-level basis",
             "value": 21235174,
             "unit": "ns",
             "extra": "gctime=0\nmemory=9066656\nallocs=216148\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Unitary and exact phase workflows/Static and timed frame composition",
+            "name": "Unitary and exact phase workflows/Frame composition/Static and timed frame composition",
             "value": 3854612,
             "unit": "ns",
             "extra": "gctime=0\nmemory=1228920\nallocs=19789\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Unitary and exact phase workflows/Thirty-three-sideband exact phase pipeline",
+            "name": "Unitary and exact phase workflows/Exact phases/Thirty-three-sideband exact phase pipeline",
             "value": 9842166,
             "unit": "ns",
             "extra": "gctime=0\nmemory=4199696\nallocs=63464\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
@@ -9536,31 +9536,31 @@ window.BENCHMARK_DATA = {
             "extra": "gctime=0\nmemory=4992\nallocs=29\nparams={\"evals\":9,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Unitary and exact phase workflows/Fock Gaussian constructor family",
+            "name": "Unitary and exact phase workflows/Gaussian transformations/Fock Gaussian constructor family",
             "value": 3814814,
             "unit": "ns",
             "extra": "gctime=0\nmemory=2068032\nallocs=30891\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Unitary and exact phase workflows/Phase-space, spin, and Pauli family",
+            "name": "Unitary and exact phase workflows/Operator families/Phase-space, spin, and Pauli family",
             "value": 1232573,
             "unit": "ns",
             "extra": "gctime=0\nmemory=845344\nallocs=11724\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Unitary and exact phase workflows/Static and moving two-level basis",
+            "name": "Unitary and exact phase workflows/Operator families/Static and moving two-level basis",
             "value": 14541916,
             "unit": "ns",
             "extra": "gctime=0\nmemory=9051424\nallocs=215634\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Unitary and exact phase workflows/Static and timed frame composition",
+            "name": "Unitary and exact phase workflows/Frame composition/Static and timed frame composition",
             "value": 2584595,
             "unit": "ns",
             "extra": "gctime=0\nmemory=1221112\nallocs=19595\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Unitary and exact phase workflows/Thirty-three-sideband exact phase pipeline",
+            "name": "Unitary and exact phase workflows/Exact phases/Thirty-three-sideband exact phase pipeline",
             "value": 6750086,
             "unit": "ns",
             "extra": "gctime=0\nmemory=4242944\nallocs=64694\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
@@ -9788,31 +9788,31 @@ window.BENCHMARK_DATA = {
             "extra": "gctime=0\nmemory=5312\nallocs=39\nparams={\"evals\":9,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Unitary and exact phase workflows/Fock Gaussian constructor family",
+            "name": "Unitary and exact phase workflows/Gaussian transformations/Fock Gaussian constructor family",
             "value": 5556779,
             "unit": "ns",
             "extra": "gctime=0\nmemory=1904344\nallocs=27046\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Unitary and exact phase workflows/Phase-space, spin, and Pauli family",
+            "name": "Unitary and exact phase workflows/Operator families/Phase-space, spin, and Pauli family",
             "value": 1936356,
             "unit": "ns",
             "extra": "gctime=0\nmemory=806880\nallocs=10807\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Unitary and exact phase workflows/Static and moving two-level basis",
+            "name": "Unitary and exact phase workflows/Operator families/Static and moving two-level basis",
             "value": 22393016,
             "unit": "ns",
             "extra": "gctime=0\nmemory=9120592\nallocs=218244\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Unitary and exact phase workflows/Static and timed frame composition",
+            "name": "Unitary and exact phase workflows/Frame composition/Static and timed frame composition",
             "value": 3416008,
             "unit": "ns",
             "extra": "gctime=0\nmemory=1108160\nallocs=17022\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Unitary and exact phase workflows/Thirty-three-sideband exact phase pipeline",
+            "name": "Unitary and exact phase workflows/Exact phases/Thirty-three-sideband exact phase pipeline",
             "value": 10646737,
             "unit": "ns",
             "extra": "gctime=0\nmemory=4308608\nallocs=65661\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
@@ -10040,31 +10040,31 @@ window.BENCHMARK_DATA = {
             "extra": "gctime=0\nmemory=5312\nallocs=39\nparams={\"evals\":9,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Unitary and exact phase workflows/Fock Gaussian constructor family",
+            "name": "Unitary and exact phase workflows/Gaussian transformations/Fock Gaussian constructor family",
             "value": 3857088,
             "unit": "ns",
             "extra": "gctime=0\nmemory=1906968\nallocs=27114\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Unitary and exact phase workflows/Phase-space, spin, and Pauli family",
+            "name": "Unitary and exact phase workflows/Operator families/Phase-space, spin, and Pauli family",
             "value": 1355422,
             "unit": "ns",
             "extra": "gctime=0\nmemory=809360\nallocs=10785\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Unitary and exact phase workflows/Static and moving two-level basis",
+            "name": "Unitary and exact phase workflows/Operator families/Static and moving two-level basis",
             "value": 17043086,
             "unit": "ns",
             "extra": "gctime=0\nmemory=9120976\nallocs=218252\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Unitary and exact phase workflows/Static and timed frame composition",
+            "name": "Unitary and exact phase workflows/Frame composition/Static and timed frame composition",
             "value": 2418581,
             "unit": "ns",
             "extra": "gctime=0\nmemory=1098944\nallocs=16831\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Unitary and exact phase workflows/Thirty-three-sideband exact phase pipeline",
+            "name": "Unitary and exact phase workflows/Exact phases/Thirty-three-sideband exact phase pipeline",
             "value": 7688317,
             "unit": "ns",
             "extra": "gctime=0\nmemory=4308608\nallocs=65661\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
@@ -10292,31 +10292,31 @@ window.BENCHMARK_DATA = {
             "extra": "gctime=0\nmemory=5312\nallocs=39\nparams={\"evals\":8,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Unitary and exact phase workflows/Fock Gaussian constructor family",
+            "name": "Unitary and exact phase workflows/Gaussian transformations/Fock Gaussian constructor family",
             "value": 5234835,
             "unit": "ns",
             "extra": "gctime=0\nmemory=1907864\nallocs=27138\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Unitary and exact phase workflows/Phase-space, spin, and Pauli family",
+            "name": "Unitary and exact phase workflows/Operator families/Phase-space, spin, and Pauli family",
             "value": 1823537,
             "unit": "ns",
             "extra": "gctime=0\nmemory=806880\nallocs=10807\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Unitary and exact phase workflows/Static and moving two-level basis",
+            "name": "Unitary and exact phase workflows/Operator families/Static and moving two-level basis",
             "value": 21940158,
             "unit": "ns",
             "extra": "gctime=0\nmemory=9119696\nallocs=218219\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Unitary and exact phase workflows/Static and timed frame composition",
+            "name": "Unitary and exact phase workflows/Frame composition/Static and timed frame composition",
             "value": 3329886,
             "unit": "ns",
             "extra": "gctime=0\nmemory=1104256\nallocs=16965\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Unitary and exact phase workflows/Thirty-three-sideband exact phase pipeline",
+            "name": "Unitary and exact phase workflows/Exact phases/Thirty-three-sideband exact phase pipeline",
             "value": 10651686,
             "unit": "ns",
             "extra": "gctime=0\nmemory=4308608\nallocs=65661\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
@@ -10544,31 +10544,31 @@ window.BENCHMARK_DATA = {
             "extra": "gctime=0\nmemory=4992\nallocs=29\nparams={\"evals\":9,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Unitary and exact phase workflows/Fock Gaussian constructor family",
+            "name": "Unitary and exact phase workflows/Gaussian transformations/Fock Gaussian constructor family",
             "value": 5348525,
             "unit": "ns",
             "extra": "gctime=0\nmemory=1904024\nallocs=27038\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Unitary and exact phase workflows/Phase-space, spin, and Pauli family",
+            "name": "Unitary and exact phase workflows/Operator families/Phase-space, spin, and Pauli family",
             "value": 1841560,
             "unit": "ns",
             "extra": "gctime=0\nmemory=806880\nallocs=10807\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Unitary and exact phase workflows/Static and moving two-level basis",
+            "name": "Unitary and exact phase workflows/Operator families/Static and moving two-level basis",
             "value": 22647635,
             "unit": "ns",
             "extra": "gctime=0\nmemory=9120768\nallocs=218245\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Unitary and exact phase workflows/Static and timed frame composition",
+            "name": "Unitary and exact phase workflows/Frame composition/Static and timed frame composition",
             "value": 3307442,
             "unit": "ns",
             "extra": "gctime=0\nmemory=1096576\nallocs=16769\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Unitary and exact phase workflows/Thirty-three-sideband exact phase pipeline",
+            "name": "Unitary and exact phase workflows/Exact phases/Thirty-three-sideband exact phase pipeline",
             "value": 10821932,
             "unit": "ns",
             "extra": "gctime=0\nmemory=4308544\nallocs=65659\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
@@ -10796,31 +10796,31 @@ window.BENCHMARK_DATA = {
             "extra": "gctime=0\nmemory=4992\nallocs=29\nparams={\"evals\":9,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Unitary and exact phase workflows/Fock Gaussian constructor family",
+            "name": "Unitary and exact phase workflows/Gaussian transformations/Fock Gaussian constructor family",
             "value": 5503338,
             "unit": "ns",
             "extra": "gctime=0\nmemory=1907832\nallocs=27136\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Unitary and exact phase workflows/Phase-space, spin, and Pauli family",
+            "name": "Unitary and exact phase workflows/Operator families/Phase-space, spin, and Pauli family",
             "value": 1999596,
             "unit": "ns",
             "extra": "gctime=0\nmemory=810272\nallocs=10810\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Unitary and exact phase workflows/Static and moving two-level basis",
+            "name": "Unitary and exact phase workflows/Operator families/Static and moving two-level basis",
             "value": 22889318,
             "unit": "ns",
             "extra": "gctime=0\nmemory=9119984\nallocs=218226\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Unitary and exact phase workflows/Static and timed frame composition",
+            "name": "Unitary and exact phase workflows/Frame composition/Static and timed frame composition",
             "value": 3350454,
             "unit": "ns",
             "extra": "gctime=0\nmemory=1100160\nallocs=16861\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Unitary and exact phase workflows/Thirty-three-sideband exact phase pipeline",
+            "name": "Unitary and exact phase workflows/Exact phases/Thirty-three-sideband exact phase pipeline",
             "value": 10800028,
             "unit": "ns",
             "extra": "gctime=0\nmemory=4308544\nallocs=65659\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
@@ -11048,31 +11048,31 @@ window.BENCHMARK_DATA = {
             "extra": "gctime=0\nmemory=4992\nallocs=29\nparams={\"evals\":9,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Unitary and exact phase workflows/Fock Gaussian constructor family",
+            "name": "Unitary and exact phase workflows/Gaussian transformations/Fock Gaussian constructor family",
             "value": 5348956,
             "unit": "ns",
             "extra": "gctime=0\nmemory=1905528\nallocs=27076\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Unitary and exact phase workflows/Phase-space, spin, and Pauli family",
+            "name": "Unitary and exact phase workflows/Operator families/Phase-space, spin, and Pauli family",
             "value": 1869621,
             "unit": "ns",
             "extra": "gctime=0\nmemory=810272\nallocs=10810\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Unitary and exact phase workflows/Static and moving two-level basis",
+            "name": "Unitary and exact phase workflows/Operator families/Static and moving two-level basis",
             "value": 23097608,
             "unit": "ns",
             "extra": "gctime=0\nmemory=9120912\nallocs=218252\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Unitary and exact phase workflows/Static and timed frame composition",
+            "name": "Unitary and exact phase workflows/Frame composition/Static and timed frame composition",
             "value": 3263461,
             "unit": "ns",
             "extra": "gctime=0\nmemory=1104176\nallocs=16932\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Unitary and exact phase workflows/Thirty-three-sideband exact phase pipeline",
+            "name": "Unitary and exact phase workflows/Exact phases/Thirty-three-sideband exact phase pipeline",
             "value": 10882181,
             "unit": "ns",
             "extra": "gctime=0\nmemory=4308544\nallocs=65659\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
@@ -11300,31 +11300,31 @@ window.BENCHMARK_DATA = {
             "extra": "gctime=0\nmemory=4992\nallocs=29\nparams={\"evals\":8,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Unitary and exact phase workflows/Fock Gaussian constructor family",
+            "name": "Unitary and exact phase workflows/Gaussian transformations/Fock Gaussian constructor family",
             "value": 5003633,
             "unit": "ns",
             "extra": "gctime=0\nmemory=1855848\nallocs=27440\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Unitary and exact phase workflows/Phase-space, spin, and Pauli family",
+            "name": "Unitary and exact phase workflows/Operator families/Phase-space, spin, and Pauli family",
             "value": 1846731,
             "unit": "ns",
             "extra": "gctime=0\nmemory=807584\nallocs=11556\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Unitary and exact phase workflows/Static and moving two-level basis",
+            "name": "Unitary and exact phase workflows/Operator families/Static and moving two-level basis",
             "value": 22618194,
             "unit": "ns",
             "extra": "gctime=0\nmemory=9060944\nallocs=217156\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Unitary and exact phase workflows/Static and timed frame composition",
+            "name": "Unitary and exact phase workflows/Frame composition/Static and timed frame composition",
             "value": 3620667,
             "unit": "ns",
             "extra": "gctime=0\nmemory=1218568\nallocs=19839\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Unitary and exact phase workflows/Thirty-three-sideband exact phase pipeline",
+            "name": "Unitary and exact phase workflows/Exact phases/Thirty-three-sideband exact phase pipeline",
             "value": 9964595,
             "unit": "ns",
             "extra": "gctime=0\nmemory=4308544\nallocs=65659\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
@@ -11552,31 +11552,31 @@ window.BENCHMARK_DATA = {
             "extra": "gctime=0\nmemory=4992\nallocs=29\nparams={\"evals\":9,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Unitary and exact phase workflows/Fock Gaussian constructor family",
+            "name": "Unitary and exact phase workflows/Gaussian transformations/Fock Gaussian constructor family",
             "value": 5609688,
             "unit": "ns",
             "extra": "gctime=0\nmemory=1857064\nallocs=27472\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Unitary and exact phase workflows/Phase-space, spin, and Pauli family",
+            "name": "Unitary and exact phase workflows/Operator families/Phase-space, spin, and Pauli family",
             "value": 2095697,
             "unit": "ns",
             "extra": "gctime=0\nmemory=807584\nallocs=11556\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Unitary and exact phase workflows/Static and moving two-level basis",
+            "name": "Unitary and exact phase workflows/Operator families/Static and moving two-level basis",
             "value": 23532621,
             "unit": "ns",
             "extra": "gctime=0\nmemory=9062496\nallocs=217195\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Unitary and exact phase workflows/Static and timed frame composition",
+            "name": "Unitary and exact phase workflows/Frame composition/Static and timed frame composition",
             "value": 4055071,
             "unit": "ns",
             "extra": "gctime=0\nmemory=1217304\nallocs=19803\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Unitary and exact phase workflows/Thirty-three-sideband exact phase pipeline",
+            "name": "Unitary and exact phase workflows/Exact phases/Thirty-three-sideband exact phase pipeline",
             "value": 10987163,
             "unit": "ns",
             "extra": "gctime=0\nmemory=4308544\nallocs=65659\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
@@ -11804,31 +11804,31 @@ window.BENCHMARK_DATA = {
             "extra": "gctime=0\nmemory=4992\nallocs=29\nparams={\"evals\":8,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Unitary and exact phase workflows/Fock Gaussian constructor family",
+            "name": "Unitary and exact phase workflows/Gaussian transformations/Fock Gaussian constructor family",
             "value": 5015043,
             "unit": "ns",
             "extra": "gctime=0\nmemory=1856168\nallocs=27448\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Unitary and exact phase workflows/Phase-space, spin, and Pauli family",
+            "name": "Unitary and exact phase workflows/Operator families/Phase-space, spin, and Pauli family",
             "value": 1910997,
             "unit": "ns",
             "extra": "gctime=0\nmemory=804192\nallocs=11553\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Unitary and exact phase workflows/Static and moving two-level basis",
+            "name": "Unitary and exact phase workflows/Operator families/Static and moving two-level basis",
             "value": 23024047,
             "unit": "ns",
             "extra": "gctime=0\nmemory=9060896\nallocs=217153\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Unitary and exact phase workflows/Static and timed frame composition",
+            "name": "Unitary and exact phase workflows/Frame composition/Static and timed frame composition",
             "value": 3662107,
             "unit": "ns",
             "extra": "gctime=0\nmemory=1212376\nallocs=19703\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Unitary and exact phase workflows/Thirty-three-sideband exact phase pipeline",
+            "name": "Unitary and exact phase workflows/Exact phases/Thirty-three-sideband exact phase pipeline",
             "value": 10243738,
             "unit": "ns",
             "extra": "gctime=0\nmemory=4308544\nallocs=65659\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
@@ -12056,31 +12056,31 @@ window.BENCHMARK_DATA = {
             "extra": "gctime=0\nmemory=4992\nallocs=29\nparams={\"evals\":9,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Unitary and exact phase workflows/Fock Gaussian constructor family",
+            "name": "Unitary and exact phase workflows/Gaussian transformations/Fock Gaussian constructor family",
             "value": 5748514,
             "unit": "ns",
             "extra": "gctime=0\nmemory=1857928\nallocs=27495\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Unitary and exact phase workflows/Phase-space, spin, and Pauli family",
+            "name": "Unitary and exact phase workflows/Operator families/Phase-space, spin, and Pauli family",
             "value": 2155559,
             "unit": "ns",
             "extra": "gctime=0\nmemory=805104\nallocs=11578\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Unitary and exact phase workflows/Static and moving two-level basis",
+            "name": "Unitary and exact phase workflows/Operator families/Static and moving two-level basis",
             "value": 24324939,
             "unit": "ns",
             "extra": "gctime=0\nmemory=9060896\nallocs=217153\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Unitary and exact phase workflows/Static and timed frame composition",
+            "name": "Unitary and exact phase workflows/Frame composition/Static and timed frame composition",
             "value": 4090810,
             "unit": "ns",
             "extra": "gctime=0\nmemory=1215608\nallocs=19775\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Unitary and exact phase workflows/Thirty-three-sideband exact phase pipeline",
+            "name": "Unitary and exact phase workflows/Exact phases/Thirty-three-sideband exact phase pipeline",
             "value": 11613895,
             "unit": "ns",
             "extra": "gctime=0\nmemory=4308544\nallocs=65659\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
@@ -12308,31 +12308,31 @@ window.BENCHMARK_DATA = {
             "extra": "gctime=0\nmemory=4992\nallocs=29\nparams={\"evals\":8,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Unitary and exact phase workflows/Fock Gaussian constructor family",
+            "name": "Unitary and exact phase workflows/Gaussian transformations/Fock Gaussian constructor family",
             "value": 5831618,
             "unit": "ns",
             "extra": "gctime=0\nmemory=1858888\nallocs=27519\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Unitary and exact phase workflows/Phase-space, spin, and Pauli family",
+            "name": "Unitary and exact phase workflows/Operator families/Phase-space, spin, and Pauli family",
             "value": 2168324,
             "unit": "ns",
             "extra": "gctime=0\nmemory=807584\nallocs=11556\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Unitary and exact phase workflows/Static and moving two-level basis",
+            "name": "Unitary and exact phase workflows/Operator families/Static and moving two-level basis",
             "value": 23847993,
             "unit": "ns",
             "extra": "gctime=0\nmemory=9062496\nallocs=217195\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Unitary and exact phase workflows/Static and timed frame composition",
+            "name": "Unitary and exact phase workflows/Frame composition/Static and timed frame composition",
             "value": 4239817,
             "unit": "ns",
             "extra": "gctime=0\nmemory=1221912\nallocs=19913\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Unitary and exact phase workflows/Thirty-three-sideband exact phase pipeline",
+            "name": "Unitary and exact phase workflows/Exact phases/Thirty-three-sideband exact phase pipeline",
             "value": 11508421,
             "unit": "ns",
             "extra": "gctime=0\nmemory=4308544\nallocs=65659\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
@@ -12560,31 +12560,31 @@ window.BENCHMARK_DATA = {
             "extra": "gctime=0\nmemory=4992\nallocs=29\nparams={\"evals\":9,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Unitary and exact phase workflows/Fock Gaussian constructor family",
+            "name": "Unitary and exact phase workflows/Gaussian transformations/Fock Gaussian constructor family",
             "value": 4341203,
             "unit": "ns",
             "extra": "gctime=0\nmemory=1856488\nallocs=27456\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Unitary and exact phase workflows/Phase-space, spin, and Pauli family",
+            "name": "Unitary and exact phase workflows/Operator families/Phase-space, spin, and Pauli family",
             "value": 1694801,
             "unit": "ns",
             "extra": "gctime=0\nmemory=805104\nallocs=11578\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Unitary and exact phase workflows/Static and moving two-level basis",
+            "name": "Unitary and exact phase workflows/Operator families/Static and moving two-level basis",
             "value": 19349259,
             "unit": "ns",
             "extra": "gctime=0\nmemory=9062592\nallocs=217200\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Unitary and exact phase workflows/Static and timed frame composition",
+            "name": "Unitary and exact phase workflows/Frame composition/Static and timed frame composition",
             "value": 3185285,
             "unit": "ns",
             "extra": "gctime=0\nmemory=1208008\nallocs=19575\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Unitary and exact phase workflows/Thirty-three-sideband exact phase pipeline",
+            "name": "Unitary and exact phase workflows/Exact phases/Thirty-three-sideband exact phase pipeline",
             "value": 8985808,
             "unit": "ns",
             "extra": "gctime=0\nmemory=4308544\nallocs=65659\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
@@ -12812,31 +12812,31 @@ window.BENCHMARK_DATA = {
             "extra": "gctime=0\nmemory=4992\nallocs=29\nparams={\"evals\":9,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Unitary and exact phase workflows/Fock Gaussian constructor family",
+            "name": "Unitary and exact phase workflows/Gaussian transformations/Fock Gaussian constructor family",
             "value": 4636049,
             "unit": "ns",
             "extra": "gctime=0\nmemory=1857608\nallocs=27487\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Unitary and exact phase workflows/Phase-space, spin, and Pauli family",
+            "name": "Unitary and exact phase workflows/Operator families/Phase-space, spin, and Pauli family",
             "value": 1660555,
             "unit": "ns",
             "extra": "gctime=0\nmemory=804192\nallocs=11553\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Unitary and exact phase workflows/Static and moving two-level basis",
+            "name": "Unitary and exact phase workflows/Operator families/Static and moving two-level basis",
             "value": 18595463,
             "unit": "ns",
             "extra": "gctime=0\nmemory=9060976\nallocs=217158\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Unitary and exact phase workflows/Static and timed frame composition",
+            "name": "Unitary and exact phase workflows/Frame composition/Static and timed frame composition",
             "value": 3232407,
             "unit": "ns",
             "extra": "gctime=0\nmemory=1205144\nallocs=19523\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Unitary and exact phase workflows/Thirty-three-sideband exact phase pipeline",
+            "name": "Unitary and exact phase workflows/Exact phases/Thirty-three-sideband exact phase pipeline",
             "value": 9148347,
             "unit": "ns",
             "extra": "gctime=0\nmemory=4308544\nallocs=65659\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
@@ -13064,31 +13064,31 @@ window.BENCHMARK_DATA = {
             "extra": "gctime=0\nmemory=4992\nallocs=29\nparams={\"evals\":9,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Unitary and exact phase workflows/Fock Gaussian constructor family",
+            "name": "Unitary and exact phase workflows/Gaussian transformations/Fock Gaussian constructor family",
             "value": 4552220,
             "unit": "ns",
             "extra": "gctime=0\nmemory=1834200\nallocs=27053\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Unitary and exact phase workflows/Phase-space, spin, and Pauli family",
+            "name": "Unitary and exact phase workflows/Operator families/Phase-space, spin, and Pauli family",
             "value": 1763444,
             "unit": "ns",
             "extra": "gctime=0\nmemory=798688\nallocs=11461\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Unitary and exact phase workflows/Static and moving two-level basis",
+            "name": "Unitary and exact phase workflows/Operator families/Static and moving two-level basis",
             "value": 18627378,
             "unit": "ns",
             "extra": "gctime=0\nmemory=9044048\nallocs=216804\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Unitary and exact phase workflows/Static and timed frame composition",
+            "name": "Unitary and exact phase workflows/Frame composition/Static and timed frame composition",
             "value": 3238600,
             "unit": "ns",
             "extra": "gctime=0\nmemory=1192152\nallocs=19289\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Unitary and exact phase workflows/Thirty-three-sideband exact phase pipeline",
+            "name": "Unitary and exact phase workflows/Exact phases/Thirty-three-sideband exact phase pipeline",
             "value": 8876584,
             "unit": "ns",
             "extra": "gctime=0\nmemory=4262144\nallocs=64691\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
@@ -13316,31 +13316,31 @@ window.BENCHMARK_DATA = {
             "extra": "gctime=0\nmemory=4992\nallocs=29\nparams={\"evals\":9,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Unitary and exact phase workflows/Fock Gaussian constructor family",
+            "name": "Unitary and exact phase workflows/Gaussian transformations/Fock Gaussian constructor family",
             "value": 4053612,
             "unit": "ns",
             "extra": "gctime=0\nmemory=1836360\nallocs=27110\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Unitary and exact phase workflows/Phase-space, spin, and Pauli family",
+            "name": "Unitary and exact phase workflows/Operator families/Phase-space, spin, and Pauli family",
             "value": 1500426,
             "unit": "ns",
             "extra": "gctime=0\nmemory=802080\nallocs=11464\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Unitary and exact phase workflows/Static and moving two-level basis",
+            "name": "Unitary and exact phase workflows/Operator families/Static and moving two-level basis",
             "value": 17854348,
             "unit": "ns",
             "extra": "gctime=0\nmemory=9044080\nallocs=216806\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Unitary and exact phase workflows/Static and timed frame composition",
+            "name": "Unitary and exact phase workflows/Frame composition/Static and timed frame composition",
             "value": 2926144,
             "unit": "ns",
             "extra": "gctime=0\nmemory=1205800\nallocs=19602\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Unitary and exact phase workflows/Thirty-three-sideband exact phase pipeline",
+            "name": "Unitary and exact phase workflows/Exact phases/Thirty-three-sideband exact phase pipeline",
             "value": 8084489,
             "unit": "ns",
             "extra": "gctime=0\nmemory=4262144\nallocs=64691\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
@@ -13568,31 +13568,31 @@ window.BENCHMARK_DATA = {
             "extra": "gctime=0\nmemory=4992\nallocs=29\nparams={\"evals\":9,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Unitary and exact phase workflows/Fock Gaussian constructor family",
+            "name": "Unitary and exact phase workflows/Gaussian transformations/Fock Gaussian constructor family",
             "value": 4162913,
             "unit": "ns",
             "extra": "gctime=0\nmemory=1839320\nallocs=27186\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Unitary and exact phase workflows/Phase-space, spin, and Pauli family",
+            "name": "Unitary and exact phase workflows/Operator families/Phase-space, spin, and Pauli family",
             "value": 1568646,
             "unit": "ns",
             "extra": "gctime=0\nmemory=798688\nallocs=11461\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Unitary and exact phase workflows/Static and moving two-level basis",
+            "name": "Unitary and exact phase workflows/Operator families/Static and moving two-level basis",
             "value": 19051768,
             "unit": "ns",
             "extra": "gctime=0\nmemory=9044528\nallocs=216818\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Unitary and exact phase workflows/Static and timed frame composition",
+            "name": "Unitary and exact phase workflows/Frame composition/Static and timed frame composition",
             "value": 3055200,
             "unit": "ns",
             "extra": "gctime=0\nmemory=1201560\nallocs=19510\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Unitary and exact phase workflows/Thirty-three-sideband exact phase pipeline",
+            "name": "Unitary and exact phase workflows/Exact phases/Thirty-three-sideband exact phase pipeline",
             "value": 9167102,
             "unit": "ns",
             "extra": "gctime=0\nmemory=4262144\nallocs=64691\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
@@ -13820,31 +13820,31 @@ window.BENCHMARK_DATA = {
             "extra": "gctime=0\nmemory=4992\nallocs=29\nparams={\"evals\":9,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Unitary and exact phase workflows/Fock Gaussian constructor family",
+            "name": "Unitary and exact phase workflows/Gaussian transformations/Fock Gaussian constructor family",
             "value": 5539956,
             "unit": "ns",
             "extra": "gctime=0\nmemory=1834200\nallocs=27053\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Unitary and exact phase workflows/Phase-space, spin, and Pauli family",
+            "name": "Unitary and exact phase workflows/Operator families/Phase-space, spin, and Pauli family",
             "value": 2083029,
             "unit": "ns",
             "extra": "gctime=0\nmemory=798688\nallocs=11461\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Unitary and exact phase workflows/Static and moving two-level basis",
+            "name": "Unitary and exact phase workflows/Operator families/Static and moving two-level basis",
             "value": 24052571,
             "unit": "ns",
             "extra": "gctime=0\nmemory=9075024\nallocs=217580\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Unitary and exact phase workflows/Static and timed frame composition",
+            "name": "Unitary and exact phase workflows/Frame composition/Static and timed frame composition",
             "value": 3968003,
             "unit": "ns",
             "extra": "gctime=0\nmemory=1192536\nallocs=19299\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Unitary and exact phase workflows/Thirty-three-sideband exact phase pipeline",
+            "name": "Unitary and exact phase workflows/Exact phases/Thirty-three-sideband exact phase pipeline",
             "value": 11102181,
             "unit": "ns",
             "extra": "gctime=0\nmemory=4266624\nallocs=64803\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
@@ -14072,31 +14072,31 @@ window.BENCHMARK_DATA = {
             "extra": "gctime=0\nmemory=4992\nallocs=29\nparams={\"evals\":9,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Unitary and exact phase workflows/Fock Gaussian constructor family",
+            "name": "Unitary and exact phase workflows/Gaussian transformations/Fock Gaussian constructor family",
             "value": 4471040,
             "unit": "ns",
             "extra": "gctime=0\nmemory=1837880\nallocs=27147\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Unitary and exact phase workflows/Phase-space, spin, and Pauli family",
+            "name": "Unitary and exact phase workflows/Operator families/Phase-space, spin, and Pauli family",
             "value": 1703836,
             "unit": "ns",
             "extra": "gctime=0\nmemory=798688\nallocs=11461\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Unitary and exact phase workflows/Static and moving two-level basis",
+            "name": "Unitary and exact phase workflows/Operator families/Static and moving two-level basis",
             "value": 18718793,
             "unit": "ns",
             "extra": "gctime=0\nmemory=9074960\nallocs=217576\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Unitary and exact phase workflows/Static and timed frame composition",
+            "name": "Unitary and exact phase workflows/Frame composition/Static and timed frame composition",
             "value": 3238938,
             "unit": "ns",
             "extra": "gctime=0\nmemory=1200680\nallocs=19489\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Unitary and exact phase workflows/Thirty-three-sideband exact phase pipeline",
+            "name": "Unitary and exact phase workflows/Exact phases/Thirty-three-sideband exact phase pipeline",
             "value": 8865073,
             "unit": "ns",
             "extra": "gctime=0\nmemory=4266624\nallocs=64803\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
@@ -14324,31 +14324,31 @@ window.BENCHMARK_DATA = {
             "extra": "gctime=0\nmemory=4992\nallocs=29\nparams={\"evals\":9,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Unitary and exact phase workflows/Fock Gaussian constructor family",
+            "name": "Unitary and exact phase workflows/Gaussian transformations/Fock Gaussian constructor family",
             "value": 5729816,
             "unit": "ns",
             "extra": "gctime=0\nmemory=1835480\nallocs=27085\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Unitary and exact phase workflows/Phase-space, spin, and Pauli family",
+            "name": "Unitary and exact phase workflows/Operator families/Phase-space, spin, and Pauli family",
             "value": 2222883,
             "unit": "ns",
             "extra": "gctime=0\nmemory=798688\nallocs=11461\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Unitary and exact phase workflows/Static and moving two-level basis",
+            "name": "Unitary and exact phase workflows/Operator families/Static and moving two-level basis",
             "value": 24032424,
             "unit": "ns",
             "extra": "gctime=0\nmemory=9074160\nallocs=217558\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Unitary and exact phase workflows/Static and timed frame composition",
+            "name": "Unitary and exact phase workflows/Frame composition/Static and timed frame composition",
             "value": 4121740,
             "unit": "ns",
             "extra": "gctime=0\nmemory=1187016\nallocs=19169\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Unitary and exact phase workflows/Thirty-three-sideband exact phase pipeline",
+            "name": "Unitary and exact phase workflows/Exact phases/Thirty-three-sideband exact phase pipeline",
             "value": 11777236,
             "unit": "ns",
             "extra": "gctime=0\nmemory=4266624\nallocs=64803\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
@@ -14576,31 +14576,31 @@ window.BENCHMARK_DATA = {
             "extra": "gctime=0\nmemory=4992\nallocs=29\nparams={\"evals\":9,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Unitary and exact phase workflows/Fock Gaussian constructor family",
+            "name": "Unitary and exact phase workflows/Gaussian transformations/Fock Gaussian constructor family",
             "value": 5649056,
             "unit": "ns",
             "extra": "gctime=0\nmemory=1837880\nallocs=27148\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Unitary and exact phase workflows/Phase-space, spin, and Pauli family",
+            "name": "Unitary and exact phase workflows/Operator families/Phase-space, spin, and Pauli family",
             "value": 2169703,
             "unit": "ns",
             "extra": "gctime=0\nmemory=798688\nallocs=11461\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Unitary and exact phase workflows/Static and moving two-level basis",
+            "name": "Unitary and exact phase workflows/Operator families/Static and moving two-level basis",
             "value": 24115858,
             "unit": "ns",
             "extra": "gctime=0\nmemory=9074128\nallocs=217556\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Unitary and exact phase workflows/Static and timed frame composition",
+            "name": "Unitary and exact phase workflows/Frame composition/Static and timed frame composition",
             "value": 4140347,
             "unit": "ns",
             "extra": "gctime=0\nmemory=1198216\nallocs=19432\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Unitary and exact phase workflows/Thirty-three-sideband exact phase pipeline",
+            "name": "Unitary and exact phase workflows/Exact phases/Thirty-three-sideband exact phase pipeline",
             "value": 11311999,
             "unit": "ns",
             "extra": "gctime=0\nmemory=4266624\nallocs=64803\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
@@ -14828,31 +14828,31 @@ window.BENCHMARK_DATA = {
             "extra": "gctime=0\nmemory=5248\nallocs=29\nparams={\"evals\":9,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Unitary and exact phase workflows/Fock Gaussian constructor family",
+            "name": "Unitary and exact phase workflows/Gaussian transformations/Fock Gaussian constructor family",
             "value": 4891324,
             "unit": "ns",
             "extra": "gctime=0\nmemory=1961048\nallocs=28038\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Unitary and exact phase workflows/Phase-space, spin, and Pauli family",
+            "name": "Unitary and exact phase workflows/Operator families/Phase-space, spin, and Pauli family",
             "value": 1751032,
             "unit": "ns",
             "extra": "gctime=0\nmemory=873680\nallocs=11906\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Unitary and exact phase workflows/Static and moving two-level basis",
+            "name": "Unitary and exact phase workflows/Operator families/Static and moving two-level basis",
             "value": 18588261,
             "unit": "ns",
             "extra": "gctime=0\nmemory=9383408\nallocs=223991\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Unitary and exact phase workflows/Static and timed frame composition",
+            "name": "Unitary and exact phase workflows/Frame composition/Static and timed frame composition",
             "value": 3411128,
             "unit": "ns",
             "extra": "gctime=0\nmemory=1255688\nallocs=19784\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Unitary and exact phase workflows/Thirty-three-sideband exact phase pipeline",
+            "name": "Unitary and exact phase workflows/Exact phases/Thirty-three-sideband exact phase pipeline",
             "value": 9154407,
             "unit": "ns",
             "extra": "gctime=0\nmemory=4323984\nallocs=65693\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
@@ -15080,31 +15080,31 @@ window.BENCHMARK_DATA = {
             "extra": "gctime=0\nmemory=5248\nallocs=29\nparams={\"evals\":10,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Unitary and exact phase workflows/Fock Gaussian constructor family",
+            "name": "Unitary and exact phase workflows/Gaussian transformations/Fock Gaussian constructor family",
             "value": 2901139,
             "unit": "ns",
             "extra": "gctime=0\nmemory=1956328\nallocs=27912\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Unitary and exact phase workflows/Phase-space, spin, and Pauli family",
+            "name": "Unitary and exact phase workflows/Operator families/Phase-space, spin, and Pauli family",
             "value": 1093951,
             "unit": "ns",
             "extra": "gctime=0\nmemory=873680\nallocs=11906\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Unitary and exact phase workflows/Static and moving two-level basis",
+            "name": "Unitary and exact phase workflows/Operator families/Static and moving two-level basis",
             "value": 12352221,
             "unit": "ns",
             "extra": "gctime=0\nmemory=9383408\nallocs=223991\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Unitary and exact phase workflows/Static and timed frame composition",
+            "name": "Unitary and exact phase workflows/Frame composition/Static and timed frame composition",
             "value": 2022496,
             "unit": "ns",
             "extra": "gctime=0\nmemory=1260168\nallocs=19894\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Unitary and exact phase workflows/Thirty-three-sideband exact phase pipeline",
+            "name": "Unitary and exact phase workflows/Exact phases/Thirty-three-sideband exact phase pipeline",
             "value": 5743660,
             "unit": "ns",
             "extra": "gctime=0\nmemory=4323984\nallocs=65693\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
@@ -15332,31 +15332,31 @@ window.BENCHMARK_DATA = {
             "extra": "gctime=0\nmemory=5248\nallocs=29\nparams={\"evals\":9,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Unitary and exact phase workflows/Fock Gaussian constructor family",
+            "name": "Unitary and exact phase workflows/Gaussian transformations/Fock Gaussian constructor family",
             "value": 6058073,
             "unit": "ns",
             "extra": "gctime=0\nmemory=1960248\nallocs=28016\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Unitary and exact phase workflows/Phase-space, spin, and Pauli family",
+            "name": "Unitary and exact phase workflows/Operator families/Phase-space, spin, and Pauli family",
             "value": 2203090,
             "unit": "ns",
             "extra": "gctime=0\nmemory=873680\nallocs=11906\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Unitary and exact phase workflows/Static and moving two-level basis",
+            "name": "Unitary and exact phase workflows/Operator families/Static and moving two-level basis",
             "value": 25265566,
             "unit": "ns",
             "extra": "gctime=0\nmemory=9383408\nallocs=223991\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Unitary and exact phase workflows/Static and timed frame composition",
+            "name": "Unitary and exact phase workflows/Frame composition/Static and timed frame composition",
             "value": 4249126,
             "unit": "ns",
             "extra": "gctime=0\nmemory=1257352\nallocs=19815\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Unitary and exact phase workflows/Thirty-three-sideband exact phase pipeline",
+            "name": "Unitary and exact phase workflows/Exact phases/Thirty-three-sideband exact phase pipeline",
             "value": 11617799,
             "unit": "ns",
             "extra": "gctime=0\nmemory=4323984\nallocs=65693\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
@@ -15584,31 +15584,31 @@ window.BENCHMARK_DATA = {
             "extra": "gctime=0\nmemory=5248\nallocs=29\nparams={\"evals\":9,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Unitary and exact phase workflows/Fock Gaussian constructor family",
+            "name": "Unitary and exact phase workflows/Gaussian transformations/Fock Gaussian constructor family",
             "value": 5202563,
             "unit": "ns",
             "extra": "gctime=0\nmemory=1908552\nallocs=25919\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Unitary and exact phase workflows/Phase-space, spin, and Pauli family",
+            "name": "Unitary and exact phase workflows/Operator families/Phase-space, spin, and Pauli family",
             "value": 1797570,
             "unit": "ns",
             "extra": "gctime=0\nmemory=832640\nallocs=10548\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Unitary and exact phase workflows/Static and moving two-level basis",
+            "name": "Unitary and exact phase workflows/Operator families/Static and moving two-level basis",
             "value": 28177416,
             "unit": "ns",
             "extra": "gctime=0\nmemory=10439520\nallocs=247238\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Unitary and exact phase workflows/Static and timed frame composition",
+            "name": "Unitary and exact phase workflows/Frame composition/Static and timed frame composition",
             "value": 3845222,
             "unit": "ns",
             "extra": "gctime=0\nmemory=1240632\nallocs=19052\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Unitary and exact phase workflows/Thirty-three-sideband exact phase pipeline",
+            "name": "Unitary and exact phase workflows/Exact phases/Thirty-three-sideband exact phase pipeline",
             "value": 12281763,
             "unit": "ns",
             "extra": "gctime=0\nmemory=4573672\nallocs=71473\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
@@ -15728,61 +15728,61 @@ window.BENCHMARK_DATA = {
             "extra": "gctime=0\nmemory=56512\nallocs=1172\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Formal operator functions/64 unary function nodes",
+            "name": "Formal operator functions/Construction/64 unary function nodes",
             "value": 3176,
             "unit": "ns",
             "extra": "gctime=0\nmemory=9344\nallocs=129\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Formal operator functions/Collect 32 identical formal terms",
+            "name": "Formal operator functions/Arithmetic/Collect 32 identical formal terms",
             "value": 19908,
             "unit": "ns",
             "extra": "gctime=0\nmemory=76608\nallocs=542\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Formal operator functions/Formal power 16",
+            "name": "Formal operator functions/Arithmetic/Formal power 16",
             "value": 5490,
             "unit": "ns",
             "extra": "gctime=0\nmemory=9648\nallocs=135\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Formal operator functions/Mixed formal expression",
+            "name": "Formal operator functions/Construction/Mixed formal expression",
             "value": 9037,
             "unit": "ns",
             "extra": "gctime=0\nmemory=25136\nallocs=234\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Formal operator functions/Mixed polynomial/formal sum 32",
+            "name": "Formal operator functions/Arithmetic/Mixed polynomial and formal sum 32",
             "value": 47349,
             "unit": "ns",
             "extra": "gctime=0\nmemory=198352\nallocs=1277\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Formal operator functions/Nested unary depth 8",
+            "name": "Formal operator functions/Construction/Nested unary depth 8",
             "value": 390,
             "unit": "ns",
             "extra": "gctime=0\nmemory=992\nallocs=16\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Formal operator functions/Repeated-node Taylor order 4",
+            "name": "Formal operator functions/Taylor expansion/Repeated-node Taylor order 4",
             "value": 232638,
             "unit": "ns",
             "extra": "gctime=0\nmemory=229336\nallocs=751\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Formal operator functions/Unary cos construction",
+            "name": "Formal operator functions/Construction/Unary cos construction",
             "value": 69,
             "unit": "ns",
             "extra": "gctime=0\nmemory=96\nallocs=2\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Formal operator functions/cos Taylor order 8",
+            "name": "Formal operator functions/Taylor expansion/cos Taylor order 8",
             "value": 133702,
             "unit": "ns",
             "extra": "gctime=0\nmemory=155704\nallocs=499\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Formal operator functions/expim Taylor order 8",
+            "name": "Formal operator functions/Taylor expansion/expim Taylor order 8",
             "value": 107402,
             "unit": "ns",
             "extra": "gctime=0\nmemory=149656\nallocs=441\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
@@ -15896,31 +15896,31 @@ window.BENCHMARK_DATA = {
             "extra": "gctime=0\nmemory=5248\nallocs=29\nparams={\"evals\":9,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Unitary and exact phase workflows/Fock Gaussian constructor family",
+            "name": "Unitary and exact phase workflows/Gaussian transformations/Fock Gaussian constructor family",
             "value": 5280530,
             "unit": "ns",
             "extra": "gctime=0\nmemory=1908632\nallocs=25923\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Unitary and exact phase workflows/Phase-space, spin, and Pauli family",
+            "name": "Unitary and exact phase workflows/Operator families/Phase-space, spin, and Pauli family",
             "value": 1838535,
             "unit": "ns",
             "extra": "gctime=0\nmemory=836576\nallocs=10551\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Unitary and exact phase workflows/Static and moving two-level basis",
+            "name": "Unitary and exact phase workflows/Operator families/Static and moving two-level basis",
             "value": 28570087,
             "unit": "ns",
             "extra": "gctime=0\nmemory=10439520\nallocs=247238\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Unitary and exact phase workflows/Static and timed frame composition",
+            "name": "Unitary and exact phase workflows/Frame composition/Static and timed frame composition",
             "value": 3774486,
             "unit": "ns",
             "extra": "gctime=0\nmemory=1225928\nallocs=18696\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Unitary and exact phase workflows/Thirty-three-sideband exact phase pipeline",
+            "name": "Unitary and exact phase workflows/Exact phases/Thirty-three-sideband exact phase pipeline",
             "value": 12418947,
             "unit": "ns",
             "extra": "gctime=0\nmemory=4573672\nallocs=71473\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
@@ -16040,61 +16040,61 @@ window.BENCHMARK_DATA = {
             "extra": "gctime=0\nmemory=56512\nallocs=1172\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Formal operator functions/64 unary function nodes",
+            "name": "Formal operator functions/Construction/64 unary function nodes",
             "value": 2515,
             "unit": "ns",
             "extra": "gctime=0\nmemory=9344\nallocs=129\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Formal operator functions/Collect 32 identical formal terms",
+            "name": "Formal operator functions/Arithmetic/Collect 32 identical formal terms",
             "value": 19009,
             "unit": "ns",
             "extra": "gctime=0\nmemory=76608\nallocs=542\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Formal operator functions/Formal power 16",
+            "name": "Formal operator functions/Arithmetic/Formal power 16",
             "value": 5312,
             "unit": "ns",
             "extra": "gctime=0\nmemory=9648\nallocs=135\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Formal operator functions/Mixed formal expression",
+            "name": "Formal operator functions/Construction/Mixed formal expression",
             "value": 9042,
             "unit": "ns",
             "extra": "gctime=0\nmemory=25136\nallocs=234\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Formal operator functions/Mixed polynomial/formal sum 32",
+            "name": "Formal operator functions/Arithmetic/Mixed polynomial and formal sum 32",
             "value": 48444,
             "unit": "ns",
             "extra": "gctime=0\nmemory=198352\nallocs=1277\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Formal operator functions/Nested unary depth 8",
+            "name": "Formal operator functions/Construction/Nested unary depth 8",
             "value": 311,
             "unit": "ns",
             "extra": "gctime=0\nmemory=992\nallocs=16\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Formal operator functions/Repeated-node Taylor order 4",
+            "name": "Formal operator functions/Taylor expansion/Repeated-node Taylor order 4",
             "value": 269875,
             "unit": "ns",
             "extra": "gctime=0\nmemory=229336\nallocs=751\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Formal operator functions/Unary cos construction",
+            "name": "Formal operator functions/Construction/Unary cos construction",
             "value": 65,
             "unit": "ns",
             "extra": "gctime=0\nmemory=96\nallocs=2\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Formal operator functions/cos Taylor order 8",
+            "name": "Formal operator functions/Taylor expansion/cos Taylor order 8",
             "value": 155976,
             "unit": "ns",
             "extra": "gctime=0\nmemory=155704\nallocs=499\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Formal operator functions/expim Taylor order 8",
+            "name": "Formal operator functions/Taylor expansion/expim Taylor order 8",
             "value": 122974,
             "unit": "ns",
             "extra": "gctime=0\nmemory=149656\nallocs=441\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
@@ -16208,31 +16208,31 @@ window.BENCHMARK_DATA = {
             "extra": "gctime=0\nmemory=5248\nallocs=29\nparams={\"evals\":9,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Unitary and exact phase workflows/Fock Gaussian constructor family",
+            "name": "Unitary and exact phase workflows/Gaussian transformations/Fock Gaussian constructor family",
             "value": 4645068,
             "unit": "ns",
             "extra": "gctime=0\nmemory=1907032\nallocs=25883\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Unitary and exact phase workflows/Phase-space, spin, and Pauli family",
+            "name": "Unitary and exact phase workflows/Operator families/Phase-space, spin, and Pauli family",
             "value": 1601573,
             "unit": "ns",
             "extra": "gctime=0\nmemory=833664\nallocs=10577\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Unitary and exact phase workflows/Static and moving two-level basis",
+            "name": "Unitary and exact phase workflows/Operator families/Static and moving two-level basis",
             "value": 29424551,
             "unit": "ns",
             "extra": "gctime=0\nmemory=10439520\nallocs=247238\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Unitary and exact phase workflows/Static and timed frame composition",
+            "name": "Unitary and exact phase workflows/Frame composition/Static and timed frame composition",
             "value": 3368470,
             "unit": "ns",
             "extra": "gctime=0\nmemory=1231720\nallocs=18844\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Unitary and exact phase workflows/Thirty-three-sideband exact phase pipeline",
+            "name": "Unitary and exact phase workflows/Exact phases/Thirty-three-sideband exact phase pipeline",
             "value": 11337087,
             "unit": "ns",
             "extra": "gctime=0\nmemory=4573672\nallocs=71473\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
@@ -16352,61 +16352,61 @@ window.BENCHMARK_DATA = {
             "extra": "gctime=0\nmemory=56448\nallocs=1172\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Formal operator functions/64 unary function nodes",
+            "name": "Formal operator functions/Construction/64 unary function nodes",
             "value": 3024,
             "unit": "ns",
             "extra": "gctime=0\nmemory=9344\nallocs=129\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Formal operator functions/Collect 32 identical formal terms",
+            "name": "Formal operator functions/Arithmetic/Collect 32 identical formal terms",
             "value": 19359,
             "unit": "ns",
             "extra": "gctime=0\nmemory=76608\nallocs=542\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Formal operator functions/Formal power 16",
+            "name": "Formal operator functions/Arithmetic/Formal power 16",
             "value": 5649,
             "unit": "ns",
             "extra": "gctime=0\nmemory=9648\nallocs=135\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Formal operator functions/Mixed formal expression",
+            "name": "Formal operator functions/Construction/Mixed formal expression",
             "value": 9273,
             "unit": "ns",
             "extra": "gctime=0\nmemory=25136\nallocs=234\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Formal operator functions/Mixed polynomial/formal sum 32",
+            "name": "Formal operator functions/Arithmetic/Mixed polynomial and formal sum 32",
             "value": 48391,
             "unit": "ns",
             "extra": "gctime=0\nmemory=198352\nallocs=1277\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Formal operator functions/Nested unary depth 8",
+            "name": "Formal operator functions/Construction/Nested unary depth 8",
             "value": 390,
             "unit": "ns",
             "extra": "gctime=0\nmemory=992\nallocs=16\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Formal operator functions/Repeated-node Taylor order 4",
+            "name": "Formal operator functions/Taylor expansion/Repeated-node Taylor order 4",
             "value": 249058,
             "unit": "ns",
             "extra": "gctime=0\nmemory=229336\nallocs=751\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Formal operator functions/Unary cos construction",
+            "name": "Formal operator functions/Construction/Unary cos construction",
             "value": 70,
             "unit": "ns",
             "extra": "gctime=0\nmemory=96\nallocs=2\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Formal operator functions/cos Taylor order 8",
+            "name": "Formal operator functions/Taylor expansion/cos Taylor order 8",
             "value": 144223,
             "unit": "ns",
             "extra": "gctime=0\nmemory=155704\nallocs=499\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Formal operator functions/expim Taylor order 8",
+            "name": "Formal operator functions/Taylor expansion/expim Taylor order 8",
             "value": 114770,
             "unit": "ns",
             "extra": "gctime=0\nmemory=149656\nallocs=441\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
@@ -16520,31 +16520,31 @@ window.BENCHMARK_DATA = {
             "extra": "gctime=0\nmemory=5248\nallocs=29\nparams={\"evals\":9,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Unitary and exact phase workflows/Fock Gaussian constructor family",
+            "name": "Unitary and exact phase workflows/Gaussian transformations/Fock Gaussian constructor family",
             "value": 4663502,
             "unit": "ns",
             "extra": "gctime=0\nmemory=1918376\nallocs=25903\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Unitary and exact phase workflows/Phase-space, spin, and Pauli family",
+            "name": "Unitary and exact phase workflows/Operator families/Phase-space, spin, and Pauli family",
             "value": 1641350,
             "unit": "ns",
             "extra": "gctime=0\nmemory=844288\nallocs=10629\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Unitary and exact phase workflows/Static and moving two-level basis",
+            "name": "Unitary and exact phase workflows/Operator families/Static and moving two-level basis",
             "value": 26602732,
             "unit": "ns",
             "extra": "gctime=0\nmemory=10440240\nallocs=247246\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Unitary and exact phase workflows/Static and timed frame composition",
+            "name": "Unitary and exact phase workflows/Frame composition/Static and timed frame composition",
             "value": 3423367,
             "unit": "ns",
             "extra": "gctime=0\nmemory=1241672\nallocs=19054\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Unitary and exact phase workflows/Thirty-three-sideband exact phase pipeline",
+            "name": "Unitary and exact phase workflows/Exact phases/Thirty-three-sideband exact phase pipeline",
             "value": 10882456,
             "unit": "ns",
             "extra": "gctime=0\nmemory=4580776\nallocs=71546\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
@@ -16664,61 +16664,61 @@ window.BENCHMARK_DATA = {
             "extra": "gctime=0\nmemory=56320\nallocs=1172\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Formal operator functions/64 unary function nodes",
+            "name": "Formal operator functions/Construction/64 unary function nodes",
             "value": 2354,
             "unit": "ns",
             "extra": "gctime=0\nmemory=9344\nallocs=129\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Formal operator functions/Collect 32 identical formal terms",
+            "name": "Formal operator functions/Arithmetic/Collect 32 identical formal terms",
             "value": 22965,
             "unit": "ns",
             "extra": "gctime=0\nmemory=76608\nallocs=542\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Formal operator functions/Formal power 16",
+            "name": "Formal operator functions/Arithmetic/Formal power 16",
             "value": 4336,
             "unit": "ns",
             "extra": "gctime=0\nmemory=9648\nallocs=135\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Formal operator functions/Mixed formal expression",
+            "name": "Formal operator functions/Construction/Mixed formal expression",
             "value": 6920,
             "unit": "ns",
             "extra": "gctime=0\nmemory=25136\nallocs=234\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Formal operator functions/Mixed polynomial/formal sum 32",
+            "name": "Formal operator functions/Arithmetic/Mixed polynomial and formal sum 32",
             "value": 38358,
             "unit": "ns",
             "extra": "gctime=0\nmemory=198352\nallocs=1277\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Formal operator functions/Nested unary depth 8",
+            "name": "Formal operator functions/Construction/Nested unary depth 8",
             "value": 300,
             "unit": "ns",
             "extra": "gctime=0\nmemory=992\nallocs=16\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Formal operator functions/Repeated-node Taylor order 4",
+            "name": "Formal operator functions/Taylor expansion/Repeated-node Taylor order 4",
             "value": 203836,
             "unit": "ns",
             "extra": "gctime=0\nmemory=229336\nallocs=751\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Formal operator functions/Unary cos construction",
+            "name": "Formal operator functions/Construction/Unary cos construction",
             "value": 60,
             "unit": "ns",
             "extra": "gctime=0\nmemory=96\nallocs=2\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Formal operator functions/cos Taylor order 8",
+            "name": "Formal operator functions/Taylor expansion/cos Taylor order 8",
             "value": 122044,
             "unit": "ns",
             "extra": "gctime=0\nmemory=155704\nallocs=499\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Formal operator functions/expim Taylor order 8",
+            "name": "Formal operator functions/Taylor expansion/expim Taylor order 8",
             "value": 101393,
             "unit": "ns",
             "extra": "gctime=0\nmemory=149656\nallocs=441\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
@@ -16832,31 +16832,31 @@ window.BENCHMARK_DATA = {
             "extra": "gctime=0\nmemory=5248\nallocs=29\nparams={\"evals\":9,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Unitary and exact phase workflows/Fock Gaussian constructor family",
+            "name": "Unitary and exact phase workflows/Gaussian transformations/Fock Gaussian constructor family",
             "value": 3680099,
             "unit": "ns",
             "extra": "gctime=0\nmemory=1918376\nallocs=25931\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Unitary and exact phase workflows/Phase-space, spin, and Pauli family",
+            "name": "Unitary and exact phase workflows/Operator families/Phase-space, spin, and Pauli family",
             "value": 1304513,
             "unit": "ns",
             "extra": "gctime=0\nmemory=842464\nallocs=10600\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Unitary and exact phase workflows/Static and moving two-level basis",
+            "name": "Unitary and exact phase workflows/Operator families/Static and moving two-level basis",
             "value": 20898896,
             "unit": "ns",
             "extra": "gctime=0\nmemory=10439696\nallocs=247246\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Unitary and exact phase workflows/Static and timed frame composition",
+            "name": "Unitary and exact phase workflows/Frame composition/Static and timed frame composition",
             "value": 2691080,
             "unit": "ns",
             "extra": "gctime=0\nmemory=1236376\nallocs=18930\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Unitary and exact phase workflows/Thirty-three-sideband exact phase pipeline",
+            "name": "Unitary and exact phase workflows/Exact phases/Thirty-three-sideband exact phase pipeline",
             "value": 8632433,
             "unit": "ns",
             "extra": "gctime=0\nmemory=4579656\nallocs=71546\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
@@ -16976,61 +16976,61 @@ window.BENCHMARK_DATA = {
             "extra": "gctime=0\nmemory=56320\nallocs=1172\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Formal operator functions/64 unary function nodes",
+            "name": "Formal operator functions/Construction/64 unary function nodes",
             "value": 3106,
             "unit": "ns",
             "extra": "gctime=0\nmemory=9344\nallocs=129\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Formal operator functions/Collect 32 identical formal terms",
+            "name": "Formal operator functions/Arithmetic/Collect 32 identical formal terms",
             "value": 19075,
             "unit": "ns",
             "extra": "gctime=0\nmemory=76608\nallocs=542\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Formal operator functions/Formal power 16",
+            "name": "Formal operator functions/Arithmetic/Formal power 16",
             "value": 5510,
             "unit": "ns",
             "extra": "gctime=0\nmemory=9648\nallocs=135\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Formal operator functions/Mixed formal expression",
+            "name": "Formal operator functions/Construction/Mixed formal expression",
             "value": 8926,
             "unit": "ns",
             "extra": "gctime=0\nmemory=25136\nallocs=234\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Formal operator functions/Mixed polynomial/formal sum 32",
+            "name": "Formal operator functions/Arithmetic/Mixed polynomial and formal sum 32",
             "value": 49091,
             "unit": "ns",
             "extra": "gctime=0\nmemory=198352\nallocs=1277\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Formal operator functions/Nested unary depth 8",
+            "name": "Formal operator functions/Construction/Nested unary depth 8",
             "value": 390,
             "unit": "ns",
             "extra": "gctime=0\nmemory=992\nallocs=16\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Formal operator functions/Repeated-node Taylor order 4",
+            "name": "Formal operator functions/Taylor expansion/Repeated-node Taylor order 4",
             "value": 234788,
             "unit": "ns",
             "extra": "gctime=0\nmemory=229336\nallocs=751\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Formal operator functions/Unary cos construction",
+            "name": "Formal operator functions/Construction/Unary cos construction",
             "value": 69,
             "unit": "ns",
             "extra": "gctime=0\nmemory=96\nallocs=2\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Formal operator functions/cos Taylor order 8",
+            "name": "Formal operator functions/Taylor expansion/cos Taylor order 8",
             "value": 135543,
             "unit": "ns",
             "extra": "gctime=0\nmemory=155704\nallocs=499\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Formal operator functions/expim Taylor order 8",
+            "name": "Formal operator functions/Taylor expansion/expim Taylor order 8",
             "value": 108843,
             "unit": "ns",
             "extra": "gctime=0\nmemory=149656\nallocs=441\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
@@ -17144,31 +17144,31 @@ window.BENCHMARK_DATA = {
             "extra": "gctime=0\nmemory=5248\nallocs=29\nparams={\"evals\":9,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Unitary and exact phase workflows/Fock Gaussian constructor family",
+            "name": "Unitary and exact phase workflows/Gaussian transformations/Fock Gaussian constructor family",
             "value": 5345252,
             "unit": "ns",
             "extra": "gctime=0\nmemory=2042712\nallocs=26499\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Unitary and exact phase workflows/Phase-space, spin, and Pauli family",
+            "name": "Unitary and exact phase workflows/Operator families/Phase-space, spin, and Pauli family",
             "value": 1816479,
             "unit": "ns",
             "extra": "gctime=0\nmemory=936032\nallocs=10989\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Unitary and exact phase workflows/Static and moving two-level basis",
+            "name": "Unitary and exact phase workflows/Operator families/Static and moving two-level basis",
             "value": 28160714,
             "unit": "ns",
             "extra": "gctime=0\nmemory=10451920\nallocs=247306\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Unitary and exact phase workflows/Static and timed frame composition",
+            "name": "Unitary and exact phase workflows/Frame composition/Static and timed frame composition",
             "value": 3854428,
             "unit": "ns",
             "extra": "gctime=0\nmemory=1280600\nallocs=19181\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Unitary and exact phase workflows/Thirty-three-sideband exact phase pipeline",
+            "name": "Unitary and exact phase workflows/Exact phases/Thirty-three-sideband exact phase pipeline",
             "value": 12741613,
             "unit": "ns",
             "extra": "gctime=0\nmemory=4579656\nallocs=71546\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
@@ -17288,61 +17288,61 @@ window.BENCHMARK_DATA = {
             "extra": "gctime=0\nmemory=56320\nallocs=1172\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Formal operator functions/64 unary function nodes",
+            "name": "Formal operator functions/Construction/64 unary function nodes",
             "value": 3045,
             "unit": "ns",
             "extra": "gctime=0\nmemory=9344\nallocs=129\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Formal operator functions/Collect 32 identical formal terms",
+            "name": "Formal operator functions/Arithmetic/Collect 32 identical formal terms",
             "value": 18805,
             "unit": "ns",
             "extra": "gctime=0\nmemory=76608\nallocs=542\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Formal operator functions/Formal power 16",
+            "name": "Formal operator functions/Arithmetic/Formal power 16",
             "value": 5580,
             "unit": "ns",
             "extra": "gctime=0\nmemory=9648\nallocs=135\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Formal operator functions/Mixed formal expression",
+            "name": "Formal operator functions/Construction/Mixed formal expression",
             "value": 9207,
             "unit": "ns",
             "extra": "gctime=0\nmemory=25136\nallocs=234\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Formal operator functions/Mixed polynomial/formal sum 32",
+            "name": "Formal operator functions/Arithmetic/Mixed polynomial and formal sum 32",
             "value": 47068,
             "unit": "ns",
             "extra": "gctime=0\nmemory=198352\nallocs=1277\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Formal operator functions/Nested unary depth 8",
+            "name": "Formal operator functions/Construction/Nested unary depth 8",
             "value": 390,
             "unit": "ns",
             "extra": "gctime=0\nmemory=992\nallocs=16\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Formal operator functions/Repeated-node Taylor order 4",
+            "name": "Formal operator functions/Taylor expansion/Repeated-node Taylor order 4",
             "value": 232605,
             "unit": "ns",
             "extra": "gctime=0\nmemory=229336\nallocs=751\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Formal operator functions/Unary cos construction",
+            "name": "Formal operator functions/Construction/Unary cos construction",
             "value": 69,
             "unit": "ns",
             "extra": "gctime=0\nmemory=96\nallocs=2\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Formal operator functions/cos Taylor order 8",
+            "name": "Formal operator functions/Taylor expansion/cos Taylor order 8",
             "value": 133019,
             "unit": "ns",
             "extra": "gctime=0\nmemory=155704\nallocs=499\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Formal operator functions/expim Taylor order 8",
+            "name": "Formal operator functions/Taylor expansion/expim Taylor order 8",
             "value": 107250,
             "unit": "ns",
             "extra": "gctime=0\nmemory=149656\nallocs=441\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
@@ -17456,85 +17456,85 @@ window.BENCHMARK_DATA = {
             "extra": "gctime=0\nmemory=5248\nallocs=29\nparams={\"evals\":9,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Superoperators/Apply L(ρ)",
+            "name": "Superoperators/Symbolic action/Apply L(ρ)",
             "value": 70863,
             "unit": "ns",
             "extra": "gctime=0\nmemory=151424\nallocs=884\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Superoperators/Collective dissipator",
+            "name": "Superoperators/Construction/Collective dissipator",
             "value": 11982,
             "unit": "ns",
             "extra": "gctime=0\nmemory=29688\nallocs=160\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Superoperators/Composition L ∘ L",
+            "name": "Superoperators/Symbolic action/Composition L ∘ L",
             "value": 1358901,
             "unit": "ns",
             "extra": "gctime=0\nmemory=2915696\nallocs=16878\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Superoperators/Heisenberg drift",
+            "name": "Superoperators/Symbolic action/Heisenberg drift",
             "value": 40896,
             "unit": "ns",
             "extra": "gctime=0\nmemory=72544\nallocs=448\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Superoperators/Lindbladian build, 4 modes",
+            "name": "Superoperators/Construction/Lindbladian build, 4 modes",
             "value": 27771,
             "unit": "ns",
             "extra": "gctime=0\nmemory=166112\nallocs=625\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Superoperators/Lowering to SuperOperator",
+            "name": "Superoperators/Construction/Lowering to SuperOperator",
             "value": 24536,
             "unit": "ns",
             "extra": "gctime=0\nmemory=77152\nallocs=396\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Superoperators/to_numeric(L), 4 modes",
+            "name": "Superoperators/Numeric conversion/to_numeric(L), 4 modes",
             "value": 52414719,
             "unit": "ns",
             "extra": "gctime=0\nmemory=121213488\nallocs=7072\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Superoperators/to_numeric(L), single mode N=20",
+            "name": "Superoperators/Numeric conversion/to_numeric(L), single mode N=20",
             "value": 75722,
             "unit": "ns",
             "extra": "gctime=0\nmemory=253552\nallocs=356\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Superoperators/to_numeric_master, 4 modes",
+            "name": "Superoperators/Numeric conversion/to_numeric_master, 4 modes",
             "value": 1287247,
             "unit": "ns",
             "extra": "gctime=0\nmemory=1863200\nallocs=2673\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Unitary and exact phase workflows/Fock Gaussian constructor family",
+            "name": "Unitary and exact phase workflows/Gaussian transformations/Fock Gaussian constructor family",
             "value": 4942192,
             "unit": "ns",
             "extra": "gctime=0\nmemory=2045512\nallocs=26572\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Unitary and exact phase workflows/Phase-space, spin, and Pauli family",
+            "name": "Unitary and exact phase workflows/Operator families/Phase-space, spin, and Pauli family",
             "value": 1721950,
             "unit": "ns",
             "extra": "gctime=0\nmemory=932288\nallocs=10990\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Unitary and exact phase workflows/Static and moving two-level basis",
+            "name": "Unitary and exact phase workflows/Operator families/Static and moving two-level basis",
             "value": 27307276,
             "unit": "ns",
             "extra": "gctime=0\nmemory=10451920\nallocs=247306\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Unitary and exact phase workflows/Static and timed frame composition",
+            "name": "Unitary and exact phase workflows/Frame composition/Static and timed frame composition",
             "value": 3602000,
             "unit": "ns",
             "extra": "gctime=0\nmemory=1283672\nallocs=19256\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Unitary and exact phase workflows/Thirty-three-sideband exact phase pipeline",
+            "name": "Unitary and exact phase workflows/Exact phases/Thirty-three-sideband exact phase pipeline",
             "value": 11615071,
             "unit": "ns",
             "extra": "gctime=0\nmemory=4579656\nallocs=71546\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
@@ -17654,61 +17654,61 @@ window.BENCHMARK_DATA = {
             "extra": "gctime=0\nmemory=56320\nallocs=1172\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Formal operator functions/64 unary function nodes",
+            "name": "Formal operator functions/Construction/64 unary function nodes",
             "value": 3066,
             "unit": "ns",
             "extra": "gctime=0\nmemory=9344\nallocs=129\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Formal operator functions/Collect 32 identical formal terms",
+            "name": "Formal operator functions/Arithmetic/Collect 32 identical formal terms",
             "value": 19757,
             "unit": "ns",
             "extra": "gctime=0\nmemory=76608\nallocs=542\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Formal operator functions/Formal power 16",
+            "name": "Formal operator functions/Arithmetic/Formal power 16",
             "value": 5530,
             "unit": "ns",
             "extra": "gctime=0\nmemory=9648\nallocs=135\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Formal operator functions/Mixed formal expression",
+            "name": "Formal operator functions/Construction/Mixed formal expression",
             "value": 9047,
             "unit": "ns",
             "extra": "gctime=0\nmemory=25136\nallocs=234\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Formal operator functions/Mixed polynomial/formal sum 32",
+            "name": "Formal operator functions/Arithmetic/Mixed polynomial and formal sum 32",
             "value": 46297,
             "unit": "ns",
             "extra": "gctime=0\nmemory=198352\nallocs=1277\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Formal operator functions/Nested unary depth 8",
+            "name": "Formal operator functions/Construction/Nested unary depth 8",
             "value": 400,
             "unit": "ns",
             "extra": "gctime=0\nmemory=992\nallocs=16\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Formal operator functions/Repeated-node Taylor order 4",
+            "name": "Formal operator functions/Taylor expansion/Repeated-node Taylor order 4",
             "value": 231354,
             "unit": "ns",
             "extra": "gctime=0\nmemory=229336\nallocs=751\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Formal operator functions/Unary cos construction",
+            "name": "Formal operator functions/Construction/Unary cos construction",
             "value": 69,
             "unit": "ns",
             "extra": "gctime=0\nmemory=96\nallocs=2\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Formal operator functions/cos Taylor order 8",
+            "name": "Formal operator functions/Taylor expansion/cos Taylor order 8",
             "value": 134432,
             "unit": "ns",
             "extra": "gctime=0\nmemory=155704\nallocs=499\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Formal operator functions/expim Taylor order 8",
+            "name": "Formal operator functions/Taylor expansion/expim Taylor order 8",
             "value": 108493,
             "unit": "ns",
             "extra": "gctime=0\nmemory=149656\nallocs=441\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
@@ -17822,85 +17822,85 @@ window.BENCHMARK_DATA = {
             "extra": "gctime=0\nmemory=5248\nallocs=29\nparams={\"evals\":9,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Superoperators/Apply L(ρ)",
+            "name": "Superoperators/Symbolic action/Apply L(ρ)",
             "value": 71084,
             "unit": "ns",
             "extra": "gctime=0\nmemory=150992\nallocs=880\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Superoperators/Collective dissipator",
+            "name": "Superoperators/Construction/Collective dissipator",
             "value": 11652,
             "unit": "ns",
             "extra": "gctime=0\nmemory=29688\nallocs=160\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Superoperators/Composition L ∘ L",
+            "name": "Superoperators/Symbolic action/Composition L ∘ L",
             "value": 1322893,
             "unit": "ns",
             "extra": "gctime=0\nmemory=2915696\nallocs=16878\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Superoperators/Heisenberg drift",
+            "name": "Superoperators/Symbolic action/Heisenberg drift",
             "value": 41378,
             "unit": "ns",
             "extra": "gctime=0\nmemory=72544\nallocs=448\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Superoperators/Lindbladian build, 4 modes",
+            "name": "Superoperators/Construction/Lindbladian build, 4 modes",
             "value": 27462,
             "unit": "ns",
             "extra": "gctime=0\nmemory=166112\nallocs=625\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Superoperators/Lowering to SuperOperator",
+            "name": "Superoperators/Construction/Lowering to SuperOperator",
             "value": 24496,
             "unit": "ns",
             "extra": "gctime=0\nmemory=77152\nallocs=396\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Superoperators/to_numeric(L), 4 modes",
+            "name": "Superoperators/Numeric conversion/to_numeric(L), 4 modes",
             "value": 52745143,
             "unit": "ns",
             "extra": "gctime=0\nmemory=121213488\nallocs=7072\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Superoperators/to_numeric(L), single mode N=20",
+            "name": "Superoperators/Numeric conversion/to_numeric(L), single mode N=20",
             "value": 79799,
             "unit": "ns",
             "extra": "gctime=0\nmemory=253552\nallocs=356\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Superoperators/to_numeric_master, 4 modes",
+            "name": "Superoperators/Numeric conversion/to_numeric_master, 4 modes",
             "value": 1307886,
             "unit": "ns",
             "extra": "gctime=0\nmemory=1863200\nallocs=2673\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Unitary and exact phase workflows/Fock Gaussian constructor family",
+            "name": "Unitary and exact phase workflows/Gaussian transformations/Fock Gaussian constructor family",
             "value": 4949360,
             "unit": "ns",
             "extra": "gctime=0\nmemory=2045432\nallocs=26569\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Unitary and exact phase workflows/Phase-space, spin, and Pauli family",
+            "name": "Unitary and exact phase workflows/Operator families/Phase-space, spin, and Pauli family",
             "value": 1698779,
             "unit": "ns",
             "extra": "gctime=0\nmemory=932288\nallocs=10990\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Unitary and exact phase workflows/Static and moving two-level basis",
+            "name": "Unitary and exact phase workflows/Operator families/Static and moving two-level basis",
             "value": 27357975,
             "unit": "ns",
             "extra": "gctime=0\nmemory=10453360\nallocs=247344\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Unitary and exact phase workflows/Static and timed frame composition",
+            "name": "Unitary and exact phase workflows/Frame composition/Static and timed frame composition",
             "value": 3662605,
             "unit": "ns",
             "extra": "gctime=0\nmemory=1289080\nallocs=19389\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Unitary and exact phase workflows/Thirty-three-sideband exact phase pipeline",
+            "name": "Unitary and exact phase workflows/Exact phases/Thirty-three-sideband exact phase pipeline",
             "value": 11925987,
             "unit": "ns",
             "extra": "gctime=0\nmemory=4579656\nallocs=71546\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
@@ -18020,61 +18020,61 @@ window.BENCHMARK_DATA = {
             "extra": "gctime=0\nmemory=56320\nallocs=1172\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Formal operator functions/64 unary function nodes",
+            "name": "Formal operator functions/Construction/64 unary function nodes",
             "value": 3166,
             "unit": "ns",
             "extra": "gctime=0\nmemory=9344\nallocs=129\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Formal operator functions/Collect 32 identical formal terms",
+            "name": "Formal operator functions/Arithmetic/Collect 32 identical formal terms",
             "value": 19797,
             "unit": "ns",
             "extra": "gctime=0\nmemory=76608\nallocs=542\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Formal operator functions/Formal power 16",
+            "name": "Formal operator functions/Arithmetic/Formal power 16",
             "value": 5541,
             "unit": "ns",
             "extra": "gctime=0\nmemory=9648\nallocs=135\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Formal operator functions/Mixed formal expression",
+            "name": "Formal operator functions/Construction/Mixed formal expression",
             "value": 9137,
             "unit": "ns",
             "extra": "gctime=0\nmemory=25136\nallocs=234\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Formal operator functions/Mixed polynomial/formal sum 32",
+            "name": "Formal operator functions/Arithmetic/Mixed polynomial and formal sum 32",
             "value": 47820,
             "unit": "ns",
             "extra": "gctime=0\nmemory=198352\nallocs=1277\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Formal operator functions/Nested unary depth 8",
+            "name": "Formal operator functions/Construction/Nested unary depth 8",
             "value": 391,
             "unit": "ns",
             "extra": "gctime=0\nmemory=992\nallocs=16\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Formal operator functions/Repeated-node Taylor order 4",
+            "name": "Formal operator functions/Taylor expansion/Repeated-node Taylor order 4",
             "value": 230173,
             "unit": "ns",
             "extra": "gctime=0\nmemory=229336\nallocs=751\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Formal operator functions/Unary cos construction",
+            "name": "Formal operator functions/Construction/Unary cos construction",
             "value": 69,
             "unit": "ns",
             "extra": "gctime=0\nmemory=96\nallocs=2\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Formal operator functions/cos Taylor order 8",
+            "name": "Formal operator functions/Taylor expansion/cos Taylor order 8",
             "value": 133350,
             "unit": "ns",
             "extra": "gctime=0\nmemory=155704\nallocs=499\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Formal operator functions/expim Taylor order 8",
+            "name": "Formal operator functions/Taylor expansion/expim Taylor order 8",
             "value": 106831,
             "unit": "ns",
             "extra": "gctime=0\nmemory=149656\nallocs=441\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
@@ -18188,85 +18188,85 @@ window.BENCHMARK_DATA = {
             "extra": "gctime=0\nmemory=5248\nallocs=29\nparams={\"evals\":9,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Superoperators/Apply L(ρ)",
+            "name": "Superoperators/Symbolic action/Apply L(ρ)",
             "value": 71765,
             "unit": "ns",
             "extra": "gctime=0\nmemory=150992\nallocs=880\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Superoperators/Collective dissipator",
+            "name": "Superoperators/Construction/Collective dissipator",
             "value": 11722,
             "unit": "ns",
             "extra": "gctime=0\nmemory=29688\nallocs=160\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Superoperators/Composition L ∘ L",
+            "name": "Superoperators/Symbolic action/Composition L ∘ L",
             "value": 1362238,
             "unit": "ns",
             "extra": "gctime=0\nmemory=2915696\nallocs=16878\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Superoperators/Heisenberg drift",
+            "name": "Superoperators/Symbolic action/Heisenberg drift",
             "value": 42560,
             "unit": "ns",
             "extra": "gctime=0\nmemory=72544\nallocs=448\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Superoperators/Lindbladian build, 4 modes",
+            "name": "Superoperators/Construction/Lindbladian build, 4 modes",
             "value": 27101,
             "unit": "ns",
             "extra": "gctime=0\nmemory=166112\nallocs=625\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Superoperators/Lowering to SuperOperator",
+            "name": "Superoperators/Construction/Lowering to SuperOperator",
             "value": 24205,
             "unit": "ns",
             "extra": "gctime=0\nmemory=77152\nallocs=396\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Superoperators/to_numeric(L), 4 modes",
+            "name": "Superoperators/Numeric conversion/to_numeric(L), 4 modes",
             "value": 52269393,
             "unit": "ns",
             "extra": "gctime=0\nmemory=121213488\nallocs=7072\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Superoperators/to_numeric(L), single mode N=20",
+            "name": "Superoperators/Numeric conversion/to_numeric(L), single mode N=20",
             "value": 76905,
             "unit": "ns",
             "extra": "gctime=0\nmemory=253552\nallocs=356\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Superoperators/to_numeric_master, 4 modes",
+            "name": "Superoperators/Numeric conversion/to_numeric_master, 4 modes",
             "value": 1287137,
             "unit": "ns",
             "extra": "gctime=0\nmemory=1863200\nallocs=2673\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Unitary and exact phase workflows/Fock Gaussian constructor family",
+            "name": "Unitary and exact phase workflows/Gaussian transformations/Fock Gaussian constructor family",
             "value": 4947590,
             "unit": "ns",
             "extra": "gctime=0\nmemory=2043752\nallocs=26527\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Unitary and exact phase workflows/Phase-space, spin, and Pauli family",
+            "name": "Unitary and exact phase workflows/Operator families/Phase-space, spin, and Pauli family",
             "value": 1752691,
             "unit": "ns",
             "extra": "gctime=0\nmemory=932288\nallocs=10990\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Unitary and exact phase workflows/Static and moving two-level basis",
+            "name": "Unitary and exact phase workflows/Operator families/Static and moving two-level basis",
             "value": 27632464,
             "unit": "ns",
             "extra": "gctime=0\nmemory=10451920\nallocs=247306\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Unitary and exact phase workflows/Static and timed frame composition",
+            "name": "Unitary and exact phase workflows/Frame composition/Static and timed frame composition",
             "value": 3659552,
             "unit": "ns",
             "extra": "gctime=0\nmemory=1283000\nallocs=19231\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Unitary and exact phase workflows/Thirty-three-sideband exact phase pipeline",
+            "name": "Unitary and exact phase workflows/Exact phases/Thirty-three-sideband exact phase pipeline",
             "value": 11719985,
             "unit": "ns",
             "extra": "gctime=0\nmemory=4579656\nallocs=71546\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
@@ -18386,61 +18386,61 @@ window.BENCHMARK_DATA = {
             "extra": "gctime=0\nmemory=55808\nallocs=1156\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Formal operator functions/64 unary function nodes",
+            "name": "Formal operator functions/Construction/64 unary function nodes",
             "value": 3114,
             "unit": "ns",
             "extra": "gctime=0\nmemory=9344\nallocs=129\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Formal operator functions/Collect 32 identical formal terms",
+            "name": "Formal operator functions/Arithmetic/Collect 32 identical formal terms",
             "value": 18888,
             "unit": "ns",
             "extra": "gctime=0\nmemory=76608\nallocs=542\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Formal operator functions/Formal power 16",
+            "name": "Formal operator functions/Arithmetic/Formal power 16",
             "value": 5648,
             "unit": "ns",
             "extra": "gctime=0\nmemory=9648\nallocs=135\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Formal operator functions/Mixed formal expression",
+            "name": "Formal operator functions/Construction/Mixed formal expression",
             "value": 9094,
             "unit": "ns",
             "extra": "gctime=0\nmemory=25136\nallocs=234\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Formal operator functions/Mixed polynomial/formal sum 32",
+            "name": "Formal operator functions/Arithmetic/Mixed polynomial and formal sum 32",
             "value": 47471,
             "unit": "ns",
             "extra": "gctime=0\nmemory=198352\nallocs=1277\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Formal operator functions/Nested unary depth 8",
+            "name": "Formal operator functions/Construction/Nested unary depth 8",
             "value": 390,
             "unit": "ns",
             "extra": "gctime=0\nmemory=992\nallocs=16\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Formal operator functions/Repeated-node Taylor order 4",
+            "name": "Formal operator functions/Taylor expansion/Repeated-node Taylor order 4",
             "value": 236642,
             "unit": "ns",
             "extra": "gctime=0\nmemory=229336\nallocs=751\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Formal operator functions/Unary cos construction",
+            "name": "Formal operator functions/Construction/Unary cos construction",
             "value": 70,
             "unit": "ns",
             "extra": "gctime=0\nmemory=96\nallocs=2\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Formal operator functions/cos Taylor order 8",
+            "name": "Formal operator functions/Taylor expansion/cos Taylor order 8",
             "value": 141290,
             "unit": "ns",
             "extra": "gctime=0\nmemory=155704\nallocs=499\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Formal operator functions/expim Taylor order 8",
+            "name": "Formal operator functions/Taylor expansion/expim Taylor order 8",
             "value": 114191,
             "unit": "ns",
             "extra": "gctime=0\nmemory=149656\nallocs=441\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
@@ -18554,85 +18554,85 @@ window.BENCHMARK_DATA = {
             "extra": "gctime=0\nmemory=5248\nallocs=29\nparams={\"evals\":9,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Superoperators/Apply L(ρ)",
+            "name": "Superoperators/Symbolic action/Apply L(ρ)",
             "value": 71377,
             "unit": "ns",
             "extra": "gctime=0\nmemory=151424\nallocs=884\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Superoperators/Collective dissipator",
+            "name": "Superoperators/Construction/Collective dissipator",
             "value": 11397,
             "unit": "ns",
             "extra": "gctime=0\nmemory=29688\nallocs=160\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Superoperators/Composition L ∘ L",
+            "name": "Superoperators/Symbolic action/Composition L ∘ L",
             "value": 1403429,
             "unit": "ns",
             "extra": "gctime=0\nmemory=2915696\nallocs=16878\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Superoperators/Heisenberg drift",
+            "name": "Superoperators/Symbolic action/Heisenberg drift",
             "value": 40410,
             "unit": "ns",
             "extra": "gctime=0\nmemory=72544\nallocs=448\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Superoperators/Lindbladian build, 4 modes",
+            "name": "Superoperators/Construction/Lindbladian build, 4 modes",
             "value": 31276,
             "unit": "ns",
             "extra": "gctime=0\nmemory=166112\nallocs=625\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Superoperators/Lowering to SuperOperator",
+            "name": "Superoperators/Construction/Lowering to SuperOperator",
             "value": 26239,
             "unit": "ns",
             "extra": "gctime=0\nmemory=77152\nallocs=396\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Superoperators/to_numeric(L), 4 modes",
+            "name": "Superoperators/Numeric conversion/to_numeric(L), 4 modes",
             "value": 53939516,
             "unit": "ns",
             "extra": "gctime=0\nmemory=121213488\nallocs=7072\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Superoperators/to_numeric(L), single mode N=20",
+            "name": "Superoperators/Numeric conversion/to_numeric(L), single mode N=20",
             "value": 81281,
             "unit": "ns",
             "extra": "gctime=0\nmemory=253552\nallocs=356\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Superoperators/to_numeric_master, 4 modes",
+            "name": "Superoperators/Numeric conversion/to_numeric_master, 4 modes",
             "value": 1335908,
             "unit": "ns",
             "extra": "gctime=0\nmemory=1863200\nallocs=2673\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Unitary and exact phase workflows/Fock Gaussian constructor family",
+            "name": "Unitary and exact phase workflows/Gaussian transformations/Fock Gaussian constructor family",
             "value": 4425850,
             "unit": "ns",
             "extra": "gctime=0\nmemory=2043552\nallocs=26509\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Unitary and exact phase workflows/Phase-space, spin, and Pauli family",
+            "name": "Unitary and exact phase workflows/Operator families/Phase-space, spin, and Pauli family",
             "value": 1575015,
             "unit": "ns",
             "extra": "gctime=0\nmemory=935568\nallocs=10972\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Unitary and exact phase workflows/Static and moving two-level basis",
+            "name": "Unitary and exact phase workflows/Operator families/Static and moving two-level basis",
             "value": 26957358,
             "unit": "ns",
             "extra": "gctime=0\nmemory=10690544\nallocs=253046\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Unitary and exact phase workflows/Static and timed frame composition",
+            "name": "Unitary and exact phase workflows/Frame composition/Static and timed frame composition",
             "value": 3252171,
             "unit": "ns",
             "extra": "gctime=0\nmemory=1284088\nallocs=19260\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Unitary and exact phase workflows/Thirty-three-sideband exact phase pipeline",
+            "name": "Unitary and exact phase workflows/Exact phases/Thirty-three-sideband exact phase pipeline",
             "value": 10596236,
             "unit": "ns",
             "extra": "gctime=0\nmemory=4620840\nallocs=72550\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
@@ -18752,61 +18752,61 @@ window.BENCHMARK_DATA = {
             "extra": "gctime=0\nmemory=55808\nallocs=1156\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Formal operator functions/64 unary function nodes",
+            "name": "Formal operator functions/Construction/64 unary function nodes",
             "value": 3267,
             "unit": "ns",
             "extra": "gctime=0\nmemory=9344\nallocs=129\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Formal operator functions/Collect 32 identical formal terms",
+            "name": "Formal operator functions/Arithmetic/Collect 32 identical formal terms",
             "value": 19806,
             "unit": "ns",
             "extra": "gctime=0\nmemory=76608\nallocs=542\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Formal operator functions/Formal power 16",
+            "name": "Formal operator functions/Arithmetic/Formal power 16",
             "value": 5640,
             "unit": "ns",
             "extra": "gctime=0\nmemory=9648\nallocs=135\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Formal operator functions/Mixed formal expression",
+            "name": "Formal operator functions/Construction/Mixed formal expression",
             "value": 9167,
             "unit": "ns",
             "extra": "gctime=0\nmemory=25136\nallocs=234\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Formal operator functions/Mixed polynomial/formal sum 32",
+            "name": "Formal operator functions/Arithmetic/Mixed polynomial and formal sum 32",
             "value": 50564,
             "unit": "ns",
             "extra": "gctime=0\nmemory=198352\nallocs=1277\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Formal operator functions/Nested unary depth 8",
+            "name": "Formal operator functions/Construction/Nested unary depth 8",
             "value": 391,
             "unit": "ns",
             "extra": "gctime=0\nmemory=992\nallocs=16\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Formal operator functions/Repeated-node Taylor order 4",
+            "name": "Formal operator functions/Taylor expansion/Repeated-node Taylor order 4",
             "value": 235849,
             "unit": "ns",
             "extra": "gctime=0\nmemory=229336\nallocs=751\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Formal operator functions/Unary cos construction",
+            "name": "Formal operator functions/Construction/Unary cos construction",
             "value": 69,
             "unit": "ns",
             "extra": "gctime=0\nmemory=96\nallocs=2\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Formal operator functions/cos Taylor order 8",
+            "name": "Formal operator functions/Taylor expansion/cos Taylor order 8",
             "value": 136264,
             "unit": "ns",
             "extra": "gctime=0\nmemory=155704\nallocs=499\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Formal operator functions/expim Taylor order 8",
+            "name": "Formal operator functions/Taylor expansion/expim Taylor order 8",
             "value": 109744,
             "unit": "ns",
             "extra": "gctime=0\nmemory=149656\nallocs=441\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
@@ -18920,85 +18920,85 @@ window.BENCHMARK_DATA = {
             "extra": "gctime=0\nmemory=5248\nallocs=29\nparams={\"evals\":9,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Superoperators/Apply L(ρ)",
+            "name": "Superoperators/Symbolic action/Apply L(ρ)",
             "value": 72896,
             "unit": "ns",
             "extra": "gctime=0\nmemory=151424\nallocs=884\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Superoperators/Collective dissipator",
+            "name": "Superoperators/Construction/Collective dissipator",
             "value": 12293,
             "unit": "ns",
             "extra": "gctime=0\nmemory=29688\nallocs=160\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Superoperators/Composition L ∘ L",
+            "name": "Superoperators/Symbolic action/Composition L ∘ L",
             "value": 1372891,
             "unit": "ns",
             "extra": "gctime=0\nmemory=2915696\nallocs=16878\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Superoperators/Heisenberg drift",
+            "name": "Superoperators/Symbolic action/Heisenberg drift",
             "value": 43020,
             "unit": "ns",
             "extra": "gctime=0\nmemory=72544\nallocs=448\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Superoperators/Lindbladian build, 4 modes",
+            "name": "Superoperators/Construction/Lindbladian build, 4 modes",
             "value": 28383,
             "unit": "ns",
             "extra": "gctime=0\nmemory=166112\nallocs=625\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Superoperators/Lowering to SuperOperator",
+            "name": "Superoperators/Construction/Lowering to SuperOperator",
             "value": 24987,
             "unit": "ns",
             "extra": "gctime=0\nmemory=77152\nallocs=396\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Superoperators/to_numeric(L), 4 modes",
+            "name": "Superoperators/Numeric conversion/to_numeric(L), 4 modes",
             "value": 53026534,
             "unit": "ns",
             "extra": "gctime=0\nmemory=121213488\nallocs=7072\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Superoperators/to_numeric(L), single mode N=20",
+            "name": "Superoperators/Numeric conversion/to_numeric(L), single mode N=20",
             "value": 78396,
             "unit": "ns",
             "extra": "gctime=0\nmemory=253552\nallocs=356\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Superoperators/to_numeric_master, 4 modes",
+            "name": "Superoperators/Numeric conversion/to_numeric_master, 4 modes",
             "value": 1317868,
             "unit": "ns",
             "extra": "gctime=0\nmemory=1863200\nallocs=2673\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Unitary and exact phase workflows/Fock Gaussian constructor family",
+            "name": "Unitary and exact phase workflows/Gaussian transformations/Fock Gaussian constructor family",
             "value": 5009051,
             "unit": "ns",
             "extra": "gctime=0\nmemory=2043552\nallocs=26509\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Unitary and exact phase workflows/Phase-space, spin, and Pauli family",
+            "name": "Unitary and exact phase workflows/Operator families/Phase-space, spin, and Pauli family",
             "value": 1742690,
             "unit": "ns",
             "extra": "gctime=0\nmemory=931632\nallocs=10969\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Unitary and exact phase workflows/Static and moving two-level basis",
+            "name": "Unitary and exact phase workflows/Operator families/Static and moving two-level basis",
             "value": 28144437,
             "unit": "ns",
             "extra": "gctime=0\nmemory=10689104\nallocs=253008\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Unitary and exact phase workflows/Static and timed frame composition",
+            "name": "Unitary and exact phase workflows/Frame composition/Static and timed frame composition",
             "value": 3649496,
             "unit": "ns",
             "extra": "gctime=0\nmemory=1279224\nallocs=19150\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Unitary and exact phase workflows/Thirty-three-sideband exact phase pipeline",
+            "name": "Unitary and exact phase workflows/Exact phases/Thirty-three-sideband exact phase pipeline",
             "value": 12355422,
             "unit": "ns",
             "extra": "gctime=0\nmemory=4620840\nallocs=72550\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
@@ -19118,61 +19118,61 @@ window.BENCHMARK_DATA = {
             "extra": "gctime=0\nmemory=144480\nallocs=2107\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Formal operator functions/64 unary function nodes",
+            "name": "Formal operator functions/Construction/64 unary function nodes",
             "value": 3186,
             "unit": "ns",
             "extra": "gctime=0\nmemory=9344\nallocs=129\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Formal operator functions/Collect 32 identical formal terms",
+            "name": "Formal operator functions/Arithmetic/Collect 32 identical formal terms",
             "value": 19186,
             "unit": "ns",
             "extra": "gctime=0\nmemory=76608\nallocs=542\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Formal operator functions/Formal power 16",
+            "name": "Formal operator functions/Arithmetic/Formal power 16",
             "value": 5610,
             "unit": "ns",
             "extra": "gctime=0\nmemory=9648\nallocs=135\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Formal operator functions/Mixed formal expression",
+            "name": "Formal operator functions/Construction/Mixed formal expression",
             "value": 9077,
             "unit": "ns",
             "extra": "gctime=0\nmemory=25136\nallocs=234\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Formal operator functions/Mixed polynomial/formal sum 32",
+            "name": "Formal operator functions/Arithmetic/Mixed polynomial and formal sum 32",
             "value": 48491,
             "unit": "ns",
             "extra": "gctime=0\nmemory=198352\nallocs=1277\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Formal operator functions/Nested unary depth 8",
+            "name": "Formal operator functions/Construction/Nested unary depth 8",
             "value": 390,
             "unit": "ns",
             "extra": "gctime=0\nmemory=992\nallocs=16\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Formal operator functions/Repeated-node Taylor order 4",
+            "name": "Formal operator functions/Taylor expansion/Repeated-node Taylor order 4",
             "value": 233226,
             "unit": "ns",
             "extra": "gctime=0\nmemory=229336\nallocs=751\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Formal operator functions/Unary cos construction",
+            "name": "Formal operator functions/Construction/Unary cos construction",
             "value": 69,
             "unit": "ns",
             "extra": "gctime=0\nmemory=96\nallocs=2\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Formal operator functions/cos Taylor order 8",
+            "name": "Formal operator functions/Taylor expansion/cos Taylor order 8",
             "value": 135884,
             "unit": "ns",
             "extra": "gctime=0\nmemory=155704\nallocs=499\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Formal operator functions/expim Taylor order 8",
+            "name": "Formal operator functions/Taylor expansion/expim Taylor order 8",
             "value": 108794,
             "unit": "ns",
             "extra": "gctime=0\nmemory=149656\nallocs=441\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
@@ -19286,85 +19286,85 @@ window.BENCHMARK_DATA = {
             "extra": "gctime=0\nmemory=5248\nallocs=29\nparams={\"evals\":9,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Superoperators/Apply L(ρ)",
+            "name": "Superoperators/Symbolic action/Apply L(ρ)",
             "value": 73147,
             "unit": "ns",
             "extra": "gctime=0\nmemory=151424\nallocs=884\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Superoperators/Collective dissipator",
+            "name": "Superoperators/Construction/Collective dissipator",
             "value": 11701,
             "unit": "ns",
             "extra": "gctime=0\nmemory=29688\nallocs=160\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Superoperators/Composition L ∘ L",
+            "name": "Superoperators/Symbolic action/Composition L ∘ L",
             "value": 1327937,
             "unit": "ns",
             "extra": "gctime=0\nmemory=2915696\nallocs=16878\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Superoperators/Heisenberg drift",
+            "name": "Superoperators/Symbolic action/Heisenberg drift",
             "value": 41437,
             "unit": "ns",
             "extra": "gctime=0\nmemory=72544\nallocs=448\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Superoperators/Lindbladian build, 4 modes",
+            "name": "Superoperators/Construction/Lindbladian build, 4 modes",
             "value": 28173,
             "unit": "ns",
             "extra": "gctime=0\nmemory=166112\nallocs=625\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Superoperators/Lowering to SuperOperator",
+            "name": "Superoperators/Construction/Lowering to SuperOperator",
             "value": 24105,
             "unit": "ns",
             "extra": "gctime=0\nmemory=77152\nallocs=396\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Superoperators/to_numeric(L), 4 modes",
+            "name": "Superoperators/Numeric conversion/to_numeric(L), 4 modes",
             "value": 53178629,
             "unit": "ns",
             "extra": "gctime=0\nmemory=121213488\nallocs=7072\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Superoperators/to_numeric(L), single mode N=20",
+            "name": "Superoperators/Numeric conversion/to_numeric(L), single mode N=20",
             "value": 78005,
             "unit": "ns",
             "extra": "gctime=0\nmemory=253552\nallocs=356\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Superoperators/to_numeric_master, 4 modes",
+            "name": "Superoperators/Numeric conversion/to_numeric_master, 4 modes",
             "value": 1287892,
             "unit": "ns",
             "extra": "gctime=0\nmemory=1863200\nallocs=2673\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Unitary and exact phase workflows/Fock Gaussian constructor family",
+            "name": "Unitary and exact phase workflows/Gaussian transformations/Fock Gaussian constructor family",
             "value": 5193632,
             "unit": "ns",
             "extra": "gctime=0\nmemory=2151656\nallocs=28060\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Unitary and exact phase workflows/Phase-space, spin, and Pauli family",
+            "name": "Unitary and exact phase workflows/Operator families/Phase-space, spin, and Pauli family",
             "value": 1737666,
             "unit": "ns",
             "extra": "gctime=0\nmemory=944472\nallocs=11062\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Unitary and exact phase workflows/Static and moving two-level basis",
+            "name": "Unitary and exact phase workflows/Operator families/Static and moving two-level basis",
             "value": 27675918,
             "unit": "ns",
             "extra": "gctime=0\nmemory=10747344\nallocs=253809\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Unitary and exact phase workflows/Static and timed frame composition",
+            "name": "Unitary and exact phase workflows/Frame composition/Static and timed frame composition",
             "value": 3781137,
             "unit": "ns",
             "extra": "gctime=0\nmemory=1365064\nallocs=20303\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Unitary and exact phase workflows/Thirty-three-sideband exact phase pipeline",
+            "name": "Unitary and exact phase workflows/Exact phases/Thirty-three-sideband exact phase pipeline",
             "value": 12064284,
             "unit": "ns",
             "extra": "gctime=0\nmemory=4628328\nallocs=72654\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
@@ -19484,61 +19484,61 @@ window.BENCHMARK_DATA = {
             "extra": "gctime=0\nmemory=144480\nallocs=2107\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Formal operator functions/64 unary function nodes",
+            "name": "Formal operator functions/Construction/64 unary function nodes",
             "value": 1782,
             "unit": "ns",
             "extra": "gctime=0\nmemory=9344\nallocs=129\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Formal operator functions/Collect 32 identical formal terms",
+            "name": "Formal operator functions/Arithmetic/Collect 32 identical formal terms",
             "value": 11167,
             "unit": "ns",
             "extra": "gctime=0\nmemory=76608\nallocs=542\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Formal operator functions/Formal power 16",
+            "name": "Formal operator functions/Arithmetic/Formal power 16",
             "value": 3194,
             "unit": "ns",
             "extra": "gctime=0\nmemory=9648\nallocs=135\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Formal operator functions/Mixed formal expression",
+            "name": "Formal operator functions/Construction/Mixed formal expression",
             "value": 5378,
             "unit": "ns",
             "extra": "gctime=0\nmemory=25136\nallocs=234\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Formal operator functions/Mixed polynomial/formal sum 32",
+            "name": "Formal operator functions/Arithmetic/Mixed polynomial and formal sum 32",
             "value": 31457,
             "unit": "ns",
             "extra": "gctime=0\nmemory=198352\nallocs=1277\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Formal operator functions/Nested unary depth 8",
+            "name": "Formal operator functions/Construction/Nested unary depth 8",
             "value": 230,
             "unit": "ns",
             "extra": "gctime=0\nmemory=992\nallocs=16\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Formal operator functions/Repeated-node Taylor order 4",
+            "name": "Formal operator functions/Taylor expansion/Repeated-node Taylor order 4",
             "value": 147423,
             "unit": "ns",
             "extra": "gctime=0\nmemory=229336\nallocs=751\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Formal operator functions/Unary cos construction",
+            "name": "Formal operator functions/Construction/Unary cos construction",
             "value": 40,
             "unit": "ns",
             "extra": "gctime=0\nmemory=96\nallocs=2\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Formal operator functions/cos Taylor order 8",
+            "name": "Formal operator functions/Taylor expansion/cos Taylor order 8",
             "value": 87391,
             "unit": "ns",
             "extra": "gctime=0\nmemory=155704\nallocs=499\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Formal operator functions/expim Taylor order 8",
+            "name": "Formal operator functions/Taylor expansion/expim Taylor order 8",
             "value": 70165,
             "unit": "ns",
             "extra": "gctime=0\nmemory=149656\nallocs=441\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
@@ -19652,85 +19652,85 @@ window.BENCHMARK_DATA = {
             "extra": "gctime=0\nmemory=5248\nallocs=29\nparams={\"evals\":10,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Superoperators/Apply L(ρ)",
+            "name": "Superoperators/Symbolic action/Apply L(ρ)",
             "value": 47031,
             "unit": "ns",
             "extra": "gctime=0\nmemory=150992\nallocs=880\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Superoperators/Collective dissipator",
+            "name": "Superoperators/Construction/Collective dissipator",
             "value": 6590,
             "unit": "ns",
             "extra": "gctime=0\nmemory=29688\nallocs=160\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Superoperators/Composition L ∘ L",
+            "name": "Superoperators/Symbolic action/Composition L ∘ L",
             "value": 927258,
             "unit": "ns",
             "extra": "gctime=0\nmemory=2915696\nallocs=16878\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Superoperators/Heisenberg drift",
+            "name": "Superoperators/Symbolic action/Heisenberg drift",
             "value": 25579,
             "unit": "ns",
             "extra": "gctime=0\nmemory=72544\nallocs=448\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Superoperators/Lindbladian build, 4 modes",
+            "name": "Superoperators/Construction/Lindbladian build, 4 modes",
             "value": 21803,
             "unit": "ns",
             "extra": "gctime=0\nmemory=166112\nallocs=625\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Superoperators/Lowering to SuperOperator",
+            "name": "Superoperators/Construction/Lowering to SuperOperator",
             "value": 17326,
             "unit": "ns",
             "extra": "gctime=0\nmemory=77152\nallocs=396\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Superoperators/to_numeric(L), 4 modes",
+            "name": "Superoperators/Numeric conversion/to_numeric(L), 4 modes",
             "value": 32890665,
             "unit": "ns",
             "extra": "gctime=0\nmemory=121213488\nallocs=7072\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Superoperators/to_numeric(L), single mode N=20",
+            "name": "Superoperators/Numeric conversion/to_numeric(L), single mode N=20",
             "value": 49434,
             "unit": "ns",
             "extra": "gctime=0\nmemory=253552\nallocs=356\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Superoperators/to_numeric_master, 4 modes",
+            "name": "Superoperators/Numeric conversion/to_numeric_master, 4 modes",
             "value": 1314942,
             "unit": "ns",
             "extra": "gctime=0\nmemory=1863200\nallocs=2673\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Unitary and exact phase workflows/Fock Gaussian constructor family",
+            "name": "Unitary and exact phase workflows/Gaussian transformations/Fock Gaussian constructor family",
             "value": 2831769,
             "unit": "ns",
             "extra": "gctime=0\nmemory=2265280\nallocs=30067\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Unitary and exact phase workflows/Phase-space, spin, and Pauli family",
+            "name": "Unitary and exact phase workflows/Operator families/Phase-space, spin, and Pauli family",
             "value": 969683,
             "unit": "ns",
             "extra": "gctime=0\nmemory=940536\nallocs=11059\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Unitary and exact phase workflows/Static and moving two-level basis",
+            "name": "Unitary and exact phase workflows/Operator families/Static and moving two-level basis",
             "value": 14525373,
             "unit": "ns",
             "extra": "gctime=0\nmemory=10747344\nallocs=253809\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Unitary and exact phase workflows/Static and timed frame composition",
+            "name": "Unitary and exact phase workflows/Frame composition/Static and timed frame composition",
             "value": 1889970,
             "unit": "ns",
             "extra": "gctime=0\nmemory=1367368\nallocs=20379\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Unitary and exact phase workflows/Thirty-three-sideband exact phase pipeline",
+            "name": "Unitary and exact phase workflows/Exact phases/Thirty-three-sideband exact phase pipeline",
             "value": 6141771,
             "unit": "ns",
             "extra": "gctime=0\nmemory=4628328\nallocs=72654\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
@@ -19850,61 +19850,61 @@ window.BENCHMARK_DATA = {
             "extra": "gctime=0\nmemory=144480\nallocs=2107\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Formal operator functions/64 unary function nodes",
+            "name": "Formal operator functions/Construction/64 unary function nodes",
             "value": 3496,
             "unit": "ns",
             "extra": "gctime=0\nmemory=9344\nallocs=129\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Formal operator functions/Collect 32 identical formal terms",
+            "name": "Formal operator functions/Arithmetic/Collect 32 identical formal terms",
             "value": 18965,
             "unit": "ns",
             "extra": "gctime=0\nmemory=76608\nallocs=542\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Formal operator functions/Formal power 16",
+            "name": "Formal operator functions/Arithmetic/Formal power 16",
             "value": 5530,
             "unit": "ns",
             "extra": "gctime=0\nmemory=9648\nallocs=135\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Formal operator functions/Mixed formal expression",
+            "name": "Formal operator functions/Construction/Mixed formal expression",
             "value": 8946,
             "unit": "ns",
             "extra": "gctime=0\nmemory=25136\nallocs=234\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Formal operator functions/Mixed polynomial/formal sum 32",
+            "name": "Formal operator functions/Arithmetic/Mixed polynomial and formal sum 32",
             "value": 47668,
             "unit": "ns",
             "extra": "gctime=0\nmemory=198352\nallocs=1277\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Formal operator functions/Nested unary depth 8",
+            "name": "Formal operator functions/Construction/Nested unary depth 8",
             "value": 400,
             "unit": "ns",
             "extra": "gctime=0\nmemory=992\nallocs=16\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Formal operator functions/Repeated-node Taylor order 4",
+            "name": "Formal operator functions/Taylor expansion/Repeated-node Taylor order 4",
             "value": 231992,
             "unit": "ns",
             "extra": "gctime=0\nmemory=229336\nallocs=751\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Formal operator functions/Unary cos construction",
+            "name": "Formal operator functions/Construction/Unary cos construction",
             "value": 69,
             "unit": "ns",
             "extra": "gctime=0\nmemory=96\nallocs=2\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Formal operator functions/cos Taylor order 8",
+            "name": "Formal operator functions/Taylor expansion/cos Taylor order 8",
             "value": 133578,
             "unit": "ns",
             "extra": "gctime=0\nmemory=155704\nallocs=499\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Formal operator functions/expim Taylor order 8",
+            "name": "Formal operator functions/Taylor expansion/expim Taylor order 8",
             "value": 107310,
             "unit": "ns",
             "extra": "gctime=0\nmemory=149656\nallocs=441\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
@@ -20018,85 +20018,85 @@ window.BENCHMARK_DATA = {
             "extra": "gctime=0\nmemory=5248\nallocs=29\nparams={\"evals\":9,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Superoperators/Apply L(ρ)",
+            "name": "Superoperators/Symbolic action/Apply L(ρ)",
             "value": 71223,
             "unit": "ns",
             "extra": "gctime=0\nmemory=151424\nallocs=884\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Superoperators/Collective dissipator",
+            "name": "Superoperators/Construction/Collective dissipator",
             "value": 12083,
             "unit": "ns",
             "extra": "gctime=0\nmemory=29688\nallocs=160\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Superoperators/Composition L ∘ L",
+            "name": "Superoperators/Symbolic action/Composition L ∘ L",
             "value": 1329286,
             "unit": "ns",
             "extra": "gctime=0\nmemory=2915696\nallocs=16878\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Superoperators/Heisenberg drift",
+            "name": "Superoperators/Symbolic action/Heisenberg drift",
             "value": 42028,
             "unit": "ns",
             "extra": "gctime=0\nmemory=72544\nallocs=448\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Superoperators/Lindbladian build, 4 modes",
+            "name": "Superoperators/Construction/Lindbladian build, 4 modes",
             "value": 28634,
             "unit": "ns",
             "extra": "gctime=0\nmemory=166112\nallocs=625\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Superoperators/Lowering to SuperOperator",
+            "name": "Superoperators/Construction/Lowering to SuperOperator",
             "value": 25568,
             "unit": "ns",
             "extra": "gctime=0\nmemory=77152\nallocs=396\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Superoperators/to_numeric(L), 4 modes",
+            "name": "Superoperators/Numeric conversion/to_numeric(L), 4 modes",
             "value": 53658025,
             "unit": "ns",
             "extra": "gctime=0\nmemory=121213488\nallocs=7072\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Superoperators/to_numeric(L), single mode N=20",
+            "name": "Superoperators/Numeric conversion/to_numeric(L), single mode N=20",
             "value": 79779,
             "unit": "ns",
             "extra": "gctime=0\nmemory=253552\nallocs=356\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Superoperators/to_numeric_master, 4 modes",
+            "name": "Superoperators/Numeric conversion/to_numeric_master, 4 modes",
             "value": 1415026,
             "unit": "ns",
             "extra": "gctime=0\nmemory=1863200\nallocs=2673\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Unitary and exact phase workflows/Fock Gaussian constructor family",
+            "name": "Unitary and exact phase workflows/Gaussian transformations/Fock Gaussian constructor family",
             "value": 5708548,
             "unit": "ns",
             "extra": "gctime=0\nmemory=2291632\nallocs=30516\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Unitary and exact phase workflows/Phase-space, spin, and Pauli family",
+            "name": "Unitary and exact phase workflows/Operator families/Phase-space, spin, and Pauli family",
             "value": 1785865,
             "unit": "ns",
             "extra": "gctime=0\nmemory=940536\nallocs=11059\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Unitary and exact phase workflows/Static and moving two-level basis",
+            "name": "Unitary and exact phase workflows/Operator families/Static and moving two-level basis",
             "value": 27814972,
             "unit": "ns",
             "extra": "gctime=0\nmemory=10747344\nallocs=253809\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Unitary and exact phase workflows/Static and timed frame composition",
+            "name": "Unitary and exact phase workflows/Frame composition/Static and timed frame composition",
             "value": 3829370,
             "unit": "ns",
             "extra": "gctime=0\nmemory=1368360\nallocs=20383\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Unitary and exact phase workflows/Thirty-three-sideband exact phase pipeline",
+            "name": "Unitary and exact phase workflows/Exact phases/Thirty-three-sideband exact phase pipeline",
             "value": 11970652,
             "unit": "ns",
             "extra": "gctime=0\nmemory=4628328\nallocs=72654\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
@@ -20216,61 +20216,61 @@ window.BENCHMARK_DATA = {
             "extra": "gctime=0\nmemory=144480\nallocs=2107\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Formal operator functions/64 unary function nodes",
+            "name": "Formal operator functions/Construction/64 unary function nodes",
             "value": 2521,
             "unit": "ns",
             "extra": "gctime=0\nmemory=9344\nallocs=129\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Formal operator functions/Collect 32 identical formal terms",
+            "name": "Formal operator functions/Arithmetic/Collect 32 identical formal terms",
             "value": 19145,
             "unit": "ns",
             "extra": "gctime=0\nmemory=76608\nallocs=542\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Formal operator functions/Formal power 16",
+            "name": "Formal operator functions/Arithmetic/Formal power 16",
             "value": 5248,
             "unit": "ns",
             "extra": "gctime=0\nmemory=9648\nallocs=135\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Formal operator functions/Mixed formal expression",
+            "name": "Formal operator functions/Construction/Mixed formal expression",
             "value": 9339,
             "unit": "ns",
             "extra": "gctime=0\nmemory=25136\nallocs=234\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Formal operator functions/Mixed polynomial/formal sum 32",
+            "name": "Formal operator functions/Arithmetic/Mixed polynomial and formal sum 32",
             "value": 48481,
             "unit": "ns",
             "extra": "gctime=0\nmemory=198352\nallocs=1277\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Formal operator functions/Nested unary depth 8",
+            "name": "Formal operator functions/Construction/Nested unary depth 8",
             "value": 315,
             "unit": "ns",
             "extra": "gctime=0\nmemory=992\nallocs=16\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Formal operator functions/Repeated-node Taylor order 4",
+            "name": "Formal operator functions/Taylor expansion/Repeated-node Taylor order 4",
             "value": 270057,
             "unit": "ns",
             "extra": "gctime=0\nmemory=229336\nallocs=751\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Formal operator functions/Unary cos construction",
+            "name": "Formal operator functions/Construction/Unary cos construction",
             "value": 64,
             "unit": "ns",
             "extra": "gctime=0\nmemory=96\nallocs=2\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Formal operator functions/cos Taylor order 8",
+            "name": "Formal operator functions/Taylor expansion/cos Taylor order 8",
             "value": 157000,
             "unit": "ns",
             "extra": "gctime=0\nmemory=155704\nallocs=499\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Formal operator functions/expim Taylor order 8",
+            "name": "Formal operator functions/Taylor expansion/expim Taylor order 8",
             "value": 121596,
             "unit": "ns",
             "extra": "gctime=0\nmemory=149656\nallocs=441\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
@@ -20384,85 +20384,85 @@ window.BENCHMARK_DATA = {
             "extra": "gctime=0\nmemory=5248\nallocs=29\nparams={\"evals\":9,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Superoperators/Apply L(ρ)",
+            "name": "Superoperators/Symbolic action/Apply L(ρ)",
             "value": 70398,
             "unit": "ns",
             "extra": "gctime=0\nmemory=150992\nallocs=880\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Superoperators/Collective dissipator",
+            "name": "Superoperators/Construction/Collective dissipator",
             "value": 10543,
             "unit": "ns",
             "extra": "gctime=0\nmemory=29688\nallocs=160\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Superoperators/Composition L ∘ L",
+            "name": "Superoperators/Symbolic action/Composition L ∘ L",
             "value": 1343085,
             "unit": "ns",
             "extra": "gctime=0\nmemory=2915696\nallocs=16878\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Superoperators/Heisenberg drift",
+            "name": "Superoperators/Symbolic action/Heisenberg drift",
             "value": 41301,
             "unit": "ns",
             "extra": "gctime=0\nmemory=72544\nallocs=448\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Superoperators/Lindbladian build, 4 modes",
+            "name": "Superoperators/Construction/Lindbladian build, 4 modes",
             "value": 27756,
             "unit": "ns",
             "extra": "gctime=0\nmemory=166112\nallocs=625\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Superoperators/Lowering to SuperOperator",
+            "name": "Superoperators/Construction/Lowering to SuperOperator",
             "value": 24110,
             "unit": "ns",
             "extra": "gctime=0\nmemory=77152\nallocs=396\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Superoperators/to_numeric(L), 4 modes",
+            "name": "Superoperators/Numeric conversion/to_numeric(L), 4 modes",
             "value": 78159089,
             "unit": "ns",
             "extra": "gctime=1700412\nmemory=121213488\nallocs=7072\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Superoperators/to_numeric(L), single mode N=20",
+            "name": "Superoperators/Numeric conversion/to_numeric(L), single mode N=20",
             "value": 83493,
             "unit": "ns",
             "extra": "gctime=0\nmemory=253552\nallocs=356\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Superoperators/to_numeric_master, 4 modes",
+            "name": "Superoperators/Numeric conversion/to_numeric_master, 4 modes",
             "value": 1524778,
             "unit": "ns",
             "extra": "gctime=0\nmemory=1863200\nallocs=2673\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Unitary and exact phase workflows/Fock Gaussian constructor family",
+            "name": "Unitary and exact phase workflows/Gaussian transformations/Fock Gaussian constructor family",
             "value": 4795439,
             "unit": "ns",
             "extra": "gctime=0\nmemory=2197696\nallocs=28911\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Unitary and exact phase workflows/Phase-space, spin, and Pauli family",
+            "name": "Unitary and exact phase workflows/Operator families/Phase-space, spin, and Pauli family",
             "value": 1596501,
             "unit": "ns",
             "extra": "gctime=0\nmemory=940536\nallocs=11059\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Unitary and exact phase workflows/Static and moving two-level basis",
+            "name": "Unitary and exact phase workflows/Operator families/Static and moving two-level basis",
             "value": 25015350,
             "unit": "ns",
             "extra": "gctime=0\nmemory=10748784\nallocs=253847\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Unitary and exact phase workflows/Static and timed frame composition",
+            "name": "Unitary and exact phase workflows/Frame composition/Static and timed frame composition",
             "value": 3388594,
             "unit": "ns",
             "extra": "gctime=0\nmemory=1365768\nallocs=20392\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Unitary and exact phase workflows/Thirty-three-sideband exact phase pipeline",
+            "name": "Unitary and exact phase workflows/Exact phases/Thirty-three-sideband exact phase pipeline",
             "value": 10683723,
             "unit": "ns",
             "extra": "gctime=0\nmemory=4628328\nallocs=72654\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
@@ -20582,61 +20582,61 @@ window.BENCHMARK_DATA = {
             "extra": "gctime=0\nmemory=144480\nallocs=2107\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Formal operator functions/64 unary function nodes",
+            "name": "Formal operator functions/Construction/64 unary function nodes",
             "value": 1742,
             "unit": "ns",
             "extra": "gctime=0\nmemory=9344\nallocs=129\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Formal operator functions/Collect 32 identical formal terms",
+            "name": "Formal operator functions/Arithmetic/Collect 32 identical formal terms",
             "value": 10085,
             "unit": "ns",
             "extra": "gctime=0\nmemory=76608\nallocs=542\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Formal operator functions/Formal power 16",
+            "name": "Formal operator functions/Arithmetic/Formal power 16",
             "value": 3025,
             "unit": "ns",
             "extra": "gctime=0\nmemory=9648\nallocs=135\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Formal operator functions/Mixed formal expression",
+            "name": "Formal operator functions/Construction/Mixed formal expression",
             "value": 5118,
             "unit": "ns",
             "extra": "gctime=0\nmemory=25136\nallocs=234\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Formal operator functions/Mixed polynomial/formal sum 32",
+            "name": "Formal operator functions/Arithmetic/Mixed polynomial and formal sum 32",
             "value": 29554,
             "unit": "ns",
             "extra": "gctime=0\nmemory=198352\nallocs=1277\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Formal operator functions/Nested unary depth 8",
+            "name": "Formal operator functions/Construction/Nested unary depth 8",
             "value": 220,
             "unit": "ns",
             "extra": "gctime=0\nmemory=992\nallocs=16\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Formal operator functions/Repeated-node Taylor order 4",
+            "name": "Formal operator functions/Taylor expansion/Repeated-node Taylor order 4",
             "value": 138956,
             "unit": "ns",
             "extra": "gctime=0\nmemory=229336\nallocs=751\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Formal operator functions/Unary cos construction",
+            "name": "Formal operator functions/Construction/Unary cos construction",
             "value": 40,
             "unit": "ns",
             "extra": "gctime=0\nmemory=96\nallocs=2\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Formal operator functions/cos Taylor order 8",
+            "name": "Formal operator functions/Taylor expansion/cos Taylor order 8",
             "value": 80750,
             "unit": "ns",
             "extra": "gctime=0\nmemory=155704\nallocs=499\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Formal operator functions/expim Taylor order 8",
+            "name": "Formal operator functions/Taylor expansion/expim Taylor order 8",
             "value": 65757,
             "unit": "ns",
             "extra": "gctime=0\nmemory=149656\nallocs=441\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
@@ -20750,85 +20750,85 @@ window.BENCHMARK_DATA = {
             "extra": "gctime=0\nmemory=5248\nallocs=29\nparams={\"evals\":10,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Superoperators/Apply L(ρ)",
+            "name": "Superoperators/Symbolic action/Apply L(ρ)",
             "value": 46849,
             "unit": "ns",
             "extra": "gctime=0\nmemory=151424\nallocs=884\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Superoperators/Collective dissipator",
+            "name": "Superoperators/Construction/Collective dissipator",
             "value": 6740,
             "unit": "ns",
             "extra": "gctime=0\nmemory=29688\nallocs=160\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Superoperators/Composition L ∘ L",
+            "name": "Superoperators/Symbolic action/Composition L ∘ L",
             "value": 868509,
             "unit": "ns",
             "extra": "gctime=0\nmemory=2915696\nallocs=16878\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Superoperators/Heisenberg drift",
+            "name": "Superoperators/Symbolic action/Heisenberg drift",
             "value": 24707,
             "unit": "ns",
             "extra": "gctime=0\nmemory=72544\nallocs=448\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Superoperators/Lindbladian build, 4 modes",
+            "name": "Superoperators/Construction/Lindbladian build, 4 modes",
             "value": 20601,
             "unit": "ns",
             "extra": "gctime=0\nmemory=166112\nallocs=625\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Superoperators/Lowering to SuperOperator",
+            "name": "Superoperators/Construction/Lowering to SuperOperator",
             "value": 15333,
             "unit": "ns",
             "extra": "gctime=0\nmemory=77152\nallocs=396\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Superoperators/to_numeric(L), 4 modes",
+            "name": "Superoperators/Numeric conversion/to_numeric(L), 4 modes",
             "value": 31946393,
             "unit": "ns",
             "extra": "gctime=0\nmemory=121213488\nallocs=7072\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Superoperators/to_numeric(L), single mode N=20",
+            "name": "Superoperators/Numeric conversion/to_numeric(L), single mode N=20",
             "value": 47591,
             "unit": "ns",
             "extra": "gctime=0\nmemory=253552\nallocs=356\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Superoperators/to_numeric_master, 4 modes",
+            "name": "Superoperators/Numeric conversion/to_numeric_master, 4 modes",
             "value": 1201804,
             "unit": "ns",
             "extra": "gctime=0\nmemory=1863200\nallocs=2673\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Unitary and exact phase workflows/Fock Gaussian constructor family",
+            "name": "Unitary and exact phase workflows/Gaussian transformations/Fock Gaussian constructor family",
             "value": 2466536,
             "unit": "ns",
             "extra": "gctime=0\nmemory=2136304\nallocs=27793\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Unitary and exact phase workflows/Phase-space, spin, and Pauli family",
+            "name": "Unitary and exact phase workflows/Operator families/Phase-space, spin, and Pauli family",
             "value": 897699,
             "unit": "ns",
             "extra": "gctime=0\nmemory=940536\nallocs=11059\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Unitary and exact phase workflows/Static and moving two-level basis",
+            "name": "Unitary and exact phase workflows/Operator families/Static and moving two-level basis",
             "value": 13615136,
             "unit": "ns",
             "extra": "gctime=0\nmemory=10746512\nallocs=253803\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Unitary and exact phase workflows/Static and timed frame composition",
+            "name": "Unitary and exact phase workflows/Frame composition/Static and timed frame composition",
             "value": 1765748,
             "unit": "ns",
             "extra": "gctime=0\nmemory=1365624\nallocs=20367\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Unitary and exact phase workflows/Thirty-three-sideband exact phase pipeline",
+            "name": "Unitary and exact phase workflows/Exact phases/Thirty-three-sideband exact phase pipeline",
             "value": 5817982,
             "unit": "ns",
             "extra": "gctime=0\nmemory=4628328\nallocs=72654\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
@@ -20948,61 +20948,61 @@ window.BENCHMARK_DATA = {
             "extra": "gctime=0\nmemory=144480\nallocs=2107\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Formal operator functions/64 unary function nodes",
+            "name": "Formal operator functions/Construction/64 unary function nodes",
             "value": 3176,
             "unit": "ns",
             "extra": "gctime=0\nmemory=9344\nallocs=129\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Formal operator functions/Collect 32 identical formal terms",
+            "name": "Formal operator functions/Arithmetic/Collect 32 identical formal terms",
             "value": 19456,
             "unit": "ns",
             "extra": "gctime=0\nmemory=76608\nallocs=542\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Formal operator functions/Formal power 16",
+            "name": "Formal operator functions/Arithmetic/Formal power 16",
             "value": 5560,
             "unit": "ns",
             "extra": "gctime=0\nmemory=9648\nallocs=135\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Formal operator functions/Mixed formal expression",
+            "name": "Formal operator functions/Construction/Mixed formal expression",
             "value": 9137,
             "unit": "ns",
             "extra": "gctime=0\nmemory=25136\nallocs=234\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Formal operator functions/Mixed polynomial/formal sum 32",
+            "name": "Formal operator functions/Arithmetic/Mixed polynomial and formal sum 32",
             "value": 47840,
             "unit": "ns",
             "extra": "gctime=0\nmemory=198352\nallocs=1277\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Formal operator functions/Nested unary depth 8",
+            "name": "Formal operator functions/Construction/Nested unary depth 8",
             "value": 400,
             "unit": "ns",
             "extra": "gctime=0\nmemory=992\nallocs=16\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Formal operator functions/Repeated-node Taylor order 4",
+            "name": "Formal operator functions/Taylor expansion/Repeated-node Taylor order 4",
             "value": 238498,
             "unit": "ns",
             "extra": "gctime=0\nmemory=229336\nallocs=751\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Formal operator functions/Unary cos construction",
+            "name": "Formal operator functions/Construction/Unary cos construction",
             "value": 69,
             "unit": "ns",
             "extra": "gctime=0\nmemory=96\nallocs=2\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Formal operator functions/cos Taylor order 8",
+            "name": "Formal operator functions/Taylor expansion/cos Taylor order 8",
             "value": 134483,
             "unit": "ns",
             "extra": "gctime=0\nmemory=155704\nallocs=499\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Formal operator functions/expim Taylor order 8",
+            "name": "Formal operator functions/Taylor expansion/expim Taylor order 8",
             "value": 108303,
             "unit": "ns",
             "extra": "gctime=0\nmemory=149656\nallocs=441\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
@@ -21116,85 +21116,85 @@ window.BENCHMARK_DATA = {
             "extra": "gctime=0\nmemory=5248\nallocs=29\nparams={\"evals\":9,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Superoperators/Apply L(ρ)",
+            "name": "Superoperators/Symbolic action/Apply L(ρ)",
             "value": 70833,
             "unit": "ns",
             "extra": "gctime=0\nmemory=151424\nallocs=884\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Superoperators/Collective dissipator",
+            "name": "Superoperators/Construction/Collective dissipator",
             "value": 11792,
             "unit": "ns",
             "extra": "gctime=0\nmemory=29688\nallocs=160\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Superoperators/Composition L ∘ L",
+            "name": "Superoperators/Symbolic action/Composition L ∘ L",
             "value": 1342369,
             "unit": "ns",
             "extra": "gctime=0\nmemory=2915696\nallocs=16878\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Superoperators/Heisenberg drift",
+            "name": "Superoperators/Symbolic action/Heisenberg drift",
             "value": 41007,
             "unit": "ns",
             "extra": "gctime=0\nmemory=72544\nallocs=448\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Superoperators/Lindbladian build, 4 modes",
+            "name": "Superoperators/Construction/Lindbladian build, 4 modes",
             "value": 28223,
             "unit": "ns",
             "extra": "gctime=0\nmemory=166112\nallocs=625\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Superoperators/Lowering to SuperOperator",
+            "name": "Superoperators/Construction/Lowering to SuperOperator",
             "value": 23855,
             "unit": "ns",
             "extra": "gctime=0\nmemory=77152\nallocs=396\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Superoperators/to_numeric(L), 4 modes",
+            "name": "Superoperators/Numeric conversion/to_numeric(L), 4 modes",
             "value": 54213653,
             "unit": "ns",
             "extra": "gctime=0\nmemory=121213488\nallocs=7072\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Superoperators/to_numeric(L), single mode N=20",
+            "name": "Superoperators/Numeric conversion/to_numeric(L), single mode N=20",
             "value": 77165,
             "unit": "ns",
             "extra": "gctime=0\nmemory=253552\nallocs=356\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Superoperators/to_numeric_master, 4 modes",
+            "name": "Superoperators/Numeric conversion/to_numeric_master, 4 modes",
             "value": 1381091,
             "unit": "ns",
             "extra": "gctime=0\nmemory=1863200\nallocs=2673\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Unitary and exact phase workflows/Fock Gaussian constructor family",
+            "name": "Unitary and exact phase workflows/Gaussian transformations/Fock Gaussian constructor family",
             "value": 5487841,
             "unit": "ns",
             "extra": "gctime=0\nmemory=2252056\nallocs=29864\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Unitary and exact phase workflows/Phase-space, spin, and Pauli family",
+            "name": "Unitary and exact phase workflows/Operator families/Phase-space, spin, and Pauli family",
             "value": 1784148,
             "unit": "ns",
             "extra": "gctime=0\nmemory=944472\nallocs=11062\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Unitary and exact phase workflows/Static and moving two-level basis",
+            "name": "Unitary and exact phase workflows/Operator families/Static and moving two-level basis",
             "value": 27866767,
             "unit": "ns",
             "extra": "gctime=0\nmemory=10748784\nallocs=253847\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Unitary and exact phase workflows/Static and timed frame composition",
+            "name": "Unitary and exact phase workflows/Frame composition/Static and timed frame composition",
             "value": 3934434,
             "unit": "ns",
             "extra": "gctime=0\nmemory=1398280\nallocs=20927\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Unitary and exact phase workflows/Thirty-three-sideband exact phase pipeline",
+            "name": "Unitary and exact phase workflows/Exact phases/Thirty-three-sideband exact phase pipeline",
             "value": 11858023,
             "unit": "ns",
             "extra": "gctime=0\nmemory=4628328\nallocs=72654\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
@@ -21314,61 +21314,61 @@ window.BENCHMARK_DATA = {
             "extra": "gctime=0\nmemory=144480\nallocs=2107\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Formal operator functions/64 unary function nodes",
+            "name": "Formal operator functions/Construction/64 unary function nodes",
             "value": 2396,
             "unit": "ns",
             "extra": "gctime=0\nmemory=9344\nallocs=129\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Formal operator functions/Collect 32 identical formal terms",
+            "name": "Formal operator functions/Arithmetic/Collect 32 identical formal terms",
             "value": 13877,
             "unit": "ns",
             "extra": "gctime=0\nmemory=76608\nallocs=542\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Formal operator functions/Formal power 16",
+            "name": "Formal operator functions/Arithmetic/Formal power 16",
             "value": 3993,
             "unit": "ns",
             "extra": "gctime=0\nmemory=9648\nallocs=135\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Formal operator functions/Mixed formal expression",
+            "name": "Formal operator functions/Construction/Mixed formal expression",
             "value": 6974,
             "unit": "ns",
             "extra": "gctime=0\nmemory=25136\nallocs=234\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Formal operator functions/Mixed polynomial/formal sum 32",
+            "name": "Formal operator functions/Arithmetic/Mixed polynomial and formal sum 32",
             "value": 38393,
             "unit": "ns",
             "extra": "gctime=0\nmemory=198352\nallocs=1277\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Formal operator functions/Nested unary depth 8",
+            "name": "Formal operator functions/Construction/Nested unary depth 8",
             "value": 294,
             "unit": "ns",
             "extra": "gctime=0\nmemory=992\nallocs=16\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Formal operator functions/Repeated-node Taylor order 4",
+            "name": "Formal operator functions/Taylor expansion/Repeated-node Taylor order 4",
             "value": 178777,
             "unit": "ns",
             "extra": "gctime=0\nmemory=229336\nallocs=751\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Formal operator functions/Unary cos construction",
+            "name": "Formal operator functions/Construction/Unary cos construction",
             "value": 60,
             "unit": "ns",
             "extra": "gctime=0\nmemory=96\nallocs=2\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Formal operator functions/cos Taylor order 8",
+            "name": "Formal operator functions/Taylor expansion/cos Taylor order 8",
             "value": 98130,
             "unit": "ns",
             "extra": "gctime=0\nmemory=155704\nallocs=499\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Formal operator functions/expim Taylor order 8",
+            "name": "Formal operator functions/Taylor expansion/expim Taylor order 8",
             "value": 80056,
             "unit": "ns",
             "extra": "gctime=0\nmemory=149656\nallocs=441\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
@@ -21482,85 +21482,85 @@ window.BENCHMARK_DATA = {
             "extra": "gctime=0\nmemory=5248\nallocs=29\nparams={\"evals\":10,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Superoperators/Apply L(ρ)",
+            "name": "Superoperators/Symbolic action/Apply L(ρ)",
             "value": 50839,
             "unit": "ns",
             "extra": "gctime=0\nmemory=151424\nallocs=884\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Superoperators/Collective dissipator",
+            "name": "Superoperators/Construction/Collective dissipator",
             "value": 7952,
             "unit": "ns",
             "extra": "gctime=0\nmemory=29688\nallocs=160\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Superoperators/Composition L ∘ L",
+            "name": "Superoperators/Symbolic action/Composition L ∘ L",
             "value": 886960,
             "unit": "ns",
             "extra": "gctime=0\nmemory=2915696\nallocs=16878\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Superoperators/Heisenberg drift",
+            "name": "Superoperators/Symbolic action/Heisenberg drift",
             "value": 29823,
             "unit": "ns",
             "extra": "gctime=0\nmemory=72544\nallocs=448\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Superoperators/Lindbladian build, 4 modes",
+            "name": "Superoperators/Construction/Lindbladian build, 4 modes",
             "value": 19523,
             "unit": "ns",
             "extra": "gctime=0\nmemory=166112\nallocs=625\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Superoperators/Lowering to SuperOperator",
+            "name": "Superoperators/Construction/Lowering to SuperOperator",
             "value": 18246,
             "unit": "ns",
             "extra": "gctime=0\nmemory=77152\nallocs=396\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Superoperators/to_numeric(L), 4 modes",
+            "name": "Superoperators/Numeric conversion/to_numeric(L), 4 modes",
             "value": 58434625,
             "unit": "ns",
             "extra": "gctime=981967\nmemory=121213488\nallocs=7072\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Superoperators/to_numeric(L), single mode N=20",
+            "name": "Superoperators/Numeric conversion/to_numeric(L), single mode N=20",
             "value": 58796,
             "unit": "ns",
             "extra": "gctime=0\nmemory=253552\nallocs=356\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Superoperators/to_numeric_master, 4 modes",
+            "name": "Superoperators/Numeric conversion/to_numeric_master, 4 modes",
             "value": 1223914,
             "unit": "ns",
             "extra": "gctime=0\nmemory=1863200\nallocs=2673\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Unitary and exact phase workflows/Fock Gaussian constructor family",
+            "name": "Unitary and exact phase workflows/Gaussian transformations/Fock Gaussian constructor family",
             "value": 3901623,
             "unit": "ns",
             "extra": "gctime=0\nmemory=2264344\nallocs=30072\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Unitary and exact phase workflows/Phase-space, spin, and Pauli family",
+            "name": "Unitary and exact phase workflows/Operator families/Phase-space, spin, and Pauli family",
             "value": 1266207,
             "unit": "ns",
             "extra": "gctime=0\nmemory=940536\nallocs=11059\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Unitary and exact phase workflows/Static and moving two-level basis",
+            "name": "Unitary and exact phase workflows/Operator families/Static and moving two-level basis",
             "value": 18029203,
             "unit": "ns",
             "extra": "gctime=0\nmemory=10748784\nallocs=253847\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Unitary and exact phase workflows/Static and timed frame composition",
+            "name": "Unitary and exact phase workflows/Frame composition/Static and timed frame composition",
             "value": 2788831,
             "unit": "ns",
             "extra": "gctime=0\nmemory=1434248\nallocs=21565\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
           },
           {
-            "name": "Unitary and exact phase workflows/Thirty-three-sideband exact phase pipeline",
+            "name": "Unitary and exact phase workflows/Exact phases/Thirty-three-sideband exact phase pipeline",
             "value": 7838257,
             "unit": "ns",
             "extra": "gctime=0\nmemory=4628328\nallocs=72654\nparams={\"evals\":1,\"evals_set\":false,\"gcsample\":false,\"gctrial\":true,\"memory_tolerance\":0.01,\"overhead\":0,\"samples\":10000,\"seconds\":3,\"time_tolerance\":0.05}"
