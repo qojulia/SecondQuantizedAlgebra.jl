@@ -187,6 +187,19 @@ CoefficientTerm
 ```
 
 
+A complex amplitude declared as `@variables β::Number` stays a single atom next to a phase,
+and its conjugate is the symbolic `conj(β)`. Prefer it over `::Complex`, which splits the
+parameter into `real(β) + im*imag(β)` in every coefficient:
+
+```@example pr305
+using SecondQuantizedAlgebra
+h = FockSpace(:harmonic_example)
+@qnumbers a::Destroy(h)
+@variables ω::Real t::Real
+@variables β::Number
+β * expim(ω * t) * a + conj(β) * expim(-ω * t) * a'
+```
+
 ```@docs
 map_coefficients
 ```
