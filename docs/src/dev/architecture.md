@@ -110,16 +110,7 @@ Each invariant states the rule, the reason, and the test that pins it, or "not t
 
 **`GaussianRational` is not a `Number`.** Methods of a new `Number` subtype on `==`, `hash` and arithmetic invalidate SymbolicUtils code compiled for abstract numbers, which slowed its `simplify` by about a fifth. Not tested.
 
-**Rational zero test on raw addition.** The raw tier has no canonical form, so two quotients
-whose denominators differ only in expansion, such as `D*conj(D)` and its expanded product,
-would otherwise sum to a nonzero-looking tree that only `simplify` clears. Adding two
-coefficients of which one is raw therefore reads both as rational functions `N/D` over the
-exact `Poly` tier and drops the sum when the cross-multiplied numerator is the zero
-polynomial. The test is exact and treats atoms as independent, so it can only miss a zero,
-never invent one; the sum is zero wherever it is defined. It does not rewrite a nonzero sum.
-Term-pair budgets bound its cost, with a tight one for common denominators inside one
-operand, so a long sum of distinct quotients does not pay a growing failed attempt on every
-addition.
+**Raw rational zero detection is exact and bounded.** Accept a zero only when its cross-multiplied numerator is exactly zero, and bound expansion work so repeated additions cannot cause unbounded symbolic growth. Pinned by `test/symbolic/coefficients_test.jl`.
 
 ### Averages
 
