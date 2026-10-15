@@ -293,7 +293,6 @@ function reduce_raw_via_transient(
     reduced.tail isa Native && return reduced
     result = SymbolicUtils.unwrap(Symbolics.substitute(Num(raw_tail(reduced)), back))
     result isa RawExpression || return c
-    is_numeric_const(result) && return const_coeff(result)
     return from_raw_arithmetic(result, tail.real_slot)
 end
 

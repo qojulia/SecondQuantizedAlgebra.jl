@@ -71,6 +71,8 @@ function canonical_ne(ne::Vector{NonEqualPair})
     return isempty(out) ? EMPTY_NE : out
 end
 
+ne_mentions(ne::Vector{NonEqualPair}, idx::Index) = any(((α, β),) -> α == idx || β == idx, ne)
+
 @inline function ne_contains(ne::Vector{NonEqualPair}, α::Index, β::Index)
     return canonical_pair((α, β)) in ne
 end
@@ -88,50 +90,25 @@ function merge_ne_pair(ne::Vector{NonEqualPair}, α::Index, β::Index)
     return merge_ne(ne, NonEqualPair[(α, β)])
 end
 
-function substitute_ne(ne::Vector{NonEqualPair}, from::Index, to::Index)
+function substitute_ne(ne::Vector{NonEqualPair}, m::IndexMap)
     isempty(ne) && return EMPTY_NE
+    renames_nothing(m) && return ne
     out = NonEqualPair[]
     for (α, β) in ne
-        new_α = α == from ? to : α
-        new_β = β == from ? to : β
+        new_α = reindex(m, α)
+        new_β = reindex(m, β)
         new_α == new_β && continue
         push_ne_unique!(out, (new_α, new_β))
     end
     return isempty(out) ? EMPTY_NE : out
 end
 
-function ne_becomes_contradictory(ne::Vector{NonEqualPair}, from::Index, to::Index)
+function ne_becomes_contradictory(ne::Vector{NonEqualPair}, m::IndexMap)
     isempty(ne) && return false
     for (α, β) in ne
-        new_α = α == from ? to : α
-        new_β = β == from ? to : β
-        new_α == new_β && return true
+        reindex(m, α) == reindex(m, β) && return true
     end
     return false
-end
-
-function ne_becomes_contradictory(ne::Vector{NonEqualPair}, pairs::AbstractDict{Index, Index})
-    isempty(ne) && return false
-    isempty(pairs) && return false
-    for (α, β) in ne
-        new_α = get(pairs, α, α)
-        new_β = get(pairs, β, β)
-        new_α == new_β && return true
-    end
-    return false
-end
-
-function substitute_ne(ne::Vector{NonEqualPair}, pairs::AbstractDict{Index, Index})
-    isempty(ne) && return EMPTY_NE
-    isempty(pairs) && return ne
-    out = NonEqualPair[]
-    for (α, β) in ne
-        new_α = get(pairs, α, α)
-        new_β = get(pairs, β, β)
-        new_α == new_β && continue
-        push_ne_unique!(out, (new_α, new_β))
-    end
-    return isempty(out) ? EMPTY_NE : out
 end
 
 function copy_key(term::QTerm)

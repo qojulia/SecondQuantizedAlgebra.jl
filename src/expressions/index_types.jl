@@ -42,11 +42,7 @@ end
 
 const NO_INDEX = Index(Int32(0), Int32(0), Int32(0), Int32(0))
 
-"""
-Metadata key carrying the concrete slot integer on a per-slot index sym minted by
-`(i::Index)(k)`. Sym equality/hashing ignore metadata, so a slot-stamped sym still
-dedup-equals its name-only counterpart.
-"""
+"""Metadata key for the site number of a concrete index such as `i(3)` on its symbol."""
 struct IndexSlot end
 
 """
@@ -73,6 +69,20 @@ const NonEqualPair = Tuple{Index, Index}
 const EMPTY_NE = NonEqualPair[]
 const EMPTY_INDICES = Index[]
 
+"""
+    IndexMap
+
+A renaming of indices: one `from => to` pair, or a dictionary for several at once. Indices
+it does not mention map to themselves.
+"""
+const IndexMap = Union{Pair{Index, Index}, AbstractDict{Index, Index}}
+
+reindex(m::Pair{Index, Index}, idx::Index) = idx == m.first ? m.second : idx
+reindex(m::AbstractDict{Index, Index}, idx::Index) = get(m, idx, idx)
+
+renames_nothing(::Pair{Index, Index}) = false
+renames_nothing(m::AbstractDict{Index, Index}) = isempty(m)
+
 function Base.:(==)(a::Index, b::Index)
     a === b && return true
     return a.name_id == b.name_id && a.space_index == b.space_index && a.range_id == b.range_id
@@ -80,22 +90,19 @@ end
 function Base.hash(a::Index, h::UInt)
     return hash(:Index, hash(a.name_id, hash(a.space_index, h)))
 end
-Base.isless(a::Index, b::Index) = (a.space_index, name_rank(a.name_id)) < (b.space_index, name_rank(b.name_id))
-
 index_key(idx::Index) = (idx.space_index, name_rank(idx.name_id))
+Base.isless(a::Index, b::Index) = index_key(a) < index_key(b)
 
-function Index(h::HilbertSpace, name::Symbol, range::Union{Int, Num}, space::HilbertSpace)
-    si = find_space_index(h, space)
-    return Index(intern_name(name), intern_range(range), Int32(si), Int32(0))
-end
+Index(h::HilbertSpace, name::Symbol, range::Union{Int, Num}, space::HilbertSpace) =
+    Index(h, name, range, find_space_index(h, space))
 function Index(h::HilbertSpace, name::Symbol, range::Union{Int, Num}, si::Int)
-    return Index(intern_name(name), intern_range(range), Int32(si), Int32(0))
+    return Index(name_id(name), intern_range(range), Int32(si), Int32(0))
 end
 Index(h::HilbertSpace, name::AbstractString, args...) = name_must_be_symbol(name)
 
 function (i::Index)(k::Integer)
     name = Symbol(name_from_id(i.name_id), "_", k)
-    return Index(intern_name(name), i.range_id, i.space_index, Int32(k))
+    return Index(name_id(name), i.range_id, i.space_index, Int32(k))
 end
 
 """
@@ -146,7 +153,7 @@ true
 
 See also [`Index`](@ref), [`change_index`](@ref).
 """
-rename(idx::Index, name::Symbol) = Index(intern_name(name), idx.range_id, idx.space_index, idx.slot)
+rename(idx::Index, name::Symbol) = Index(name_id(name), idx.range_id, idx.space_index, idx.slot)
 rename(idx::Index, name::AbstractString) = name_must_be_symbol(name)
 
 """

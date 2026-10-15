@@ -435,11 +435,8 @@ expand_completeness(X::SuperExpr) = map_formal(expand_completeness, expand_compl
 assume_distinct_index(X::SuperExpr, pairs::Vector{Tuple{Index, Index}}) = map_formal(
     S -> assume_distinct_index(S, pairs), q -> assume_distinct_index(q, pairs), identity, X,
 )
-change_index(X::SuperExpr, from::Index, to::Index) = map_formal(
-    S -> change_index(S, from, to), q -> change_index(q, from, to), c -> change_index(c, from, to), X,
-)
-change_index(X::SuperExpr, pairs::AbstractDict{Index, Index}) = map_formal(
-    S -> change_index(S, pairs), q -> change_index(q, pairs), c -> change_index(c, pairs), X,
+change_index(X::SuperExpr, m::IndexMap) = map_formal(
+    S -> change_index(S, m), q -> change_index(q, m), c -> change_index(c, m), X,
 )
 
 function SymbolicUtils.substitute(X::SuperExpr, rules::AbstractDict; replace_adjoint::Bool = true)
