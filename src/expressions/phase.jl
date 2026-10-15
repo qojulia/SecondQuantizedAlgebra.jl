@@ -88,30 +88,16 @@ function leading_sign(u::RawExpression)
     return const_sign(u)
 end
 
-function negate_expanded(a::Num)
-    raw = SymbolicUtils.unwrap(a)
-    if SymbolicUtils.iscall(raw) && SymbolicUtils.operation(raw) === (+)
-        result = NUM_ZERO
-        for term in SymbolicUtils.arguments(raw)
-            result -= Num(term)
-        end
-        return result
-    end
-    return -a
-end
-
 function scale_expanded(a::Num, n::Int)
     isone(n) && return a
-    n == -1 && return negate_expanded(a)
     raw = SymbolicUtils.unwrap(a)
-    if SymbolicUtils.iscall(raw) && SymbolicUtils.operation(raw) === (+)
-        result = NUM_ZERO
-        for term in SymbolicUtils.arguments(raw)
-            result += n * Num(term)
-        end
-        return result
+    is_call_of(raw, +) || return n * a
+    terms = SymbolicUtils.arguments(raw)
+    result = n * Num(first(terms))
+    for i in 2:length(terms)
+        result += n * Num(terms[i])
     end
-    return n * a
+    return result
 end
 
 function phase_coeff_expanded(a::Num)
@@ -121,16 +107,22 @@ function phase_coeff_expanded(a::Num)
         return iszero(v) ? CNUM_ONE : native(cis(v))
     end
     SymbolicUtils.symtype(u) <: Real || return nonreal_phase_argument(a)
-    neg = leading_sign(a) < 0
-    c = atom_coeff(expim_expanded(neg ? negate_expanded(a) : a))
-    return neg ? conj_cnum(c) : c
+    angle, flipped = canonical_angle(a, 1)
+    c = atom_coeff(expim_expanded(angle))
+    return flipped ? conj_cnum(c) : c
+end
+
+function canonical_angle(argument::Num, n::Int)
+    angle = scale_expanded(argument, n)
+    leading_sign(angle) < 0 || return (angle, false)
+    return (scale_expanded(angle, -1), true)
 end
 
 phase_coeff(x) = phase_coeff_expanded(Num(expand(x)))
 
 @inline function is_phase_power(x::RawExpression)
     is_phase(x) && return true
-    SymbolicUtils.iscall(x) && SymbolicUtils.operation(x) === (^) || return false
+    is_call_of(x, ^) || return false
     args = SymbolicUtils.arguments(x)
     return length(args) == 2 && is_phase(args[1]) && is_const_int(args[2])
 end
@@ -151,36 +143,25 @@ function rewrite_phase(x::RawExpression)
         op === imag && return sin(argument)
         (op === abs || op === abs2) && return RAW_ONE
     elseif op === (/) && length(args) == 2
+        denominator = args[2]
+        factors = is_call_of(denominator, *) ? SymbolicUtils.arguments(denominator) : (denominator,)
         angle = RAW_ZERO
         found_phase = false
-        denominator = args[2]
-        if is_phase_power(denominator)
-            argument, exponent = phase_power(denominator)
-            return args[1] * expim_expanded(SymbolicUtils.expand(-exponent * argument))
-        elseif SymbolicUtils.iscall(denominator) && SymbolicUtils.operation(denominator) === (*)
-            factors = SymbolicUtils.arguments(denominator)
-            ordinary_count = 0
-            for factor in factors
-                if is_phase_power(factor)
-                    argument, exponent = phase_power(factor)
-                    angle += exponent * argument
-                    found_phase = true
-                else
-                    ordinary_count += 1
-                end
+        ordinary = RAW_ONE
+        has_ordinary = false
+        for factor in factors
+            if is_phase_power(factor)
+                argument, exponent = phase_power(factor)
+                angle += exponent * argument
+                found_phase = true
+            else
+                ordinary *= factor
+                has_ordinary = true
             end
-            found_phase || return x
-            if ordinary_count == 0
-                return args[1] * expim_expanded(SymbolicUtils.expand(-angle))
-            end
-            ordinary_denominator = RAW_ONE
-            for factor in factors
-                is_phase_power(factor) ||
-                    (ordinary_denominator = ordinary_denominator * factor)
-            end
-            return (args[1] / ordinary_denominator) *
-                expim_expanded(SymbolicUtils.expand(-angle))
         end
+        found_phase || return x
+        amplitude = has_ordinary ? args[1] / ordinary : args[1]
+        return amplitude * expim_expanded(SymbolicUtils.expand(-angle))
     elseif op === (*)
         ordinary = RawExpression[]
         angle = RAW_ZERO
@@ -224,17 +205,15 @@ function simplify_raw(x; kwargs...)
     return normalize_phase(simplified)
 end
 
-@noinline function canonical_phase_monomial(
+@noinline function canonical_phase_monomial!(
         ::Type{E},
         scalar::Union{ComplexF64, E},
         syms::Vector{RawExpression},
         exps::Vector{Rational{Int}},
     ) where {E <: ExactScalar}
-    ordinary_syms = RawExpression[]
-    ordinary_exps = Rational{Int}[]
-    sizehint!(ordinary_syms, length(syms) - 1)
-    sizehint!(ordinary_exps, length(exps) - 1)
+    flip = all(i -> !is_phase(syms[i]) || exps[i] < 0, eachindex(syms))
     angle = NUM_ZERO
+    kept = 0
     @inbounds for i in eachindex(syms)
         symbol = syms[i]
         exponent = exps[i]
@@ -242,80 +221,27 @@ end
             denominator(exponent) == 1 ||
                 throw(ArgumentError("a unit phase cannot have a fractional power"))
             argument = Num(only(SymbolicUtils.arguments(symbol)))
-            angle += scale_expanded(argument, numerator(exponent))
+            term = scale_expanded(argument, flip ? -numerator(exponent) : numerator(exponent))
+            angle = iszero_num(angle) ? term : angle + term
         else
-            push!(ordinary_syms, symbol)
-            push!(ordinary_exps, exponent)
+            kept += 1
+            syms[kept] = symbol
+            exps[kept] = exponent
         end
     end
-    ordinary_syms, ordinary_exps = merge_factor_list(ordinary_syms, ordinary_exps)
+    resize!(syms, kept)
+    resize!(exps, kept)
     phase = phase_coeff_expanded(angle)
-    phase_tail = phase.tail
-    if phase_tail isa Native
-        return Monomial{E}(scalar_mul(scalar, as_tier(E, native_scalar(phase))), ordinary_syms, ordinary_exps)
+    if phase.tail isa Native
+        unit = flip ? conj(native_scalar(phase)) : native_scalar(phase)
+        return Monomial{E}(scalar_mul(scalar, as_tier(E, unit)), syms, exps)
     end
-    phase_tail isa Poly || throw(ArgumentError("expected a polynomial coefficient"))
-    phase_term = only(as_tier(E, phase_tail))
-    append!(ordinary_syms, phase_term.syms)
-    append!(ordinary_exps, phase_term.exps)
-    sort_factors!(ordinary_syms, ordinary_exps)
+    phase_term = only(as_tier(E, phase.tail::Poly))
+    append!(syms, phase_term.syms)
+    append!(exps, flip ? -phase_term.exps : phase_term.exps)
+    sort_factors!(syms, exps)
     return Monomial{E}(
-        scalar_mul(scalar, monomial_scalar(phase_term)), ordinary_syms, ordinary_exps,
-    )
-end
-
-@noinline function scaled_phase_monomial(
-        ::Type{E},
-        scalar::Union{ComplexF64, E},
-        symbol::Num,
-        exponent::Rational{Int},
-    ) where {E <: ExactScalar}
-    denominator(exponent) == 1 ||
-        throw(ArgumentError("a unit phase cannot have a fractional power"))
-    argument = Num(only(SymbolicUtils.arguments(SymbolicUtils.unwrap(symbol))))
-    phase = phase_coeff_expanded(scale_expanded(argument, numerator(exponent)))
-    phase_tail = phase.tail
-    phase_tail isa Native && return constant_term(E, scalar_mul(scalar, as_tier(E, native_scalar(phase))))
-    phase_tail isa Poly || throw(ArgumentError("expected a polynomial coefficient"))
-    phase_term = only(as_tier(E, phase_tail))
-    return Monomial{E}(
-        scalar_mul(scalar, monomial_scalar(phase_term)),
-        phase_term.syms,
-        phase_term.exps,
-    )
-end
-
-@noinline function merged_phase_monomial(
-        ::Type{E},
-        scalar::Union{ComplexF64, E},
-        left::Num,
-        left_exponent::Rational{Int},
-        right::Num,
-        right_exponent::Rational{Int},
-    ) where {E <: ExactScalar}
-    denominator(left_exponent) == denominator(right_exponent) == 1 ||
-        throw(ArgumentError("a unit phase cannot have a fractional power"))
-    left_argument = Num(only(SymbolicUtils.arguments(SymbolicUtils.unwrap(left))))
-    right_argument = Num(only(SymbolicUtils.arguments(SymbolicUtils.unwrap(right))))
-    left_power = numerator(left_exponent)
-    right_power = numerator(right_exponent)
-    common_negative = left_power < 0 && right_power < 0
-    if common_negative
-        left_power = -left_power
-        right_power = -right_power
-    end
-    angle = scale_expanded(left_argument, left_power) +
-        scale_expanded(right_argument, right_power)
-    phase = phase_coeff_expanded(angle)
-    phase_tail = phase.tail
-    phase_tail isa Native && return constant_term(E, scalar_mul(scalar, as_tier(E, native_scalar(phase))))
-    phase_tail isa Poly || throw(ArgumentError("expected a polynomial coefficient"))
-    phase_term = only(as_tier(E, phase_tail))
-    exponents = common_negative ? -phase_term.exps : phase_term.exps
-    return Monomial{E}(
-        scalar_mul(scalar, monomial_scalar(phase_term)),
-        phase_term.syms,
-        exponents,
+        scalar_mul(scalar, monomial_scalar(phase_term)), syms, exps,
     )
 end
 
@@ -341,13 +267,7 @@ function pure_phase_parts(tail::Poly)
     symbol = only(monomial.syms)
     exponent = only(monomial.exps)
     scalar = monomial_scalar(monomial)
-    argument = Num(only(SymbolicUtils.arguments(symbol)))
-    angle = scale_expanded(argument, numerator(exponent))
-    flip_sine = false
-    if leading_sign(angle) < 0
-        angle = negate_expanded(angle)
-        flip_sine = true
-    end
+    angle, flip_sine = canonical_angle(Num(only(SymbolicUtils.arguments(symbol))), numerator(exponent))
     return (scalar, angle, flip_sine)
 end
 

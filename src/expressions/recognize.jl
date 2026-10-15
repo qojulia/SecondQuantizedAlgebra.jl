@@ -317,9 +317,10 @@ function product_terms(::Type{E}, factors::Vector{Coeff}) where {E}
         end
     end
     iszero(scalar) && return Monomial{E}[]
-    count(is_phase, syms) <= 1 || return Monomial{E}[canonical_phase_monomial(E, scalar, syms, exps)]
-    ms, me = merge_factor_list(syms, exps)
-    return Monomial{E}[Monomial{E}(normalize_scalar(scalar), ms, me)]
+    several_phases = count(is_phase, syms) > 1
+    syms, exps = merge_factor_list(syms, exps)
+    several_phases && return Monomial{E}[canonical_phase_monomial!(E, scalar, syms, exps)]
+    return Monomial{E}[Monomial{E}(normalize_scalar(scalar), syms, exps)]
 end
 
 function is_numeric_radical(x::RawExpression)

@@ -56,23 +56,21 @@ function exponential_tree(x)
     return to_cnum(u)
 end
 
-function exponential_monomial(m::Monomial)
-    result = to_cnum(monomial_scalar(m))
-    @inbounds for i in eachindex(m.syms)
-        symbol = m.syms[i]
-        exponent = m.exps[i]
-        factor = factor_cnum(symbol, exponent)
-        if denominator(exponent) == 1 && SymbolicUtils.iscall(symbol)
-            op = SymbolicUtils.operation(symbol)
-            if op === cos || op === sin
-                n = numerator(exponent)
-                base = op === cos ?
-                    euler_cos(only(SymbolicUtils.arguments(symbol))) :
-                    euler_sin(only(SymbolicUtils.arguments(symbol)))
-                factor = pow_cnum_integer(base, n)
-            end
+function exponential_factor(symbol::RawExpression, exponent::Rational{Int})
+    denominator(exponent) == 1 || return factor_cnum(symbol, exponent)
+    is_call_of(symbol, cos) && return pow_cnum_integer(euler_cos(only(SymbolicUtils.arguments(symbol))), numerator(exponent))
+    is_call_of(symbol, sin) && return pow_cnum_integer(euler_sin(only(SymbolicUtils.arguments(symbol))), numerator(exponent))
+    return factor_cnum(symbol, exponent)
+end
+
+function map_factors(f::F, terms::Vector{<:Monomial}) where {F}
+    result = CNUM_ZERO
+    for m in terms
+        term = to_cnum(monomial_scalar(m))
+        @inbounds for i in eachindex(m.syms)
+            term = mul_cnum(term, f(m.syms[i], m.exps[i]))
         end
-        result = mul_cnum(result, factor)
+        result = add_cnum(result, term)
     end
     return result
 end
@@ -80,41 +78,15 @@ end
 function exponential_cnum(c::Coeff)
     tail = c.tail
     tail isa Native && return c
-    if tail isa Poly
-        result = CNUM_ZERO
-        for monomial in tail.terms
-            result = add_cnum(result, exponential_monomial(monomial))
-        end
-        return result
-    end
+    tail isa Poly && return map_factors(exponential_factor, tail.terms)
     return exponential_tree(tail.expr)
 end
 
-@inline function phase_trigonometric(symbol::SymbolicUtils.BasicSymbolic, n::Int)
-    argument = only(SymbolicUtils.arguments(symbol))
-    angle = expand(Num(n) * Num(argument))
-    sine_sign = CNUM_ONE
-    if leading_sign(angle) < 0
-        angle = expand(-angle)
-        sine_sign = CNUM_NEG1
-    end
-    sine = mul_cnum(sine_sign, to_cnum(sin(angle)))
-    return add_cnum(to_cnum(cos(angle)), mul_cnum(CNUM_IM, sine))
-end
-
-function trigonometric_monomial(m::Monomial)
-    result = to_cnum(monomial_scalar(m))
-    @inbounds for i in eachindex(m.syms)
-        symbol = m.syms[i]
-        exponent = m.exps[i]
-        factor = if is_phase(symbol) && denominator(exponent) == 1
-            phase_trigonometric(symbol, numerator(exponent))
-        else
-            factor_cnum(symbol, exponent)
-        end
-        result = mul_cnum(result, factor)
-    end
-    return result
+function trigonometric_factor(symbol::RawExpression, exponent::Rational{Int})
+    (is_phase(symbol) && denominator(exponent) == 1) || return factor_cnum(symbol, exponent)
+    angle, flipped = canonical_angle(Num(only(SymbolicUtils.arguments(symbol))), numerator(exponent))
+    sine = to_cnum(sin(angle))
+    return add_cnum(to_cnum(cos(angle)), mul_cnum(flipped ? CNUM_NEG_IM : CNUM_IM, sine))
 end
 
 @inline function rewrite_phase_to_trig(x)
@@ -134,10 +106,7 @@ function trigonometric_cnum(c::Coeff)
         expanded = SymbolicUtils.expand(TRIGONOMETRIC_REWRITER(tail.expr))
         return raw_leaf(simplify_raw(expanded))
     end
-    result = CNUM_ZERO
-    for monomial in tail.terms
-        result = add_cnum(result, trigonometric_monomial(monomial))
-    end
+    result = map_factors(trigonometric_factor, tail.terms)
     return result.tail isa RawSymbolicCoeff ? normalized_leaf(result.tail.expr, false) : result
 end
 
@@ -201,13 +170,8 @@ function monomial_phase_term(m::Monomial)
     denominator(exponent) == 1 ||
         throw(ArgumentError("a unit phase cannot have a fractional power"))
     argument = only(SymbolicUtils.arguments(m.syms[phase_index]))
-    phase = expand(Num(numerator(exponent)) * Num(argument))
-
-    syms = copy(m.syms)
-    exps = copy(m.exps)
-    deleteat!(syms, phase_index)
-    deleteat!(exps, phase_index)
-    amplitude = from_poly([with_factors(m, syms, exps)])
+    phase = scale_expanded(Num(argument), numerator(exponent))
+    amplitude = from_poly([replace_exps(m, phase_index, 0 // 1, 0, 0 // 1)])
     return PhaseTerm(amplitude, phase)
 end
 

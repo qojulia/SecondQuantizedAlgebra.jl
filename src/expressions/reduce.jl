@@ -141,60 +141,43 @@ end
     x isa SymbolicUtils.BasicSymbolic && SymbolicUtils.iscall(x) &&
     length(SymbolicUtils.arguments(x)) == 1
 
-struct TrigKey
-    arg_id::UInt
-    wrapped::Bool
-    family::UInt8
-end
-
-Base.isequal(a::TrigKey, b::TrigKey) =
-    a.arg_id == b.arg_id && a.wrapped == b.wrapped && a.family == b.family
-Base.hash(k::TrigKey, h::UInt) = hash(k.family, hash(k.wrapped, hash(k.arg_id, h)))
-
-struct TrigHead
-    factor::RawExpression
-    key::TrigKey
-    sign::Int8
-end
-
 trig_relations(terms::Vector{<:Monomial}) = trig_relations!(ParamRelation[], terms)
 
 function trig_relations!(rels::Vector{ParamRelation}, terms::Vector{<:Monomial})
     from = length(rels) + 1
+    trig_relations!(rels, (s for m in terms for s in m.syms))
+    return sort_rels!(rels, from)
+end
+
+const TrigKey = Tuple{UInt, Bool, UInt8}
+
+function trig_relations!(rels::Vector{ParamRelation}, factors)
     lows = Dict{TrigKey, RawExpression}()
-    heads = TrigHead[]
-    for m in terms, s in m.syms
+    heads = Tuple{RawExpression, TrigKey, Int8}[]
+    for s in factors
         core, wrapped = strip_conj(s)
         is_unary_call(core) || continue
-        arg = only(SymbolicUtils.arguments(core))
         op = SymbolicUtils.operation(core)
         family = trig_family(op)
         iszero(family) && continue
-        key = TrigKey(objectid(arg), wrapped, family)
+        key = (objectid(only(SymbolicUtils.arguments(core))), wrapped, family)
         if op === sin || op === sinh
             lows[key] = s
         else
-            push!(heads, TrigHead(s, key, family == 1 ? Int8(-1) : Int8(1)))
+            push!(heads, (s, key, family == 1 ? Int8(-1) : Int8(1)))
         end
     end
-    for head in heads
-        duplicate = false
-        for q in rels
-            if SymbolicUtils.unwrap(q.hi) === head.factor
-                duplicate = true
-                break
-            end
-        end
-        duplicate && continue
-        haskey(lows, head.key) || continue
-        push!(rels, ParamRelation(Num(head.factor), Num(lows[head.key]), head.sign))
+    for (head, key, sign) in heads
+        haskey(lows, key) || continue
+        any(q -> SymbolicUtils.unwrap(q.hi) === head, rels) && continue
+        push!(rels, ParamRelation(Num(head), Num(lows[key]), sign))
     end
-    sort_rels!(rels, from)
     return rels
 end
 
 trig_family(op)::UInt8 = (op === cos || op === sin) ? UInt8(1) :
     ((op === cosh || op === sinh) ? UInt8(2) : UInt8(0))
+is_trig(op) = !iszero(trig_family(op))
 
 function sort_rels!(rels::Vector{ParamRelation}, from::Int)
     @inbounds for i in (from + 1):length(rels)
@@ -225,23 +208,11 @@ function reduce_trig(c::Coeff)
 end
 
 function has_trig_factor(terms::Vector{<:Monomial})
-    @inbounds for mi in eachindex(terms)
-        syms = terms[mi].syms
-        for si in eachindex(syms)
-            s = syms[si]
-            SymbolicUtils.iscall(s) || continue
-            core = s
-            if SymbolicUtils.operation(core) === conj
-                args = SymbolicUtils.arguments(core)
-                length(args) == 1 || continue
-                inner = args[1]
-                inner isa SymbolicUtils.BasicSymbolic || continue
-                SymbolicUtils.iscall(inner) || continue
-                core = inner
-            end
-            op = SymbolicUtils.operation(core)
-            (op === cos || op === cosh) && return true
-        end
+    for m in terms, s in m.syms
+        core = first(strip_conj(s))
+        is_unary_call(core) || continue
+        op = SymbolicUtils.operation(core)
+        (op === cos || op === cosh) && return true
     end
     return false
 end
@@ -249,17 +220,9 @@ end
 function fresh_transient!(occupied::Vector{RawExpression})
     while true
         raw = SymbolicUtils.Sym{SymbolicUtils.SymReal}(gensym(:sqa_rel); type = Real)
-        candidate = Num(raw)
-        collision = false
-        for s in occupied
-            if isequal(s, raw)
-                collision = true
-                break
-            end
-        end
-        collision && continue
+        any(s -> isequal(s, raw), occupied) && continue
         push!(occupied, raw)
-        return candidate
+        return Num(raw)
     end
     return
 end
@@ -299,8 +262,7 @@ end
 function has_symbolic_trig(x)
     x isa SymbolicUtils.BasicSymbolic || return false
     SymbolicUtils.iscall(x) || return false
-    op = SymbolicUtils.operation(x)
-    (op === cos || op === sin || op === cosh || op === sinh) && return true
+    is_trig(SymbolicUtils.operation(x)) && return true
     for arg in SymbolicUtils.arguments(x)
         has_symbolic_trig(arg) && return true
     end
@@ -325,51 +287,14 @@ function collect_trig!(store::Vector{RawExpression}, x)
     x isa SymbolicUtils.BasicSymbolic || return store
     SymbolicUtils.iscall(x) || return store
     args = SymbolicUtils.arguments(x)
-    op = SymbolicUtils.operation(x)
-    if length(args) == 1 && (op === cos || op === sin || op === cosh || op === sinh)
-        duplicate = false
-        for y in store
-            if y === x
-                duplicate = true
-                break
-            end
-        end
-        duplicate || push!(store, x)
+    if length(args) == 1 && is_trig(SymbolicUtils.operation(x))
+        args[1] isa SymbolicUtils.BasicSymbolic && !any(y -> y === x, store) && push!(store, x)
         return store
     end
     for arg in args
         collect_trig!(store, arg)
     end
     return store
-end
-
-function sym_trig_relations!(rels::Vector{ParamRelation}, c::Coeff)
-    store = RawExpression[]
-    collect_trig!(store, c.tail.expr)
-    return sym_trig_relations!(rels, store)
-end
-
-function sym_trig_relations!(rels::Vector{ParamRelation}, store::Vector{RawExpression})
-    isempty(store) && return rels
-    lows = Dict{TrigKey, RawExpression}()
-    heads = TrigHead[]
-    for factor in store
-        op = SymbolicUtils.operation(factor)
-        family = (op === cos || op === sin) ? UInt8(1) : UInt8(2)
-        arg = only(SymbolicUtils.arguments(factor))
-        arg isa SymbolicUtils.BasicSymbolic || continue
-        key = TrigKey(objectid(arg), false, family)
-        if op === sin || op === sinh
-            lows[key] = factor
-        else
-            push!(heads, TrigHead(factor, key, family == 1 ? Int8(-1) : Int8(1)))
-        end
-    end
-    for head in heads
-        haskey(lows, head.key) || continue
-        push!(rels, ParamRelation(Num(head.factor), Num(lows[head.key]), head.sign))
-    end
-    return rels
 end
 
 function reduce_all(
@@ -386,7 +311,7 @@ function reduce_all(
         return reduce_tail(t, scratch, gated)
     end
     if has_symbolic_trig(t.expr)
-        sym_trig_relations!(scratch, c)
+        trig_relations!(scratch, collect_trig!(RawExpression[], t.expr))
         isempty(scratch) && return c
         return reduce_raw_via_transient(c, scratch, gated)
     end

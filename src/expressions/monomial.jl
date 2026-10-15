@@ -190,48 +190,14 @@ function merge_factors(a::Monomial, b::Monomial)
     return (syms, exps)
 end
 
-@noinline function phase_term_mul(
-        a::Monomial{E}, b::Monomial{E}, phase_a::Int, phase_b::Int,
-    ) where {E}
-    scalar = scalar_mul(monomial_scalar(a), monomial_scalar(b))
-    if length(a.syms) == 1 && length(b.syms) == 1 &&
-            a.syms[phase_a] === b.syms[phase_b]
-        exponent = a.exps[phase_a] + b.exps[phase_b]
-        return scaled_phase_monomial(E, scalar, Num(a.syms[phase_a]), exponent)
-    end
-    if length(a.syms) == 1 && length(b.syms) == 1
-        return merged_phase_monomial(
-            E,
-            scalar,
-            Num(a.syms[phase_a]),
-            a.exps[phase_a],
-            Num(b.syms[phase_b]),
-            b.exps[phase_b],
-        )
-    end
-    syms = vcat(a.syms, b.syms)
-    exps = vcat(a.exps, b.exps)
-    return canonical_phase_monomial(E, scalar, syms, exps)
-end
-
 function term_mul(a::Monomial{E}, b::Monomial{E}) where {E}
-    isempty(a.syms) && return with_scalar(b, scalar_mul(monomial_scalar(a), monomial_scalar(b)))
-    isempty(b.syms) && return with_scalar(a, scalar_mul(monomial_scalar(a), monomial_scalar(b)))
-    phase_a = phase_factor_index(a.syms)
-    phase_b = phase_factor_index(b.syms)
-    if phase_a != 0 && phase_b != 0
-        if a.syms[phase_a] === b.syms[phase_b] &&
-                a.exps[phase_a] == -b.exps[phase_b]
-            return merged_term_mul(a, b)
-        end
-        return phase_term_mul(a, b, phase_a, phase_b)
-    end
-    return merged_term_mul(a, b)
-end
-
-@inline function merged_term_mul(a::Monomial{E}, b::Monomial{E}) where {E}
+    scalar = scalar_mul(monomial_scalar(a), monomial_scalar(b))
+    isempty(a.syms) && return with_scalar(b, scalar)
+    isempty(b.syms) && return with_scalar(a, scalar)
     syms, exps = merge_factors(a, b)
-    return Monomial{E}(scalar_mul(monomial_scalar(a), monomial_scalar(b)), syms, exps)
+    (any(is_phase, a.syms) && any(is_phase, b.syms) && any(is_phase, syms)) ||
+        return Monomial{E}(scalar, syms, exps)
+    return canonical_phase_monomial!(E, scalar, syms, exps)
 end
 
 function insertion_sort!(v::AbstractVector, lt::F) where {F}
