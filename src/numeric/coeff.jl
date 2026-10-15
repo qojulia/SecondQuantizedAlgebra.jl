@@ -32,6 +32,13 @@ end
 
 time_key(k::Num) = k
 time_key(k::RawExpression) = Num(k)
+function time_key(k::Complex{Num})
+    u = SymbolicUtils.unwrap(k)
+    SymbolicUtils.issym(u) && return Num(u)
+    v = SymbolicUtils.unwrap(conj(k))
+    SymbolicUtils.issym(v) && return Num(conj(v))
+    throw(ArgumentError("time_parameter key `$k` must be a symbolic variable or its conjugate"))
+end
 time_key(k) = throw(ArgumentError("time_parameter key `$k` must be a symbolic variable"))
 
 time_value(v::Number) = t -> v
