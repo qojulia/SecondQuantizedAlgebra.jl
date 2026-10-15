@@ -883,14 +883,29 @@ function rational_power(basearg, r::Rational{Int}, x)
     base = recognize(basearg)
     is_native(base) && return native(native_float(native_scalar(base))^r)
     if base.tail isa Poly && length(base.tail.terms) == 1
-        m = only(base.tail.terms)
-        if length(m.syms) == 1 && isone(monomial_scalar(m))
-            is_phase(only(m.syms)) &&
-                throw(ArgumentError("a unit phase cannot have a fractional power"))
-            return tiered(monomial_terms, EXACT_ONE, m.syms, Rational{Int}[m.exps[1] * r])
-        end
+        return monomial_power(only(base.tail.terms), r, x)
     end
     return sym_leaf(x)
+end
+
+function monomial_power(m::Monomial, r::Rational{Int}, x)
+    scalar = monomial_scalar(m)
+    if any(is_phase, m.syms)
+        length(m.syms) == 1 && isone(scalar) &&
+            throw(ArgumentError("a unit phase cannot have a fractional power"))
+        return sym_leaf(x)
+    end
+    length(m.syms) == 1 && only(m.exps) == 1 || return sym_leaf(x)
+    iszero(imag(scalar)) || return sym_leaf(x)
+    value = real(scalar)
+    value > 0 || return sym_leaf(x)
+    magnitude = if value isa Float64
+        native(ComplexF64(value^Float64(r)))
+    else
+        numeric_radical(Rational{BigInt}(value), r, x)
+    end
+    magnitude.tail isa RawSymbolicCoeff && return sym_leaf(x)
+    return mul_cnum(magnitude, tiered(monomial_terms, EXACT_ONE, m.syms, Rational{Int}[r]))
 end
 
 recognize(x::Number) = to_cnum(x)
@@ -940,7 +955,10 @@ function recognize(x::RawExpression)
         if is_exact_number(radicand) && exact_number(radicand) < 0
             return negative_radical(exact_number(radicand), 1 // 3, x, true)
         end
-        return rational_power(radicand, 1 // 3, x)
+        if is_exact_number(radicand)
+            return numeric_radical(exact_number(radicand), 1 // 3, x)
+        end
+        return sym_leaf(x)
     end
     if length(args) == 1 && (is_one_at_zero(op) || is_zero_at_zero(op))
         a1 = recognize(only(args))

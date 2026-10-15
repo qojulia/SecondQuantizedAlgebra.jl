@@ -94,6 +94,40 @@ import SecondQuantizedAlgebra: Coeff, CNum, to_cnum, to_num, Monomial, ExactComp
         @test iszero(simplify(g^2 * a - g * g * a))
     end
 
+    @testset "positive numeric factors leave symbolic root branches intact" begin
+        @variables ω ν Z::Number
+        @test isequal(sqrt(ω / 2) * sqrt(2ω) * a, ω * a)
+        @test isequal(sqrt(2ω) * a, sqrt(Num(2)) * sqrt(ω) * a)
+        @test isequal(sqrt(4ω) * a, 2 * sqrt(ω) * a)
+        @test iszero(a / sqrt(2ω) - sqrt(ω / 2) * a / ω)
+        @test isequal(sqrt(2.0ω) * a, sqrt(2.0) * sqrt(ω) * a)
+        @test isequal(sqrt(2Z) * a, sqrt(Num(2)) * sqrt(Z) * a)
+        @test isequal(sqrt(Z) * sqrt(Z) * a, Z * a)
+        @test !isequal(sqrt(ω * ν) * a, sqrt(ω) * sqrt(ν) * a)
+        @test !isequal(sqrt(ω * Z) * a, sqrt(ω) * sqrt(Z) * a)
+        @test !isequal(sqrt(-ω) * a, im * sqrt(ω) * a)
+        @test !isequal(sqrt(Z^2) * a, Z * a)
+        @test !isequal(sqrt(-Z) * a, im * sqrt(Z) * a)
+        @test !isequal(sqrt(1 / Z) * a, a / sqrt(Z))
+        @test !isequal((-ω)^(1 // 3) * a, -cbrt(ω) * a)
+        @test iszero(sqrt(-Z) * a - sqrt(-Z) * a)
+
+        value(expr, rules) = SecondQuantizedAlgebra.to_complex(stored_coefficient(substitute(expr, rules)))
+        @test value(sqrt(ω * ν) * a, Dict(ω => -1, ν => -1)) ≈ 1
+        square_root = Num(SymbolicUtils.Term{SymbolicUtils.SymReal}(sqrt, [Symbolics.unwrap(ω^2)]; type = Real))
+        @test !isequal(square_root * a, ω * a)
+        @test value(square_root * a, Dict(ω => -2)) ≈ 2
+        @test value(cbrt(ω) * a, Dict(ω => -8)) ≈ -2
+        @test value(sqrt(1 / Z) * a, Dict(Z => -2)) ≈ im / sqrt(2)
+        for z in (-1 + 0.25im, -1 - 0.25im, 1 + 0.25im)
+            rules = Dict(Z => z)
+            @test value(sqrt(2Z) * a, rules) ≈ sqrt(2z)
+            @test value(sqrt(Z^2) * a, rules) ≈ sqrt(z^2)
+            @test value(sqrt(-Z) * a, rules) ≈ sqrt(-z)
+            @test value(sqrt(1 / Z) * a, rules) ≈ sqrt(1 / z)
+        end
+    end
+
     @testset "radicals of exact numbers stay exact" begin
         function contains_float(x)
             x = SymbolicUtils.unwrap(x)
@@ -213,6 +247,17 @@ import SecondQuantizedAlgebra: Coeff, CNum, to_cnum, to_num, Monomial, ExactComp
                 @test isequal(imag(to_num(c)), 0)
             end
         end
+    end
+
+    @testset "fractional powers preserve phase restrictions" begin
+        @variables θ::Real
+        phase = SymbolicUtils.Term{SymbolicUtils.SymReal}(expim, [Symbolics.unwrap(θ)]; type = Number)
+        unit_root = Num(SymbolicUtils.Term{SymbolicUtils.SymReal}(sqrt, [phase]; type = Number))
+        @test_throws ArgumentError unit_root * a
+        scaled_root = Num(SymbolicUtils.Term{SymbolicUtils.SymReal}(sqrt, [2phase]; type = Number))
+        retained = scaled_root * a
+        @test isequal(get_variables(retained), [Symbolics.unwrap(θ)])
+        @test occursin("sqrt", string(get_prefactor(retained)))
     end
 
     @testset "numeric radicals multiply exactly" begin

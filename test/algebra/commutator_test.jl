@@ -35,6 +35,16 @@ import SecondQuantizedAlgebra: QAdd
         @test iszero(commutator(a, commutator(a, ad)))
     end
 
+    @testset "zero-point radicals of a frequency cancel" begin
+        @variables ω::Number
+        x = (a + ad) / sqrt(2ω)
+        p = im * sqrt(ω / 2) * (ad - a)
+        @test iszero(commutator(x, p) - im)
+        positive_p = substitute(p, Dict(ω => 2))
+        @test iszero(positive_p' - positive_p)
+        @test iszero(p * p / 2 + ω^2 * x * x / 2 - ω * (ad * a + 1 // 2))
+    end
+
     @testset "products on disjoint spaces remain independent" begin
         h2 = FockSpace(:left) ⊗ FockSpace(:right)
         left = Destroy(h2, :left, 1)
