@@ -150,8 +150,10 @@ Transition(name::Symbol, i::Integer, j::Integer, si::Integer, idx::Index, ground
 
 Transition(h::NLevelSpace, name::Symbol, i::L, j::L) where {L <: Union{Int, Symbol}} =
     Transition(name, level_index(h, i), level_index(h, j), 1, NO_INDEX, h.ground_state, h.n)
-Transition(h::ProductSpace, name::Symbol, i::L, j::L, idx::Int = unique_subspace_index(h, NLevelSpace)) where {L <: Union{Int, Symbol}} =
-    on_factor(Transition, h, NLevelSpace, idx, name, i, j)
+for L in (:Int, :Symbol)
+    @eval Transition(h::ProductSpace, name::Symbol, i::$L, j::$L, idx::Int = unique_subspace_index(h, NLevelSpace)) =
+        on_factor(Transition, h, NLevelSpace, idx, name, i, j)
+end
 
 Transition(::HilbertSpace, name::AbstractString, args...) = name_must_be_symbol(name)
 
@@ -185,7 +187,9 @@ CollectiveTransition(name::Symbol, i::Integer, j::Integer, si::Integer) =
 
 CollectiveTransition(h::CollectiveNLevelSpace, name::Symbol, i::L, j::L) where {L <: Union{Int, Symbol}} =
     CollectiveTransition(name, level_index(h, i), level_index(h, j), 1)
-CollectiveTransition(h::ProductSpace, name::Symbol, i::L, j::L, idx::Int = unique_subspace_index(h, CollectiveNLevelSpace)) where {L <: Union{Int, Symbol}} =
-    on_factor(CollectiveTransition, h, CollectiveNLevelSpace, idx, name, i, j)
+for L in (:Int, :Symbol)
+    @eval CollectiveTransition(h::ProductSpace, name::Symbol, i::$L, j::$L, idx::Int = unique_subspace_index(h, CollectiveNLevelSpace)) =
+        on_factor(CollectiveTransition, h, CollectiveNLevelSpace, idx, name, i, j)
+end
 
 CollectiveTransition(::HilbertSpace, name::AbstractString, args...) = name_must_be_symbol(name)

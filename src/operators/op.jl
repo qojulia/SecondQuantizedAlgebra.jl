@@ -274,6 +274,9 @@ See also [`IndexedOperator`](@ref), [`operator_name`](@ref), [`acts_on`](@ref).
 """
 operator_index(o::Op) = o.index
 
+@noinline wrong_kind(f::Symbol, expected::String, o::Op) =
+    throw(ArgumentError("`$f` is defined for $expected, got $(o.kind)"))
+
 """
     n_levels(o::Op) -> Int
     ground_state(o::Op) -> Int
@@ -294,9 +297,6 @@ julia> n_levels(σ), ground_state(σ)
 
 See also [`transition_levels`](@ref).
 """
-@noinline wrong_kind(f::Symbol, expected::String, o::Op) =
-    throw(ArgumentError("`$f` is defined for $expected, got $(o.kind)"))
-
 function n_levels(o::Op)
     is_transition(o) || wrong_kind(:n_levels, "a Transition", o)
     return Int(o.nlev)
