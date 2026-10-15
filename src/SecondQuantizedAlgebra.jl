@@ -34,6 +34,7 @@ include("expressions/gaussian.jl")
 include("expressions/exact.jl")
 include("expressions/monomial.jl")
 include("expressions/cnum.jl")
+include("expressions/rational_zero.jl")
 include("expressions/reduce.jl")
 include("expressions/qterm.jl")
 include("expressions/qadd.jl")
@@ -147,7 +148,7 @@ export FockSpace, ProductSpace,
     substitute,
     normal_order, normal_to_symmetric, symmetric_to_normal,
     UnitaryTransform, RotatingFrame, Displace, DisplacementFrame, Rotation, Squeeze, Bogoliubov,
-    transform, conjugate, gauge_term, generators,
+    transform, conjugate, gauge_term, generators, displacement,
     simplify, expand, taylor, expim, expand_completeness, assume_distinct_index, commutator, anticommutator,
     to_numeric, numeric_average,
     NumericBackend, QuantumOpticsBackend, QuantumToolboxBackend,
