@@ -213,7 +213,7 @@ numeric_average(average(a' * a + σ(:e, :e)), ψl)
 
 ```@docs
 numeric_average
-expect(::QField, ::Any)
+expect(::QField, ::Any, ::AbstractDict{<:QSym})
 ```
 
 
