@@ -72,6 +72,19 @@ import SecondQuantizedAlgebra: expim
         equivalent_on((left, right, left', right'), generic, named)
     end
 
+    @testset "symmetric zero-diagonal blocks" begin
+        hopping = UnitaryTransform(left' * right + right' * left, θ)
+        @test conjugate(left, hopping) == cos(θ) * left - im * sin(θ) * right
+        @test conjugate(right, hopping) == cos(θ) * right - im * sin(θ) * left
+
+        quadratic = UnitaryTransform(a^2 + a'^2, r)
+        @test conjugate(a, quadratic) == cosh(2r) * a - im * sinh(2r) * a'
+        @test isone(simplify(commutator(conjugate(a, quadratic), conjugate(a', quadratic))))
+
+        @variables g
+        @test_throws ArgumentError UnitaryTransform(g * (left' * right + right' * left), θ)
+    end
+
     @testset "two-mode squeeze" begin
         G = im * (left' * right' - right * left)
         generic = UnitaryTransform(G, r)

@@ -19,11 +19,25 @@ end
 """
     Coeff
 
-Coefficient representation for operator prefactors. A `Coeff` has three forms: a
-native number (a small exact `GaussianRational{Int}` or an inexact `ComplexF64`), a
-`Poly` parameter polynomial, and a raw SymbolicUtils fallback. The latter preserves a
-single complex expression tree and is lowered to `Complex{Num}` only at public boundaries
-(`to_num`).
+Exact coefficient of an operator term.
+
+Iterating an expression and [`exponential_form`](@ref) return coefficients in this form. It
+holds exact numbers, such as `1//2 + im`, polynomials in the parameters, and any other
+symbolic expression, and it supports the usual arithmetic with numbers, parameters and
+other coefficients. [`to_num`](@ref) converts it to Symbolics. It is public but not
+exported.
+
+# Examples
+```jldoctest
+julia> using SecondQuantizedAlgebra: exponential_form, Coeff
+
+julia> @variables θ;
+
+julia> exponential_form(cos(θ)) isa Coeff
+true
+```
+
+See also [`to_num`](@ref), [`get_prefactor`](@ref).
 """
 struct Coeff
     slot::NativeSlot
@@ -60,30 +74,33 @@ const CNUM_HALF = native(ExactComplex(1 // 2, 0 // 1))
 """
     expim(x)
 
-Return the unit phase `exp(im*x)` for a provably real argument `x`.
+Exact unit phase with real argument `x`.
 
-Symbolic phases form a canonical multiplicative group: arguments add under multiplication,
-integer powers scale the argument, and opposite phases cancel exactly. They remain compact
-under conjugation, substitution, differentiation, and numerical evaluation. For example,
-`expim(x) * expim(y) == expim(x + y)` and `expim(x) * expim(-x) == 1`. Phases always display
-as exponentials; use
-[`trigonometric_form`](@ref) for an explicit change of representation.
+`expim(x)` stands for ``e^{ix}`` and is kept as an exact symbol rather than a
+generic exponential. Multiplying phases adds their arguments and opposite phases
+cancel, so the factors produced by drives and frame changes do not pile up.
+
+The argument has to be real; for a complex exponent use `exp`. Fractional powers
+are refused, since they would have to pick a branch.
+
+# Examples
 
 ```jldoctest
-julia> using SecondQuantizedAlgebra
+julia> @variables ω t θ;
 
-julia> import SecondQuantizedAlgebra: expim
-
-julia> @variables ω t;
-
-julia> h = FockSpace(:f); a = Destroy(h, :a);
-
-julia> expim(ω * t) * expim(-ω * t) * a
-a
+julia> expim(ω * t) * expim(θ)
+exp(im*(θ + t*ω))
 
 julia> conj(expim(ω * t)) * expim(ω * t)
 1
+
+julia> a = Destroy(FockSpace(:cavity), :a);
+
+julia> expim(ω * t) * expim(-ω * t) * a
+a
 ```
+
+See also [`trigonometric_form`](@ref), [`exponential_form`](@ref).
 """
 expim(x::Real) = exp(im * x)
 expim(x::Num) = phase_coeff(x)
@@ -395,9 +412,12 @@ function from_raw(x::RawExpression; normalize::Bool = true, real_slot::Bool = fa
     return symbolic(expr; real_slot)
 end
 
-@inline from_raw_arithmetic(
-    x::SymbolicUtils.BasicSymbolic{SymbolicUtils.SymReal}, real_slot::Bool,
-) = symbolic(x; real_slot)
+@inline function from_raw_arithmetic(
+        x::SymbolicUtils.BasicSymbolic{SymbolicUtils.SymReal}, real_slot::Bool,
+    )
+    is_numeric_const(x) && return const_coeff(x)
+    return symbolic(x; real_slot)
+end
 
 @inline num_from_scalar(x::Int) = Num(x)
 @inline num_from_scalar(x::Float64) = Num(x)
@@ -1315,11 +1335,24 @@ end
 end
 
 """
-    to_num(c::Coeff) -> Complex{Num}
+    to_num(c::Coeff)
 
-Lower a stored [`Coeff`](@ref) to the public Symbolics representation used at
-package boundaries. This is the supported way to read the coefficient returned
-when iterating a [`QAdd`](@ref).
+Coefficient as a `Complex{Num}` of Symbolics.
+
+Use it to pass a coefficient read from an expression to code built on Symbolics, such as
+`build_function`. It is public but not exported.
+
+# Examples
+```jldoctest
+julia> using SecondQuantizedAlgebra: exponential_form, to_num
+
+julia> @variables θ;
+
+julia> to_num(exponential_form(cos(θ))) isa Complex
+true
+```
+
+See also [`Coeff`](@ref).
 """
 function to_num(c::Coeff)
     t = c.tail
@@ -1364,6 +1397,12 @@ Base.copy(c::Coeff) = c
 Base.iszero(c::Coeff) = iszero_cnum(c)
 Base.isone(c::Coeff) = isequal(c, CNUM_ONE)
 Base.conj(c::Coeff) = conj_cnum(c)
+qadjoint(c::Coeff) = inner_adjoint(c)
+function inner_adjoint(c::Coeff)
+    t = c.tail
+    t isa RawSymbolicCoeff || return conj_cnum(c)
+    return to_cnum(inner_adjoint(t.expr))
+end
 Base.adjoint(c::Coeff) = conj_cnum(c)
 Base.transpose(c::Coeff) = c
 Base.zero(::Type{Coeff}) = CNUM_ZERO
@@ -1408,6 +1447,12 @@ Base.:-(a::Number, b::Coeff) = add_cnum(to_cnum(a), neg_cnum(b))
 Base.:*(a::Coeff, b::Coeff) = mul_cnum(a, b)
 Base.:*(a::Coeff, b::Number) = mul_cnum(a, to_cnum(b))
 Base.:*(a::Number, b::Coeff) = mul_cnum(to_cnum(a), b)
+Base.:+(a::Coeff, b::SymbolicUtils.BasicSymbolic) = add_cnum(a, to_cnum(b))
+Base.:+(a::SymbolicUtils.BasicSymbolic, b::Coeff) = add_cnum(to_cnum(a), b)
+Base.:-(a::Coeff, b::SymbolicUtils.BasicSymbolic) = add_cnum(a, neg_cnum(to_cnum(b)))
+Base.:-(a::SymbolicUtils.BasicSymbolic, b::Coeff) = add_cnum(to_cnum(a), neg_cnum(b))
+Base.:*(a::Coeff, b::SymbolicUtils.BasicSymbolic) = mul_cnum(a, to_cnum(b))
+Base.:*(a::SymbolicUtils.BasicSymbolic, b::Coeff) = mul_cnum(to_cnum(a), b)
 function div_cnum(a::Coeff, b::Coeff)
     (is_native(a) && is_native(b)) && return native_div(native_scalar(a), native_scalar(b))
     ta, tb = a.tail, b.tail
@@ -1431,6 +1476,8 @@ end
 Base.:/(a::Coeff, b::Coeff) = div_cnum(a, b)
 Base.:/(a::Coeff, b::Number) = a / to_cnum(b)
 Base.:/(a::Number, b::Coeff) = to_cnum(a) / b
+Base.:/(a::Coeff, b::SymbolicUtils.BasicSymbolic) = a / to_cnum(b)
+Base.:/(a::SymbolicUtils.BasicSymbolic, b::Coeff) = to_cnum(a) / b
 
 is_conj_call(x) =
     SymbolicUtils.iscall(x) && SymbolicUtils.operation(x) === conj
@@ -1922,11 +1969,25 @@ end
 """
     exponential_form(x)
 
-Rewrite algebraic occurrences of `cos(θ)` and `sin(θ)` in a coefficient or quantum
-expression using the exact phase atom [`expim`](@ref). The conversion is explicit and does
-not affect ordinary display or [`simplify`](@ref).
+Rewrite cosines and sines in `x` as unit phases.
 
-See also [`trigonometric_form`](@ref).
+`x` can be a coefficient or a whole operator expression. The function is not
+exported.
+
+# Examples
+
+```jldoctest
+julia> using SecondQuantizedAlgebra: exponential_form
+
+julia> @variables ω t;
+
+julia> a = Destroy(FockSpace(:cavity), :a);
+
+julia> exponential_form(cos(ω * t) * a)
+((1//2)*exp(im*t*ω) + (1//2)*exp(-im*t*ω)) * a
+```
+
+See also [`trigonometric_form`](@ref), [`expim`](@ref).
 """
 exponential_form(x::Coeff) = exponential_cnum(x)
 exponential_form(x::Num) = exponential_tree(x)
@@ -1937,8 +1998,12 @@ exponential_form(x::Complex{Num}) = exponential_cnum(to_cnum(x))
 """
     PhaseTerm
 
-One term in the finite phase decomposition of a [`Coeff`](@ref). It represents
-`amplitude * expim(phase)`.
+One Fourier component of a coefficient, as returned by [`phase_terms`](@ref).
+
+It stands for `amplitude * expim(phase)`, with the fields `amplitude`, a [`Coeff`](@ref),
+and `phase`, a real symbolic expression.
+
+See also [`phase_terms`](@ref).
 """
 struct PhaseTerm
     amplitude::Coeff
@@ -2060,18 +2125,33 @@ function raw_phase_terms(x::RawExpression)
 end
 
 """
-    phase_terms(c::Coeff) -> Vector{PhaseTerm}
+    phase_terms(c)
 
-Decompose a coefficient into a finite sum of `amplitude * expim(phase)` terms. Trigonometric
-factors are converted to exponential form first. A phase-bearing denominator or a phase
-inside an unsupported nonlinear operation throws an `ArgumentError` because it does not
-represent a finite phase polynomial.
+Split a coefficient into its Fourier components.
 
-The decomposition is exact after conversion to exponential form:
+The coefficient is written as a sum of `amplitude * expim(phase)`, and each term
+of that sum is returned with the fields `amplitude` and `phase`. Cosines and sines
+have to be turned into phases first with [`exponential_form`](@ref). A coefficient
+that is not a finite sum of phases throws an `ArgumentError`. The function is not
+exported.
 
-```julia
-exponential_form(c) == sum(term.amplitude * expim(term.phase) for term in phase_terms(c))
+# Examples
+
+```jldoctest
+julia> using SecondQuantizedAlgebra: phase_terms, exponential_form
+
+julia> @variables ω t g;
+
+julia> c = exponential_form(g * cos(ω * t));
+
+julia> terms = phase_terms(c); length(terms)
+2
+
+julia> terms[2].amplitude, terms[2].phase
+((1//2)*g, t*ω)
 ```
+
+See also [`exponential_form`](@ref), [`expim`](@ref).
 """
 function phase_terms(c::Coeff)
     normalized = exponential_cnum(c)
@@ -2087,11 +2167,26 @@ end
 """
     trigonometric_form(x)
 
-Rewrite integer powers of [`expim(θ)`](@ref expim) in a coefficient or quantum expression
-as `cos(nθ) + im*sin(nθ)`. Opposite phases then combine through ordinary coefficient
-arithmetic. The conversion is explicit and leaves the stored input unchanged.
+Rewrite unit phases in `x` as cosines and sines.
 
-See also [`exponential_form`](@ref).
+Each phase [`expim`](@ref)`(θ)` becomes ``\\cos θ + i \\sin θ``, so opposite phases
+combine into real functions. `x` can be a coefficient or a whole operator
+expression. The function is not exported.
+
+# Examples
+
+```jldoctest
+julia> using SecondQuantizedAlgebra: trigonometric_form
+
+julia> @variables ω t;
+
+julia> a = Destroy(FockSpace(:cavity), :a);
+
+julia> trigonometric_form((expim(ω * t) + expim(-ω * t)) * a)
+2cos(t*ω) * a
+```
+
+See also [`exponential_form`](@ref), [`expim`](@ref).
 """
 trigonometric_form(x::Coeff) = trigonometric_cnum(x)
 trigonometric_form(x::Num) = trigonometric_cnum(to_cnum(x))

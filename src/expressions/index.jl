@@ -1,22 +1,23 @@
 """
-    IndexedVariable(name::Symbol, i::Index) -> Num
+    IndexedVariable(name::Symbol, i::Index)
 
-Create a symbolic single-indexed parameter ``\\mathrm{name}(i)``.
+Site-dependent parameter `name(i)`, such as a local detuning or coupling.
 
-Use this for site-dependent quantities in Hamiltonians, for example detunings
-or local couplings.
+The parameter is real. Under a sum it follows the index, so it is evaluated site by site
+once the sum is unrolled.
 
 # Examples
 ```jldoctest
-julia> h = FockSpace(:site) ⊗ FockSpace(:cavity);
+julia> h = NLevelSpace(:atom, 2); i = Index(h, :i, 10, h);
 
-julia> i = Index(h, :i, 10, 1);
+julia> g = IndexedVariable(:g, i)
+g(i)
 
-julia> ω = IndexedVariable(:ω, i)
-ω(i)
+julia> Σ(g * IndexedOperator(Transition(h, :σ, 2, 1), i), i)
+Σ(i=1:10) g(i) * σ_i₂₁
 ```
 
-See also [`DoubleIndexedVariable`](@ref).
+See also [`DoubleIndexedVariable`](@ref), [`Index`](@ref), [`index_sym`](@ref).
 """
 function IndexedVariable(name::Symbol, i::Index)
     f = SymbolicUtils.Sym{SymbolicUtils.SymReal}(
@@ -32,30 +33,26 @@ IndexedVariable(name::AbstractString, args...) = name_must_be_symbol(name)
 struct NotIdentical end
 
 """
-    DoubleIndexedVariable(name::Symbol, i::Index, j::Index; identical::Bool=true) -> Num
+    DoubleIndexedVariable(name::Symbol, i::Index, j::Index; identical = true)
 
-Create a symbolic two-index parameter ``\\mathrm{name}(i, j)``.
+Pair parameter `name(i, j)`, such as a hopping amplitude or a dipole-dipole coupling.
 
-Use this for pairwise interactions such as hopping amplitudes or coupling
-matrices.
-
-# Keyword arguments
-- `identical::Bool = true` — if `false`, the variable evaluates to zero when `i == j`,
-  enforcing that the parameter is only defined for distinct sites.
+With `identical = false` the parameter vanishes whenever both indices refer to the same
+site, so the diagonal terms of a double sum drop out.
 
 # Examples
 ```jldoctest
-julia> h = FockSpace(:site) ⊗ FockSpace(:cavity);
+julia> h = NLevelSpace(:atom, 2); i = Index(h, :i, 10, h); j = Index(h, :j, 10, h);
 
-julia> i = Index(h, :i, 10, 1);
+julia> σ(k, l, m) = IndexedOperator(Transition(h, :σ, k, l), m);
 
-julia> j = Index(h, :j, 10, 1);
+julia> J = DoubleIndexedVariable(:J, i, j; identical = false);
 
-julia> J = DoubleIndexedVariable(:J, i, j; identical = false)
-J(i, j)
+julia> Σ(J * σ(2, 1, i) * σ(1, 2, j), i, j)
+Σ(i=1:10)Σ(j=1:10)(i≠j) J(i, j) * σ_i₂₁ * σ_j₁₂
 ```
 
-See also [`IndexedVariable`](@ref).
+See also [`IndexedVariable`](@ref), [`Σ`](@ref).
 """
 function DoubleIndexedVariable(
         name::Symbol, i::Index, j::Index;
@@ -79,30 +76,29 @@ DoubleIndexedVariable(name::AbstractString, args...; kwargs...) = name_must_be_s
 
 """
     change_index(expr, from::Index, to::Index)
+    change_index(expr, pairs::AbstractDict{Index, Index})
 
-Rename an index in an expression by replacing `from` with `to` everywhere.
+Replace the index `from` by `to` in operators and coefficients of `expr`.
 
-Operator indices are swapped directly. Symbolic prefactors (e.g. [`IndexedVariable`](@ref),
-[`DoubleIndexedVariable`](@ref)) are substituted via `Symbolics.substitute` using
-the `sym` fields of the indices. `DoubleIndexedVariable` nodes with `identical=false`
-automatically evaluate to zero if the substitution makes both arguments equal.
+The result is brought back into canonical form, so operators that now share a site
+compose, and a [`DoubleIndexedVariable`](@ref) declared with `identical = false` vanishes
+when its two indices become equal. The second form renames several indices at once, which
+makes swaps such as `Dict(i => j, j => i)` possible.
 
 # Examples
-
 ```jldoctest
-julia> h = FockSpace(:site);
+julia> h = NLevelSpace(:atom, 2); i = Index(h, :i, 10, h); j = Index(h, :j, 10, h);
 
-julia> @qnumbers a::Destroy(h);
+julia> σ(k, l, m) = IndexedOperator(Transition(h, :σ, k, l), m);
 
-julia> i = Index(h, :i, 5, h); j = Index(h, :j, 5, h);
+julia> change_index(σ(2, 1, i) * σ(1, 2, j), i, j)
+σ_j₂₂
 
-julia> expr = IndexedVariable(:ω, i) * IndexedOperator(a, i);
-
-julia> change_index(expr, i, j)
-ω(j) * a_j
+julia> change_index(σ(2, 1, i) * σ(1, 2, j), Dict(i => j, j => i))
+σ_j₂₁ * σ_i₁₂
 ```
 
-See also [`get_indices`](@ref).
+See also [`get_indices`](@ref), [`substitute`](@ref).
 """
 change_index(x::Number, ::Index, ::Index) = x
 function change_index(x::Num, from::Index, to::Index)
@@ -153,24 +149,6 @@ function change_index(s::QAdd, from::Index, to::Index)
     return QAdd(out, new_indices)
 end
 
-"""
-    change_index(expr, pairs::AbstractDict{Index, Index})
-
-Simultaneous (batched) variant of [`change_index`](@ref): substitute every
-key in `pairs` by its mapped value in one pass.
-
-Unlike a sequence of single-pair `change_index` calls, this never produces
-an intermediate state where a renamed-into index temporarily collides with
-another encountered index. Use it when the rename describes a permutation
-or any map whose image overlaps its domain, e.g. swapping two indices:
-
-```julia
-julia> change_index(expr, Dict(i => j, j => i))   # swap, not fuse
-```
-
-A pair `(idx => idx)` is a no-op; `change_index(expr, Dict())` returns
-`expr` unchanged.
-"""
 change_index(x::Number, ::AbstractDict{Index, Index}) = x
 function change_index(x::Num, pairs::AbstractDict{Index, Index})
     isempty(pairs) && return x
@@ -227,24 +205,21 @@ end
 """
     get_indices(expr) -> Vector{Index}
 
-Return all symbolic indices that appear in `expr`.
-
-Returns a `Vector{Index}` of unique indices found in operator fields and
-summation metadata. Excludes the sentinel `NO_INDEX`.
+Indices occurring in `expr`, both summed and free.
 
 # Examples
-
 ```jldoctest
-julia> h = FockSpace(:site);
+julia> h = NLevelSpace(:atom, 2); i = Index(h, :i, 10, h); j = Index(h, :j, 10, h);
 
-julia> @qnumbers a::Destroy(h);
+julia> σ(k, l, m) = IndexedOperator(Transition(h, :σ, k, l), m);
 
-julia> i = Index(h, :i, 5, h);
-
-julia> get_indices(IndexedOperator(a, i))
-1-element Vector{Index}:
+julia> get_indices(Σ(σ(2, 1, i) * σ(1, 2, j), i))
+2-element Vector{Index}:
  i
+ j
 ```
+
+See also [`change_index`](@ref), [`has_index`](@ref).
 """
 get_indices(::Number) = Index[]
 get_indices(x::Num) = get_indices(SymbolicUtils.unwrap(x))
@@ -415,38 +390,36 @@ end
 any_depends_on_index(s::QAdd, idx::Index) = any_depends_on_index(s.arguments, idx)
 
 """
-    Σ(expr, i::Index, non_equal::Vector{Index} = Index[])
-    Σ(expr, i::Index, j::Index, rest::Index...)
-    ∑(expr, i::Index, ...)
+    Σ(expr, i::Index, [non_equal::Vector{Index}])
+    Σ(expr, i::Index, j::Index, more::Index...)
+    ∑(expr, i, ...)
 
-Build symbolic sums over indices, for example ``\\sum_i expr``.
+Symbolic sum of `expr` over all sites of the index `i`.
 
-Returns a [`QAdd`](@ref) carrying `i` in its `indices` field. If `expr` does not
-depend on `i`, the sum is evaluated eagerly as `i.range * expr`.
+Several indices give a nested sum. The sum stays symbolic and follows the algebra like any
+other expression. Where its index meets another index on the same subsystem, the terms in
+which the two sites coincide are split off, so the remaining sum carries the constraint
+`i ≠ j`. The optional `non_equal` adds such constraints by hand, excluding those sites from
+the sum. A summand that does not depend on `i` is multiplied by the number of sites.
 
-The optional `non_equal` records pairwise inequality constraints `i ≠ j` per
-term. Diagonal splitting is performed automatically: if `expr` carries another
-free index `j` on the same Hilbert subspace as `i`, the contribution at `i = j`
-is emitted as a separate diagonal term and the off-diagonal term gains the
-constraint `(i, j)`.
-
-Multiple positional indices create nested sums: `Σ(expr, i, j)` is equivalent
-to `Σ(Σ(expr, i), j)`. The Unicode alias `∑` is also exported.
+`∑` (typed `\\sum<tab>`) is the same function.
 
 # Examples
-
 ```jldoctest
-julia> h = FockSpace(:site);
+julia> @variables N;
 
-julia> @qnumbers a::Destroy(h);
+julia> h = NLevelSpace(:atom, 2); i = Index(h, :i, N, h); j = Index(h, :j, N, h);
 
-julia> i = Index(h, :i, 3, h);
+julia> σ(k, l, m) = IndexedOperator(Transition(h, :σ, k, l), m);
 
-julia> Σ(IndexedOperator(a', i) * IndexedOperator(a, i), i)
-Σ(i=1:3) a_i' * a_i
+julia> Σ(σ(2, 1, i) * σ(1, 2, j), i, j)
+Σ(j=1:N) σ_j₂₂ + Σ(i=1:N)Σ(j=1:N)(i≠j) σ_i₂₁ * σ_j₁₂
+
+julia> Σ(σ(2, 2, j), i, [j])
+(-1 + N) * σ_j₂₂
 ```
 
-See also [`Index`](@ref), [`IndexedOperator`](@ref), [`constraint_pairs`](@ref).
+See also [`Index`](@ref), [`IndexedOperator`](@ref), [`assume_distinct_index`](@ref).
 """
 function Σ(expr::QAdd, i::Index, non_equal::Vector{Index} = Index[])
     i.range_id == 0 && throw(ArgumentError("Σ: index $(index_name(i)) has no summation range"))
