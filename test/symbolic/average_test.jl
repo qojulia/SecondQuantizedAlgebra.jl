@@ -251,6 +251,24 @@ import SecondQuantizedAlgebra:
         )
     end
 
+    @testset "qadjoint conjugates averages" begin
+        @variables g::Number t
+        @test isequal(qadjoint(average(a)), average(ad))
+        @test isequal(qadjoint(g * average(a)), inner_adjoint(g * average(a)))
+        lifted = make_time_dependent(average(a), t)
+        @test isequal(qadjoint(lifted), inner_adjoint(lifted))
+        hs = NLevelSpace(:atom, 2)
+        i = Index(hs, :i, 3, hs)
+        summed = average(Σ(IndexedOperator(Transition(hs, :σ, 1, 2), i), i))
+        @test isequal(qadjoint(summed), inner_adjoint(summed))
+
+        @variables θ
+        @test isequal(qadjoint(g * expim(θ)), conj(g) * expim(-θ))
+        phased = average(a) * expim(θ)
+        @test isequal(qadjoint(phased), inner_adjoint(phased))
+        @test isequal(inner_adjoint(phased), average(ad) * expim(-θ))
+    end
+
     @testset "public entry points remain inferable" begin
         @inferred average(a)
         @inferred average(ad * a)

@@ -1,25 +1,26 @@
 """
-    fundamental_operators(h::HilbertSpace; names=Symbol[]) -> Vector{Op}
+    fundamental_operators(h::HilbertSpace; names = Symbol[])
 
-Return the minimal generating set of operators for Hilbert space `h`.
+Smallest set of operators from which every operator on `h` is built by products and adjoints.
 
-Returns one [`Destroy`](@ref) per [`FockSpace`](@ref); `n(n+1)/2 - 1`
-[`Transition`](@ref) operators per [`NLevelSpace`](@ref) (upper-triangular plus
-diagonals, excluding the ground-state projector); all `n²`
-[`CollectiveTransition`](@ref) operators per [`CollectiveNLevelSpace`](@ref);
-three [`Pauli`](@ref) or
-[`Spin`](@ref) operators per [`PauliSpace`](@ref)/[`SpinSpace`](@ref); one
-[`Position`](@ref) and one [`Momentum`](@ref) per [`PhaseSpace`](@ref); and the
-concatenation of the above for a [`ProductSpace`](@ref). Pass a non-empty `names` to
-override the auto-generated operator names.
+A bosonic mode contributes its annihilation operator; a finite-level system its transitions
+``\\sigma^{ij}`` with ``i < j`` and its projectors except the ground state; a
+[`CollectiveNLevelSpace`](@ref) all of its collective transitions; Pauli and spin systems their three components; and a pair of
+quadratures position and momentum. On a product space the sets of the factors are joined.
+`names` sets the operator names, one per factor; otherwise they are generated.
 
 # Examples
-
 ```jldoctest
-julia> h = FockSpace(:cavity) ⊗ NLevelSpace(:atom, 2);
+julia> h = FockSpace(:cavity) ⊗ NLevelSpace(:atom, 3);
 
-julia> length(fundamental_operators(h))
-3
+julia> fundamental_operators(h; names = [:b, :s])
+6-element Vector{Op}:
+ b
+ s₁₂
+ s₁₃
+ s₂₂
+ s₂₃
+ s₃₃
 ```
 
 See also [`find_operators`](@ref), [`unique_up_to_adjoint`](@ref).
@@ -74,24 +75,24 @@ function fundamental_operators(h::ProductSpace; names::AbstractVector = Symbol[]
 end
 
 """
-    unique_up_to_adjoint(ops) -> Vector
+    unique_up_to_adjoint(ops)
 
-Return unique operators from `ops`, treating `op` and `op'` (adjoint) as the
-same degree of freedom. Only the first occurrence of each operator/adjoint pair
-is kept.
+Operators of `ops` with duplicates removed, counting an operator and its adjoint as the same.
+
+The first of each pair is kept. Equations for averages need only one of ``\\langle X \\rangle``
+and ``\\langle X^\\dagger \\rangle``, since the other is its complex conjugate.
 
 # Examples
-
 ```jldoctest
-julia> h = FockSpace(:f);
+julia> a = Destroy(FockSpace(:cavity), :a);
 
-julia> @qnumbers a::Destroy(h);
-
-julia> length(unique_up_to_adjoint([a, a', a]))
-1
+julia> unique_up_to_adjoint([a, a', a' * a])
+2-element Vector{SecondQuantizedAlgebra.QField}:
+ a
+ a' * a
 ```
 
-See also [`unique_up_to_adjoint!`](@ref), [`fundamental_operators`](@ref).
+See also [`find_operators`](@ref), [`fundamental_operators`](@ref).
 """
 function unique_up_to_adjoint(ops::AbstractVector{<:QField})
     ops_ = copy(ops)
@@ -99,26 +100,7 @@ function unique_up_to_adjoint(ops::AbstractVector{<:QField})
     return ops_
 end
 
-"""
-    unique_up_to_adjoint!(ops) -> Vector
 
-In-place version of [`unique_up_to_adjoint`](@ref).
-
-# Examples
-
-```jldoctest
-julia> h = FockSpace(:f);
-
-julia> @qnumbers a::Destroy(h);
-
-julia> v = [a, a'];
-
-julia> SecondQuantizedAlgebra.unique_up_to_adjoint!(v);
-
-julia> length(v)
-1
-```
-"""
 function unique_up_to_adjoint!(ops::AbstractVector{<:QField})
     seen = Set{UInt}()
     j = 0
@@ -139,23 +121,22 @@ function unique_up_to_adjoint!(ops::AbstractVector{<:QField})
 end
 
 """
-    find_operators(h::HilbertSpace, order::Int; names=Symbol[]) -> Vector
+    find_operators(h::HilbertSpace, order::Int; names = Symbol[])
 
-Generate all unique operator products up to `order` factors for Hilbert space `h`.
+All distinct products of up to `order` operators on `h`, counting adjoints only once.
 
-Starts from [`fundamental_operators(h)`](@ref fundamental_operators) and their
-adjoints, forms all products with up to `order` factors, then filters out zero
-terms and adjoint-duplicates. Useful for constructing the operator basis needed
-for cumulant expansions or moment equations. Pass `names` to override
-auto-generated operator names.
+The products are built from [`fundamental_operators`](@ref) and their adjoints, brought into
+canonical form, and filtered with [`unique_up_to_adjoint`](@ref). They are the averages a
+set of moment or cumulant equations of that order is written in. `names` is passed on to
+[`fundamental_operators`](@ref).
 
 # Examples
-
 ```jldoctest
-julia> h = FockSpace(:f);
-
-julia> length(find_operators(h, 1))
-1
+julia> find_operators(FockSpace(:cavity), 2)
+3-element Vector{Union{Op, SecondQuantizedAlgebra.QAdd}}:
+ a
+ a * a
+ a' * a
 ```
 
 See also [`fundamental_operators`](@ref), [`unique_up_to_adjoint`](@ref).
@@ -177,7 +158,8 @@ function find_operators(h::HilbertSpace, order::Int; names::AbstractVector = Sym
             c_ = prod(reverse(c))
             iszero(c_) && continue
             if c_ isa QAdd && length(c_.arguments) == 1
-                push!(all_ops, c_)
+                (t, v), = c_.arguments
+                push!(all_ops, length(t.ops) == 1 && isone(v) ? only(t.ops) : c_)
             elseif c_ isa QSym
                 push!(all_ops, c_)
             end
@@ -190,22 +172,34 @@ end
 
 """
     qadjoint(x)
+    qconj(x)
 
-Hermitian conjugate that distributes through mixed operator/symbolic expressions.
+Hermitian conjugate of an operator expression or a coefficient.
 
-On a [`QField`](@ref) returns `adjoint(x)`. On a `Number` returns `adjoint(x)`.
-On a `SymbolicUtils.BasicSymbolic` tree, recurses into arguments so coefficients
-distribute (e.g. `qadjoint(2im * a)` becomes `-2im * a'`) rather than producing
-an opaque `conj(...)` wrapper.
+For an operator expression this is `x'`. For a coefficient the conjugate is taken through
+the expression tree, so that it reaches the individual parameters instead of wrapping the
+whole expression in `conj`. An average becomes the average of the adjoint, as with
+[`inner_adjoint`](@ref).
 
-Aliased as `qconj`. See also [`dagger`](@ref), which extends
-`QuantumInterface.dagger` for `QField` and forwards here.
+# Examples
+```jldoctest
+julia> a = Destroy(FockSpace(:cavity), :a);
+
+julia> @variables g::Number;
+
+julia> qadjoint(2im * a), qadjoint(g)
+(-2im * a', conj(g))
+```
+
+See also [`dagger`](@ref), [`inner_adjoint`](@ref).
 """
 function qadjoint(v::SymbolicUtils.BasicSymbolic)
     v === Symbolics.IM && return -Symbolics.IM
+    (SymbolicUtils.hasmetadata(v, AverageOperator) || is_indexed_sum(v)) && return inner_adjoint(v)
     if SymbolicUtils.iscall(v)
         f = SymbolicUtils.operation(v)
         args = SymbolicUtils.arguments(v)
+        f isa AvgFunc && return inner_adjoint(v)
         f === conj && return args[1]
         f === expim && return expim_symbolic(-only(args))
         return TermInterface.maketerm(
@@ -224,22 +218,47 @@ const qconj = qadjoint
 """
     dagger(x::QField)
 
-Hermitian conjugate of an operator expression. Method added to
-`QuantumInterface.dagger` (the adjoint verb shared with the QuantumOptics
-ecosystem) so it resolves without qualification when both are loaded. Forwards
-to [`qadjoint`](@ref); use `qadjoint`/`qconj` for bare scalar/symbolic adjoints.
+Hermitian conjugate of an operator expression, the same as `x'`.
+
+Coefficients are conjugated along with the operators. The name matches `dagger`
+from QuantumOptics.jl, so code can use it for symbolic and numeric operators
+alike.
+
+# Examples
+
+```jldoctest
+julia> h = FockSpace(:cavity) ⊗ NLevelSpace(:atom, 2);
+
+julia> @qnumbers a::Destroy(h, 1) σ::Transition(h, 1, 2, 2);
+
+julia> dagger(2im * a' * σ)
+-2im * a * σ₂₁
+```
+
+See also [`qadjoint`](@ref).
 """
 QuantumInterface.dagger(x::QField) = qadjoint(x)
 
 """
     inner_adjoint(x)
 
-Push the adjoint inside `⟨...⟩` averages: rewrites `conj(⟨X⟩)` as `⟨X†⟩` so the
-result stays expressed as an average of an operator rather than a `conj` wrapper
-around one. Used when building equations of motion where both sides must share
-the canonical "average-of-operator" form for substitution and hashing.
+Complex conjugate of an expression of averages, written again as averages.
 
-On non-average sub-expressions, behaves like [`qadjoint`](@ref).
+The conjugate of ``\\langle X \\rangle`` is written as ``\\langle X^\\dagger \\rangle``
+rather than as `conj(⟨X⟩)`, so that equations for averages stay expressed in averages of
+operators. Coefficients are conjugated as by [`qadjoint`](@ref).
+
+# Examples
+```jldoctest
+julia> a = Destroy(FockSpace(:cavity), :a);
+
+julia> @variables g::Number;
+
+julia> inner_adjoint(g * average(a))
+⟨a'⟩*conj(g)
+```
+
+See also [`qadjoint`](@ref), [`average`](@ref).
 """
 function inner_adjoint(v::SymbolicUtils.BasicSymbolic)
     v === Symbolics.IM && return -Symbolics.IM
@@ -301,10 +320,12 @@ type_order(o::Op) = Int(o.kind)
 """
     order_key(op::Op) -> Tuple
 
-Total, identity-faithful ordering key: a comparable tuple that orders operators
-reproducibly and ties two exactly when they are `isequal`. The leading
-`space_index` groups operators by subspace; `kind` orders across families within
-a subspace; the packed `l1..nlev` fields keep distinct levels/axes distinct.
+Total ordering key of an operator that ties two operators exactly when they are `isequal`.
+
+The tuple is `(space_index, kind, name rank, index, l1, l2, g, nlev)`: operators group by
+subspace, then by kind, then alphabetically by name, and the packed level and axis fields
+keep the remaining operators apart. Unlike `hash`, the key is reproducible across sessions
+and Julia versions.
 """
 order_key(o::Op) = (o.space_index, Int(o.kind), name_rank(o.name_id), index_key(o.index), Int(o.l1), Int(o.l2), Int(o.g), Int(o.nlev))
 

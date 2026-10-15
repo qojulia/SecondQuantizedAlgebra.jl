@@ -1,8 +1,27 @@
 """
     GKSLFormError(message)
 
-Thrown when a map has no GKSL form: its Kossakowski matrix is not Hermitian, its one-sided
-part is not a Hamiltonian commutator, or it does not preserve the trace.
+The error thrown when a map has no GKSL form.
+
+The map either does not preserve the trace, has a non-Hermitian Kossakowski matrix, has a
+one-sided part that is not a commutator, or has a Hamiltonian that is not Hermitian modulo the
+identity. The trace is checked first, so a trace defect is reported as
+such. A Hamiltonian such as `x * p` is accepted, since it differs from the Hermitian
+`(x * p + p * x) / 2` by a scalar.
+
+# Examples
+
+```jldoctest
+julia> using SecondQuantizedAlgebra: spre
+
+julia> @qnumbers a::Destroy(FockSpace(:c));
+
+julia> kossakowski(spre(a), JumpBasis(a))
+ERROR: the map does not preserve the trace
+[...]
+```
+
+See also [`kossakowski`](@ref), [`Lindbladian`](@ref).
 """
 struct GKSLFormError <: Exception
     message::String
@@ -192,11 +211,14 @@ An ordered basis of jump operators ``(F_1, …, F_q)`` in which a map is written
 with `d` the Kossakowski matrix returned by [`kossakowski`](@ref). Each operator is
 canonicalized with [`expand_completeness`](@ref) and taken modulo the identity, since a scalar
 shift of a jump changes only the Hamiltonian. The operators must be linearly independent
-modulo the identity, but they need not be orthogonal, normalized or complete. Their order fixes
+modulo the identity, and an `ArgumentError` is thrown otherwise, including for an operator
+proportional to the identity; they need not be orthogonal, normalized or complete. Their order fixes
 the order of `d`, so bases with the same span in a different order are different. An empty
 basis is the basis of a coherent map.
 
 A `JumpBasis` iterates and indexes like a vector of its canonical operators.
+
+# Examples
 
 ```jldoctest
 julia> @qnumbers a::Destroy(FockSpace(:c));
@@ -264,6 +286,8 @@ The [`JumpBasis`](@ref) of those `candidates` that are linearly independent modu
 identity of the candidates before them, kept in order. A candidate proportional to the
 identity is skipped.
 
+# Examples
+
 ```jldoctest
 julia> using SecondQuantizedAlgebra: independent_basis
 
@@ -274,6 +298,8 @@ JumpBasis with 2 operators:
   1: a
   2: a' * a
 ```
+
+See also [`JumpBasis`](@ref), [`support_basis`](@ref).
 """
 function independent_basis(candidates::AbstractVector)
     kept = QAdd[]
@@ -564,13 +590,28 @@ end
 The [`JumpBasis`](@ref) of the operator monomials on the two-sided sandwiches of a map, after
 [`expand_completeness`](@ref), in [`term_order_key`](@ref) order. Every jump direction of the
 map lies in its span, so [`Lindbladian`](@ref)`(S)` reads `S` in this basis.
+
+# Examples
+
+```jldoctest
+julia> using SecondQuantizedAlgebra: support_basis
+
+julia> @qnumbers b::Destroy(FockSpace(:c));
+
+julia> support_basis(dissipator(b) + dissipator(b' * b))
+JumpBasis with 2 operators:
+  1: b
+  2: b' * b
+```
+
+See also [`JumpBasis`](@ref), [`independent_basis`](@ref).
 """
 support_basis(S::SuperOperator) = support_basis_canonical(canonical_map(S))
 support_basis(L::Lindbladian{QAdd}) = support_basis(SuperOperator(L))
 
 """
-    kossakowski(S::SuperOperator, basis::JumpBasis; rtol = 0) -> Matrix{CNum}
-    kossakowski(L::Lindbladian, basis::JumpBasis; rtol = 0) -> Matrix{CNum}
+    kossakowski(S::SuperOperator, basis::JumpBasis; rtol = 0) -> Matrix{Coeff}
+    kossakowski(L::Lindbladian, basis::JumpBasis; rtol = 0) -> Matrix{Coeff}
 
 The Hermitian Kossakowski matrix `d` of a map in the ordered `basis`:
 
@@ -589,6 +630,8 @@ monomial, it is at most `rtol` times the size of the coefficients it was compute
 single `rtol` suits every basis, since roundoff grows as the basis operators approach linear
 dependence, and genuine terms below `rtol` are dropped. Exact coefficients are always compared
 exactly.
+
+# Examples
 
 ```jldoctest
 julia> @qnumbers a::Destroy(FockSpace(:c));
@@ -629,7 +672,7 @@ end
 """
     Lindbladian(S::SuperOperator[, basis::JumpBasis]; rtol = 0)
 
-Read a map in GKSL form back as a structured generator. The result has the Hamiltonian of
+A map in GKSL form, read back as a structured generator. The result has the Hamiltonian of
 `S` and one channel `d_{μν} 𝒟[F_μ, F_ν]` for every nonzero entry of the Kossakowski matrix
 in `basis`, so `SuperOperator(Lindbladian(S, basis))` equals `S` up to completeness expansion
 (and up to the terms a positive `rtol` drops).
@@ -639,6 +682,8 @@ the identity, which `hamiltonian_action` drops.
 Throws and handles floating-point coefficients like [`kossakowski`](@ref). The rates are not
 checked for positivity.
 
+# Examples
+
 ```jldoctest
 julia> @qnumbers a::Destroy(FockSpace(:c));
 
@@ -647,6 +692,8 @@ julia> using SecondQuantizedAlgebra: SuperOperator
 julia> Lindbladian(SuperOperator(dissipator(a + 3)))
 -i[3//2im * a + -3//2im * a', ·] + 𝒟[a]
 ```
+
+See also [`kossakowski`](@ref), [`support_basis`](@ref).
 """
 function Lindbladian(S::SuperOperator, basis::JumpBasis; rtol::Real = 0)
     H, matrix = extract_gksl(canonical_map(S), basis, Float64(rtol))

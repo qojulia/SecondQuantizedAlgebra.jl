@@ -10,6 +10,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 This is a breaking release for type stability: public functions no longer use `nothing` as a sentinel.
 
+### Added
+
+- `quadratures(a, ω)` and `ladder_operator(x, p, ω)` convert between a Fock mode and its quadratures at a reference frequency, and `FrequencyChange(a, ω0, ωr)` moves an expression between the ladder bases of one oscillator at two frequencies with exact coefficients.
+
+- Dissipative dynamics as first-class objects: `Lindbladian` (`hamiltonian_action`, `dissipator`, collective `dissipator(J, Γ, i => j)`), general `SuperOperator` maps (`spre`, `spost`, `sprepost`, composition, `transpose` as the Heisenberg generator) and formal `SuperExpr` maps. They support `Σ`, frames, substitution and printing, and convert to backend superoperators or, via `to_numeric_master`, to Hamiltonian and collapse operators.
+- `UnitaryTransform(G, θ)` accepts generators that couple two operators symmetrically, such as the hopping term `a'b + b'a` and the squeezer `a^2 + a'^2`.
+- The indexed form of `to_numeric` takes `parameter` and `operators` as keywords.
+- `Lindbladian(S[, basis])` reads a `SuperOperator` back in GKSL form, and `kossakowski(S, basis)` returns its Kossakowski matrix in a `JumpBasis`, with `support_basis`, `independent_basis` and `GKSLFormError`. The extraction is exact and needs no Hilbert-space cutoff; float roundoff is tolerated only with an explicit `rtol`.
+- `coefficient_terms`, `CoefficientTerm` and `has_coefficient_terms` read the exact or floating scalar and the atom powers of each term of a coefficient.
+- `n_levels`, `ground_state` and `transition_levels` read the level count, ground level and levels of a `Transition`, and `operator_axis` the axis of a `Pauli` or `Spin` operator.
+
 ### Changed (breaking)
 
 - `index_slot` returns `0` instead of `nothing` for an abstract index; check `iszero(index_slot(x))`.
@@ -21,13 +32,6 @@ This is a breaking release for type stability: public functions no longer use `n
 - `numeric_basis(state)` returns a tuple of dimensions for a composite QuantumToolbox state.
 - Solver-parameter-aware time coefficients reach `numeric_assemble_td` as plain `(p, t)` closures; the internal `PControlCoeff` wrapper is removed.
 
-### Added
-
-- `Lindbladian(S[, basis])` reads a `SuperOperator` back in GKSL form, and `kossakowski(S, basis)` returns its Kossakowski matrix in a `JumpBasis`, with `support_basis`, `independent_basis` and `GKSLFormError`. The extraction is exact and needs no Hilbert-space cutoff; float roundoff is tolerated only with an explicit `rtol`.
-- `coefficient_terms`, `CoefficientTerm` and `has_coefficient_terms` read the exact or floating scalar and the atom powers of each term of a coefficient.
-- `quadratures(a, ω)` and `ladder_operator(x, p, ω)` convert between a Fock mode and its quadratures at a reference frequency, and `FrequencyChange(a, ω0, ωr)` moves an expression between the ladder bases of one oscillator at two frequencies with exact coefficients.
-- `n_levels`, `ground_state` and `transition_levels` read the level count, ground level and levels of a `Transition`, and `operator_axis` the axis of a `Pauli` or `Spin` operator.
-
 ### Changed
 
 - `substitute` rejects a scalar replacement that is not a number or symbolic expression with an `ArgumentError`.
@@ -36,6 +40,13 @@ This is a breaking release for type stability: public functions no longer use `n
 
 ### Fixed
 
+- `Squeeze(a, r * t, t)` throws instead of silently using `t` as the squeezing phase; a time-dependent squeeze is written `Squeeze(a, r, ϕ, t)`.
+- An expression that reduces to a single operator compares equal to it, so `2a - a == a`.
+- A zero expression renders as `0` in LaTeX instead of an empty equation.
+- `qadjoint` and `inner_adjoint` accept averages and phase coefficients: `qadjoint(average(a))` gives `⟨a'⟩`, where it threw before.
+- The indexed form of `to_numeric` applies `parameter` to an expression without sums instead of throwing.
+- `numeric_average` evaluates an expression of averages with a constant imaginary term, such as `-im * η`, where it threw before.
+- `find_operators` no longer lists the same operator twice.
 - Radicals whose radicand has at most one prime factor above about `2^36`, such as `sqrt(2^127 - 1)`, are exact canonical atoms, so equal products cancel ([#291](https://github.com/qojulia/SecondQuantizedAlgebra.jl/issues/291)).
 - Numeric conversion, expectation values, typed substitution, unitary transforms, printing and `make_time_dependent` run without runtime dispatch; JET `report_opt` now also covers both backend extensions.
 - Eager `to_numeric` on a composite QuantumOptics basis assembles sparse `kron` products directly instead of materializing a `LazySum`.
@@ -46,10 +57,6 @@ This is a breaking release for type stability: public functions no longer use `n
 - A sum index that may equal several free indices, as in `Σ(σ_i * σ_k * σ_l, i)`, counts the point `k = l` once: `Σ` counted it twice and products crossing a sum dropped it.
 - A product of several sums applied to an operator, such as `(Σ_i P_i * Σ_j Q_j) * (P_k * Q_l)`, counts the joint coincidence `i = k, j = l` once instead of twice.
 - A sum index whose count becomes known only after other binders are eliminated keeps its count, e.g. `Σ_{i,k,l}` with `i ≠ k, i ≠ l` over a constant gives `N(N-1)²`.
-
-### Added
-
-- Dissipative dynamics as first-class objects: `Lindbladian` (`hamiltonian_action`, `dissipator`, collective `dissipator(J, Γ, i => j)`), general `SuperOperator` maps (`spre`, `spost`, `sprepost`, composition, `transpose` as the Heisenberg generator) and formal `SuperExpr` maps. They support `Σ`, frames, substitution and printing, and convert to backend superoperators or, via `to_numeric_master`, to Hamiltonian and collapse operators.
 
 ## [v0.13.0]
 

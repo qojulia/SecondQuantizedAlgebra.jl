@@ -38,8 +38,8 @@ and `ne::Vector{NonEqualPair}`). Stored as a single scalar argument of a
 [`SumFunc`](@ref) node: SymbolicUtils array-ifies a bare `Vector` argument
 (losing the `Index` objects), but a scalar struct is kept opaque and
 recoverable, exactly like the `QField` argument of an average node. Custom
-`==`/`isequal`/`hash` compare it by value so two scopes that differ wrongly
-cancel only when they are genuinely equal.
+`==`/`isequal`/`hash` compare it by value, so two sums cancel only when their
+scopes are equal.
 """
 struct SumScope
     indices::Vector{Index}
@@ -84,9 +84,23 @@ sum_ne(x::SymbolicUtils.BasicSymbolic) = sum_scope(x).ne
 """
     is_indexed_sum(x) -> Bool
 
-Whether `x` is a moment-layer indexed-sum node created by [`average`](@ref) on a
-summed [`QAdd`](@ref). The summation scope is recovered with
-[`get_sum_indices`](@ref) and [`get_sum_non_equal`](@ref).
+Whether `x` is a sum of averages over an index, as made by [`average`](@ref) of a [`Σ`](@ref).
+
+The indices and constraints of the sum are read with [`get_sum_indices`](@ref) and
+[`get_sum_non_equal`](@ref), and its summand with [`get_sum_body`](@ref).
+
+# Examples
+```jldoctest
+julia> h = NLevelSpace(:atom, 2); i = Index(h, :i, 10, h);
+
+julia> x = average(Σ(IndexedOperator(Transition(h, :σ, 2, 2), i), i))
+Σ(i=1:10) ⟨σ_i₂₂⟩
+
+julia> is_indexed_sum(x)
+true
+```
+
+See also [`indexed_sum`](@ref), [`average`](@ref).
 """
 is_indexed_sum(::Any) = false
 is_indexed_sum(x::SymbolicUtils.BasicSymbolic) =
@@ -96,16 +110,17 @@ is_indexed_sum(x::Num) = is_indexed_sum(SymbolicUtils.unwrap(x))
 """
     is_average(x) -> Bool
 
-Whether `x` is a symbolic average object created by [`average`](@ref).
+Whether `x` is the average of an operator expression, as made by [`average`](@ref).
 
+# Examples
 ```jldoctest
-julia> h = FockSpace(:f);
-
-julia> @qnumbers a::Destroy(h);
+julia> a = Destroy(FockSpace(:cavity), :a);
 
 julia> is_average(average(a)), is_average(a)
 (true, false)
 ```
+
+See also [`average`](@ref), [`is_indexed_sum`](@ref).
 """
 is_average(::Any) = false
 function is_average(x::SymbolicUtils.BasicSymbolic)
@@ -144,15 +159,26 @@ function TermInterface.maketerm(
 end
 
 """
-    make_time_dependent(expr, iv) -> expr
+    make_time_dependent(expr, t)
 
-Lift every iv-free average leaf in `expr` into a time-dependent variable `name(iv)`.
+Replace every average in `expr` by an unknown function of time `t`.
 
-The variable is typed `Real` when the operator is Hermitian, else `Number`. It carries
-the operator in `AverageOperator` metadata and the `VariableSource` set by `@variables`,
-so it reads as a ModelingToolkit unknown. Non-average structure is rebuilt only where a child changed. The lifted node is a
-leaf: the walk does not descend into `iv`. The default `name` is uniqueness-only;
-downstream code may rename for display without changing identity.
+Each average ``\\langle X \\rangle`` becomes ``\\langle X \\rangle(t)``, which can be
+differentiated with respect to `t` and serves as an unknown of a differential equation, for
+instance in ModelingToolkit.jl. The unknown is real when ``X`` is Hermitian and complex
+otherwise. [`undo_average`](@ref) recovers the operators.
+
+# Examples
+```jldoctest
+julia> a = Destroy(FockSpace(:cavity), :a);
+
+julia> @variables t;
+
+julia> make_time_dependent(average(a' * a) + average(a), t)
+⟨a⟩(t) + ⟨a' * a⟩(t)
+```
+
+See also [`average`](@ref), [`undo_average`](@ref).
 """
 make_time_dependent(x::Num, iv) = Symbolics.wrap(make_time_dependent(SymbolicUtils.unwrap(x), iv))
 make_time_dependent(x, iv) = x
@@ -209,26 +235,26 @@ function avg_var_name(op::QAdd)
 end
 
 """
-    average(expr) -> BasicSymbolic | Number
+    average(expr)
 
-Build the symbolic average ``\\langle \\mathrm{expr} \\rangle``. Distributes over
-sums, pulls c-number prefactors out, leaves scalars unchanged. Displayed as `⟨…⟩`.
+Expectation value of an operator expression, as a symbolic scalar.
 
+The average is linear: it distributes over sums and takes coefficients out, so the result
+is a sum of averages of operator products, printed as `⟨…⟩`. It takes part in ordinary
+symbolic arithmetic with Symbolics.jl. The average of a Hermitian operator is real. A sum
+over an index becomes a sum of averages over the same index.
+
+# Examples
 ```jldoctest
-julia> h = FockSpace(:f);
+julia> a = Destroy(FockSpace(:cavity), :a);
 
-julia> @qnumbers a::Destroy(h);
+julia> @variables ω;
 
-julia> avg = average(a' * a);
-
-julia> is_average(avg)
-true
-
-julia> avg + 1
-1 + ⟨a' * a⟩
+julia> average(ω * a' * a + a)
+⟨a⟩ + ⟨a' * a⟩*ω
 ```
 
-See also [`undo_average`](@ref), [`numeric_average`](@ref).
+See also [`undo_average`](@ref), [`numeric_average`](@ref), [`make_time_dependent`](@ref).
 """
 function average end
 
@@ -338,20 +364,26 @@ function contains_average(x)
 end
 
 """
-    undo_average(expr) -> QAdd
+    undo_average(expr)
+    undo_average(lhs ~ rhs)
 
-Recursively strip symbolic averages and return the underlying operator
-expression. Summation metadata is restored. Also accepts a `Symbolics.Equation`,
-returning a `Pair{QAdd, QAdd}`.
+Operator expression whose average is `expr`, the inverse of [`average`](@ref).
 
+Sums over indices are restored, and so are averages turned into functions of time by
+[`make_time_dependent`](@ref). An equation gives the pair `lhs => rhs` of operator
+expressions.
+
+# Examples
 ```jldoctest
-julia> h = FockSpace(:f);
+julia> a = Destroy(FockSpace(:cavity), :a);
 
-julia> @qnumbers a::Destroy(h);
+julia> @variables ω;
 
-julia> undo_average(average(a' * a)) == a' * a
-true
+julia> undo_average(average(ω * a' * a + a))
+a + ω * a' * a
 ```
+
+See also [`average`](@ref).
 """
 function undo_average(x::SymbolicUtils.BasicSymbolic)
     if SymbolicUtils.hasmetadata(x, AverageOperator)
@@ -395,130 +427,98 @@ undo_average(eq::Symbolics.Equation) = undo_average(eq.lhs) => undo_average(eq.r
 """
     has_sum_metadata(x) -> Bool
 
-Whether `x` is a moment-layer indexed-sum node (see [`is_indexed_sum`](@ref))
-created by [`average`](@ref) on a summed expression. Retained as the public
-predicate name; equivalent to `is_indexed_sum(x)`.
-
-```jldoctest
-julia> h = FockSpace(:site);
-
-julia> @qnumbers a::Destroy(h);
-
-julia> i = Index(h, :i, 3, h);
-
-julia> x = average(Σ(IndexedOperator(a', i) * IndexedOperator(a, i), i));
-
-julia> SecondQuantizedAlgebra.has_sum_metadata(x)
-true
-```
-
-See also [`get_sum_indices`](@ref), [`get_sum_non_equal`](@ref).
+Same as [`is_indexed_sum`](@ref), kept under its earlier name. The function is not exported.
 """
 has_sum_metadata(::Any) = false
 has_sum_metadata(x::SymbolicUtils.BasicSymbolic) = is_indexed_sum(x)
 has_sum_metadata(x::Num) = has_sum_metadata(SymbolicUtils.unwrap(x))
 
 """
-    get_sum_indices(x::BasicSymbolic) -> Vector{Index}
+    get_sum_indices(x) -> Vector{Index}
 
-Summation indices carried by the indexed-sum node `x`. Only valid when
-[`has_sum_metadata(x)`](@ref has_sum_metadata) is `true`.
+Indices summed over in the sum of averages `x`.
 
+The function is not exported.
+
+# Examples
 ```jldoctest
-julia> h = FockSpace(:site);
+julia> using SecondQuantizedAlgebra: get_sum_indices
 
-julia> @qnumbers a::Destroy(h);
+julia> h = NLevelSpace(:atom, 2); i = Index(h, :i, 10, h);
 
-julia> i = Index(h, :i, 3, h);
-
-julia> x = average(Σ(IndexedOperator(a', i) * IndexedOperator(a, i), i));
-
-julia> SecondQuantizedAlgebra.get_sum_indices(x) == [i]
-true
+julia> get_sum_indices(average(Σ(IndexedOperator(Transition(h, :σ, 2, 2), i), i)))
+1-element Vector{Index}:
+ i
 ```
 
-See also [`get_sum_non_equal`](@ref), [`has_sum_metadata`](@ref).
+See also [`is_indexed_sum`](@ref), [`get_sum_non_equal`](@ref), [`get_sum_body`](@ref).
 """
 get_sum_indices(x::SymbolicUtils.BasicSymbolic) = sum_indices(x)
 get_sum_indices(x::Num) = get_sum_indices(SymbolicUtils.unwrap(x))
 
 """
-    get_sum_non_equal(x::BasicSymbolic) -> Vector{Tuple{Index, Index}}
+    get_sum_non_equal(x) -> Vector{Tuple{Index, Index}}
 
-Pairwise index-inequality constraints carried by the indexed-sum node `x`. An
-empty vector means no constraints. Only valid when
-[`has_sum_metadata(x)`](@ref has_sum_metadata) is `true`.
+Pairs of indices required to differ in the sum of averages `x`.
 
+The function is not exported.
+
+# Examples
 ```jldoctest
-julia> h = FockSpace(:site);
+julia> using SecondQuantizedAlgebra: get_sum_non_equal
 
-julia> @qnumbers a::Destroy(h);
+julia> h = NLevelSpace(:atom, 2); i = Index(h, :i, 10, h); j = Index(h, :j, 10, h);
 
-julia> i = Index(h, :i, 3, h);
-
-julia> x = average(Σ(IndexedOperator(a', i) * IndexedOperator(a, i), i));
-
-julia> isempty(SecondQuantizedAlgebra.get_sum_non_equal(x))
-true
+julia> get_sum_non_equal(average(Σ(IndexedOperator(Transition(h, :σ, 2, 2), i), i, [j])))
+1-element Vector{Tuple{Index, Index}}:
+ (i, j)
 ```
 
-See also [`get_sum_indices`](@ref), [`has_sum_metadata`](@ref).
+See also [`is_indexed_sum`](@ref), [`get_sum_indices`](@ref).
 """
 get_sum_non_equal(x::SymbolicUtils.BasicSymbolic) = sum_ne(x)
 get_sum_non_equal(x::Num) = get_sum_non_equal(SymbolicUtils.unwrap(x))
 
 """
-    get_sum_body(x::BasicSymbolic)
+    get_sum_body(x)
 
-Summed body carried by the indexed-sum node `x`: the averaged expression that the
-node sums over its [`get_sum_indices`](@ref) (an index-dependent coefficient stays
-*inside* this body). Only valid when [`has_sum_metadata(x)`](@ref has_sum_metadata)
-is `true`. The inverse of [`indexed_sum`](@ref).
+Summand of the sum of averages `x`, with its index still free.
 
+The function is not exported.
+
+# Examples
 ```jldoctest
-julia> h = FockSpace(:site);
+julia> using SecondQuantizedAlgebra: get_sum_body
 
-julia> @qnumbers a::Destroy(h);
+julia> h = NLevelSpace(:atom, 2); i = Index(h, :i, 10, h);
 
-julia> i = Index(h, :i, 3, h);
-
-julia> x = average(Σ(IndexedOperator(a', i) * IndexedOperator(a, i), i));
-
-julia> isequal(SecondQuantizedAlgebra.get_sum_body(x), average(IndexedOperator(a', i) * IndexedOperator(a, i)))
-true
+julia> get_sum_body(average(Σ(IndexedOperator(Transition(h, :σ, 2, 2), i), i)))
+⟨σ_i₂₂⟩
 ```
 
-See also [`indexed_sum`](@ref), [`get_sum_indices`](@ref), [`get_sum_non_equal`](@ref).
+See also [`indexed_sum`](@ref), [`get_sum_indices`](@ref).
 """
 get_sum_body(x::SymbolicUtils.BasicSymbolic) = sum_body(x)
 get_sum_body(x::Num) = get_sum_body(SymbolicUtils.unwrap(x))
 
 """
-    indexed_sum(body, indices::Vector{Index}; non_equal = NonEqualPair[])
+    indexed_sum(body, indices::Vector{Index}; non_equal = Tuple{Index, Index}[])
 
-Construct a moment-layer indexed-sum node `∑_indices body` (see
-[`is_indexed_sum`](@ref)), the same node [`average`](@ref) builds for a summed
-[`QAdd`](@ref). `body` is an averaged scalar expression (a `Num` is unwrapped);
-`non_equal` supplies pairwise index-inequality constraints (each `(α, β)` means
-`α ≠ β`). The public constructor counterpart to the accessors
-[`get_sum_body`](@ref), [`get_sum_indices`](@ref), and [`get_sum_non_equal`](@ref).
+Sum of the averaged expression `body` over `indices`, the inverse of [`get_sum_body`](@ref).
 
-Use it to re-wrap a body in a sum node when a downstream rewrite (for example
-cumulant expansion factorizing a summed moment into a product form) must preserve
-its summation scope.
+`non_equal` lists pairs of indices that must differ. This rebuilds a sum after its summand
+has been rewritten, for instance when a cumulant expansion factorizes the averages in it.
+The function is not exported.
 
+# Examples
 ```jldoctest
-julia> h = FockSpace(:site);
+julia> using SecondQuantizedAlgebra: indexed_sum, get_sum_body
 
-julia> @qnumbers a::Destroy(h);
+julia> h = NLevelSpace(:atom, 2); i = Index(h, :i, 10, h);
 
-julia> i = Index(h, :i, 3, h);
+julia> x = average(Σ(IndexedOperator(Transition(h, :σ, 2, 2), i), i));
 
-julia> x = average(Σ(IndexedOperator(a', i) * IndexedOperator(a, i), i));
-
-julia> body = SecondQuantizedAlgebra.get_sum_body(x);
-
-julia> isequal(SecondQuantizedAlgebra.indexed_sum(body, [i]), x)
+julia> isequal(indexed_sum(get_sum_body(x), [i]), x)
 true
 ```
 
@@ -565,9 +565,15 @@ end
 
 """
     acts_on(expr) -> Vector{Int}
+    acts_on(i::Index) -> Vector{Int}
 
-Sorted unique `space_index` values that `expr` acts on. Works on [`QSym`](@ref),
-[`QAdd`](@ref), averaged `BasicSymbolic` expressions, and `Number`s (`Int[]`).
+Subsystems that `expr` acts on, as sorted positions in its [`ProductSpace`](@ref).
+
+Works on operators, operator expressions and their [`average`](@ref)s. A number
+acts on nothing and returns an empty vector. For an [`Index`](@ref) it returns the
+subsystem the index runs over.
+
+# Examples
 
 ```jldoctest
 julia> h = FockSpace(:a) ⊗ NLevelSpace(:b, 2);
@@ -577,6 +583,8 @@ julia> @qnumbers a::Destroy(h, 1) σ::Transition(h, 1, 2, 2);
 julia> acts_on(a' * a), acts_on(a' * σ)
 ([1], [1, 2])
 ```
+
+See also [`operator_name`](@ref), [`operator_index`](@ref).
 """
 function acts_on end
 
@@ -584,14 +592,6 @@ acts_on(op::QSym) = Int[op.space_index]
 acts_on(::Number) = Int[]
 acts_on(x::Num) = acts_on(SymbolicUtils.unwrap(x))
 
-"""
-    acts_on(idx::Index) -> Vector{Int}
-
-The subspace `idx` ranges over, as a one-element `Vector{Int}` holding its
-`space_index`. Returns a vector (not a bare `Int`) so the return type matches the
-operator method [`acts_on(::QSym)`](@ref). Pairs with [`operator_index`](@ref)
-and [`set_acts_on`](@ref).
-"""
 acts_on(idx::Index) = Int[idx.space_index]
 
 function acts_on(t::QTerm)

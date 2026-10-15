@@ -1,28 +1,48 @@
 """
-    to_numeric(q::QAdd, basis, sites::Dict{Int, Vector{Int}}[, d[, scalar_subs]])
+    to_numeric(expr, basis, sites::Dict{Int, Vector{Int}}; parameter, operators)
+    to_numeric(expr, basis, sites::Dict{Int, Vector{Int}}[, operators[, parameter]])
 
-Convert a `QAdd` that carries bound summation indices (`q.indices`) to a numeric operator
-on a `basis` whose layout replicates one or more abstract subspaces. `sites[orig_space_index]`
-is the list of slots that realise that subspace; non-indexed subspaces map to a single-slot
-entry.
+Matrix of an expression with sums over indices, on a basis with one factor per site.
 
-For each term, every bound index the term depends on is unrolled over the length of its
-`sites` vector, with `term.ne` constraints filtering out diagonal combinations. Concrete-site
-operators are routed to `sites[op.space_index][k]`, where `k` is the substituted integer
-site. Terms that do not depend on any bound index are emitted once as written, matching the
-`Σ` convention that i-independent residuals already carry their range factor.
+Each sum is written out over the sites. `sites` maps the position of each subsystem in the
+symbolic space to the positions of its copies in `basis`; a subsystem without an index has a
+single copy. Pairs of indices that must differ skip their coinciding sites. `parameter`
+gives the values of all parameters. A site-dependent parameter ``g_i`` is keyed by site, with
+the value of ``g_1`` under `substitute(g, Dict(index_sym(i) => 1))`. `operators` maps
+operators to matrices as for the other forms. This form is available for QuantumOpticsBase
+only.
 
-`d` substitutes individual `QSym` operators with custom numeric operators. `scalar_subs`
-substitutes symbolic scalar parameters (e.g. `Δ` or `g(k)` for the integer `k` produced by
-index unrolling) with numeric values.
+# Examples
+```jldoctest
+julia> using QuantumOpticsBase
+
+julia> h = FockSpace(:cavity) ⊗ NLevelSpace(:atom, 2);
+
+julia> a = Destroy(h, :a, 1); i = Index(h, :i, 2, 2);
+
+julia> σ(k, l) = IndexedOperator(Transition(h, :σ, k, l, 2), i);
+
+julia> g = IndexedVariable(:g, i); H = Σ(g * (a' * σ(1, 2) + a * σ(2, 1)), i);
+
+julia> b = FockBasis(3) ⊗ NLevelBasis(2) ⊗ NLevelBasis(2);
+
+julia> gs = Dict(substitute(g, Dict(index_sym(i) => k)) => 0.1k for k in 1:2);
+
+julia> size(to_numeric(H, b, Dict(1 => [1], 2 => [2, 3]); parameter = gs))
+(16, 16)
+```
+
+See also [`Σ`](@ref), [`index_sym`](@ref).
 """
 function to_numeric(
         q::QAdd, b::Basis,
         sites::AbstractDict{Int, Vector{Int}},
         d::AbstractDict{<:QSym} = NO_SUBS,
-        scalar_subs::AbstractDict = NO_SCALAR_SUBS,
+        scalar_subs::AbstractDict = NO_SCALAR_SUBS;
+        operators::AbstractDict{<:QSym} = d,
+        parameter::AbstractDict = scalar_subs,
     )
-    return to_numeric_indexed(QuantumOpticsBackend(), b, q, sites, d, scalar_subs)
+    return to_numeric_indexed(QuantumOpticsBackend(), b, q, sites, operators, parameter)
 end
 
 function to_numeric_indexed(
@@ -30,7 +50,8 @@ function to_numeric_indexed(
         sites::AbstractDict{Int, Vector{Int}},
         d::AbstractDict{<:QSym}, scalar_subs::AbstractDict,
     )
-    isempty(q.indices) && return to_numeric(q, basis, d)
+    isempty(q.indices) &&
+        return to_numeric(q, basis; operators = d, adjoint_ops = false, parameter = scalar_subs)
     validate_sites(be, basis, sites)
     ctx = NumericContext(be, basis, d, scalar_subs, Dict{Int, Vector{Int}}(sites))
     sub_re, sub_im, has_imag = split_scalar_subs(scalar_subs)
