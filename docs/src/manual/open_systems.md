@@ -338,6 +338,19 @@ build
 ```
 
 
+## Secular projection
+
+When phases remain after the transformation, [`secular`](@ref) keeps the time-independent part of the Hamiltonian, the rates and the jumps, and returns a `Lindbladian`. For a quadrature jump this is the rotating-wave dissipator:
+
+```@example secular-open
+using SecondQuantizedAlgebra
+@qnumbers b::Destroy(FockSpace(:secular_mode))
+@variables ω::Real κ::Real ωd::Real t::Real
+import SecondQuantizedAlgebra: secular
+Lx = hamiltonian_action(ω * b' * b) + κ * dissipator(b + b')
+secular(transform(Lx, Rotation(b, ωd * t, t)), ωd, t)
+```
+
 ## General linear displacement frames
 
 The generator may be any `SuperOperator` whose drift is affine in the mode, `d/dt (a, a') = M (a, a') + c(t)`, such as the Caldeira–Leggett master equation of quantum Brownian motion. Its damping acts on the momentum alone, so the drift of `a` mixes in `a'`. `DisplacementFrame(x, p, L)` works on a quadrature pair, and with a time argument each harmonic of the drive gets its exact bounded response:
