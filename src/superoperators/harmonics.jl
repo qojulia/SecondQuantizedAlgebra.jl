@@ -16,7 +16,7 @@ end
 # 𝒟[J, K] is linear in J and antilinear in K, so a jump harmonic m and a partner harmonic l
 # land in harmonic m - l; the rate harmonic adds on top.
 function harmonics(L::Lindbladian{QAdd}, ω::Real, t::Num)
-    builders = Dict{Int, LindbladianBuilder{QAdd}}()
+    builders = Dict{Int, typeof(LindbladianBuilder{QAdd}())}()
     builder(n) = get!(LindbladianBuilder{QAdd}, builders, n)
     for (n, Hn) in harmonics(L.hamiltonian, ω, t)
         add_hamiltonian!(builder(n).hamiltonian, Hn)
