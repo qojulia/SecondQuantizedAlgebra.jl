@@ -40,6 +40,8 @@ This is a breaking release for type stability: public functions no longer use `n
 
 ### Fixed
 
+- A bare symbolic scalar such as `@variables β::Number` now combines with a phase or other coefficient under `+`, `-`, `*` and `/` in either order, as `Num` already did; previously `β * expim(ω*t)` threw a `MethodError`.
+
 - `Squeeze(a, r * t, t)` throws instead of silently using `t` as the squeezing phase; a time-dependent squeeze is written `Squeeze(a, r, ϕ, t)`.
 - An expression that reduces to a single operator compares equal to it, so `2a - a == a`.
 - A zero expression renders as `0` in LaTeX instead of an empty equation.
