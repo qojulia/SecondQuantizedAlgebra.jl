@@ -34,6 +34,7 @@
 
 using SecondQuantizedAlgebra
 using QuantumToolbox
+using QuantumToolbox: expect
 using Symbolics
 
 using SciMLSensitivity
