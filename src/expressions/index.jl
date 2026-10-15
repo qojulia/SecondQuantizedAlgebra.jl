@@ -98,13 +98,6 @@ function delta_node(a, b)
     return SymbolicUtils.Term{SymbolicUtils.SymReal}(sym_delta, Any[x, y]; type = Real)
 end
 
-function TermInterface.maketerm(
-        ::Type{SymbolicUtils.BasicSymbolic{SymbolicUtils.SymReal}}, ::DeltaFunc, args, metadata;
-        type = Real
-    )
-    return delta_node(args[1], args[2])
-end
-
 """
     kronecker_delta(i::Index, j::Index) -> Num
 

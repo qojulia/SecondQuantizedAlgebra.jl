@@ -147,9 +147,11 @@ average_leaf(op::QField) = SymbolicUtils.Term{SymbolicUtils.SymReal}(sym_average
 
 # Keep one reconstruction method so unknown symbolic operations remain inferable.
 function TermInterface.maketerm(
-        ::Type{SymbolicUtils.BasicSymbolic{SymbolicUtils.SymReal}}, f::Union{AvgFunc, SumFunc}, args, metadata;
-        type = f isa AvgFunc ? avg_symtype_from_arg(args[1]) : sum_symtype(args[1])
+        ::Type{SymbolicUtils.BasicSymbolic{SymbolicUtils.SymReal}}, f::Union{AvgFunc, SumFunc, DeltaFunc}, args, metadata;
+        type = f isa AvgFunc ? avg_symtype_from_arg(args[1]) :
+            (f isa SumFunc ? sum_symtype(args[1]) : Real)
     )
+    f isa DeltaFunc && return delta_node(args[1], args[2])
     return SymbolicUtils.Term{SymbolicUtils.SymReal}(f, collect(args); type = type, metadata = metadata)
 end
 
