@@ -250,7 +250,9 @@ import SecondQuantizedAlgebra: Coeff, CNum, to_cnum, to_num, Monomial, ExactComp
         unit_root = Num(SymbolicUtils.Term{SymbolicUtils.SymReal}(sqrt, [phase]; type = Number))
         @test_throws ArgumentError unit_root * a
         scaled_root = Num(SymbolicUtils.Term{SymbolicUtils.SymReal}(sqrt, [2phase]; type = Number))
-        @test isequal(get_prefactor(scaled_root * a), Complex(real(scaled_root), imag(scaled_root)))
+        for angle in (0.3, 1.7, -2.2)
+            @test get_prefactor(substitute(scaled_root * a, Dict(θ => angle))) ≈ sqrt(2 * exp(im * angle))
+        end
     end
 
     @testset "numeric radicals multiply exactly" begin
