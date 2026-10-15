@@ -1,9 +1,10 @@
 """
     NumericBackend
 
-Abstract supertype for numeric-conversion backends. A backend is normally a concrete
-singleton whose methods implement the exported numeric hooks. See [Adding a numeric
-backend](@ref numeric-backend-interface) for the interface.
+Abstract supertype for numeric-conversion backends.
+
+A backend is normally a concrete singleton whose methods implement the numeric hooks. See
+[Adding a numeric backend](@ref) for the interface.
 
 Bundled implementations are selected with [`QuantumOpticsBackend`](@ref) or
 [`QuantumToolboxBackend`](@ref) after loading the corresponding package.
@@ -13,16 +14,44 @@ abstract type NumericBackend end
 """
     QuantumOpticsBackend()
 
-Select [QuantumOpticsBase.jl](https://github.com/qojulia/QuantumOpticsBase.jl). Active after
-`using QuantumOpticsBase`.
+Numerical backend built on [QuantumOpticsBase.jl](https://github.com/qojulia/QuantumOpticsBase.jl).
+
+Available after `using QuantumOpticsBase`. Operators become `Operator`s on QuantumOptics
+bases, and time-dependent ones `TimeDependentSum`s, ready for the solvers of QuantumOptics.jl.
+
+# Examples
+```jldoctest
+julia> using QuantumOpticsBase
+
+julia> h = FockSpace(:cavity); a = Destroy(h, :a);
+
+julia> to_numeric(a' * a, h, 4; backend = QuantumOpticsBackend()) ≈ number(FockBasis(4))
+true
+```
+
+See also [`QuantumToolboxBackend`](@ref), [`to_numeric`](@ref).
 """
 struct QuantumOpticsBackend <: NumericBackend end
 
 """
     QuantumToolboxBackend()
 
-Select [QuantumToolbox.jl](https://github.com/qutip/QuantumToolbox.jl). Active after
-`using QuantumToolbox`.
+Numerical backend built on [QuantumToolbox.jl](https://github.com/qutip/QuantumToolbox.jl).
+
+Available after `using QuantumToolbox`. Operators become `QuantumObject`s, and
+time-dependent ones `QobjEvo`s, ready for the solvers of QuantumToolbox.jl.
+
+# Examples
+```jldoctest
+julia> import QuantumToolbox
+
+julia> h = FockSpace(:cavity); a = Destroy(h, :a);
+
+julia> to_numeric(a' * a, h, 4; backend = QuantumToolboxBackend()) ≈ QuantumToolbox.num(5)
+true
+```
+
+See also [`QuantumOpticsBackend`](@ref), [`to_numeric`](@ref).
 """
 struct QuantumToolboxBackend <: NumericBackend end
 
@@ -86,10 +115,11 @@ function numeric_assemble end
 """
     numeric_assemble_td(be, basis, td_terms)
 
-Like [`numeric_assemble`](@ref) but each coefficient is `Union{ComplexF64, Function}`
-(a constant, a `t -> ComplexF64`, or a solver-parameter-aware `(p, t) -> ComplexF64`),
-producing the backend's native time-dependent
-operator.
+Time-dependent counterpart of [`numeric_assemble`](@ref).
+
+Each coefficient is `Union{ComplexF64, Function}`: a constant, a `t -> ComplexF64`, or a
+solver-parameter-aware `(p, t) -> ComplexF64`. The result is the backend's native
+time-dependent operator.
 """
 function numeric_assemble_td end
 

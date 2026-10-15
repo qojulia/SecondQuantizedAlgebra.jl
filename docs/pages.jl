@@ -1,13 +1,16 @@
 pages = [
     "Home" => "index.md",
-    "Implementation" => "implementation.md",
-    "Symbolic Coefficients and Phases" => "symbolic_coefficients.md",
-    "Formal Operator Functions" => "operator_functions.md",
-    "Symbolic Sums and Indices" => "symbolic_sums.md",
-    "Collective N-Level Systems" => "collective.md",
-    "Building Large Sums Efficiently" => "accumulation.md",
-    "Unitary Transformations" => "unitary_transformations.md",
-    "Open Quantum Systems" => "open_systems.md",
+    "Manual" => [
+        "Getting started" => "manual/getting_started.md",
+        "Hilbert spaces and operators" => "manual/spaces_and_operators.md",
+        "Algebra and ordering" => "manual/algebra.md",
+        "Parameters and coefficients" => "manual/coefficients.md",
+        "Many-body systems" => "manual/many_body.md",
+        "Operator functions" => "manual/operator_functions.md",
+        "Unitary transformations" => "manual/unitary_transformations.md",
+        "Averages and numerics" => "manual/averages_numerics.md",
+        "Open quantum systems" => "manual/open_systems.md",
+    ],
     "Examples" => [
         "Schrieffer–Wolff Transformation" => "examples/schrieffer_wolff.md",
         "Dicke Superradiant Transition" => "examples/dicke.md",
@@ -20,11 +23,12 @@ pages = [
         "Differentiable Quantum Control" => "examples/differentiable_control.md",
     ],
     "Comparison with other packages" => "comparison.md",
-    "API" => [
-        "Core" => "API.md",
-        "Open Systems" => "API_open_systems.md",
+    "Developer manual" => [
+        "Contributing" => "dev/contributing.md",
+        "Architecture" => "dev/architecture.md",
+        "Extending the package" => "dev/extending.md",
+        "Internals" => "dev/internals.md",
     ],
     "References" => "references.md",
     "Changelog" => "changelog.md",
-    "Developer Documentation" => "devdocs.md",
 ]

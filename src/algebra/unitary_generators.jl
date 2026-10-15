@@ -196,6 +196,18 @@ function push_exact_relation!(
     return relations
 end
 
+function rational_square_root(square::CNum)
+    is_native(square) || return nothing
+    z = native_scalar(square)
+    iszero(imag(z)) || return nothing
+    x = real(z)
+    (x isa Rational{Int} && !iszero(x)) || return nothing
+    n, d = numerator(abs(x)), denominator(x)
+    rn, rd = isqrt(n), isqrt(d)
+    (rn^2 == n && rd^2 == d) || return nothing
+    return sign(x), rn // rd
+end
+
 is_real_scaled_phase(terms::Vector{PhaseTerm}) =
     length(terms) == 1 && coefficient_is_real(only(terms).amplitude)
 
@@ -257,6 +269,25 @@ function exact_two_by_two_flow!(
             result[j, j] = ch
             return result
         end
+    end
+
+    root = rational_square_root(mul_cnum(upper, lower))
+    if root !== nothing
+        sign_of_square, rate = root
+        angle = exact_real_argument(to_cnum(rate), θ)
+        diagonal, off_diagonal = if sign_of_square < 0
+            push_exact_relation!(relations, trig_rel(angle))
+            to_cnum(cos(angle)), to_cnum(sin(angle))
+        else
+            push_exact_relation!(relations, hyp_rel(angle))
+            to_cnum(cosh(angle)), to_cnum(sinh(angle))
+        end
+        scaled = mul_cnum(to_cnum(inv(rate)), off_diagonal)
+        result[i, i] = diagonal
+        result[i, j] = mul_cnum(upper, scaled)
+        result[j, i] = mul_cnum(lower, scaled)
+        result[j, j] = diagonal
+        return result
     end
 
     unitary_error(
@@ -357,13 +388,6 @@ function exact_generator_transform(G::QAdd, θ::Real)
     return canonical_transform(exact_closed_adjoint_action(basis, linear, shift, θ))
 end
 
-"""
-    UnitaryTransform(G, θ)
-
-Construct the exact adjoint action of `exp(-im*θ*G)` when the commutator with a finite
-complete generator basis closes affinely and every resulting block has a registered exact
-exponential strategy. Unsupported closed blocks are refused; there is no numerical fallback.
-"""
 function UnitaryTransform(G::QAdd, θ::Real)
     hermitian_generator_or_throw(G)
     parts = generator_structure_parts(G)
@@ -380,8 +404,23 @@ UnitaryTransform(G::QSym, θ::Real) =
 """
     RotatingFrame(H0, t)
 
-Construct the exact moving frame `exp(-im*t*H0)` for a supported time-independent
-Hermitian generator. The frame carries gauge `-H0`.
+Frame rotating with a time-independent Hamiltonian `H0`, the interaction picture.
+
+The transformation is ``U = e^{-i H_0 t}``. With [`transform`](@ref), a Hamiltonian
+``H_0 + V`` becomes ``U^\\dagger V U``, since the motion of the frame cancels `H0`. `H0` must
+be Hermitian and of a form that [`UnitaryTransform`](@ref) can exponentiate.
+
+# Examples
+```jldoctest
+julia> a = Destroy(FockSpace(:cavity), :a);
+
+julia> @variables ω g t;
+
+julia> transform(ω * a' * a + g * (a + a'), RotatingFrame(ω * a' * a, t))
+exp(-im*t*ω)*g * a + exp(im*t*ω)*g * a'
+```
+
+See also [`transform`](@ref), [`Rotation`](@ref).
 """
 function RotatingFrame(H0::QAdd, t::Num)
     tt = time_or_throw(t)

@@ -1,14 +1,21 @@
 """
-Exact scalar tiers and the radical-folding primitives that keep a numeric radical atom's
-exponent in `(0, 1)`. Exactness is a property of the type: an exact value is a
-`GaussianRational` (`gaussian.jl`), and a `ComplexF64` is always inexact. Nothing here depends
-on `Monomial`, `Poly`, or `Coeff`; those types are defined later (`monomial.jl`, `cnum.jl`) and
-depend on this file. See `docs/src/devdocs.md` "Exact coefficients" for the invariants.
+    ExactComplex
+    BigExactComplex
 
-Every function that can produce an exact scalar takes the exact type `E` of its tier,
-`ExactComplex` or `BigExactComplex`. Arithmetic in `ExactComplex` is checked and throws
+The two tiers of exact numbers, `GaussianRational{Int}` and `GaussianRational{BigInt}`.
+
+Exactness is a property of the type: an exact value is a `GaussianRational`, and a
+`ComplexF64` is always inexact. Every function that can produce an exact scalar takes the
+exact type `E` of its tier. Arithmetic in `ExactComplex` is checked and throws
 `OverflowError`; `tiered` (`cnum.jl`) catches that and redoes the whole computation in
-`BigExactComplex`.
+`BigExactComplex`, so the steps must not mutate their inputs. A result returns to
+`ExactComplex` whenever every scalar fits.
+
+This file also keeps radicals canonical. A radical atom is the hashconsed
+`SymbolicUtils.Const{SymReal}(p)` of a prime `p` with an exponent in `(0, 1)`. Radicands
+factor by trial division below `2^16`; a larger cofactor is tested with `Primes.isprime` and
+otherwise split by Pollard-Brent rho under a fixed step budget. A radicand that cannot be
+split within the budget stays an unevaluated symbolic leaf, which has no canonical form.
 """
 const ExactComplex = GaussianRational{Int}
 const BigExactComplex = GaussianRational{BigInt}

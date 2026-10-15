@@ -108,18 +108,13 @@ end
 """
     normal_order(expr::QField)
 
-Route the polynomial parts of `expr` through the canonicalization pipeline.
+Bring `expr` into canonical, normal-ordered form.
 
-For `QSym` and `QAdd` inputs the result is a canonical [`QAdd`](@ref). For a formal
-[`QExpr`](@ref), `normal_order` recurses into its polynomial leaves and preserves the formal
-outer representation; it never introduces a series approximation.
-
-In practice this is the identity on polynomial expressions built through public arithmetic:
-`*`, `+`, `-`, `^`, [`commutator`](@ref), [`Σ`](@ref), [`substitute`](@ref),
-and `adjoint` all canonicalize eagerly. Reach for `normal_order` explicitly only when an
-expression was assembled through low-level internals that bypass the arithmetic, or when
-interfacing with code that expects a finalizer call. [`simplify`](@ref) uses it internally
-before simplifying coefficients.
+Arithmetic already returns this form: `*`, `+`, `-`, `^`, `adjoint`,
+[`commutator`](@ref), [`Σ`](@ref) and [`substitute`](@ref) all canonicalize as they
+go, so `normal_order` leaves their results unchanged. It is there for code that
+expects an explicit ordering step. Formal operator functions such as `cos` or
+[`expim`](@ref) keep their form; only their polynomial arguments are ordered.
 
 # Examples
 
@@ -196,18 +191,12 @@ end
 """
     simplify(expr::QField)
 
-Normal-order `expr`, then simplify its scalar coefficients symbolically. Polynomial inputs
-return a [`QAdd`](@ref); a formal [`QExpr`](@ref) is rebuilt recursively with the same formal
-function structure.
+Simplify the scalar coefficients of `expr` symbolically.
 
-The operator-level work (commutation, same-site composition, like-term collection) happens
-inside [`normal_order`](@ref). On `QAdd`, `simplify` additionally runs symbolic coefficient
-simplification, drops terms whose coefficient becomes zero, and removes summation indices no
-remaining term references. The same coefficient simplification is applied recursively to the
-outer coefficients of a `QExpr` without Taylor-expanding its formal functions.
-
-That symbolic step is expensive, so reach for `simplify` as a finalizer when cancellations or
-accumulated symbolic factors need to be folded; use `normal_order` for intermediate steps.
+Polynomial coefficients already cancel as an expression is built. `simplify` goes
+further and applies symbolic identities, such as trigonometric ones, to every
+coefficient, then drops the terms that vanish. Because this step is expensive, it
+is best used once on a final result. Formal operator functions keep their form.
 
 # Examples
 
@@ -216,12 +205,13 @@ julia> h = FockSpace(:f);
 
 julia> @qnumbers a::Destroy(h);
 
-julia> @variables x y;
+julia> @variables x;
 
-julia> expr = (x^2 + 2x*y + y^2) * a' * a - (x + y)^2 * a' * a;
+julia> expr = (sin(x)^2 + cos(x)^2) * a' * a
+(cos(x)^2 + sin(x)^2) * a' * a
 
 julia> simplify(expr)
-0
+a' * a
 ```
 
 See also [`normal_order`](@ref), [`expand`](@ref), [`expand_completeness`](@ref).
@@ -327,9 +317,10 @@ trigonometric_form(q::QAdd) = map_coefficients(trigonometric_form, q)
 """
     expand(expr::QField)
 
-Expand scalar symbolic coefficients via `Symbolics.expand` without expanding formal operator
-functions. Polynomial inputs return a [`QAdd`](@ref); a [`QExpr`](@ref) is rebuilt
-recursively and remains formal.
+Multiply out the scalar coefficients of `expr`.
+
+Polynomial coefficients are kept expanded already; `expand` also reaches products
+inside functions such as `exp`. Formal operator functions are not expanded.
 
 # Examples
 
@@ -340,8 +331,10 @@ julia> @qnumbers a::Destroy(h);
 
 julia> @variables x y;
 
-julia> expand((x + y)^2 * a)
-(x^2 + 2x*y + y^2) * a
+julia> expr = exp(x * (x + y)) * a;
+
+julia> expand(expr)
+exp(x^2 + x*y) * a
 ```
 
 See also [`simplify`](@ref), [`taylor`](@ref).
@@ -360,15 +353,14 @@ Symbolics.expand(op::QSym; kwargs...) = single_qadd(CNUM_ONE, Op[op])
 expand_prefactor(x::CNum; kwargs...) = (is_native(x) || is_poly(x) || iszero_cnum(x)) ? x : cnum(Symbolics.expand(real(x)), Symbolics.expand(imag(x)))
 
 """
-    expand_completeness(q) -> QAdd
+    expand_completeness(expr)
 
-Rewrite every ground-state projector ``\\sigma^{gg}`` in `q` via the
-completeness relation ``\\sigma^{gg} = 1 - \\sum_{k \\neq g} \\sigma^{kk}``.
+Eliminate every ground-state projector in `expr` through completeness.
 
-`*` keeps ``\\sigma^{gg}`` atomic; reach for `expand_completeness` when
-downstream code needs the projector eliminated, e.g. before converting to a
-numeric basis where the ``\\sigma^{kk}`` for ``k \\neq g`` form the
-independent degrees of freedom.
+Each projector ``\\sigma^{gg}`` is replaced by ``1 - \\sum_{k \\neq g} \\sigma^{kk}``.
+Arithmetic never does this by itself, which keeps expressions short. Expand when
+the remaining projectors should be the independent variables, e.g. before
+deriving equations for their expectation values.
 
 # Examples
 
@@ -403,36 +395,30 @@ end
 expand_completeness(op::QSym) = expand_completeness(single_qadd(CNUM_ONE, Op[op]))
 
 """
-    assume_distinct_index(q::QAdd, pairs::Vector{Tuple{Index, Index}}) -> QAdd
+    assume_distinct_index(expr, pairs::Vector{Tuple{Index, Index}})
 
-Re-canonicalize `q` under the declared pairwise `≠` constraints on free
-indices, then run [`expand_completeness`](@ref) so any ground-state
-projectors that emerge from same-site composition are expanded.
+Treat each pair of free indices in `pairs` as different sites.
 
-Use this when two free indices semantically range over distinct atoms or
-modes but no `Σ` supplies the constraint. SQA cannot infer "different symbol
-implies different site" automatically: two operators carrying different free
-indices on the same Hilbert subspace remain in their physical order, and no
-same-site collapse fires between them. Declaring the pair distinct here lets
-the canonical sort resolve their relationship and triggers any composition or
-completeness rewriting it unlocks.
+Two free indices on the same subsystem may or may not refer to the same site, so their
+operators are left as they are. Outside a [`Σ`](@ref), which settles this by itself, this
+function supplies the missing information: the operators are then sorted into canonical
+order, and ground-state projectors in the result are eliminated with
+[`expand_completeness`](@ref).
 
 # Examples
-
 ```jldoctest
-julia> h = NLevelSpace(:atom, 2);
+julia> h = NLevelSpace(:atom, 2); i = Index(h, :i, 10, h); j = Index(h, :j, 10, h);
 
-julia> j = Index(h, :j, 5, h); k = Index(h, :k, 5, h);
+julia> σ(k, l, m) = IndexedOperator(Transition(h, :σ, k, l), m);
 
-julia> σ(i, m, idx) = IndexedOperator(Transition(h, :σ, i, m), idx);
+julia> σ(2, 1, j) * σ(1, 2, i)
+σ_j₂₁ * σ_i₁₂
 
-julia> q = σ(2, 1, k) * σ(1, 2, j);
-
-julia> assume_distinct_index(q, [(j, k)])
-σ_j₁₂ * σ_k₂₁
+julia> assume_distinct_index(σ(2, 1, j) * σ(1, 2, i), [(i, j)])
+σ_i₁₂ * σ_j₂₁
 ```
 
-See also [`expand_completeness`](@ref).
+See also [`Σ`](@ref), [`expand_completeness`](@ref).
 """
 function assume_distinct_index(q::QAdd, pairs::Vector{Tuple{Index, Index}})
     out = QTermDict()
@@ -454,9 +440,10 @@ zero_qadd() = ZERO_QADD
 """
     commutator(a, b)
 
-Return the commutator ``[a, b] = a\\,b - b\\,a``. Polynomial inputs return a canonical
-[`QAdd`](@ref). If either operand is a formal [`QExpr`](@ref), the ordered products remain
-formal and the result is represented as `QExpr` until explicitly lowered.
+Commutator of `a` and `b`.
+
+Returns ``[a, b] = ab - ba`` in canonical form. If either argument is a formal
+operator function, the result stays formal until lowered with [`taylor`](@ref).
 
 # Examples
 
@@ -467,6 +454,9 @@ julia> @qnumbers a::Destroy(h);
 
 julia> commutator(a, a')
 1
+
+julia> commutator(a' * a, a)
+-a
 ```
 
 See also [`anticommutator`](@ref), [`normal_order`](@ref), [`taylor`](@ref).
@@ -561,9 +551,9 @@ end
 """
     anticommutator(a, b)
 
-Return the anticommutator ``\\{a, b\\} = a\\,b + b\\,a``. Polynomial operator inputs
-produce a canonical [`QAdd`](@ref); formal [`QExpr`](@ref) operands preserve the formal outer
-representation.
+Anticommutator of `a` and `b`.
+
+Returns ``\\{a, b\\} = ab + ba`` in canonical form.
 
 # Examples
 
@@ -583,32 +573,28 @@ anticommutator(a, b) = a * b + b * a
 """
     substitute(expr::QField, rules::AbstractDict; replace_adjoint=true)
 
-Substitute symbolic parameters and/or operators in `expr` using `rules`.
+Replace parameters and operators in `expr` according to `rules`.
 
-Scalar keys (anything other than a [`QSym`](@ref)) are substituted in
-coefficients using SymbolicUtils. Operator keys are applied simultaneously to
-the original operator leaves: replacement expressions are not searched again for
-operator keys. This makes mode transformations such as `a => g*a + h*b`
-well-defined even when the replacement contains the original operator.
-
-When `replace_adjoint=true`, missing adjoint operator rules are added
-automatically, e.g. `a => b` also implies `a' => b'` unless `a'` is already
-specified explicitly.
+Keys may be parameters or operators, mixed freely. Operator rules act on the
+original expression all at once, so a rule whose replacement contains its own
+key, such as the shift `a => a + α`, is applied exactly once. A rule for `a` also
+covers `a'`, unless `a'` has a rule of its own or `replace_adjoint = false`.
 
 # Examples
 
 ```jldoctest
-julia> h = FockSpace(:f);
+julia> a = Destroy(FockSpace(:cavity), :a);
 
-julia> @qnumbers a::Destroy(h);
+julia> @variables Δ α::Number;
 
-julia> @variables x;
-
-julia> substitute(x * a' * a, Dict(x => 2))
+julia> substitute(Δ * a' * a, Dict(Δ => 2))
 2 * a' * a
+
+julia> substitute(a' * a, Dict(a => a + α))
+conj(α)*α + conj(α) * a + α * a' + a' * a
 ```
 
-See also [`change_index`](@ref).
+See also [`change_index`](@ref), [`Displace`](@ref).
 """
 function SymbolicUtils.substitute(op::QSym, rules::AbstractDict; replace_adjoint = true)
     return SymbolicUtils.substitute(
