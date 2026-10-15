@@ -348,6 +348,29 @@ function get_operators(s::QAdd)
 end
 
 """
+    get_sum_indices(q::QAdd) -> Vector{Index}
+    get_sum_indices(q::QSym) -> Vector{Index}
+
+The summation indices bound by `q`, in the order of its sum scope. A `QSym` and an unsummed
+`QAdd` bind none. The result is a copy, so mutating it does not change `q`.
+
+```jldoctest
+julia> h = FockSpace(:site);
+
+julia> @qnumbers a::Destroy(h);
+
+julia> i = Index(h, :i, 3, h);
+
+julia> SecondQuantizedAlgebra.get_sum_indices(Σ(IndexedOperator(a, i), i)) == [i]
+true
+```
+
+See also [`get_indices`](@ref), [`constraint_pairs`](@ref).
+"""
+get_sum_indices(q::QAdd) = copy(q.indices)
+get_sum_indices(::QSym) = Index[]
+
+"""
     get_variables(expr)
 
 Symbolic parameters occurring in the coefficients of `expr`.
