@@ -19,7 +19,6 @@ transform(S::SuperOperator, U::UnitaryTransform{DynamicTime}) =
 transform(L::Lindbladian, U::UnitaryTransform) =
     map_lindbladian(H -> transform(H, U), J -> conjugate(J, U), identity, L)
 
-# One row of a Heisenberg drift, `transpose(S)(u) = linear*u + mixing*v + offset`.
 struct AffineDrift
     linear::CNum
     mixing::CNum
@@ -51,7 +50,6 @@ function affine_drift(heisenberg::SuperOperator, u::Op, v::Op)
     return AffineDrift(linear, mixing, offset)
 end
 
-# The closed pair drift `d/dt (u, v) = M (u, v) + c(t)`, with `M = [m11 m12; m21 m22]`.
 struct LinearDriftPair
     m11::CNum
     m12::CNum
@@ -114,8 +112,6 @@ end
     )
 end
 
-# Amplitude `v` of the bounded response `v * expim(harmonic*t)` to the drive
-# `(drive1, drive2) * expim(harmonic*t)`, i.e. `(im*harmonic - M) v = drive`.
 function drift_response(
         pair::LinearDriftPair, drive1::CNum, drive2::CNum, harmonic::CNum,
     )
@@ -135,8 +131,6 @@ function static_drift_displacement(pair::LinearDriftPair)
     return drift_response(pair, pair.offset1, pair.offset2, CNUM_ZERO)
 end
 
-# Drive components sharing one harmonic `expim(harmonic*t)`; grouping them keeps a single
-# exact quotient per harmonic.
 struct HarmonicDrive
     harmonic::CNum
     drive1::CNum
@@ -194,7 +188,6 @@ function bounded_drift_displacement(pair::LinearDriftPair, t::Num)
     return (first = first, second = second)
 end
 
-# Exact time derivative of the bounded solution, `M v + c(t)`, without differentiating `v`.
 function drift_derivative(pair::LinearDriftPair, first::CNum, second::CNum)
     return (
         first = add_cnum(
