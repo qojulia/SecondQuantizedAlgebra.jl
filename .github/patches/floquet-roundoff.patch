@@ -1,0 +1,74 @@
+diff --git i/src/gksl/coordinates.jl w/src/gksl/coordinates.jl
+index 7eb82a6..18707a6 100644
+--- i/src/gksl/coordinates.jl
++++ w/src/gksl/coordinates.jl
+@@ -220,6 +220,16 @@ function matrix_is_hermitian(matrix::KossakowskiMatrix)
+   return true
+ end
+ 
++function reconstructed_map_scale(canonical::Liouvillian, dissipative::Liouvillian)
++  scale = 0.0
++  for generator in (canonical, dissipative), entry in term_pairs(generator)
++    for (magnitude, _) in monomial_constants(last(entry))
++      scale = max(scale, magnitude)
++    end
++  end
++  return scale
++end
++
+ function drop_floating_roundoff(
+   residual::Liouvillian,
+   canonical::Liouvillian,
+@@ -235,7 +245,13 @@ function drop_floating_roundoff(
+       get(dissipative.terms, action, zero(SQA.CNum)),
+     )
+     two_sided = !qadd_isone(left) && !qadd_isone(right)
+-    floor = two_sided ? matrix_scale : 0.0
++    floor = if two_sided
++      matrix_scale
++    elseif qadd_isone(left) && qadd_isone(right)
++      reconstructed_map_scale(canonical, dissipative)
++    else
++      0.0
++    end
+     floating_roundoff(coefficient, reference, floor) && continue
+     add_term!(result, left, right, coefficient)
+   end
+diff --git i/test/gksl/coordinates.jl w/test/gksl/coordinates.jl
+index 788f8d1..724b436 100644
+--- i/test/gksl/coordinates.jl
++++ w/test/gksl/coordinates.jl
+@@ -1,7 +1,7 @@
+ using Test
+ using FloquetExpansions
+ using SecondQuantizedAlgebra: SecondQuantizedAlgebra
+-using Symbolics: @variables
++using Symbolics: Symbolics, @variables
+ 
+ const SQA = SecondQuantizedAlgebra
+ 
+@@ -268,3 +268,24 @@ end
+   @test @inferred(hamiltonian(expansion)) == effective_generator(expansion)
+   @test @inferred(hamiltonian_component(expansion, 0)) == effective_component(expansion, 0)
+ end
++
++@testset "identity residual roundoff uses reconstructed map units" begin
++  identity_action(c) = Liouvillian(Dict((one(a), one(a)) => convert(SQA.CNum, c)))
++  error_message = "Liouvillian residual is not a Hamiltonian commutator"
++  for scale in (1.0, 1.0e-12, 1.0e12)
++    L = (0.2 * scale) * dissipator(a)
++    noisy = L + identity_action(-8.673617379884036e-20im * scale)
++    for normalization in (1.0, 1.0e-6)
++      frame = DissipativeFrame(normalization * a)
++      @test iszero(hamiltonian(noisy, frame))
++      rate = Symbolics.value(real(SQA.to_num(kossakowski(noisy, frame)[1, 1])))
++      @test rate ≈ 0.2 * scale / normalization^2
++      invalid = L + identity_action(1.0e-4im * scale)
++      @test_throws error_message hamiltonian(invalid, frame)
++    end
++  end
++  frame = DissipativeFrame(a)
++  @test_throws error_message hamiltonian(identity_action(1.0e-20im), frame)
++  exact = dissipator(a) + identity_action((1 // 10^12) * im)
++  @test_throws error_message hamiltonian(exact, frame)
++end

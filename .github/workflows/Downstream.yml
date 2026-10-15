@@ -58,17 +58,10 @@ jobs:
         with:
           repository: ${{ matrix.package.user }}/${{ matrix.package.repo }}
           path: downstream
-      - name: Diagnose unexpected Floquet GKSL residuals
+      - name: Validate the prepared Floquet roundoff fix
         if: ${{ matrix.package.repo == 'FloquetExpansions.jl' }}
-        shell: python
         run: |
-          from pathlib import Path
-          path = Path("downstream/src/gksl/coordinates.jl")
-          source = path.read_text()
-          old = '      throw(GKSLCoordinateError("Liouvillian residual is not a Hamiltonian commutator"))'
-          new = '      @error "Unexpected GKSL residual" left right coefficient simplified=simplify_coefficient(coefficient)\n' + old
-          assert source.count(old) == 1
-          path.write_text(source.replace(old, new))
+          git -C downstream apply ../.github/patches/floquet-roundoff.patch
       - name: Load this and run the downstream tests
         shell: julia --color=yes --project=downstream --depwarn=yes {0}
         run: |
@@ -86,3 +79,9 @@ jobs:
             @info "Not compatible with this release. No problem." exception=err
             exit(0)  # Exit immediately, as a success
           end
+      - name: Check the prepared Floquet fix with JET
+        if: ${{ matrix.package.repo == 'FloquetExpansions.jl' }}
+        run: |
+          cd downstream
+          julia --project=test -e 'using Pkg; Pkg.develop(PackageSpec(path=pwd())); Pkg.develop(PackageSpec(path=joinpath(pwd(), ".."))); Pkg.instantiate()'
+          julia --project=test test/quality/JET.jl
