@@ -1,17 +1,22 @@
 """
     PauliSpace(name::Symbol) <: HilbertSpace
 
-Hilbert space for a two-level system. Hosts [`Pauli`](@ref) operators
-satisfying ``\\sigma_j \\sigma_k = \\delta_{jk} I + i \\epsilon_{jkl} \\sigma_l``.
+Hilbert space of a two-level system written with Pauli matrices, home of the
+[`Pauli`](@ref) operators.
 
 # Examples
 
 ```jldoctest
-julia> PauliSpace(:spin)
-ℋ(spin)
+julia> h = PauliSpace(:qubit)
+ℋ(qubit)
+
+julia> σz = Pauli(h, :σ, 3);
+
+julia> σz * σz
+1
 ```
 
-See also [`Pauli`](@ref), [`SpinSpace`](@ref).
+See also [`Pauli`](@ref), [`NLevelSpace`](@ref), [`SpinSpace`](@ref).
 """
 struct PauliSpace <: HilbertSpace
     name::Symbol
@@ -21,13 +26,16 @@ Base.:(==)(a::PauliSpace, b::PauliSpace) = a.name == b.name
 Base.hash(a::PauliSpace, h::UInt) = hash(:PauliSpace, hash(a.name, h))
 
 """
-    Pauli(h::PauliSpace, name::Symbol, axis::Int) -> Op
+    Pauli(h::PauliSpace, name::Symbol, axis::Int)
+    Pauli(h::ProductSpace, name::Symbol, axis::Int, [subsystem::Int])
 
-Pauli operator ``\\sigma_x, \\sigma_y, \\sigma_z`` on a [`PauliSpace`](@ref).
-The `axis` argument selects the component: `1 = x`, `2 = y`, `3 = z`. Hermitian
-(`σ' == σ`) and satisfies
-``\\sigma_j \\sigma_k = \\delta_{jk} I + i \\epsilon_{jkl} \\sigma_l``. Returns an
-[`Op`](@ref) tagged `OP_PAULI` with the axis stored in `l1`.
+Pauli matrix along `axis`, where `1`, `2`, `3` stand for x, y, z.
+
+Pauli operators are Hermitian and multiply as
+``\\sigma_j \\sigma_k = \\delta_{jk} + i \\epsilon_{jkl} \\sigma_l``, so every product
+on one qubit reduces to a single Pauli matrix or a number. On a
+[`ProductSpace`](@ref), `subsystem` selects the [`PauliSpace`](@ref) factor and may
+be omitted when there is only one.
 
 # Examples
 

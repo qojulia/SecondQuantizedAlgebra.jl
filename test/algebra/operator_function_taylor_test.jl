@@ -20,6 +20,10 @@ import SecondQuantizedAlgebra: QAdd
         1 + im * A - (1 // 2) * A^2 - im * (1 // 6) * A^3 + (1 // 24) * A^4,
     )
 
+    @test isequal(@inferred(taylor(A, 0:3)), A)
+    @test isequal(@inferred(taylor(a, 0:3)), +a)
+    @test_throws ArgumentError taylor(A, 1:3)
+
     @test isone(taylor(cos(A), 0:0))
     @test isone(taylor(cos(A), 0:1))
     @test iszero(taylor(sin(A), 0:0))

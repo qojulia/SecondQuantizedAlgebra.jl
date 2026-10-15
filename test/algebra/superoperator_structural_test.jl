@@ -111,6 +111,10 @@ import SecondQuantizedAlgebra: SuperOperator, SuperExpr, sprepost, spre, spost,
         @test "g" in string.(Symbolics.get_variables(X))
         @test hash(X) == hash(g * spre(cos(x)) + spost(x))
         @test iszero(zero(SuperExpr)) && iszero(zero(X))
+        @test sum(SuperExpr[]) == zero(SuperExpr)
+        acc = zero(SuperExpr)
+        acc += X
+        @test acc == X
 
         @test normal_order(X) == X
         @test simplify(expand(X)) == simplify(X)

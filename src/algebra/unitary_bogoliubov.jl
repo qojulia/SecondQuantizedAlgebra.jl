@@ -68,15 +68,37 @@ exact_bogoliubov(modes::Vector{Op}, matrix::Matrix{CNum}) =
     canonical_transform(bogoliubov_action(modes, matrix))
 
 """
-    Bogoliubov(modes, S)
+    Bogoliubov(modes, S::AbstractMatrix)
+    Bogoliubov(modes, U::AbstractMatrix, V::AbstractMatrix)
 
-Construct a bosonic Bogoliubov transformation in Nambu ordering
-`(a₁, …, aₙ, a₁', …, aₙ')`.
+General linear transformation of bosonic modes that mixes annihilation and creation operators.
 
-`S` is required by contract to preserve adjoints and the bosonic commutator form
-`S*J*S' = J`. Satisfying these mathematical canonicality conditions is the caller's
-responsibility. The constructor checks structural requirements such as modes and dimensions;
-it introduces no hidden assumptions, tolerance-based checks, or projections.
+`modes` is one annihilation operator, or a vector or tuple of them. The block form maps
+``a \\mapsto U a + V a^\\dagger``. The full form acts on
+``(a_1, \\ldots, a_N, a_1^\\dagger, \\ldots, a_N^\\dagger)`` with the matrix `S`, which
+must have the block structure `[U V; conj(V) conj(U)]`. For the result to be unitary the
+blocks must preserve the commutation relations, ``S J S^\\dagger = J`` with
+``J = \\mathrm{diag}(1_N, -1_N)``. This is the caller's responsibility, also after
+[`substitute`](@ref): the modes and the matrix dimensions are checked, but the condition is
+not, and a numeric matrix is used as given, without tolerance or projection. For squeezing
+and beam splitters, [`Squeeze`](@ref) and [`Rotation`](@ref) satisfy it by construction.
+
+# Examples
+```jldoctest
+julia> a = Destroy(FockSpace(:cavity), :a);
+
+julia> @variables u::Number v::Number;
+
+julia> B = Bogoliubov(a, [u v; conj(v) conj(u)]);
+
+julia> conjugate(a, B)
+u * a + v * a'
+
+julia> conjugate(a, substitute(B, Dict(u => 5//3, v => 4//3)))
+5//3 * a + 4//3 * a'
+```
+
+See also [`Squeeze`](@ref), [`Rotation`](@ref), [`UnitaryTransform`](@ref).
 """
 function Bogoliubov(modes::AbstractVector{Op}, S::AbstractMatrix)
     lowering_modes = bogoliubov_modes(modes)
@@ -88,14 +110,6 @@ end
 Bogoliubov(mode::Op, S::AbstractMatrix) = Bogoliubov(Op[mode], S)
 Bogoliubov(modes::Tuple{Vararg{Op}}, S::AbstractMatrix) = Bogoliubov(Op[modes...], S)
 
-"""
-    Bogoliubov(modes, U, V)
-
-Construct the bosonic map `a ↦ U*a + V*a'`. The implied Nambu matrix is
-`[U V; conj(V) conj(U)]`. The blocks are required by contract to satisfy the bosonic
-canonical relations; satisfying those mathematical conditions is the caller's responsibility.
-The constructor checks only structural requirements such as mode and block dimensions.
-"""
 function Bogoliubov(
         modes::AbstractVector{Op}, U::AbstractMatrix, V::AbstractMatrix,
     )
