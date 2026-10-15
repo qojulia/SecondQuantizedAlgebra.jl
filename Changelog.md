@@ -12,6 +12,8 @@ This is a breaking release for type stability: public functions no longer use `n
 
 ### Added
 
+- `displacement(U, a)` returns the displacement amplitude of a frame, the c-number part of `conjugate(a, U)`, for Fock and phase-space operators.
+
 - Dissipative dynamics as first-class objects: `Lindbladian` (`hamiltonian_action`, `dissipator`, collective `dissipator(J, Γ, i => j)`), general `SuperOperator` maps (`spre`, `spost`, `sprepost`, composition, `transpose` as the Heisenberg generator) and formal `SuperExpr` maps. They support `Σ`, frames, substitution and printing, and convert to backend superoperators or, via `to_numeric_master`, to Hamiltonian and collapse operators.
 - `UnitaryTransform(G, θ)` accepts generators that couple two operators symmetrically, such as the hopping term `a'b + b'a` and the squeezer `a^2 + a'^2`.
 - The indexed form of `to_numeric` takes `parameter` and `operators` as keywords.
