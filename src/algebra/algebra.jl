@@ -72,17 +72,12 @@ Base.:-(a::QField, b::QField) = a + (-b)
 Base.:-(a::QField, b::Coefficient) = a + (-b)
 Base.:-(a::Coefficient, b::QField) = a + (-b)
 
-Base.:/(a::QSym, b::Number) =
+Base.:/(a::Union{QSym, QAdd}, b::Number) =
     b isa Integer && !(b isa Bool) && !iszero(b) ? a * (1 // b) : a * inv(b)
-Base.:/(a::QAdd, b::Number) =
-    b isa Integer && !(b isa Bool) && !iszero(b) ? a * (1 // b) : a * inv(b)
-Base.:/(a::QSym, b::Coefficient) = a * inv(b)
-Base.:/(a::QAdd, b::Coefficient) = a * inv(b)
+Base.:/(a::Union{QSym, QAdd}, b::Coefficient) = a * inv(b)
 
-Base.://(a::QSym, b::Integer) = a * (1 // b)
-Base.://(a::QAdd, b::Integer) = a * (1 // b)
-Base.://(a::QSym, b::Coefficient) = a / b
-Base.://(a::QAdd, b::Coefficient) = a / b
+Base.://(a::Union{QSym, QAdd}, b::Integer) = a * (1 // b)
+Base.://(a::Union{QSym, QAdd}, b::Coefficient) = a / b
 
 function Base.:^(a::QSym, n::Integer)
     n >= 0 || throw(ArgumentError("Negative powers not supported"))
@@ -471,69 +466,54 @@ function commutator(a::QSym, b::QSym)
     forward = can_commute(a, b)
     reverse = can_commute(b, a)
     if !forward && reverse
-        _, _, c1, ops1, c2, ops2 = commute_pair(a, b)
-        return single_qadd(c1, isempty(ops1) ? EMPTY_OPS : copy(ops1)) +
-            single_qadd(c2, isempty(ops2) ? EMPTY_OPS : copy(ops2))
+        c1, r1, c2, r2, n = commute_pair(a, b)
     elseif forward && !reverse
-        _, _, c1, ops1, c2, ops2 = commute_pair(b, a)
-        return single_qadd(-c1, isempty(ops1) ? EMPTY_OPS : copy(ops1)) +
-            single_qadd(-c2, isempty(ops2) ? EMPTY_OPS : copy(ops2))
+        c1, r1, c2, r2, n = commute_pair(b, a)
+        c1, c2 = -c1, -c2
+    else
+        return a * b - b * a
     end
-    return a * b - b * a
+    d = QTermDict()
+    iszero(c1) || addto!(d, n == 0 ? EMPTY_OPS : Op[r1], c1)
+    iszero(c2) || addto!(d, n == 0 ? EMPTY_OPS : Op[r2], c2)
+    return QAdd(d, EMPTY_INDICES)
 end
 
 function commutator(a::QAdd, b::QSym)
-    sb = b.space_index
-    d = QTermDict()
-    if isempty(a.indices)
-        for (ta, ca) in a.arguments
-            sb in acts_on(ta) || continue
-            emit_product!(
-                d, ta.ops, ca, ta.ne, Op[b], CNUM_ONE, EMPTY_NE, EMPTY_INDICES, false,
-            )
-            emit_product!(
-                d, Op[b], CNUM_NEG1, EMPTY_NE, ta.ops, ca, ta.ne, EMPTY_INDICES, false,
-            )
-        end
-        return QAdd(d, EMPTY_INDICES)
+    term = QTerm(Op[b], EMPTY_NE)
+    return commute_terms(a, [(term, CNUM_ONE, acts_on(term))], EMPTY_INDICES) do _, _
+        b
     end
-    indices = EMPTY_INDICES
-    for (ta, ca) in a.arguments
-        sb in acts_on(ta) || continue
-        qa = QAdd(QTermDict(copy_key(ta) => ca), a.indices)
-        indices = merge_unique(indices, merge_into!(d, qa * b - b * qa))
-    end
-    return QAdd(d, drop_unused_indices(d, indices))
 end
 commutator(a::QSym, b::QAdd) = -commutator(b, a)
 
 function commutator(a::QAdd, b::QAdd)
     isequal(a, b) && return zero_qadd()
     bside = [(tb, cb, acts_on(tb)) for (tb, cb) in b.arguments]
-    d = QTermDict()
-    if isempty(a.indices) && isempty(b.indices)
-        for (ta, ca) in a.arguments
-            aon_a = acts_on(ta)
-            for (tb, cb, aon_b) in bside
-                isdisjoint(aon_a, aon_b) && continue
-                emit_product!(
-                    d, ta.ops, ca, ta.ne, tb.ops, cb, tb.ne, EMPTY_INDICES, false,
-                )
-                emit_product!(
-                    d, tb.ops, -cb, tb.ne, ta.ops, ca, ta.ne, EMPTY_INDICES, false,
-                )
-            end
-        end
-        return QAdd(d, EMPTY_INDICES)
+    return commute_terms(a, bside, b.indices) do tb, cb
+        QAdd(QTermDict(copy_key(tb) => cb), b.indices)
     end
+end
+
+function commute_terms(
+        bfactor::F, a::QAdd, bside::Vector{Tuple{QTerm, CNum, Vector{Int}}},
+        b_indices::Vector{Index},
+    ) where {F}
+    indexed = !(isempty(a.indices) && isempty(b_indices))
+    d = QTermDict()
     indices = EMPTY_INDICES
     for (ta, ca) in a.arguments
         aon_a = acts_on(ta)
-        qa = QAdd(QTermDict(copy_key(ta) => ca), a.indices)
+        qa = indexed ? QAdd(QTermDict(copy_key(ta) => ca), a.indices) : ZERO_QADD
         for (tb, cb, aon_b) in bside
             isdisjoint(aon_a, aon_b) && continue
-            qb = QAdd(QTermDict(copy_key(tb) => cb), b.indices)
-            indices = merge_unique(indices, merge_into!(d, qa * qb - qb * qa))
+            if indexed
+                qb = bfactor(tb, cb)
+                indices = merge_unique(indices, merge_into!(d, qa * qb - qb * qa))
+            else
+                emit_product!(d, ta.ops, ca, ta.ne, tb.ops, cb, tb.ne, EMPTY_INDICES, false)
+                emit_product!(d, tb.ops, -cb, tb.ne, ta.ops, ca, ta.ne, EMPTY_INDICES, false)
+            end
         end
     end
     return QAdd(d, drop_unused_indices(d, indices))
@@ -567,140 +547,3 @@ julia> anticommutator(a, a')
 See also [`commutator`](@ref).
 """
 anticommutator(a, b) = a * b + b * a
-
-"""
-    substitute(expr::QField, rules::AbstractDict; replace_adjoint=true)
-
-Replace parameters and operators in `expr` according to `rules`.
-
-Keys may be parameters or operators, mixed freely. Operator rules act on the
-original expression all at once, so a rule whose replacement contains its own
-key, such as the shift `a => a + α`, is applied exactly once. A rule for `a` also
-covers `a'`, unless `a'` has a rule of its own or `replace_adjoint = false`.
-
-# Examples
-
-```jldoctest
-julia> a = Destroy(FockSpace(:cavity), :a);
-
-julia> @variables Δ α::Number;
-
-julia> substitute(Δ * a' * a, Dict(Δ => 2))
-2 * a' * a
-
-julia> substitute(a' * a, Dict(a => a + α))
-conj(α)*α + conj(α) * a + α * a' + a' * a
-```
-
-See also [`change_index`](@ref), [`Displace`](@ref).
-"""
-function SymbolicUtils.substitute(op::QSym, rules::AbstractDict; replace_adjoint = true)
-    return SymbolicUtils.substitute(
-        single_qadd(CNUM_ONE, Op[op]), rules; replace_adjoint = replace_adjoint
-    )
-end
-
-function SymbolicUtils.substitute(q::QAdd, rules::AbstractDict; replace_adjoint::Bool = true)
-    iszero(q) && return q
-    op_rules, scalar_rules = split_substitution_rules(rules, replace_adjoint)
-    return substitute_split(q, op_rules, scalar_rules)
-end
-
-const OpRules = Dict{Op, QAdd}
-
-const EMPTY_OP_RULES = OpRules()
-
-substitute_op_rules(q::QAdd, op_rules::OpRules) =
-    iszero(q) ? q : substitute_split(q, op_rules, EMPTY_SCALAR_RULES)
-
-function substitute_split(q::QAdd, op_rules::OpRules, scalar_rules::ScalarRules)
-    out = QTermDict()
-    indices = copy(q.indices)
-    phase_rules = nonreal_phase_substitutions(scalar_rules)
-    for (t, c) in q
-        temp = QTermDict()
-        replacement_indices = stream_substitution_once!(
-            temp, t.ops, c, t.ne, op_rules, scalar_rules, phase_rules,
-        )
-        settle_scope!(out, temp, bound_indices(t, c, q.indices))
-        indices = merge_unique(indices, replacement_indices)
-    end
-    return QAdd(out, drop_unused_indices(out, indices))
-end
-
-function split_substitution_rules(rules::AbstractDict, replace_adjoint::Bool)
-    op_rules = OpRules()
-    scalar_rules = ScalarRules()
-    for (k, v) in rules
-        add_substitution_rule!(op_rules, scalar_rules, k, v)
-    end
-    replace_adjoint && add_adjoint_rules!(op_rules)
-    return op_rules, scalar_rules
-end
-
-function add_substitution_rule!(op_rules::OpRules, scalar_rules::ScalarRules, k::Op, v)
-    op_rules[k] = replacement_qadd(k, v)
-    return op_rules
-end
-function add_substitution_rule!(op_rules::OpRules, scalar_rules::ScalarRules, k, v)
-    add_scalar_rule!(scalar_rules, k, v)
-    return op_rules
-end
-
-function add_adjoint_rules!(op_rules::OpRules)
-    for (k, v) in collect(op_rules)
-        k_adj = Base.adjoint(k)
-        haskey(op_rules, k_adj) || (op_rules[k_adj] = qadjoint(v))
-    end
-    return op_rules
-end
-
-function has_operator_rule(ops::Vector{Op}, dict::OpRules)
-    for op in ops
-        haskey(dict, op) && return true
-    end
-    return false
-end
-
-function stream_substitution_once!(
-        out::QTermDict, ops::Vector{Op}, c::CNum, ne::Vector{NonEqualPair},
-        op_rules::OpRules, scalar_rules::ScalarRules, phase_rules::PhaseRules,
-    )
-    if !has_operator_rule(ops, op_rules)
-        new_c = substitute_cnum(c, scalar_rules, phase_rules)
-        iszero(new_c) || stream!(out, copy(ops), new_c, ne)
-        return EMPTY_INDICES
-    end
-
-    partials = Tuple{Vector{Op}, CNum, Vector{NonEqualPair}}[(Op[], c, EMPTY_NE)]
-    indices = EMPTY_INDICES
-    for op in ops
-        replacement = get(() -> single_qadd(CNUM_ONE, Op[op]), op_rules, op)
-        indices = merge_unique(indices, replacement.indices)
-        next_partials = Tuple{Vector{Op}, CNum, Vector{NonEqualPair}}[]
-        for (prefix_ops, prefix_c, prefix_ne) in partials
-            for (rt, rc) in replacement
-                new_ops = copy(prefix_ops)
-                append!(new_ops, rt.ops)
-                push!(
-                    next_partials,
-                    (new_ops, prefix_c * rc, merge_ne(prefix_ne, rt.ne)),
-                )
-            end
-        end
-        partials = next_partials
-    end
-
-    for (new_ops, new_c0, new_ne) in partials
-        new_c = substitute_cnum(new_c0, scalar_rules, phase_rules)
-        iszero(new_c) && continue
-        canonicalize!(out, new_ops, new_c, merge_ne(ne, new_ne))
-    end
-    return indices
-end
-
-replacement_qadd(::Op, v::QAdd) = v
-replacement_qadd(::Op, v::Op) = single_qadd(CNUM_ONE, Op[v])
-replacement_qadd(::Op, v::Union{Number, SymbolicUtils.BasicSymbolic, Coeff}) = single_qadd(to_cnum(v), Op[])
-replacement_qadd(op::Op, v) =
-    throw(ArgumentError("operator replacement for `$op` has unsupported value `$v`"))

@@ -19,7 +19,7 @@ Every operator is an `Op`, and its role is the `kind` field of type [`OpKind`](@
 | :-- | :-- | :-- |
 | `site_compare(a, b, ne)` | `Less`, `Equal`, `Undetermined` or `Greater` | site relation of two operators, which drives the sort |
 | `can_commute(a, b)` | `Bool` | whether a same-site pair may swap without a residual |
-| `commute_pair(a, b)` | `(b, a, c1, ops1, c2, ops2)` | the swap and up to two residual terms ``c_1\,\text{ops}_1 + c_2\,\text{ops}_2`` |
+| `commute_pair(a, b)` | `(c1, r1, c2, r2, n)` | the residual ``ab - ba = c_1 r_1 + c_2 r_2``, where each `r` is one operator for `n = 1` and the identity for `n = 0` |
 | `may_reduce(a, b)` | `Bool` | whether `reduce_pair` can do anything, a cheap pre-check |
 | `reduce_pair(a, b)` | `(kind, op, c)` | a local identity: the pair becomes one operator, a number, or stays |
 | `ground_state_expand(op)` | `(is_gs, g, n, site)` | the completeness data of a ground-state projector |

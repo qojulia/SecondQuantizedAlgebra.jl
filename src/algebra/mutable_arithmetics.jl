@@ -51,17 +51,10 @@ See also [`SuperBuilder`](@ref), [`LindbladianBuilder`](@ref).
 """
 function build end
 
-function accumulate!(b::QAddBuilder, x::QAdd)
-    for (term, c) in x.arguments
-        addto_key!(b.args, copy_key(term), c)
-    end
-    isempty(x.indices) || merge_indices!(b.indices, x.indices)
-    return b
-end
-function accumulate!(b::QAddBuilder, x::QAdd, scale::CNum)
+function accumulate!(b::QAddBuilder, x::QAdd, scale::CNum = CNUM_ONE)
     iszero(scale) && return b
     for (term, c) in x.arguments
-        addto_key!(b.args, copy_key(term), c * scale)
+        addto_key!(b.args, copy_key(term), scale === CNUM_ONE ? c : c * scale)
     end
     isempty(x.indices) || merge_indices!(b.indices, x.indices)
     return b
@@ -83,28 +76,16 @@ function MA.operate(
     )
     isempty(a) && return init
     if init isa QAdd || init isa QSym || init isa Coefficient
-        b = QAddBuilder()
-        accumulate!(b, init)
-        for x in a
-            accumulate!(b, x)
-        end
-        return build(b)
+        return build_sum(identity, a, accumulate!(QAddBuilder(), init))
     end
     return mapreduce(identity, MA.add!!, a; init)
 end
 MA.promote_operation(::typeof(sum), ::Type{<:AbstractArray{<:QAdd}}) = QAdd
 
-function Base.sum(a::AbstractArray{<:QAdd})
-    isempty(a) && return zero(QAdd)
-    b = QAddBuilder()
-    for x in a
-        accumulate!(b, x)
-    end
-    return build(b)
-end
-function Base.sum(f, a::AbstractArray{<:QAdd})
-    isempty(a) && return zero(QAdd)
-    b = QAddBuilder()
+Base.sum(a::AbstractArray{<:QAdd}) = sum(identity, a)
+Base.sum(f, a::AbstractArray{<:QAdd}) = isempty(a) ? zero(QAdd) : build_sum(f, a, QAddBuilder())
+
+function build_sum(f::F, a::AbstractArray{<:QAdd}, b::QAddBuilder) where {F}
     for x in a
         accumulate!(b, f(x))
     end

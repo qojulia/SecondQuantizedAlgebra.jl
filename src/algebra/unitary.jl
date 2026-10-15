@@ -1,5 +1,3 @@
-const SiteKey = Tuple{Int32, Index, Int32}
-
 """Marker stored by a unitary transformation whose rules are time independent."""
 struct StaticTime end
 

@@ -77,12 +77,12 @@ end
 
 Apply commutation swaps for adjacent same-site pairs whose `can_commute` is
 false. May fork: emits the swapped branch through the sink, plus up to two
-residual branches where the pair is replaced by residual operators (empty for
-identity residuals, one operator for Spin/CollectiveTransition commutators).
+residual branches where the pair is replaced by its residual operator, or
+removed when the residual is the identity.
 
 Pre-condition: pairs that reduce locally (Transition, Pauli) should have been
-folded by `reduce_ops` first. The residual branch mutates `ops` in place; the
-swap branch receives a `copy(ops)`.
+folded by `reduce_ops` first. The first residual branch mutates `ops` in place;
+the other branches receive a `copy(ops)`.
 """
 @inline function commute_ops(sink::F, ops::Vector{Op}, c::CNum) where {F}
     commute_ops_at(sink, ops, c, 1)
@@ -93,30 +93,15 @@ function commute_ops_at(sink::F, ops::Vector{Op}, c::CNum, start::Int) where {F}
     i = start
     while i < length(ops)
         a, b = ops[i], ops[i + 1]
-        cmp = site_compare(a, b, EMPTY_NE)
-        if cmp === Equal && !can_commute(a, b)
-            sw_b, sw_a, residual_coeff, residual_ops, residual2_coeff, residual2_ops =
-                commute_pair(a, b)
+        if site_compare(a, b, EMPTY_NE) === Equal && !can_commute(a, b)
+            c1, r1, c2, r2, n = commute_pair(a, b)
             swapped = copy(ops)
-            swapped[i] = sw_b
-            swapped[i + 1] = sw_a
+            swapped[i], swapped[i + 1] = b, a
             commute_ops_at(sink, swapped, c, max(i - 1, 1))
-            new_c2 = c * residual2_coeff
-            if !iszero(new_c2)
-                residual2 = copy(ops)
-                deleteat!(residual2, i:(i + 1))
-                for (k, op) in enumerate(residual2_ops)
-                    insert!(residual2, i + k - 1, op)
-                end
-                iszero(residual2_coeff) || commute_ops_at(sink, residual2, new_c2, max(i - 1, 1))
-            end
-            new_c = c * residual_coeff
-            iszero(new_c) && return
-            deleteat!(ops, i:(i + 1))
-            for (k, op) in enumerate(residual_ops)
-                insert!(ops, i + k - 1, op)
-            end
-            c = new_c
+            iszero(c2) || commute_ops_at(sink, splice_residual!(copy(ops), i, r2, n), c * c2, max(i - 1, 1))
+            iszero(c1) && return
+            splice_residual!(ops, i, r1, n)
+            c = c * c1
             i = max(i - 1, 1)
         else
             i += 1
@@ -124,6 +109,12 @@ function commute_ops_at(sink::F, ops::Vector{Op}, c::CNum, start::Int) where {F}
     end
     sink(ops, c)
     return
+end
+
+@inline function splice_residual!(ops::Vector{Op}, i::Int, r::Op, n::Int)
+    n == 0 && return deleteat!(ops, i:(i + 1))
+    ops[i] = r
+    return deleteat!(ops, i + 1)
 end
 
 """
@@ -162,90 +153,3 @@ function expand_gs_ops(sink::F, ops::Vector{Op}, c::CNum) where {F}
     end
     return
 end
-
-@inline provably_real_replacement(x::Real) = true
-@inline provably_real_replacement(x::Num) = SymbolicUtils.symtype(x) <: Real
-@inline provably_real_replacement(x::SymbolicUtils.BasicSymbolic) =
-    SymbolicUtils.symtype(x) <: Real
-@inline provably_real_replacement(x) = false
-
-
-const ScalarRules = Dict{RawExpression, RawExpression}
-const PhaseRules = Vector{Pair{RawExpression, RawExpression}}
-
-const EMPTY_SCALAR_RULES = ScalarRules()
-const EMPTY_PHASE_SUBSTITUTIONS = PhaseRules()
-
-raw_rule(x::RawExpression) = x
-raw_rule(x::Num) = raw_rule(SymbolicUtils.unwrap(x))
-raw_rule(x::Coeff) = lower_complex_slots(raw_tail(x))
-raw_rule(x::Number) = SymbolicUtils.Const{SymbolicUtils.SymReal}(x)
-raw_rule(x) = throw(ArgumentError("unsupported scalar substitution `$x` of type $(typeof(x))"))
-
-scalar_substitution_rules(d::ScalarRules) = d
-function scalar_substitution_rules(d::AbstractDict)
-    out = ScalarRules()
-    for (from, to) in d
-        add_scalar_rule!(out, from, to)
-    end
-    return out
-end
-
-function add_scalar_rule!(rules::ScalarRules, from::Union{Number, RawExpression}, to)
-    rules[raw_rule(from)] = raw_rule(to)
-    return rules
-end
-add_scalar_rule!(rules::ScalarRules, from, to) = rules
-
-function nonreal_phase_substitutions(d::ScalarRules)
-    isempty(d) && return EMPTY_PHASE_SUBSTITUTIONS
-    rules = PhaseRules()
-    for (from, to) in d
-        provably_real_replacement(to) || push!(rules, from => to)
-    end
-    return rules
-end
-
-function collect_phase_arguments!(out::Vector{RawExpression}, x::RawExpression)
-    if is_phase(x)
-        push!(out, only(SymbolicUtils.arguments(x)))
-        return out
-    end
-    SymbolicUtils.iscall(x) || return out
-    for argument in SymbolicUtils.arguments(x)
-        collect_phase_arguments!(out, argument)
-    end
-    return out
-end
-
-@noinline function validate_phase_substitutions(c::Coeff, phase_rules::PhaseRules)
-    isempty(phase_rules) && return c
-    tail = c.tail
-    phase_arguments = RawExpression[]
-    if tail isa Poly
-        for monomial in tail.terms, symbol in monomial.syms
-            is_phase(symbol) && push!(phase_arguments, only(SymbolicUtils.arguments(symbol)))
-        end
-    elseif tail isa RawSymbolicCoeff
-        collect_phase_arguments!(phase_arguments, tail.expr)
-    end
-    for argument in phase_arguments
-        for (from, to) in phase_rules
-            raw_depends_on(argument, from) && nonreal_phase_argument(to)
-        end
-    end
-    return c
-end
-
-function substitute_cnum(c::CNum, d::ScalarRules, phase_rules::PhaseRules = nonreal_phase_substitutions(d))
-    isempty(d) && return c
-    is_native(c) && return c
-    validate_phase_substitutions(c, phase_rules)
-    raw = raw_rule(c)
-    new_raw = SymbolicUtils.substitute(raw, d)
-    isequal(new_raw, raw) && return c
-    return to_cnum(new_raw)
-end
-substitute_cnum(c::CNum, d::AbstractDict) = substitute_cnum(c, scalar_substitution_rules(d))
-
-SymbolicUtils.substitute(c::Coeff, rules::AbstractDict) = substitute_cnum(c, rules)

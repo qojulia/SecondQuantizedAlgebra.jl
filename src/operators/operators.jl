@@ -340,6 +340,8 @@ operator product sequences.
 """
 ladder(o::Op) = (o.kind === OP_DESTROY || o.kind === OP_MOMENTUM) ? 1 : 0
 
+const SiteKey = Tuple{Int32, Index, Int32}
+
 site_key(o::Op) =
     (o.space_index, o.index, (is_position(o) || is_momentum(o)) ? Int32(0) : o.name_id)
 
@@ -385,21 +387,21 @@ end
 function commute_pair(a::Op, b::Op)
     ka = a.kind; kb = b.kind
     if ka === OP_DESTROY && kb === OP_CREATE
-        return (b, a, CNUM_ONE, EMPTY_OPS, CNUM_ZERO, EMPTY_OPS)
+        return (CNUM_ONE, a, CNUM_ZERO, a, 0)
     elseif ka === OP_MOMENTUM && kb === OP_POSITION
-        return (b, a, CNUM_NEG_IM, EMPTY_OPS, CNUM_ZERO, EMPTY_OPS)
+        return (CNUM_NEG_IM, a, CNUM_ZERO, a, 0)
     elseif ka === OP_SPIN && kb === OP_SPIN
         eps = levi_civita[a.l1][b.l1]
         contracted = Op(OP_SPIN, a.name_id, a.space_index, a.index, 6 - a.l1 - b.l1, 0, 0, 0)
-        return (b, a, levi_civita_coeff(eps), Op[contracted], CNUM_ZERO, EMPTY_OPS)
+        return (levi_civita_coeff(eps), contracted, CNUM_ZERO, contracted, 1)
     elseif ka === OP_COLLECTIVE_TRANSITION && kb === OP_COLLECTIVE_TRANSITION
         c1 = a.l2 == b.l1 ? CNUM_ONE : CNUM_ZERO
         c2 = b.l2 == a.l1 ? CNUM_NEG1 : CNUM_ZERO
-        r1 = iszero(c1) ? EMPTY_OPS : Op[Op(ka, a.name_id, a.space_index, NO_INDEX, a.l1, b.l2, 0, 0)]
-        r2 = iszero(c2) ? EMPTY_OPS : Op[Op(ka, a.name_id, a.space_index, NO_INDEX, b.l1, a.l2, 0, 0)]
-        return (b, a, c1, r1, c2, r2)
+        r1 = Op(ka, a.name_id, a.space_index, NO_INDEX, a.l1, b.l2, 0, 0)
+        r2 = Op(ka, a.name_id, a.space_index, NO_INDEX, b.l1, a.l2, 0, 0)
+        return (c1, r1, c2, r2, 1)
     else
-        return (b, a, CNUM_ZERO, EMPTY_OPS, CNUM_ZERO, EMPTY_OPS)
+        return (CNUM_ZERO, a, CNUM_ZERO, a, 0)
     end
 end
 
