@@ -1,17 +1,23 @@
 """
     SuperTerm
 
-One sandwich `ρ ↦ left * ρ * right` of a [`SuperOperator`](@ref), with the pairwise index
-inequality constraints shared by both sides.
+One term of a [`SuperOperator`](@ref), without its coefficient.
 
-# Fields
-- `left::Vector{Op}`: the ordered operator product acting from the left
-- `right::Vector{Op}`: the ordered operator product acting from the right
-- `ne::Vector{NonEqualPair}`: pairwise `α ≠ β` constraints (canonicalized)
+A term is a sandwich `ρ ↦ A * ρ * B`. Iterating a `SuperOperator` gives
+`SuperTerm => coefficient` pairs. The two sides share their index inequalities, and are
+read with [`left_operator`](@ref) and `right_operator`.
 
-`SuperTerm` is the dict key of a `SuperOperator`; iterating one yields
-`Pair{SuperTerm, CNum}`. The fields are owned by the stored key and must not be mutated.
-Build keys with [`superterm`](@ref).
+# Examples
+```jldoctest
+julia> using SecondQuantizedAlgebra: sprepost
+
+julia> h = FockSpace(:c); a = Destroy(h, :a);
+
+julia> first(sprepost(2a, a'))
+a ⋅ (·) ⋅ a' => 2
+```
+
+See also [`superterm`](@ref).
 """
 struct SuperTerm
     left::Vector{Op}
@@ -37,12 +43,25 @@ const SuperTermDict = Dict{SuperTerm, CNum}
 copy_key(t::SuperTerm) = SuperTerm(copy(t.left), copy(t.right), copy_ne(t.ne), t.hash)
 
 """
-    superterm(left, right, ne = Tuple{Index, Index}[]) -> SuperTerm
+    superterm(left, right, ne = Tuple{Index, Index}[])
 
-Build the storage key of the sandwich `ρ ↦ left * ρ * right`. The operator vectors are
-copied and `ne` is canonicalized; the sides are used as given, so a lookup with
-`get(S, superterm(...), 0)` matches only sides already in canonical order, such as those
-read from an iterated term.
+The key of one term of a `SuperOperator`, built from two operator products.
+
+The term is the sandwich `ρ ↦ left * ρ * right`. `left` and `right` are vectors of operators, and `ne` lists pairs of indices that are
+distinct. The sides are used as given, so `get(S, superterm(left, right), 0)` finds a
+coefficient only for sides in canonical order, such as those of an iterated term.
+
+# Examples
+```jldoctest
+julia> using SecondQuantizedAlgebra: sprepost, superterm
+
+julia> h = FockSpace(:c); a = Destroy(h, :a);
+
+julia> get(sprepost(2a, a'), superterm([a], [a']), 0)
+2
+```
+
+See also [`SuperTerm`](@ref).
 """
 superterm(left::AbstractVector{<:QSym}, right::AbstractVector{<:QSym}, ne::Vector{NonEqualPair} = EMPTY_NE) =
     SuperTerm(Op[o for o in left], Op[o for o in right], canonical_ne(ne))

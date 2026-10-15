@@ -170,19 +170,38 @@ function lower_taylor_qexpr(q::QExpr, order::Int)::QAdd
 end
 
 """
-    taylor(expr::QExpr, ns::UnitRange{<:Integer}) -> QAdd
+    taylor(expr, 0:n)
 
-Explicitly lower formal `sin`, `cos`, and `expim` nodes to Maclaurin polynomials.
-For the first operator-function API, `ns` must be a prefix range `0:n`.
-Coefficients remain exact and generated products use the ordinary canonical `QAdd`
-pipeline. The cutoff is applied independently to each formal-function node, not as a
-global total-degree cutoff on the final polynomial, so `taylor(sin(A)^2, 0:1)` is `A^2`
-and `taylor(sin(A)^2 + cos(A)^2, 0:n)` is not `1`.
+Replace every formal operator function in `expr` by its Taylor polynomial up to order `n`.
 
-Each formal function must have a polynomial argument with no bound `QAdd` summation
-scope. Nested formal functions and powers of bound sums are rejected explicitly rather
-than assigned ambiguous implicit approximation or alpha-renaming semantics.
+The coefficients are exact and the result is a polynomial in canonical form; an expression
+without formal functions is returned unchanged. Each function
+is truncated on its own, so the order is not a total degree of the result: `sin(A)^2`
+truncated at order `1` is `A^2`, and `sin(A)^2 + cos(A)^2` truncated at any order is not
+`1`. A function inside another function throws an `ArgumentError`; lower the inner part
+first. So does a function of an argument containing a [`Σ`](@ref), since a power such as
+``(\\sum_i A_i)^2`` would need fresh summation indices. The range must start at `0`.
+
+# Examples
+```jldoctest
+julia> a = Destroy(FockSpace(:cavity), :a);
+
+julia> A = a + a';
+
+julia> taylor(sin(A)^2, 0:1)
+1 + a * a + 2 * a' * a + a' * a'
+
+julia> taylor(sin(A)^2, 0:1) == A^2
+true
+```
+
+See also [`sin`](@ref sin(::QField)), [`cos`](@ref cos(::QField)), [`expim`](@ref expim(::QField)).
 """
 function Symbolics.taylor(q::QExpr, ns::UnitRange{T})::QAdd where {T <: Integer}
     return lower_taylor_qexpr(q, taylor_prefix_order(ns))
 end
+function Symbolics.taylor(q::QAdd, ns::UnitRange{T})::QAdd where {T <: Integer}
+    taylor_prefix_order(ns)
+    return q
+end
+Symbolics.taylor(q::QSym, ns::UnitRange{T}) where {T <: Integer} = taylor(+q, ns)

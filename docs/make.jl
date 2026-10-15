@@ -1,4 +1,6 @@
 CI = get(ENV, "CI", "") == "true"
+# DOCS_DRAFT=true skips the Literate examples and code execution for fast local previews.
+DRAFT = get(ENV, "DOCS_DRAFT", "") == "true"
 
 # On CI, turn on Documenter/Literate debug logging so each example page logs an
 # "Expanding markdown page" line as it is built. Combined with the timestamps in
@@ -12,7 +14,7 @@ get!(ENV, "GKSwstype", "100")
 
 # Generate and execute the Literate pages before loading the packages used by the
 # rest of the documentation. Each generated example runs in its own Julia process.
-include("make_md_examples.jl")
+DRAFT || include("make_md_examples.jl")
 
 using SecondQuantizedAlgebra
 using Documenter
@@ -36,6 +38,11 @@ DocMeta.setdocmeta!(
 )
 
 include("pages.jl")
+
+existing_pages(page::Pair) = page.second isa AbstractVector ?
+    page.first => filter(!isnothing, map(existing_pages, page.second)) :
+    (isfile(joinpath(@__DIR__, "src", page.second)) ? page : nothing)
+DRAFT && (pages = filter(!isnothing, map(existing_pages, pages)))
 
 bib = CitationBibliography("src/refs.bib"; style = :authoryear)
 links = InterLinks(
@@ -61,7 +68,7 @@ makedocs(;
     pages = pages,
     plugins = [bib, CodeBlocks(), LandingPage(), links],
     clean = true,
-    linkcheck = true,
+    linkcheck = !DRAFT,
     # GitHub throttles the burst of HEAD requests from the changelog's PR/issue
     # links, so those curl calls time out and used to fail the whole build.
     linkcheck_ignore = [
@@ -69,7 +76,7 @@ makedocs(;
     ],
     linkcheck_timeout = 30,
     warnonly = [:linkcheck],
-    draft = false,
+    draft = DRAFT,
     doctest = true,
     checkdocs = :exports,
 )

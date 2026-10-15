@@ -22,15 +22,32 @@ const FormalDict = Dict{FormalSandwich, CNum}
 
 """
     SuperExpr
+    SuperExpr(L::Lindbladian)
 
-A superoperator with formal operator-function sides, `poly + Σ c * f ρ g`. The polynomial
-part is a [`SuperOperator`](@ref); every sandwich with a [`QExpr`](@ref) side is a
-`FormalSandwich` with its scalar moved into the coefficient. Sides are split into
-their additive atoms, so `c * (f, g)`, `(c f, g)` and `(f, c g)` are one key, and a sandwich
-whose sides are both polynomial lands in the polynomial part.
+A linear map on operators whose sides may contain formal operator functions.
 
-Operations keep the `SuperExpr` type even when the formal part is empty; call
-`SuperOperator(X)` to convert, or `taylor(X, 0:n)` to lower every formal side.
+A `SuperExpr` is a polynomial [`SuperOperator`](@ref) plus sandwiches `c * f ρ g` with a
+[`QExpr`](@ref) side. It arises from [`sprepost`](@ref) with a formal side, from operations
+on a `Lindbladian{QExpr}`, and from `SuperExpr(L)`. It supports the arithmetic,
+composition, `transpose` and application of a `SuperOperator`, and keeps its type even when
+no formal sandwich remains. `taylor(X, 0:n)`
+lowers every formal side and returns a `SuperOperator`, and `SuperOperator(X)` converts an
+`X` without formal sandwiches.
+
+# Examples
+```jldoctest
+julia> using SecondQuantizedAlgebra: sprepost
+
+julia> h = FockSpace(:c); a = Destroy(h, :a);
+
+julia> X = sprepost(cos(a' * a), a)
+cos(a' * a) ⋅ (·) ⋅ a
+
+julia> X isa SecondQuantizedAlgebra.SuperExpr
+true
+```
+
+See also [`SuperOperator`](@ref), [`taylor`](@ref), [`poly`](@ref).
 """
 struct SuperExpr
     poly::SuperOperator
@@ -38,10 +55,28 @@ struct SuperExpr
 end
 
 """
-    poly(X::SuperExpr) -> SuperOperator
+    poly(X::SuperExpr)
     formal_terms(X::SuperExpr)
 
-The polynomial part of `X`, and an iterator of its `FormalSandwich => coefficient` pairs.
+The polynomial part of a `SuperExpr`, and an iterator over its formal sandwiches with their
+coefficients.
+
+# Examples
+```jldoctest
+julia> using SecondQuantizedAlgebra: sprepost, spre, poly, formal_terms
+
+julia> h = FockSpace(:c); a = Destroy(h, :a);
+
+julia> X = sprepost(cos(a' * a), a) + spre(a);
+
+julia> poly(X)
+a ⋅ (·)
+
+julia> length(collect(formal_terms(X)))
+1
+```
+
+See also [`SuperExpr`](@ref).
 """
 poly(X::SuperExpr) = X.poly
 formal_terms(X::SuperExpr) = pairs(X.formal)
@@ -236,11 +271,6 @@ function lower_formal_channel!(b::SuperExprBuilder, J::QExpr, K::QExpr, γ::CNum
     return b
 end
 
-"""
-    SuperExpr(L::Lindbladian{QExpr}) -> SuperExpr
-
-Lower a formal Lindbladian to its sandwich form.
-"""
 function SuperExpr(L::Lindbladian{QExpr})
     b = SuperExprBuilder()
     lower_formal_hamiltonian!(b, L.hamiltonian)
@@ -476,11 +506,14 @@ get_sum_indices(X::SuperExpr) = get_sum_indices(X.poly)
 taylor_side(q::QExpr, order::Int) = lower_taylor_qexpr(q, order)
 
 """
-    taylor(X::SuperExpr, ns) -> SuperOperator
-    taylor(L::Lindbladian{QExpr}, ns) -> Lindbladian{QAdd}
+    taylor(X::SuperExpr, ns)
+    taylor(L::Lindbladian{QExpr}, ns)
 
-Lower every formal side to its Maclaurin polynomial through order `n` (`ns = 0:n`, applied
-per formal-function node as for `QExpr`).
+Lower every formal side of a map to its Maclaurin polynomial through order `n`, for
+`ns = 0:n`.
+
+A `SuperExpr` becomes a `SuperOperator` and a `Lindbladian{QExpr}` a polynomial
+`Lindbladian`. Each formal function is expanded as for an operator.
 """
 function Symbolics.taylor(X::SuperExpr, ns::UnitRange{T}) where {T <: Integer}
     order = taylor_prefix_order(ns)
