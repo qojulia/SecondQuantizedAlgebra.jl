@@ -244,6 +244,15 @@ import SecondQuantizedAlgebra: Coeff, CNum, to_cnum, to_num, Monomial, ExactComp
         end
     end
 
+    @testset "fractional powers preserve phase restrictions" begin
+        @variables θ::Real
+        phase = SymbolicUtils.Term{SymbolicUtils.SymReal}(expim, [Symbolics.unwrap(θ)]; type = Number)
+        unit_root = Num(SymbolicUtils.Term{SymbolicUtils.SymReal}(sqrt, [phase]; type = Number))
+        @test_throws ArgumentError unit_root * a
+        scaled_root = Num(SymbolicUtils.Term{SymbolicUtils.SymReal}(sqrt, [2phase]; type = Number))
+        @test isequal(get_prefactor(scaled_root * a), Complex(real(scaled_root), imag(scaled_root)))
+    end
+
     @testset "numeric radicals multiply exactly" begin
         inverse_root_six = 1 / sqrt(Num(6))
         weighted = inverse_root_six * a
