@@ -1,17 +1,9 @@
-# Exact zero test for a sum of rational functions of the coefficient atoms. It lets a
-# cancellation across quotients with different denominators, such as `D*conj(D)` against its
-# expanded product, drop the term eagerly instead of waiting for `simplify`.
 struct RationalForm
     num::Coeff
     den::Coeff
 end
 
-# Failure sentinel: a valid form never has a zero denominator.
 const RATIONAL_FAIL = RationalForm(CNUM_ZERO, CNUM_ZERO)
-# Bounds on the term pairs of a polynomial product, so the test stays cheap; exceeding one
-# reports "not shown zero", never "zero". Bringing two quotients inside one operand to a
-# common denominator gets the tight bound: without it, a long accumulated sum of distinct
-# quotients pays a growing failed attempt on every addition.
 const RATIONAL_TERM_BUDGET = 256
 const RATIONAL_INNER_SUM_BUDGET = 16
 
@@ -97,8 +89,6 @@ function rational_form(x::RawExpression)
 end
 rational_form(x) = RATIONAL_FAIL
 
-# `true` only when `a + b` is identically zero as a rational function of its atoms, that
-# is wherever it is defined. A sum whose form cannot be built is reported as not zero.
 function rational_sum_is_zero(a::Coeff, b::Coeff)
     fa = rational_form(a)
     is_failed_form(fa) && return false
