@@ -52,8 +52,39 @@ jobs:
             Pkg.instantiate();
             include("runbenchmarks.jl")'
 
+      - name: Check out the PR base
+        if: ${{ github.event_name == 'pull_request' }}
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.pull_request.base.sha }}
+          path: benchmark-base
+          persist-credentials: false
+
+      - name: Compare against the base on this runner
+        if: ${{ github.event_name == 'pull_request' }}
+        run: |
+          cd benchmark
+          mv benchmarks_output.json benchmarks_head.json
+          julia --project --threads=1 --gcthreads=1 --color=yes -e '
+            using Pkg;
+            Pkg.develop(PackageSpec(path=joinpath(pwd(), "..", "benchmark-base")); preserve=Pkg.PRESERVE_ALL);
+            Pkg.instantiate();
+            include("../benchmark-base/benchmark/runbenchmarks.jl")'
+          mv benchmarks_output.json benchmarks_base.json
+          julia --project --color=yes comparebenchmarks.jl benchmarks_base.json benchmarks_head.json
+
+      - name: Save comparison measurements
+        if: ${{ always() && github.event_name == 'pull_request' }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: benchmark-comparison
+          path: |
+            benchmark/benchmarks_base.json
+            benchmark/benchmarks_head.json
+
       # this will update benchmark/data.js in gh-pages branch
       - name: Parse & Upload Benchmark Results
+        if: ${{ github.event_name != 'pull_request' }}
         uses: benchmark-action/github-action-benchmark@v1
         with:
           name: Benchmark Results
