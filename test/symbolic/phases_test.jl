@@ -360,7 +360,7 @@ import SecondQuantizedAlgebra: expim, exponential_form, phase_terms, to_num,
         cube_root = stored_coefficient(cbrt(g) * a)
         square_root = stored_coefficient(sqrt(g) * a)
         inverse_square_root = stored_coefficient(g^(-1 // 2) * a)
-        @test isequal(real(cube_root), g^(1 // 3))
+        @test isequal(real(cube_root), cbrt(g))
         @test isequal(real(square_root), sqrt(g))
         @test isequal(real(inverse_square_root), 1 / sqrt(g))
         negative_integer_power = stored_coefficient(g^(-2) * a)
