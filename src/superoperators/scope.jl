@@ -1,5 +1,5 @@
 function Σ(S::SuperOperator, i::Index, non_equal::Vector{Index} = Index[])
-    i.range_id == 0 && throw(ArgumentError("Σ: index $(index_name(i)) has no summation range"))
+    require_sum_range(i)
     i in S.indices && shared_binder_error(i)
     if isempty(non_equal) && !mentions_index(S, i)
         return S * index_range(i)
@@ -31,19 +31,17 @@ end
 
 Σ(S::SuperOperator, i::Index, j::Index, rest::Index...) = Σ(Σ(S, i), j, rest...)
 
-change_index(S::SuperOperator, from::Index, to::Index) = change_index(S, Dict(from => to))
-
-function change_index(S::SuperOperator, pairs::AbstractDict{Index, Index})
-    isempty(pairs) && return S
+function change_index(S::SuperOperator, m::IndexMap)
+    renames_nothing(m) && return S
     out = SuperTermDict()
-    new_indices = Index[get(pairs, idx, idx) for idx in S.indices]
+    new_indices = Index[reindex(m, idx) for idx in S.indices]
     for (t, c) in S.arguments
-        ne_becomes_contradictory(t.ne, pairs) && continue
-        bound = Index[get(pairs, idx, idx) for idx in bound_indices(t, c, S.indices)]
+        ne_becomes_contradictory(t.ne, m) && continue
+        bound = Index[reindex(m, idx) for idx in bound_indices(t, c, S.indices)]
         emit_sandwich!(
-            out, Op[change_index(o, pairs) for o in t.left],
-            Op[change_index(o, pairs) for o in t.right], change_index(c, pairs),
-            substitute_ne(t.ne, pairs), bound,
+            out, Op[change_index(o, m) for o in t.left],
+            Op[change_index(o, m) for o in t.right], change_index(c, m),
+            substitute_ne(t.ne, m), bound,
         )
     end
     return superop_pruned(out, unique!(new_indices))
@@ -81,12 +79,8 @@ end
 function get_indices(S::SuperOperator)
     inds = copy(S.indices)
     for t in keys(S.arguments)
-        for op in t.left
-            has_index(op.index) && op.index ∉ inds && push!(inds, op.index)
-        end
-        for op in t.right
-            has_index(op.index) && op.index ∉ inds && push!(inds, op.index)
-        end
+        push_op_indices!(inds, t.left)
+        push_op_indices!(inds, t.right)
     end
     return inds
 end

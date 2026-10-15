@@ -62,22 +62,23 @@ indices may collapse).
     return out
 end
 
-function distinct_op_indices(ops::Vector{Op})
-    out = Index[]
+function push_op_indices!(inds::Vector{Index}, ops::Vector{Op})
     for op in ops
-        idx = op.index
-        has_index(idx) || continue
-        idx in out && continue
-        push!(out, idx)
+        has_index(op.index) && op.index ∉ inds && push!(inds, op.index)
     end
-    return out
+    return inds
 end
 
-function depends_on_index_ops(c::CNum, ops::Vector{Op}, idx::Index)
+distinct_op_indices(ops::Vector{Op}) = push_op_indices!(Index[], ops)
+
+function has_two_indices(ops::Vector{Op})
+    first_idx = NO_INDEX
     for op in ops
-        op.index == idx && return true
+        has_index(op.index) || continue
+        first_idx === NO_INDEX && (first_idx = op.index; continue)
+        op.index == first_idx || return true
     end
-    return depends_on_index_term(c, ops, idx)
+    return false
 end
 
 const NO_DIAGONALS = Tuple{Index, Index}[]
@@ -86,7 +87,7 @@ function binder_diagonals(
         ops::Vector{Op}, c::CNum, s::Index, bound::Vector{Index}, ne::Vector{NonEqualPair},
     )
     pairs = NO_DIAGONALS
-    depends_on_index_ops(c, ops, s) || return pairs
+    depends_on_index_term(c, ops, s) || return pairs
     for e in distinct_op_indices(ops)
         may_coincide(s, e, ne) || continue
         e in bound && name_rank(s.name_id) <= name_rank(e.name_id) && continue
@@ -96,21 +97,9 @@ function binder_diagonals(
     return pairs
 end
 
-function merge_ne_pairs(ne::Vector{NonEqualPair}, pairs::Vector{Tuple{Index, Index}})
-    out = ne
-    for (a, b) in pairs
-        out = merge_ne_pair(out, a, b)
-    end
-    return out
-end
-
-function merge_ne_pairs(ne::Vector{NonEqualPair}, i::Index, others::Vector{Index})
-    out = ne
-    for j in others
-        out = merge_ne_pair(out, i, j)
-    end
-    return out
-end
+merge_ne_pairs(ne::Vector{NonEqualPair}, pairs::Vector{NonEqualPair}) = merge_ne(ne, pairs)
+merge_ne_pairs(ne::Vector{NonEqualPair}, i::Index, others::Vector{Index}) =
+    isempty(others) ? ne : merge_ne(ne, NonEqualPair[(i, j) for j in others])
 
 """
     partition_binders!(leaf, sides, c, ne, scope, bound) -> nothing
@@ -153,6 +142,9 @@ function may_coincide(sum_idx::Index, ext_idx::Index, ne::Vector{NonEqualPair})
     return !ne_contains(ne, sum_idx, ext_idx)
 end
 
+coinciding_pairs(i::Index, ops::Vector{Op}, ne::Vector{NonEqualPair}) =
+    Tuple{Index, Index}[(i, ext) for ext in distinct_op_indices(ops) if may_coincide(i, ext, ne)]
+
 function sibling_exclusions(diag_pairs::Vector{Tuple{Index, Index}}, sum_idx::Index, ext_idx::Index)
     sibling_ne = NonEqualPair[]
     for (other_sum, other_ext) in diag_pairs
@@ -168,7 +160,7 @@ function diagonal_ne(
         ne::Vector{NonEqualPair}, diag_pairs::Vector{Tuple{Index, Index}}, sum_idx::Index,
         ext_idx::Index,
     )
-    sub_ne = substitute_ne(ne, sum_idx, ext_idx)
+    sub_ne = substitute_ne(ne, sum_idx => ext_idx)
     sibling_ne = sibling_exclusions(diag_pairs, sum_idx, ext_idx)
     return isempty(sibling_ne) ? sub_ne : merge_ne(sub_ne, sibling_ne)
 end
@@ -186,7 +178,7 @@ function accumulate_with_diag!(
         out::QTermDict, ops::Vector{Op}, c::CNum,
         sum_indices::Vector{Index}, ne::Vector{NonEqualPair},
     )
-    if length(distinct_op_indices(ops)) < 2
+    if !has_two_indices(ops)
         canonicalize!(out, copy(ops), c, ne)
         return out
     end

@@ -380,7 +380,7 @@ set_acts_on(o::Op, aon::Integer) =
     Op(o.kind, o.name_id, Int32(aon), o.index, o.l1, o.l2, o.g, o.nlev)
 
 rename(o::Op, name::Symbol) =
-    Op(o.kind, intern_name(name), o.space_index, o.index, o.l1, o.l2, o.g, o.nlev)
+    Op(o.kind, name_id(name), o.space_index, o.index, o.l1, o.l2, o.g, o.nlev)
 rename(o::Op, name::AbstractString) = name_must_be_symbol(name)
 
 const EMPTY_OPS = Op[]

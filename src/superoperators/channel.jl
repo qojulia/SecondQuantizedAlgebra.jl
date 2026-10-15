@@ -263,5 +263,3 @@ function count_unmentioned_binders(
     end
     return (sort!(kept), cne, rate)
 end
-
-ne_mentions(ne::Vector{NonEqualPair}, idx::Index) = any(p -> p[1] == idx || p[2] == idx, ne)

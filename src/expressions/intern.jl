@@ -58,14 +58,12 @@ function new_name!(id::Int32)
     return id
 end
 
-intern_name(s::Symbol) = intern!(NAME_BY_ID, NAME_TO_ID, s, new_name!)
-name_id(s::Symbol) = intern_name(s)
+name_id(s::Symbol) = intern!(NAME_BY_ID, NAME_TO_ID, s, new_name!)
 
 const RANGE_BY_ID = Num[]
 const RANGE_TO_ID = Dict{Num, Int32}()
 
 range_from_id(id::Int32) = id == 0 ? Num(0) : RANGE_BY_ID[id]
 
-no_init(id::Int32) = id
-intern_range(r::Num) = intern!(RANGE_BY_ID, RANGE_TO_ID, r, no_init)
+intern_range(r::Num) = intern!(RANGE_BY_ID, RANGE_TO_ID, r, identity)
 intern_range(r::Integer) = intern_range(Num(r))

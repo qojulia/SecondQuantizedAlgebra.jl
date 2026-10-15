@@ -175,15 +175,7 @@ SymbolicUtils.simplify(c::Coeff; kwargs...) = simplify_prefactor(c; kwargs...)
 
 function drop_unused_indices(d::QTermDict, indices::Vector{Index})
     isempty(indices) && return indices
-    used = Index[]
-    for idx in indices
-        for (term, c) in d
-            if depends_on_scope_index(c, term.ops, term.ne, idx)
-                push!(used, idx)
-                break
-            end
-        end
-    end
+    used = Index[idx for idx in indices if any_depends_on_index(d, idx)]
     length(used) == length(indices) && return indices
     return used
 end

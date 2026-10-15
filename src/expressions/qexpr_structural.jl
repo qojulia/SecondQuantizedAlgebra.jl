@@ -44,33 +44,20 @@ function SymbolicUtils.substitute(q::QExpr, rules::AbstractDict; replace_adjoint
     return substitute_qexpr_split(q, op_rules, scalar_rules, phase_rules)
 end
 
-function change_index(q::QExpr, from::Index, to::Index)
-    coeff = change_index(q.coeff, from, to)
+function change_index(q::QExpr, m::IndexMap)
+    renames_nothing(m) && return q
     args = QExprArg[]
     sizehint!(args, length(q.args))
     for arg in q.args
-        push!(args, change_index(arg, from, to))
+        push!(args, change_index(arg, m))
     end
-    return qexpr_rebuild(q.kind, coeff, args)
-end
-
-function change_index(q::QExpr, pairs::AbstractDict{Index, Index})
-    isempty(pairs) && return q
-    coeff = change_index(q.coeff, pairs)
-    args = QExprArg[]
-    sizehint!(args, length(q.args))
-    for arg in q.args
-        push!(args, change_index(arg, pairs))
-    end
-    return qexpr_rebuild(q.kind, coeff, args)
+    return qexpr_rebuild(q.kind, change_index(q.coeff, m), args)
 end
 
 function get_indices(q::QExpr)
     indices = Index[]
     for arg in q.args
-        for idx in get_indices(arg)
-            idx in indices || push!(indices, idx)
-        end
+        merge_indices!(indices, get_indices(arg))
     end
     sort!(indices)
     return indices
