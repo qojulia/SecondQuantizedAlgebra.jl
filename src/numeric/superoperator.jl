@@ -198,28 +198,47 @@ numeric_average_vec(::Union{NumericMap, FormalMap}, ::Any, ::AbstractDict{<:QSym
 expect(::Union{NumericMap, FormalMap}, state, d::AbstractDict{<:QSym} = NO_SUBS) = map_average_error()
 
 """
-    to_numeric_master(L::Lindbladian, h, dims; backend, parameter, time_parameter, sites, tol)
-        -> (hamiltonian = H, collapse_operators = c_ops)
+    to_numeric_master(L::Lindbladian, h, dims; backend, parameter, time_parameter, sites, scalar_subs, tol)
 
-Convert a Lindbladian to the inputs of a master-equation solver, so that
-`H, c_ops = to_numeric_master(L, h, dims)` feeds QuantumOptics `timeevolution.master` and
-QuantumToolbox `mesolve` without rate arguments.
+The numerical Hamiltonian and collapse operators of a Lindbladian, as inputs for a
+master-equation solver.
 
-Channels are unrolled over their scopes (bound indices need `sites`, as in the indexed
-[`to_numeric`](@ref) form), and `scalar_subs` resolves coefficients of unrolled indices,
-such as `g(k)`. The jumps are expanded in their operator monomials `M_m`, and the rate matrix
-`Γ[m, n]` of every coupled block is checked to be Hermitian and positive semidefinite and
-diagonalized, `c_k = √λ_k Σ_m U[m, k] M_m`; a single channel gives `√γ J`. Eigenvalues with
-`|λ| ≤ tol * max|λ|` are clipped to zero (`tol = √eps` by default), and a more negative
-eigenvalue or a non-Hermitian `H` throws. A time-dependent `H` is checked at a few sample
-times; with `(p, t)` coefficients it is checked symbolically, treating parameters as real.
+Returns `(hamiltonian = H, collapse_operators = c_ops)`, which feed QuantumOptics
+`timeevolution.master` and QuantumToolbox `mesolve` without separate rates. `backend`,
+`parameter`, `time_parameter` and `sites` work as for [`to_numeric`](@ref), and
+`scalar_subs` resolves coefficients of unrolled indices, such as `g(k)`. A single channel
+`γ 𝒟[J]` gives `√γ J`. The rate matrix of every block of correlated channels is
+diagonalized, `c_k = √λ_k Σ_m U[m, k] M_m`, where `M_m` are the operator monomials of the
+jumps.
 
-With a `time_parameter` (QuantumToolbox only), `H` becomes a `QobjEvo` and a diagonal
-channel with a time-dependent rate `γ(t)` gives the collapse operator `√γ(t) J`. Such a rate
-must stay real and nonnegative: it is checked at the sample times, and evaluating a negative
-or complex rate during the solve throws. A correlated channel with a time-dependent rate is
-refused, because the eigenvectors of `Γ(t)` move with `t`; convert the full generator with
-`to_numeric(L, ...; time_parameter)` instead.
+The generator must be physical: the rate matrices must be Hermitian and positive
+semidefinite and `H` Hermitian, or the conversion throws. Eigenvalues with
+`|λ| ≤ tol * max|λ|` are set to zero, with `tol = √eps` by default. A time-dependent `H` is
+checked at a few sample times.
+
+With a `time_parameter`, which needs QuantumToolbox, `H` becomes a `QobjEvo`, and a single
+channel with a rate `γ(t)` gives the collapse operator `√γ(t) J`; the rate must stay real
+and nonnegative during the solve. A correlated block with time-dependent rates throws,
+since the eigenvectors of `Γ(t)` move with `t`; `to_numeric(L, h, dims; time_parameter)`
+gives the full generator instead.
+
+# Examples
+```jldoctest
+julia> using SecondQuantizedAlgebra: to_numeric_master
+
+julia> import QuantumToolbox
+
+julia> h = FockSpace(:c); a = Destroy(h, :a);
+
+julia> L = hamiltonian_action(a' * a) + 4 * dissipator(a);
+
+julia> H, c_ops = to_numeric_master(L, h, 4; backend = QuantumToolboxBackend());
+
+julia> only(c_ops) ≈ 2 * to_numeric(a, h, 4; backend = QuantumToolboxBackend())
+true
+```
+
+See also [`to_numeric`](@ref), [`Lindbladian`](@ref).
 """
 function to_numeric_master(
         L::Lindbladian{QAdd}, h::HilbertSpace, dims;

@@ -1,12 +1,13 @@
 """
     stream!(out::QTermDict, ops::Vector{Op}, c::CNum, ne::Vector{NonEqualPair})
 
-The default canonicalization pipeline. Order: `reduce -> commute -> reduce -> sink`.
+The default canonicalization pipeline: reduce, commute, reduce, then store in `out`.
 
-The first reduce folds Transition/Pauli same-site pairs (these never commute,
-they compose). Commute then operates only on Fock/Spin/PhaseSpace ladder pairs.
-The trailing reduce catches any same-site composition surfaced by the commute
-residual (e.g. a Spin commutator's contracted op meeting a same-site neighbor).
+The first reduce composes same-site Transition and Pauli pairs, which compose rather than
+commute. Commute then swaps the remaining same-site pairs (Fock, Spin, PhaseSpace and
+CollectiveTransition) and emits their commutator residuals. The trailing reduce catches a
+composition that a residual creates next to a same-site neighbour, such as the contracted
+operator of a Spin commutator.
 """
 @inline function stream!(
         out::QTermDict, ops::Vector{Op}, c::CNum, ne::Vector{NonEqualPair},

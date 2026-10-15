@@ -10,9 +10,15 @@ const FockSite = Tuple{Int, Symbol, Symbol, Int, Int}
 const PhaseSite = Tuple{Int, Symbol, Int, Int}
 
 """
-    normal_to_symmetric(expr) -> QAdd
+    normal_to_symmetric(expr)
 
-Convert `expr` from normal to symmetric (Weyl) ordering. Exact inverse of
+Rewrite a normal-ordered expression in symmetric (Weyl) order.
+
+The result is written with the same monomials, but each now stands for its fully
+symmetrized product: `a' * a` reads as ``(a^\\dagger a + a a^\\dagger)/2`` and
+`x * p` as ``(xp + px)/2``. This is the form phase-space methods such as the
+truncated Wigner approximation work with. Bosonic modes and quadratures are
+converted; other operators pass through unchanged. The inverse is
 [`symmetric_to_normal`](@ref).
 
 # Examples
@@ -41,10 +47,13 @@ end
 normal_to_symmetric(op::QSym) = normal_to_symmetric(single_qadd(CNUM_ONE, Op[op]))
 
 """
-    symmetric_to_normal(expr) -> QAdd
+    symmetric_to_normal(expr)
 
-Convert `expr` from symmetric (Weyl) to normal ordering. Exact inverse of
-[`normal_to_symmetric`](@ref).
+Rewrite a symmetric (Weyl) ordered expression in normal order.
+
+Each monomial of `expr` is read as its symmetrized product, as returned by
+[`normal_to_symmetric`](@ref), and expanded back into normal order. The two
+functions are exact inverses.
 
 # Examples
 
@@ -53,15 +62,11 @@ julia> hf = FockSpace(:f);
 
 julia> @qnumbers a::Destroy(hf);
 
-julia> symmetric_to_normal(normal_to_symmetric(a' * a))
+julia> symmetric_to_normal(a' * a)
+1//2 + a' * a
+
+julia> normal_to_symmetric(symmetric_to_normal(a' * a))
 a' * a
-
-julia> hp = PhaseSpace(:osc);
-
-julia> @qnumbers x::Position(hp) p::Momentum(hp);
-
-julia> symmetric_to_normal(normal_to_symmetric(x * p))
-x * p
 ```
 
 See also [`normal_to_symmetric`](@ref), [`normal_order`](@ref).

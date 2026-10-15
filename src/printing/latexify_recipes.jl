@@ -1,23 +1,31 @@
 const transition_idx_script = Ref(:^)
 
 """
-    transition_superscript(x::Bool) -> Bool
+    transition_superscript(x::Bool)
 
-Set whether [`Transition`](@ref) and [`CollectiveTransition`](@ref) level indices
-are rendered as superscripts (`true`, default) or subscripts (`false`) in LaTeX
-output via Latexify.jl.
+Choose whether transition levels are written as superscripts or subscripts in LaTeX.
 
-- `true`: ``{\\sigma}^{{ij}}``
-- `false`: ``{\\sigma}_{{ij}}``
+With `true`, the default, ``\\sigma^{ij}`` is written; with `false`,
+``\\sigma_{ij}``. The setting is global and applies to every later call of
+`latexify`. The function is not exported.
 
 # Examples
-```jldoctest
-julia> SecondQuantizedAlgebra.transition_superscript(false)
-false
 
-julia> SecondQuantizedAlgebra.transition_superscript(true)
-true
+```jldoctest
+julia> using SecondQuantizedAlgebra: transition_superscript
+
+julia> using Latexify
+
+julia> σ = Transition(NLevelSpace(:atom, 2), :σ, 2, 1);
+
+julia> transition_superscript(false); latexify(σ)
+L"\${\\sigma}_{{21}}\$"
+
+julia> transition_superscript(true); latexify(σ)
+L"\${\\sigma}^{{21}}\$"
 ```
+
+See also [`Transition`](@ref).
 """
 function transition_superscript(x::Bool)
     transition_idx_script[] = x ? :^ : :_
@@ -230,6 +238,7 @@ end
             latex_term(c, ops)
         end for t in st
     ]
+    isempty(terms) && return 0
     return Expr(:call, :+, terms...)
 end
 

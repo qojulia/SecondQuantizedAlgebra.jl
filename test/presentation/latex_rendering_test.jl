@@ -100,6 +100,8 @@ adf = af'
 
     @testset "QAdd" begin
         @test latexify(af + adf) == L"a + a^{\dagger}"
+        @test latexify(af - af) == L"0"
+        @test repr(MIME"text/latex"(), transpose(dissipator(af))(1)) == "\$0\$"
     end
 
     @testset "Simplify display" begin

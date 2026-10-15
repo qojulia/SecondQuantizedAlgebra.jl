@@ -239,9 +239,27 @@ end
 """
     SuperBuilder()
 
-Mutable accumulator for building a [`SuperOperator`](@ref) by repeated addition in linear
-time. Add maps with `accumulate!(b, S)`, single sandwiches `c * A ρ B` with
-`accumulate!(b, c, A, B)`, and finish with `build(b)`.
+An accumulator that builds a [`SuperOperator`](@ref) from many terms in linear time.
+
+Add maps with `accumulate!(b, S)` and single sandwiches `c * A ρ B` with
+`accumulate!(b, c, A, B)`, and finish with [`build`](@ref). `sum` over an array of maps uses
+it already.
+
+# Examples
+```jldoctest
+julia> using SecondQuantizedAlgebra: SuperBuilder, spre, accumulate!, build
+
+julia> h = FockSpace(:c); a = Destroy(h, :a);
+
+julia> b = SuperBuilder();
+
+julia> accumulate!(b, spre(a)); accumulate!(b, 2, a, a');
+
+julia> build(b)
+a ⋅ (·) + 2 * a ⋅ (·) ⋅ a'
+```
+
+See also [`LindbladianBuilder`](@ref).
 """
 struct SuperBuilder
     args::SuperTermDict
