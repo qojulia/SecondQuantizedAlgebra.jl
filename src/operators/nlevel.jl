@@ -3,27 +3,32 @@
     NLevelSpace(name::Symbol, n::Int, ground_state::Int)
     NLevelSpace(name::Symbol, levels::Tuple{Vararg{Symbol}})
 
-Hilbert space for an N-level system (atoms, qubits, qudits). Hosts
-[`Transition`](@ref) operators
-``|i\\rangle\\langle j| \\cdot |k\\rangle\\langle l| = \\delta_{jk} |i\\rangle\\langle l|``.
+Hilbert space of a system with `n` discrete levels, home of the [`Transition`](@ref)
+operators.
 
-The `ground_state` (default `1`) selects the projector ``|g\\rangle\\langle g|``
-that the canonical basis omits; arithmetic keeps it atomic and
-[`expand_completeness`](@ref) materialises
-``|g\\rangle\\langle g| = 1 - \\sum_{k \\neq g}|k\\rangle\\langle k|`` on
-demand. Levels can be integers (default `1:n`) or symbolic names.
+Levels are numbered `1:n`, or named by a tuple of symbols in the order of the basis.
+The `ground_state` (default `1`; the first name for named levels) marks the
+projector ``|g\\rangle\\langle g|`` that [`expand_completeness`](@ref) can eliminate
+through ``|g\\rangle\\langle g| = 1 - \\sum_{k \\neq g}|k\\rangle\\langle k|``.
 
 # Examples
 
 ```jldoctest
-julia> NLevelSpace(:atom, 3)
+julia> h = NLevelSpace(:atom, (:g, :e))
 ℋ(atom)
 
-julia> NLevelSpace(:atom, (:g, :e))
-ℋ(atom)
+julia> σ = Transition(h, :σ, :g, :e);
+
+julia> σ' * σ
+σ₂₂
+
+julia> h3 = NLevelSpace(:atom, 3, 2);
+
+julia> expand_completeness(Transition(h3, :σ, 2, 2))
+1 - σ₁₁ - σ₃₃
 ```
 
-See also [`Transition`](@ref), [`expand_completeness`](@ref).
+See also [`Transition`](@ref), [`expand_completeness`](@ref), [`PauliSpace`](@ref).
 """
 struct NLevelSpace <: HilbertSpace
     name::Symbol
@@ -36,23 +41,23 @@ struct NLevelSpace <: HilbertSpace
         return new(name, n, ground_state, levels)
     end
 end
-const _EMPTY_LEVELS = Symbol[]
-NLevelSpace(name::Symbol, n::Int, ground_state::Int) = NLevelSpace(name, n, ground_state, _EMPTY_LEVELS)
-NLevelSpace(name::Symbol, n::Int) = NLevelSpace(name, n, 1, _EMPTY_LEVELS)
+const EMPTY_LEVELS = Symbol[]
+NLevelSpace(name::Symbol, n::Int, ground_state::Int) = NLevelSpace(name, n, ground_state, EMPTY_LEVELS)
+NLevelSpace(name::Symbol, n::Int) = NLevelSpace(name, n, 1, EMPTY_LEVELS)
 function NLevelSpace(name::Symbol, levels::Tuple{Vararg{Symbol}})
     return NLevelSpace(name, length(levels), 1, collect(Symbol, levels))
 end
-NLevelSpace(name::AbstractString, args...) = _name_must_be_symbol(name)
+NLevelSpace(name::AbstractString, args...) = name_must_be_symbol(name)
 
 """
-    _level_index(h::NLevelSpace, s::Symbol) -> Int
+    level_index(h::NLevelSpace, s::Symbol) -> Int
 
 Look up the integer index for a symbolic level name.
 """
-function _level_index(h::NLevelSpace, s::Symbol)
+function level_index(h::NLevelSpace, s::Symbol)
     isempty(h.levels) && throw(ArgumentError("NLevelSpace $(h.name) has no symbolic levels"))
-    idx = findfirst(==(s), h.levels)
-    idx === nothing && throw(ArgumentError("Level :$s not found in $(h.levels)"))
+    idx = position_of(==(s), h.levels)
+    iszero(idx) && throw(ArgumentError("Level :$s not found in $(h.levels)"))
     return idx
 end
 
@@ -63,10 +68,26 @@ Base.hash(a::NLevelSpace, h::UInt) = hash(:NLevelSpace, hash(a.name, hash(a.n, h
     CollectiveNLevelSpace(name::Symbol, n::Int)
     CollectiveNLevelSpace(name::Symbol, levels::Tuple{Vararg{Symbol}})
 
-Hilbert space for collective transitions of identical N-level systems. It hosts
-[`CollectiveTransition`](@ref) operators and deliberately carries no ground-state
-projector convention: collectively, the diagonal sum is the particle-number
-operator rather than the identity.
+Hilbert space of an ensemble of identical `n`-level systems, home of the
+[`CollectiveTransition`](@ref) operators.
+
+The number of systems is not part of the space; it is fixed only by the basis chosen for
+numerics. Levels are numbered or named as for [`NLevelSpace`](@ref). There is no ground
+state to eliminate, since the collective projectors add up to the number of systems rather
+than to one.
+
+# Examples
+```jldoctest
+julia> h = CollectiveNLevelSpace(:atoms, (:g, :e))
+ℋ(atoms)
+
+julia> S = CollectiveTransition(h, :S, :e, :g);
+
+julia> commutator(S, S')
+-S₁₁ + S₂₂
+```
+
+See also [`CollectiveTransition`](@ref), [`NLevelSpace`](@ref).
 """
 struct CollectiveNLevelSpace <: HilbertSpace
     name::Symbol
@@ -78,7 +99,7 @@ struct CollectiveNLevelSpace <: HilbertSpace
         return new(name, n, levels)
     end
 end
-CollectiveNLevelSpace(name::Symbol, n::Int) = CollectiveNLevelSpace(name, n, _EMPTY_LEVELS)
+CollectiveNLevelSpace(name::Symbol, n::Int) = CollectiveNLevelSpace(name, n, EMPTY_LEVELS)
 CollectiveNLevelSpace(name::Symbol, levels::Tuple{Vararg{Symbol}}) =
     CollectiveNLevelSpace(name, length(levels), collect(Symbol, levels))
 
@@ -87,46 +108,44 @@ Base.:(==)(a::CollectiveNLevelSpace, b::CollectiveNLevelSpace) =
 Base.hash(a::CollectiveNLevelSpace, h::UInt) =
     hash(:CollectiveNLevelSpace, hash(a.name, hash(a.n, hash(a.levels, h))))
 
-function _level_index(h::CollectiveNLevelSpace, s::Symbol)
+function level_index(h::CollectiveNLevelSpace, s::Symbol)
     isempty(h.levels) && throw(ArgumentError("CollectiveNLevelSpace $(h.name) has no symbolic levels"))
-    idx = findfirst(==(s), h.levels)
-    idx === nothing && throw(ArgumentError("Level :$s not found in $(h.levels)"))
+    idx = position_of(==(s), h.levels)
+    iszero(idx) && throw(ArgumentError("Level :$s not found in $(h.levels)"))
     return idx
 end
 
 """
-    Transition(h::NLevelSpace, name::Symbol, i, j) -> Op
+    Transition(h::NLevelSpace, name::Symbol, i, j)
+    Transition(h::ProductSpace, name::Symbol, i, j, [subsystem::Int])
 
-Transition operator ``|i\\rangle\\langle j|`` on an [`NLevelSpace`](@ref).
-Satisfies the composition rule
-``|i\\rangle\\langle j| \\cdot |k\\rangle\\langle l| = \\delta_{jk} |i\\rangle\\langle l|``,
-with adjoint ``|i\\rangle\\langle j|^\\dagger = |j\\rangle\\langle i|``. Returns an
-[`Op`](@ref) tagged `OP_TRANSITION`, packing `i`, `j`, the ground state, and the
-number of levels into `l1`, `l2`, `g`, `nlev`.
+Transition operator from level `j` to level `i`.
 
-The carried ground-state level and level count let the eager arithmetic keep
-``\\sigma^{gg}`` atomic in canonical form (use [`expand_completeness`](@ref) to
-materialise ``|g\\rangle\\langle g| = 1 - \\sum_{k \\neq g}|k\\rangle\\langle k|``
-when needed).
+The operator is ``\\sigma^{ij} = |i\\rangle\\langle j|``. The levels are integers or
+the symbolic names of the [`NLevelSpace`](@ref); either way it prints with level
+numbers.
+Transitions on the same system compose,
+``\\sigma^{ij}\\sigma^{kl} = \\delta_{jk}\\sigma^{il}``, and the adjoint swaps the
+levels. The ground-state projector ``\\sigma^{gg}`` is kept as it is; call
+[`expand_completeness`](@ref) to rewrite it in terms of the other projectors.
+On a [`ProductSpace`](@ref), `subsystem` selects the factor and may be omitted
+when only one [`NLevelSpace`](@ref) is present.
 
 # Examples
 
 ```jldoctest
-julia> h = NLevelSpace(:atom, 3);
+julia> h = FockSpace(:cavity) ⊗ NLevelSpace(:atom, 2);
 
 julia> σ = Transition(h, :σ, 1, 2);
 
-julia> σ * σ'
-σ₁₁
-
-julia> σ' * σ
-σ₂₂
+julia> σ * σ', σ' * σ, σ * σ
+(σ₁₁, σ₂₂, 0)
 ```
 
 See also [`NLevelSpace`](@ref), [`expand_completeness`](@ref), [`@qnumbers`](@ref).
 """
 Transition(name::Symbol, i::Integer, j::Integer, si::Integer, idx::Index, ground_state::Integer, n_levels::Integer) =
-    Op(OP_TRANSITION, _name_id(name), si, idx, i, j, ground_state, n_levels)
+    Op(OP_TRANSITION, name_id(name), si, idx, i, j, ground_state, n_levels)
 
 function Transition(h::NLevelSpace, name::Symbol, i::Int, j::Int)
     1 <= i <= h.n || throw(ArgumentError("Level i=$i out of range 1:$(h.n)"))
@@ -134,7 +153,7 @@ function Transition(h::NLevelSpace, name::Symbol, i::Int, j::Int)
     return Transition(name, i, j, 1, NO_INDEX, h.ground_state, h.n)
 end
 function Transition(h::NLevelSpace, name::Symbol, i::Symbol, j::Symbol)
-    return Transition(name, _level_index(h, i), _level_index(h, j), 1, NO_INDEX, h.ground_state, h.n)
+    return Transition(name, level_index(h, i), level_index(h, j), 1, NO_INDEX, h.ground_state, h.n)
 end
 function Transition(h::ProductSpace, name::Symbol, i::Int, j::Int, idx::Int)
     1 <= idx <= length(h.spaces) || throw(ArgumentError("Index $idx out of range"))
@@ -148,26 +167,43 @@ function Transition(h::ProductSpace, name::Symbol, i::Symbol, j::Symbol, idx::In
     1 <= idx <= length(h.spaces) || throw(ArgumentError("Index $idx out of range"))
     space = h.spaces[idx]
     space isa NLevelSpace || throw(ArgumentError("Space at index $idx is not an NLevelSpace"))
-    return Transition(name, _level_index(space, i), _level_index(space, j), idx, NO_INDEX, space.ground_state, space.n)
+    return Transition(name, level_index(space, i), level_index(space, j), idx, NO_INDEX, space.ground_state, space.n)
 end
 
-# Auto-detect subspace when the ProductSpace contains exactly one NLevelSpace.
 Transition(h::ProductSpace, name::Symbol, i::Int, j::Int) =
-    Transition(h, name, i, j, _unique_subspace_index(h, NLevelSpace))
+    Transition(h, name, i, j, unique_subspace_index(h, NLevelSpace))
 Transition(h::ProductSpace, name::Symbol, i::Symbol, j::Symbol) =
-    Transition(h, name, i, j, _unique_subspace_index(h, NLevelSpace))
+    Transition(h, name, i, j, unique_subspace_index(h, NLevelSpace))
 
-Transition(::HilbertSpace, name::AbstractString, args...) = _name_must_be_symbol(name)
+Transition(::HilbertSpace, name::AbstractString, args...) = name_must_be_symbol(name)
 
 """
-    CollectiveTransition(h::CollectiveNLevelSpace, name::Symbol, i, j) -> Op
+    CollectiveTransition(h::CollectiveNLevelSpace, name::Symbol, i, j)
+    CollectiveTransition(h::ProductSpace, name::Symbol, i, j, [subsystem::Int])
 
-Collective transition ``S^{ij} = \\sum_k |i\\rangle_k\\langle j|``. These operators
-obey ``[S^{ij},S^{kl}] = \\delta_{jk}S^{il}-\\delta_{li}S^{kj}`` and do not compose
-like single-site [`Transition`](@ref) operators.
+Collective transition from level `j` to level `i`, summed over all systems of the ensemble.
+
+The operator is ``S^{ij} = \\sum_k |i\\rangle_k\\langle j|``. Collective transitions obey
+``[S^{ij}, S^{kl}] = \\delta_{jk}S^{il} - \\delta_{li}S^{kj}`` and are normal ordered like
+ladder operators. Unlike a single [`Transition`](@ref), a product of two of them does not
+compose, since it includes pairs of different systems. On a [`ProductSpace`](@ref),
+`subsystem` selects the [`CollectiveNLevelSpace`](@ref) factor and may be omitted when there
+is only one.
+
+# Examples
+```jldoctest
+julia> h = CollectiveNLevelSpace(:atoms, (:g, :e));
+
+julia> @qnumbers S::CollectiveTransition(h, :e, :g);
+
+julia> S' * S
+S₁₁ - S₂₂ + S₂₁ * S₁₂
+```
+
+See also [`CollectiveNLevelSpace`](@ref), [`Transition`](@ref).
 """
 CollectiveTransition(name::Symbol, i::Integer, j::Integer, si::Integer) =
-    Op(OP_COLLECTIVE_TRANSITION, _name_id(name), si, NO_INDEX, i, j, 0, 0)
+    Op(OP_COLLECTIVE_TRANSITION, name_id(name), si, NO_INDEX, i, j, 0, 0)
 
 function CollectiveTransition(h::CollectiveNLevelSpace, name::Symbol, i::Int, j::Int)
     1 <= i <= h.n || throw(ArgumentError("Level i=$i out of range 1:$(h.n)"))
@@ -175,7 +211,7 @@ function CollectiveTransition(h::CollectiveNLevelSpace, name::Symbol, i::Int, j:
     return CollectiveTransition(name, i, j, 1)
 end
 CollectiveTransition(h::CollectiveNLevelSpace, name::Symbol, i::Symbol, j::Symbol) =
-    CollectiveTransition(name, _level_index(h, i), _level_index(h, j), 1)
+    CollectiveTransition(name, level_index(h, i), level_index(h, j), 1)
 
 function CollectiveTransition(h::ProductSpace, name::Symbol, i::Int, j::Int, idx::Int)
     1 <= idx <= length(h.spaces) || throw(ArgumentError("Index $idx out of range"))
@@ -189,12 +225,12 @@ function CollectiveTransition(h::ProductSpace, name::Symbol, i::Symbol, j::Symbo
     1 <= idx <= length(h.spaces) || throw(ArgumentError("Index $idx out of range"))
     space = h.spaces[idx]
     space isa CollectiveNLevelSpace || throw(ArgumentError("Space at index $idx is not a CollectiveNLevelSpace"))
-    return CollectiveTransition(name, _level_index(space, i), _level_index(space, j), idx)
+    return CollectiveTransition(name, level_index(space, i), level_index(space, j), idx)
 end
 
 CollectiveTransition(h::ProductSpace, name::Symbol, i::Int, j::Int) =
-    CollectiveTransition(h, name, i, j, _unique_subspace_index(h, CollectiveNLevelSpace))
+    CollectiveTransition(h, name, i, j, unique_subspace_index(h, CollectiveNLevelSpace))
 CollectiveTransition(h::ProductSpace, name::Symbol, i::Symbol, j::Symbol) =
-    CollectiveTransition(h, name, i, j, _unique_subspace_index(h, CollectiveNLevelSpace))
+    CollectiveTransition(h, name, i, j, unique_subspace_index(h, CollectiveNLevelSpace))
 
-CollectiveTransition(::HilbertSpace, name::AbstractString, args...) = _name_must_be_symbol(name)
+CollectiveTransition(::HilbertSpace, name::AbstractString, args...) = name_must_be_symbol(name)

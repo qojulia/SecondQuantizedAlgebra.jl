@@ -1,32 +1,105 @@
 """
-    Monomial
+    Monomial{E}
 
 One term of a parameter polynomial: `scalar * ∏ symᵢ^expᵢ`. Factors are sorted by
 `objectid` and deduplicated; `Rational{Int}` exponents let radicals of a single
-atom merge (`sqrt(p)*sqrt(p) = p`).
+atom merge (`sqrt(p)*sqrt(p) = p`). An exact `scalar` has the type `E` of its tier,
+`ExactComplex` or `BigExactComplex`, and every term of one `Poly` shares that tier.
+The `slot` field stores the scalar as an `E`, with a float packed into it (`pack_scalar`),
+so the layout is concrete; read it with `monomial_scalar`.
+A radical atom (a hashconsed `Const{SymReal}` of a prime, see `radical_atom`) always keeps its
+exponent in `(0, 1)`: the constructor folds any integer part into `scalar`, so
+`√2·√2` normalizes to the scalar `2`, and `√2·√3`/`√6`/`√24/2` all reduce to the
+same two prime atoms `Const(2)^(1/2)`, `Const(3)^(1/2)` and compare `isequal`.
 """
-struct Monomial
-    scalar::ComplexF64
-    syms::Vector{SymbolicUtils.BasicSymbolic}   # sorted by objectid, distinct
-    exps::Vector{Rational{Int}}                 # matching nonzero exponents
+struct Monomial{E <: ExactScalar}
+    slot::E
+    syms::Vector{RawExpression}
+    exps::Vector{Rational{Int}}
+
+    function Monomial{E}(
+            scalar::Union{ComplexF64, E},
+            syms::Vector{RawExpression},
+            exps::Vector{Rational{Int}},
+        ) where {E <: ExactScalar}
+        needs_radical_fold(syms, exps) || return new{E}(pack_scalar(E, scalar), syms, exps)
+        osyms = RawExpression[]
+        oexps = Rational{Int}[]
+        sizehint!(osyms, length(syms)); sizehint!(oexps, length(exps))
+        @inbounds for i in eachindex(syms)
+            s = syms[i]
+            e = exps[i]
+            if is_radical_atom(s)
+                q = fld(numerator(e), denominator(e))
+                if q != 0
+                    scalar = scalar_mul(scalar, radical_power(E, s.val::RadicalPrime, q))
+                    e -= q
+                end
+                iszero(e) && continue
+            end
+            push!(osyms, s); push!(oexps, e)
+        end
+        return new{E}(pack_scalar(E, scalar), osyms, oexps)
+    end
+
+    Monomial{E}(::Unchecked, scalar::Union{ComplexF64, E}, m::Monomial) where {E <: ExactScalar} =
+        new{E}(pack_scalar(E, scalar), m.syms, m.exps)
 end
+
+@inline monomial_scalar(m::Monomial) = unpack_scalar(m.slot)
+@inline with_scalar(m::Monomial{E}, z::Union{ComplexF64, E}) where {E} =
+    Monomial{E}(Unchecked(), z, m)
+
+@inline as_tier(::Type{E}, m::Monomial{E}) where {E <: ExactScalar} = m
+@inline as_tier(::Type{E}, m::Monomial) where {E <: ExactScalar} =
+    Monomial{E}(Unchecked(), as_tier(E, monomial_scalar(m)), m)
+@inline as_tier(::Type{E}, terms::Vector{Monomial{E}}) where {E <: ExactScalar} = terms
+as_tier(::Type{E}, terms::Vector{<:Monomial}) where {E <: ExactScalar} =
+    Monomial{E}[as_tier(E, m) for m in terms]
+
+@inline with_factors(
+    m::Monomial{E}, syms::Vector{RawExpression}, exps::Vector{Rational{Int}},
+) where {E} = Monomial{E}(monomial_scalar(m), syms, exps)
+@inline function scalar_iszero(m::Monomial)
+    s = m.slot
+    iszero(s.re) && iszero(s.im) && return true
+    return holds_float(s) && iszero(monomial_scalar(m))
+end
+@inline scalar_is_real(m::Monomial) = iszero(imag(monomial_scalar(m)))
+@inline scalar_isequal(a::Monomial, b::Monomial) = isequal(monomial_scalar(a), monomial_scalar(b))
+@inline hash_scalar(m::Monomial, h::UInt) = hash(monomial_scalar(m), h)
+@inline function normalize_monomial(m::Monomial{E}) where {E}
+    scalar = monomial_scalar(m)
+    scalar isa ComplexF64 || return m
+    return with_scalar(m, normalize_scalar(scalar))
+end
+@inline conj_monomial(
+    m::Monomial{E}, syms::Vector{RawExpression}, exps::Vector{Rational{Int}},
+) where {E} =
+    Monomial{E}(conj(monomial_scalar(m)), syms, exps)
+
+@inline function add_scalars(a::Monomial{E}, b::Monomial{E}) where {E}
+    sa, sb = a.slot, b.slot
+    holds_float(sa) || holds_float(sb) || return with_scalar(a, sa + sb)
+    return with_scalar(a, scalar_add(monomial_scalar(a), monomial_scalar(b)))
+end
+@inline scale_monomial(t::Monomial{E}, z::Union{ComplexF64, E}) where {E} =
+    with_scalar(t, scalar_mul(monomial_scalar(t), z))
 
 """
     Poly
 
-A native sparse multivariate polynomial over named parameters (a sum of distinct
+A sparse multivariate polynomial over named parameters (a sum of distinct
 [`Monomial`](@ref) terms in canonical order), kept off SymbolicUtils hashconsing
-and lowered to `Complex{Num}` only at the symbolic boundaries (see `_poly_to_num`).
+and lowered to `Complex{Num}` only at the symbolic boundaries (see `poly_to_num`).
 """
 struct Poly
-    terms::Vector{Monomial}
+    terms::Union{Vector{Monomial{ExactComplex}}, Vector{Monomial{BigExactComplex}}}
 end
 
-# Factor identity key: SymbolicUtils hashconses, so `objectid`/`===` are exact and
-# type-stable factor identity (unlike `hash`/`isequal` on abstract `BasicSymbolic`).
-@inline _fkey(s::SymbolicUtils.BasicSymbolic) = objectid(s)
+@inline fkey(s::SymbolicUtils.BasicSymbolic) = objectid(s)
 
-@inline function _same_factors(a::Monomial, b::Monomial)
+@inline function same_factors(a::Monomial, b::Monomial)
     length(a.syms) == length(b.syms) || return false
     a.exps == b.exps || return false
     @inbounds for i in eachindex(a.syms)
@@ -35,51 +108,82 @@ end
     return true
 end
 
-# Total order on monomial factor sets (factors are pre-sorted by objectid within
-# each monomial), giving a canonical term order for `Poly` equality / hashing.
-function _term_less(a::Monomial, b::Monomial)
+function term_less(a::Monomial, b::Monomial)
     la, lb = length(a.syms), length(b.syms)
     la != lb && return la < lb
     @inbounds for i in 1:la
-        ha, hb = _fkey(a.syms[i]), _fkey(b.syms[i])
+        ha, hb = fkey(a.syms[i]), fkey(b.syms[i])
         ha != hb && return ha < hb
         a.exps[i] != b.exps[i] && return a.exps[i] < b.exps[i]
     end
     return false
 end
 
-# Merge two sorted factor lists, summing exponents and dropping cancellations.
-function _merge_factors(syma, expa, symb, expb)
+function merge_factors(a::Monomial, b::Monomial)
     ia, ib = 1, 1
-    na, nb = length(syma), length(symb)
-    syms = SymbolicUtils.BasicSymbolic[]
+    na, nb = length(a.syms), length(b.syms)
+    syms = RawExpression[]
     exps = Rational{Int}[]
     sizehint!(syms, na + nb); sizehint!(exps, na + nb)
     @inbounds while ia <= na || ib <= nb
-        if ib > nb || (ia <= na && _fkey(syma[ia]) < _fkey(symb[ib]))
-            push!(syms, syma[ia]); push!(exps, expa[ia]); ia += 1
-        elseif ia > na || _fkey(syma[ia]) > _fkey(symb[ib])
-            push!(syms, symb[ib]); push!(exps, expb[ib]); ib += 1
+        if ib > nb || (ia <= na && fkey(a.syms[ia]) < fkey(b.syms[ib]))
+            push!(syms, a.syms[ia]); push!(exps, a.exps[ia]); ia += 1
+        elseif ia > na || fkey(a.syms[ia]) > fkey(b.syms[ib])
+            push!(syms, b.syms[ib]); push!(exps, b.exps[ib]); ib += 1
         else
-            e = expa[ia] + expb[ib]
-            e != 0 && (push!(syms, syma[ia]); push!(exps, e))
+            e = a.exps[ia] + b.exps[ib]
+            e != 0 && (push!(syms, a.syms[ia]); push!(exps, e))
             ia += 1; ib += 1
         end
     end
     return (syms, exps)
 end
 
-function _term_mul(a::Monomial, b::Monomial)
-    isempty(a.syms) && return Monomial(a.scalar * b.scalar, b.syms, b.exps)
-    isempty(b.syms) && return Monomial(a.scalar * b.scalar, a.syms, a.exps)
-    se = _merge_factors(a.syms, a.exps, b.syms, b.exps)
-    return Monomial(a.scalar * b.scalar, se[1], se[2])
+@noinline function phase_term_mul(
+        a::Monomial{E}, b::Monomial{E}, phase_a::Int, phase_b::Int,
+    ) where {E}
+    scalar = scalar_mul(monomial_scalar(a), monomial_scalar(b))
+    if length(a.syms) == 1 && length(b.syms) == 1 &&
+            a.syms[phase_a] === b.syms[phase_b]
+        exponent = a.exps[phase_a] + b.exps[phase_b]
+        return scaled_phase_monomial(E, scalar, Num(a.syms[phase_a]), exponent)
+    end
+    if length(a.syms) == 1 && length(b.syms) == 1
+        return merged_phase_monomial(
+            E,
+            scalar,
+            Num(a.syms[phase_a]),
+            a.exps[phase_a],
+            Num(b.syms[phase_b]),
+            b.exps[phase_b],
+        )
+    end
+    syms = vcat(a.syms, b.syms)
+    exps = vcat(a.exps, b.exps)
+    return canonical_phase_monomial(E, scalar, syms, exps)
 end
 
-# Insertion sort by a strict-less predicate. The polynomial passes sort very short
-# vectors; this keeps the whole `Base.Sort` machinery (ScratchQuickSort, partition!,
-# issorted, ...) out of inference, which is a large chunk of first-call latency.
-function _insertion_sort!(v::AbstractVector, lt::F) where {F}
+function term_mul(a::Monomial{E}, b::Monomial{E}) where {E}
+    isempty(a.syms) && return with_scalar(b, scalar_mul(monomial_scalar(a), monomial_scalar(b)))
+    isempty(b.syms) && return with_scalar(a, scalar_mul(monomial_scalar(a), monomial_scalar(b)))
+    phase_a = phase_factor_index(a.syms)
+    phase_b = phase_factor_index(b.syms)
+    if phase_a != 0 && phase_b != 0
+        if a.syms[phase_a] === b.syms[phase_b] &&
+                a.exps[phase_a] == -b.exps[phase_b]
+            return merged_term_mul(a, b)
+        end
+        return phase_term_mul(a, b, phase_a, phase_b)
+    end
+    return merged_term_mul(a, b)
+end
+
+@inline function merged_term_mul(a::Monomial{E}, b::Monomial{E}) where {E}
+    syms, exps = merge_factors(a, b)
+    return Monomial{E}(scalar_mul(monomial_scalar(a), monomial_scalar(b)), syms, exps)
+end
+
+function insertion_sort!(v::AbstractVector, lt::F) where {F}
     @inbounds for i in 2:length(v)
         x = v[i]
         j = i - 1
@@ -92,83 +196,92 @@ function _insertion_sort!(v::AbstractVector, lt::F) where {F}
     return v
 end
 
-# Sort terms into canonical order, merge like-factor terms, drop zero scalars.
-function _canonical_terms!(terms::Vector{Monomial})
+function canonical_terms!(terms::Vector{Monomial{E}}) where {E}
     isempty(terms) && return terms
-    _insertion_sort!(terms, _term_less)
+    insertion_sort!(terms, term_less)
     w = 0
     @inbounds for r in eachindex(terms)
         t = terms[r]
-        if w > 0 && _same_factors(terms[w], t)
-            s = terms[w].scalar + t.scalar + complex(0.0, 0.0)
-            terms[w] = Monomial(s, terms[w].syms, terms[w].exps)
+        if w > 0 && same_factors(terms[w], t)
+            terms[w] = add_scalars(terms[w], t)
         else
             w += 1
-            terms[w] = Monomial(t.scalar + complex(0.0, 0.0), t.syms, t.exps)
+            terms[w] = normalize_monomial(t)
         end
     end
     resize!(terms, w)
-    filter!(t -> t.scalar != 0, terms)
+    filter!(t -> !scalar_iszero(t), terms)
     return terms
 end
 
-# Sorted merge of two canonical term lists, dropping zero-scalar terms so the result
-# stays canonical and zero-free (a stray zero would break Poly equality/hashing).
-function _poly_add(p::Vector{Monomial}, q::Vector{Monomial})
-    out = Monomial[]
+function poly_add(p::Vector{Monomial{E}}, q::Vector{Monomial{E}}) where {E}
+    out = Monomial{E}[]
     sizehint!(out, length(p) + length(q))
     ip, iq = 1, 1
     np, nq = length(p), length(q)
     @inbounds while ip <= np || iq <= nq
-        if iq > nq || (ip <= np && _term_less(p[ip], q[iq]))
+        if iq > nq || (ip <= np && term_less(p[ip], q[iq]))
             t = p[ip]; ip += 1
-            t.scalar != 0 && push!(out, t)
-        elseif ip > np || _term_less(q[iq], p[ip])
+            scalar_iszero(t) || push!(out, t)
+        elseif ip > np || term_less(q[iq], p[ip])
             t = q[iq]; iq += 1
-            t.scalar != 0 && push!(out, t)
-        else   # same factor set: sum scalars, drop exact cancellations
-            s = p[ip].scalar + q[iq].scalar + complex(0.0, 0.0)
-            s != 0 && push!(out, Monomial(s, p[ip].syms, p[ip].exps))
+            scalar_iszero(t) || push!(out, t)
+        else
+            s = add_scalars(p[ip], q[iq])
+            scalar_iszero(s) || push!(out, s)
             ip += 1; iq += 1
         end
     end
     return out
 end
 
-function _poly_mul(p::Vector{Monomial}, q::Vector{Monomial})
+function poly_mul(p::Vector{Monomial{E}}, q::Vector{Monomial{E}}) where {E}
     if length(p) == 1 && length(q) == 1
-        t = _term_mul(p[1], q[1])
-        return Monomial[Monomial(t.scalar + complex(0.0, 0.0), t.syms, t.exps)]
+        product = normalize_monomial(term_mul(p[1], q[1]))
+        return scalar_iszero(product) ? Monomial{E}[] : Monomial{E}[product]
     end
-    out = Monomial[]
+    out = Monomial{E}[]
     sizehint!(out, length(p) * length(q))
     for a in p, b in q
-        push!(out, _term_mul(a, b))
+        push!(out, term_mul(a, b))
     end
-    return _canonical_terms!(out)
+    return canonical_terms!(out)
 end
 
-# Scale every term; preserves canonical order (factors unchanged).
-function _poly_scale(p::Vector{Monomial}, z::ComplexF64)
-    iszero(z) && return Monomial[]
-    return Monomial[Monomial(t.scalar * z + complex(0.0, 0.0), t.syms, t.exps) for t in p]
+function poly_scale(p::Vector{Monomial{E}}, z::Union{ComplexF64, E}) where {E}
+    iszero(z) && return Monomial{E}[]
+    out = Monomial{E}[]
+    sizehint!(out, length(p))
+    for t in p
+        s = scale_monomial(t, z)
+        scalar_iszero(s) || push!(out, s)
+    end
+    return out
 end
 
-function Base.isequal(a::Poly, b::Poly)
-    length(a.terms) == length(b.terms) || return false
-    @inbounds for i in eachindex(a.terms)
-        ta, tb = a.terms[i], b.terms[i]
-        (isequal(ta.scalar, tb.scalar) && _same_factors(ta, tb)) || return false
+poly_add(::Type{E}, p::Vector{Monomial{E}}, q::Vector{Monomial{E}}) where {E} = poly_add(p, q)
+poly_mul(::Type{E}, p::Vector{Monomial{E}}, q::Vector{Monomial{E}}) where {E} = poly_mul(p, q)
+poly_scale(::Type{E}, p::Vector{Monomial{E}}, z) where {E} = poly_scale(p, as_tier(E, z))
+
+Base.isequal(a::Poly, b::Poly) = terms_isequal(a.terms, b.terms)
+Base.:(==)(a::Poly, b::Poly) = isequal(a, b)
+function terms_isequal(a::Vector{Monomial{A}}, b::Vector{Monomial{B}}) where {A, B}
+    A === B || return false
+    length(a) == length(b) || return false
+    @inbounds for i in eachindex(a)
+        ta, tb = a[i], b[i]
+        (scalar_isequal(ta, tb) && same_factors(ta, tb)) || return false
     end
     return true
 end
-Base.:(==)(a::Poly, b::Poly) = isequal(a, b)
-function Base.hash(p::Poly, h::UInt)
-    @inbounds for t in p.terms
-        h = hash(t.scalar, h)
+
+Base.hash(p::Poly, h::UInt) = hash(:Poly, hash_terms(p.terms, h))
+function hash_terms(terms::Vector{<:Monomial}, h::UInt)
+    @inbounds for t in terms
+        h = hash_scalar(t, h)
         for i in eachindex(t.syms)
-            h = hash(t.exps[i], hash(_fkey(t.syms[i]), h))
+            h = hash(t.exps[i], hash(fkey(t.syms[i]), h))
         end
     end
-    return hash(:Poly, h)
+    return h
 end

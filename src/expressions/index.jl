@@ -1,22 +1,23 @@
 """
-    IndexedVariable(name::Symbol, i::Index) -> Num
+    IndexedVariable(name::Symbol, i::Index)
 
-Create a symbolic single-indexed parameter ``\\mathrm{name}(i)``.
+Site-dependent parameter `name(i)`, such as a local detuning or coupling.
 
-Use this for site-dependent quantities in Hamiltonians, for example detunings
-or local couplings.
+The parameter is real. Under a sum it follows the index, so it is evaluated site by site
+once the sum is unrolled.
 
 # Examples
 ```jldoctest
-julia> h = FockSpace(:site) ⊗ FockSpace(:cavity);
+julia> h = NLevelSpace(:atom, 2); i = Index(h, :i, 10, h);
 
-julia> i = Index(h, :i, 10, 1);
+julia> g = IndexedVariable(:g, i)
+g(i)
 
-julia> ω = IndexedVariable(:ω, i)
-ω(i)
+julia> Σ(g * IndexedOperator(Transition(h, :σ, 2, 1), i), i)
+Σ(i=1:10) g(i) * σ_i₂₁
 ```
 
-See also [`DoubleIndexedVariable`](@ref).
+See also [`DoubleIndexedVariable`](@ref), [`Index`](@ref), [`index_sym`](@ref).
 """
 function IndexedVariable(name::Symbol, i::Index)
     f = SymbolicUtils.Sym{SymbolicUtils.SymReal}(
@@ -26,36 +27,32 @@ function IndexedVariable(name::Symbol, i::Index)
     )
     return Num(f(SymbolicUtils.unwrap(index_sym(i))))
 end
-IndexedVariable(name::AbstractString, args...) = _name_must_be_symbol(name)
+IndexedVariable(name::AbstractString, args...) = name_must_be_symbol(name)
 
 """Metadata key: marks a `DoubleIndexedVariable` node where equal indices must give zero."""
 struct NotIdentical end
 
 """
-    DoubleIndexedVariable(name::Symbol, i::Index, j::Index; identical::Bool=true) -> Num
+    DoubleIndexedVariable(name::Symbol, i::Index, j::Index; identical = true)
 
-Create a symbolic two-index parameter ``\\mathrm{name}(i, j)``.
+Pair parameter `name(i, j)`, such as a hopping amplitude or a dipole-dipole coupling.
 
-Use this for pairwise interactions such as hopping amplitudes or coupling
-matrices.
-
-# Keyword arguments
-- `identical::Bool = true` — if `false`, the variable evaluates to zero when `i == j`,
-  enforcing that the parameter is only defined for distinct sites.
+With `identical = false` the parameter vanishes whenever both indices refer to the same
+site, so the diagonal terms of a double sum drop out.
 
 # Examples
 ```jldoctest
-julia> h = FockSpace(:site) ⊗ FockSpace(:cavity);
+julia> h = NLevelSpace(:atom, 2); i = Index(h, :i, 10, h); j = Index(h, :j, 10, h);
 
-julia> i = Index(h, :i, 10, 1);
+julia> σ(k, l, m) = IndexedOperator(Transition(h, :σ, k, l), m);
 
-julia> j = Index(h, :j, 10, 1);
+julia> J = DoubleIndexedVariable(:J, i, j; identical = false);
 
-julia> J = DoubleIndexedVariable(:J, i, j; identical = false)
-J(i, j)
+julia> Σ(J * σ(2, 1, i) * σ(1, 2, j), i, j)
+Σ(i=1:10)Σ(j=1:10)(i≠j) J(i, j) * σ_i₂₁ * σ_j₁₂
 ```
 
-See also [`IndexedVariable`](@ref).
+See also [`IndexedVariable`](@ref), [`Σ`](@ref).
 """
 function DoubleIndexedVariable(
         name::Symbol, i::Index, j::Index;
@@ -75,7 +72,7 @@ function DoubleIndexedVariable(
     end
     return Num(node)
 end
-DoubleIndexedVariable(name::AbstractString, args...; kwargs...) = _name_must_be_symbol(name)
+DoubleIndexedVariable(name::AbstractString, args...; kwargs...) = name_must_be_symbol(name)
 
 """
     DeltaFunc
@@ -95,7 +92,7 @@ SymbolicUtils.promote_symtype(::DeltaFunc, Ts...) = Real
 # node per unordered pair (`δ(i,j)` and `δ(j,i)` must collect as like terms).
 # Equal arguments fold to a *symbolic* one: the substituter type-asserts that a
 # `maketerm` result is a `BasicSymbolic`, so a bare `1` cannot be returned there.
-function _delta_node(a, b)
+function delta_node(a, b)
     isequal(a, b) && return convert(SymbolicUtils.BasicSymbolic{SymbolicUtils.SymReal}, 1)
     x, y = string(a) <= string(b) ? (a, b) : (b, a)
     return SymbolicUtils.Term{SymbolicUtils.SymReal}(sym_delta, Any[x, y]; type = Real)
@@ -105,7 +102,7 @@ function TermInterface.maketerm(
         ::Type{SymbolicUtils.BasicSymbolic{SymbolicUtils.SymReal}}, ::DeltaFunc, args, metadata;
         type = Real
     )
-    return _delta_node(args[1], args[2])
+    return delta_node(args[1], args[2])
 end
 
 """
@@ -138,9 +135,9 @@ julia> kronecker_delta(i, i)
 See also [`is_kronecker_delta`](@ref), [`assume_distinct_index`](@ref).
 """
 function kronecker_delta(i::Index, j::Index)
-    i == j && return _NUM_ONE
+    i == j && return NUM_ONE
     return Num(
-        _delta_node(
+        delta_node(
             SymbolicUtils.unwrap(index_sym(i)), SymbolicUtils.unwrap(index_sym(j))
         )
     )
@@ -169,30 +166,29 @@ is_kronecker_delta(x::Num) = is_kronecker_delta(SymbolicUtils.unwrap(x))
 
 """
     change_index(expr, from::Index, to::Index)
+    change_index(expr, pairs::AbstractDict{Index, Index})
 
-Rename an index in an expression by replacing `from` with `to` everywhere.
+Replace the index `from` by `to` in operators and coefficients of `expr`.
 
-Operator indices are swapped directly. Symbolic prefactors (e.g. [`IndexedVariable`](@ref),
-[`DoubleIndexedVariable`](@ref)) are substituted via `Symbolics.substitute` using
-the `sym` fields of the indices. `DoubleIndexedVariable` nodes with `identical=false`
-automatically evaluate to zero if the substitution makes both arguments equal.
+The result is brought back into canonical form, so operators that now share a site
+compose, and a [`DoubleIndexedVariable`](@ref) declared with `identical = false` vanishes
+when its two indices become equal. The second form renames several indices at once, which
+makes swaps such as `Dict(i => j, j => i)` possible.
 
 # Examples
-
 ```jldoctest
-julia> h = FockSpace(:site);
+julia> h = NLevelSpace(:atom, 2); i = Index(h, :i, 10, h); j = Index(h, :j, 10, h);
 
-julia> @qnumbers a::Destroy(h);
+julia> σ(k, l, m) = IndexedOperator(Transition(h, :σ, k, l), m);
 
-julia> i = Index(h, :i, 5, h); j = Index(h, :j, 5, h);
+julia> change_index(σ(2, 1, i) * σ(1, 2, j), i, j)
+σ_j₂₂
 
-julia> expr = IndexedVariable(:ω, i) * IndexedOperator(a, i);
-
-julia> change_index(expr, i, j)
-ω(j) * a_j
+julia> change_index(σ(2, 1, i) * σ(1, 2, j), Dict(i => j, j => i))
+σ_j₂₁ * σ_i₁₂
 ```
 
-See also [`get_indices`](@ref).
+See also [`get_indices`](@ref), [`substitute`](@ref).
 """
 change_index(x::Number, ::Index, ::Index) = x
 function change_index(x::Num, from::Index, to::Index)
@@ -201,63 +197,48 @@ function change_index(x::Num, from::Index, to::Index)
     vars = Symbolics.get_variables(raw)
     any(v -> isequal(v, isym), vars) || return x
     result = Symbolics.substitute(raw, Dict(isym => SymbolicUtils.unwrap(index_sym(to))))
-    return _check_not_identical(result)
+    return check_not_identical(result)
 end
 function change_index(x::CNum, from::Index, to::Index)
-    _is_native(x) && return x
-    c = to_num(x)
-    re = change_index(real(c), from, to)
-    im = change_index(imag(c), from, to)
-    # A rename keeps a symbolic tail symbolic; only a Poly may need re-interning.
-    _is_poly(x) && return _cnum(re, im)
-    return _cnum_sym(re, im)
+    is_native(x) && return x
+    tail = x.tail
+    if tail isa RawSymbolicCoeff
+        raw = change_index(Num(tail.expr), from, to)
+        isequal(raw, Num(tail.expr)) && return x
+        result = SymbolicUtils.unwrap(raw)
+        is_numeric_const(result) && return const_coeff(result)
+        return from_raw_arithmetic(result, tail.real_slot)
+    end
+    raw_re, raw_im = realimag(x)
+    re = change_index(raw_re, from, to)
+    im = change_index(raw_im, from, to)
+    return cnum(re, im)
 end
 
-# Rebuild with a new site index; kind-agnostic since all other fields carry over.
-_with_index(op::Op, i::Index) = IndexedOperator(op, i)
+with_index(op::Op, i::Index) = IndexedOperator(op, i)
 
 function change_index(op::QSym, from::Index, to::Index)
-    return _with_index(op, op.index == from ? to : op.index)
+    return with_index(op, op.index == from ? to : op.index)
 end
 
 function change_index(s::QAdd, from::Index, to::Index)
     out = QTermDict()
     needs = !isempty(s.indices)
     for (term, c) in s.arguments
-        # A term whose NE constraint becomes contradictory under the rename
-        # carries weight zero and must be dropped, not relaxed.
-        _ne_becomes_contradictory(term.ne, from, to) && continue
+        ne_becomes_contradictory(term.ne, from, to) && continue
         new_c = change_index(c, from, to)
         new_ops = Op[change_index(op, from, to) for op in term.ops]
-        new_ne = _substitute_ne(term.ne, from, to)
+        new_ne = substitute_ne(term.ne, from, to)
         if needs
-            _accumulate_with_diag!(out, new_ops, new_c, s.indices, new_ne)
+            accumulate_with_diag!(out, new_ops, new_c, s.indices, new_ne)
         else
-            _canonicalize!(out, new_ops, new_c, new_ne)
+            canonicalize!(out, new_ops, new_c, new_ne)
         end
     end
     new_indices = Index[idx == from ? to : idx for idx in s.indices]
     return QAdd(out, new_indices)
 end
 
-"""
-    change_index(expr, pairs::AbstractDict{Index, Index})
-
-Simultaneous (batched) variant of [`change_index`](@ref): substitute every
-key in `pairs` by its mapped value in one pass.
-
-Unlike a sequence of single-pair `change_index` calls, this never produces
-an intermediate state where a renamed-into index temporarily collides with
-another encountered index. Use it when the rename describes a permutation
-or any map whose image overlaps its domain, e.g. swapping two indices:
-
-```julia
-julia> change_index(expr, Dict(i => j, j => i))   # swap, not fuse
-```
-
-A pair `(idx => idx)` is a no-op; `change_index(expr, Dict())` returns
-`expr` unchanged.
-"""
 change_index(x::Number, ::AbstractDict{Index, Index}) = x
 function change_index(x::Num, pairs::AbstractDict{Index, Index})
     isempty(pairs) && return x
@@ -267,22 +248,29 @@ function change_index(x::Num, pairs::AbstractDict{Index, Index})
         sub[SymbolicUtils.unwrap(index_sym(from))] = SymbolicUtils.unwrap(index_sym(to))
     end
     vars = Symbolics.get_variables(raw)
-    any(v -> any(s -> isequal(v, s), keys(sub)), vars) || return x
+    any(v -> haskey(sub, v), vars) || return x
     result = Symbolics.substitute(raw, sub)
-    return _check_not_identical(result)
+    return check_not_identical(result)
 end
 function change_index(x::CNum, pairs::AbstractDict{Index, Index})
-    _is_native(x) && return x
-    c = to_num(x)
-    re = change_index(real(c), pairs)
-    im = change_index(imag(c), pairs)
-    _is_poly(x) && return _cnum(re, im)
-    return _cnum_sym(re, im)
+    is_native(x) && return x
+    tail = x.tail
+    if tail isa RawSymbolicCoeff
+        raw = change_index(Num(tail.expr), pairs)
+        isequal(raw, Num(tail.expr)) && return x
+        result = SymbolicUtils.unwrap(raw)
+        is_numeric_const(result) && return const_coeff(result)
+        return from_raw_arithmetic(result, tail.real_slot)
+    end
+    raw_re, raw_im = realimag(x)
+    re = change_index(raw_re, pairs)
+    im = change_index(raw_im, pairs)
+    return cnum(re, im)
 end
 
 function change_index(op::QSym, pairs::AbstractDict{Index, Index})
     new_idx = get(pairs, op.index, op.index)
-    return new_idx === op.index ? op : _with_index(op, new_idx)
+    return new_idx === op.index ? op : with_index(op, new_idx)
 end
 
 function change_index(s::QAdd, pairs::AbstractDict{Index, Index})
@@ -290,14 +278,14 @@ function change_index(s::QAdd, pairs::AbstractDict{Index, Index})
     out = QTermDict()
     needs = !isempty(s.indices)
     for (term, c) in s.arguments
-        _ne_becomes_contradictory(term.ne, pairs) && continue
+        ne_becomes_contradictory(term.ne, pairs) && continue
         new_c = change_index(c, pairs)
         new_ops = Op[change_index(op, pairs) for op in term.ops]
-        new_ne = _substitute_ne(term.ne, pairs)
+        new_ne = substitute_ne(term.ne, pairs)
         if needs
-            _accumulate_with_diag!(out, new_ops, new_c, s.indices, new_ne)
+            accumulate_with_diag!(out, new_ops, new_c, s.indices, new_ne)
         else
-            _canonicalize!(out, new_ops, new_c, new_ne)
+            canonicalize!(out, new_ops, new_c, new_ne)
         end
     end
     new_indices = Index[get(pairs, idx, idx) for idx in s.indices]
@@ -307,24 +295,21 @@ end
 """
     get_indices(expr) -> Vector{Index}
 
-Return all symbolic indices that appear in `expr`.
-
-Returns a `Vector{Index}` of unique indices found in operator fields and
-summation metadata. Excludes the sentinel `NO_INDEX`.
+Indices occurring in `expr`, both summed and free.
 
 # Examples
-
 ```jldoctest
-julia> h = FockSpace(:site);
+julia> h = NLevelSpace(:atom, 2); i = Index(h, :i, 10, h); j = Index(h, :j, 10, h);
 
-julia> @qnumbers a::Destroy(h);
+julia> σ(k, l, m) = IndexedOperator(Transition(h, :σ, k, l), m);
 
-julia> i = Index(h, :i, 5, h);
-
-julia> get_indices(IndexedOperator(a, i))
-1-element Vector{Index}:
+julia> get_indices(Σ(σ(2, 1, i) * σ(1, 2, j), i))
+2-element Vector{Index}:
  i
+ j
 ```
+
+See also [`change_index`](@ref), [`has_index`](@ref).
 """
 get_indices(::Number) = Index[]
 get_indices(x::Num) = get_indices(SymbolicUtils.unwrap(x))
@@ -358,95 +343,177 @@ two indices became equal. Nested occurrences matter: a `DoubleIndexedVariable`
 with `identical=false` is almost always a factor in a larger product or sum, and
 the surrounding `*`/`+` only collapses once that factor is replaced by zero.
 """
-function _check_not_identical(result::SymbolicUtils.BasicSymbolic)
-    zeros = _collect_identical_zeros!(Dict{SymbolicUtils.BasicSymbolic, Int}(), result)
+function check_not_identical(result::SymbolicUtils.BasicSymbolic)
+    zeros = collect_identical_zeros!(Dict{SymbolicUtils.BasicSymbolic, Int}(), result)
     isempty(zeros) && return Num(result)
     return Num(Symbolics.substitute(result, zeros))
 end
-_check_not_identical(result::Number) = Num(result)
+check_not_identical(result::Number) = Num(result)
 
 """Accumulate into `acc` every `NotIdentical` node in `x` with two equal args, mapped to 0."""
-function _collect_identical_zeros!(acc, x)
+function collect_identical_zeros!(acc, x)
     (x isa SymbolicUtils.BasicSymbolic && SymbolicUtils.iscall(x)) || return acc
     if SymbolicUtils.hasmetadata(x, NotIdentical) &&
             length(SymbolicUtils.arguments(x)) == 2
         a1, a2 = SymbolicUtils.arguments(x)
-        # The args are indices, so a matched node holds no nested NotIdentical node.
         isequal(a1, a2) && (acc[x] = 0; return acc)
     end
     for a in SymbolicUtils.arguments(x)
-        _collect_identical_zeros!(acc, a)
+        collect_identical_zeros!(acc, a)
     end
     return acc
 end
 
-function _depends_on_index_term(c::CNum, ops::Vector{Op}, idx::Index)
+function contains_leaf(x::RawExpression, v::RawExpression)
+    isequal(x, v) && return true
+    SymbolicUtils.iscall(x) || return false
+    for a in SymbolicUtils.arguments(x)
+        a isa RawExpression && contains_leaf(a, v) && return true
+    end
+    return false
+end
+
+function depends_on_index_term(c::CNum, ops::Vector{Op}, idx::Index)
     for op in ops
         op.index == idx && return true
     end
-    _is_native(c) && return false
+    is_native(c) && return false
     isym = SymbolicUtils.unwrap(index_sym(idx))
-    # A `Poly` coefficient carries its parameters as opaque atoms; scan them directly
-    # instead of materializing the whole coefficient to a `Complex{Num}` first.
-    if c.tail isa Poly
-        for m in c.tail.terms, s in m.syms
-            # wrap the atom in `Num` so `get_variables` hits its type-stable method
-            # (the abstract-`BasicSymbolic` overload dispatches dynamically)
-            any(v -> isequal(v, isym), Symbolics.get_variables(Num(s))) && return true
+    tail = c.tail
+    if tail isa Poly
+        for m in tail.terms, s in m.syms
+            contains_leaf(s, isym) && return true
         end
         return false
     end
-    for part in (real(c), imag(c))
-        vars = Symbolics.get_variables(part)
-        any(v -> isequal(v, isym), vars) && return true
+    tail isa RawSymbolicCoeff || return false
+    return contains_leaf(tail.expr, isym)
+end
+
+function depends_on_scope_index(
+        c::CNum, ops::Vector{Op}, ne::Vector{NonEqualPair}, idx::Index,
+    )
+    depends_on_index_term(c, ops, idx) && return true
+    for (α, β) in ne
+        (α == idx || β == idx) && return true
     end
     return false
 end
 
-function _any_depends_on_index(s::QAdd, idx::Index)
-    for (term, c) in s.arguments
-        _depends_on_index_term(c, term.ops, idx) && return true
+bound_indices(c::CNum, ops::Vector{Op}, ne::Vector{NonEqualPair}, indices::Vector{Index}) =
+    Index[idx for idx in indices if depends_on_scope_index(c, ops, ne, idx)]
+bound_indices(t::QTerm, c::CNum, indices::Vector{Index}) = bound_indices(c, t.ops, t.ne, indices)
+
+"""
+    eliminate_binder(ne, idx) -> (eliminated, factor, reduced_ne)
+
+Count the values of the summation index `idx` in a term that no longer mentions it through
+its operators or coefficient. With `X` the indices on the same space that `ne` keeps distinct
+from `idx`, the count is `index_range(idx) - |X|`. It is only known when the members of `X`
+are themselves provably distinct; otherwise `eliminated` is `false` and the term must keep
+the binder together with its constraints.
+"""
+function eliminate_binder(ne::Vector{NonEqualPair}, idx::Index)
+    partners = Index[]
+    mentions = false
+    for (α, β) in ne
+        (α == idx || β == idx) || continue
+        mentions = true
+        other = α == idx ? β : α
+        other.space_index == idx.space_index && push!(partners, other)
     end
-    return false
+    for p in 1:length(partners), q in (p + 1):length(partners)
+        ne_contains(ne, partners[p], partners[q]) ||
+            return (false, CNUM_ONE, ne)
+    end
+    factor = to_cnum(index_range(idx) - length(partners))
+    mentions || return (true, factor, ne)
+    reduced = NonEqualPair[p for p in ne if p[1] != idx && p[2] != idx]
+    return (true, factor, isempty(reduced) ? EMPTY_NE : reduced)
 end
 
 """
-    Σ(expr, i::Index, non_equal::Vector{Index} = Index[])
-    Σ(expr, i::Index, j::Index, rest::Index...)
-    ∑(expr, i::Index, ...)
+    eliminate_binders(mentions, coef, ne, scope) -> (coef, ne)
 
-Build symbolic sums over indices, for example ``\\sum_i expr``.
+Eliminate every binder of `scope` for which `mentions(coef, idx)` is `false`, multiplying
+`coef` by its constrained count. Elimination runs to a fixpoint: removing one binder drops
+its constraints, which can make the count of a binder kept earlier known.
+"""
+function eliminate_binders(
+        mentions::F, coef::CNum, ne::Vector{NonEqualPair}, scope::Vector{Index},
+    ) where {F}
+    pending = EMPTY_INDICES
+    for idx in scope
+        mentions(coef, idx) && continue
+        eliminated, factor, ne = eliminate_binder(ne, idx)
+        if eliminated
+            coef = mul_cnum(coef, factor)
+        else
+            pending === EMPTY_INDICES && (pending = Index[])
+            push!(pending, idx)
+        end
+    end
+    progress = true
+    while progress && !isempty(pending)
+        progress = false
+        k = 1
+        while k <= length(pending)
+            eliminated, factor, ne = eliminate_binder(ne, pending[k])
+            if eliminated
+                coef = mul_cnum(coef, factor)
+                deleteat!(pending, k)
+                progress = true
+            else
+                k += 1
+            end
+        end
+    end
+    return (coef, ne)
+end
 
-Returns a [`QAdd`](@ref) carrying `i` in its `indices` field. If `expr` does not
-depend on `i`, the sum is evaluated eagerly as `i.range * expr`.
+function any_depends_on_index(d::QTermDict, idx::Index)
+    for (term, c) in d
+        depends_on_scope_index(c, term.ops, term.ne, idx) && return true
+    end
+    return false
+end
+any_depends_on_index(s::QAdd, idx::Index) = any_depends_on_index(s.arguments, idx)
 
-The optional `non_equal` records pairwise inequality constraints `i ≠ j` per
-term. Diagonal splitting is performed automatically: if `expr` carries another
-free index `j` on the same Hilbert subspace as `i`, the contribution at `i = j`
-is emitted as a separate diagonal term and the off-diagonal term gains the
-constraint `(i, j)`.
+"""
+    Σ(expr, i::Index, [non_equal::Vector{Index}])
+    Σ(expr, i::Index, j::Index, more::Index...)
+    ∑(expr, i, ...)
 
-Multiple positional indices create nested sums: `Σ(expr, i, j)` is equivalent
-to `Σ(Σ(expr, i), j)`. The Unicode alias `∑` is also exported.
+Symbolic sum of `expr` over all sites of the index `i`.
+
+Several indices give a nested sum. The sum stays symbolic and follows the algebra like any
+other expression. Where its index meets another index on the same subsystem, the terms in
+which the two sites coincide are split off, so the remaining sum carries the constraint
+`i ≠ j`. The optional `non_equal` adds such constraints by hand, excluding those sites from
+the sum. A summand that does not depend on `i` is multiplied by the number of sites.
+
+`∑` (typed `\\sum<tab>`) is the same function.
 
 # Examples
-
 ```jldoctest
-julia> h = FockSpace(:site);
+julia> @variables N;
 
-julia> @qnumbers a::Destroy(h);
+julia> h = NLevelSpace(:atom, 2); i = Index(h, :i, N, h); j = Index(h, :j, N, h);
 
-julia> i = Index(h, :i, 3, h);
+julia> σ(k, l, m) = IndexedOperator(Transition(h, :σ, k, l), m);
 
-julia> Σ(IndexedOperator(a', i) * IndexedOperator(a, i), i)
-Σ(i=1:3) a_i' * a_i
+julia> Σ(σ(2, 1, i) * σ(1, 2, j), i, j)
+Σ(j=1:N) σ_j₂₂ + Σ(i=1:N)Σ(j=1:N)(i≠j) σ_i₂₁ * σ_j₁₂
+
+julia> Σ(σ(2, 2, j), i, [j])
+(-1 + N) * σ_j₂₂
 ```
 
-See also [`Index`](@ref), [`IndexedOperator`](@ref), [`constraint_pairs`](@ref).
+See also [`Index`](@ref), [`IndexedOperator`](@ref), [`assume_distinct_index`](@ref).
 """
 function Σ(expr::QAdd, i::Index, non_equal::Vector{Index} = Index[])
     i.range_id == 0 && throw(ArgumentError("Σ: index $(index_name(i)) has no summation range"))
-    if !_any_depends_on_index(expr, i)
+    if isempty(non_equal) && !any_depends_on_index(expr, i)
         return expr * index_range(i)
     end
 
@@ -454,67 +521,55 @@ function Σ(expr::QAdd, i::Index, non_equal::Vector{Index} = Index[])
     diag = QTermDict()
 
     for (term, c) in expr.arguments
-        depends_on_i = _depends_on_index_term(c, term.ops, i)
-
-        # User-supplied non_equal constraints apply when the term depends on i.
-        ne_aug = term.ne
-        if depends_on_i
-            for j in non_equal
-                ne_aug = _merge_ne_pair(ne_aug, i, j)
-            end
-        end
-
-        # Identify (i, ext_idx) pairs that need diagonal contributions.
-        distinct = _distinct_op_indices(term.ops)
-        diag_pairs = Tuple{Index, Index}[]
-        if depends_on_i
-            for ext_idx in distinct
-                ext_idx == i && continue
-                ext_idx.space_index == i.space_index || continue
-                _ne_contains(ne_aug, i, ext_idx) && continue
-                push!(diag_pairs, (i, ext_idx))
-            end
-        end
-
-        # Off-diagonal: canonicalize under ne_aug augmented with every diag pair,
-        # so partial_sort can use those inequalities.
-        full_ne = ne_aug
-        for (a, b) in diag_pairs
-            full_ne = _merge_ne_pair(full_ne, a, b)
-        end
-        # Σ_i: bake `i.range` into emitted entries whose final ops lose their
-        # i-dependence (e.g. the `+1` residual from `a_i*a_i' = a_i'*a_i + 1`),
-        # so per-term scope matches the explicit `Σ_i` written by the user.
-        if depends_on_i
-            _emit_scaled_by_scope!(off_diag, copy(term.ops), c, full_ne, Index[i])
-        else
-            _canonicalize!(
-                off_diag, copy(term.ops),
-                _mul_cnum(c, _to_cnum(index_range(i))), full_ne,
-            )
-        end
-
-        for (_, ext_idx) in diag_pairs
-            sub_ops = Op[change_index(o, i, ext_idx) for o in term.ops]
-            sub_c = change_index(c, i, ext_idx)
-            # Propagate NE onto the diagonal (i≠β becomes ext_idx≠β); dropping it
-            # lets a later sum re-admit ext_idx=β and double-count the diagonal.
-            sub_ne = _substitute_ne(ne_aug, i, ext_idx)
-            _canonicalize!(diag, sub_ops, sub_c, sub_ne)
-        end
+        scope = vcat(bound_indices(term, c, expr.indices), [i])
+        sigma_term!(off_diag, diag, term, c, i, non_equal, scope)
     end
 
-    result = QAdd(off_diag, vcat(expr.indices, [i]))
+    result = QAdd(off_diag, drop_unused_indices(off_diag, vcat(expr.indices, [i])))
     isempty(diag) && return result
-    return result + QAdd(diag, Index[])
+    return result + QAdd(diag, drop_unused_indices(diag, copy(expr.indices)))
+end
+
+function sigma_term!(
+        off_diag::QTermDict, diag::QTermDict, term::QTerm, c::CNum,
+        i::Index, non_equal::Vector{Index}, scope::Vector{Index},
+    )
+    ne_aug = term.ne
+    for j in non_equal
+        ne_aug = merge_ne_pair(ne_aug, i, j)
+    end
+
+    if !depends_on_index_term(c, term.ops, i)
+        emit_scaled_by_scope!(off_diag, copy(term.ops), c, ne_aug, scope)
+        return nothing
+    end
+
+    diag_pairs = Tuple{Index, Index}[]
+    for ext_idx in distinct_op_indices(term.ops)
+        may_coincide(i, ext_idx, ne_aug) && push!(diag_pairs, (i, ext_idx))
+    end
+
+    full_ne = ne_aug
+    for (a, b) in diag_pairs
+        full_ne = merge_ne_pair(full_ne, a, b)
+    end
+    emit_scaled_by_scope!(off_diag, copy(term.ops), c, full_ne, scope)
+
+    for (_, ext_idx) in diag_pairs
+        sub_ops = Op[change_index(o, i, ext_idx) for o in term.ops]
+        sub_c = change_index(c, i, ext_idx)
+        sub_ne = diagonal_ne(ne_aug, diag_pairs, i, ext_idx)
+        canonicalize!(diag, sub_ops, sub_c, sub_ne)
+    end
+    return nothing
 end
 
 function Σ(expr::QSym, i::Index, non_equal::Vector{Index} = Index[])
-    return Σ(_single_qadd(_CNUM_ONE, Op[expr]), i, non_equal)
+    return Σ(single_qadd(CNUM_ONE, Op[expr]), i, non_equal)
 end
 
 function Σ(expr::Number, i::Index, non_equal::Vector{Index} = Index[])
-    return Σ(_single_qadd(_to_cnum(expr), Op[]), i, non_equal)
+    return Σ(single_qadd(to_cnum(expr), Op[]), i, non_equal)
 end
 
 function Σ(expr::Union{QField, Number}, i::Index, j::Index, rest::Index...)

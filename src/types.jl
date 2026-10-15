@@ -1,29 +1,34 @@
 """
     QField
 
-Abstract supertype for all second-quantized operator expressions.
+Supertype of every operator expression.
 
-Subtypes:
-- [`QSym`](@ref): leaf operators (e.g. [`Destroy`](@ref), [`Create`](@ref), [`Transition`](@ref))
-- [`QAdd`](@ref): compound expressions (a sum of [`QTerm`](@ref) products)
+Operators ([`QSym`](@ref)), their polynomials ([`QAdd`](@ref)) and expressions with formal
+functions ([`QExpr`](@ref)) are all `QField`s. They support `+`, `-`, `*`, `/` by numbers,
+integer powers, `adjoint`, and comparison with `==` and `isequal`. A method written for
+`QField` accepts any of them.
 
-Supports arithmetic (`+`, `-`, `*`, `^`, `/`), `adjoint`, and comparison via `==`/`isequal`.
-All arithmetic eagerly applies normal ordering and returns [`QAdd`](@ref).
+# Examples
+```jldoctest
+julia> a = Destroy(FockSpace(:cavity), :a);
+
+julia> (a, a' * a, cos(a + a')) isa NTuple{3, SecondQuantizedAlgebra.QField}
+true
+```
+
+See also [`QSym`](@ref), [`QAdd`](@ref), [`QExpr`](@ref).
 """
 abstract type QField end
 
 """
     QSym <: QField
 
-Abstract type for fundamental (leaf) operators in the expression tree.
+Supertype of single operators.
 
-Every `QSym` carries three fields identifying its site:
-- `name::Symbol` — display name
-- `space_index::Int` — position in [`ProductSpace`](@ref) (1 for single spaces)
-- `index::Index` — symbolic summation index ([`Index`](@ref)), or `NO_INDEX`
+Every operator, whatever its kind, is an [`Op`](@ref), the only subtype; its kind is read
+with [`optype`](@ref).
 
-Concrete subtypes: [`Destroy`](@ref), [`Create`](@ref), [`Transition`](@ref),
-[`Pauli`](@ref), [`Spin`](@ref), [`Position`](@ref), [`Momentum`](@ref).
+See also [`QField`](@ref), [`Op`](@ref).
 """
 abstract type QSym <: QField end
 
@@ -33,18 +38,29 @@ Base.zero(::Type{<:QField}) = 0
 """
     SiteCmp
 
-Three-way site comparison for the canonical partial-sort. `Equal` and
-`Undetermined` both mean "do not reorder," but distinguishing them in the type
-prevents the "I returned 0 but meant Equal" bug class.
+Result of `site_compare`, the site relation of two operators in the canonical sort.
+
+`Less` and `Greater` order operators on distinct sites. `Equal` marks a provably shared
+site, where the reduce and commute passes may act. `Undetermined` marks two free indices
+that may or may not coincide, where no rule may act. Both of the latter leave the pair in
+place; they are separate values so that a comparison cannot return one where the other
+is meant.
 """
 @enum SiteCmp::UInt8 Less Equal Undetermined Greater
 
 """
     ReduceKind
 
-Outcome tag for `_reduce_pair`:
+Outcome tag for `reduce_pair`:
 - `NoReduction`: pair does not reduce; `op` and `factor` slots are ignored.
 - `ScalarReduction`: pair contracts to the scalar `factor`; both ops disappear.
 - `OpReduction`: pair reduces to `op * factor`; `op` replaces the first input.
 """
 @enum ReduceKind::UInt8 NoReduction ScalarReduction OpReduction
+
+function position_of(pred::F, v::AbstractVector) where {F}
+    for i in eachindex(v)
+        pred(v[i]) && return i
+    end
+    return 0
+end

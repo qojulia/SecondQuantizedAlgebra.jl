@@ -1,55 +1,55 @@
 const transition_idx_script = Ref(:^)
 
 """
-    transition_superscript(x::Bool) -> Bool
+    transition_superscript(x::Bool)
 
-Set whether [`Transition`](@ref) and [`CollectiveTransition`](@ref) level indices
-are rendered as superscripts (`true`, default) or subscripts (`false`) in LaTeX
-output via Latexify.jl.
+Choose whether transition levels are written as superscripts or subscripts in LaTeX.
 
-- `true`: ``{\\sigma}^{{ij}}``
-- `false`: ``{\\sigma}_{{ij}}``
+With `true`, the default, ``\\sigma^{ij}`` is written; with `false`,
+``\\sigma_{ij}``. The setting is global and applies to every later call of
+`latexify`. The function is not exported.
 
 # Examples
-```jldoctest
-julia> SecondQuantizedAlgebra.transition_superscript(false)
-false
 
-julia> SecondQuantizedAlgebra.transition_superscript(true)
-true
+```jldoctest
+julia> using SecondQuantizedAlgebra: transition_superscript
+
+julia> using Latexify
+
+julia> σ = Transition(NLevelSpace(:atom, 2), :σ, 2, 1);
+
+julia> transition_superscript(false); latexify(σ)
+L"\${\\sigma}_{{21}}\$"
+
+julia> transition_superscript(true); latexify(σ)
+L"\${\\sigma}^{{21}}\$"
 ```
+
+See also [`Transition`](@ref).
 """
 function transition_superscript(x::Bool)
     transition_idx_script[] = x ? :^ : :_
     return x
 end
 
-# Join accumulated per-slot suffixes into one comma subscript (`i_2_1` -> `i_{2,1}`);
-# a bare `_{i_2_1}` is a double subscript that MathJax rejects.
-function _latex_index_suffix(idx::Index)
+function latex_index_suffix(idx::Index)
     has_index(idx) || return ""
     parts = split(string(index_name(idx)), '_')
     name = length(parts) == 1 ? parts[1] : string(parts[1], "_{", join(parts[2:end], ","), "}")
     return "_{$(name)}"
 end
 
-# Render an operator name for LaTeX. A bare name (`:a`) passes through, but a
-# Julia-style compound name (`:a_pol`, `:c_bog`) is split at the first `_` and
-# rendered as `a_{\mathrm{pol}}` — otherwise KaTeX reads the `_` as a subscript
-# operator and the trailing characters render as stray italic letters.
-function _latex_name(name)
+function latex_name(name)
     s = string(name)
-    idx = findfirst('_', s)
-    idx === nothing && return s
-    head = s[1:prevind(s, idx)]
-    rest = s[nextind(s, idx):end]
+    occursin('_', s) || return s
+    head, rest = split(s, '_'; limit = 2)
     rest_escaped = replace(rest, '_' => "\\_")
     return string(head, "_{\\mathrm{", rest_escaped, "}}")
 end
 
 @latexrecipe function f(x::Op)
-    suffix = _latex_index_suffix(x.index)
-    name = _latex_name(operator_name(x))
+    suffix = latex_index_suffix(x.index)
+    name = latex_name(operator_name(x))
     k = x.kind
     body = if k === OP_DESTROY
         "$(name)$(suffix)"
@@ -58,67 +58,57 @@ end
     elseif k === OP_TRANSITION || k === OP_COLLECTIVE_TRANSITION
         "{$(name)}$(suffix)$(transition_idx_script[]){{$(Int(x.l1))$(Int(x.l2))}}"
     elseif k === OP_PAULI || k === OP_SPIN
-        "{$(name)}$(suffix)_{{$(_xyz_sym[x.l1])}}"
-    else   # OP_POSITION, OP_MOMENTUM
+        "{$(name)}$(suffix)_{{$(xyz_sym[x.l1])}}"
+    else
         "\\hat{$(name)}$(suffix)"
     end
     return Expr(:latexifymerge, body)
 end
 
-# Extract a plain Julia number from CNum for LaTeX rendering
-function _latex_prefactor(c::CNum)
-    r_unwrap = SymbolicUtils.unwrap(real(c))
-    i_unwrap = SymbolicUtils.unwrap(imag(c))
-    r_val = Symbolics.value(r_unwrap)
-    i_val = Symbolics.value(i_unwrap)
-    # `iszero` on a BasicSymbolic returns a symbolic expression, not Bool, which
-    # blows up the `if` below on older Symbolics (Julia 1.10 CI). Use structural
-    # equality on the unwrapped form to get a Bool either way.
-    i_is_zero = isequal(i_unwrap, 0) || (i_val isa Number && iszero(i_val))
-    r_is_zero = isequal(r_unwrap, 0) || (r_val isa Number && iszero(r_val))
-    if i_is_zero
-        return r_val
-    elseif r_is_zero
-        # Pure imaginary: `complex(false, x)` only works for `x <: Real`, so on
-        # symbolic prefactors we fall through to the full `Complex{Num}` form below.
-        if i_val isa Real
-            return complex(false, i_val)
-        end
-        return to_num(c)
-    elseif r_val isa Real && i_val isa Real
-        return complex(r_val, i_val)
-    else
-        return to_num(c)
-    end
+latex_real(x::Int) = x
+latex_real(x::Float64) = x
+latex_real(x::Rational{Int}) = isone(denominator(x)) ? numerator(x) : x
+
+function latex_native_term(z::Union{ComplexF64, GaussianRational{Int}}, ops::Vector{Op})
+    r = latex_real(real(z))
+    i = latex_real(imag(z))
+    iszero(imag(z)) && return latex_pf_term(r, ops)
+    iszero(real(z)) && return latex_pf_term(complex(false, i), ops)
+    return latex_pf_term(complex(r, i), ops)
 end
-_latex_prefactor(c::Number) = c
 
-const _LATEX_TERM = Union{Expr, Number, SymbolicUtils.BasicSymbolic}
-const _LATEX_FRAGMENT = Union{String, Symbol, QSym, Number, SymbolicUtils.BasicSymbolic}
+@latexrecipe function f(c::Coeff)
+    return latex_term(c, Op[])
+end
 
-# Check if a symbolic prefactor needs \left( \right) brackets when followed by operators.
-# Fractions (/) and sums (+) are visually ambiguous without grouping.
-function _needs_pf_brackets(pf::Number)
+const LATEX_FRAGMENT = Union{String, Symbol, QSym, Number, SymbolicUtils.BasicSymbolic}
+
+function needs_pf_brackets(pf::Number)
     return false
 end
-function _needs_pf_brackets(pf::SymbolicUtils.BasicSymbolic)
+needs_pf_brackets(pf::Complex) = !is_zero_part(real(pf)) && !is_zero_part(imag(pf))
+is_zero_part(x::Num) = iszero_num(x)
+is_zero_part(x::Real) = iszero(x)
+function needs_pf_brackets(pf::SymbolicUtils.BasicSymbolic)
     SymbolicUtils.iscall(pf) || return false
     op = SymbolicUtils.operation(pf)
     return op === (/) || op === (+)
 end
 
-# Helper: render a single term (prefactor * operators) as LaTeX
-function _latex_term(c::CNum, ops::Vector{Op})
-    pf = _latex_prefactor(c)
-    if isempty(ops)
-        return pf
-    end
-    parts = _LATEX_FRAGMENT[]
+function latex_term(c::CNum, ops::Vector{Op})
+    is_native(c) && return latex_native_term(native_scalar(c), ops)
+    re, im = realimag(c)
+    iszero_num(im) && return latex_pf_term(SymbolicUtils.unwrap(re), ops)
+    return latex_pf_term(Complex(re, im), ops)
+end
+
+function latex_pf_term(pf, ops::Vector{Op})
+    isempty(ops) && return Expr(:latexifymerge, pf)
+    parts = LATEX_FRAGMENT[]
     if pf isa Number && pf == -1
         push!(parts, :(-))
     elseif pf isa Number && isone(pf)
-        # skip prefactor
-    elseif _needs_pf_brackets(pf)
+    elseif needs_pf_brackets(pf)
         push!(parts, "\\left(")
         push!(parts, pf)
         push!(parts, "\\right) ")
@@ -132,7 +122,7 @@ function _latex_term(c::CNum, ops::Vector{Op})
     return Expr(:latexifymerge, parts...)
 end
 
-function _latex_sum_prefix(indices::Vector{Index}, ne_pairs::Vector{NonEqualPair})
+function latex_sum_prefix(indices::Vector{Index}, ne_pairs::Vector{NonEqualPair})
     isempty(indices) && return ""
     idx_parts = String[]
     last_name = index_name(indices[end])
@@ -155,12 +145,12 @@ function _latex_sum_prefix(indices::Vector{Index}, ne_pairs::Vector{NonEqualPair
     return join(idx_parts, " ")
 end
 
-function _latex_sum_group(indices::Vector{Index}, ne_pairs::Vector{NonEqualPair}, terms::Vector{QAdd})
-    prefix = _latex_sum_prefix(indices, ne_pairs)
-    term_exprs = _LATEX_TERM[
+function latex_sum_group(indices::Vector{Index}, ne_pairs::Vector{NonEqualPair}, terms::Vector{QAdd})
+    prefix = latex_sum_prefix(indices, ne_pairs)
+    term_exprs = Expr[
         let
-                ops, c, _ = _term_signature(t)
-                _latex_term(c, ops)
+            ops, c, _ = term_signature(t)
+            latex_term(c, ops)
         end for t in terms
     ]
     if length(term_exprs) == 1
@@ -169,17 +159,33 @@ function _latex_sum_group(indices::Vector{Index}, ne_pairs::Vector{NonEqualPair}
     return Expr(:latexifymerge, prefix, Expr(:call, :+, term_exprs...))
 end
 
-function _latex_fragment(x)
-    inner = SymbolicUtils.isconst(x) ? x.val : x
-    return strip(String(latexify(inner)), '$')
+function latex_string(@nospecialize(tex))
+    tex isa LaTeXString || throw(ArgumentError("Latexify returned a $(typeof(tex)), not a LaTeXString"))
+    return tex
 end
 
-function _latex_avg_expr(inner)
-    return "\\langle $(_latex_fragment(inner)) \\rangle"
+latex_body(@nospecialize(tex)) = String(strip(latex_string(tex), '$'))
+
+latex_inline(x) = latex_body(latexify(x; env = :inline))
+
+function latex_fragment(x)
+    inner = SymbolicUtils.isconst(x) ? x.val : x
+    return latex_body(latexify(inner))
+end
+
+function latex_avg_expr(inner)
+    return "\\langle $(latex_fragment(inner)) \\rangle"
 end
 
 function Symbolics._toexpr_op(::AvgFunc, args; kwargs...)
-    return _latex_avg_expr(only(args))
+    return latex_avg_expr(only(args))
+end
+
+function Symbolics._toexpr_op(::typeof(expim), args; kwargs...)
+    arg = only(args)
+    neg = leading_sign(arg) < 0
+    body = neg ? SymbolicUtils.unwrap(expand(-arg)) : arg
+    return "e^{$(neg ? "-" : "")i $(latex_inline(body))}"
 end
 
 function Symbolics._toexpr_op(::DeltaFunc, args; kwargs...)
@@ -188,43 +194,40 @@ function Symbolics._toexpr_op(::DeltaFunc, args; kwargs...)
 end
 
 function Symbolics._toexpr_op(::SumFunc, args; kwargs...)
-    scope = _scope_of(args[2])
+    scope = scope_of(args[2])
     body = args[1]
-    body_tex = strip(String(latexify(body; env = :inline)), '$')
-    # Wrap a multi-term (`+`) body so the Σ binds the whole sum, not just its
-    # first summand (mirrors the Unicode `show_call(::SumFunc)`).
+    body_tex = latex_inline(body)
     if SymbolicUtils.iscall(body) && SymbolicUtils.operation(body) === (+)
         body_tex = string("\\left( ", body_tex, " \\right)")
     end
-    return string(_latex_sum_prefix(scope.indices, scope.ne), body_tex)
+    return string(latex_sum_prefix(scope.indices, scope.ne), body_tex)
 end
 
 function Symbolics._toexpr_metadata(
         x::SymbolicUtils.BasicSymbolic, ::Type{AverageOperator}, op;
         kwargs...,
     )
-    iv_tex = strip(String(latexify(only(SymbolicUtils.arguments(x)); env = :inline)), '$')
-    return string(_latex_avg_expr(op), "\\left( ", iv_tex, " \\right)")
+    iv_tex = latex_inline(only(SymbolicUtils.arguments(x)))
+    return string(latex_avg_expr(op), "\\left( ", iv_tex, " \\right)")
 end
 
 @latexrecipe function f(x::QAdd)
     st = sorted_arguments(x)
     if !isempty(x.indices)
-        # Split terms into index-dependent and index-independent
         dep_qadds = QAdd[]
-        terms_out = _LATEX_TERM[]
+        terms_out = Expr[]
         for t in st
-            ops, c, _ = _term_signature(t)
-            term_expr = _latex_term(c, ops)
-            if any(idx -> _depends_on_index_term(c, ops, idx), x.indices)
+            ops, c, ne = term_signature(t)
+            term_expr = latex_term(c, ops)
+            if any(idx -> depends_on_scope_index(c, ops, ne, idx), x.indices)
                 push!(dep_qadds, t)
             else
                 push!(terms_out, term_expr)
             end
         end
         if !isempty(dep_qadds)
-            for (used, ne_pairs, terms) in _group_dep_terms(dep_qadds, x.indices)
-                push!(terms_out, _latex_sum_group(used, ne_pairs, terms))
+            for (used, ne_pairs, terms) in group_dep_terms(dep_qadds, x.indices)
+                push!(terms_out, latex_sum_group(used, ne_pairs, terms))
             end
         end
         if isempty(terms_out)
@@ -234,14 +237,17 @@ end
         end
         return Expr(:call, :+, terms_out...)
     end
-    terms = _LATEX_TERM[
+    terms = Expr[
         let
-                ops, c, _ = _term_signature(t)
-                _latex_term(c, ops)
+            ops, c, _ = term_signature(t)
+            latex_term(c, ops)
         end for t in st
     ]
+    isempty(terms) && return 0
     return Expr(:call, :+, terms...)
 end
 
-const QLaTeX = Union{<:QField}
-Base.show(io::IO, ::MIME"text/latex", x::QLaTeX) = write(io, latexify(x))
+const QLaTeX = Union{QField, Coeff}
+Base.show(io::IO, ::MIME"text/latex", x::QLaTeX) = write(io, latex_string(latexify(x)))
+Base.show(io::IO, ::MIME"text/latex", x::AbstractArray{<:QLaTeX}) =
+    print(io, "\$\$ ", latex_string(latexify(x; env = :raw)), " \$\$")

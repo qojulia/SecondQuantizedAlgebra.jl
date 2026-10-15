@@ -1,47 +1,48 @@
 """
-    _stream!(out::QTermDict, ops::Vector{Op}, c::CNum, ne::Vector{NonEqualPair})
+    stream!(out::QTermDict, ops::Vector{Op}, c::CNum, ne::Vector{NonEqualPair})
 
-The default canonicalization pipeline. Order: `reduce -> commute -> reduce -> sink`.
+The default canonicalization pipeline: reduce, commute, reduce, then store in `out`.
 
-The first reduce folds Transition/Pauli same-site pairs (these never commute,
-they compose). Commute then operates only on Fock/Spin/PhaseSpace ladder pairs.
-The trailing reduce catches any same-site composition surfaced by the commute
-residual (e.g. a Spin commutator's contracted op meeting a same-site neighbor).
+The first reduce composes same-site Transition and Pauli pairs, which compose rather than
+commute. Commute then swaps the remaining same-site pairs (Fock, Spin, PhaseSpace and
+CollectiveTransition) and emits their commutator residuals. The trailing reduce catches a
+composition that a residual creates next to a same-site neighbour, such as the contracted
+operator of a Spin commutator.
 """
-@inline function _stream!(
+@inline function stream!(
         out::QTermDict, ops::Vector{Op}, c::CNum, ne::Vector{NonEqualPair},
     )
-    _reduce_ops(ops, c) do ops1, c1
-        _commute_ops(ops1, c1) do ops2, c2
-            _reduce_ops(ops2, c2) do ops3, c3
-                _canonicalize_to_dict!(out, ops3, c3, ne)
+    reduce_ops(ops, c) do ops1, c1
+        commute_ops(ops1, c1) do ops2, c2
+            reduce_ops(ops2, c2) do ops3, c3
+                canonicalize_to_dict!(out, ops3, c3, ne)
             end
         end
     end
-    return nothing
+    return out
 end
 
 """
-    _canonicalize!(out::QTermDict, ops::Vector{Op}, c::CNum, ne::Vector{NonEqualPair})
+    canonicalize!(out::QTermDict, ops::Vector{Op}, c::CNum, ne::Vector{NonEqualPair})
 
 Re-establish canonical form: sort, then run the pipeline.
 """
-@inline function _canonicalize!(
+@inline function canonicalize!(
         out::QTermDict, ops::Vector{Op}, c::CNum, ne::Vector{NonEqualPair},
     )
-    _partial_sort!(ops, ne)
-    _stream!(out, ops, c, ne)
-    return nothing
+    partial_sort!(ops, ne)
+    stream!(out, ops, c, ne)
+    return out
 end
 
 """
-    _emit_product!(out, ta_ops, ca, ta_ne, tb_ops, cb, tb_ne, sum_indices, needs_diag)
+    emit_product!(out, ta_ops, ca, ta_ne, tb_ops, cb, tb_ne, sum_indices, needs_diag)
 
 Concatenate the operator strings of two terms, merge their constraint sets, and
-route through `_canonicalize!` (or `_accumulate_with_diag!` when summation
+route through `canonicalize!` (or `accumulate_with_diag!` when summation
 indices may collapse).
 """
-@inline function _emit_product!(
+@inline function emit_product!(
         out::QTermDict,
         ta_ops::Vector{Op}, ca::CNum, ta_ne::Vector{NonEqualPair},
         tb_ops::Vector{Op}, cb::CNum, tb_ne::Vector{NonEqualPair},
@@ -51,17 +52,17 @@ indices may collapse).
     ops = Vector{Op}(undef, n)
     copyto!(ops, 1, ta_ops, 1, length(ta_ops))
     copyto!(ops, length(ta_ops) + 1, tb_ops, 1, length(tb_ops))
-    ne = _merge_ne(ta_ne, tb_ne)
-    c = _mul_cnum(ca, cb)
+    ne = merge_ne(ta_ne, tb_ne)
+    c = mul_cnum(ca, cb)
     if needs_diag_split
-        _accumulate_with_diag!(out, ops, c, sum_indices, ne)
+        accumulate_with_diag!(out, ops, c, sum_indices, ne)
     else
-        _canonicalize!(out, ops, c, ne)
+        canonicalize!(out, ops, c, ne)
     end
-    return nothing
+    return out
 end
 
-function _distinct_op_indices(ops::Vector{Op})
+function distinct_op_indices(ops::Vector{Op})
     out = Index[]
     for op in ops
         idx = op.index
@@ -72,154 +73,202 @@ function _distinct_op_indices(ops::Vector{Op})
     return out
 end
 
-function _depends_on_index_ops(c::CNum, ops::Vector{Op}, idx::Index)
+function depends_on_index_ops(c::CNum, ops::Vector{Op}, idx::Index)
     for op in ops
         op.index == idx && return true
     end
-    return _depends_on_index_term(c, ops, idx)
+    return depends_on_index_term(c, ops, idx)
+end
+
+const NO_DIAGONALS = Tuple{Index, Index}[]
+
+function binder_diagonals(
+        ops::Vector{Op}, c::CNum, s::Index, bound::Vector{Index}, ne::Vector{NonEqualPair},
+    )
+    pairs = NO_DIAGONALS
+    depends_on_index_ops(c, ops, s) || return pairs
+    for e in distinct_op_indices(ops)
+        may_coincide(s, e, ne) || continue
+        e in bound && name_rank(s.name_id) <= name_rank(e.name_id) && continue
+        pairs === NO_DIAGONALS && (pairs = Tuple{Index, Index}[])
+        push!(pairs, (s, e))
+    end
+    return pairs
+end
+
+function merge_ne_pairs(ne::Vector{NonEqualPair}, pairs::Vector{Tuple{Index, Index}})
+    out = ne
+    for (a, b) in pairs
+        out = merge_ne_pair(out, a, b)
+    end
+    return out
+end
+
+function merge_ne_pairs(ne::Vector{NonEqualPair}, i::Index, others::Vector{Index})
+    out = ne
+    for j in others
+        out = merge_ne_pair(out, i, j)
+    end
+    return out
 end
 
 """
-    _accumulate_with_diag!(out, ops, c, sum_indices, ne) -> nothing
+    partition_binders!(leaf, sides, c, ne, scope, bound) -> nothing
 
-When summing over indices that may coincide with another operator's index, emit
-both the off-diagonal contribution (under `ne ∪ {(sum_idx, ext_idx)}` enforcing
-the indices differ) and each diagonal contribution (substituting
-`sum_idx -> ext_idx`, with each constraint on `sum_idx` rewritten onto
-`ext_idx`, mirroring the diagonal split in [`Σ`](@ref)).
+Split the sum over `scope` by the coincidences of its binders, one binder at a time: the
+off-diagonal part keeps the binder distinct from every index it may equal, each diagonal
+substitutes it, and the next binder is split inside every part. Splitting all binders at
+once would count a joint coincidence such as `i = k, j = l` once per binder.
+
+`sides` are operator strings that share the substitution (one for an operator, two for a
+sandwich). Each part reaches `leaf(sides, c, ne, scope, absorbed)`, with `scope` the binders
+left after substitution and `absorbed` the bound indices a binder was substituted onto.
 """
-function _accumulate_with_diag!(
-        out::QTermDict, ops::Vector{Op}, c::CNum,
-        sum_indices::Vector{Index}, ne::Vector{NonEqualPair},
-    )
-    distinct = _distinct_op_indices(ops)
-    if length(distinct) < 2
-        _canonicalize!(out, copy(ops), c, ne)
-        return nothing
-    end
-
-    # When both indices are bound, the two directions (i→j and j→i) describe
-    # the same diagonal slice; keeping one (later→earlier) avoids double-counting
-    # constant residuals (the `+1` from `a*a' = a'a + 1`) and keeps the survivor
-    # invariant under factor order so `Σa * Σa'` and `Σa' * Σa` agree.
-    diag_pairs = Tuple{Index, Index}[]
-    for sum_idx in sum_indices
-        _depends_on_index_ops(c, ops, sum_idx) || continue
-        for ext_idx in distinct
-            ext_idx == sum_idx && continue
-            ext_idx.space_index == sum_idx.space_index || continue
-            _ne_contains(ne, sum_idx, ext_idx) && continue
-            if ext_idx in sum_indices
-                _name_rank(sum_idx.name_id) > _name_rank(ext_idx.name_id) || continue
-            end
-            push!(diag_pairs, (sum_idx, ext_idx))
-        end
-    end
-
-    if isempty(diag_pairs)
-        _canonicalize!(out, copy(ops), c, ne)
-        return nothing
-    end
-
-    # Off-diagonal: canonicalize under ne augmented with every (sum, ext) pair,
-    # so that partial_sort can use those inequalities when ordering operators.
-    augmented_ne = ne
-    for (a, b) in diag_pairs
-        augmented_ne = _merge_ne_pair(augmented_ne, a, b)
-    end
-    _canonicalize!(out, copy(ops), c, augmented_ne)
-
-    for (sum_idx, ext_idx) in diag_pairs
-        sub_ops = Op[change_index(o, sum_idx, ext_idx) for o in ops]
-        sub_c = change_index(c, sum_idx, ext_idx)
-        # Rewrite (not drop) the collapsed index in the constraints: a
-        # `sum_idx ≠ β` becomes `ext_idx ≠ β` on the diagonal, exactly as the
-        # `Σ` diagonal split does. Dropping it lets a sibling sum index re-admit
-        # the excluded value: a coefficient-only-index term `Σ_k u(l,k)·σ_l`
-        # (constraint k≠l from the off-diagonal split) would otherwise merge
-        # with a genuine diagonal `u(l,l)·σ_l` under the same key and over-count.
-        sub_ne = _substitute_ne(ne, sum_idx, ext_idx)
-        # Sibling diagonal slices for the same sum must be mutually exclusive;
-        # without ext_idx ≠ other_ext, the i=j and i=k branches both contain
-        # i=j=k and the canonical sort cannot collapse same-index operators
-        # separated by a sibling-index operator.
-        sibling_ne = NonEqualPair[]
-        for (other_sum, other_ext) in diag_pairs
-            other_sum == sum_idx || continue
-            other_ext == ext_idx && continue
-            other_ext.space_index == ext_idx.space_index || continue
-            push!(sibling_ne, (ext_idx, other_ext))
-        end
-        isempty(sibling_ne) || (sub_ne = _merge_ne(sub_ne, sibling_ne))
-        if ext_idx in sum_indices
-            _emit_scaled_by_scope!(out, sub_ops, sub_c, sub_ne, Index[ext_idx])
-        else
-            _canonicalize!(out, sub_ops, sub_c, sub_ne)
-        end
+function partition_binders!(
+        leaf::F, sides::NTuple{M, Vector{Op}}, c::CNum, ne::Vector{NonEqualPair},
+        scope::Vector{Index}, bound::Vector{Index},
+        k::Int = 1, absorbed::Vector{Index} = EMPTY_INDICES,
+    ) where {F, M}
+    k > length(scope) && return leaf(sides, c, ne, scope, absorbed)
+    s = scope[k]
+    ops = M == 1 ? sides[1] : reduce(vcat, sides)
+    pairs = binder_diagonals(ops, c, s, bound, ne)
+    partition_binders!(leaf, sides, c, merge_ne_pairs(ne, pairs), scope, bound, k + 1, absorbed)
+    isempty(pairs) && return nothing
+    rest = Index[x for x in scope if x != s]
+    for (_, e) in pairs
+        sub = map(side -> Op[change_index(o, s, e) for o in side], sides)
+        sub_absorbed = e in bound ? vcat(absorbed, Index[e]) : absorbed
+        partition_binders!(
+            leaf, sub, change_index(c, s, e), diagonal_ne(ne, pairs, s, e), rest, bound, k,
+            sub_absorbed,
+        )
     end
     return nothing
 end
 
-"""
-    _emit_scaled_by_scope!(out, ops, c, ne, scope)
+function may_coincide(sum_idx::Index, ext_idx::Index, ne::Vector{NonEqualPair})
+    ext_idx == sum_idx && return false
+    ext_idx.space_index == sum_idx.space_index || return false
+    return !ne_contains(ne, sum_idx, ext_idx)
+end
 
-Canonicalize `(ops, c, ne)` into `out`, multiplying any resulting term by
-`prod(idx.range for idx in scope if !depends(term, idx))`. Use when residuals
-that lose a bound-index dependence must absorb the surviving sum's range factor
-(e.g. the `+1` from `a*a' = a'a + 1` inside a `Σ_i` scope).
+function sibling_exclusions(diag_pairs::Vector{Tuple{Index, Index}}, sum_idx::Index, ext_idx::Index)
+    sibling_ne = NonEqualPair[]
+    for (other_sum, other_ext) in diag_pairs
+        other_sum == sum_idx || continue
+        other_ext == ext_idx && break
+        other_ext.space_index == ext_idx.space_index || continue
+        push!(sibling_ne, (ext_idx, other_ext))
+    end
+    return sibling_ne
+end
+
+function diagonal_ne(
+        ne::Vector{NonEqualPair}, diag_pairs::Vector{Tuple{Index, Index}}, sum_idx::Index,
+        ext_idx::Index,
+    )
+    sub_ne = substitute_ne(ne, sum_idx, ext_idx)
+    sibling_ne = sibling_exclusions(diag_pairs, sum_idx, ext_idx)
+    return isempty(sibling_ne) ? sub_ne : merge_ne(sub_ne, sibling_ne)
+end
+
 """
-function _emit_scaled_by_scope!(
+    accumulate_with_diag!(out, ops, c, sum_indices, ne) -> out
+
+When summing over indices that may coincide with another operator's index, emit the
+off-diagonal contribution (under `ne ∪ {(sum_idx, ext_idx)}` enforcing the indices differ)
+and each diagonal contribution (substituting `sum_idx -> ext_idx`, with each constraint on
+`sum_idx` rewritten onto `ext_idx`), partitioned binder by binder with
+[`partition_binders!`](@ref).
+"""
+function accumulate_with_diag!(
+        out::QTermDict, ops::Vector{Op}, c::CNum,
+        sum_indices::Vector{Index}, ne::Vector{NonEqualPair},
+    )
+    if length(distinct_op_indices(ops)) < 2
+        canonicalize!(out, copy(ops), c, ne)
+        return out
+    end
+    partition_binders!((ops,), c, ne, sum_indices, sum_indices) do (part,), pc, pne, _, absorbed
+        if isempty(absorbed)
+            canonicalize!(out, copy(part), pc, pne)
+        else
+            emit_scaled_by_scope!(out, copy(part), pc, pne, absorbed)
+        end
+    end
+    return out
+end
+
+"""
+    emit_scaled_by_scope!(out, ops, c, ne, scope)
+
+Canonicalize `(ops, c, ne)` into `out`, then settle each `scope` index through
+`settle_scope!`. Use when residuals that lose a bound-index dependence must absorb the
+surviving sum's count (e.g. the `+1` from `a*a' = a'a + 1` inside a `Σ_i` scope).
+"""
+function emit_scaled_by_scope!(
         out::QTermDict, ops::Vector{Op}, c::CNum,
         ne::Vector{NonEqualPair}, scope::Vector{Index},
     )
     temp = QTermDict()
-    _canonicalize!(temp, ops, c, ne)
+    canonicalize!(temp, ops, c, ne)
+    return settle_scope!(out, temp, scope)
+end
+
+"""
+    settle_scope!(out, temp, scope)
+
+Add the terms of `temp`, all descended from one term bound by `scope`, into `out`. Each
+scope index that a term's operators and coefficient no longer mention is eliminated by
+`eliminate_binders`: the term is multiplied by the index's constrained count
+(`range - |partners|`), or keeps the binder and its constraints when that count is unknown.
+"""
+function settle_scope!(out::QTermDict, temp::QTermDict, scope::Vector{Index})
     for (term, cv) in temp
-        coef = cv
-        for scope_idx in scope
-            _depends_on_index_term(coef, term.ops, scope_idx) && continue
-            coef = _mul_cnum(coef, _to_cnum(index_range(scope_idx)))
-        end
-        _addto_key!(out, _copy_key(term), coef)
+        mentions(c, idx) = depends_on_index_term(c, term.ops, idx)
+        coef, ne = eliminate_binders(mentions, cv, term.ne, scope)
+        key = ne === term.ne ? copy_key(term) : QTerm(copy(term.ops), ne)
+        addto_key!(out, key, coef)
     end
-    return nothing
+    return out
 end
 
 function Base.:*(a::QSym, b::QSym)
     out = QTermDict()
-    _emit_product!(
+    emit_product!(
         out,
-        Op[a], _CNUM_ONE, _EMPTY_NE,
-        Op[b], _CNUM_ONE, _EMPTY_NE,
-        _EMPTY_INDICES, false
+        Op[a], CNUM_ONE, EMPTY_NE,
+        Op[b], CNUM_ONE, EMPTY_NE,
+        EMPTY_INDICES, false
     )
-    return QAdd(out, _EMPTY_INDICES)
+    return QAdd(out, EMPTY_INDICES)
 end
 
 function Base.:*(a::QAdd, b::QSym)
     out = QTermDict()
     needs = !isempty(a.indices)
     for (ta, ca) in a
-        _emit_product!(
+        emit_product!(
             out, ta.ops, ca, ta.ne,
-            Op[b], _CNUM_ONE, _EMPTY_NE,
+            Op[b], CNUM_ONE, EMPTY_NE,
             a.indices, needs
         )
     end
-    return QAdd(out, _absorb_pinned_sums(a.indices, a, b))
+    return QAdd(out, absorb_pinned_sums(a.indices, a, b))
 end
 
 function Base.:*(a::QSym, b::QAdd)
     out = QTermDict()
     needs = !isempty(b.indices)
     for (tb, cb) in b
-        _emit_product!(
-            out, Op[a], _CNUM_ONE, _EMPTY_NE,
+        emit_product!(
+            out, Op[a], CNUM_ONE, EMPTY_NE,
             tb.ops, cb, tb.ne,
             b.indices, needs
         )
     end
-    return QAdd(out, _absorb_pinned_sums(b.indices, a, b))
+    return QAdd(out, absorb_pinned_sums(b.indices, a, b))
 end
 
 function Base.:*(a::QAdd, b::QAdd)
@@ -237,42 +286,37 @@ function Base.:*(a::QAdd, b::QAdd)
         end
     end
     out = QTermDict()
-    sum_indices = _merge_unique(a.indices, b.indices)
+    sum_indices = merge_unique(a.indices, b.indices)
     needs = !isempty(sum_indices)
     for (ta, ca) in a, (tb, cb) in b
-        _emit_product!(
+        emit_product!(
             out, ta.ops, ca, ta.ne,
             tb.ops, cb, tb.ne,
             sum_indices, needs
         )
     end
-    return QAdd(out, _absorb_pinned_sums(sum_indices, a, b))
+    return QAdd(out, absorb_pinned_sums(sum_indices, a, b))
 end
 
-# Drop summation indices pinned by the product: a bound `.indices` entry
-# of one factor that every term of the other factor carries as a free op
-# index is no longer ranging, so the sum scope must not survive. The
-# uniformity check (`_every_term_has_op_index`) is what guarantees the
-# result still has consistent `.indices` semantics across every term.
-function _absorb_pinned_sums(
+function absorb_pinned_sums(
         sum_indices::Vector{Index}, a::Union{QAdd, QSym}, b::Union{QAdd, QSym}
     )
     isempty(sum_indices) && return sum_indices
-    a_indices = a isa QAdd ? a.indices : _EMPTY_INDICES
-    b_indices = b isa QAdd ? b.indices : _EMPTY_INDICES
+    a_indices = a isa QAdd ? a.indices : EMPTY_INDICES
+    b_indices = b isa QAdd ? b.indices : EMPTY_INDICES
     keep = Index[]
     @inbounds for s in sum_indices
         from_a = s in a_indices
         from_b = s in b_indices
-        pinned = (from_a && !from_b && _every_term_has_op_index(b, s)) ||
-            (from_b && !from_a && _every_term_has_op_index(a, s))
+        pinned = (from_a && !from_b && every_term_has_op_index(b, s)) ||
+            (from_b && !from_a && every_term_has_op_index(a, s))
         pinned || push!(keep, s)
     end
     return length(keep) == length(sum_indices) ? sum_indices : keep
 end
 
-_every_term_has_op_index(q::QSym, idx::Index) = q.index == idx
-function _every_term_has_op_index(q::QAdd, idx::Index)
+every_term_has_op_index(q::QSym, idx::Index) = q.index == idx
+function every_term_has_op_index(q::QAdd, idx::Index)
     isempty(q.arguments) && return false
     @inbounds for t in keys(q.arguments)
         found = false

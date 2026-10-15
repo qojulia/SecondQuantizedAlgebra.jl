@@ -7,6 +7,7 @@ on:
     paths:
       - '.github/workflows/JET.yml'
       - 'src/**'
+      - 'test/Project.toml'
       - 'test/quality/JET.jl'
       - 'Project.toml'
   pull_request:
@@ -15,6 +16,7 @@ on:
     paths:
       - '.github/workflows/JET.yml'
       - 'src/**'
+      - 'test/Project.toml'
       - 'test/quality/JET.jl'
       - 'Project.toml'
     types:

@@ -1,4 +1,6 @@
-CI = get(ENV, "CI", nothing) == "true" || get(ENV, "GITHUB_TOKEN", nothing) !== nothing
+CI = get(ENV, "CI", "") == "true"
+# DOCS_DRAFT=true skips the Literate examples and code execution for fast local previews.
+DRAFT = get(ENV, "DOCS_DRAFT", "") == "true"
 
 # On CI, turn on Documenter/Literate debug logging so each example page logs an
 # "Expanding markdown page" line as it is built. Combined with the timestamps in
@@ -7,10 +9,26 @@ if CI
     ENV["JULIA_DEBUG"] = "Documenter,Literate"
 end
 
+# Plots/GR must use its headless workstation before Literate launches workers.
+get!(ENV, "GKSwstype", "100")
+
+# Generate and execute the Literate pages before loading the packages used by the
+# rest of the documentation. Each generated example runs in its own Julia process.
+DRAFT || include("make_md_examples.jl")
+
 using SecondQuantizedAlgebra
 using Documenter
+using DocumenterCitations
+using DocumenterCodeBlocks
+using DocumenterInterLinks
+using DocumenterLandingPage
 
-using CairoMakie
+using QuantumOpticsBase: QuantumOpticsBase
+using SparseArrays: SparseArrays
+
+using Plots
+gr()
+default(fontfamily = "Computer Modern")
 
 DocMeta.setdocmeta!(
     SecondQuantizedAlgebra,
@@ -21,6 +39,17 @@ DocMeta.setdocmeta!(
 
 include("pages.jl")
 
+existing_pages(page::Pair) = page.second isa AbstractVector ?
+    page.first => filter(!isnothing, map(existing_pages, page.second)) :
+    (isfile(joinpath(@__DIR__, "src", page.second)) ? page : nothing)
+DRAFT && (pages = filter(!isnothing, map(existing_pages, pages)))
+
+bib = CitationBibliography("src/refs.bib"; style = :authoryear)
+links = InterLinks(
+    "Julia" => "https://docs.julialang.org/en/v1/",
+    "Documenter" => "https://documenter.juliadocs.org/stable/",
+)
+
 # changelog.md mirrors the root Changelog.md: it is gitignored and regenerated on every
 # build. `make servedocs` skips it so LiveServer does not loop on the regenerated copy.
 cp(
@@ -29,26 +58,17 @@ cp(
     force = true,
 )
 
-# The README.md file is used index (home) page of the documentation.
-if CI
-    include("make_md_examples.jl")
-    cp(
-        normpath(@__FILE__, "../../README.md"),
-        normpath(@__FILE__, "../src/index.md");
-        force = true,
-    )
-end
-# ^ when using LiveServer, this will generate a loop
-
 makedocs(;
     sitename = "SecondQuantizedAlgebra.jl",
     modules = SecondQuantizedAlgebra,
     format = Documenter.HTML(;
-        canonical = "https://qojulia.github.io/SecondQuantizedAlgebra.jl"
+        canonical = "https://qojulia.github.io/SecondQuantizedAlgebra.jl",
+        assets = [asset("assets/favicon.ico"; class = :ico, islocal = true)],
     ),
     pages = pages,
+    plugins = [bib, CodeBlocks(), LandingPage(), links],
     clean = true,
-    linkcheck = true,
+    linkcheck = !DRAFT,
     # GitHub throttles the burst of HEAD requests from the changelog's PR/issue
     # links, so those curl calls time out and used to fail the whole build.
     linkcheck_ignore = [
@@ -56,8 +76,7 @@ makedocs(;
     ],
     linkcheck_timeout = 30,
     warnonly = [:linkcheck],
-    # warnonly = :missing_docs,
-    draft = false, #,(!CI),
+    draft = DRAFT,
     doctest = true,
     checkdocs = :exports,
 )

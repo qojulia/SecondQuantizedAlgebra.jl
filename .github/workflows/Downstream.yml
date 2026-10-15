@@ -43,6 +43,7 @@ jobs:
         package:
           - {user: qojulia, repo: QuantumCumulants.jl}
           - {user: qojulia, repo: QuantumInputOutput.jl}
+          - {user: oameye, repo: FloquetExpansions.jl}
 
     steps:
       - uses: actions/checkout@v7

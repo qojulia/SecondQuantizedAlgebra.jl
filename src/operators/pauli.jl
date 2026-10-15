@@ -1,33 +1,41 @@
 """
     PauliSpace(name::Symbol) <: HilbertSpace
 
-Hilbert space for a two-level system. Hosts [`Pauli`](@ref) operators
-satisfying ``\\sigma_j \\sigma_k = \\delta_{jk} I + i \\epsilon_{jkl} \\sigma_l``.
+Hilbert space of a two-level system written with Pauli matrices, home of the
+[`Pauli`](@ref) operators.
 
 # Examples
 
 ```jldoctest
-julia> PauliSpace(:spin)
-ℋ(spin)
+julia> h = PauliSpace(:qubit)
+ℋ(qubit)
+
+julia> σz = Pauli(h, :σ, 3);
+
+julia> σz * σz
+1
 ```
 
-See also [`Pauli`](@ref), [`SpinSpace`](@ref).
+See also [`Pauli`](@ref), [`NLevelSpace`](@ref), [`SpinSpace`](@ref).
 """
 struct PauliSpace <: HilbertSpace
     name::Symbol
 end
-PauliSpace(name::AbstractString) = _name_must_be_symbol(name)
+PauliSpace(name::AbstractString) = name_must_be_symbol(name)
 Base.:(==)(a::PauliSpace, b::PauliSpace) = a.name == b.name
 Base.hash(a::PauliSpace, h::UInt) = hash(:PauliSpace, hash(a.name, h))
 
 """
-    Pauli(h::PauliSpace, name::Symbol, axis::Int) -> Op
+    Pauli(h::PauliSpace, name::Symbol, axis::Int)
+    Pauli(h::ProductSpace, name::Symbol, axis::Int, [subsystem::Int])
 
-Pauli operator ``\\sigma_x, \\sigma_y, \\sigma_z`` on a [`PauliSpace`](@ref).
-The `axis` argument selects the component: `1 = x`, `2 = y`, `3 = z`. Hermitian
-(`σ' == σ`) and satisfies
-``\\sigma_j \\sigma_k = \\delta_{jk} I + i \\epsilon_{jkl} \\sigma_l``. Returns an
-[`Op`](@ref) tagged `OP_PAULI` with the axis stored in `l1`.
+Pauli matrix along `axis`, where `1`, `2`, `3` stand for x, y, z.
+
+Pauli operators are Hermitian and multiply as
+``\\sigma_j \\sigma_k = \\delta_{jk} + i \\epsilon_{jkl} \\sigma_l``, so every product
+on one qubit reduces to a single Pauli matrix or a number. On a
+[`ProductSpace`](@ref), `subsystem` selects the [`PauliSpace`](@ref) factor and may
+be omitted when there is only one.
 
 # Examples
 
@@ -47,7 +55,7 @@ See also [`PauliSpace`](@ref), [`Spin`](@ref).
 """
 function Pauli(name::Symbol, axis::Int, si::Int, idx::Index)
     1 <= axis <= 3 || throw(ArgumentError("Pauli axis must be 1, 2, or 3, got $axis"))
-    return Op(OP_PAULI, _name_id(name), si, idx, axis, 0, 0, 0)
+    return Op(OP_PAULI, name_id(name), si, idx, axis, 0, 0, 0)
 end
 Pauli(name::Symbol, axis::Int, si::Int) = Pauli(name, axis, si, NO_INDEX)
 
@@ -58,12 +66,9 @@ function Pauli(h::ProductSpace, name::Symbol, axis::Int, idx::Int)
     return Pauli(name, axis, idx)
 end
 
-# Auto-detect subspace when the ProductSpace contains exactly one PauliSpace.
 Pauli(h::ProductSpace, name::Symbol, axis::Int) =
-    Pauli(h, name, axis, _unique_subspace_index(h, PauliSpace))
+    Pauli(h, name, axis, unique_subspace_index(h, PauliSpace))
 
-Pauli(::HilbertSpace, name::AbstractString, args...) = _name_must_be_symbol(name)
+Pauli(::HilbertSpace, name::AbstractString, args...) = name_must_be_symbol(name)
 
-# Per-site Levi-Civita lookup (3×3 antisymmetric); shared by Pauli and Spin
-# hooks in `operators.jl`. _levi_civita[j][k] = ε_{jk(6-j-k)}.
-const _levi_civita = ((0, 1, -1), (-1, 0, 1), (1, -1, 0))
+const levi_civita = ((0, 1, -1), (-1, 0, 1), (1, -1, 0))

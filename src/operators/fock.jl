@@ -1,17 +1,20 @@
 """
-    Destroy(h::FockSpace, name::Symbol) -> Op
+    Destroy(h::FockSpace, name::Symbol)
+    Destroy(h::ProductSpace, name::Symbol, [subsystem::Int])
 
-Bosonic annihilation operator ``a`` on a [`FockSpace`](@ref). Satisfies the
-canonical commutation relation ``[a, a^\\dagger] = 1``. The adjoint `a'`
-returns the corresponding [`Create`](@ref) operator. Returns an [`Op`](@ref)
-tagged `OP_DESTROY`.
+Annihilation operator of the bosonic mode `name`.
+
+The operator ``a`` obeys ``[a, a^\\dagger] = 1``, and products come out normal
+ordered. The adjoint `a'` is the [`Create`](@ref) operator. Modes with different
+names are independent. On a [`ProductSpace`](@ref), `subsystem` selects the
+[`FockSpace`](@ref) factor and may be omitted when there is only one.
 
 # Examples
 
 ```jldoctest
-julia> h = FockSpace(:cavity);
+julia> h = FockSpace(:cavity) ⊗ NLevelSpace(:atom, 2);
 
-julia> @qnumbers a::Destroy(h);
+julia> a = Destroy(h, :a);
 
 julia> a * a'
 1 + a' * a
@@ -19,19 +22,32 @@ julia> a * a'
 
 See also [`Create`](@ref), [`FockSpace`](@ref), [`@qnumbers`](@ref).
 """
-Destroy(name::Symbol, si::Int, idx::Index) = Op(OP_DESTROY, _name_id(name), si, idx, 0, 0, 0, 0)
+Destroy(name::Symbol, si::Int, idx::Index) = Op(OP_DESTROY, name_id(name), si, idx, 0, 0, 0, 0)
 Destroy(name::Symbol, si::Int) = Destroy(name, si, NO_INDEX)
 
 """
-    Create(h::FockSpace, name::Symbol) -> Op
+    Create(h::FockSpace, name::Symbol)
+    Create(h::ProductSpace, name::Symbol, [subsystem::Int])
 
-Bosonic creation operator ``a^\\dagger`` on a [`FockSpace`](@ref). The
-adjoint of [`Destroy`](@ref); typically obtained via `a'` rather than
-constructed directly. Returns an [`Op`](@ref) tagged `OP_CREATE`.
+Creation operator of the bosonic mode `name`.
+
+The operator ``a^\\dagger`` is the adjoint of [`Destroy`](@ref), and usually written
+as `a'` instead. Arguments are as for [`Destroy`](@ref).
+
+# Examples
+
+```jldoctest
+julia> h = FockSpace(:cavity);
+
+julia> a = Destroy(h, :a);
+
+julia> Create(h, :a) == a'
+true
+```
 
 See also [`Destroy`](@ref), [`FockSpace`](@ref).
 """
-Create(name::Symbol, si::Int, idx::Index) = Op(OP_CREATE, _name_id(name), si, idx, 0, 0, 0, 0)
+Create(name::Symbol, si::Int, idx::Index) = Op(OP_CREATE, name_id(name), si, idx, 0, 0, 0, 0)
 Create(name::Symbol, si::Int) = Create(name, si, NO_INDEX)
 
 Destroy(h::FockSpace, name::Symbol) = Destroy(name, 1)
@@ -48,37 +64,31 @@ function Create(h::ProductSpace, name::Symbol, idx::Int)
     return Create(name, idx)
 end
 
-# Auto-detect subspace when the ProductSpace contains exactly one FockSpace.
-Destroy(h::ProductSpace, name::Symbol) = Destroy(h, name, _unique_subspace_index(h, FockSpace))
-Create(h::ProductSpace, name::Symbol) = Create(h, name, _unique_subspace_index(h, FockSpace))
+Destroy(h::ProductSpace, name::Symbol) = Destroy(h, name, unique_subspace_index(h, FockSpace))
+Create(h::ProductSpace, name::Symbol) = Create(h, name, unique_subspace_index(h, FockSpace))
 
-Destroy(::HilbertSpace, name::AbstractString, args...) = _name_must_be_symbol(name)
-Create(::HilbertSpace, name::AbstractString, args...) = _name_must_be_symbol(name)
+Destroy(::HilbertSpace, name::AbstractString, args...) = name_must_be_symbol(name)
+Create(::HilbertSpace, name::AbstractString, args...) = name_must_be_symbol(name)
 
 """
-    IndexedOperator(op::Op, i::Index) -> Op
+    IndexedOperator(op, i::Index)
 
-Return the indexed version of an operator.
+Copy of the operator `op` placed on site `i`.
 
-`IndexedOperator` keeps the operator kind and quantum numbers, and only changes
-the symbolic index label. Use it to build objects such as `a_i`, `σ_j₁₂`, or
-`x_k` before forming sums with [`Σ`](@ref).
-
-Use `IndexedOperator(op, NO_INDEX)` to remove an index.
+Operators on different sites act independently; operators on the same site follow the
+algebra of `op`. Any operator except a [`CollectiveTransition`](@ref) can be indexed.
 
 # Examples
 ```jldoctest
-julia> h = FockSpace(:cavity);
+julia> h = NLevelSpace(:atom, 2); i = Index(h, :i, 10, h);
 
-julia> @qnumbers a::Destroy(h);
+julia> σ = Transition(h, :σ, 2, 1);
 
-julia> i = Index(h, :i, 5, h);
-
-julia> IndexedOperator(a, i)
-a_i
+julia> IndexedOperator(σ, i) * IndexedOperator(σ', i)
+σ_i₂₂
 ```
 
-See also [`Index`](@ref), [`Σ`](@ref), [`change_index`](@ref).
+See also [`Index`](@ref), [`Σ`](@ref), [`operator_index`](@ref).
 """
 function IndexedOperator end
 function IndexedOperator(op::Op, i::Index)

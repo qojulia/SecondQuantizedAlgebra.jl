@@ -160,9 +160,9 @@ function scaling_figure(data, path)
     present = [(name, disp) for (name, disp) in PACKAGES if haskey(data, name)]
     elements = [
         [
-                Makie.LineElement(; color = COLORS[name], linewidth = 2),
-                Makie.MarkerElement(; color = COLORS[name], marker = MARKERS[name], markersize = 12),
-            ] for (name, _) in present
+            Makie.LineElement(; color = COLORS[name], linewidth = 2),
+            Makie.MarkerElement(; color = COLORS[name], marker = MARKERS[name], markersize = 12),
+        ] for (name, _) in present
     ]
     fig[1:2, 3] = Makie.Legend(fig, elements, [disp for (_, disp) in present]; framevisible = false)
     Makie.save(path, fig)

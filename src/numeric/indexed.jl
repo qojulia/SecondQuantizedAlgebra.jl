@@ -1,56 +1,68 @@
-# Indexed numeric conversion. The unroll logic (which bound indices a term depends on,
-# the `ne` diagonal filter, the `sub_op`/`sub_coef` dual substitution) is backend-neutral
-# and kept verbatim; only the leaf emission is routed through the backend hooks at the
-# resolved site, so every combination becomes one entry of the same term list the static
-# path assembles.
-
 """
-    to_numeric(q::QAdd, basis, sites::Dict{Int, Vector{Int}}[, d[, scalar_subs]])
+    to_numeric(expr, basis, sites::Dict{Int, Vector{Int}}; parameter, operators)
+    to_numeric(expr, basis, sites::Dict{Int, Vector{Int}}[, operators[, parameter]])
 
-Convert a `QAdd` that carries bound summation indices (`q.indices`) to a numeric operator
-on a `basis` whose layout replicates one or more abstract subspaces. `sites[orig_space_index]`
-is the list of slots that realise that subspace; non-indexed subspaces map to a single-slot
-entry.
+Matrix of an expression with sums over indices, on a basis with one factor per site.
 
-For each term, every bound index the term depends on is unrolled over the length of its
-`sites` vector, with `term.ne` constraints filtering out diagonal combinations. Concrete-site
-operators are routed to `sites[op.space_index][k]`, where `k` is the substituted integer
-site. Terms that do not depend on any bound index are emitted once as written, matching the
-`Σ` convention that i-independent residuals already carry their range factor.
+Each sum is written out over the sites. `sites` maps the position of each subsystem in the
+symbolic space to the positions of its copies in `basis`; a subsystem without an index has a
+single copy. Pairs of indices that must differ skip their coinciding sites. `parameter`
+gives the values of all parameters. A site-dependent parameter ``g_i`` is keyed by site, with
+the value of ``g_1`` under `substitute(g, Dict(index_sym(i) => 1))`. `operators` maps
+operators to matrices as for the other forms. This form is available for QuantumOpticsBase
+only.
 
-`d` substitutes individual `QSym` operators with custom numeric operators. `scalar_subs`
-substitutes symbolic scalar parameters (e.g. `Δ` or `g(k)` for the integer `k` produced by
-index unrolling) with numeric values.
+# Examples
+```jldoctest
+julia> using QuantumOpticsBase
+
+julia> h = FockSpace(:cavity) ⊗ NLevelSpace(:atom, 2);
+
+julia> a = Destroy(h, :a, 1); i = Index(h, :i, 2, 2);
+
+julia> σ(k, l) = IndexedOperator(Transition(h, :σ, k, l, 2), i);
+
+julia> g = IndexedVariable(:g, i); H = Σ(g * (a' * σ(1, 2) + a * σ(2, 1)), i);
+
+julia> b = FockBasis(3) ⊗ NLevelBasis(2) ⊗ NLevelBasis(2);
+
+julia> gs = Dict(substitute(g, Dict(index_sym(i) => k)) => 0.1k for k in 1:2);
+
+julia> size(to_numeric(H, b, Dict(1 => [1], 2 => [2, 3]); parameter = gs))
+(16, 16)
+```
+
+See also [`Σ`](@ref), [`index_sym`](@ref).
 """
 function to_numeric(
         q::QAdd, b::Basis,
         sites::AbstractDict{Int, Vector{Int}},
-        d::AbstractDict{<:QSym} = _NO_SUBS,
-        scalar_subs::AbstractDict = _NO_SCALAR_SUBS,
+        d::AbstractDict{<:QSym} = NO_SUBS,
+        scalar_subs::AbstractDict = NO_SCALAR_SUBS;
+        operators::AbstractDict{<:QSym} = d,
+        parameter::AbstractDict = scalar_subs,
     )
-    return _to_numeric_indexed(QuantumOpticsBackend(), b, q, sites, d, scalar_subs)
+    return to_numeric_indexed(QuantumOpticsBackend(), b, q, sites, operators, parameter)
 end
 
-# Backend-neutral indexed conversion. Every place that would name a numeric type goes
-# through the hooks, so this drives both backends; the `Basis`/QTB-dims entry points only
-# pick the backend singleton and hand off here.
-function _to_numeric_indexed(
+function to_numeric_indexed(
         be::NumericBackend, basis, q::QAdd,
         sites::AbstractDict{Int, Vector{Int}},
         d::AbstractDict{<:QSym}, scalar_subs::AbstractDict,
     )
-    isempty(q.indices) && return to_numeric(q, basis, d)
-    _validate_sites(be, basis, sites)
+    isempty(q.indices) &&
+        return to_numeric(q, basis; operators = d, adjoint_ops = false, parameter = scalar_subs)
+    validate_sites(be, basis, sites)
     ctx = NumericContext(be, basis, d, scalar_subs, Dict{Int, Vector{Int}}(sites))
-    sub_re, sub_im, has_imag = _split_scalar_subs(scalar_subs)
-    terms = Tuple{ComplexF64, Vector{Any}}[]
+    sub_re, sub_im, has_imag = split_scalar_subs(scalar_subs)
+    terms = OpTerm[]
     for (term, c) in q.arguments
-        _accumulate_indexed_term!(terms, term, c, q.indices, ctx, sub_re, sub_im, has_imag)
+        accumulate_indexed_term!(terms, term, c, q.indices, ctx, sub_re, sub_im, has_imag)
     end
-    return numeric_materialize(be, numeric_assemble(be, basis, terms), nothing)
+    return static_operator(terms, ctx, EagerOperator())
 end
 
-function _validate_sites(be::NumericBackend, basis, sites)
+function validate_sites(be::NumericBackend, basis, sites)
     nsubsystems = numeric_num_subsystems(be, basis)
     seen = Set{Int}()
     for (space, slots) in sites
@@ -69,31 +81,22 @@ function _validate_sites(be::NumericBackend, basis, sites)
             push!(seen, slot)
         end
     end
-    return nothing
+    return sites
 end
 
-function _numeric_leaf_indexed(op::Op, ctx::NumericContext)
-    haskey(ctx.op_subs, op) && return ctx.op_subs[op]
-    slot = _resolve_slot(op, ctx.sites)
-    sub = numeric_subbasis(ctx.backend, ctx.basis, slot)
-    leaf = numeric_operator(ctx.backend, op, sub)
-    return numeric_embed(ctx.backend, ctx.basis, slot, leaf)
-end
-
-function _push_indexed_combo!(terms, ops::Vector{Op}, c::CNum, ctx::NumericContext)
-    factors = Any[_numeric_leaf_indexed(op, ctx) for op in ops]
-    push!(terms, (_to_complex(c), factors))
+function push_indexed_combo!(terms::Vector{OpTerm}, ops::Vector{Op}, c::CNum)
+    push!(terms, (to_complex(c), ops))
     return terms
 end
 
-function _accumulate_indexed_term!(
-        terms, term::QTerm, c::CNum, indices::Vector{Index},
-        ctx::NumericContext, sub_re::Dict, sub_im::Dict, has_imag::Bool,
+function accumulate_indexed_term!(
+        terms::Vector{OpTerm}, term::QTerm, c::CNum, indices::Vector{Index},
+        ctx::NumericContext, sub_re::ScalarRules, sub_im::ScalarRules, has_imag::Bool,
     )
-    dep_indices = Index[idx for idx in indices if _depends_on_index_term(c, term.ops, idx)]
+    dep_indices = bound_indices(term, c, indices)
     if isempty(dep_indices)
-        c_resolved = _apply_scalar_subs(c, sub_re, sub_im, has_imag)
-        return _push_indexed_combo!(terms, term.ops, c_resolved, ctx)
+        c_resolved = apply_scalar_subs(c, sub_re, sub_im, has_imag)
+        return push_indexed_combo!(terms, term.ops, c_resolved)
     end
     lens = Int[length(ctx.sites[Int(idx.space_index)]) for idx in dep_indices]
     total = prod(lens)
@@ -107,36 +110,33 @@ function _accumulate_indexed_term!(
             kpos = (rem % lens[k]) + 1
             rem ÷= lens[k]
             idx = dep_indices[k]
-            # Operators keep the index name (slot kpos drives routing / ne checks and
-            # lets a resolved op still match a user `d` key); coefficients use the
-            # anonymous name_id-0 form so `index_sym` is Num(kpos), resolving g(i)→g(k).
             sub_op[idx] = Index(idx.name_id, idx.range_id, idx.space_index, Int32(kpos))
             sub_coef[idx] = Index(Int32(0), idx.range_id, idx.space_index, Int32(kpos))
         end
-        _violates_ne(term.ne, sub_op) && continue
+        violates_ne(term.ne, sub_op) && continue
         new_ops = Op[change_index(op, sub_op) for op in term.ops]
         new_c = change_index(c, sub_coef)
-        new_c = _apply_scalar_subs(new_c, sub_re, sub_im, has_imag)
-        _push_indexed_combo!(terms, new_ops, new_c, ctx)
+        new_c = apply_scalar_subs(new_c, sub_re, sub_im, has_imag)
+        push_indexed_combo!(terms, new_ops, new_c)
     end
     return terms
 end
 
-function _violates_ne(ne::Vector{NonEqualPair}, sub::Dict{Index, Index})
+function violates_ne(ne::Vector{NonEqualPair}, sub::Dict{Index, Index})
     for (a, b) in ne
         ra = get(sub, a, a)
         rb = get(sub, b, b)
         va = index_slot(ra)
         vb = index_slot(rb)
-        va === nothing && continue
-        vb === nothing && continue
+        iszero(va) && continue
+        iszero(vb) && continue
         ra.space_index == rb.space_index || continue
         va == vb && return true
     end
     return false
 end
 
-function _resolve_slot(op::QSym, sites::AbstractDict{Int, Vector{Int}})
+function resolve_slot(op::QSym, sites::AbstractDict{Int, Vector{Int}})
     si = Int(op.space_index)
     slots = get(sites, si, Int[])
     if isempty(slots)
@@ -144,7 +144,7 @@ function _resolve_slot(op::QSym, sites::AbstractDict{Int, Vector{Int}})
     end
     if has_index(op.index)
         v = index_slot(op.index)
-        if v !== nothing && 1 <= v <= length(slots)
+        if 1 <= v <= length(slots)
             return slots[v]
         end
     end
