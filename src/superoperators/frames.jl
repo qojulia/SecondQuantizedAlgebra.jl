@@ -222,19 +222,19 @@ Construct the static displacement `a ↦ a + α` that removes the coherent drive
 linear generator `L`, a [`Lindbladian`](@ref) or any [`SuperOperator`](@ref) such as a
 Caldeira–Leggett master equation. The Heisenberg drift must be affine in the mode,
 `d/dt (a, a') = M (a, a') + c`, and `(α, conj(α)) = -M⁻¹ c` is its fixed point, so heating
-and loss enter through the exact drift rather than through a no-jump Hamiltonian. When
-`transpose(L)(a)` mixes in `a'`, the map must preserve Hermiticity,
+and loss enter through the exact drift rather than through a no-jump Hamiltonian. The drift
+must preserve Hermiticity, including when it does not mix `a` with `a'`:
 `transpose(L)(a') == transpose(L)(a)'`. A structurally singular `M` is rejected.
 """
 function DisplacementFrame(a::Op, L::Union{Lindbladian{QAdd}, SuperOperator})
     d = fock_or_throw(a, "`DisplacementFrame`")
     heisenberg = transpose(L)
     row = affine_drift(heisenberg, d, adjoint(d))
+    pair = fock_drift_pair(heisenberg, d, row)
     if iszero_cnum(row.mixing)
         α = neg_cnum(row.offset) / scalar_drift_rate(row)
         return fock_displacement(d, α)
     end
-    pair = fock_drift_pair(heisenberg, d, row)
     return fock_displacement(d, static_drift_displacement(pair).first)
 end
 
@@ -255,6 +255,7 @@ function DisplacementFrame(a::Op, L::Union{Lindbladian{QAdd}, SuperOperator}, t:
     tt = time_or_throw(t)
     heisenberg = transpose(L)
     row = affine_drift(heisenberg, d, adjoint(d))
+    pair = fock_drift_pair(heisenberg, d, row)
     if iszero_cnum(row.mixing)
         rate = scalar_drift_rate(row)
         coefficient_depends_on(rate, SymbolicUtils.unwrap(tt)) && unitary_error(
@@ -268,7 +269,7 @@ function DisplacementFrame(a::Op, L::Union{Lindbladian{QAdd}, SuperOperator}, t:
         derivative = add_cnum(mul_cnum(rate, amplitude), offset)
         return moving_fock_displacement(d, amplitude, derivative, tt)
     end
-    pair = validate_drift_time(fock_drift_pair(heisenberg, d, row), tt)
+    pair = validate_drift_time(pair, tt)
     α = bounded_drift_displacement(pair, tt).first
     derivative = drift_derivative(pair, α, conj_cnum(α)).first
     return moving_fock_displacement(d, α, derivative, tt)

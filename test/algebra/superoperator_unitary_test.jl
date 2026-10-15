@@ -193,6 +193,11 @@ end
     end
 
     @testset "linear-map displacement frame refusals" begin
+        for H in (a' * a + a', a' * a + a)
+            S = SuperOperator(hamiltonian_action(H))
+            @test_throws ArgumentError DisplacementFrame(a, S)
+            @test_throws ArgumentError DisplacementFrame(a, S, t)
+        end
         # Normal-mode frequency sqrt(5² - 3²) = 4: resonant at ν = ±4, singular when Δ = χ.
         resonant = 5 * a' * a + (3 // 2) * (a^2 + a'^2) + F * (a + a') * (expim(4t) + expim(-4t))
         @test_throws ArgumentError DisplacementFrame(a, SuperOperator(hamiltonian_action(resonant)), t)
