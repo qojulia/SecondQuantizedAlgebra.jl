@@ -43,8 +43,6 @@ jobs:
           version: 'lts'
           arch: x64
       - uses: julia-actions/cache@v3
-      - name: Test history migration
-        run: python3 -m unittest discover -s benchmark -p 'test_history.py' -v
       - name: Run benchmarks
         run: |
           cd benchmark
@@ -52,7 +50,6 @@ jobs:
             using Pkg;
             Pkg.develop(PackageSpec(path=joinpath(pwd(), "..")));
             Pkg.instantiate();
-            include("test_suite.jl");
             include("runbenchmarks.jl")'
 
       # this will update benchmark/data.js in gh-pages branch

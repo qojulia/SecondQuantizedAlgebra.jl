@@ -1,7 +1,24 @@
-using BenchmarkTools: BenchmarkTools
+using BenchmarkTools
+using SecondQuantizedAlgebra
+using Symbolics: @variables, derivative
 
-include("suite.jl")
-const SUITE = benchmark_suite()
+const SUITE = BenchmarkGroup()
+
+include("commutator.jl")
+include("simplify_and_normal_order.jl")
+include("indexing.jl")
+include("accumulation.jl")
+include("unitary.jl")
+include("operator_functions.jl")
+include("superoperators.jl")
+
+benchmark_commutator!(SUITE)
+benchmark_simplify_and_normal_order!(SUITE)
+benchmark_indexing!(SUITE)
+benchmark_accumulation!(SUITE)
+benchmark_unitary!(SUITE)
+benchmark_operator_functions!(SUITE)
+benchmark_superoperators!(SUITE)
 
 BenchmarkTools.DEFAULT_PARAMETERS.samples = 10000
 

@@ -8,14 +8,29 @@ Usage:
     julia --project=benchmark benchmark/runbenchmarks_local.jl
 """
 
-using BenchmarkTools: BenchmarkTools, BenchmarkGroup
+using BenchmarkTools
+using SecondQuantizedAlgebra
+using Symbolics: @variables, derivative
 import Dates
 using Dates: now, DateTime, @dateformat_str
 
-include("suite.jl")
-const SUITE = benchmark_suite()
+const SUITE = BenchmarkGroup()
 
-# Match CI tuning and use the minimum estimator to limit one-sided timing noise.
+include("commutator.jl")
+include("simplify_and_normal_order.jl")
+include("indexing.jl")
+include("accumulation.jl")
+include("unitary.jl")
+
+benchmark_commutator!(SUITE)
+benchmark_simplify_and_normal_order!(SUITE)
+benchmark_indexing!(SUITE)
+benchmark_accumulation!(SUITE)
+benchmark_unitary!(SUITE)
+
+# Match the CI tuning so local numbers are comparable: a wide sample pool plus
+# the `minimum` estimator (robust to the one-sided noise that always slows, but
+# never speeds, a measurement).
 BenchmarkTools.DEFAULT_PARAMETERS.samples = 10000
 
 BenchmarkTools.tune!(SUITE)
