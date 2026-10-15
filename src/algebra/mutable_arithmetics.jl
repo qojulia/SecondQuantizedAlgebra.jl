@@ -12,20 +12,42 @@ function merge_indices!(dest::Vector{Index}, src::Vector{Index})
 end
 
 """
-    accumulate!(b, x) -> b
-    accumulate!(b::SuperBuilder, c, A, B) -> b
+    accumulate!(b, x)
+    accumulate!(b::SuperBuilder, c, A, B)
 
-Add `x` to the builder `b` in place, so a sum of many terms costs linear time instead of
-the quadratic cost of an `x₁ + x₂ + …` fold. `SuperBuilder` also takes a single sandwich
-`c * A ρ B`. Finish with [`build`](@ref).
+Add `x` to the builder `b` in place.
+
+A sum of many terms then costs linear time instead of the quadratic cost of a chain of `+`.
+A [`SuperBuilder`](@ref) also takes a single sandwich `c * A ρ B`. Finish with
+[`build`](@ref).
+
+# Examples
+```jldoctest
+julia> using SecondQuantizedAlgebra: SuperBuilder, spre, accumulate!, build
+
+julia> h = FockSpace(:c); a = Destroy(h, :a);
+
+julia> b = SuperBuilder();
+
+julia> accumulate!(b, spre(a)); accumulate!(b, spre(a));
+
+julia> build(b)
+2 * a ⋅ (·)
+```
+
+See also [`SuperBuilder`](@ref), [`LindbladianBuilder`](@ref).
 """
 function accumulate! end
 
 """
-    build(b) -> QAdd | SuperOperator | Lindbladian
+    build(b)
 
-The canonical expression accumulated in the builder `b`. The result may share storage with
-`b`, so do not accumulate into `b` afterwards.
+The expression accumulated in the builder `b`, in canonical form.
+
+The result may share storage with `b`, so `b` is not used after `build`. See
+[`accumulate!`](@ref) for an example.
+
+See also [`SuperBuilder`](@ref), [`LindbladianBuilder`](@ref).
 """
 function build end
 

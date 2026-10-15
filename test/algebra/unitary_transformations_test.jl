@@ -265,6 +265,7 @@ import SecondQuantizedAlgebra: expim, exponential_form
                 gauge_term(moving_squeeze) - (im * r / 2) * (a * a - a' * a'),
             )
         )
+        @test gauge_term(moving_squeeze) == (im * r / 2) * (a * a - a' * a')
 
         moving_beamsplitter = Rotation(left, right, θ * t, t)
         @test iszero(simplify(conjugate(number, moving_beamsplitter) - number))
@@ -406,6 +407,7 @@ import SecondQuantizedAlgebra: expim, exponential_form
         @test_throws ArgumentError Displace(σx, 1)
         @test_throws ArgumentError Rotation(x, θ)
         @test_throws ArgumentError Squeeze(Sx, r)
+        @test_throws ArgumentError Squeeze(a, r * t, t)
         @test_throws ArgumentError Rotation(x, x, θ)
         @test_throws ArgumentError Rotation(left, left, θ)
         @test_throws ArgumentError Rotation(Sx, 0, θ)

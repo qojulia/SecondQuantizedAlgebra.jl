@@ -14,6 +14,9 @@ using Test
         @test iszero(simplify((a + ad) - (ad + a)))
         @test iszero(simplify(a - a))
         @test iszero(simplify(3 * a - a - a - a))
+        @test 2 * a - a == a
+        @test a == +a
+        @test a != 2 * a
     end
 
     @testset "distribution and collection" begin

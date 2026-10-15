@@ -1,18 +1,29 @@
 """
     QAdd <: QField
 
-Canonical polynomial expression type: a sum of eagerly ordered operator products.
+Type of operator expressions that are polynomials in the operators, kept in canonical form.
 
-All polynomial arithmetic on [`QSym`](@ref) operators produces a `QAdd`; this remains the
-hot path for finite second-quantized polynomials. Non-polynomial operator functions such as
-`sin(A)`, `cos(A)`, and `expim(A)` use the separate cold-path [`QExpr`](@ref) representation
-until explicitly lowered with [`taylor`](@ref).
+Sums, products and commutators of operators return a `QAdd`, with every product ordered
+and reduced and like terms collected, so two equal polynomials compare equal. A single
+operator is an [`Op`](@ref) instead, and an expression that contains a formal function such
+as `cos` is a [`QExpr`](@ref). `length` gives the number of terms, and
+[`sorted_arguments`](@ref) splits an expression into them. The type is public but not
+exported.
 
-Iterating over a `QAdd` yields `Pair{QTerm, CNum}` entries; read `term.ops` for the operator
-sequence and `term.ne` for the scoped index constraints.
+# Examples
+```jldoctest
+julia> using SecondQuantizedAlgebra: QAdd
 
-See also [`QExpr`](@ref), [`QTerm`](@ref), [`get_prefactor`](@ref), [`get_operators`](@ref),
-[`Σ`](@ref), [`constraint_pairs`](@ref).
+julia> a = Destroy(FockSpace(:cavity), :a);
+
+julia> x = a * a'
+1 + a' * a
+
+julia> x isa QAdd, length(x)
+(true, 2)
+```
+
+See also [`QExpr`](@ref), [`normal_order`](@ref), [`sorted_arguments`](@ref).
 """
 struct QAdd <: QField
     arguments::QTermDict
@@ -59,25 +70,26 @@ end
 end
 
 """
-    constraint_pairs(q::QAdd) -> Vector{Tuple{Index, Index}}
+    constraint_pairs(expr) -> Vector{Tuple{Index, Index}}
 
-Return the deduplicated union of every term's `non_equal` pairs in `q`. This is
-an introspection helper only; it does not define the expression semantics.
+Pairs of indices that `expr` requires to be distinct, collected over all its terms.
+
+The function is not exported.
 
 # Examples
-
 ```jldoctest
-julia> h = FockSpace(:site);
+julia> using SecondQuantizedAlgebra: constraint_pairs
 
-julia> @qnumbers a::Destroy(h);
+julia> h = NLevelSpace(:atom, 2); i = Index(h, :i, 10, h); j = Index(h, :j, 10, h);
 
-julia> i = Index(h, :i, 3, h); j = Index(h, :j, 3, h);
+julia> σ(k, l, m) = IndexedOperator(Transition(h, :σ, k, l), m);
 
-julia> q = Σ(IndexedOperator(a', i) * IndexedOperator(a, i), i, [j]);
-
-julia> length(SecondQuantizedAlgebra.constraint_pairs(q))
-1
+julia> constraint_pairs(Σ(σ(2, 1, i) * σ(1, 2, j), i))
+1-element Vector{Tuple{Index, Index}}:
+ (i, j)
 ```
+
+See also [`Σ`](@ref), [`assume_distinct_index`](@ref).
 """
 function constraint_pairs(q::QAdd)
     return constraint_pairs(q.arguments)
@@ -131,6 +143,8 @@ function Base.isequal(a::QAdd, b::QAdd)
     return same_index_set(a.indices, b.indices)
 end
 Base.:(==)(a::QAdd, b::QAdd) = isequal(a, b)
+Base.:(==)(a::QAdd, b::Op) = isequal(a, +b)
+Base.:(==)(a::Op, b::QAdd) = isequal(+a, b)
 function Base.hash(q::QAdd, h::UInt)
     ih = foldl((acc, idx) -> acc + hash(idx), q.indices; init = zero(UInt))
     return hash(:QAdd, hash(q.arguments, hash(ih, hash(length(q.indices), h))))
@@ -171,21 +185,29 @@ function sorted_args_less(x::Pair{QTerm, CNum}, y::Pair{QTerm, CNum})
 end
 
 """
-    sorted_arguments(q::QAdd) -> Vector{QAdd}
+    sorted_arguments(expr)
 
-Return each term of `q` as a single-entry [`QAdd`](@ref), in deterministic sort
-order.
+Terms of `expr`, each as an expression of its own, in a fixed order.
+
+Each term can then be read with [`get_prefactor`](@ref) and
+[`get_operators`](@ref). The function is not exported.
 
 # Examples
 
 ```jldoctest
-julia> h = FockSpace(:f);
+julia> using SecondQuantizedAlgebra: sorted_arguments
 
-julia> @qnumbers a::Destroy(h);
+julia> a = Destroy(FockSpace(:cavity), :a);
 
-julia> length(SecondQuantizedAlgebra.sorted_arguments(a + a'))
-2
+julia> @variables ω g;
+
+julia> foreach(println, sorted_arguments(ω * a' * a + g * (a + a')))
+g * a
+g * a'
+ω * a' * a
 ```
+
+See also [`get_prefactor`](@ref), [`get_operators`](@ref).
 """
 function sorted_arguments(q::QAdd)
     isempty(q.arguments) && return QAdd[]
@@ -266,25 +288,24 @@ function Base.haskey(q::QAdd, key::AbstractVector{<:QSym})
 end
 
 """
-    get_prefactor(s::QAdd) -> Complex{Num}
+    get_prefactor(expr)
 
-Return the `Complex{Num}` prefactor of a single-term [`QAdd`](@ref).
+Coefficient of a single-term expression `expr`, as a `Complex{Num}`.
 
-Throws `ArgumentError` if `s` contains more than one term. For multi-term
-expressions, iterate over the `QAdd` directly.
+An expression with more than one term throws an `ArgumentError`.
 
 # Examples
 
 ```jldoctest
-julia> h = FockSpace(:f);
+julia> a = Destroy(FockSpace(:cavity), :a);
 
-julia> @qnumbers a::Destroy(h);
+julia> @variables g;
 
-julia> get_prefactor(2 * a' * a)
-2
+julia> get_prefactor(2g * a' * a)
+2g
 ```
 
-See also [`get_operators`](@ref), [`sorted_arguments`](@ref).
+See also [`get_operators`](@ref), [`get_variables`](@ref).
 """
 function get_prefactor(s::QAdd)
     length(s.arguments) == 1 || throw(
@@ -294,27 +315,27 @@ function get_prefactor(s::QAdd)
 end
 
 """
-    get_operators(s::QAdd) -> Vector{Op}
+    get_operators(expr)
 
-Return the unique operators occurring in [`QAdd`](@ref) `s`.
+Distinct operators occurring in `expr`, in canonical order.
 
-The result is sorted by the canonical [`order_key`](@ref). An operator and
-its adjoint are distinct entries; use [`unique_up_to_adjoint`](@ref) when adjoint pairs
-should be treated as one degree of freedom. Repeated factors are returned once;
-read `term.ops` directly when multiplicity must be preserved.
+An operator and its adjoint count as two entries, and repeated factors appear
+once.
 
 # Examples
 
 ```jldoctest
-julia> h = FockSpace(:f);
+julia> a = Destroy(FockSpace(:cavity), :a);
 
-julia> @qnumbers a::Destroy(h);
+julia> @variables g;
 
-julia> length(get_operators(a' * a))
-2
+julia> get_operators(g * a' * a + a)
+2-element Vector{Op}:
+ a
+ a'
 ```
 
-See also [`get_prefactor`](@ref), [`unique_up_to_adjoint`](@ref), [`sorted_arguments`](@ref).
+See also [`get_variables`](@ref), [`unique_up_to_adjoint`](@ref).
 """
 function get_operators(s::QAdd)
     ops = Op[]
@@ -327,31 +348,27 @@ function get_operators(s::QAdd)
 end
 
 """
-    get_variables(s::QAdd) -> Vector{SymbolicUtils.BasicSymbolic}
+    get_variables(expr)
 
-Return the unique scalar symbolic variables occurring in the prefactors of
-[`QAdd`](@ref) `s`. Operator leaves are not included. Variables in indexed
-coefficients are returned according to `Symbolics.get_variables`; use
-[`get_indices`](@ref) to inspect the expression's structured index scope.
+Symbolic parameters occurring in the coefficients of `expr`.
 
-The returned variables follow the representation used by
-`Symbolics.get_variables`, so they can be passed directly to Symbolics
-functions such as `build_function`. Pass a `varlist` as the second argument
-to restrict the result, or use `Symbolics.get_variables!` to fill a caller-owned
-buffer.
+The result can be passed to Symbolics functions such as `build_function`. An
+optional second argument restricts it to a given list of variables.
 
 # Examples
 
 ```jldoctest
-julia> h = FockSpace(:f);
-
-julia> @qnumbers a::Destroy(h);
+julia> a = Destroy(FockSpace(:cavity), :a);
 
 julia> @variables ω g;
 
-julia> length(get_variables(ω * a' * a + g * a))
+julia> H = ω * a' * a + g * (a + a');
+
+julia> length(get_variables(H))
 2
 ```
+
+See also [`get_prefactor`](@ref), [`get_operators`](@ref), [`substitute`](@ref).
 """
 function Symbolics.get_variables(s::QAdd; kwargs...)
     vars = SymbolicUtils.BasicSymbolic[]
