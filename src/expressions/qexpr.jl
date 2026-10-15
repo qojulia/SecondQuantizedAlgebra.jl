@@ -9,16 +9,32 @@ end
 """
     QExpr <: QField
 
-Cold-path representation for formal non-polynomial operator expressions.
+Type of operator expressions that contain formal functions such as `sin`, `cos` or `expim`.
 
-`QAdd` remains the canonical polynomial representation. A `QExpr` is entered only
-when an operation such as `sin`, `cos`, or [`expim`](@ref) cannot
-be represented by `QAdd` without an infinite expansion. Products keep the order of
-factors that share a Hilbert space, while factors on disjoint spaces commute into a
-canonical order. Products are never distributed over formal sums implicitly.
+Polynomials in the operators are kept in canonical form, with products reordered and like
+terms collected. An expression containing a formal function cannot be brought into that
+form, so it is held as written: products keep the order of factors on a shared subsystem,
+factors on different subsystems are sorted, and products are not multiplied out over sums.
+Exact operations such as `adjoint`, [`substitute`](@ref) or [`simplify`](@ref) act on the
+arguments of the functions. [`taylor`](@ref) turns a `QExpr` back into an ordinary
+polynomial. The type is public but not exported.
 
-Every node stores its children in one concretely typed vector: sums and products hold
-any number of `QAdd` or `QExpr` children, formal function nodes exactly one.
+# Examples
+```jldoctest
+julia> using SecondQuantizedAlgebra: QExpr
+
+julia> a = Destroy(FockSpace(:cavity), :a);
+
+julia> x = (a + a') * cos(a' * a);
+
+julia> x isa QExpr, taylor(x, 0:0) isa QExpr
+(true, false)
+
+julia> x'
+cos(a' * a) * (a + a')
+```
+
+See also [`sin`](@ref sin(::QField)), [`cos`](@ref cos(::QField)), [`expim`](@ref expim(::QField)), [`taylor`](@ref).
 """
 struct QExpr <: QField
     kind::QExprKind
@@ -426,7 +442,53 @@ function qexpr_call(kind::QExprKind, arg::QExprArg)
     return QExpr(kind, CNUM_ONE, arg)
 end
 
+"""
+    sin(A)
+
+Sine of an operator expression, kept as a formal function.
+
+No series is expanded. The function enters sums and products like any other operator, and
+keeps its position relative to operators on the same subsystem. `A` may be any operator
+expression. Use [`taylor`](@ref) to turn the function into a polynomial.
+
+# Examples
+```jldoctest
+julia> a = Destroy(FockSpace(:cavity), :a);
+
+julia> sin(a + a') * a
+sin(a + a') * a
+
+julia> taylor(sin(a + a'), 0:3)
+1//2 * a + 1//2 * a' - 1//6 * a * a * a - 1//2 * a' * a * a - 1//2 * a' * a' * a - 1//6 * a' * a' * a'
+```
+
+See also [`cos`](@ref cos(::QField)), [`expim`](@ref expim(::QField)), [`taylor`](@ref).
+"""
 Base.sin(q::QField) = qexpr_call(QEXPR_SIN, qexpr_arg(q))
+
+"""
+    cos(A)
+
+Cosine of an operator expression, kept as a formal function.
+
+No series is expanded. The function enters sums and products like any other operator, and
+keeps its position relative to operators on the same subsystem; a commutator with it stays
+formal. `A` may be any operator expression. Use [`taylor`](@ref) to turn the function into a
+polynomial.
+
+# Examples
+```jldoctest
+julia> a = Destroy(FockSpace(:cavity), :a);
+
+julia> commutator(cos(a + a'), a)
+-a * cos(a + a') + cos(a + a') * a
+
+julia> taylor(cos(a + a'), 0:2)
+1//2 - 1//2 * a * a - a' * a - 1//2 * a' * a'
+```
+
+See also [`sin`](@ref sin(::QField)), [`expim`](@ref expim(::QField)), [`taylor`](@ref).
+"""
 Base.cos(q::QField) = qexpr_call(QEXPR_COS, qexpr_arg(q))
 
 function qexpr_provably_hermitian(q::QSym)
@@ -438,11 +500,35 @@ end
 qexpr_provably_hermitian(q::QExpr) = isequal(q, adjoint(q))
 
 """
-    expim(A::QField)
+    expim(A)
 
-Represent the formal unitary phase `exp(im*A)` for a provably Hermitian operator
-expression `A`. Unlike [`UnitaryTransform`](@ref), this is the operator itself,
-not its compiled adjoint action.
+Exponential of `im` times a Hermitian operator expression, kept as a formal function.
+
+The result is the unitary ``e^{iA}``. `A` must be Hermitian as written, meaning that
+`A - A'` simplifies to zero; parameters in it must therefore be real. Otherwise an
+`ArgumentError` is thrown. No series is expanded until [`taylor`](@ref) is called, and
+products such as ``e^{iA} e^{-iA}`` are not combined. To change the frame of an expression
+by such a unitary, use a [`UnitaryTransform`](@ref), which applies ``e^{iA} X e^{-iA}``
+exactly.
+
+# Examples
+```jldoctest
+julia> a = Destroy(FockSpace(:cavity), :a);
+
+julia> @variables θ;
+
+julia> U = expim(θ * a' * a)
+exp(im*(θ * a' * a))
+
+julia> taylor(U, 0:1)
+1 + θim * a' * a
+
+julia> expim(a)
+ERROR: ArgumentError: `expim(::QField)` requires a provably Hermitian argument
+[...]
+```
+
+See also [`taylor`](@ref), [`UnitaryTransform`](@ref), [`expim(::Real)`](@ref expim(::Real)).
 """
 function expim(q::QField)
     qexpr_provably_hermitian(q) || throw(
