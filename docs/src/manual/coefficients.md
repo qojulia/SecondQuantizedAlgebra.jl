@@ -241,25 +241,3 @@ map_coefficients
 ```
 
 `map_coefficients(f, expr)` applies `f` to every scalar coefficient while preserving the operator structure.
-
-## Radicals of parameters
-
-Positive numeric factors are extracted from roots of a parameter, so `sqrt(2ω)` and
-`sqrt(ω/2)` share the same symbolic root and cancel exactly in zero-point factors:
-
-```@example coefficient-radicals
-using SecondQuantizedAlgebra
-
-h = FockSpace(:radical_example)
-@qnumbers a::Destroy(h)
-@variables ω
-
-x = (a + a') / sqrt(2ω)
-p = im * sqrt(ω / 2) * (a' - a)
-commutator(x, p)
-```
-
-A real parameter is not assumed positive. Products and powers inside a symbolic radicand
-are kept intact: `sqrt(ω*ν)` does not split into `sqrt(ω)*sqrt(ν)`, and `sqrt(Δ^2)` is not
-replaced by `Δ`. Complex roots retain their principal branch; `cbrt` retains its real-root
-semantics. The oscillator coordinates above are Hermitian on the physical domain `ω > 0`.
