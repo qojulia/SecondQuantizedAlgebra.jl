@@ -19,12 +19,12 @@ function benchmark_superoperators!(SUITE)
     Γ = DoubleIndexedVariable(:Γ, i, j)
 
     group = SUITE["Superoperators"]
-    group["Lindbladian build, 4 modes"] = @benchmarkable liouvillian($H, $a; rates = $(fill(κ, M))) seconds = 3 evals = 1
-    group["Lowering to SuperOperator"] = @benchmarkable SuperOperator($L) seconds = 3 evals = 1
-    group["Composition L ∘ L"] = @benchmarkable $L ∘ $L seconds = 3 evals = 1
-    group["Apply L(ρ)"] = @benchmarkable $L($ρ) seconds = 3 evals = 1
-    group["Heisenberg drift"] = @benchmarkable transpose($S)($ρ) seconds = 3 evals = 1
-    group["Collective dissipator"] = @benchmarkable dissipator($σ12, $Γ, $i => $j) seconds = 3 evals = 1
+    group["Construction"]["Lindbladian build, 4 modes"] = @benchmarkable liouvillian($H, $a; rates = $(fill(κ, M))) seconds = 3 evals = 1
+    group["Construction"]["Lowering to SuperOperator"] = @benchmarkable SuperOperator($L) seconds = 3 evals = 1
+    group["Symbolic action"]["Composition L ∘ L"] = @benchmarkable $L ∘ $L seconds = 3 evals = 1
+    group["Symbolic action"]["Apply L(ρ)"] = @benchmarkable $L($ρ) seconds = 3 evals = 1
+    group["Symbolic action"]["Heisenberg drift"] = @benchmarkable transpose($S)($ρ) seconds = 3 evals = 1
+    group["Construction"]["Collective dissipator"] = @benchmarkable dissipator($σ12, $Γ, $i => $j) seconds = 3 evals = 1
 
     # Numeric conversion: 4 modes with cutoff 3 give a 256-dimensional Hilbert space.
     par = Dict(Δ => 0.5, κ => 0.2, J => 0.1)
@@ -32,9 +32,9 @@ function benchmark_superoperators!(SUITE)
     hc = FockSpace(:c)
     c = Destroy(hc, :c)
     Lc = hamiltonian_action(c' * c) + dissipator(c)
-    group["to_numeric(L), 4 modes"] = @benchmarkable to_numeric($L, $b; parameter = $par) seconds = 3 evals = 1
-    group["to_numeric(L), single mode N=20"] = @benchmarkable to_numeric($Lc, $(QOB.FockBasis(20))) seconds = 3 evals = 1
-    group["to_numeric_master, 4 modes"] = @benchmarkable to_numeric_master(
+    group["Numeric conversion"]["to_numeric(L), 4 modes"] = @benchmarkable to_numeric($L, $b; parameter = $par) seconds = 3 evals = 1
+    group["Numeric conversion"]["to_numeric(L), single mode N=20"] = @benchmarkable to_numeric($Lc, $(QOB.FockBasis(20))) seconds = 3 evals = 1
+    group["Numeric conversion"]["to_numeric_master, 4 modes"] = @benchmarkable to_numeric_master(
         $L, $h, $(ntuple(_ -> 3, M)); backend = QuantumOpticsBackend(), parameter = $par,
     ) seconds = 3 evals = 1
     return SUITE

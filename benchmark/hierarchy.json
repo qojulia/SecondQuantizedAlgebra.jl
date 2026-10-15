@@ -1,0 +1,122 @@
+{
+  "Unitary and exact phase workflows/Fock Gaussian constructor family": [
+    "Unitary and exact phase workflows",
+    "Gaussian transformations",
+    "Fock Gaussian constructor family"
+  ],
+  "Unitary and exact phase workflows/Static and timed frame composition": [
+    "Unitary and exact phase workflows",
+    "Frame composition",
+    "Static and timed frame composition"
+  ],
+  "Unitary and exact phase workflows/Phase-space, spin, and Pauli family": [
+    "Unitary and exact phase workflows",
+    "Operator families",
+    "Phase-space, spin, and Pauli family"
+  ],
+  "Unitary and exact phase workflows/Static and moving two-level basis": [
+    "Unitary and exact phase workflows",
+    "Operator families",
+    "Static and moving two-level basis"
+  ],
+  "Unitary and exact phase workflows/Thirty-three-sideband exact phase pipeline": [
+    "Unitary and exact phase workflows",
+    "Exact phases",
+    "Thirty-three-sideband exact phase pipeline"
+  ],
+  "Formal operator functions/Unary cos construction": [
+    "Formal operator functions",
+    "Construction",
+    "Unary cos construction"
+  ],
+  "Formal operator functions/64 unary function nodes": [
+    "Formal operator functions",
+    "Construction",
+    "64 unary function nodes"
+  ],
+  "Formal operator functions/Nested unary depth 8": [
+    "Formal operator functions",
+    "Construction",
+    "Nested unary depth 8"
+  ],
+  "Formal operator functions/Mixed formal expression": [
+    "Formal operator functions",
+    "Construction",
+    "Mixed formal expression"
+  ],
+  "Formal operator functions/Collect 32 identical formal terms": [
+    "Formal operator functions",
+    "Arithmetic",
+    "Collect 32 identical formal terms"
+  ],
+  "Formal operator functions/Mixed polynomial/formal sum 32": [
+    "Formal operator functions",
+    "Arithmetic",
+    "Mixed polynomial and formal sum 32"
+  ],
+  "Formal operator functions/Formal power 16": [
+    "Formal operator functions",
+    "Arithmetic",
+    "Formal power 16"
+  ],
+  "Formal operator functions/cos Taylor order 8": [
+    "Formal operator functions",
+    "Taylor expansion",
+    "cos Taylor order 8"
+  ],
+  "Formal operator functions/expim Taylor order 8": [
+    "Formal operator functions",
+    "Taylor expansion",
+    "expim Taylor order 8"
+  ],
+  "Formal operator functions/Repeated-node Taylor order 4": [
+    "Formal operator functions",
+    "Taylor expansion",
+    "Repeated-node Taylor order 4"
+  ],
+  "Superoperators/Lindbladian build, 4 modes": [
+    "Superoperators",
+    "Construction",
+    "Lindbladian build, 4 modes"
+  ],
+  "Superoperators/Lowering to SuperOperator": [
+    "Superoperators",
+    "Construction",
+    "Lowering to SuperOperator"
+  ],
+  "Superoperators/Collective dissipator": [
+    "Superoperators",
+    "Construction",
+    "Collective dissipator"
+  ],
+  "Superoperators/Composition L ∘ L": [
+    "Superoperators",
+    "Symbolic action",
+    "Composition L ∘ L"
+  ],
+  "Superoperators/Apply L(ρ)": [
+    "Superoperators",
+    "Symbolic action",
+    "Apply L(ρ)"
+  ],
+  "Superoperators/Heisenberg drift": [
+    "Superoperators",
+    "Symbolic action",
+    "Heisenberg drift"
+  ],
+  "Superoperators/to_numeric(L), 4 modes": [
+    "Superoperators",
+    "Numeric conversion",
+    "to_numeric(L), 4 modes"
+  ],
+  "Superoperators/to_numeric(L), single mode N=20": [
+    "Superoperators",
+    "Numeric conversion",
+    "to_numeric(L), single mode N=20"
+  ],
+  "Superoperators/to_numeric_master, 4 modes": [
+    "Superoperators",
+    "Numeric conversion",
+    "to_numeric_master, 4 modes"
+  ]
+}
