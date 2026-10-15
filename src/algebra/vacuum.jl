@@ -1,15 +1,6 @@
-# Vacuum expectation values. The reference state is the product over subspaces of
-# each subspace's own lowest state, which the algebra already knows: Fock |0⟩,
-# NLevelSpace |g⟩, PhaseSpace the oscillator ground state fixed by x = (a+a†)/√2,
-# Pauli/Spin the top weight |m = S⟩ (σz = +1), the first basis state of the
-# `SpinBasis` that `to_numeric` builds, and CollectiveNLevelSpace all N particles
-# in level 1.
-
 const VacSize = Union{Nothing, Real, AbstractDict}
 const VacAmp = Complex{Rational{Int}}
 
-# Each free-index pair the algebra cannot resolve doubles the branch count, so cap
-# the recursion rather than letting a pathological term run away.
 const VAC_MAX_SPLITS = 8
 
 """
@@ -147,9 +138,6 @@ function vac_term(
     return vac_scope(mul_cnum(c, f), term, c, scope)
 end
 
-# The first operator pair whose site relation the algebra could not resolve. Both
-# must carry a real index; a bare operator paired against an indexed one on the
-# same subspace has no site label to identify, so there is nothing to split on.
 function vac_undetermined_pair(ops::Vector{Op}, ne::Vector{NonEqualPair})
     n = length(ops)
     for i in 1:(n - 1), j in (i + 1):n
@@ -167,10 +155,6 @@ function vac_undetermined_pair(ops::Vector{Op}, ne::Vector{NonEqualPair})
     return nothing
 end
 
-# Split on `α == β` versus `α ≠ β`. Both branches re-canonicalize (the diagonal
-# one also renames the coefficient), so each resolves the pair and recursion
-# terminates. Agreeing branches collapse, which is why an expression like
-# ⟨σᵢᵍᵍ σⱼᵍᵍ⟩ comes back delta-free.
 function vac_split(
         term::QTerm, c::CNum, scope::Vector{Index}, pair::NonEqualPair,
         spin::VacSize, particles::VacSize, depth::Int,
@@ -199,10 +183,6 @@ function vac_split(
     )
 end
 
-# Contracting the operators erases a bound index, so one that reached the term
-# through an operator now contributes its range. A term that never depended on the
-# index absorbed that range when the sum was built, so scaling it again would
-# double-count. What is left over stays a symbolic sum.
 function vac_scope(value::CNum, term::QTerm, c::CNum, scope::Vector{Index})
     isempty(scope) && return value
     out = value
@@ -229,8 +209,6 @@ function vac_sum_node(value::CNum, indices::Vector{Index}, ne::Vector{NonEqualPa
     return cnum(wrap(re), wrap(im_))
 end
 
-# Operators on distinct sites factorize; same-site runs are contiguous in canonical
-# form, so one pass over the run boundaries splits the product into site blocks.
 function vac_ops(
         ops::Vector{Op}, ne::Vector{NonEqualPair}, spin::VacSize, particles::VacSize,
     )
@@ -255,9 +233,8 @@ function vac_site(
     )
     k = ops[i].kind
     if k === OP_DESTROY || k === OP_CREATE
-        return CNUM_ZERO                    # canonical (a†)ᵐaⁿ with m+n ≥ 1 kills |0⟩
+        return CNUM_ZERO
     elseif k === OP_TRANSITION
-        # Canonicalization has already collapsed each transition or Pauli run.
         return ops[i].l1 == ops[i].g && ops[i].l2 == ops[i].g ? CNUM_ONE : CNUM_ZERO
     elseif k === OP_PAULI
         return ops[i].l1 == 3 ? CNUM_ONE : CNUM_ZERO
@@ -278,10 +255,6 @@ end
     return d
 end
 
-# Rescaled Fock basis |n⟩′ = |n⟩/√(n!) makes the ladder action exactly rational:
-# ã = a+a† sends |n⟩′ to |n-1⟩′ + (n+1)|n+1⟩′, and p̃ = i(a†-a) to
-# i((n+1)|n+1⟩′ - |n-1⟩′). The 1/√2 per quadrature is pulled out as 2^(-N/2),
-# rational because an odd-length product has zero amplitude on |0⟩ anyway.
 function vac_quadrature(ops::Vector{Op}, i::Int, j::Int)
     n = j - i + 1
     isodd(n) && return CNUM_ZERO
@@ -301,10 +274,6 @@ function vac_quadrature(ops::Vector{Op}, i::Int, j::Int)
     return to_cnum(amp * (1 // (1 << (n ÷ 2))))
 end
 
-# Rescaled weight basis |m⟩′ with S⁻|m⟩′ = |m-1⟩′ and
-# S⁺|m⟩′ = (S(S+1) - m(m+1))|m+1⟩′, so every amplitude stays rational. The
-# reference |S,S⟩ is |S⟩′, and S⁺'s coefficient vanishes there on its own; only
-# S⁻ at the bottom weight needs the explicit cut.
 function vac_spin(ops::Vector{Op}, i::Int, j::Int, S::Rational{Int})
     casimir = S * (S + 1)
     ket = Dict{Rational{Int}, VacAmp}(S => one(VacAmp))
@@ -316,7 +285,6 @@ function vac_spin(ops::Vector{Op}, i::Int, j::Int, S::Rational{Int})
                 vac_add!(nxt, m, amp * m)
                 continue
             end
-            # Sx = (S⁺+S⁻)/2, Sy = (S⁺-S⁻)/2i
             cp, cm = axis == 1 ? (VacAmp(1 // 2, 0), VacAmp(1 // 2, 0)) :
                 (VacAmp(0, -1 // 2), VacAmp(0, 1 // 2))
             vac_add!(nxt, m + 1, cp * amp * (casimir - m * (m + 1)))
@@ -328,9 +296,6 @@ function vac_spin(ops::Vector{Op}, i::Int, j::Int, S::Rational{Int})
     return iszero(amp) ? CNUM_ZERO : to_cnum(amp)
 end
 
-# Sⁱʲ = bᵢ†bⱼ on the occupation basis, rescaled by ∏√(nₖ!) so that bₖ|n⟩′ = |n-1ₖ⟩′
-# and bₖ†|n⟩′ = (nₖ+1)|n+1ₖ⟩′. The reference |N,0,…⟩ picks up the same rescaling on
-# the bra and the ket, so it cancels and the amplitude is read off directly.
 function vac_collective(ops::Vector{Op}, i::Int, j::Int, N::Int)
     nlev = 1
     for k in i:j
@@ -356,8 +321,6 @@ function vac_collective(ops::Vector{Op}, i::Int, j::Int, N::Int)
     return iszero(amp) ? CNUM_ZERO : to_cnum(amp)
 end
 
-# `spin` / `particles` accept one value for every matching subspace, or a Dict
-# keyed by subspace position when they differ.
 function vac_size(op::Op, spec::VacSize, name::String, hint::String)
     spec === nothing && throw(
         ArgumentError(

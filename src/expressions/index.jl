@@ -88,10 +88,6 @@ Base.nameof(::DeltaFunc) = :δ
 Base.show(io::IO, ::DeltaFunc) = print(io, "δ")
 SymbolicUtils.promote_symtype(::DeltaFunc, Ts...) = Real
 
-# Symmetric in its arguments, so order them by printed name to keep one canonical
-# node per unordered pair (`δ(i,j)` and `δ(j,i)` must collect as like terms).
-# Equal arguments fold to a *symbolic* one: the substituter type-asserts that a
-# `maketerm` result is a `BasicSymbolic`, so a bare `1` cannot be returned there.
 function delta_node(a, b)
     isequal(a, b) && return convert(SymbolicUtils.BasicSymbolic{SymbolicUtils.SymReal}, 1)
     x, y = string(a) <= string(b) ? (a, b) : (b, a)
