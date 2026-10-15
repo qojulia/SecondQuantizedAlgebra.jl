@@ -888,14 +888,9 @@ function rational_power(basearg, r::Rational{Int}, x, real_root::Bool = false)
     return sym_leaf(x)
 end
 
-# A `Real` atom under a fractional power is a nonnegative parameter (see devdocs), so every
-# power of it distributes; a radical atom is a positive prime.
 @inline nonnegative_atom(s::RawExpression) =
     is_radical_atom(s) || (SymbolicUtils.symtype(s) <: Real && !is_imaginary_unit(s))
 
-# `(c ∏ sᵢ^eᵢ)^r` as a principal power: a positive scalar and nonnegative atoms always factor
-# out, and at most one other atom may remain, with its exponent in (-1, 1], where
-# `Log(s^e) = e Log(s)` holds for every complex `s`.
 function monomial_power(m::Monomial, r::Rational{Int}, x, real_root::Bool)
     scalar = monomial_scalar(m)
     if any(is_phase, m.syms)
