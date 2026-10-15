@@ -12,6 +12,7 @@ This is a breaking release for type stability: public functions no longer use `n
 
 ### Added
 
+- `get_sum_indices(q)` returns the summation indices bound by a `QAdd` (none for a `QSym`), as it already did for a `SuperOperator` and a `Lindbladian`.
 - `harmonics`, `harmonic` and `secular` project a coefficient, operator, `SuperOperator` or `Lindbladian` onto exact Fourier components `expim(n*ω*t)`; phases that are not integer harmonics of `ω` throw instead of being dropped.
 - `displacement(U, a)` returns the displacement amplitude of a frame, the c-number part of `conjugate(a, U)`, for Fock and phase-space operators.
 
