@@ -118,7 +118,8 @@ import SecondQuantizedAlgebra: Coeff, CNum, to_cnum, to_num, Monomial, ExactComp
         @test !isequal(square_root * a, ω * a)
         @test value(square_root * a, Dict(ω => -2)) ≈ 2
         @test value(cbrt(ω) * a, Dict(ω => -8)) ≈ -2
-        for z in (-2 + 0im, -1 + 0.25im, -1 - 0.25im, 1 + 0.25im)
+        @test value(sqrt(1 / Z) * a, Dict(Z => -2)) ≈ im / sqrt(2)
+        for z in (-1 + 0.25im, -1 - 0.25im, 1 + 0.25im)
             rules = Dict(Z => z)
             @test value(sqrt(2Z) * a, rules) ≈ sqrt(2z)
             @test value(sqrt(Z^2) * a, rules) ≈ sqrt(z^2)
