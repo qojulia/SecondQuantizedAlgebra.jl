@@ -13,8 +13,6 @@ function harmonic(S::SuperOperator, ω::Real, t::Num, n::Integer)
     return map_coefficients(c -> get(coefficient_harmonics(c, Num(ω), frequency, t), order, CNUM_ZERO), S)
 end
 
-# 𝒟[J, K] is linear in J and antilinear in K, so a jump harmonic m and a partner harmonic l
-# land in harmonic m - l; the rate harmonic adds on top.
 function harmonics(L::Lindbladian{QAdd}, ω::Real, t::Num)
     builders = Dict{Int, typeof(LindbladianBuilder{QAdd}())}()
     builder(n) = get!(LindbladianBuilder{QAdd}, builders, n)

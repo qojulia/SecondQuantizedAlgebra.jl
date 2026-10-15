@@ -24,8 +24,6 @@ function exact_integer(c::CNum)
     return true, Int(z.re)
 end
 
-# The order is read from the ratio of the phase rate to ω and then confirmed by exact
-# subtraction, so a ratio the simplifier cannot reduce is refused rather than misassigned.
 function harmonic_order(phase::Num, ω::Num, frequency::CNum, t::Num)
     variable = SymbolicUtils.unwrap(t)
     rate = expand(Symbolics.derivative(phase, t))
