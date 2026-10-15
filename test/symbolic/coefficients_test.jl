@@ -457,6 +457,35 @@ import SecondQuantizedAlgebra: Coeff, CNum, to_cnum, to_num, Monomial, ExactComp
         @test !iszero(simplify(collected))
     end
 
+    @testset "quotients with different denominators cancel without simplify" begin
+        @variables x::Real y::Real g w::Complex
+        c = to_cnum
+
+        @test iszero(c(g / (x + im * y)) * c(g / (x - im * y)) - c(g^2 / (x^2 + y^2)))
+        @test iszero(c(1 / (x + 1) + 1 / (x + 2)) - c((2x + 3) / ((x + 1) * (x + 2))))
+        @test iszero(c(sqrt(x) / (x + 1)) - c(x / (sqrt(x) * (x + 1))))
+        @test iszero(c(1 / (w + 1)) * c(1 / (conj(w) + 1)) - c(1 / (w * conj(w) + w + conj(w) + 1)))
+        @test iszero((g / (x + im * y)) * a * (g / (x - im * y)) - (g^2 / (x^2 + y^2)) * a)
+
+        # A nonzero difference is never reported as zero.
+        @test !iszero(c(1 / (x + 1)) - c(1 / (x + 2)))
+        @test !iszero(c(1 / (x + 1)) - c(1 / (x + 1)) * (1 + 1 // 10^12))
+        @test !iszero(c(g / (w + 1)) - c(g / (conj(w) + 1)))
+        @test !iszero((g / (x + 1)) * a - (g / (x + 2)) * a)
+    end
+
+    @testset "steady-state amplitude of a damped oscillator cancels exactly" begin
+        @variables q0::Real qd::Real γ::Real F::Real n::Real
+        ω0 = 2q0^2
+        Δa = 2qd^2 - ω0
+        L = hamiltonian_action(-Δa * a' * a - F / (4q0) * (a + a')) +
+            γ * (n + 1) * dissipator(a) + γ * n * dissipator(a')
+        α = conjugate(a, DisplacementFrame(a, L)) - a
+        d = α * α' / q0^2 - F^2 / (4ω0^2 * (Δa^2 + γ^2 / 4))
+        @test iszero(d)
+        @test !iszero(d + F^2 / (4ω0^2 * (Δa^2 + γ^2)))
+    end
+
     @testset "additive and multiplicative identities" begin
         @variables x y
 
