@@ -88,9 +88,6 @@ Base.:(==)(a::Op, b::Op) = isequal(a, b)
 
 Whether `o` is an annihilation operator, see [`Destroy`](@ref).
 
-All operators share the type [`Op`](@ref), so this predicate and its siblings
-take the place of `isa` checks.
-
 # Examples
 
 ```jldoctest
@@ -237,11 +234,9 @@ is_momentum(o::Op) = o.kind === OP_MOMENTUM
 
 Kind of the operator `o`.
 
-The result is one of `OP_DESTROY`, `OP_CREATE`, `OP_TRANSITION`,
-`OP_COLLECTIVE_TRANSITION`, `OP_PAULI`, `OP_SPIN`, `OP_POSITION` or `OP_MOMENTUM`.
-These constants are public but not exported, so write them qualified, e.g.
-`SecondQuantizedAlgebra.OP_DESTROY`. For a single check the predicates such as
-[`is_destroy`](@ref) read better.
+The result is an [`OpKind`](@ref) constant, public but not exported, so write it
+qualified, e.g. `SecondQuantizedAlgebra.OP_DESTROY`. For a single check the predicates
+such as [`is_destroy`](@ref) read better.
 
 # Examples
 
@@ -279,6 +274,9 @@ See also [`IndexedOperator`](@ref), [`operator_name`](@ref), [`acts_on`](@ref).
 """
 operator_index(o::Op) = o.index
 
+@noinline wrong_kind(f::Symbol, expected::String, o::Op) =
+    throw(ArgumentError("`$f` is defined for $expected, got $(o.kind)"))
+
 """
     n_levels(o::Op) -> Int
     ground_state(o::Op) -> Int
@@ -300,12 +298,11 @@ julia> n_levels(σ), ground_state(σ)
 See also [`transition_levels`](@ref).
 """
 function n_levels(o::Op)
-    is_transition(o) || throw(ArgumentError("`n_levels` is defined for a Transition, got $(o.kind)"))
+    is_transition(o) || wrong_kind(:n_levels, "a Transition", o)
     return Int(o.nlev)
 end
 function ground_state(o::Op)
-    is_transition(o) ||
-        throw(ArgumentError("`ground_state` is defined for a Transition, got $(o.kind)"))
+    is_transition(o) || wrong_kind(:ground_state, "a Transition", o)
     return Int(o.g)
 end
 @doc (@doc n_levels) ground_state
@@ -328,8 +325,7 @@ julia> transition_levels(Transition(NLevelSpace(:atom, 3), :σ, 3, 1))
 See also [`n_levels`](@ref).
 """
 function transition_levels(o::Op)
-    is_transition(o) ||
-        throw(ArgumentError("`transition_levels` is defined for a Transition, got $(o.kind)"))
+    is_transition(o) || wrong_kind(:transition_levels, "a Transition", o)
     return (Int(o.l1), Int(o.l2))
 end
 
@@ -349,8 +345,7 @@ julia> operator_axis(Pauli(PauliSpace(:q), :σ, 2))
 ```
 """
 function operator_axis(o::Op)
-    (is_pauli(o) || is_spin(o)) ||
-        throw(ArgumentError("`operator_axis` is defined for a Pauli or Spin operator, got $(o.kind)"))
+    (is_pauli(o) || is_spin(o)) || wrong_kind(:operator_axis, "a Pauli or Spin operator", o)
     return Int(o.l1)
 end
 
@@ -380,7 +375,44 @@ set_acts_on(o::Op, aon::Integer) =
     Op(o.kind, o.name_id, Int32(aon), o.index, o.l1, o.l2, o.g, o.nlev)
 
 rename(o::Op, name::Symbol) =
-    Op(o.kind, intern_name(name), o.space_index, o.index, o.l1, o.l2, o.g, o.nlev)
+    Op(o.kind, name_id(name), o.space_index, o.index, o.l1, o.l2, o.g, o.nlev)
 rename(o::Op, name::AbstractString) = name_must_be_symbol(name)
+
+with_kind(o::Op, kind::OpKind) = Op(kind, o.name_id, o.space_index, o.index, o.l1, o.l2, o.g, o.nlev)
+
+"""
+    with_levels(o::Op, l1, l2) -> Op
+
+Copy of `o` with the level fields replaced: the levels of a transition, or the axis `l1`
+(with `l2 = 0`) of a Pauli or spin operator.
+"""
+with_levels(o::Op, l1::Integer, l2::Integer) =
+    Op(o.kind, o.name_id, o.space_index, o.index, Int32(l1), Int32(l2), o.g, o.nlev)
+
+"""
+    IndexedOperator(op, i::Index)
+
+Copy of the operator `op` placed on site `i`.
+
+Operators on different sites act independently; operators on the same site follow the
+algebra of `op`. Any operator except a [`CollectiveTransition`](@ref) can be indexed.
+
+# Examples
+```jldoctest
+julia> h = NLevelSpace(:atom, 2); i = Index(h, :i, 10, h);
+
+julia> σ = Transition(h, :σ, 2, 1);
+
+julia> IndexedOperator(σ, i) * IndexedOperator(σ', i)
+σ_i₂₂
+```
+
+See also [`Index`](@ref), [`Σ`](@ref), [`operator_index`](@ref).
+"""
+function IndexedOperator(op::Op, i::Index)
+    is_collective_transition(op) && has_index(i) &&
+        throw(ArgumentError("CollectiveTransition is already collective and cannot be indexed"))
+    return Op(op.kind, op.name_id, op.space_index, i, op.l1, op.l2, op.g, op.nlev)
+end
 
 const EMPTY_OPS = Op[]

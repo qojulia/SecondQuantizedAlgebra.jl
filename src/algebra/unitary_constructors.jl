@@ -413,8 +413,6 @@ end
 
 axis_or_throw(axis::Integer) = 1 <= axis <= 3 ? Int32(axis) :
     unitary_error("axis must be 1, 2, or 3, got $axis")
-axis_op(o::Op, axis::Integer) =
-    Op(o.kind, o.name_id, o.space_index, o.index, Int32(axis), 0, 0, 0)
 
 function triple_or_throw(S::Op)
     (is_pauli(S) || is_spin(S)) || unitary_error(
@@ -426,9 +424,9 @@ end
 function Rotation(S::Op, axis::Integer, θ::Real)
     triple_or_throw(S)
     main_axis = Int(axis_or_throw(axis))
-    u = axis_op(S, mod1(main_axis + 1, 3))
-    v = axis_op(S, mod1(main_axis + 2, 3))
-    fixed = axis_op(S, main_axis)
+    u = with_levels(S, mod1(main_axis + 1, 3), 0)
+    v = with_levels(S, mod1(main_axis + 2, 3), 0)
+    fixed = with_levels(S, main_axis, 0)
     c = to_cnum(cos(θ))
     s = to_cnum(sin(θ))
     action = AffineAction(
@@ -447,14 +445,11 @@ end
 function Rotation(S::Op, axis::Integer, θ::Real, t::Num)
     triple_or_throw(S)
     tt = time_or_throw(t)
-    fixed = axis_op(S, Int(axis_or_throw(axis)))
+    fixed = with_levels(S, Int(axis_or_throw(axis)), 0)
     generator = S.kind === OP_PAULI ? scaled(CNUM_HALF, fixed) :
         scaled(CNUM_ONE, fixed)
     return timed_transform(Rotation(S, axis, θ), gauge(generator, θ, tt), tt)
 end
-
-transition_op(o::Op, i::Integer, j::Integer) =
-    Op(OP_TRANSITION, o.name_id, o.space_index, o.index, Int32(i), Int32(j), o.g, o.nlev)
 
 function nlevel_or_throw(σ::Op, W::AbstractMatrix)
     is_transition(σ) || unitary_error(
@@ -479,7 +474,7 @@ end
 function matrix_unit_action(σ::Op, W::Matrix{Coeff}, Wdagger::Matrix{Coeff})
     n = size(W, 1)
     dimension = n * n
-    basis = Op[transition_op(σ, i, j) for i in 1:n for j in 1:n]
+    basis = Op[with_levels(σ, i, j) for i in 1:n for j in 1:n]
     linear = fill(CNUM_ZERO, dimension, dimension)
     for i in 1:n, j in 1:n
         row = (i - 1) * n + j
@@ -533,7 +528,7 @@ function nlevel_gauge(σ::Op, W::Matrix{Coeff}, t::Num)
         end
         coefficient = mul_cnum(CNUM_IM, coefficient)
         iszero_cnum(coefficient) ||
-            addto!(gauge, Op[transition_op(σ, j, l)], coefficient)
+            addto!(gauge, Op[with_levels(σ, j, l)], coefficient)
     end
     return QAdd(gauge, EMPTY_INDICES)
 end
