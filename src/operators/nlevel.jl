@@ -49,18 +49,6 @@ function NLevelSpace(name::Symbol, levels::Tuple{Vararg{Symbol}})
 end
 NLevelSpace(name::AbstractString, args...) = name_must_be_symbol(name)
 
-"""
-    level_index(h::NLevelSpace, s::Symbol) -> Int
-
-Look up the integer index for a symbolic level name.
-"""
-function level_index(h::NLevelSpace, s::Symbol)
-    isempty(h.levels) && throw(ArgumentError("NLevelSpace $(h.name) has no symbolic levels"))
-    idx = position_of(==(s), h.levels)
-    iszero(idx) && throw(ArgumentError("Level :$s not found in $(h.levels)"))
-    return idx
-end
-
 Base.:(==)(a::NLevelSpace, b::NLevelSpace) = a.name == b.name && a.n == b.n && a.ground_state == b.ground_state && a.levels == b.levels
 Base.hash(a::NLevelSpace, h::UInt) = hash(:NLevelSpace, hash(a.name, hash(a.n, hash(a.ground_state, hash(a.levels, h)))))
 
@@ -108,8 +96,21 @@ Base.:(==)(a::CollectiveNLevelSpace, b::CollectiveNLevelSpace) =
 Base.hash(a::CollectiveNLevelSpace, h::UInt) =
     hash(:CollectiveNLevelSpace, hash(a.name, hash(a.n, hash(a.levels, h))))
 
-function level_index(h::CollectiveNLevelSpace, s::Symbol)
-    isempty(h.levels) && throw(ArgumentError("CollectiveNLevelSpace $(h.name) has no symbolic levels"))
+const LevelSpace = Union{NLevelSpace, CollectiveNLevelSpace}
+
+"""
+    level_index(h, level::Int) -> Int
+    level_index(h, level::Symbol) -> Int
+
+Number of `level` in the [`NLevelSpace`](@ref) or [`CollectiveNLevelSpace`](@ref) `h`. An
+integer is checked to lie in `1:n`, a symbol is looked up among the level names.
+"""
+function level_index(h::LevelSpace, i::Int)
+    1 <= i <= h.n || throw(ArgumentError("Level $i out of range 1:$(h.n)"))
+    return i
+end
+function level_index(h::LevelSpace, s::Symbol)
+    isempty(h.levels) && throw(ArgumentError("$(nameof(typeof(h))) $(h.name) has no symbolic levels"))
     idx = position_of(==(s), h.levels)
     iszero(idx) && throw(ArgumentError("Level :$s not found in $(h.levels)"))
     return idx
@@ -147,33 +148,10 @@ See also [`NLevelSpace`](@ref), [`expand_completeness`](@ref), [`@qnumbers`](@re
 Transition(name::Symbol, i::Integer, j::Integer, si::Integer, idx::Index, ground_state::Integer, n_levels::Integer) =
     Op(OP_TRANSITION, name_id(name), si, idx, i, j, ground_state, n_levels)
 
-function Transition(h::NLevelSpace, name::Symbol, i::Int, j::Int)
-    1 <= i <= h.n || throw(ArgumentError("Level i=$i out of range 1:$(h.n)"))
-    1 <= j <= h.n || throw(ArgumentError("Level j=$j out of range 1:$(h.n)"))
-    return Transition(name, i, j, 1, NO_INDEX, h.ground_state, h.n)
-end
-function Transition(h::NLevelSpace, name::Symbol, i::Symbol, j::Symbol)
-    return Transition(name, level_index(h, i), level_index(h, j), 1, NO_INDEX, h.ground_state, h.n)
-end
-function Transition(h::ProductSpace, name::Symbol, i::Int, j::Int, idx::Int)
-    1 <= idx <= length(h.spaces) || throw(ArgumentError("Index $idx out of range"))
-    space = h.spaces[idx]
-    space isa NLevelSpace || throw(ArgumentError("Space at index $idx is not an NLevelSpace"))
-    1 <= i <= space.n || throw(ArgumentError("Level i=$i out of range 1:$(space.n)"))
-    1 <= j <= space.n || throw(ArgumentError("Level j=$j out of range 1:$(space.n)"))
-    return Transition(name, i, j, idx, NO_INDEX, space.ground_state, space.n)
-end
-function Transition(h::ProductSpace, name::Symbol, i::Symbol, j::Symbol, idx::Int)
-    1 <= idx <= length(h.spaces) || throw(ArgumentError("Index $idx out of range"))
-    space = h.spaces[idx]
-    space isa NLevelSpace || throw(ArgumentError("Space at index $idx is not an NLevelSpace"))
-    return Transition(name, level_index(space, i), level_index(space, j), idx, NO_INDEX, space.ground_state, space.n)
-end
-
-Transition(h::ProductSpace, name::Symbol, i::Int, j::Int) =
-    Transition(h, name, i, j, unique_subspace_index(h, NLevelSpace))
-Transition(h::ProductSpace, name::Symbol, i::Symbol, j::Symbol) =
-    Transition(h, name, i, j, unique_subspace_index(h, NLevelSpace))
+Transition(h::NLevelSpace, name::Symbol, i::L, j::L) where {L <: Union{Int, Symbol}} =
+    Transition(name, level_index(h, i), level_index(h, j), 1, NO_INDEX, h.ground_state, h.n)
+Transition(h::ProductSpace, name::Symbol, i::L, j::L, idx::Int = unique_subspace_index(h, NLevelSpace)) where {L <: Union{Int, Symbol}} =
+    on_factor(Transition, h, NLevelSpace, idx, name, i, j)
 
 Transition(::HilbertSpace, name::AbstractString, args...) = name_must_be_symbol(name)
 
@@ -205,32 +183,9 @@ See also [`CollectiveNLevelSpace`](@ref), [`Transition`](@ref).
 CollectiveTransition(name::Symbol, i::Integer, j::Integer, si::Integer) =
     Op(OP_COLLECTIVE_TRANSITION, name_id(name), si, NO_INDEX, i, j, 0, 0)
 
-function CollectiveTransition(h::CollectiveNLevelSpace, name::Symbol, i::Int, j::Int)
-    1 <= i <= h.n || throw(ArgumentError("Level i=$i out of range 1:$(h.n)"))
-    1 <= j <= h.n || throw(ArgumentError("Level j=$j out of range 1:$(h.n)"))
-    return CollectiveTransition(name, i, j, 1)
-end
-CollectiveTransition(h::CollectiveNLevelSpace, name::Symbol, i::Symbol, j::Symbol) =
+CollectiveTransition(h::CollectiveNLevelSpace, name::Symbol, i::L, j::L) where {L <: Union{Int, Symbol}} =
     CollectiveTransition(name, level_index(h, i), level_index(h, j), 1)
-
-function CollectiveTransition(h::ProductSpace, name::Symbol, i::Int, j::Int, idx::Int)
-    1 <= idx <= length(h.spaces) || throw(ArgumentError("Index $idx out of range"))
-    space = h.spaces[idx]
-    space isa CollectiveNLevelSpace || throw(ArgumentError("Space at index $idx is not a CollectiveNLevelSpace"))
-    1 <= i <= space.n || throw(ArgumentError("Level i=$i out of range 1:$(space.n)"))
-    1 <= j <= space.n || throw(ArgumentError("Level j=$j out of range 1:$(space.n)"))
-    return CollectiveTransition(name, i, j, idx)
-end
-function CollectiveTransition(h::ProductSpace, name::Symbol, i::Symbol, j::Symbol, idx::Int)
-    1 <= idx <= length(h.spaces) || throw(ArgumentError("Index $idx out of range"))
-    space = h.spaces[idx]
-    space isa CollectiveNLevelSpace || throw(ArgumentError("Space at index $idx is not a CollectiveNLevelSpace"))
-    return CollectiveTransition(name, level_index(space, i), level_index(space, j), idx)
-end
-
-CollectiveTransition(h::ProductSpace, name::Symbol, i::Int, j::Int) =
-    CollectiveTransition(h, name, i, j, unique_subspace_index(h, CollectiveNLevelSpace))
-CollectiveTransition(h::ProductSpace, name::Symbol, i::Symbol, j::Symbol) =
-    CollectiveTransition(h, name, i, j, unique_subspace_index(h, CollectiveNLevelSpace))
+CollectiveTransition(h::ProductSpace, name::Symbol, i::L, j::L, idx::Int = unique_subspace_index(h, CollectiveNLevelSpace)) where {L <: Union{Int, Symbol}} =
+    on_factor(CollectiveTransition, h, CollectiveNLevelSpace, idx, name, i, j)
 
 CollectiveTransition(::HilbertSpace, name::AbstractString, args...) = name_must_be_symbol(name)

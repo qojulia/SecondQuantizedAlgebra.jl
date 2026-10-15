@@ -624,3 +624,135 @@ function acts_on(s::SymbolicUtils.BasicSymbolic)
     unique!(sort!(aon))
     return aon
 end
+
+"""
+    qadjoint(x)
+    qconj(x)
+
+Hermitian conjugate of an operator expression or a coefficient.
+
+For an operator expression this is `x'`. For a coefficient the conjugate is taken through
+the expression tree, so that it reaches the individual parameters instead of wrapping the
+whole expression in `conj`. An average becomes the average of the adjoint, as with
+[`inner_adjoint`](@ref).
+
+# Examples
+```jldoctest
+julia> a = Destroy(FockSpace(:cavity), :a);
+
+julia> @variables g::Number;
+
+julia> qadjoint(2im * a), qadjoint(g)
+(-2im * a', conj(g))
+```
+
+See also [`dagger`](@ref), [`inner_adjoint`](@ref).
+"""
+function qadjoint(v::SymbolicUtils.BasicSymbolic)
+    v === Symbolics.IM && return -Symbolics.IM
+    (SymbolicUtils.hasmetadata(v, AverageOperator) || is_indexed_sum(v)) && return inner_adjoint(v)
+    if SymbolicUtils.iscall(v)
+        f = SymbolicUtils.operation(v)
+        args = SymbolicUtils.arguments(v)
+        f isa AvgFunc && return inner_adjoint(v)
+        f === conj && return args[1]
+        f === expim && return expim_symbolic(-only(args))
+        return TermInterface.maketerm(
+            typeof(v), f, map(qadjoint, args), TermInterface.metadata(v),
+        )
+    else
+        return conj(v)
+    end
+end
+qadjoint(x::Number) = adjoint(x)
+qadjoint(x::Num) = qadjoint(SymbolicUtils.unwrap(x))
+qadjoint(x::QField) = adjoint(x)
+
+const qconj = qadjoint
+@doc (@doc qadjoint) qconj
+
+"""
+    dagger(x::QField)
+
+Hermitian conjugate of an operator expression, the same as `x'`.
+
+Coefficients are conjugated along with the operators. The name matches `dagger`
+from QuantumOptics.jl, so code can use it for symbolic and numeric operators
+alike.
+
+# Examples
+
+```jldoctest
+julia> h = FockSpace(:cavity) ⊗ NLevelSpace(:atom, 2);
+
+julia> @qnumbers a::Destroy(h, 1) σ::Transition(h, 1, 2, 2);
+
+julia> dagger(2im * a' * σ)
+-2im * a * σ₂₁
+```
+
+See also [`qadjoint`](@ref).
+"""
+QuantumInterface.dagger(x::QField) = qadjoint(x)
+
+"""
+    inner_adjoint(x)
+
+Complex conjugate of an expression of averages, written again as averages.
+
+The conjugate of ``\\langle X \\rangle`` is written as ``\\langle X^\\dagger \\rangle``
+rather than as `conj(⟨X⟩)`, so that equations for averages stay expressed in averages of
+operators. Coefficients are conjugated as by [`qadjoint`](@ref).
+
+# Examples
+```jldoctest
+julia> a = Destroy(FockSpace(:cavity), :a);
+
+julia> @variables g::Number;
+
+julia> inner_adjoint(g * average(a))
+⟨a'⟩*conj(g)
+```
+
+See also [`qadjoint`](@ref), [`average`](@ref).
+"""
+function inner_adjoint(v::SymbolicUtils.BasicSymbolic)
+    v === Symbolics.IM && return -Symbolics.IM
+    if SymbolicUtils.hasmetadata(v, AverageOperator)
+        return adjoint_lifted(SymbolicUtils.getmetadata(v, AverageOperator), SymbolicUtils.arguments(v)[1])
+    end
+    if is_indexed_sum(v)
+        return indexed_sum(inner_adjoint(sum_body(v)), sum_indices(v), sum_ne(v))
+    end
+    if SymbolicUtils.iscall(v)
+        f = SymbolicUtils.operation(v)
+        args = SymbolicUtils.arguments(v)
+        if f isa AvgFunc
+            arg = args[1]
+            return adjoint_average_leaf(SymbolicUtils.isconst(arg) ? arg.val : arg)
+        elseif f === conj
+            return inner_adjoint(args[1])
+        elseif f === expim
+            return expim_symbolic(-only(args))
+        else
+            return TermInterface.maketerm(
+                typeof(v), f, map(inner_adjoint, args), TermInterface.metadata(v),
+            )
+        end
+    else
+        return conj(v)
+    end
+end
+inner_adjoint(x::Number) = conj(x)
+
+function adjoint_lifted(@nospecialize(op), @nospecialize(iv))
+    op isa QAdd && iv isa RawExpression && return lift_average(average(adjoint(op)), iv)
+    throw(ArgumentError("malformed time-dependent average with operator `$op` and argument `$iv`"))
+end
+
+function adjoint_average_leaf(@nospecialize(inner))
+    inner isa Union{Op, QAdd} && return average_leaf(adjoint(inner))
+    throw(ArgumentError("cannot take the adjoint of the averaged argument `$inner`"))
+end
+inner_adjoint(x::Num) = inner_adjoint(SymbolicUtils.unwrap(x))
+inner_adjoint(x::QField) = adjoint(x)
