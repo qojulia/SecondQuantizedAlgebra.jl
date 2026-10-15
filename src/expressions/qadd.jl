@@ -396,12 +396,9 @@ See also [`get_prefactor`](@ref), [`get_operators`](@ref), [`substitute`](@ref).
 function Symbolics.get_variables(s::QAdd; kwargs...)
     vars = SymbolicUtils.BasicSymbolic[]
     for c in values(s.arguments)
-        append!(vars, Symbolics.get_variables(real(c); kwargs...))
-        append!(vars, Symbolics.get_variables(imag(c); kwargs...))
+        coeff_variables!(vars, c; kwargs...)
     end
-    unique!(vars)
-    sort!(vars; by = string)
-    return vars
+    return sorted_variables!(vars)
 end
 
 function Symbolics.get_variables(
@@ -412,22 +409,9 @@ function Symbolics.get_variables(
     )
     vars = SymbolicUtils.BasicSymbolic[]
     for c in values(s.arguments)
-        append!(
-            vars,
-            Symbolics.get_variables(
-                real(c), varlist; is_atomic = is_atomic, kwargs...
-            ),
-        )
-        append!(
-            vars,
-            Symbolics.get_variables(
-                imag(c), varlist; is_atomic = is_atomic, kwargs...
-            ),
-        )
+        coeff_variables!(vars, c, varlist; is_atomic = is_atomic, kwargs...)
     end
-    unique!(vars)
-    sort!(vars; by = string)
-    return vars
+    return sorted_variables!(vars)
 end
 
 function Symbolics.get_variables!(buffer, s::QAdd; kwargs...)

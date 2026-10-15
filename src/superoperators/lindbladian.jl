@@ -69,6 +69,52 @@ end
 @doc (@doc hamiltonian) channels
 
 """
+    effective_hamiltonian(L::Lindbladian)
+
+The non-Hermitian Hamiltonian of the no-jump evolution of a Lindbladian.
+
+For `L = -i[H, ·] + Σ γ 𝒟[J, K]` it is `H_eff = H - (i/2) Σ γ K'J`, the operator that acts
+on the left of the state, `L(ρ) = -i H_eff ρ + … + Σ γ J ρ K'`. A summed or correlated
+channel contributes its sum over the channel's scope, and the identity part of `K'J` is
+kept, since its imaginary multiple contributes to the decay. When `L` preserves Hermiticity,
+which needs a Hermitian `H` and rate matrix, the right action is `H_eff'` and
+`L(ρ) = -i(H_eff ρ - ρ H_eff') + Σ γ J ρ K'`.
+
+# Examples
+```jldoctest
+julia> using SecondQuantizedAlgebra: effective_hamiltonian
+
+julia> @variables ω κ;
+
+julia> a = Destroy(FockSpace(:c), :a);
+
+julia> effective_hamiltonian(hamiltonian_action(ω * a' * a) + κ * dissipator(a))
+(ω + ((-1//2)*κ)im) * a' * a
+```
+
+See also [`hamiltonian`](@ref), [`channels`](@ref hamiltonian), [`dissipator`](@ref).
+"""
+function effective_hamiltonian(L::Lindbladian{QAdd})
+    b = QAddBuilder()
+    accumulate!(b, L.hamiltonian)
+    for (ch, γ) in L.channels
+        accumulate!(b, sum_under_scope(no_jump_term(ch, γ), ch.scope, ch.ne))
+    end
+    return build(b)
+end
+
+function effective_hamiltonian(L::Lindbladian{QExpr})
+    terms = QExprArg[L.hamiltonian]
+    for (ch, γ) in L.channels
+        push!(terms, sum_under_scope(no_jump_term(ch, γ), ch.scope, ch.ne))
+    end
+    return qexpr_sum(terms)
+end
+
+no_jump_term(ch::Channel, γ::CNum) =
+    scale_jump(adjoint(ch.partner) * ch.jump, mul_cnum(CNUM_NEG_IM, mul_cnum(CNUM_HALF, γ)))
+
+"""
     LindbladianBuilder{O}()
 
 An accumulator that builds a `Lindbladian{O}` from many terms in linear time.

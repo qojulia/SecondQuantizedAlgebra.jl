@@ -69,6 +69,26 @@ scope(c::Channel) = c.scope
 @doc (@doc jump) partner
 @doc (@doc jump) scope
 
+"""
+    is_diagonal(c::Channel)
+
+Whether a decay channel is independent, `𝒟[J]`, rather than a cross channel `𝒟[J, K]`
+with a partner `K ≠ J`.
+
+# Examples
+```jldoctest
+julia> using SecondQuantizedAlgebra: channels, is_diagonal
+
+julia> h = FockSpace(:c); a = Destroy(h, :a);
+
+julia> [is_diagonal(ch) for (ch, _) in channels(dissipator(a) + dissipator(a, a'))]
+2-element Vector{Bool}:
+ 1
+ 0
+```
+
+See also [`jump`](@ref), [`Channel`](@ref).
+"""
 is_diagonal(c::Channel) = c.partner === c.jump || isequal(c.partner, c.jump)
 
 mentions_index(q::QExpr, idx::Index) = idx in get_indices(q)

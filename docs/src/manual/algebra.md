@@ -92,6 +92,12 @@ expand_completeness(σ(1, 2) * σ(2, 1))
 expand_completeness
 ```
 
+`ishermitian` decides whether an expression is provably Hermitian. It falls back on completeness when the difference to the adjoint does not cancel as written.
+
+```@docs
+LinearAlgebra.ishermitian(::QAdd)
+```
+
 An expression in canonical form has its own type, which is what products, sums and commutators of operators return.
 
 ```@docs

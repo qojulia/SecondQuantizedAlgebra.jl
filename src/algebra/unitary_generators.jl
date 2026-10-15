@@ -1,5 +1,5 @@
 function hermitian_generator_or_throw(G::QAdd)
-    iszero(simplify(G - adjoint(G))) || unitary_error(
+    LinearAlgebra.ishermitian(G) || unitary_error(
         "`UnitaryTransform(G, θ)` requires `G` to be provably Hermitian exactly",
     )
     return G

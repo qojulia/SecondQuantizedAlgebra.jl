@@ -289,6 +289,32 @@ function fold_const(x::RawExpression)
     throw(ArgumentError("cannot reduce symbolic expression $x to a concrete number"))
 end
 
+"""
+    to_complex(c::Coeff)
+    to_complex(x::Number)
+
+The value of a constant coefficient as a `ComplexF64`.
+
+Exact numbers and radicals are rounded, and a coefficient left constant by substitution,
+such as `cos(θ)` at `θ = 0`, is evaluated. A coefficient that still depends on a parameter
+throws an `ArgumentError`, so substitute every parameter first.
+
+# Examples
+```jldoctest
+julia> using SecondQuantizedAlgebra: coefficient, to_complex
+
+julia> @variables g θ;
+
+julia> a = Destroy(FockSpace(:c), :a);
+
+julia> c = coefficient((g * cos(θ) + im // 2) * a, a);
+
+julia> to_complex(substitute(c, Dict(g => 2, θ => 0)))
+2.0 + 0.5im
+```
+
+See also [`to_num`](@ref), [`substitute`](@ref).
+"""
 to_complex(c::Coeff) = is_native(c) ? native_float(native_scalar(c)) : to_complex(to_num(c))
 
 function to_complex(x)

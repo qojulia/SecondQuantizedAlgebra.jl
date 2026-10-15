@@ -1,6 +1,7 @@
 using SecondQuantizedAlgebra
 using SymbolicUtils: SymbolicUtils
 using Symbolics: Symbolics, @variables
+using LinearAlgebra: ishermitian
 using Test
 
 @testset "Simplification contracts" begin
@@ -101,6 +102,23 @@ using Test
                     expand_completeness(simplify(ground))
             )
         )
+    end
+
+    @testset "hermiticity is decided by simplify and completeness" begin
+        hc = FockSpace(:cavity) ⊗ NLevelSpace(:atom, 2)
+        a = Destroy(hc, :a, 1)
+        σ(i, j) = Transition(hc, :σ, i, j, 2)
+        @variables g::Real z::Complex θ::Real
+        @test ishermitian(g * (a + a'))
+        @test ishermitian(z * a + conj(z) * a')
+        @test !ishermitian(z * (a + a'))
+        @test ishermitian(im * (a' * a * a - a' * a' * a))
+        @test ishermitian(σ(1, 1)) && !ishermitian(a)
+        complete = im * (σ(1, 1) + σ(2, 2) - 1) + a' * a
+        @test !iszero(simplify(complete - complete'))
+        @test ishermitian(complete)
+        @test expim(θ * complete) isa SecondQuantizedAlgebra.QExpr
+        @test ishermitian(cos(a + a')) && !ishermitian(expim(a + a'))
     end
 
     @testset "simplification is idempotent across workflows" begin

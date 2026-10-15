@@ -1,3 +1,33 @@
+"""
+    QAddBuilder()
+
+An accumulator that builds a polynomial operator expression from many terms in linear time.
+
+Add operators, expressions and scalars with [`accumulate!`](@ref), or a scaled expression
+`c * x` with `accumulate!(b, x, c)` for a [`Coeff`](@ref) `c`, and finish with
+[`build`](@ref). Summation indices of the added expressions are kept. `sum` over an array of
+expressions uses it already.
+
+# Examples
+```jldoctest
+julia> using SecondQuantizedAlgebra: QAddBuilder, accumulate!, build
+
+julia> a = Destroy(FockSpace(:c), :a);
+
+julia> b = QAddBuilder();
+
+julia> for n in 1:3
+           accumulate!(b, n * a' * a)
+       end
+
+julia> accumulate!(b, a); accumulate!(b, 1);
+
+julia> build(b)
+1 + a + 6 * a' * a
+```
+
+See also [`SuperBuilder`](@ref), [`LindbladianBuilder`](@ref).
+"""
 struct QAddBuilder
     args::QTermDict
     indices::Vector{Index}
@@ -13,13 +43,14 @@ end
 
 """
     accumulate!(b, x)
+    accumulate!(b::QAddBuilder, x::QAdd, c::Coeff)
     accumulate!(b::SuperBuilder, c, A, B)
 
 Add `x` to the builder `b` in place.
 
 A sum of many terms then costs linear time instead of the quadratic cost of a chain of `+`.
-A [`SuperBuilder`](@ref) also takes a single sandwich `c * A ρ B`. Finish with
-[`build`](@ref).
+A [`QAddBuilder`](@ref) also takes a scaled expression `c * x`, and a
+[`SuperBuilder`](@ref) a single sandwich `c * A ρ B`. Finish with [`build`](@ref).
 
 # Examples
 ```jldoctest
@@ -35,7 +66,7 @@ julia> build(b)
 2 * a ⋅ (·)
 ```
 
-See also [`SuperBuilder`](@ref), [`LindbladianBuilder`](@ref).
+See also [`QAddBuilder`](@ref), [`SuperBuilder`](@ref), [`LindbladianBuilder`](@ref).
 """
 function accumulate! end
 
@@ -47,7 +78,7 @@ The expression accumulated in the builder `b`, in canonical form.
 The result may share storage with `b`, so `b` is not used after `build`. See
 [`accumulate!`](@ref) for an example.
 
-See also [`SuperBuilder`](@ref), [`LindbladianBuilder`](@ref).
+See also [`QAddBuilder`](@ref), [`SuperBuilder`](@ref), [`LindbladianBuilder`](@ref).
 """
 function build end
 

@@ -18,6 +18,11 @@ This is a breaking release for type stability: public functions no longer use `n
 - `get_sum_indices(q)` returns the summation indices bound by a `QAdd` (none for a `QSym`), as it already did for a `SuperOperator` and a `Lindbladian`.
 - `harmonics`, `harmonic` and `secular` project a coefficient, operator, `SuperOperator` or `Lindbladian` onto exact Fourier components `expim(n*ω*t)`; phases that are not integer harmonics of `ω` throw instead of being dropped.
 - `displacement(U, a)` returns the displacement amplitude of a frame, the c-number part of `conjugate(a, U)`, for Fock and phase-space operators.
+- `sqrt(c)` takes the exact principal square root of a coefficient, `sqrt(4κ) = 2√κ`, without assuming the sign of a parameter, and `get_variables(c)` reads the parameters of a coefficient directly.
+- `to_complex` (public) evaluates a constant coefficient to a `ComplexF64`, and `is_diagonal(ch)` (public) tells an independent channel from a cross channel.
+- `effective_hamiltonian(L)` (public) returns the no-jump Hamiltonian `H - (i/2) Σ γ K'J` of a `Lindbladian`, including correlated and summed channels.
+- `ishermitian` decides whether an operator expression is provably Hermitian, applying completeness when needed; `expim(A)`, `UnitaryTransform(G, θ)` and time-dependent numeric conversion now accept an operator that is Hermitian only through completeness.
+- `QAddBuilder` (public) accumulates an operator sum in linear time with `accumulate!` and `build`, like `SuperBuilder` for maps.
 
 - Dissipative dynamics as first-class objects: `Lindbladian` (`hamiltonian_action`, `dissipator`, collective `dissipator(J, Γ, i => j)`), general `SuperOperator` maps (`spre`, `spost`, `sprepost`, composition, `transpose` as the Heisenberg generator) and formal `SuperExpr` maps. They support `Σ`, frames, substitution and printing, and convert to backend superoperators or, via `to_numeric_master`, to Hamiltonian and collapse operators.
 - `UnitaryTransform(G, θ)` accepts generators that couple two operators symmetrically, such as the hopping term `a'b + b'a` and the squeezer `a^2 + a'^2`.
