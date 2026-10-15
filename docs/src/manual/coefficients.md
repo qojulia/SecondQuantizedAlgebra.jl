@@ -235,3 +235,9 @@ harmonics
 harmonic
 secular
 ```
+
+```@docs
+map_coefficients
+```
+
+`map_coefficients(f, expr)` applies `f` to every scalar coefficient while preserving the operator structure.

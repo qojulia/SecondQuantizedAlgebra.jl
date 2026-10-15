@@ -23,9 +23,16 @@ normal_order(S::SuperOperator) = map_sides(restream_side, S)
 function map_coefficients(f::F, S::SuperOperator) where {F}
     out = SuperTermDict()
     for (t, c) in S.arguments
-        nc = f(c)
+        nc = to_cnum(f(c))
         iszero_cnum(nc) && continue
-        addto_key!(out, copy_key(t), nc)
+        if isempty(S.indices) || nc === c
+            addto_key!(out, copy_key(t), nc)
+            continue
+        end
+        mentions(x, idx) = depends_on_sandwich(x, t.left, t.right, idx)
+        coef, ne = settle_mapped(mentions, c, nc, t.ne, S.indices)
+        key = ne === t.ne ? copy_key(t) : SuperTerm(copy(t.left), copy(t.right), ne)
+        addto_key!(out, key, coef)
     end
     return superop_pruned(out, copy(S.indices))
 end
@@ -130,6 +137,9 @@ exponential_form(L::Lindbladian{QAdd}) =
     map_lindbladian(exponential_form, exponential_form, exponential_form, L)
 trigonometric_form(L::Lindbladian{QAdd}) =
     map_lindbladian(trigonometric_form, trigonometric_form, trigonometric_form, L)
+map_coefficients(f::F, L::Lindbladian{QAdd}) where {F} = map_lindbladian(
+    x -> map_coefficients(f, x), x -> map_coefficients(f, x), c -> to_cnum(f(c)), L,
+)
 
 function assume_distinct_index(L::Lindbladian{O}, pairs::Vector{Tuple{Index, Index}}) where {O}
     b = LindbladianBuilder{O}()
