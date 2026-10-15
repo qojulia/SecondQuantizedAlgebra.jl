@@ -21,12 +21,16 @@ include("simplify_and_normal_order.jl")
 include("indexing.jl")
 include("accumulation.jl")
 include("unitary.jl")
+include("hamiltonian_workflows.jl")
+include("numeric_conversion.jl")
 
 benchmark_commutator!(SUITE)
 benchmark_simplify_and_normal_order!(SUITE)
 benchmark_indexing!(SUITE)
 benchmark_accumulation!(SUITE)
 benchmark_unitary!(SUITE)
+benchmark_hamiltonian_workflows!(SUITE)
+benchmark_numeric_conversion!(SUITE)
 
 # Match the CI tuning so local numbers are comparable: a wide sample pool plus
 # the `minimum` estimator (robust to the one-sided noise that always slows, but
