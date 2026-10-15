@@ -216,6 +216,8 @@ end
         )
         @test sprint(show, kronecker_delta(i, j)) == "δ(i, j)"
         delta_operation = operation(Symbolics.unwrap(kronecker_delta(i, j)))
+        delta = Symbolics.unwrap(kronecker_delta(i, j))
+        @test isequal(inner_adjoint(delta), delta)
         @test nameof(delta_operation) == :δ
         @test sprint(show, delta_operation) == "δ"
         @test SymbolicUtils.promote_symtype(delta_operation, Int, Int) === Real
