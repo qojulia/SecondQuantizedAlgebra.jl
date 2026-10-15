@@ -252,3 +252,10 @@ to_numeric(S(:g, :g) + S(:e, :e), b) ≈ N * identityoperator(b)
 ```
 
 For two levels this is the collective spin of length ``N/2``. With ``e`` as the upper level, ``S^{eg} = S_+``, ``S^{ge} = S_-`` and ``S_z = (S^{ee} - S^{gg})/2``. In the ordering of the `SpinBasis` of QuantumOpticsBase, where level 1 is spin up, the same identification reads ``S^{12} = S_+``.
+
+
+`get_sum_indices(expr)` reads only the bound summation indices. It returns an empty vector for an unsummed expression.
+
+```@docs
+get_sum_indices(::SecondQuantizedAlgebra.QAdd)
+```

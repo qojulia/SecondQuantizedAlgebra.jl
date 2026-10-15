@@ -15,6 +15,9 @@ This is a breaking release for type stability: public functions no longer use `n
 - `expect(op, Vacuum())` returns the exact vacuum expectation value ``\langle 0|op|0\rangle`` as a `Complex{Num}`, with no basis cutoff and no numeric backend. `Vacuum()` is each subspace's own lowest state: the Fock vacuum, an `NLevelSpace`'s declared `ground_state`, the `PhaseSpace` oscillator ground state, the ``\sigma_z = +1`` / top weight ``|m=S\rangle`` for `PauliSpace` / `SpinSpace`, and all ``N`` particles in level 1 for `CollectiveNLevelSpace`. Two subspaces carry a size the algebra does not, so pass `spin` for a `SpinSpace` and `particles` for a `CollectiveNLevelSpace`. Since any state built from the vacuum is ``|\psi\rangle = O|0\rangle``, this one call also gives matrix elements, overlaps, norms, and zero-point energies. `expect` is now exported. Resolves [#143](https://github.com/qojulia/SecondQuantizedAlgebra.jl/issues/143).
 - A `Σ` whose summand does not reduce to a range factor keeps its scope symbolically instead of failing: ``\sum_i \Delta_i \sigma_i^{gg}`` evaluates to the indexed-sum node ``\sum_i \Delta_i``, and a `≠`-constrained scope is preserved rather than miscounted as the full range.
 - `kronecker_delta(i, j)` and `is_kronecker_delta(x)` add a symmetric Kronecker delta over summation indices. It folds to `1` on equal indices, both at construction and under `Symbolics.substitute` / `change_index`, and prints as `δ(i, j)` (`\delta_{i,j}` in LaTeX). `expect(op, Vacuum())` emits it when an expectation value genuinely depends on whether two free indices denote the same site: both readings are evaluated, the common value is returned when they agree, and the exact ``\delta_{ij} A + (1-\delta_{ij}) B`` split otherwise.
+- `get_sum_indices(q)` returns the summation indices bound by a `QAdd` (none for a `QSym`), as it already did for a `SuperOperator` and a `Lindbladian`.
+- `harmonics`, `harmonic` and `secular` project a coefficient, operator, `SuperOperator` or `Lindbladian` onto exact Fourier components `expim(n*ω*t)`; phases that are not integer harmonics of `ω` throw instead of being dropped.
+- `displacement(U, a)` returns the displacement amplitude of a frame, the c-number part of `conjugate(a, U)`, for Fock and phase-space operators.
 
 - Dissipative dynamics as first-class objects: `Lindbladian` (`hamiltonian_action`, `dissipator`, collective `dissipator(J, Γ, i => j)`), general `SuperOperator` maps (`spre`, `spost`, `sprepost`, composition, `transpose` as the Heisenberg generator) and formal `SuperExpr` maps. They support `Σ`, frames, substitution and printing, and convert to backend superoperators or, via `to_numeric_master`, to Hamiltonian and collapse operators.
 - `UnitaryTransform(G, θ)` accepts generators that couple two operators symmetrically, such as the hopping term `a'b + b'a` and the squeezer `a^2 + a'^2`.
@@ -41,6 +44,9 @@ This is a breaking release for type stability: public functions no longer use `n
 - Symbolic coefficient arithmetic is faster: a parameter-polynomial term stores its scalar in a concrete slot instead of a union-typed field ([#292](https://github.com/qojulia/SecondQuantizedAlgebra.jl/issues/292)).
 
 ### Fixed
+
+- Adding symbolic coefficients that are quotients with different denominators drops an identically zero sum, so `iszero` agrees with `iszero(simplify(...))` on, e.g., `abs2` of a steady-state amplitude minus its expanded form.
+- A bare symbolic scalar such as `@variables β::Number` now combines with a phase or other coefficient under `+`, `-`, `*` and `/` in either order, as `Num` already did; previously `β * expim(ω*t)` threw a `MethodError`.
 
 - `Squeeze(a, r * t, t)` throws instead of silently using `t` as the squeezing phase; a time-dependent squeeze is written `Squeeze(a, r, ϕ, t)`.
 - An expression that reduces to a single operator compares equal to it, so `2a - a == a`.

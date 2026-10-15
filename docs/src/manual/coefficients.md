@@ -185,3 +185,53 @@ has_coefficient_terms
 coefficient_terms
 CoefficientTerm
 ```
+
+
+A complex amplitude declared as `@variables β::Number` stays a single atom next to a phase,
+and its conjugate is the symbolic `conj(β)`. Prefer it over `::Complex`, which splits the
+parameter into `real(β) + im*imag(β)` in every coefficient:
+
+```@example pr305
+using SecondQuantizedAlgebra
+h = FockSpace(:harmonic_example)
+@qnumbers a::Destroy(h)
+@variables ω::Real t::Real
+@variables β::Number
+β * expim(ω * t) * a + conj(β) * expim(-ω * t) * a'
+```
+
+## Harmonic projection
+
+[`harmonics`](@ref) splits an expression into its Fourier components in a base frequency
+`ω`, the step behind a rotating-wave or secular approximation. [`harmonic`](@ref) returns one
+component, the coefficient of `expim(n * ω * t)`, and [`secular`](@ref) the static one:
+
+```@example pr311
+using SecondQuantizedAlgebra
+h = FockSpace(:harmonic_example)
+@qnumbers a::Destroy(h)
+@variables ω::Real t::Real
+import SecondQuantizedAlgebra: harmonic, harmonics, secular
+@variables ω0::Real ωd::Real F::Real τ::Real
+H = ω0 * a' * a - F * (a + a') * (expim(ωd * τ) + expim(-ωd * τ)) / 2
+Hrot = transform(H, Rotation(a, ωd * τ, τ))
+harmonics(Hrot, ωd, τ)
+```
+
+```@example pr311
+secular(Hrot, ωd, τ)
+```
+
+The decomposition is exact: summing `harmonic(x, ω, t, n) * expim(n * ω * t)` over the
+returned orders gives `exponential_form(x)`. A phase that is not an exact integer multiple of
+`ω * t` plus a constant, or a time dependence outside a phase, throws an `ArgumentError`
+rather than being dropped, because assigning it would assume a relation between frequencies.
+The same functions act on [`SuperOperator`](@ref)s and [`Lindbladian`](@ref)s.
+
+
+
+```@docs
+harmonics
+harmonic
+secular
+```

@@ -234,6 +234,11 @@ import SecondQuantizedAlgebra:
 
         plain = average(Σ(σ(i), i))
         @test get_sum_indices(plain) == [i]
+        @test get_sum_indices(Σ(σ(i), i, [j])) == [i]
+        @test isempty(get_sum_indices(σ(i))) && isempty(get_sum_indices(σ(i) + σ(j)))
+        summed = Σ(σ(i), i)
+        push!(get_sum_indices(summed), j)
+        @test get_sum_indices(summed) == [i]
         @test isempty(get_sum_non_equal(plain))
 
         # Sum-independent term must not carry metadata
