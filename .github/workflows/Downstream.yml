@@ -58,6 +58,10 @@ jobs:
         with:
           repository: ${{ matrix.package.user }}/${{ matrix.package.repo }}
           path: downstream
+      - name: Validate the prepared Floquet roundoff fix
+        if: ${{ matrix.package.repo == 'FloquetExpansions.jl' }}
+        run: |
+          git -C downstream apply ../.github/patches/floquet-roundoff.patch
       - name: Load this and run the downstream tests
         shell: julia --color=yes --project=downstream --depwarn=yes {0}
         run: |
@@ -75,3 +79,9 @@ jobs:
             @info "Not compatible with this release. No problem." exception=err
             exit(0)  # Exit immediately, as a success
           end
+      - name: Check the prepared Floquet fix with JET
+        if: ${{ matrix.package.repo == 'FloquetExpansions.jl' }}
+        run: |
+          cd downstream
+          julia --project=test -e 'using Pkg; Pkg.develop(PackageSpec(path=pwd())); Pkg.develop(PackageSpec(path=joinpath(pwd(), ".."))); Pkg.instantiate()'
+          julia --project=test test/quality/JET.jl

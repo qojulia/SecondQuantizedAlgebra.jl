@@ -12,6 +12,7 @@ This is a breaking release for type stability: public functions no longer use `n
 
 ### Added
 
+- `DisplacementFrame(a, L[, t])` accepts any `SuperOperator`, such as the Caldeira–Leggett master equation, and drifts that mix `a` and `a'`, solving the 2×2 linear response exactly per drive harmonic. `DisplacementFrame(x, p, L[, t])` does the same for a quadrature pair.
 - `coefficient(expr, term)` reads the coefficient of one operator product, such as `a' * a` or `1`, in a polynomial, and `coefficient(S, sandwich)` that of one sandwich in a `SuperOperator`. Ambiguous index constraints and summed expressions throw instead of reading as zero.
 - `map_coefficients(f, x)` (public) applies a function to every coefficient of a `QAdd`, `SuperOperator` or `Lindbladian` and rebuilds it canonically, e.g. `map_coefficients(c -> substitute(c, rules), S)`.
 - `simplify`, `expand`, `exponential_form` and `trigonometric_form` count a summation index whose dependence the coefficient loses: `simplify(Σ((cos(gᵢ)^2 + sin(gᵢ)^2) a'a, i))` gives `N a'a` instead of `a'a`.

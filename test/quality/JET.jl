@@ -512,6 +512,11 @@ end
             Lfor = hamiltonian_action(cos(xx))
             Xsup = SuperExpr(Lfor)
             Dsup = Displace(a, α)
+            Lsq = SuperOperator(
+                hamiltonian_action(Δ * ad * a + g * (a^2 + ad^2) + η * cos(ωd * t) * (a + ad)) +
+                    κ * dissipator(a),
+            )
+            Lquad = hamiltonian_action(quadrature_reference)
             test_entries(
                 [
                     ("sprepost / spre / spost", () -> (sprepost(a, ad), spre(a), spost(a))),
@@ -527,6 +532,9 @@ end
                     ("Σ / change_index", () -> (Σ(dissipator(σs(1, 2, is_)), is_), change_index(Lind, is_, js_))),
                     ("simplify maps", () -> (simplify(Lsup), simplify(Asup))),
                     ("transform maps", () -> (transform(Lsup, Dsup), transform(Lsup, Ut), transform(Asup, Dsup))),
+                    ("DisplacementFrame(a, map)", () -> (DisplacementFrame(a, Lsup + hamiltonian_action(η * (a + ad))), DisplacementFrame(a, Lsq))),
+                    ("DisplacementFrame(a, map, t)", () -> DisplacementFrame(a, Lsq, t)),
+                    ("DisplacementFrame(x, p, map)", () -> (DisplacementFrame(xx, pp, Lquad), DisplacementFrame(xx, pp, Lquad, t))),
                     ("SuperExpr", () -> (SuperExpr(Lfor), Xsup + Xsup, taylor(Xsup, 0:2))),
                     ("to_numeric(L, basis)", () -> to_numeric(Lnum, FockBasis(4))),
                     ("to_numeric(L, dims)", () -> to_numeric(Lnum, 5)),
