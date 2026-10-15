@@ -39,6 +39,7 @@ This is a breaking release for type stability: public functions no longer use `n
 ### Fixed
 
 - Radicals of monomials in parameters are exact and canonical, so `sqrt(ω/2) * sqrt(2ω)` is `ω` and `commutator((a + a')/sqrt(2ω), im*sqrt(ω/2)*(a' - a))` is `im`; `Real` parameters under a fractional power are taken nonnegative, and roots of non-real atoms split only where the principal branch allows it, so `sqrt(z^2)` no longer becomes `z`.
+- A bare symbolic scalar such as `@variables β::Number` now combines with a phase or other coefficient under `+`, `-`, `*` and `/` in either order, as `Num` already did; previously `β * expim(ω*t)` threw a `MethodError`.
 
 - `Squeeze(a, r * t, t)` throws instead of silently using `t` as the squeezing phase; a time-dependent squeeze is written `Squeeze(a, r, ϕ, t)`.
 - An expression that reduces to a single operator compares equal to it, so `2a - a == a`.
