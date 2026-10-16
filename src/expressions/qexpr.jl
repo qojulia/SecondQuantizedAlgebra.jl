@@ -62,25 +62,19 @@ end
 
 const QExprArg = Union{QAdd, QExpr}
 
-QExpr(kind::QExprKind, coeff::CNum, arg::QAdd) = QExpr(kind, coeff, QExprArg[arg])
-QExpr(kind::QExprKind, coeff::CNum, arg::QExpr) = QExpr(kind, coeff, QExprArg[arg])
-
-qexpr_copy_args(q::QExpr) = copy(q.args)
+QExpr(kind::QExprKind, coeff::CNum, arg::QExprArg) = QExpr(kind, coeff, QExprArg[arg])
 
 qexpr_zero() = QExpr(QEXPR_ADD, CNUM_ONE, QExprArg[])
 qexpr_one() = QExpr(QEXPR_MUL, CNUM_ONE, QExprArg[])
 qexpr_is_scalar(q::QExpr) = q.kind == QEXPR_MUL && isempty(q.args)
 
-Base.zero(::Type{QExpr}) = qexpr_zero()
-Base.zero(::QExpr) = qexpr_zero()
-Base.one(::Type{QExpr}) = qexpr_one()
-Base.one(::QExpr) = qexpr_one()
+Base.zero(::Union{Type{QExpr}, QExpr}) = qexpr_zero()
+Base.one(::Union{Type{QExpr}, QExpr}) = qexpr_one()
 Base.iszero(q::QExpr) = q.kind == QEXPR_ADD && isempty(q.args)
 Base.isone(q::QExpr) = qexpr_is_scalar(q) && isequal(q.coeff, CNUM_ONE)
 
-qexpr_arg(q::QSym) = +q
-qexpr_arg(q::QAdd) = q
-qexpr_arg(q::QExpr) = q
+qexpr_arg(q::QSym) = to_qadd(q)
+qexpr_arg(q::QExprArg) = q
 
 function is_scalar_qadd(q::QAdd)
     isempty(q.indices) || return false
@@ -99,15 +93,19 @@ end
 has_polynomial_body(q::QExpr) =
     q.kind == QEXPR_MUL && length(q.args) == 1 && only(q.args) isa QAdd
 
+function polynomial_qadd(q::QExpr)
+    qexpr_is_scalar(q) && return (true, single_qadd(q.coeff, EMPTY_OPS))
+    iszero(q) && return (true, zero_qadd())
+    has_polynomial_body(q) && return (true, only(q.args)::QAdd)
+    return (false, ZERO_QADD)
+end
+
 qexpr_same_body(a::QExpr, b::QExpr) = a.kind == b.kind && isequal(a.args, b.args)
 
 function qexpr_scale(q::QExpr, c::CNum)
     iszero(c) && return qexpr_zero()
     isequal(c, CNUM_ONE) && return q
-    if has_polynomial_body(q)
-        body = only(q.args)
-        body isa QAdd && return qexpr_from_qadd(body * c)
-    end
+    has_polynomial_body(q) && return qexpr_from_qadd(only(q.args)::QAdd * c)
     if q.kind == QEXPR_ADD
         args = QExprArg[]
         sizehint!(args, length(q.args))
@@ -118,7 +116,7 @@ function qexpr_scale(q::QExpr, c::CNum)
     end
     new_c = q.coeff * c
     iszero(new_c) && return qexpr_zero()
-    return QExpr(q.kind, new_c, qexpr_copy_args(q))
+    return QExpr(q.kind, new_c, copy(q.args))
 end
 
 function qexpr_collect_sum!(formal::Vector{QExpr}, polynomial::QAddBuilder, arg::QAdd)
@@ -132,13 +130,9 @@ function qexpr_collect_sum!(formal::Vector{QExpr}, polynomial::QAddBuilder, arg:
         for child in arg.args
             qexpr_collect_sum!(formal, polynomial, child)
         end
-    elseif qexpr_is_scalar(arg)
-        accumulate!(polynomial, single_qadd(arg.coeff, EMPTY_OPS))
-    elseif has_polynomial_body(arg)
-        body = only(arg.args)
-        body isa QAdd && accumulate!(polynomial, body)
     else
-        push!(formal, arg)
+        is_polynomial, body = polynomial_qadd(arg)
+        is_polynomial ? accumulate!(polynomial, body) : push!(formal, arg)
     end
     return polynomial
 end
@@ -149,27 +143,23 @@ function qexpr_coalesce_formal(formal::Vector{QExpr})
         a, b = formal
         if qexpr_same_body(a, b)
             new_c = a.coeff + b.coeff
-            return iszero(new_c) ? QExpr[] :
-                QExpr[QExpr(a.kind, new_c, qexpr_copy_args(a))]
+            return iszero(new_c) ? QExpr[] : QExpr[QExpr(a.kind, new_c, copy(a.args))]
         end
-        isless(b, a) && ((formal[1], formal[2]) = (b, a))
+        qexpr_body_less(b, a) && ((formal[1], formal[2]) = (b, a))
         return formal
     end
-
-    sort!(formal)
-    result = QExpr[]
-    sizehint!(result, length(formal))
+    sort!(formal; lt = qexpr_body_less)
+    n = 0
     for arg in formal
-        if isempty(result) || !qexpr_same_body(last(result), arg)
-            push!(result, arg)
-            continue
+        if n > 0 && qexpr_same_body(formal[n], arg)
+            new_c = formal[n].coeff + arg.coeff
+            iszero(new_c) ? (n -= 1) : (formal[n] = QExpr(arg.kind, new_c, copy(arg.args)))
+        else
+            n += 1
+            formal[n] = arg
         end
-        old = pop!(result)
-        new_c = old.coeff + arg.coeff
-        iszero(new_c) ||
-            push!(result, QExpr(old.kind, new_c, qexpr_copy_args(old)))
     end
-    return result
+    return resize!(formal, n)
 end
 
 function qexpr_sum(raw::Vector{QExprArg})
@@ -180,8 +170,8 @@ function qexpr_sum(raw::Vector{QExprArg})
         qexpr_collect_sum!(formal, polynomial, arg)
     end
 
-    polynomial_value = build(polynomial)
     formal = qexpr_coalesce_formal(formal)
+    polynomial_value = build(polynomial)
     args = QExprArg[]
     iszero(polynomial_value) || push!(args, polynomial_value)
     append!(args, formal)
@@ -225,7 +215,7 @@ function common_powers!(
         syms::Vector{RawExpression}, exps::Vector{Rational{Int}}, term::Monomial,
     )
     for k in reverse(eachindex(syms))
-        j = sym_position(term.syms, syms[k])
+        j = position_of(t -> t === syms[k], term.syms)
         if iszero(j)
             deleteat!(syms, k)
             deleteat!(exps, k)
@@ -236,13 +226,6 @@ function common_powers!(
     return syms
 end
 
-function sym_position(syms::Vector{RawExpression}, s::RawExpression)
-    for (j, t) in enumerate(syms)
-        t === s && return j
-    end
-    return 0
-end
-
 function depends_on_any_index(c::CNum, indices::Vector{Index})
     for idx in indices
         depends_on_index_term(c, EMPTY_OPS, idx) && return true
@@ -250,16 +233,8 @@ function depends_on_any_index(c::CNum, indices::Vector{Index})
     return false
 end
 
-function uniform_coeff(q::QAdd)
-    content = first(values(q.arguments))
-    for c in values(q.arguments)
-        isequal(c, content) || return false
-    end
-    return true
-end
-
 function qexpr_split_content(q::QAdd)
-    uniform = uniform_coeff(q)
+    uniform = allequal(values(q.arguments))
     content = if uniform
         first(values(q.arguments))
     else
@@ -283,6 +258,12 @@ function qexpr_split_content(q::QAdd)
     return (content, QAdd(d, q.indices))
 end
 
+function split_term(term::QTerm, partition::Vector{Int})
+    inside = filter(op -> op.space_index in partition, term.ops)
+    outside = filter(op -> op.space_index ∉ partition, term.ops)
+    return (QTerm(inside, EMPTY_NE), QTerm(outside, EMPTY_NE))
+end
+
 function qexpr_tensor_factors(q::QAdd)::Vector{QAdd}
     spaces = acts_on(q)
     length(spaces) > 1 || return QAdd[q]
@@ -291,13 +272,11 @@ function qexpr_tensor_factors(q::QAdd)::Vector{QAdd}
     pivot = argmin(term_order_key, keys(q.arguments))
     pivot_coeff = q.arguments[pivot]
     for n in 1:div(length(spaces), 2), partition in combinations(spaces, n)
-        left_key = QTerm(filter(op -> op.space_index in partition, pivot.ops), EMPTY_NE)
-        right_key = QTerm(filter(op -> op.space_index ∉ partition, pivot.ops), EMPTY_NE)
+        left_key, right_key = split_term(pivot, partition)
         left = QTermDict()
         right = QTermDict()
         for (term, c) in q.arguments
-            l = QTerm(filter(op -> op.space_index in partition, term.ops), EMPTY_NE)
-            r = QTerm(filter(op -> op.space_index ∉ partition, term.ops), EMPTY_NE)
+            l, r = split_term(term, partition)
             if isequal(r, right_key)
                 left[l] = isequal(c, pivot_coeff) ? CNUM_ONE : c / pivot_coeff
             end
@@ -343,19 +322,17 @@ end
 
 function qexpr_push_product!(factors::Vector{QExprArg}, coeff::CNum, arg::QExpr)
     iszero(arg) && return (CNUM_ZERO, true)
+    coeff = coeff * arg.coeff
+    iszero(coeff) && return (CNUM_ZERO, true)
     if arg.kind == QEXPR_MUL
-        coeff = coeff * arg.coeff
-        iszero(coeff) && return (CNUM_ZERO, true)
         for factor in arg.args
             coeff, stopped = qexpr_push_product!(factors, coeff, factor)
             stopped && return (CNUM_ZERO, true)
         end
         return (coeff, false)
     end
-    coeff = coeff * arg.coeff
-    iszero(coeff) && return (CNUM_ZERO, true)
     bare = isequal(arg.coeff, CNUM_ONE) ? arg :
-        QExpr(arg.kind, CNUM_ONE, qexpr_copy_args(arg))
+        QExpr(arg.kind, CNUM_ONE, copy(arg.args))
     push!(factors, bare)
     return (coeff, false)
 end
@@ -442,6 +419,15 @@ function qexpr_call(kind::QExprKind, arg::QExprArg)
     return QExpr(kind, CNUM_ONE, arg)
 end
 
+function qexpr_rebuild(kind::QExprKind, coeff::CNum, args::Vector{QExprArg})
+    if kind == QEXPR_ADD
+        return qexpr_scale(qexpr_sum(args), coeff)
+    elseif kind == QEXPR_MUL
+        return qexpr_product(args, coeff)
+    end
+    return qexpr_scale(qexpr_call(kind, only(args)), coeff)
+end
+
 """
     sin(A)
 
@@ -491,12 +477,7 @@ See also [`sin`](@ref sin(::QField)), [`expim`](@ref expim(::QField)), [`taylor`
 """
 Base.cos(q::QField) = qexpr_call(QEXPR_COS, qexpr_arg(q))
 
-function qexpr_provably_hermitian(q::QSym)
-    return iszero(simplify((+q) - (+adjoint(q))))
-end
-function qexpr_provably_hermitian(q::QAdd)
-    return iszero(simplify(q - adjoint(q)))
-end
+qexpr_provably_hermitian(q::Union{QSym, QAdd}) = iszero(simplify(q - adjoint(q)))
 qexpr_provably_hermitian(q::QExpr) = isequal(q, adjoint(q))
 
 """
@@ -538,21 +519,19 @@ function expim(q::QField)
 end
 
 Base.:+(a::QExpr) = a
-Base.:+(a::QExpr, b::QExpr) = qexpr_sum(QExprArg[a, b])
-Base.:+(a::QExpr, b::QAdd) = qexpr_sum(QExprArg[a, b])
+Base.:+(a::QExpr, b::Union{QExpr, QAdd}) = qexpr_sum(QExprArg[a, b])
 Base.:+(a::QAdd, b::QExpr) = qexpr_sum(QExprArg[a, b])
-Base.:+(a::QExpr, b::QSym) = qexpr_sum(QExprArg[a, +b])
-Base.:+(a::QSym, b::QExpr) = qexpr_sum(QExprArg[+a, b])
-Base.:+(a::QExpr, b::Coefficient) = qexpr_sum(QExprArg[a, single_qadd(to_cnum(b), Op[])])
+Base.:+(a::QExpr, b::QSym) = qexpr_sum(QExprArg[a, to_qadd(b)])
+Base.:+(a::QSym, b::QExpr) = qexpr_sum(QExprArg[to_qadd(a), b])
+Base.:+(a::QExpr, b::Coefficient) = qexpr_sum(QExprArg[a, single_qadd(to_cnum(b), EMPTY_OPS)])
 Base.:+(a::Coefficient, b::QExpr) = b + a
 
 Base.:-(a::QExpr) = qexpr_scale(a, CNUM_NEG1)
 
-Base.:*(a::QExpr, b::QExpr) = qexpr_product(QExprArg[a, b])
-Base.:*(a::QExpr, b::QAdd) = qexpr_product(QExprArg[a, b])
+Base.:*(a::QExpr, b::Union{QExpr, QAdd}) = qexpr_product(QExprArg[a, b])
 Base.:*(a::QAdd, b::QExpr) = qexpr_product(QExprArg[a, b])
-Base.:*(a::QExpr, b::QSym) = qexpr_product(QExprArg[a, +b])
-Base.:*(a::QSym, b::QExpr) = qexpr_product(QExprArg[+a, b])
+Base.:*(a::QExpr, b::QSym) = qexpr_product(QExprArg[a, to_qadd(b)])
+Base.:*(a::QSym, b::QExpr) = qexpr_product(QExprArg[to_qadd(a), b])
 Base.:*(a::QExpr, b::Coefficient) = qexpr_scale(a, to_cnum(b))
 Base.:*(a::Coefficient, b::QExpr) = qexpr_scale(b, to_cnum(a))
 
@@ -597,31 +576,17 @@ function qexpr_args_less(a::Vector{QExprArg}, b::Vector{QExprArg})
     return length(a) < length(b)
 end
 
+qexpr_body_less(a::QExpr, b::QExpr) =
+    a.kind == b.kind ? qexpr_args_less(a.args, b.args) : a.kind < b.kind
+
 function Base.isless(a::QExpr, b::QExpr)
-    a.kind != b.kind && return Int(a.kind) < Int(b.kind)
+    a.kind != b.kind && return a.kind < b.kind
     isequal(a.args, b.args) || return qexpr_args_less(a.args, b.args)
     return isless(coeff_key(a.coeff), coeff_key(b.coeff))
 end
 
-qexpr_adjoint_arg(arg::QAdd) = adjoint(arg)
-qexpr_adjoint_arg(arg::QExpr) = adjoint(arg)
-
 function Base.adjoint(q::QExpr)
-    c = conj(q.coeff)
-    if q.kind == QEXPR_ADD
-        args = QExprArg[qexpr_adjoint_arg(arg) for arg in q.args]
-        return qexpr_scale(qexpr_sum(args), c)
-    elseif q.kind == QEXPR_MUL
-        args = QExprArg[]
-        sizehint!(args, length(q.args))
-        for arg in Iterators.reverse(q.args)
-            push!(args, qexpr_adjoint_arg(arg))
-        end
-        return qexpr_product(args, c)
-    elseif q.kind == QEXPR_SIN || q.kind == QEXPR_COS
-        arg = qexpr_adjoint_arg(only(q.args))
-        return qexpr_scale(qexpr_call(q.kind, arg), c)
-    end
-    arg = qexpr_adjoint_arg(only(q.args))
-    return qexpr_scale(qexpr_call(QEXPR_EXPIM, -arg), c)
+    q.kind == QEXPR_EXPIM && return map_args(arg -> -adjoint(arg), q, conj(q.coeff))
+    q.kind == QEXPR_MUL || return map_args(adjoint, q, conj(q.coeff))
+    return qexpr_product(QExprArg[adjoint(arg) for arg in Iterators.reverse(q.args)], conj(q.coeff))
 end

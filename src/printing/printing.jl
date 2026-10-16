@@ -132,31 +132,34 @@ end
 end
 needs_pf_parens(c::Complex{Num}) = iszero(imag(c)) && is_loose_head(real(c))
 
+function show_scaled_prefactor(io::IO, c::CNum)
+    is_neg_unit(c) && return write(io, "-")
+    is_unit(c) && return
+    tail = c.tail
+    if tail isa RawSymbolicCoeff
+        expr = tail.expr
+        brace = SymbolicUtils.iscall(expr) &&
+            (SymbolicUtils.operation(expr) === (+) || SymbolicUtils.operation(expr) === (/))
+        brace && write(io, "(")
+        print(io, expr)
+        brace && write(io, ")")
+    else
+        d = to_num(c)
+        brace = !is_native(c) && needs_pf_parens(d)
+        brace && write(io, "(")
+        show_display(io, d)
+        brace && write(io, ")")
+    end
+    write(io, " * ")
+    return
+end
+
 function show_term(io::IO, c::CNum, ops::Vector{Op})
     if isempty(ops)
         show_prefactor(io, c)
         return
     end
-    if is_neg_unit(c)
-        write(io, "-")
-    elseif !is_unit(c)
-        tail = c.tail
-        if tail isa RawSymbolicCoeff
-            expr = tail.expr
-            brace = SymbolicUtils.iscall(expr) &&
-                (SymbolicUtils.operation(expr) === (+) || SymbolicUtils.operation(expr) === (/))
-            brace && write(io, "(")
-            print(io, expr)
-            brace && write(io, ")")
-        else
-            d = to_num(c)
-            brace = !is_native(c) && needs_pf_parens(d)
-            brace && write(io, "(")
-            show_display(io, d)
-            brace && write(io, ")")
-        end
-        write(io, " * ")
-    end
+    show_scaled_prefactor(io, c)
     show(io, ops[1])
     for i in 2:length(ops)
         write(io, " * ")
