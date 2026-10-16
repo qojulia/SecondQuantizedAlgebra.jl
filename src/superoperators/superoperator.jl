@@ -39,6 +39,37 @@ struct SuperOperator
     end
 end
 
+"""
+    SuperBuilder()
+
+An accumulator that builds a [`SuperOperator`](@ref) from many terms in linear time.
+
+Add maps with `accumulate!(b, S)` and single sandwiches `c * A ρ B` with
+`accumulate!(b, c, A, B)`, and finish with [`build`](@ref). `sum` over an array of maps uses
+it already.
+
+# Examples
+```jldoctest
+julia> using SecondQuantizedAlgebra: SuperBuilder, spre, accumulate!, build
+
+julia> h = FockSpace(:c); a = Destroy(h, :a);
+
+julia> b = SuperBuilder();
+
+julia> accumulate!(b, spre(a)); accumulate!(b, 2, a, a');
+
+julia> build(b)
+a ⋅ (·) + 2 * a ⋅ (·) ⋅ a'
+```
+
+See also [`LindbladianBuilder`](@ref).
+"""
+struct SuperBuilder
+    args::SuperTermDict
+    indices::Vector{Index}
+end
+SuperBuilder() = SuperBuilder(SuperTermDict(), Index[])
+
 superop(args::SuperTermDict, indices::Vector{Index}) =
     SuperOperator(CanonicalTerms(), args, indices)
 superop_pruned(args::SuperTermDict, indices::Vector{Index}) =
@@ -187,7 +218,7 @@ end
 
 function mentions_index(S::SuperOperator, idx::Index)
     for (t, c) in S.arguments
-        depends_on_scope_sandwich(c, t.left, t.right, t.ne, idx) && return true
+        mentions_in_scope(c, t, idx) && return true
     end
     return false
 end
@@ -215,7 +246,7 @@ function check_operands(a::Union{QAdd, SuperOperator}, b::Union{QAdd, SuperOpera
     return nothing
 end
 
-as_side(x::QAdd) = x
+as_side(x::Union{QAdd, QExpr}) = x
 as_side(x::QSym) = to_qadd(x)
 as_side(x::Coefficient) = single_qadd(to_cnum(x), Op[])
 
@@ -244,17 +275,19 @@ julia> S(a' * a)
 See also [`spre`](@ref), [`spost`](@ref), [`SuperOperator`](@ref).
 """
 function sprepost(A::Union{QField, Coefficient}, B::Union{QField, Coefficient})
-    return sandwich_of(as_part(A), as_part(B))
+    return sandwich_of(as_side(A), as_side(B))
 end
 
-function sprepost_poly(A::QAdd, B::QAdd)
-    isempty(A.indices) || summed_side_error("`sprepost`")
-    isempty(B.indices) || summed_side_error("`sprepost`")
-    out = SuperTermDict()
+sprepost_poly(A::QAdd, B::QAdd) =
+    superop(add_sandwiches!(SuperTermDict(), CNUM_ONE, A, B, "`sprepost`"), Index[])
+
+function add_sandwiches!(out::SuperTermDict, c::CNum, A::QAdd, B::QAdd, what::AbstractString)
+    isempty(A.indices) || summed_side_error(what)
+    isempty(B.indices) || summed_side_error(what)
     for (ta, ca) in A.arguments, (tb, cb) in B.arguments
-        canonical_sandwich!(out, ta.ops, tb.ops, ca * cb, merge_ne(ta.ne, tb.ne))
+        canonical_sandwich!(out, ta.ops, tb.ops, c * (ca * cb), merge_ne(ta.ne, tb.ne))
     end
-    return superop(out, Index[])
+    return out
 end
 
 """
@@ -328,16 +361,6 @@ end
 
 Base.:*(S::SuperOperator, c::Coefficient) = scale(S, to_cnum(c))
 Base.:*(c::Coefficient, S::SuperOperator) = scale(S, to_cnum(c))
-Base.:/(S::SuperOperator, b::Number) =
-    b isa Integer && !(b isa Bool) && !iszero(b) ? S * (1 // b) : S * inv(b)
-Base.:/(S::SuperOperator, b::Coefficient) = S * inv(b)
-Base.://(S::SuperOperator, b::Integer) = S * (1 // b)
-Base.://(S::SuperOperator, b::Coefficient) = S / b
-
-Base.:+(S::SuperOperator, c::Coefficient) = S + scale(one(SuperOperator), to_cnum(c))
-Base.:+(c::Coefficient, S::SuperOperator) = S + c
-Base.:-(S::SuperOperator, c::Coefficient) = S + (-to_cnum(c))
-Base.:-(c::Coefficient, S::SuperOperator) = (-S) + c
 
 """
     compose(A, B)
@@ -364,10 +387,10 @@ See also [`SuperOperator`](@ref).
 function compose(A::SuperOperator, B::SuperOperator)
     check_operands(A, B)
     out = SuperTermDict()
+    bs = [(tb, cb, bound_indices(tb, cb, B.indices)) for (tb, cb) in B.arguments]
     for (ta, ca) in A.arguments
         ba = bound_indices(ta, ca, A.indices)
-        for (tb, cb) in B.arguments
-            bb = bound_indices(tb, cb, B.indices)
+        for (tb, cb, bb) in bs
             emit_sandwich!(
                 out, vcat(ta.left, tb.left), vcat(tb.right, ta.right), ca * cb,
                 merge_ne(ta.ne, tb.ne), merge_unique(ba, bb),
@@ -377,16 +400,14 @@ function compose(A::SuperOperator, B::SuperOperator)
     return superop_pruned(out, merge_unique(copy(A.indices), B.indices))
 end
 
-Base.:*(A::SuperOperator, B::SuperOperator) = compose(A, B)
-Base.:∘(A::SuperOperator, B::SuperOperator) = compose(A, B)
 
 function apply_map(S::SuperOperator, ρ::QAdd)
     check_operands(S, ρ)
     out = QTermDict()
+    rs = [(r, cr, bound_indices(r, cr, ρ.indices)) for (r, cr) in ρ.arguments]
     for (t, c) in S.arguments
         bt = bound_indices(t, c, S.indices)
-        for (r, cr) in ρ.arguments
-            br = bound_indices(r, cr, ρ.indices)
+        for (r, cr, br) in rs
             emit_applied!(
                 out, vcat(t.left, r.ops, t.right), c * cr, merge_ne(t.ne, r.ne),
                 merge_unique(bt, br),
@@ -414,21 +435,6 @@ end
     )
 end
 
-Base.inv(::SuperOperator) = negative_power_error()
-
-function Base.:^(S::SuperOperator, n::Integer)
-    n >= 0 || negative_power_error()
-    n == 0 && return one(SuperOperator)
-    n >= 2 && !isempty(S.indices) && scoped_power_error()
-    result = S
-    for _ in 2:n
-        result = compose(result, S)
-    end
-    return result
-end
-
-commutator(A::SuperOperator, B::SuperOperator) = compose(A, B) - compose(B, A)
-anticommutator(A::SuperOperator, B::SuperOperator) = compose(A, B) + compose(B, A)
 
 function acts_on(S::SuperOperator)
     aon = Int[]
@@ -530,6 +536,3 @@ function Base.transpose(S::SuperOperator)
     end
     return superop(out, copy(S.indices))
 end
-
-dagger(S::SuperOperator) = adjoint(S)
-qadjoint(S::SuperOperator) = adjoint(S)

@@ -63,8 +63,8 @@ See also [`Channel`](@ref), [`jump`](@ref).
 hamiltonian(L::Lindbladian) = L.hamiltonian
 function channels(L::Lindbladian)
     entries = collect(L.channels)
-    sort!(entries; by = entry -> channel_order_key(entry.first))
-    return entries
+    order = sortperm([channel_order_key(ch) for (ch, _) in entries])
+    return entries[order]
 end
 @doc (@doc hamiltonian) channels
 
@@ -106,13 +106,15 @@ function accumulate!(b::LindbladianBuilder{O}, L::Lindbladian{O}, scale::CNum = 
     H = L.hamiltonian
     add_hamiltonian!(b.hamiltonian, isequal(scale, CNUM_ONE) ? H : scale_jump(H, scale))
     for (ch, γ) in L.channels
-        add_rate!(b.channels, ch, γ * scale)
+        addto_key!(b.channels, ch, γ * scale)
     end
     return b
 end
 
 build(b::LindbladianBuilder{O}) where {O} =
     Lindbladian{O}(built_hamiltonian(b.hamiltonian), copy(b.channels))
+finish!(b::LindbladianBuilder{O}) where {O} =
+    Lindbladian{O}(built_hamiltonian(b.hamiltonian), b.channels)
 
 """
     add_channel!(b::LindbladianBuilder, J, K, γ, scope, ne)
@@ -138,14 +140,8 @@ function add_channel!(
     J0, K0, rate = move_content_to_rate(J0, K0, γ)
     kept, cne, rate = count_unmentioned_binders(J0, K0, rate, scope, ne)
     iszero(rate) && return b
-    add_rate!(b.channels, Channel{O}(J0, K0, kept, cne), rate)
+    addto_key!(b.channels, Channel{O}(J0, K0, kept, cne), rate)
     return b
-end
-
-function add_rate!(channels::Dict{Channel{O}, CNum}, ch::Channel{O}, rate::CNum) where {O}
-    total = get(channels, ch, CNUM_ZERO) + rate
-    iszero(total) ? delete!(channels, ch) : (channels[ch] = total)
-    return channels
 end
 
 Base.zero(::Type{Lindbladian}) = zero(Lindbladian{QAdd})
@@ -171,14 +167,6 @@ Base.isequal(a::Lindbladian{O}, b::Lindbladian{O}) where {O} =
 Base.:(==)(a::Lindbladian{O}, b::Lindbladian{O}) where {O} = isequal(a, b)
 Base.hash(L::Lindbladian, h::UInt) = hash(:Lindbladian, hash(L.hamiltonian, hash(L.channels, h)))
 
-as_generator_operator(x::QAdd) = x
-as_generator_operator(x::QExpr) = x
-as_generator_operator(x::QSym) = to_qadd(x)
-as_generator_operator(x::Coefficient) = single_qadd(to_cnum(x), Op[])
-
-function lindbladian_from(H::O) where {O <: Union{QAdd, QExpr}}
-    return Lindbladian{O}(drop_identity(H), Dict{Channel{O}, CNum}())
-end
 
 """
     hamiltonian_action(H)
@@ -198,7 +186,10 @@ julia> hamiltonian_action(a' * a + 1)
 
 See also [`dissipator`](@ref), [`Lindbladian`](@ref).
 """
-hamiltonian_action(H::Union{QField, Coefficient}) = lindbladian_from(as_generator_operator(H))
+function hamiltonian_action(H::Union{QField, Coefficient})
+    G = as_side(H)
+    return Lindbladian{typeof(G)}(drop_identity(G), Dict{Channel{typeof(G)}, CNum}())
+end
 
 jump_type(::QAdd, ::QAdd) = QAdd
 jump_type(::QField, ::QField) = QExpr
@@ -236,21 +227,15 @@ true
 
 See also [`hamiltonian_action`](@ref), [`liouvillian`](@ref), [`Lindbladian`](@ref).
 """
-dissipator(J::Union{QField, Coefficient}) = dissipator_pair(as_generator_operator(J), as_generator_operator(J))
+dissipator(J::Union{QField, Coefficient}) = dissipator_pair(as_side(J), as_side(J))
 dissipator(J::Union{QField, Coefficient}, K::Union{QField, Coefficient}) =
-    dissipator_pair(as_generator_operator(J), as_generator_operator(K))
+    dissipator_pair(as_side(J), as_side(K))
 
 function dissipator_pair(J::QField, K::QField)
     O = jump_type(J, K)
-    return channel_lindbladian(O, promote_jump(O, J), promote_jump(O, K), CNUM_ONE, Index[], EMPTY_NE)
-end
-
-function channel_lindbladian(
-        ::Type{O}, J::O, K::O, γ::CNum, scope::Vector{Index}, ne::Vector{NonEqualPair},
-    ) where {O <: Union{QAdd, QExpr}}
     b = LindbladianBuilder{O}()
-    add_channel!(b, J, K, γ, scope, ne)
-    return build(b)
+    add_channel!(b, promote_jump(O, J), promote_jump(O, K), CNUM_ONE, Index[], EMPTY_NE)
+    return finish!(b)
 end
 
 function check_family_pair(J::QAdd, i::Index, j::Index)
@@ -270,7 +255,7 @@ function check_family_pair(J::QAdd, i::Index, j::Index)
 end
 
 function dissipator(J::Union{QSym, QAdd}, Γ::Coefficient, pair::Pair{Index, Index}, more::Pair{Index, Index}...)
-    Jq = as_generator_operator(J)
+    Jq = as_side(J)
     isempty(Jq.indices) || summed_side_error("`dissipator`")
     family = Pair{Index, Index}[pair, more...]
     for (i, j) in family
@@ -294,7 +279,7 @@ function dissipator(J::Union{QSym, QAdd}, Γ::Coefficient, pair::Pair{Index, Ind
         K = isempty(partners) ? Jq : change_index(Jq, partners)
         add_channel!(b, Jq, K, γ, sc, ne)
     end
-    return build(b)
+    return finish!(b)
 end
 
 """
@@ -323,29 +308,38 @@ See also [`dissipator`](@ref), [`hamiltonian_action`](@ref).
 liouvillian(H::Union{QField, Coefficient}, J::AbstractVector; rates = nothing) =
     hamiltonian_action(H) + channel_family(J, rates)
 
-channel_family(J::AbstractVector, ::Nothing) = sum(dissipator, J; init = zero(Lindbladian))
+function channel_family(J::AbstractVector, rates)
+    b = LindbladianBuilder{QAdd}()
+    add_channels!(b, J, rates)
+    return finish!(b)
+end
 
-function channel_family(J::AbstractVector, rates::AbstractVector)
+add_channels!(b::LindbladianBuilder, J::AbstractVector, ::Nothing) =
+    foreach(Jk -> accumulate!(b, dissipator(Jk)), J)
+
+function add_channels!(b::LindbladianBuilder, J::AbstractVector, rates::AbstractVector)
     length(rates) == length(J) || throw(
         ArgumentError("liouvillian: $(length(rates)) rates for $(length(J)) jump operators"),
     )
-    return sum(k -> rates[k] * dissipator(J[k]), eachindex(J, rates); init = zero(Lindbladian))
+    for k in eachindex(J, rates)
+        accumulate!(b, dissipator(J[k]), to_cnum(rates[k]))
+    end
+    return b
 end
 
-function channel_family(J::AbstractVector, rates::AbstractMatrix)
+function add_channels!(b::LindbladianBuilder, J::AbstractVector, rates::AbstractMatrix)
     n = length(J)
     size(rates) == (n, n) || throw(
         ArgumentError("liouvillian: rate matrix of size $(size(rates)) for $n jump operators"),
     )
-    L = zero(Lindbladian)
-    for a in 1:n, b in 1:n
-        iszero(rates[a, b]) && continue
-        L = L + rates[a, b] * (a == b ? dissipator(J[a]) : dissipator(J[a], J[b]))
+    for a in 1:n, c in 1:n
+        iszero(rates[a, c]) && continue
+        accumulate!(b, a == c ? dissipator(J[a]) : dissipator(J[a], J[c]), to_cnum(rates[a, c]))
     end
-    return L
+    return b
 end
 
-channel_family(::AbstractVector, ::Any) =
+add_channels!(::LindbladianBuilder, ::AbstractVector, ::Any) =
     throw(ArgumentError("liouvillian: rates must be a vector or a matrix"))
 
 liouvillian(H::Union{QField, Coefficient}) = hamiltonian_action(H)
@@ -367,7 +361,7 @@ function add_lindbladians(a::Lindbladian{O}, b::Lindbladian{O}) where {O}
     builder = LindbladianBuilder{O}()
     accumulate!(builder, a)
     accumulate!(builder, b)
-    return build(builder)
+    return finish!(builder)
 end
 Base.:+(a::Lindbladian{QAdd}, b::Lindbladian{QExpr}) = formal_lindbladian(a) + b
 Base.:+(a::Lindbladian{QExpr}, b::Lindbladian{QAdd}) = a + formal_lindbladian(b)
@@ -378,75 +372,52 @@ function scale(L::Lindbladian{O}, c::CNum) where {O}
     isequal(c, CNUM_ONE) && return L
     builder = LindbladianBuilder{O}()
     accumulate!(builder, L, c)
-    return build(builder)
+    return finish!(builder)
 end
 Base.:-(L::Lindbladian) = scale(L, CNUM_NEG1)
 Base.:-(a::Lindbladian, b::Lindbladian) = a + (-b)
 Base.:*(L::Lindbladian, c::Coefficient) = scale(L, to_cnum(c))
 Base.:*(c::Coefficient, L::Lindbladian) = scale(L, to_cnum(c))
-Base.:/(L::Lindbladian, b::Number) =
-    b isa Integer && !(b isa Bool) && !iszero(b) ? L * (1 // b) : L * inv(b)
-Base.:/(L::Lindbladian, b::Coefficient) = L * inv(b)
-Base.://(L::Lindbladian, b::Integer) = L * (1 // b)
-Base.://(L::Lindbladian, b::Coefficient) = L / b
 
 function SuperOperator(L::Lindbladian{QAdd})
-    out = SuperTermDict()
-    indices = lower_hamiltonian!(out, L.hamiltonian)
+    b = SuperBuilder()
+    lower_hamiltonian!(b, L.hamiltonian)
     for (ch, γ) in L.channels
-        lower_channel!(out, ch.jump, ch.partner, γ, ch.scope, ch.ne)
-        indices = merge_unique(indices, ch.scope)
+        lower_channel!(b, ch.jump, ch.partner, γ, ch.scope, ch.ne)
     end
-    return superop_pruned(out, copy(indices))
+    return finish!(b)
 end
 
-function lower_hamiltonian!(out::SuperTermDict, H::QAdd)
+function lower_hamiltonian!(b::SuperBuilder, H::QAdd)
     for (t, c) in H.arguments
-        addto_key!(out, SuperTerm(copy(t.ops), Op[], copy_ne(t.ne)), CNUM_NEG_IM * c)
-        addto_key!(out, SuperTerm(Op[], copy(t.ops), copy_ne(t.ne)), CNUM_IM * c)
+        addto_key!(b.args, SuperTerm(copy(t.ops), Op[], copy_ne(t.ne)), CNUM_NEG_IM * c)
+        addto_key!(b.args, SuperTerm(Op[], copy(t.ops), copy_ne(t.ne)), CNUM_IM * c)
     end
-    return H.indices
+    merge_indices!(b.indices, H.indices)
+    return b
 end
 
 function lower_channel!(
-        out::SuperTermDict, J::QAdd, K::QAdd, γ::CNum, scope::Vector{Index},
+        b::SuperBuilder, J::QAdd, K::QAdd, γ::CNum, scope::Vector{Index},
         ne::Vector{NonEqualPair},
     )
     minus_half = CNUM_NEG1 * (CNUM_HALF * γ)
     for (tj, cj) in J.arguments, (tk, ck) in K.arguments
         emit_sandwich!(
-            out, tj.ops, reversed_adjoint(tk.ops), γ * (cj * conj(ck)),
+            b.args, tj.ops, reversed_adjoint(tk.ops), γ * (cj * conj(ck)),
             merge_ne(ne, merge_ne(tj.ne, tk.ne)), scope,
         )
     end
     for (t, c) in adjoint(K) * J
         term_ne = merge_ne(ne, t.ne)
-        emit_sandwich!(out, t.ops, EMPTY_OPS, minus_half * c, term_ne, scope)
-        emit_sandwich!(out, EMPTY_OPS, t.ops, minus_half * c, term_ne, scope)
+        emit_sandwich!(b.args, t.ops, EMPTY_OPS, minus_half * c, term_ne, scope)
+        emit_sandwich!(b.args, EMPTY_OPS, t.ops, minus_half * c, term_ne, scope)
     end
-    return out
+    merge_indices!(b.indices, scope)
+    return b
 end
 
 SuperOperator(S::SuperOperator) = S
-
-Base.transpose(L::Lindbladian{QAdd}) = transpose(SuperOperator(L))
-Base.adjoint(L::Lindbladian{QAdd}) = adjoint(SuperOperator(L))
-dagger(L::Lindbladian) = adjoint(L)
-qadjoint(L::Lindbladian) = adjoint(L)
-
-(L::Lindbladian{QAdd})(ρ::Union{QSym, QAdd, Coefficient}) = SuperOperator(L)(ρ)
-
-Base.:+(L::Lindbladian{QAdd}, c::Coefficient) = SuperOperator(L) + c
-Base.:+(c::Coefficient, L::Lindbladian{QAdd}) = SuperOperator(L) + c
-Base.:-(L::Lindbladian{QAdd}, c::Coefficient) = SuperOperator(L) - c
-Base.:-(c::Coefficient, L::Lindbladian{QAdd}) = c - SuperOperator(L)
-
-Base.inv(::Lindbladian{QAdd}) = negative_power_error()
-
-function Base.:^(L::Lindbladian{QAdd}, n::Integer)
-    n >= 0 || negative_power_error()
-    return SuperOperator(L)^n
-end
 
 function Σ(L::Lindbladian{QAdd}, i::Index, non_equal::Vector{Index} = Index[])
     require_sum_range(i)
@@ -472,7 +443,7 @@ function Σ(L::Lindbladian{QAdd}, i::Index, non_equal::Vector{Index} = Index[])
             )
         end
     end
-    return build(b)
+    return finish!(b)
 end
 
 Σ(L::Lindbladian, i::Index, j::Index, rest::Index...) = Σ(Σ(L, i), j, rest...)

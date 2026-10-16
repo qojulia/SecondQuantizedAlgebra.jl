@@ -89,14 +89,18 @@ harmonics(x::Union{Number, Coeff}, ω::Real, t::Num) =
 harmonics(op::QSym, ω::Real, t::Num) =
     harmonics(to_qadd(op), ω, t)
 
-function harmonics(q::QAdd, ω::Real, t::Num)
+function harmonic_parts(args::Dict{K, CNum}, ω::Real, t::Num) where {K}
     frequency = harmonic_frequency_coeff(ω, t)
-    parts = Dict{Int, QTermDict}()
-    for (term, c) in q.arguments, (n, cn) in coefficient_harmonics(c, Num(ω), frequency, t)
-        addto_key!(get!(QTermDict, parts, n), copy_key(term), cn)
+    parts = Dict{Int, Dict{K, CNum}}()
+    for (term, c) in args, (n, cn) in coefficient_harmonics(c, Num(ω), frequency, t)
+        addto_key!(get!(Dict{K, CNum}, parts, n), copy_key(term), cn)
     end
-    return Dict{Int, QAdd}(n => QAdd(d, drop_unused_indices(d, q.indices)) for (n, d) in parts)
+    return parts
 end
+
+harmonics(q::QAdd, ω::Real, t::Num) = Dict{Int, QAdd}(
+    n => QAdd(d, drop_unused_indices(d, q.indices)) for (n, d) in harmonic_parts(q.arguments, ω, t)
+)
 
 """
     harmonic(x, ω, t, n::Integer)

@@ -151,7 +151,7 @@ zero). If present, add into the existing prefactor and delete the entry when
 the result is zero. Zero coefficients are never stored, so the dict never needs
 a separate cleanup pass.
 """
-function addto_key!(d::QTermDict, term::QTerm, c::CNum)
+function addto_key!(d::Dict{K, CNum}, term::K, c::CNum) where {K}
     existing = get(d, term, CNUM_ZERO)
     if existing === CNUM_ZERO
         iszero(c) && return d
@@ -167,8 +167,8 @@ function addto_key!(d::QTermDict, term::QTerm, c::CNum)
     return d
 end
 
-function copy_args(d::QTermDict)
-    out = QTermDict()
+function copy_args(d::Dict{K, CNum}) where {K}
+    out = Dict{K, CNum}()
     sizehint!(out, length(d))
     for (term, c) in d
         out[copy_key(term)] = c
@@ -176,7 +176,7 @@ function copy_args(d::QTermDict)
     return out
 end
 
-function constraint_pairs(args::QTermDict)
+function constraint_pairs(args::Dict{K, CNum}) where {K}
     out = NonEqualPair[]
     for term in keys(args), p in term.ne
         push_ne_unique!(out, p)

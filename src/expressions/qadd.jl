@@ -33,29 +33,25 @@ struct QAdd <: QField
     end
 end
 
-function prune_dead_ne(args::QTermDict, indices::Vector{Index})
-    needs_rebuild = false
-    for (term, c) in args
-        for p in term.ne
-            if !pair_referenced(p, term.ops, c, indices)
-                needs_rebuild = true
-                break
-            end
-        end
-        needs_rebuild && break
-    end
-    needs_rebuild || return args
-    out = QTermDict()
+function prune_dead_ne(args::Dict{K, CNum}, indices::Vector{Index}) where {K}
+    has_dead_ne(args, indices) || return args
+    out = Dict{K, CNum}()
     sizehint!(out, length(args))
     for (term, c) in args
         kept = NonEqualPair[]
         for p in term.ne
-            pair_referenced(p, term.ops, c, indices) && push_ne_unique!(kept, p)
+            pair_referenced(p, term, c, indices) && push_ne_unique!(kept, p)
         end
-        kept_ne = isempty(kept) ? EMPTY_NE : insertion_sort!(kept, isless)
-        addto_key!(out, QTerm(copy(term.ops), kept_ne), c)
+        addto_key!(out, with_ne(term, isempty(kept) ? EMPTY_NE : insertion_sort!(kept, isless)), c)
     end
     return out
+end
+
+function has_dead_ne(args::Dict{K, CNum}, indices::Vector{Index}) where {K}
+    for (term, c) in args, p in term.ne
+        pair_referenced(p, term, c, indices) || return true
+    end
+    return false
 end
 
 function drop_unused_indices(d::QTermDict, indices::Vector{Index})
@@ -65,14 +61,15 @@ function drop_unused_indices(d::QTermDict, indices::Vector{Index})
     return used
 end
 
-@inline function pair_referenced(
-        p::NonEqualPair, ops::Vector{Op}, c::CNum, scope::Vector{Index},
-    )
+depends_on_term(c::CNum, t::QTerm, idx::Index) = depends_on_index_term(c, t.ops, idx)
+with_ne(t::QTerm, ne::Vector{NonEqualPair}) = QTerm(copy(t.ops), ne)
+
+@inline function pair_referenced(p::NonEqualPair, term, c::CNum, scope::Vector{Index})
     α, β = p
     α in scope && return true
     β in scope && return true
-    depends_on_index_term(c, ops, α) && return true
-    depends_on_index_term(c, ops, β) && return true
+    depends_on_term(c, term, α) && return true
+    depends_on_term(c, term, β) && return true
     return false
 end
 
