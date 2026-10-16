@@ -74,20 +74,28 @@ end
 function affine_commutator_data(G::QAdd, basis::Vector{Op})
     n = length(basis)
     locations = Dict{Op, Int}(operator => i for (i, operator) in enumerate(basis))
+    site_rows = Dict{SiteKey, Vector{Int}}()
+    for (row, generator) in enumerate(basis)
+        push!(get!(Vector{Int}, site_rows, site_key(generator)), row)
+    end
+    all_rows = collect(1:n)
+    indexed = any(generator -> has_index(generator.index), basis)
+    no_rows = Int[]
     linear = fill(CNUM_ZERO, n, n)
     shift = fill(CNUM_ZERO, n)
-    for (row, generator) in enumerate(basis)
-        residual = zero_qadd()
-        for (term, coefficient) in G, (position, factor) in enumerate(term.ops)
-            for (inner, scale) in commutator(factor, generator)
-                ops = vcat(view(term.ops, 1:(position - 1)), inner.ops, view(term.ops, (position + 1):length(term.ops)))
-                weight = coefficient * scale
-                add_adjoint_entry!(linear, shift, row, locations, ops, weight) ||
-                    (residual = residual + weight * prod(ops))
-            end
+    residuals = Dict{Int, QAdd}()
+    for (term, coefficient) in G, (position, factor) in enumerate(term.ops)
+        rows = (indexed || has_index(factor.index)) ? all_rows : get(site_rows, site_key(factor), no_rows)
+        for row in rows, (inner, scale) in commutator(factor, basis[row])
+            ops = vcat(view(term.ops, 1:(position - 1)), inner.ops, view(term.ops, (position + 1):length(term.ops)))
+            weight = coefficient * scale
+            add_adjoint_entry!(linear, shift, row, locations, ops, weight) ||
+                (residuals[row] = get(residuals, row, zero_qadd()) + weight * prod(ops))
         end
-        isempty(residual.arguments) && continue
-        for (term, coefficient) in simplify(residual)
+    end
+    for row in sort!(collect(keys(residuals)))
+        generator = basis[row]
+        for (term, coefficient) in simplify(residuals[row])
             add_adjoint_entry!(linear, shift, row, locations, term.ops, coefficient) && continue
             length(term.ops) == 1 && unitary_error(
                 "the adjoint action leaves the finite generator basis: " *

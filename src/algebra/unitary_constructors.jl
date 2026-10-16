@@ -3,24 +3,51 @@ linear_transform(basis::Vector{Op}, linear::Matrix{CNum}) =
 
 generated_frame(G::QAdd, θ::Real, t::Num) = timed_transform(exact_generator_transform(G, θ), gauge(G, θ, t), t)
 
-fock_displacement(d::Op, c::CNum) =
-    canonical_transform(AffineAction(Op[d, adjoint(d)], identity_linear(2), CNum[c, conj(c)]))
-
-function fock_displacement_gauge(
-        d::Op, c::CNum, derivative::CNum, derivative_adjoint::CNum,
-        raising_coefficient::CNum, lowering_coefficient::CNum,
-    )
-    scalar = CNUM_NEG_IM * (CNUM_HALF * (conj(c) * derivative - c * derivative_adjoint))
-    return rule_qadd(
-        (raising_coefficient, Op[adjoint(d)]),
-        (lowering_coefficient, Op[d]),
-        (scalar, Op[]),
-    )
+function shift_transform(basis::Vector{Op}, shift::Vector{CNum})
+    slots = Dict{SiteKey, Int}()
+    bases = Vector{Op}[]
+    shifts = Vector{CNum}[]
+    for (operator, c) in zip(basis, shift)
+        k = get!(slots, site_key(operator), length(bases) + 1)
+        k > length(bases) && (push!(bases, Op[]); push!(shifts, CNum[]))
+        push!(bases[k], operator)
+        push!(shifts[k], c)
+    end
+    blocks = AffineBlock[
+        AffineBlock(infer_affine_structure(b), b, identity_linear(length(b)), c)
+            for (b, c) in zip(bases, shifts)
+    ]
+    return canonical_transform(validated_action(blocks, ParamRelation[]))
 end
 
-fock_displacement_gauge(d::Op, c::CNum, derivative::CNum) = fock_displacement_gauge(
-    d, c, derivative, conj(derivative), CNUM_NEG_IM * derivative, CNUM_IM * conj(derivative),
-)
+function canonical_partners(basis::Vector{Op})
+    partners = zeros(Int, length(basis))
+    inverse_weights = fill(CNUM_ZERO, length(basis))
+    for (i, operator) in enumerate(basis), (j, other) in enumerate(basis)
+        for (_, weight) in commutator(other, operator)
+            partners[i] = j
+            inverse_weights[i] = inv(weight)
+        end
+    end
+    return partners, inverse_weights
+end
+
+function displacement_gauge(
+        basis::Vector{Op}, shift::Vector{CNum}, velocity::Vector{CNum}, scalar_velocity::Vector{CNum},
+    )
+    partners, inverse_weights = canonical_partners(basis)
+    terms = Tuple{CNum, Vector{Op}}[]
+    scalar = CNUM_ZERO
+    for (i, partner) in enumerate(partners)
+        push!(terms, ((CNUM_IM * inverse_weights[i]) * velocity[i], Op[basis[partner]]))
+        scalar = scalar + (CNUM_NEG_IM * CNUM_HALF * inverse_weights[i]) * (shift[i] * scalar_velocity[partner])
+    end
+    push!(terms, (scalar, Op[]))
+    return rule_qadd(terms)
+end
+
+displacement_gauge(basis::Vector{Op}, shift::Vector{CNum}, velocity::Vector{CNum}) =
+    displacement_gauge(basis, shift, velocity, velocity)
 
 """
     Displace(a, α)
@@ -54,17 +81,17 @@ dp*dx + dp * x + dx * p + x * p
 
 See also [`DisplacementFrame`](@ref), [`Rotation`](@ref), [`Squeeze`](@ref).
 """
-function Displace(a::Op, α::Coefficient)
-    d = fock_or_throw(a, "`Displace`")
-    return fock_displacement(d, to_cnum(α))
-end
+mode_basis(a::Op, what::AbstractString) = (d = fock_or_throw(a, what); Op[d, adjoint(d)])
+mode_shift(c::CNum) = CNum[c, conj(c)]
+
+Displace(a::Op, α::Coefficient) = shift_transform(mode_basis(a, "`Displace`"), mode_shift(to_cnum(α)))
 
 function Displace(a::Op, α::Coefficient, t::Num)
-    d = fock_or_throw(a, "`Displace`")
+    basis = mode_basis(a, "`Displace`")
     tt = time_or_throw(t)
     c = to_cnum(α)
-    gauge = fock_displacement_gauge(d, c, dt(c, tt))
-    return timed_transform(fock_displacement(d, c), gauge, tt)
+    gauge = displacement_gauge(basis, mode_shift(c), mode_shift(dt(c, tt)))
+    return timed_transform(shift_transform(basis, mode_shift(c)), gauge, tt)
 end
 
 """
@@ -248,37 +275,17 @@ Rotation(a::Op, b::Op, θ::Real, t::Num) = generated_frame(rotation_generator(a,
 Squeeze(a::Op, b::Op, r::Real) = exact_generator_transform(squeeze_generator(a, b), r)
 Squeeze(a::Op, b::Op, r::Real, t::Num) = generated_frame(squeeze_generator(a, b), r, time_or_throw(t))
 
-quadrature_displacement(x::Op, p::Op, cx::CNum, cp::CNum) =
-    canonical_transform(AffineAction(Op[x, p], identity_linear(2), CNum[cx, cp]))
-
-function quadrature_displacement_gauge(
-        x::Op, p::Op, cx::CNum, cp::CNum,
-        derivative_x::CNum, derivative_p::CNum,
-        x_coefficient::CNum, p_coefficient::CNum,
-    )
-    scalar = -CNUM_HALF * (cp * derivative_x - cx * derivative_p)
-    return rule_qadd(
-        (x_coefficient, Op[x]), (p_coefficient, Op[p]), (scalar, Op[]),
-    )
-end
-
 function Displace(x::Op, p::Op, dx::Real, dp::Real)
     phase_pair(x, p, "`Displace`")
-    return quadrature_displacement(x, p, to_cnum(dx), to_cnum(dp))
+    return shift_transform(Op[x, p], CNum[to_cnum(dx), to_cnum(dp)])
 end
 
 function Displace(x::Op, p::Op, dx::Real, dp::Real, t::Num)
     phase_pair(x, p, "`Displace`")
     tt = time_or_throw(t)
-    cx = to_cnum(dx)
-    cp = to_cnum(dp)
-    derivative_x = dt(cx, tt)
-    derivative_p = dt(cp, tt)
-    gauge = quadrature_displacement_gauge(
-        x, p, cx, cp, derivative_x, derivative_p,
-        derivative_p, -derivative_x,
-    )
-    return timed_transform(quadrature_displacement(x, p, cx, cp), gauge, tt)
+    shift = CNum[to_cnum(dx), to_cnum(dp)]
+    gauge = displacement_gauge(Op[x, p], shift, CNum[dt(c, tt) for c in shift])
+    return timed_transform(shift_transform(Op[x, p], shift), gauge, tt)
 end
 
 function spin_generator(S::Op, axis::Integer)

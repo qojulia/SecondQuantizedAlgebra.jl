@@ -1,23 +1,3 @@
-const BogoliubovModes = Union{Op, Tuple{Vararg{Op}}, AbstractVector{Op}}
-
-bogoliubov_modes(mode::Op) = bogoliubov_modes(Op[mode])
-function bogoliubov_modes(modes::Union{Tuple{Vararg{Op}}, AbstractVector{Op}})
-    isempty(modes) && unitary_error("`Bogoliubov` needs at least one Fock mode")
-    lowering_modes = Op[]
-    sizehint!(lowering_modes, length(modes))
-    seen = Set{SiteKey}()
-    for mode in modes
-        lowering_mode = fock_or_throw(mode, "`Bogoliubov`")
-        key = site_key(lowering_mode)
-        key in seen && unitary_error(
-            "`Bogoliubov` received the same Fock mode more than once: `$lowering_mode`",
-        )
-        push!(seen, key)
-        push!(lowering_modes, lowering_mode)
-    end
-    return lowering_modes
-end
-
 function bogoliubov_matrix(S::AbstractMatrix, n::Int)
     dimension = 2 * n
     size(S) == (dimension, dimension) || unitary_error(
@@ -86,12 +66,12 @@ julia> conjugate(a, substitute(B, Dict(u => 5//3, v => 4//3)))
 
 See also [`Squeeze`](@ref), [`Rotation`](@ref), [`UnitaryTransform`](@ref).
 """
-function Bogoliubov(modes::BogoliubovModes, S::AbstractMatrix)
-    lowering_modes = bogoliubov_modes(modes)
+function Bogoliubov(modes::FockModes, S::AbstractMatrix)
+    lowering_modes = fock_modes(modes, "`Bogoliubov`")
     return bogoliubov_transform(lowering_modes, bogoliubov_matrix(S, length(lowering_modes)))
 end
 
-function Bogoliubov(modes::BogoliubovModes, U::AbstractMatrix, V::AbstractMatrix)
-    lowering_modes = bogoliubov_modes(modes)
+function Bogoliubov(modes::FockModes, U::AbstractMatrix, V::AbstractMatrix)
+    lowering_modes = fock_modes(modes, "`Bogoliubov`")
     return bogoliubov_transform(lowering_modes, bogoliubov_matrix(U, V, length(lowering_modes)))
 end
