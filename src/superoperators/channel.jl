@@ -113,8 +113,8 @@ function native_content(c::CNum)
     tail = c.tail
     if tail isa Poly && length(tail.terms) == 1
         s = scalar_coeff(monomial_scalar(only(tail.terms)))
-        u = mul_cnum(c, inv(s))
-        return isequal(mul_cnum(u, conj_cnum(u)), CNUM_ONE) ? c : s
+        u = c * inv(s)
+        return isequal(u * conj(u), CNUM_ONE) ? c : s
     end
     return CNUM_ONE
 end
@@ -209,11 +209,11 @@ function move_content_to_rate(J::Union{QAdd, QExpr}, K::Union{QAdd, QExpr}, γ::
     J0, K0, rate = J, K, γ
     if !isequal(cj, CNUM_ONE)
         J0 = scale_jump(J, inv(cj))
-        rate = mul_cnum(rate, cj)
+        rate = rate * cj
     end
     if !isequal(ck, CNUM_ONE)
         K0 = scale_jump(K, inv(ck))
-        rate = mul_cnum(rate, conj_cnum(ck))
+        rate = rate * conj(ck)
     end
     lowered_well_scaled(J0, K0, rate) || return (J, isequal(J, K) ? J : K, γ)
     return (J0, isequal(J0, K0) ? J0 : K0, rate)
@@ -229,9 +229,9 @@ jump_coefficients(J::QExpr) =
     has_polynomial_body(J) ? jump_coefficients(only(J.args)::QAdd) : CNum[J.coeff]
 
 function lowered_well_scaled(J::Union{QAdd, QExpr}, K::Union{QAdd, QExpr}, rate::CNum)
-    (well_scaled(rate) && !iszero_cnum(rate)) || return false
+    (well_scaled(rate) && !iszero(rate)) || return false
     for a in jump_coefficients(J), b in jump_coefficients(K)
-        well_scaled(mul_cnum(rate, mul_cnum(a, conj_cnum(b)))) || return false
+        well_scaled(rate * (a * conj(b))) || return false
     end
     return true
 end

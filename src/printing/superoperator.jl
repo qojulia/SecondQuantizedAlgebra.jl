@@ -60,7 +60,7 @@ end
 function write_sign!(io::IO, first_term::Bool, c::CNum)
     negative = !first_term && displays_negative(c)
     first_term || write(io, negative ? " - " : " + ")
-    return negative ? neg_cnum(c) : c
+    return negative ? -c : c
 end
 
 function Base.show(io::IO, S::SuperOperator)
@@ -166,7 +166,7 @@ latex_ops(ops::Vector{Op}) = join((latex_inline(op) for op in ops), " ")
 function latex_coeff_prefix(c::CNum)
     is_unit(c) && return ""
     is_neg_unit(c) && return "-"
-    displays_negative(c) && return string("-", latex_coeff_prefix(neg_cnum(c)))
+    displays_negative(c) && return string("-", latex_coeff_prefix(-c))
     body = latex_inline(c)
     if is_native(c)
         z = native_scalar(c)

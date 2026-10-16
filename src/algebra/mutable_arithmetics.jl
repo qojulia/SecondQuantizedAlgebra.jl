@@ -59,9 +59,9 @@ function accumulate!(b::QAddBuilder, x::QAdd)
     return b
 end
 function accumulate!(b::QAddBuilder, x::QAdd, scale::CNum)
-    iszero_cnum(scale) && return b
+    iszero(scale) && return b
     for (term, c) in x.arguments
-        addto_key!(b.args, copy_key(term), mul_cnum(c, scale))
+        addto_key!(b.args, copy_key(term), c * scale)
     end
     isempty(x.indices) || merge_indices!(b.indices, x.indices)
     return b

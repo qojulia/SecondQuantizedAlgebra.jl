@@ -62,7 +62,7 @@ function scalar_part(operator::QAdd)
     scalar = CNUM_ZERO
     for (term, c) in operator.arguments
         isempty(term.ops) || continue
-        scalar = simplify_coeff(add_cnum(scalar, c))
+        scalar = simplify_coeff(scalar + c)
     end
     return scalar
 end

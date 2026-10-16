@@ -19,13 +19,13 @@ function linear_fock_hamiltonian(H::QAdd, d::Op)
             "`DisplacementFrame` does not support constrained reference terms",
         )
         if isempty(term.ops)
-            scalar = add_cnum(scalar, coefficient)
+            scalar = scalar + coefficient
         elseif term.ops == Op[raising, d]
-            frequency = add_cnum(frequency, coefficient)
+            frequency = frequency + coefficient
         elseif term.ops == Op[raising]
-            drive = add_cnum(drive, coefficient)
+            drive = drive + coefficient
         elseif term.ops == Op[d]
-            drive_adjoint = add_cnum(drive_adjoint, coefficient)
+            drive_adjoint = drive_adjoint + coefficient
         else
             unsupported = rule_qadd((coefficient, copy(term.ops)))
             unitary_error(
@@ -35,16 +35,16 @@ function linear_fock_hamiltonian(H::QAdd, d::Op)
         end
     end
 
-    isequal(frequency, conj_cnum(frequency)) || unitary_error(
+    isequal(frequency, conj(frequency)) || unitary_error(
         "`DisplacementFrame` requires a real oscillator frequency; " *
             "got `$(to_num(frequency))`",
     )
-    isequal(scalar, conj_cnum(scalar)) || unitary_error(
+    isequal(scalar, conj(scalar)) || unitary_error(
         "`DisplacementFrame` requires a Hermitian scalar reference term",
     )
     normalized_drive = exponential_form(drive)
     normalized_adjoint = exponential_form(drive_adjoint)
-    isequal(normalized_adjoint, conj_cnum(normalized_drive)) || unitary_error(
+    isequal(normalized_adjoint, conj(normalized_drive)) || unitary_error(
         "`DisplacementFrame` requires adjoint coefficients for `$raising` and `$d`",
     )
     return FockLinearReference(frequency, drive, drive_adjoint, normalized_drive)
@@ -93,13 +93,13 @@ function harmonic_frequency(monomial::Monomial, t::Num)
 end
 
 function bounded_harmonic_displacement(drive::CNum, frequency::CNum, t::Num)
-    iszero_cnum(drive) && return CNUM_ZERO
+    iszero(drive) && return CNUM_ZERO
     tail = drive.tail
     if tail isa Native
-        iszero_cnum(frequency) && unitary_error(
+        iszero(frequency) && unitary_error(
             "`DisplacementFrame` found a resonant constant drive with zero frequency",
         )
-        return neg_cnum(drive) / frequency
+        return -drive / frequency
     elseif !(tail isa Poly)
         unitary_error(
             "`DisplacementFrame` supports only finite harmonic drive coefficients; " *
@@ -110,22 +110,22 @@ function bounded_harmonic_displacement(drive::CNum, frequency::CNum, t::Num)
     amplitude = CNUM_ZERO
     for monomial in tail.terms
         harmonic = harmonic_frequency(monomial, t)
-        divisor = add_cnum(frequency, harmonic)
+        divisor = frequency + harmonic
         component = from_poly([monomial])
-        iszero_cnum(divisor) && unitary_error(
+        iszero(divisor) && unitary_error(
             "`DisplacementFrame` found a resonant drive component `$(to_num(component))`",
         )
-        amplitude = add_cnum(amplitude, neg_cnum(component) / divisor)
+        amplitude = amplitude + (-component) / divisor
     end
     return amplitude
 end
 
 function static_fock_displacement(data::FockLinearReference)
-    iszero_cnum(data.drive) && return CNUM_ZERO
-    iszero_cnum(data.frequency) && unitary_error(
+    iszero(data.drive) && return CNUM_ZERO
+    iszero(data.frequency) && unitary_error(
         "`DisplacementFrame` found a resonant constant drive with zero frequency",
     )
-    return neg_cnum(data.drive) / data.frequency
+    return -data.drive / data.frequency
 end
 
 """
@@ -176,27 +176,13 @@ function DisplacementFrame(a::Op, Hlin::QAdd, t::Num)
     validate_fock_frame_time(data, tt)
     amplitude = bounded_harmonic_displacement(data.normalized_drive, data.frequency, tt)
 
-    conjugate_amplitude = conj_cnum(amplitude)
-    derivative = mul_cnum(
-        CNUM_NEG_IM,
-        add_cnum(mul_cnum(data.frequency, amplitude), data.normalized_drive),
-    )
-    derivative_adjoint = mul_cnum(
-        CNUM_IM,
-        add_cnum(
-            mul_cnum(data.frequency, conjugate_amplitude),
-            conj_cnum(data.normalized_drive),
-        ),
-    )
+    conjugate_amplitude = conj(amplitude)
+    derivative = CNUM_NEG_IM * (data.frequency * amplitude + data.normalized_drive)
+    derivative_adjoint = CNUM_IM * (data.frequency * conjugate_amplitude + conj(data.normalized_drive))
     gauge = fock_displacement_gauge(
         d, amplitude, derivative, derivative_adjoint,
-        neg_cnum(add_cnum(data.drive, mul_cnum(data.frequency, amplitude))),
-        neg_cnum(
-            add_cnum(
-                data.drive_adjoint,
-                mul_cnum(data.frequency, conjugate_amplitude),
-            ),
-        ),
+        -(data.drive + data.frequency * amplitude),
+        -(data.drive_adjoint + data.frequency * conjugate_amplitude),
     )
     return timed_transform(fock_displacement(d, amplitude), gauge, tt)
 end
@@ -239,15 +225,15 @@ function linear_quadrature_hamiltonian(H::QAdd, x::Op, p::Op)
         if isempty(term.ops)
             continue
         elseif term.ops == Op[x, x]
-            half_quadratic_x = add_cnum(half_quadratic_x, coefficient)
+            half_quadratic_x = half_quadratic_x + coefficient
         elseif term.ops == Op[x, p]
-            quadratic_cross = add_cnum(quadratic_cross, coefficient)
+            quadratic_cross = quadratic_cross + coefficient
         elseif term.ops == Op[p, p]
-            half_quadratic_p = add_cnum(half_quadratic_p, coefficient)
+            half_quadratic_p = half_quadratic_p + coefficient
         elseif term.ops == Op[x]
-            drive_x = add_cnum(drive_x, coefficient)
+            drive_x = drive_x + coefficient
         elseif term.ops == Op[p]
-            drive_p = add_cnum(drive_p, coefficient)
+            drive_p = drive_p + coefficient
         else
             unsupported = rule_qadd((coefficient, copy(term.ops)))
             unitary_error(
@@ -261,21 +247,21 @@ function linear_quadrature_hamiltonian(H::QAdd, x::Op, p::Op)
     isequal(H, H') || unitary_error(
         "`DisplacementFrame` requires a Hermitian quadrature reference Hamiltonian",
     )
-    quadratic_x = add_cnum(half_quadratic_x, half_quadratic_x)
-    quadratic_p = add_cnum(half_quadratic_p, half_quadratic_p)
+    quadratic_x = half_quadratic_x + half_quadratic_x
+    quadratic_p = half_quadratic_p + half_quadratic_p
     for (coefficient, name) in (
             (quadratic_x, "x²"),
             (quadratic_cross, "symmetrized x-p"),
             (quadratic_p, "p²"),
         )
-        isequal(coefficient, conj_cnum(coefficient)) ||
+        isequal(coefficient, conj(coefficient)) ||
             quadrature_reference_error(coefficient, name)
     end
     normalized_drive_x = exponential_form(drive_x)
     normalized_drive_p = exponential_form(drive_p)
-    isequal(normalized_drive_x, conj_cnum(normalized_drive_x)) ||
+    isequal(normalized_drive_x, conj(normalized_drive_x)) ||
         quadrature_reference_error(normalized_drive_x, "x-drive")
-    isequal(normalized_drive_p, conj_cnum(normalized_drive_p)) ||
+    isequal(normalized_drive_p, conj(normalized_drive_p)) ||
         quadrature_reference_error(normalized_drive_p, "p-drive")
     return QuadratureLinearReference(
         quadratic_x, quadratic_cross, quadratic_p,
@@ -312,31 +298,20 @@ function quadrature_response_component(
         data::QuadratureLinearReference, drive_x::CNum, drive_p::CNum,
         harmonic::CNum,
     )
-    imaginary_harmonic = mul_cnum(CNUM_IM, harmonic)
-    upper_right = add_cnum(data.quadratic_cross, imaginary_harmonic)
-    lower_left = add_cnum(data.quadratic_cross, neg_cnum(imaginary_harmonic))
-    determinant = add_cnum(
-        mul_cnum(data.quadratic_x, data.quadratic_p),
-        neg_cnum(mul_cnum(upper_right, lower_left)),
-    )
-    iszero_cnum(determinant) &&
+    imaginary_harmonic = CNUM_IM * harmonic
+    upper_right = data.quadratic_cross + imaginary_harmonic
+    lower_left = data.quadratic_cross - imaginary_harmonic
+    determinant = data.quadratic_x * data.quadratic_p - upper_right * lower_left
+    iszero(determinant) &&
         quadrature_resonance_error(drive_x, drive_p, harmonic)
 
-    displacement_x = neg_cnum(
-        add_cnum(
-            mul_cnum(data.quadratic_p, drive_x),
-            neg_cnum(mul_cnum(upper_right, drive_p)),
-        ),
-    ) / determinant
-    displacement_p = add_cnum(
-        mul_cnum(lower_left, drive_x),
-        neg_cnum(mul_cnum(data.quadratic_x, drive_p)),
-    ) / determinant
+    displacement_x = (-(data.quadratic_p * drive_x - upper_right * drive_p)) / determinant
+    displacement_p = (lower_left * drive_x - data.quadratic_x * drive_p) / determinant
     return (x = displacement_x, p = displacement_p)
 end
 
 function static_quadrature_displacement(data::QuadratureLinearReference)
-    (iszero_cnum(data.drive_x) && iszero_cnum(data.drive_p)) &&
+    (iszero(data.drive_x) && iszero(data.drive_p)) &&
         return (x = CNUM_ZERO, p = CNUM_ZERO)
     return quadrature_response_component(data, data.drive_x, data.drive_p, CNUM_ZERO)
 end
@@ -344,7 +319,7 @@ end
 function bounded_quadrature_drive(
         drive::CNum, data::QuadratureLinearReference, t::Num, axis::QuadratureDriveAxis,
     )
-    iszero_cnum(drive) && return (x = CNUM_ZERO, p = CNUM_ZERO)
+    iszero(drive) && return (x = CNUM_ZERO, p = CNUM_ZERO)
     tail = drive.tail
     displacement_x = CNUM_ZERO
     displacement_p = CNUM_ZERO
@@ -365,8 +340,8 @@ function bounded_quadrature_drive(
         response = axis === QUADRATURE_DRIVE_X ?
             quadrature_response_component(data, component, CNUM_ZERO, harmonic) :
             quadrature_response_component(data, CNUM_ZERO, component, harmonic)
-        displacement_x = add_cnum(displacement_x, response.x)
-        displacement_p = add_cnum(displacement_p, response.p)
+        displacement_x = displacement_x + response.x
+        displacement_p = displacement_p + response.p
     end
     return (x = displacement_x, p = displacement_p)
 end
@@ -379,8 +354,8 @@ function bounded_quadrature_displacement(data::QuadratureLinearReference, t::Num
         data.normalized_drive_p, data, t, QUADRATURE_DRIVE_P,
     )
     return (
-        x = add_cnum(from_x.x, from_p.x),
-        p = add_cnum(from_x.p, from_p.p),
+        x = from_x.x + from_p.x,
+        p = from_x.p + from_p.p,
     )
 end
 
@@ -398,40 +373,14 @@ function DisplacementFrame(x::Op, p::Op, Hlin::QAdd, t::Num)
     validate_quadrature_frame_time(data, tt)
     displacement = bounded_quadrature_displacement(data, tt)
 
-    derivative_x = add_cnum(
-        add_cnum(
-            mul_cnum(data.quadratic_cross, displacement.x),
-            mul_cnum(data.quadratic_p, displacement.p),
-        ),
-        data.normalized_drive_p,
-    )
-    derivative_p = neg_cnum(
-        add_cnum(
-            add_cnum(
-                mul_cnum(data.quadratic_x, displacement.x),
-                mul_cnum(data.quadratic_cross, displacement.p),
-            ),
-            data.normalized_drive_x,
-        ),
-    )
-    transformed_x_coefficient = add_cnum(
-        add_cnum(
-            mul_cnum(data.quadratic_x, displacement.x),
-            mul_cnum(data.quadratic_cross, displacement.p),
-        ),
-        data.drive_x,
-    )
-    transformed_p_coefficient = add_cnum(
-        add_cnum(
-            mul_cnum(data.quadratic_cross, displacement.x),
-            mul_cnum(data.quadratic_p, displacement.p),
-        ),
-        data.drive_p,
-    )
+    derivative_x = data.quadratic_cross * displacement.x + data.quadratic_p * displacement.p + data.normalized_drive_p
+    derivative_p = -(data.quadratic_x * displacement.x + data.quadratic_cross * displacement.p + data.normalized_drive_x)
+    transformed_x_coefficient = data.quadratic_x * displacement.x + data.quadratic_cross * displacement.p + data.drive_x
+    transformed_p_coefficient = data.quadratic_cross * displacement.x + data.quadratic_p * displacement.p + data.drive_p
     gauge = quadrature_displacement_gauge(
         x, p, displacement.x, displacement.p, derivative_x, derivative_p,
-        neg_cnum(transformed_x_coefficient),
-        neg_cnum(transformed_p_coefficient),
+        -transformed_x_coefficient,
+        -transformed_p_coefficient,
     )
     static = quadrature_displacement(x, p, displacement.x, displacement.p)
     return timed_transform(static, gauge, tt)

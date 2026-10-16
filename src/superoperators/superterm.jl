@@ -69,12 +69,12 @@ superterm(left::AbstractVector{<:QSym}, right::AbstractVector{<:QSym}, ne::Vecto
 function addto_key!(d::SuperTermDict, term::SuperTerm, c::CNum)
     existing = get(d, term, CNUM_ZERO)
     if existing === CNUM_ZERO
-        iszero_cnum(c) && return d
+        iszero(c) && return d
         d[term] = c
         return d
     end
-    new_c = add_cnum(existing, c)
-    if iszero_cnum(new_c)
+    new_c = existing + c
+    if iszero(new_c)
         delete!(d, term)
     else
         d[term] = new_c
@@ -167,14 +167,14 @@ function canonical_sandwich!(
         out::SuperTermDict, left::Vector{Op}, right::Vector{Op}, c::CNum,
         ne::Vector{NonEqualPair},
     )
-    iszero_cnum(c) && return out
+    iszero(c) && return out
     cne = canonical_ne(ne)
     lt = QTermDict()
     canonicalize!(lt, copy(left), CNUM_ONE, cne)
     rt = QTermDict()
     canonicalize!(rt, copy(right), CNUM_ONE, cne)
     for (a, ca) in lt, (b, cb) in rt
-        addto_key!(out, SuperTerm(a.ops, b.ops, cne), mul_cnum(c, mul_cnum(ca, cb)))
+        addto_key!(out, SuperTerm(a.ops, b.ops, cne), c * (ca * cb))
     end
     return out
 end

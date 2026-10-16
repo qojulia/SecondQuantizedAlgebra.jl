@@ -117,7 +117,7 @@ function side_atoms!(out::Vector{SideAtom}, c::CNum, x::QAdd)
     iszero(x) && return out
     isempty(x.indices) || formal_scope_error()
     for (t, v) in x.arguments
-        push!(out, (mul_cnum(c, v), QAdd(QTermDict(copy_key(t) => CNUM_ONE), Index[])))
+        push!(out, (c * v, QAdd(QTermDict(copy_key(t) => CNUM_ONE), Index[])))
     end
     return out
 end
@@ -129,11 +129,11 @@ function side_atoms!(out::Vector{SideAtom}, c::CNum, x::QExpr)
             side_atoms!(out, c, arg)
         end
     elseif qexpr_is_scalar(x)
-        push!(out, (mul_cnum(c, x.coeff), single_qadd(CNUM_ONE, Op[])))
+        push!(out, (c * x.coeff, single_qadd(CNUM_ONE, Op[])))
     elseif has_polynomial_body(x)
         side_atoms!(out, c, only(x.args))
     else
-        push!(out, (mul_cnum(c, x.coeff), QExpr(x.kind, CNUM_ONE, qexpr_copy_args(x))))
+        push!(out, (c * x.coeff, QExpr(x.kind, CNUM_ONE, qexpr_copy_args(x))))
     end
     return out
 end
@@ -151,18 +151,18 @@ end
 SuperExprBuilder() = SuperExprBuilder(SuperTermDict(), Index[], FormalDict())
 
 function add_formal!(d::FormalDict, key::FormalSandwich, c::CNum)
-    iszero_cnum(c) && return d
-    total = add_cnum(get(d, key, CNUM_ZERO), c)
-    iszero_cnum(total) ? delete!(d, key) : (d[key] = total)
+    iszero(c) && return d
+    total = get(d, key, CNUM_ZERO) + c
+    iszero(total) ? delete!(d, key) : (d[key] = total)
     return d
 end
 
 function add_atom_pair!(b::SuperExprBuilder, c::CNum, l::QExprArg, r::QExprArg)
-    iszero_cnum(c) && return b
+    iszero(c) && return b
     if l isa QAdd && r isa QAdd
         tl, cl = first(l.arguments)
         tr, cr = first(r.arguments)
-        canonical_sandwich!(b.poly, tl.ops, tr.ops, mul_cnum(c, mul_cnum(cl, cr)), merge_ne(tl.ne, tr.ne))
+        canonical_sandwich!(b.poly, tl.ops, tr.ops, c * (cl * cr), merge_ne(tl.ne, tr.ne))
     else
         add_formal!(b.formal, FormalSandwich(atom_qexpr(l), atom_qexpr(r)), c)
     end
@@ -171,17 +171,17 @@ end
 
 """Add `c * left ρ right` with arbitrary polynomial or formal sides."""
 function add_sandwich!(b::SuperExprBuilder, c::CNum, left::QExprArg, right::QExprArg)
-    iszero_cnum(c) && return b
+    iszero(c) && return b
     for (cl, l) in side_atoms(left), (cr, r) in side_atoms(right)
-        add_atom_pair!(b, mul_cnum(c, mul_cnum(cl, cr)), l, r)
+        add_atom_pair!(b, c * (cl * cr), l, r)
     end
     return b
 end
 
 function accumulate!(b::SuperExprBuilder, S::SuperOperator, scale::CNum = CNUM_ONE)
-    iszero_cnum(scale) && return b
+    iszero(scale) && return b
     for (t, c) in S.arguments
-        addto_key!(b.poly, copy_key(t), mul_cnum(c, scale))
+        addto_key!(b.poly, copy_key(t), c * scale)
     end
     merge_indices!(b.indices, S.indices)
     return b
@@ -189,9 +189,9 @@ end
 
 function accumulate!(b::SuperExprBuilder, X::SuperExpr, scale::CNum = CNUM_ONE)
     accumulate!(b, X.poly, scale)
-    iszero_cnum(scale) && return b
+    iszero(scale) && return b
     for (t, c) in X.formal
-        add_formal!(b.formal, t, mul_cnum(c, scale))
+        add_formal!(b.formal, t, c * scale)
     end
     return b
 end
@@ -259,14 +259,14 @@ end
 
 function lower_formal_channel!(b::SuperExprBuilder, J::QExpr, K::QExpr, γ::CNum)
     one_side = single_qadd(CNUM_ONE, Op[])
-    minus_half = mul_cnum(CNUM_NEG1, mul_cnum(CNUM_HALF, γ))
+    minus_half = CNUM_NEG1 * (CNUM_HALF * γ)
     for (cj, j) in side_atoms(J), (ck, k) in side_atoms(K)
-        c = mul_cnum(cj, conj_cnum(ck))
+        c = cj * conj(ck)
         kd = adjoint(k)
-        add_sandwich!(b, mul_cnum(γ, c), j, kd)
+        add_sandwich!(b, γ * c, j, kd)
         kj = kd * j
-        add_sandwich!(b, mul_cnum(minus_half, c), kj, one_side)
-        add_sandwich!(b, mul_cnum(minus_half, c), one_side, kj)
+        add_sandwich!(b, minus_half * c, kj, one_side)
+        add_sandwich!(b, minus_half * c, one_side, kj)
     end
     return b
 end
@@ -332,7 +332,7 @@ function compose_sandwiches!(
         bs::Vector{Tuple{CNum, QExpr, QExpr}},
     )
     for (ca, al, ar) in as, (cb, bl, br) in bs
-        add_sandwich!(b, mul_cnum(ca, cb), al * bl, br * ar)
+        add_sandwich!(b, ca * cb, al * bl, br * ar)
     end
     return b
 end
@@ -394,7 +394,7 @@ function Base.adjoint(X::SuperExpr)
     b = SuperExprBuilder()
     accumulate!(b, adjoint(X.poly))
     for (t, c) in X.formal
-        add_sandwich!(b, conj_cnum(c), adjoint(t.left), adjoint(t.right))
+        add_sandwich!(b, conj(c), adjoint(t.left), adjoint(t.right))
     end
     return build(b)
 end

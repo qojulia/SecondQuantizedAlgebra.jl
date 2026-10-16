@@ -60,7 +60,7 @@ function expand_completeness(S::SuperOperator)
         end
         temp = SuperTermDict()
         for (a, ca) in lt, (b, cb) in rt
-            addto_key!(temp, SuperTerm(a.ops, b.ops, t.ne), mul_cnum(c, mul_cnum(ca, cb)))
+            addto_key!(temp, SuperTerm(a.ops, b.ops, t.ne), c * (ca * cb))
         end
         settle_scope!(out, temp, bound_indices(t, c, S.indices))
     end

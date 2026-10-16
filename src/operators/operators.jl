@@ -79,8 +79,8 @@ function commute_pair(a::Op, b::Op)
     elseif ka === OP_COLLECTIVE_TRANSITION && kb === OP_COLLECTIVE_TRANSITION
         c1 = a.l2 == b.l1 ? CNUM_ONE : CNUM_ZERO
         c2 = b.l2 == a.l1 ? CNUM_NEG1 : CNUM_ZERO
-        r1 = iszero_cnum(c1) ? EMPTY_OPS : Op[with_levels(a, a.l1, b.l2)]
-        r2 = iszero_cnum(c2) ? EMPTY_OPS : Op[with_levels(a, b.l1, a.l2)]
+        r1 = iszero(c1) ? EMPTY_OPS : Op[with_levels(a, a.l1, b.l2)]
+        r2 = iszero(c2) ? EMPTY_OPS : Op[with_levels(a, b.l1, a.l2)]
         return (b, a, c1, r1, c2, r2)
     else
         return (b, a, CNUM_ZERO, EMPTY_OPS, CNUM_ZERO, EMPTY_OPS)

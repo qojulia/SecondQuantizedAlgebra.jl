@@ -289,7 +289,7 @@ function fold_const(x::RawExpression)
     throw(ArgumentError("cannot reduce symbolic expression $x to a concrete number"))
 end
 
-to_complex(c::Coeff) = is_native(c) ? native_float(native_scalar(c)) : to_complex(to_num(c))
+to_complex(c::Coeff) = is_native(c) ? to_float_scalar(native_scalar(c)) : to_complex(to_num(c))
 
 function to_complex(x)
     x isa ComplexF64   && return x

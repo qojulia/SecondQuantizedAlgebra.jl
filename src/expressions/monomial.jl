@@ -23,30 +23,24 @@ struct Monomial{E <: ExactScalar}
             exps::Vector{Rational{Int}},
         ) where {E <: ExactScalar}
         needs_radical_fold(syms, exps) || return new{E}(pack_scalar(E, scalar), syms, exps)
-        osyms = RawExpression[]
-        oexps = Rational{Int}[]
-        sizehint!(osyms, length(syms)); sizehint!(oexps, length(exps))
-        @inbounds for i in eachindex(syms)
-            s = syms[i]
-            e = exps[i]
-            if is_radical_atom(s)
-                q = fld(numerator(e), denominator(e))
-                if q != 0
-                    scalar = scalar_mul(scalar, radical_power(E, s.val::RadicalPrime, q))
-                    e -= q
-                end
-                iszero(e) && continue
-            end
-            push!(osyms, s); push!(oexps, e)
-        end
-        return new{E}(pack_scalar(E, scalar), osyms, oexps)
+        scalar, syms, exps = fold_radicals(E, scalar, syms, exps)
+        return new{E}(pack_scalar(E, scalar), syms, exps)
     end
 
     Monomial{E}(::Unchecked, scalar::Union{ComplexF64, E}, m::Monomial) where {E <: ExactScalar} =
         new{E}(pack_scalar(E, scalar), m.syms, m.exps)
 end
 
+const EMPTY_SYMS = RawExpression[]
+const EMPTY_EXPS = Rational{Int}[]
+
 @inline monomial_scalar(m::Monomial) = unpack_scalar(m.slot)
+@inline constant_term(::Type{E}, z) where {E <: ExactScalar} =
+    Monomial{E}(as_tier(E, z), EMPTY_SYMS, EMPTY_EXPS)
+@inline function fits_small(m::Monomial{BigExactComplex})
+    scalar = monomial_scalar(m)
+    return scalar isa ComplexF64 || fits_small(scalar)
+end
 @inline with_scalar(m::Monomial{E}, z::Union{ComplexF64, E}) where {E} =
     Monomial{E}(Unchecked(), z, m)
 
@@ -57,9 +51,6 @@ end
 as_tier(::Type{E}, terms::Vector{<:Monomial}) where {E <: ExactScalar} =
     Monomial{E}[as_tier(E, m) for m in terms]
 
-@inline with_factors(
-    m::Monomial{E}, syms::Vector{RawExpression}, exps::Vector{Rational{Int}},
-) where {E} = Monomial{E}(monomial_scalar(m), syms, exps)
 @inline function scalar_iszero(m::Monomial)
     s = m.slot
     iszero(s.re) && iszero(s.im) && return true
@@ -73,10 +64,6 @@ end
     scalar isa ComplexF64 || return m
     return with_scalar(m, normalize_scalar(scalar))
 end
-@inline conj_monomial(
-    m::Monomial{E}, syms::Vector{RawExpression}, exps::Vector{Rational{Int}},
-) where {E} =
-    Monomial{E}(conj(monomial_scalar(m)), syms, exps)
 
 @inline function add_scalars(a::Monomial{E}, b::Monomial{E}) where {E}
     sa, sb = a.slot, b.slot
@@ -85,6 +72,76 @@ end
 end
 @inline scale_monomial(t::Monomial{E}, z::Union{ComplexF64, E}) where {E} =
     with_scalar(t, scalar_mul(monomial_scalar(t), z))
+
+@inline function monomial_terms(
+        ::Type{E}, scalar::CoeffScalar, syms::Vector{RawExpression},
+        exps::Vector{Rational{Int}},
+    ) where {E <: ExactScalar}
+    return Monomial{E}[monomial(E, as_tier(E, scalar), syms, exps)]
+end
+
+function sort_factors!(syms::Vector{RawExpression}, exps::Vector{Rational{Int}})
+    @inbounds for i in 2:length(syms)
+        s = syms[i]; e = exps[i]; k = fkey(s)
+        j = i - 1
+        while j >= 1 && fkey(syms[j]) > k
+            syms[j + 1] = syms[j]; exps[j + 1] = exps[j]
+            j -= 1
+        end
+        j == i - 1 && continue
+        syms[j + 1] = s; exps[j + 1] = e
+    end
+    return syms
+end
+
+function merge_factor_list(syms::Vector{RawExpression}, exps::Vector{Rational{Int}})
+    n = length(syms)
+    n <= 1 && return (syms, exps)
+    sort_factors!(syms, exps)
+    is_merged(syms, exps) && return (syms, exps)
+    osyms = RawExpression[]
+    oexps = Rational{Int}[]
+    sizehint!(osyms, n); sizehint!(oexps, n)
+    i = 1
+    @inbounds while i <= n
+        s = syms[i]
+        e = exps[i]
+        j = i + 1
+        while j <= n && syms[j] === s
+            e += exps[j]
+            j += 1
+        end
+        e != 0 && (push!(osyms, s); push!(oexps, e))
+        i = j
+    end
+    return (osyms, oexps)
+end
+
+@inline function is_merged(syms::Vector{RawExpression}, exps::Vector{Rational{Int}})
+    @inbounds for i in eachindex(syms)
+        iszero(exps[i]) && return false
+        i > 1 && syms[i] === syms[i - 1] && return false
+    end
+    return true
+end
+
+"""
+    monomial(E, scalar, syms, exps)
+
+The canonical monomial `scalar * ∏ symsᵢ^expsᵢ` from factors in any order. Equal factors
+merge, zero exponents drop, several unit phases fold into one and radical exponents fold into
+`(0, 1)`. It takes ownership of `syms` and `exps`; `Monomial{E}` itself expects factors that
+are already sorted and merged.
+"""
+function monomial(
+        ::Type{E}, scalar::Union{ComplexF64, E}, syms::Vector{RawExpression},
+        exps::Vector{Rational{Int}},
+    ) where {E <: ExactScalar}
+    several_phases = count(is_phase, syms) > 1
+    syms, exps = merge_factor_list(syms, exps)
+    several_phases && return canonical_phase_monomial!(E, scalar, syms, exps)
+    return Monomial{E}(normalize_scalar(scalar), syms, exps)
+end
 
 """
     Poly
@@ -139,48 +196,14 @@ function merge_factors(a::Monomial, b::Monomial)
     return (syms, exps)
 end
 
-@noinline function phase_term_mul(
-        a::Monomial{E}, b::Monomial{E}, phase_a::Int, phase_b::Int,
-    ) where {E}
-    scalar = scalar_mul(monomial_scalar(a), monomial_scalar(b))
-    if length(a.syms) == 1 && length(b.syms) == 1 &&
-            a.syms[phase_a] === b.syms[phase_b]
-        exponent = a.exps[phase_a] + b.exps[phase_b]
-        return scaled_phase_monomial(E, scalar, Num(a.syms[phase_a]), exponent)
-    end
-    if length(a.syms) == 1 && length(b.syms) == 1
-        return merged_phase_monomial(
-            E,
-            scalar,
-            Num(a.syms[phase_a]),
-            a.exps[phase_a],
-            Num(b.syms[phase_b]),
-            b.exps[phase_b],
-        )
-    end
-    syms = vcat(a.syms, b.syms)
-    exps = vcat(a.exps, b.exps)
-    return canonical_phase_monomial(E, scalar, syms, exps)
-end
-
 function term_mul(a::Monomial{E}, b::Monomial{E}) where {E}
-    isempty(a.syms) && return with_scalar(b, scalar_mul(monomial_scalar(a), monomial_scalar(b)))
-    isempty(b.syms) && return with_scalar(a, scalar_mul(monomial_scalar(a), monomial_scalar(b)))
-    phase_a = phase_factor_index(a.syms)
-    phase_b = phase_factor_index(b.syms)
-    if phase_a != 0 && phase_b != 0
-        if a.syms[phase_a] === b.syms[phase_b] &&
-                a.exps[phase_a] == -b.exps[phase_b]
-            return merged_term_mul(a, b)
-        end
-        return phase_term_mul(a, b, phase_a, phase_b)
-    end
-    return merged_term_mul(a, b)
-end
-
-@inline function merged_term_mul(a::Monomial{E}, b::Monomial{E}) where {E}
+    scalar = scalar_mul(monomial_scalar(a), monomial_scalar(b))
+    isempty(a.syms) && return with_scalar(b, scalar)
+    isempty(b.syms) && return with_scalar(a, scalar)
     syms, exps = merge_factors(a, b)
-    return Monomial{E}(scalar_mul(monomial_scalar(a), monomial_scalar(b)), syms, exps)
+    (any(is_phase, a.syms) && any(is_phase, b.syms) && any(is_phase, syms)) ||
+        return Monomial{E}(scalar, syms, exps)
+    return canonical_phase_monomial!(E, scalar, syms, exps)
 end
 
 function insertion_sort!(v::AbstractVector, lt::F) where {F}

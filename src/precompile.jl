@@ -2,8 +2,8 @@ using PrecompileTools: @setup_workload, @compile_workload
 
 precompile(canonicalize!, (QTermDict, Vector{Op}, CNum, Vector{NonEqualPair}))
 precompile(addto!, (QTermDict, Vector{Op}, CNum, Vector{NonEqualPair}))
-precompile(iszero_cnum, (CNum,))
-precompile(neg_cnum, (CNum,))
+precompile(iszero, (CNum,))
+precompile(-, (CNum,))
 precompile(merge_unique, (Vector{Index}, Vector{Index}))
 precompile(merge_ne, (Vector{NonEqualPair}, Vector{NonEqualPair}))
 

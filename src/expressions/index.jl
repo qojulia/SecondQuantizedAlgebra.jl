@@ -109,9 +109,9 @@ function change_index(x::Num, m::IndexMap)
 end
 
 mentions_renamed(raw::RawExpression, m::Pair{Index, Index}) =
-    contains_leaf(raw, SymbolicUtils.unwrap(index_sym(m.first)))
+    raw_depends_on(raw, SymbolicUtils.unwrap(index_sym(m.first)))
 mentions_renamed(raw::RawExpression, m::AbstractDict{Index, Index}) =
-    any(from -> contains_leaf(raw, SymbolicUtils.unwrap(index_sym(from))), keys(m))
+    any(from -> raw_depends_on(raw, SymbolicUtils.unwrap(index_sym(from))), keys(m))
 
 index_sym_substitutions(m::Pair{Index, Index}) =
     Dict(SymbolicUtils.unwrap(index_sym(m.first)) => SymbolicUtils.unwrap(index_sym(m.second)))
@@ -129,7 +129,9 @@ function change_index(x::CNum, m::IndexMap)
     if tail isa RawSymbolicCoeff
         raw = change_index(Num(tail.expr), m)
         isequal(raw, Num(tail.expr)) && return x
-        return from_raw_arithmetic(SymbolicUtils.unwrap(raw), tail.real_slot)
+        result = SymbolicUtils.unwrap(raw)
+        is_numeric_const(result) && return const_coeff(result)
+        return raw_coeff(result, tail.known_real)
     end
     raw_re, raw_im = realimag(x)
     return cnum(change_index(raw_re, m), change_index(raw_im, m))
@@ -217,30 +219,12 @@ function collect_identical_zeros!(acc, x)
     return acc
 end
 
-function contains_leaf(x::RawExpression, v::RawExpression)
-    isequal(x, v) && return true
-    SymbolicUtils.iscall(x) || return false
-    for a in SymbolicUtils.arguments(x)
-        a isa RawExpression && contains_leaf(a, v) && return true
-    end
-    return false
-end
 
 function depends_on_index_term(c::CNum, ops::Vector{Op}, idx::Index)
     for op in ops
         op.index == idx && return true
     end
-    is_native(c) && return false
-    isym = SymbolicUtils.unwrap(index_sym(idx))
-    tail = c.tail
-    if tail isa Poly
-        for m in tail.terms, s in m.syms
-            contains_leaf(s, isym) && return true
-        end
-        return false
-    end
-    tail isa RawSymbolicCoeff || return false
-    return contains_leaf(tail.expr, isym)
+    return coefficient_depends_on(c, SymbolicUtils.unwrap(index_sym(idx)))
 end
 
 function depends_on_scope_index(
@@ -298,7 +282,7 @@ function eliminate_binders(
         mentions(coef, idx) && continue
         eliminated, factor, ne = eliminate_binder(ne, idx)
         if eliminated
-            coef = mul_cnum(coef, factor)
+            coef = coef * factor
         else
             pending === EMPTY_INDICES && (pending = Index[])
             push!(pending, idx)
@@ -311,7 +295,7 @@ function eliminate_binders(
         while k <= length(pending)
             eliminated, factor, ne = eliminate_binder(ne, pending[k])
             if eliminated
-                coef = mul_cnum(coef, factor)
+                coef = coef * factor
                 deleteat!(pending, k)
                 progress = true
             else

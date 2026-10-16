@@ -1,5 +1,3 @@
-const Coefficient = Union{Number, SymbolicUtils.BasicSymbolic, Coeff}
-
 Base.:*(a::QSym, b::Coefficient) = single_qadd(to_cnum(b), Op[a])
 Base.:*(b::Coefficient, a::QSym) = a * b
 
@@ -8,8 +6,8 @@ function Base.:*(a::QAdd, b::Coefficient)
     cb = to_cnum(b)
     d = QTermDict()
     for (term, c) in a.arguments
-        new_c = mul_cnum(c, cb)
-        iszero_cnum(new_c) && continue
+        new_c = c * cb
+        iszero(new_c) && continue
         d[copy_key(term)] = new_c
     end
     return QAdd(d, copy(a.indices))
@@ -65,7 +63,7 @@ Base.:-(a::QSym) = single_qadd(CNUM_NEG1, Op[a])
 function Base.:-(a::QAdd)
     d = QTermDict()
     for (term, c) in a.arguments
-        d[copy_key(term)] = neg_cnum(c)
+        d[copy_key(term)] = -c
     end
     return QAdd(d, copy(a.indices))
 end
@@ -253,7 +251,7 @@ function map_coefficients(f::F, q::QAdd) where {F}
     out = QTermDict()
     for (term, c) in q.arguments
         new_c = to_cnum(f(c))
-        iszero_cnum(new_c) && continue
+        iszero(new_c) && continue
         if isempty(q.indices) || new_c === c
             addto_key!(out, copy_key(term), new_c)
             continue
@@ -335,14 +333,14 @@ function Symbolics.expand(s::QAdd; kwargs...)
     d = QTermDict()
     for (term, c) in s.arguments
         new_c = expand_prefactor(c; kwargs...)
-        iszero_cnum(new_c) && continue
+        iszero(new_c) && continue
         addto!(d, term.ops, new_c, term.ne)
     end
     return QAdd(d, copy(s.indices))
 end
 Symbolics.expand(op::QSym; kwargs...) = single_qadd(CNUM_ONE, Op[op])
 
-expand_prefactor(x::CNum; kwargs...) = (is_native(x) || is_poly(x) || iszero_cnum(x)) ? x : cnum(Symbolics.expand(real(x)), Symbolics.expand(imag(x)))
+expand_prefactor(x::CNum; kwargs...) = (is_native(x) || is_poly(x) || iszero(x)) ? x : cnum(Symbolics.expand(real(x)), Symbolics.expand(imag(x)))
 
 """
     expand_completeness(expr)
@@ -470,8 +468,8 @@ function commutator(a::QSym, b::QSym)
             single_qadd(c2, isempty(ops2) ? EMPTY_OPS : copy(ops2))
     elseif forward && !reverse
         _, _, c1, ops1, c2, ops2 = commute_pair(b, a)
-        return single_qadd(neg_cnum(c1), isempty(ops1) ? EMPTY_OPS : copy(ops1)) +
-            single_qadd(neg_cnum(c2), isempty(ops2) ? EMPTY_OPS : copy(ops2))
+        return single_qadd(-c1, isempty(ops1) ? EMPTY_OPS : copy(ops1)) +
+            single_qadd(-c2, isempty(ops2) ? EMPTY_OPS : copy(ops2))
     end
     return a * b - b * a
 end
@@ -514,7 +512,7 @@ function commutator(a::QAdd, b::QAdd)
                     d, ta.ops, ca, ta.ne, tb.ops, cb, tb.ne, EMPTY_INDICES, false,
                 )
                 emit_product!(
-                    d, tb.ops, neg_cnum(cb), tb.ne, ta.ops, ca, ta.ne, EMPTY_INDICES, false,
+                    d, tb.ops, -cb, tb.ne, ta.ops, ca, ta.ne, EMPTY_INDICES, false,
                 )
             end
         end
@@ -662,7 +660,7 @@ function stream_substitution_once!(
     )
     if !has_operator_rule(ops, op_rules)
         new_c = substitute_cnum(c, scalar_rules, phase_rules)
-        iszero_cnum(new_c) || stream!(out, copy(ops), new_c, ne)
+        iszero(new_c) || stream!(out, copy(ops), new_c, ne)
         return EMPTY_INDICES
     end
 
@@ -678,7 +676,7 @@ function stream_substitution_once!(
                 append!(new_ops, rt.ops)
                 push!(
                     next_partials,
-                    (new_ops, mul_cnum(prefix_c, rc), merge_ne(prefix_ne, rt.ne)),
+                    (new_ops, prefix_c * rc, merge_ne(prefix_ne, rt.ne)),
                 )
             end
         end
@@ -687,7 +685,7 @@ function stream_substitution_once!(
 
     for (new_ops, new_c0, new_ne) in partials
         new_c = substitute_cnum(new_c0, scalar_rules, phase_rules)
-        iszero_cnum(new_c) && continue
+        iszero(new_c) && continue
         canonicalize!(out, new_ops, new_c, merge_ne(ne, new_ne))
     end
     return indices

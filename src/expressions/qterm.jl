@@ -154,12 +154,12 @@ a separate cleanup pass.
 function addto_key!(d::QTermDict, term::QTerm, c::CNum)
     existing = get(d, term, CNUM_ZERO)
     if existing === CNUM_ZERO
-        iszero_cnum(c) && return d
+        iszero(c) && return d
         d[term] = c
         return d
     end
-    new_c = add_cnum(existing, c)
-    if iszero_cnum(new_c)
+    new_c = existing + c
+    if iszero(new_c)
         delete!(d, term)
     else
         d[term] = new_c

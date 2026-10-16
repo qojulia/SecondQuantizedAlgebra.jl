@@ -41,7 +41,7 @@ struct QExpr <: QField
     coeff::CNum
     args::Vector{Union{QAdd, QExpr}}
     function QExpr(kind::QExprKind, coeff::CNum, args::Vector{Union{QAdd, QExpr}})
-        iszero_cnum(coeff) && throw(
+        iszero(coeff) && throw(
             ArgumentError("QExpr outer coefficient must be nonzero; use the canonical zero"),
         )
         if kind == QEXPR_ADD
@@ -102,7 +102,7 @@ has_polynomial_body(q::QExpr) =
 qexpr_same_body(a::QExpr, b::QExpr) = a.kind == b.kind && isequal(a.args, b.args)
 
 function qexpr_scale(q::QExpr, c::CNum)
-    iszero_cnum(c) && return qexpr_zero()
+    iszero(c) && return qexpr_zero()
     isequal(c, CNUM_ONE) && return q
     if has_polynomial_body(q)
         body = only(q.args)
@@ -116,8 +116,8 @@ function qexpr_scale(q::QExpr, c::CNum)
         end
         return qexpr_sum(args)
     end
-    new_c = mul_cnum(q.coeff, c)
-    iszero_cnum(new_c) && return qexpr_zero()
+    new_c = q.coeff * c
+    iszero(new_c) && return qexpr_zero()
     return QExpr(q.kind, new_c, qexpr_copy_args(q))
 end
 
@@ -148,8 +148,8 @@ function qexpr_coalesce_formal(formal::Vector{QExpr})
     if length(formal) == 2
         a, b = formal
         if qexpr_same_body(a, b)
-            new_c = add_cnum(a.coeff, b.coeff)
-            return iszero_cnum(new_c) ? QExpr[] :
+            new_c = a.coeff + b.coeff
+            return iszero(new_c) ? QExpr[] :
                 QExpr[QExpr(a.kind, new_c, qexpr_copy_args(a))]
         end
         isless(b, a) && ((formal[1], formal[2]) = (b, a))
@@ -165,8 +165,8 @@ function qexpr_coalesce_formal(formal::Vector{QExpr})
             continue
         end
         old = pop!(result)
-        new_c = add_cnum(old.coeff, arg.coeff)
-        iszero_cnum(new_c) ||
+        new_c = old.coeff + arg.coeff
+        iszero(new_c) ||
             push!(result, QExpr(old.kind, new_c, qexpr_copy_args(old)))
     end
     return result
@@ -218,7 +218,7 @@ function monomial_content(lead::CNum, coeffs)
     end
     scalar = scalar_coeff(monomial_scalar(m))
     isempty(syms) && return scalar
-    return mul_cnum(scalar, tiered(monomial_terms, EXACT_ONE, syms, exps))
+    return scalar * tiered(monomial_terms, EXACT_ONE, syms, exps)
 end
 
 function common_powers!(
@@ -276,8 +276,8 @@ function qexpr_split_content(q::QAdd)
     d = QTermDict()
     sizehint!(d, length(q.arguments))
     for (term, c) in q.arguments
-        normalized = uniform ? CNUM_ONE : mul_cnum(c, scale)
-        isequal(mul_cnum(content, normalized), c) || return (CNUM_ONE, q)
+        normalized = uniform ? CNUM_ONE : c * scale
+        isequal(content * normalized, c) || return (CNUM_ONE, q)
         d[copy_key(term)] = normalized
     end
     return (content, QAdd(d, q.indices))
@@ -315,8 +315,8 @@ end
 function qexpr_push_product!(factors::Vector{QExprArg}, coeff::CNum, arg::QAdd)
     iszero(arg) && return (CNUM_ZERO, true)
     if is_scalar_qadd(arg)
-        coeff = mul_cnum(coeff, scalar_qadd_coeff(arg))
-        return (coeff, iszero_cnum(coeff))
+        coeff = coeff * scalar_qadd_coeff(arg)
+        return (coeff, iszero(coeff))
     end
     parts = qexpr_tensor_factors(arg)
     if length(parts) > 1
@@ -332,28 +332,28 @@ function qexpr_push_product!(factors::Vector{QExprArg}, coeff::CNum, arg::QAdd)
         merged = left * arg
         iszero(merged) && return (CNUM_ZERO, true)
         is_scalar_qadd(merged) || return qexpr_push_product!(factors, coeff, merged)
-        coeff = mul_cnum(coeff, scalar_qadd_coeff(merged))
+        coeff = coeff * scalar_qadd_coeff(merged)
     else
         content, normalized = qexpr_split_content(arg)
-        coeff = mul_cnum(coeff, content)
+        coeff = coeff * content
         push!(factors, normalized)
     end
-    return (coeff, iszero_cnum(coeff))
+    return (coeff, iszero(coeff))
 end
 
 function qexpr_push_product!(factors::Vector{QExprArg}, coeff::CNum, arg::QExpr)
     iszero(arg) && return (CNUM_ZERO, true)
     if arg.kind == QEXPR_MUL
-        coeff = mul_cnum(coeff, arg.coeff)
-        iszero_cnum(coeff) && return (CNUM_ZERO, true)
+        coeff = coeff * arg.coeff
+        iszero(coeff) && return (CNUM_ZERO, true)
         for factor in arg.args
             coeff, stopped = qexpr_push_product!(factors, coeff, factor)
             stopped && return (CNUM_ZERO, true)
         end
         return (coeff, false)
     end
-    coeff = mul_cnum(coeff, arg.coeff)
-    iszero_cnum(coeff) && return (CNUM_ZERO, true)
+    coeff = coeff * arg.coeff
+    iszero(coeff) && return (CNUM_ZERO, true)
     bare = isequal(arg.coeff, CNUM_ONE) ? arg :
         QExpr(arg.kind, CNUM_ONE, qexpr_copy_args(arg))
     push!(factors, bare)
@@ -415,7 +415,7 @@ function qexpr_product(raw::Vector{QExprArg}, coefficient::CNum = CNUM_ONE)
         coeff, stopped = qexpr_push_product!(factors, coeff, arg)
         stopped && return qexpr_zero()
     end
-    iszero_cnum(coeff) && return qexpr_zero()
+    iszero(coeff) && return qexpr_zero()
     factors, coeff, stopped = qexpr_commuting_order(factors, coeff)
     stopped && return qexpr_zero()
 
@@ -607,7 +607,7 @@ qexpr_adjoint_arg(arg::QAdd) = adjoint(arg)
 qexpr_adjoint_arg(arg::QExpr) = adjoint(arg)
 
 function Base.adjoint(q::QExpr)
-    c = conj_cnum(q.coeff)
+    c = conj(q.coeff)
     if q.kind == QEXPR_ADD
         args = QExprArg[qexpr_adjoint_arg(arg) for arg in q.args]
         return qexpr_scale(qexpr_sum(args), c)

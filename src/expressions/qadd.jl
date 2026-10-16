@@ -99,7 +99,7 @@ function single_qadd(
         c::CNum, ops::Vector{Op}, ne::Vector{NonEqualPair} = EMPTY_NE,
         indices::Vector{Index} = EMPTY_INDICES,
     )
-    iszero_cnum(c) && return QAdd(QTermDict(), EMPTY_INDICES)
+    iszero(c) && return QAdd(QTermDict(), EMPTY_INDICES)
     d = QTermDict()
     addto!(d, ops, c, ne)
     return QAdd(d, indices)
@@ -154,7 +154,7 @@ function Base.adjoint(q::QAdd)
     out = QTermDict()
     for (t, c) in q
         rev = Op[adjoint(o) for o in Iterators.reverse(t.ops)]
-        canonicalize!(out, rev, conj_cnum(c), t.ne)
+        canonicalize!(out, rev, conj(c), t.ne)
     end
     return QAdd(out, copy(q.indices))
 end
@@ -228,6 +228,8 @@ Total ordering key for an operator product, built from `order_key`: length, then
 operator-by-operator, then the canonical-sorted non-equal constraints.
 """
 term_order_key(t::QTerm) = (length(t.ops), map(order_key, t.ops), ne_sort_key(t.ne))
+
+sort_key(op::QSym) = (op.space_index, name_rank(op.index.name_id))
 
 """
     qadd_order_key(q::QAdd) -> Vector
@@ -455,3 +457,81 @@ function Symbolics.get_variables!(
     end
     return buffer
 end
+
+"""
+    coefficient(expr, term) -> Coeff
+
+The coefficient of the operator product `term` in the polynomial `expr`, or zero when `expr`
+has no such term. `term` is an operator, a product such as `a' * a`, or `1` for the scalar
+part. It must canonicalize to a single product with unit coefficient, so `2a`, `a + a'` and
+`a * a'` (which is `a'a + 1`) are refused. Index inequalities are part of a term: a product
+that `expr` stores under other constraints, or under several, throws instead of reading as
+zero; build `term` with [`assume_distinct_index`](@ref) to match a constrained product.
+Summed expressions are refused.
+
+Unlike [`coefficient_terms`](@ref), which splits a scalar into its parameter monomials,
+`coefficient` reads the scalar that multiplies an operator product.
+
+```jldoctest
+julia> using SecondQuantizedAlgebra: coefficient
+
+julia> @qnumbers a::Destroy(FockSpace(:c));
+
+julia> H = 3 * a' * a + 2 * a' + 2 * a + 5;
+
+julia> coefficient(H, a' * a), coefficient(H, a'), coefficient(H, 1), coefficient(H, a' * a')
+(3, 2, 5, 0)
+```
+"""
+function coefficient(expr::Union{QField, Coefficient}, term::Union{QField, Coefficient})
+    q = coefficient_operand(expr, "expression")
+    isempty(q.indices) || summed_coefficient_error()
+    key = monomial_key(coefficient_operand(term, "term"))
+    found = CNUM_ZERO
+    matched = false
+    for (t, c) in q.arguments
+        isequal(t.ops, key.ops) || continue
+        (matched || !isequal(t.ne, key.ne)) && ambiguous_coefficient_error()
+        found = c
+        matched = true
+    end
+    return found
+end
+
+coefficient_operand(x::QAdd, ::String) = x
+coefficient_operand(x::QSym, ::String) = single_qadd(CNUM_ONE, Op[x])
+coefficient_operand(x::Coefficient, ::String) = single_qadd(to_cnum(x), Op[])
+coefficient_operand(::QField, what::String) = throw(
+    ArgumentError(
+        "`coefficient` needs a polynomial $what; lower a formal expression with `taylor` first"
+    )
+)
+
+function monomial_key(q::QAdd)
+    isempty(q.indices) || summed_coefficient_error()
+    length(q.arguments) == 1 || throw(
+        ArgumentError(
+            "`coefficient` needs a single operator product with unit coefficient, but the " *
+                "term has $(length(q.arguments)) canonical terms"
+        )
+    )
+    t, c = first(q.arguments)
+    isone(c) || throw(
+        ArgumentError(
+            "`coefficient` needs a single operator product with unit coefficient, but the " *
+                "term has coefficient $(to_num(c))"
+        )
+    )
+    return t
+end
+
+@noinline summed_coefficient_error() = throw(
+    ArgumentError("`coefficient` does not read summed expressions; iterate the terms of the sum instead")
+)
+
+@noinline ambiguous_coefficient_error() = throw(
+    ArgumentError(
+        "the operator product is stored under other or several index constraints; build the " *
+            "term with `assume_distinct_index` to match, or iterate the expression's terms"
+    )
+)

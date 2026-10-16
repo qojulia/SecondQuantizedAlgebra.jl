@@ -33,9 +33,9 @@ function linear_fock_drift(L::Lindbladian{QAdd}, d::Op)
     offset = CNUM_ZERO
     for (term, c) in drift
         if isempty(term.ops)
-            offset = add_cnum(offset, c)
+            offset = offset + c
         elseif term.ops == Op[d]
-            rate = add_cnum(rate, c)
+            rate = rate + c
         else
             unitary_error(
                 "`DisplacementFrame` requires a drift affine in `$d`; " *
@@ -43,7 +43,7 @@ function linear_fock_drift(L::Lindbladian{QAdd}, d::Op)
             )
         end
     end
-    iszero_cnum(rate) && unitary_error(
+    iszero(rate) && unitary_error(
         "`DisplacementFrame` found a drift with no linear response in `$d`",
     )
     return FockDrift(rate, offset)
@@ -52,7 +52,7 @@ end
 function DisplacementFrame(a::Op, L::Lindbladian{QAdd})
     d = fock_or_throw(a, "`DisplacementFrame`")
     drift = linear_fock_drift(L, d)
-    α = neg_cnum(drift.offset) / drift.rate
+    α = -drift.offset / drift.rate
     return fock_displacement(d, α)
 end
 
@@ -66,13 +66,13 @@ function DisplacementFrame(a::Op, L::Lindbladian{QAdd}, t::Num)
     )
     offset = exponential_form(drift.offset)
     amplitude = bounded_harmonic_displacement(
-        mul_cnum(CNUM_IM, offset), mul_cnum(CNUM_IM, drift.rate), tt,
+        CNUM_IM * offset, CNUM_IM * drift.rate, tt,
     )
-    derivative = add_cnum(mul_cnum(drift.rate, amplitude), offset)
-    derivative_adjoint = conj_cnum(derivative)
+    derivative = drift.rate * amplitude + offset
+    derivative_adjoint = conj(derivative)
     gauge = fock_displacement_gauge(
         d, amplitude, derivative, derivative_adjoint,
-        mul_cnum(CNUM_NEG_IM, derivative), mul_cnum(CNUM_IM, derivative_adjoint),
+        CNUM_NEG_IM * derivative, CNUM_IM * derivative_adjoint,
     )
     return timed_transform(fock_displacement(d, amplitude), gauge, tt)
 end

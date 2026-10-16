@@ -6,7 +6,7 @@ function harmonic_frequency_coeff(ω::Real, t::Num)
     SymbolicUtils.issym(SymbolicUtils.unwrap(t)) ||
         harmonic_error("the time argument must be a symbolic variable; got `$t`")
     frequency = to_cnum(ω)
-    iszero_cnum(frequency) && harmonic_error("the base frequency must be nonzero")
+    iszero(frequency) && harmonic_error("the base frequency must be nonzero")
     coefficient_depends_on(frequency, SymbolicUtils.unwrap(t)) &&
         harmonic_error("the base frequency `$ω` depends on `$t`")
     return frequency
@@ -30,11 +30,11 @@ function harmonic_order(phase::Num, ω::Num, frequency::CNum, t::Num)
     raw_depends_on(SymbolicUtils.unwrap(rate), variable) &&
         harmonic_error("the phase `$phase` is not linear in `$t`")
     rate_coeff = to_cnum(rate)
-    iszero_cnum(rate_coeff) && return 0
-    ratio = div_cnum(rate_coeff, frequency)
+    iszero(rate_coeff) && return 0
+    ratio = rate_coeff / frequency
     ok, n = exact_integer(ratio)
     ok || ((ok, n) = exact_integer(simplify_prefactor(ratio)))
-    (ok && iszero_cnum(rate_coeff - n * frequency)) || harmonic_error(
+    (ok && iszero(rate_coeff - n * frequency)) || harmonic_error(
         "the phase `$phase` is not an integer multiple of `$ω * $t`",
     )
     return n
@@ -51,8 +51,8 @@ function coefficient_harmonics(c::CNum, ω::Num, frequency::CNum, t::Num)
         n = harmonic_order(term.phase, ω, frequency, t)
         offset = expand(term.phase - n * ω * t)
         component = iszero(offset) ? term.amplitude : term.amplitude * expim(offset)
-        total = add_cnum(get(out, n, CNUM_ZERO), component)
-        iszero_cnum(total) ? delete!(out, n) : (out[n] = total)
+        total = get(out, n, CNUM_ZERO) + component
+        iszero(total) ? delete!(out, n) : (out[n] = total)
     end
     return out
 end

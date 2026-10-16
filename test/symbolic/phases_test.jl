@@ -27,6 +27,11 @@ import SecondQuantizedAlgebra: expim, exponential_form, phase_terms, to_num,
         @test isequal(imag(expim(θ)), sin(θ))
         @test isequal(real(conj(expim(θ))), cos(θ))
         @test isequal(imag(conj(expim(θ))), -sin(θ))
+        @test iszero(simplify(real(2y * expim(θ)) - 2y * cos(θ)))
+        @test iszero(simplify(imag(2y * expim(θ)) - 2y * sin(θ)))
+        @test iszero(simplify(imag(y * expim(-θ) + x * expim(θ)) - x * sin(θ) + y * sin(θ)))
+        @test iszero(simplify(real(im * y * expim(2θ)) + y * sin(2θ)))
+        @test iszero(simplify(real(expim(θ) + y) - cos(θ) - y))
         @test (@inferred expim(0.5)) ≈ exp(0.5im)
         @test_throws ArgumentError expim(1 + 0im)
         @test_throws ArgumentError expim(1 + 2im)
@@ -232,10 +237,10 @@ import SecondQuantizedAlgebra: expim, exponential_form, phase_terms, to_num,
         )
     end
 
-    @testset "native integer factors keep raw coefficients exact" begin
+    @testset "native integer factors keep trigonometric coefficients exact" begin
         @variables ω::Real t::Real
         drive = stored_coefficient((2 // 5) * ((3 // 5) * cos(ω * t) - (4 // 5) * sin(ω * t)) * a)
-        @test drive.tail isa SecondQuantizedAlgebra.RawSymbolicCoeff
+        @test drive.tail isa SecondQuantizedAlgebra.Poly
         for factor in (-im, im, 2, -1)
             product = convert(SecondQuantizedAlgebra.Coeff, factor) * drive
             terms = phase_terms(product)

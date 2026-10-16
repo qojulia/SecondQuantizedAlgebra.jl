@@ -72,7 +72,7 @@ function taylor_cos(argument::QAdd, order::Int)::QAdd
         denominator *= n - 1
         denominator *= n
         coefficient = taylor_inverse_denominator(denominator)
-        isodd(n ÷ 2) && (coefficient = neg_cnum(coefficient))
+        isodd(n ÷ 2) && (coefficient = -coefficient)
         accumulate!(builder, power, coefficient)
         n + 2 <= order && (power = power * square)
     end
@@ -92,7 +92,7 @@ function taylor_sin(argument::QAdd, order::Int)::QAdd
         denominator *= n - 1
         denominator *= n
         coefficient = taylor_inverse_denominator(denominator)
-        isodd((n - 1) ÷ 2) && (coefficient = neg_cnum(coefficient))
+        isodd((n - 1) ÷ 2) && (coefficient = -coefficient)
         accumulate!(builder, power, coefficient)
         n + 2 <= order && (power = power * square)
     end
@@ -111,11 +111,11 @@ function taylor_expim(argument::QAdd, order::Int)::QAdd
         coefficient = taylor_inverse_denominator(denominator)
         phase = mod(n, 4)
         if phase == 1
-            coefficient = mul_cnum(coefficient, CNUM_IM)
+            coefficient = coefficient * CNUM_IM
         elseif phase == 2
-            coefficient = neg_cnum(coefficient)
+            coefficient = -coefficient
         elseif phase == 3
-            coefficient = mul_cnum(coefficient, CNUM_NEG_IM)
+            coefficient = coefficient * CNUM_NEG_IM
         end
         accumulate!(builder, power, coefficient)
         n < order && (power = power * argument)

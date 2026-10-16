@@ -95,7 +95,7 @@ function affine_commutator_data(G::QAdd, basis::Vector{Op})
                 "the adjoint action on `$generator` produced constrained terms",
             )
             if isempty(term.ops)
-                shift[row] = add_cnum(shift[row], coefficient)
+                shift[row] = shift[row] + coefficient
             elseif length(term.ops) == 1
                 target = first(term.ops)
                 column = get(locations, target, 0)
@@ -103,7 +103,7 @@ function affine_commutator_data(G::QAdd, basis::Vector{Op})
                     "the adjoint action leaves the finite generator basis: " *
                         "`[$G, $generator]` contains `$target`",
                 )
-                linear[row, column] = add_cnum(linear[row, column], coefficient)
+                linear[row, column] = linear[row, column] + coefficient
             else
                 unsupported = rule_qadd((coefficient, copy(term.ops)))
                 unitary_error(
@@ -116,11 +116,11 @@ function affine_commutator_data(G::QAdd, basis::Vector{Op})
     return linear, shift
 end
 
-coefficient_is_real(c::CNum) = isequal(c, conj_cnum(c))
-coefficient_is_zero(c::CNum) = iszero_cnum(c)
+coefficient_is_real(c::CNum) = isequal(c, conj(c))
+coefficient_is_zero(c::CNum) = iszero(c)
 
 function coefficient_equal(left::CNum, right::CNum)
-    return iszero_cnum(add_cnum(left, neg_cnum(right)))
+    return iszero(left - right)
 end
 
 function exact_real_argument(rate::CNum, θ::Real)
@@ -137,7 +137,7 @@ function generated_scalar_exponential(flow::CNum, θ::Real)
         return to_cnum(exp(exact_real_argument(flow, θ)))
     end
 
-    phase_rate = mul_cnum(CNUM_NEG_IM, flow)
+    phase_rate = CNUM_NEG_IM * flow
     if coefficient_is_real(phase_rate)
         return phase(exact_real_argument(phase_rate, θ))
     end
@@ -179,7 +179,7 @@ function exact_rotation_pair(rate::CNum, θ::Real)
     if coefficient_equal(rate, CNUM_ONE)
         return to_cnum(cos(θ)), to_cnum(sin(θ))
     elseif coefficient_equal(rate, CNUM_NEG1)
-        return to_cnum(cos(θ)), neg_cnum(to_cnum(sin(θ)))
+        return to_cnum(cos(θ)), -to_cnum(sin(θ))
     end
     angle = exact_real_argument(rate, θ)
     return to_cnum(cos(angle)), to_cnum(sin(angle))
@@ -202,10 +202,9 @@ function rational_square_root(square::CNum)
     iszero(imag(z)) || return nothing
     x = real(z)
     (x isa Rational{Int} && !iszero(x)) || return nothing
-    n, d = numerator(abs(x)), denominator(x)
-    rn, rd = isqrt(n), isqrt(d)
-    (rn^2 == n && rd^2 == d) || return nothing
-    return sign(x), rn // rd
+    magnitude = Rational{BigInt}(abs(x))
+    is_rational_power(magnitude, 1 // 2) || return nothing
+    return sign(x), Rational{Int}(rational_power_value(magnitude, 1 // 2))
 end
 
 is_real_scaled_phase(terms::Vector{PhaseTerm}) =
@@ -223,25 +222,25 @@ function exact_two_by_two_flow!(
     lower = flow[j, i]
 
     if coefficient_is_real(upper) && coefficient_is_real(lower) &&
-            coefficient_equal(lower, neg_cnum(upper))
+            coefficient_equal(lower, -upper)
         cosine, sine = exact_rotation_pair(upper, θ)
         push_exact_relation!(relations, trig_rel(exact_real_argument(upper, θ)))
         result[i, i] = cosine
         result[i, j] = sine
-        result[j, i] = neg_cnum(sine)
+        result[j, i] = -sine
         result[j, j] = cosine
         return result
     end
 
-    if coefficient_equal(lower, conj_cnum(upper))
-        norm_squared = mul_cnum(upper, lower)
+    if coefficient_equal(lower, conj(upper))
+        norm_squared = upper * lower
         if coefficient_equal(norm_squared, CNUM_ONE)
             ch = to_cnum(cosh(θ))
             sh = to_cnum(sinh(θ))
             push_exact_relation!(relations, hyp_rel(θ))
             result[i, i] = ch
-            result[i, j] = mul_cnum(upper, sh)
-            result[j, i] = mul_cnum(lower, sh)
+            result[i, j] = upper * sh
+            result[j, i] = lower * sh
             result[j, j] = ch
             return result
         elseif coefficient_is_real(upper) && coefficient_equal(lower, upper)
@@ -264,14 +263,14 @@ function exact_two_by_two_flow!(
             sh = to_cnum(sinh(angle))
             push_exact_relation!(relations, hyp_rel(angle))
             result[i, i] = ch
-            result[i, j] = mul_cnum(direction, sh)
-            result[j, i] = mul_cnum(conj_cnum(direction), sh)
+            result[i, j] = direction * sh
+            result[j, i] = conj(direction) * sh
             result[j, j] = ch
             return result
         end
     end
 
-    root = rational_square_root(mul_cnum(upper, lower))
+    root = rational_square_root(upper * lower)
     if root !== nothing
         sign_of_square, rate = root
         angle = exact_real_argument(to_cnum(rate), θ)
@@ -282,10 +281,10 @@ function exact_two_by_two_flow!(
             push_exact_relation!(relations, hyp_rel(angle))
             to_cnum(cosh(angle)), to_cnum(sinh(angle))
         end
-        scaled = mul_cnum(to_cnum(inv(rate)), off_diagonal)
+        scaled = to_cnum(inv(rate)) * off_diagonal
         result[i, i] = diagonal
-        result[i, j] = mul_cnum(upper, scaled)
-        result[j, i] = mul_cnum(lower, scaled)
+        result[i, j] = upper * scaled
+        result[j, i] = lower * scaled
         result[j, j] = diagonal
         return result
     end
@@ -303,10 +302,10 @@ function exact_closed_adjoint_action(
     flow = Matrix{CNum}(undef, n, n)
     affine_flow = Vector{CNum}(undef, n)
     for j in 1:n, i in 1:n
-        flow[i, j] = mul_cnum(CNUM_IM, linear[i, j])
+        flow[i, j] = CNUM_IM * linear[i, j]
     end
     for i in 1:n
-        affine_flow[i] = mul_cnum(CNUM_IM, shift[i])
+        affine_flow[i] = CNUM_IM * shift[i]
     end
 
     has_linear = any(value -> !coefficient_is_zero(value), flow)
@@ -317,7 +316,7 @@ function exact_closed_adjoint_action(
                 "do not yet have an exact exponential strategy",
         )
         parameter = to_cnum(θ)
-        offsets = CNum[mul_cnum(parameter, value) for value in affine_flow]
+        offsets = CNum[parameter * value for value in affine_flow]
         identity = fill(CNUM_ZERO, n, n)
         for i in 1:n
             identity[i, i] = CNUM_ONE
