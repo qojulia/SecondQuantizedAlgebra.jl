@@ -261,6 +261,10 @@ import SecondQuantizedAlgebra:
         i = Index(hs, :i, 3, hs)
         summed = average(Σ(IndexedOperator(Transition(hs, :σ, 1, 2), i), i))
         @test isequal(qadjoint(summed), inner_adjoint(summed))
+        # Conjugating twice is the identity.
+        @test isequal(inner_adjoint(conj(g)), SymbolicUtils.unwrap(g))
+        @test isequal(inner_adjoint(conj(average(a))), average(a))
+        @test isequal(inner_adjoint(average(g * a)), conj(g) * average(ad))
 
         @variables θ
         @test isequal(qadjoint(g * expim(θ)), conj(g) * expim(-θ))
