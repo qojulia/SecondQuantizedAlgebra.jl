@@ -170,7 +170,7 @@ function accumulate!(b::SuperBuilder, S::SuperOperator, scale::CNum = CNUM_ONE)
 end
 accumulate!(b::SuperBuilder, L::Lindbladian{QAdd}) = accumulate!(b, SuperOperator(L))
 
-function accumulate!(b::SuperBuilder, c::Coefficient, A::Union{QField, Coefficient}, B::Union{QField, Coefficient})
+function accumulate!(b::SuperBuilder, c::Coefficient, A::Union{QAdd, QSym, Coefficient}, B::Union{QAdd, QSym, Coefficient})
     cc = to_cnum(c)
     iszero(cc) && return b
     add_sandwiches!(b.args, cc, as_side(A), as_side(B), "`accumulate!`")
