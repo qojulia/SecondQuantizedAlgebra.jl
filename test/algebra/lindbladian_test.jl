@@ -95,6 +95,7 @@ raw_dissipator(J, K = J) = sprepost(J, K') - (1 // 2) * spre(K' * J) - (1 // 2) 
         @test liouvillian(H, QAdd[]) == hamiltonian_action(H)
         @test_throws ArgumentError liouvillian(H, [a1, b1]; rates = [γ])
         @test_throws ArgumentError liouvillian(H, [a1, b1]; rates = ones(3, 3))
+        @test_throws ArgumentError liouvillian(H, [a1, b1]; rates = 2)
     end
 
     @testset "identity and promotion" begin
