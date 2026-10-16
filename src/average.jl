@@ -500,14 +500,14 @@ end
 """
     foreach_operand(f, x::RawExpression)
 
-Call `f` on every operand of an expression of averages: the value of each constant, and the
-operator of each average.
+Call `f` on every operand of an expression of averages: each operator or expression held by
+a constant, and the operator of each average.
 """
 function foreach_operand(f::F, x::RawExpression) where {F}
     if SymbolicUtils.isconst(x)
-        f(x.val)
+        visit_operand(f, x.val)
     elseif is_average(x)
-        f(averaged_operator(x))
+        visit_operand(f, averaged_operator(x))
     elseif is_indexed_sum(x)
         foreach_operand(f, sum_body(x))
     elseif SymbolicUtils.iscall(x)
@@ -515,6 +515,14 @@ function foreach_operand(f::F, x::RawExpression) where {F}
             foreach_operand(f, arg)
         end
     end
+    return nothing
+end
+
+function visit_operand(f::F, @nospecialize(v)) where {F}
+    v isa Op && return f(v)
+    v isa QAdd && return f(v)
+    v isa QExpr && return f(v)
+    v isa RawExpression && return f(v)
     return nothing
 end
 
@@ -622,14 +630,12 @@ inner_adjoint(x::Union{RawExpression, Num, Number, QField}) = qadjoint(x)
 function adjoint_average(v::RawExpression)
     op = averaged_operator(v)
     SymbolicUtils.hasmetadata(v, AverageOperator) &&
-        return adjoint_lifted(op, SymbolicUtils.arguments(v)[1])
+        return lift_average(average(adjoint(op::QAdd)), SymbolicUtils.arguments(v)[1])
     return adjoint_average_leaf(op)
 end
 
-adjoint_lifted(op::QAdd, iv::RawExpression) = lift_average(average(adjoint(op)), iv)
-adjoint_lifted(@nospecialize(op), @nospecialize(iv)) =
-    throw(ArgumentError("malformed time-dependent average with operator `$op` and argument `$iv`"))
-
-adjoint_average_leaf(inner::Union{Op, QAdd}) = average_leaf(adjoint(inner))
-adjoint_average_leaf(@nospecialize(inner)) =
+function adjoint_average_leaf(@nospecialize(inner))
+    inner isa Op && return average_leaf(adjoint(inner))
+    inner isa QAdd && return average_leaf(adjoint(inner))
     throw(ArgumentError("cannot take the adjoint of the averaged argument `$inner`"))
+end
