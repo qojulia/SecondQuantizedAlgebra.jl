@@ -1,14 +1,8 @@
-function fock_displacement(d::Op, c::CNum)
-    action = AffineAction(
-        Op[d, adjoint(d)],
-        CNum[
-            CNUM_ONE CNUM_ZERO
-            CNUM_ZERO CNUM_ONE
-        ],
-        CNum[c, conj(c)],
-    )
-    return canonical_transform(action)
-end
+linear_transform(basis::Vector{Op}, linear::Matrix{CNum}, relations::Vector{ParamRelation} = ParamRelation[]) =
+    canonical_transform(AffineAction(basis, linear, fill(CNUM_ZERO, length(basis)), relations))
+
+fock_displacement(d::Op, c::CNum) =
+    canonical_transform(AffineAction(Op[d, adjoint(d)], identity_linear(2), CNum[c, conj(c)]))
 
 function fock_displacement_gauge(
         d::Op, c::CNum, derivative::CNum, derivative_adjoint::CNum,
@@ -21,6 +15,10 @@ function fock_displacement_gauge(
         (scalar, Op[]),
     )
 end
+
+fock_displacement_gauge(d::Op, c::CNum, derivative::CNum) = fock_displacement_gauge(
+    d, c, derivative, conj(derivative), CNUM_NEG_IM * derivative, CNUM_IM * conj(derivative),
+)
 
 """
     Displace(a, α)
@@ -63,13 +61,7 @@ function Displace(a::Op, α::Coefficient, t::Num)
     d = fock_or_throw(a, "`Displace`")
     tt = time_or_throw(t)
     c = to_cnum(α)
-    derivative = dt(c, tt)
-    derivative_adjoint = conj(derivative)
-    gauge = fock_displacement_gauge(
-        d, c, derivative, derivative_adjoint,
-        CNUM_NEG_IM * derivative,
-        CNUM_IM * derivative_adjoint,
-    )
+    gauge = fock_displacement_gauge(d, c, dt(c, tt))
     return timed_transform(fock_displacement(d, c), gauge, tt)
 end
 
@@ -121,15 +113,7 @@ See also [`RotatingFrame`](@ref), [`Squeeze`](@ref), [`Displace`](@ref).
 """
 function Rotation(a::Op, θ::Real)
     d = fock_or_throw(a, "`Rotation`")
-    action = AffineAction(
-        Op[d, adjoint(d)],
-        CNum[
-            conj_phase(θ) CNUM_ZERO
-            CNUM_ZERO phase(θ)
-        ],
-        CNum[CNUM_ZERO, CNUM_ZERO],
-    )
-    return canonical_transform(action)
+    return linear_transform(Op[d, adjoint(d)], CNum[conj_phase(θ) CNUM_ZERO; CNUM_ZERO phase(θ)])
 end
 
 function Rotation(a::Op, θ::Num, t::Num)
@@ -194,16 +178,7 @@ function single_mode_squeeze(a::Op, r::Real, ϕ::Real)
     d = fock_or_throw(a, "`Squeeze`")
     ch = to_cnum(cosh(r))
     sh = phase(ϕ) * to_cnum(sinh(r))
-    action = AffineAction(
-        Op[d, adjoint(d)],
-        CNum[
-            ch sh
-            conj(sh) conj(ch)
-        ],
-        CNum[CNUM_ZERO, CNUM_ZERO];
-        relations = ParamRelation[hyp_rel(r)],
-    )
-    return canonical_transform(action)
+    return linear_transform(Op[d, adjoint(d)], CNum[ch sh; conj(sh) conj(ch)], ParamRelation[hyp_rel(r)])
 end
 
 function squeeze_gauge(d::Op, r::Real, ϕ::Real, t::Num)
@@ -254,35 +229,23 @@ function fock_mode_rotation(a::Op, b::Op, θ::Real)
     x, y = two_modes(a, b, "`Rotation`")
     c = to_cnum(cos(θ))
     s = to_cnum(sin(θ))
-    negative_s = -s
-    action = AffineAction(
+    return linear_transform(
         Op[x, y, adjoint(x), adjoint(y)],
         CNum[
             c s CNUM_ZERO CNUM_ZERO
-            negative_s c CNUM_ZERO CNUM_ZERO
+            -s c CNUM_ZERO CNUM_ZERO
             CNUM_ZERO CNUM_ZERO conj(c) conj(s)
             CNUM_ZERO CNUM_ZERO -conj(s) conj(c)
         ],
-        CNum[CNUM_ZERO, CNUM_ZERO, CNUM_ZERO, CNUM_ZERO];
-        relations = ParamRelation[trig_rel(θ)],
+        ParamRelation[trig_rel(θ)],
     )
-    return canonical_transform(action)
 end
 
 function quadrature_rotation(x::Op, p::Op, θ::Real)
     phase_pair(x, p, "`Rotation`")
     c = to_cnum(cos(θ))
     s = to_cnum(sin(θ))
-    action = AffineAction(
-        Op[x, p],
-        CNum[
-            c s
-            -s c
-        ],
-        CNum[CNUM_ZERO, CNUM_ZERO];
-        relations = ParamRelation[trig_rel(θ)],
-    )
-    return canonical_transform(action)
+    return linear_transform(Op[x, p], CNum[c s; -s c], ParamRelation[trig_rel(θ)])
 end
 
 Rotation(a::Op, b::Op, θ::Real) =
@@ -304,7 +267,7 @@ function fock_two_mode_squeeze(a::Op, b::Op, r::Real)
     x, y = two_modes(a, b, "`Squeeze`")
     u = to_cnum(cosh(r))
     v = to_cnum(sinh(r))
-    action = AffineAction(
+    return linear_transform(
         Op[x, y, adjoint(x), adjoint(y)],
         CNum[
             u CNUM_ZERO CNUM_ZERO v
@@ -312,25 +275,15 @@ function fock_two_mode_squeeze(a::Op, b::Op, r::Real)
             CNUM_ZERO conj(v) conj(u) CNUM_ZERO
             conj(v) CNUM_ZERO CNUM_ZERO conj(u)
         ],
-        CNum[CNUM_ZERO, CNUM_ZERO, CNUM_ZERO, CNUM_ZERO];
-        relations = ParamRelation[hyp_rel(r)],
+        ParamRelation[hyp_rel(r)],
     )
-    return canonical_transform(action)
 end
 
 function quadrature_squeeze(x::Op, p::Op, r::Real)
     phase_pair(x, p, "`Squeeze`")
     up = to_cnum(exp(r))
     down = to_cnum(inv(exp(r)))
-    action = AffineAction(
-        Op[x, p],
-        CNum[
-            up CNUM_ZERO
-            CNUM_ZERO down
-        ],
-        CNum[CNUM_ZERO, CNUM_ZERO],
-    )
-    return canonical_transform(action)
+    return linear_transform(Op[x, p], CNum[up CNUM_ZERO; CNUM_ZERO down])
 end
 
 Squeeze(a::Op, b::Op, r::Real) =
@@ -348,17 +301,8 @@ function Squeeze(a::Op, b::Op, r::Real, t::Num)
     return timed_transform(fock_two_mode_squeeze(x, y, r), gauge(generator, r, tt), tt)
 end
 
-function quadrature_displacement(x::Op, p::Op, cx::CNum, cp::CNum)
-    action = AffineAction(
-        Op[x, p],
-        CNum[
-            CNUM_ONE CNUM_ZERO
-            CNUM_ZERO CNUM_ONE
-        ],
-        CNum[cx, cp],
-    )
-    return canonical_transform(action)
-end
+quadrature_displacement(x::Op, p::Op, cx::CNum, cp::CNum) =
+    canonical_transform(AffineAction(Op[x, p], identity_linear(2), CNum[cx, cp]))
 
 function quadrature_displacement_gauge(
         x::Op, p::Op, cx::CNum, cp::CNum,
@@ -408,25 +352,18 @@ function Rotation(S::Op, axis::Integer, θ::Real)
     fixed = with_levels(S, main_axis, 0)
     c = to_cnum(cos(θ))
     s = to_cnum(sin(θ))
-    action = AffineAction(
+    return linear_transform(
         Op[u, v, fixed],
-        CNum[
-            c -s CNUM_ZERO
-            s c CNUM_ZERO
-            CNUM_ZERO CNUM_ZERO CNUM_ONE
-        ],
-        CNum[CNUM_ZERO, CNUM_ZERO, CNUM_ZERO];
-        relations = ParamRelation[trig_rel(θ)],
+        CNum[c -s CNUM_ZERO; s c CNUM_ZERO; CNUM_ZERO CNUM_ZERO CNUM_ONE],
+        ParamRelation[trig_rel(θ)],
     )
-    return canonical_transform(action)
 end
 
 function Rotation(S::Op, axis::Integer, θ::Real, t::Num)
     triple_or_throw(S)
     tt = time_or_throw(t)
     fixed = with_levels(S, Int(axis_or_throw(axis)), 0)
-    generator = S.kind === OP_PAULI ? scaled(CNUM_HALF, fixed) :
-        scaled(CNUM_ONE, fixed)
+    generator = scaled(S.kind === OP_PAULI ? CNUM_HALF : CNUM_ONE, fixed)
     return timed_transform(Rotation(S, axis, θ), gauge(generator, θ, tt), tt)
 end
 
@@ -441,55 +378,19 @@ function nlevel_or_throw(σ::Op, W::AbstractMatrix)
     return n
 end
 
-function coefficient_matrix(W::AbstractMatrix)
-    n, m = size(W)
-    converted = Matrix{Coeff}(undef, n, m)
-    for j in 1:m, i in 1:n
-        converted[i, j] = to_cnum(W[i, j])
-    end
-    return converted
-end
-
-function matrix_unit_action(σ::Op, W::Matrix{Coeff}, Wdagger::Matrix{Coeff})
-    n = size(W, 1)
-    dimension = n * n
-    basis = Op[with_levels(σ, i, j) for i in 1:n for j in 1:n]
-    linear = fill(CNUM_ZERO, dimension, dimension)
-    for i in 1:n, j in 1:n
-        row = (i - 1) * n + j
-        for k in 1:n, l in 1:n
-            coefficient = Wdagger[k, i] * W[j, l]
-            iszero(coefficient) && continue
-            column = (k - 1) * n + l
-            linear[row, column] = coefficient
-        end
-    end
-    return AffineAction(
-        AFFINE_UNITARY_LINEAR, basis, linear, fill(CNUM_ZERO, dimension),
-    )
-end
-
-function dagger_coefficients(W::Matrix{Coeff})
-    n = size(W, 1)
-    out = Matrix{Coeff}(undef, n, n)
-    for j in 1:n, i in 1:n
-        out[i, j] = conj(W[j, i])
-    end
-    return out
-end
-
 function nlevel_rotation(σ::Op, W::AbstractMatrix)
     nlevel_or_throw(σ, W)
-    coefficients = coefficient_matrix(W)
-    dagger = dagger_coefficients(coefficients)
-    U = canonical_transform(matrix_unit_action(σ, coefficients, dagger))
-    return U, coefficients
+    n = size(W, 1)
+    coefficients = CNum[to_cnum(W[i, j]) for i in 1:n, j in 1:n]
+    linear = fill(CNUM_ZERO, n * n, n * n)
+    for i in 1:n, j in 1:n, k in 1:n, l in 1:n
+        coefficient = conj(coefficients[i, k]) * coefficients[j, l]
+        iszero(coefficient) || (linear[(i - 1) * n + j, (k - 1) * n + l] = coefficient)
+    end
+    return linear_transform(site_generators(σ), linear), coefficients
 end
 
-function Rotation(σ::Op, W::AbstractMatrix)
-    U, _ = nlevel_rotation(σ, W)
-    return U
-end
+Rotation(σ::Op, W::AbstractMatrix) = first(nlevel_rotation(σ, W))
 
 function nlevel_gauge(σ::Op, W::Matrix{Coeff}, t::Num)
     n = size(W, 1)
