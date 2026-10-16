@@ -155,8 +155,9 @@ function compile_coeff(c::Complex{Num}, vars...)
 end
 
 function at_time(g::G, @nospecialize(valuefuncs), p_aware::Bool) where {G}
-    p_aware && return (p, t) -> g(t, map(f -> f(p, t), valuefuncs))
-    return t -> g(t, map(f -> f(t), valuefuncs))
+    return let valuefuncs = valuefuncs
+        p_aware ? (p, t) -> g(t, map(f -> f(p, t), valuefuncs)) : t -> g(t, map(f -> f(t), valuefuncs))
+    end
 end
 
 const CoeffTerm = Tuple{CNum, Vector{Op}}
@@ -242,28 +243,41 @@ end
 
 function fold_const(x::RawExpression)
     SymbolicUtils.iscall(x) || return is_float_const(x) ? const_complex(x) : not_const_error(x)
-    z::ComplexF64 = fold_call(SymbolicUtils.operation(x), SymbolicUtils.arguments(x), x)
-    return z
+    op = SymbolicUtils.operation(x)
+    args = SymbolicUtils.arguments(x)
+    if op === (+)
+        acc = zero(ComplexF64)
+        for a in args
+            acc += fold_const(a)
+        end
+        return acc
+    end
+    if op === (*)
+        acc = one(ComplexF64)
+        for a in args
+            acc *= fold_const(a)
+        end
+        return acc
+    end
+    op === conj && return conj(fold_const(first(args)))
+    op === real && return real(fold_const(first(args)))
+    op === imag && return imag(fold_const(first(args)))
+    op === (/) && return fold_const(first(args)) / fold_const(last(args))
+    op === (^) && return fold_const(first(args))^fold_const(last(args))
+    if op === (-)
+        length(args) == 1 && return -fold_const(first(args))
+        return fold_const(first(args)) - fold_const(last(args))
+    end
+    op === expim && return exp(im * fold_const(only(args)))
+    op === sqrt && return sqrt(fold_const(only(args)))
+    if op === cbrt
+        z = fold_const(only(args))
+        iszero(imag(z)) && return ComplexF64(cbrt(real(z)))
+    end
+    return not_const_error(x)
 end
 
 @noinline not_const_error(x) = throw(ArgumentError("cannot reduce symbolic expression $x to a concrete number"))
-
-fold_call(::typeof(+), args, ::RawExpression) = mapfoldl(fold_const, +, args; init = zero(ComplexF64))
-fold_call(::typeof(*), args, ::RawExpression) = mapfoldl(fold_const, *, args; init = one(ComplexF64))
-fold_call(::typeof(conj), args, ::RawExpression) = conj(fold_const(first(args)))
-fold_call(::typeof(real), args, ::RawExpression) = real(fold_const(first(args)))
-fold_call(::typeof(imag), args, ::RawExpression) = imag(fold_const(first(args)))
-fold_call(::typeof(/), args, ::RawExpression) = fold_const(first(args)) / fold_const(last(args))
-fold_call(::typeof(^), args, ::RawExpression) = fold_const(first(args))^fold_const(last(args))
-fold_call(::typeof(-), args, ::RawExpression) =
-    length(args) == 1 ? -fold_const(first(args)) : fold_const(first(args)) - fold_const(last(args))
-fold_call(::typeof(expim), args, ::RawExpression) = exp(im * fold_const(only(args)))
-fold_call(::typeof(sqrt), args, ::RawExpression) = sqrt(fold_const(only(args)))
-function fold_call(::typeof(cbrt), args, x::RawExpression)
-    z = fold_const(only(args))
-    return iszero(imag(z)) ? ComplexF64(cbrt(real(z))) : not_const_error(x)
-end
-fold_call(op, args, x::RawExpression) = not_const_error(x)
 
 to_complex(c::Coeff) = is_native(c) ? to_float_scalar(native_scalar(c)) : to_complex(to_num(c))
 function to_complex(x)
