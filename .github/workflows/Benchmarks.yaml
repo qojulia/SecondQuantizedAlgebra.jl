@@ -1,4 +1,5 @@
 name: Benchmark Tracking
+run-name: ${{ inputs.sha && format('Benchmark {0}', inputs.sha) || github.event.pull_request.title || github.event.head_commit.message }}
 on:
   push:
     branches:
@@ -25,6 +26,12 @@ on:
       - reopened
       - synchronize
       - ready_for_review
+  workflow_dispatch:
+    inputs:
+      sha:
+        description: 'Commit on main to benchmark and append to the history'
+        required: true
+        type: string
 
 permissions:
     actions: write
@@ -32,12 +39,90 @@ permissions:
     deployments: write
     pull-requests: write
 
+env:
+  BENCHMARK_PATHS: .github/workflows/Benchmarks.yaml src ext test benchmark Project.toml
+
 jobs:
-  benchmark:
+  # A push runs only on its head commit, so a stack merge would leave the commits below it
+  # out of the history. This job benchmarks every main commit since the first entry of
+  # `data.js` that has none, one at a time, then sorts the history into commit order because
+  # the action appends in run order.
+  queue:
+    if: ${{ github.event_name == 'push' }}
     runs-on: ubuntu-latest
-    if: ${{ !github.event.pull_request.draft }}
+    concurrency:
+      group: benchmark-history
+      cancel-in-progress: false
     steps:
       - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - name: Benchmark every commit missing from the history
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          BEFORE: ${{ github.event.before }}
+        run: |
+          git fetch --quiet origin gh-pages
+          git show origin/gh-pages:benchmark/data.js | sed '1s/^window.BENCHMARK_DATA = //' |
+            jq -r '.entries["Benchmark Results"][].commit.id' > recorded
+          first=$(head -n 1 recorded)
+          if [ -z "$first" ] || ! git merge-base --is-ancestor "$first" HEAD; then
+            first=$BEFORE
+          fi
+          for sha in $(git rev-list --reverse "$first..HEAD" -- $BENCHMARK_PATHS | grep -vxFf recorded); do
+            since=$(date -u -d '-1 min' +%Y-%m-%dT%H:%M:%SZ)
+            gh workflow run Benchmarks.yaml --ref main -f sha="$sha"
+            id=
+            while [ -z "$id" ]; do
+              sleep 10
+              id=$(gh run list --workflow Benchmarks.yaml --event workflow_dispatch --limit 20 \
+                --json databaseId,displayTitle,createdAt \
+                --jq "[.[] | select(.displayTitle == \"Benchmark $sha\" and .createdAt >= \"$since\")][0].databaseId // empty")
+            done
+            echo "Benchmark $sha: run $id"
+            gh run watch "$id" --interval 60 --exit-status > /dev/null || echo "::warning::benchmark run $id for $sha failed"
+          done
+      - name: Sort the history into commit order
+        run: |
+          git rev-list --reverse HEAD > order
+          git config user.name 'github-actions[bot]'
+          git config user.email 'github-actions[bot]@users.noreply.github.com'
+          git worktree add --quiet pages origin/gh-pages
+          cd pages
+          for attempt in 1 2 3 4 5; do
+            git fetch --quiet origin gh-pages
+            git reset --quiet --hard origin/gh-pages
+            python3 - ../order benchmark/data.js <<'EOF'
+          import json, sys
+          rank = {sha: i for i, sha in enumerate(open(sys.argv[1]).read().split())}
+          path = sys.argv[2]
+          prefix = "window.BENCHMARK_DATA = "
+          data = json.loads(open(path, encoding="utf-8").read()[len(prefix):])
+          changed = False
+          for name, suites in data["entries"].items():
+              keys, last = [], -1
+              for position, suite in enumerate(suites):
+                  last = rank.get(suite["commit"]["id"], last)
+                  keys.append((last, position))
+              ordered = [s for _, s in sorted(zip(keys, suites), key=lambda p: p[0])]
+              changed |= ordered != suites
+              data["entries"][name] = ordered
+          if changed:
+              open(path, "w", encoding="utf-8").write(prefix + json.dumps(data, indent=2, ensure_ascii=False))
+          EOF
+            git diff --quiet && exit 0
+            git commit --quiet -am "Sort benchmark history into commit order"
+            git push --quiet origin HEAD:gh-pages && exit 0
+          done
+          exit 1
+
+  benchmark:
+    runs-on: ubuntu-latest
+    if: ${{ github.event_name != 'push' && !github.event.pull_request.draft }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.sha || github.sha }}
       - uses: julia-actions/setup-julia@v3
         with:
           version: 'lts'
@@ -60,11 +145,11 @@ jobs:
           tool: "julia"
           output-file-path: benchmark/benchmarks_output.json
           github-token: ${{ secrets.GITHUB_TOKEN }}
+          ref: ${{ inputs.sha }}
           alert-threshold: "130%"
           fail-threshold: "170%"
           comment-on-alert: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository }}
           comment-always: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository }}
           fail-on-alert: true
           benchmark-data-dir-path: benchmark
-          max-items-in-chart: 100
           auto-push: ${{ github.event_name != 'pull_request' }}
