@@ -2,9 +2,6 @@ const QEXPR_PREC_ADD = 1
 const QEXPR_PREC_MUL = 2
 const QEXPR_PREC_FUNC = 3
 
-struct TextStyle end
-struct LatexStyle end
-
 function qexpr_precedence(q::QExpr)
     q.kind == QEXPR_ADD && return QEXPR_PREC_ADD
     (q.kind == QEXPR_MUL || !is_unit(q.coeff)) && return QEXPR_PREC_MUL
@@ -46,7 +43,7 @@ function show_qexpr_prefactor(io::IO, ::LatexStyle, c::CNum)
     return
 end
 
-function show_qexpr(io::IO, style::S, q::QAdd, parent_precedence::Int) where {S}
+function show_qexpr(io::IO, style::PrintStyle, q::QAdd, parent_precedence::Int)
     group = parent_precedence > QEXPR_PREC_ADD && qexpr_qadd_needs_group(q)
     open, close = group_delimiters(style)
     group && write(io, open)
@@ -55,7 +52,7 @@ function show_qexpr(io::IO, style::S, q::QAdd, parent_precedence::Int) where {S}
     return
 end
 
-function show_qexpr(io::IO, style::S, q::QExpr, parent_precedence::Int) where {S}
+function show_qexpr(io::IO, style::PrintStyle, q::QExpr, parent_precedence::Int)
     group = qexpr_precedence(q) < parent_precedence
     open, close = group_delimiters(style)
     group && write(io, open)
@@ -74,7 +71,7 @@ function show_qexpr(io::IO, style::S, q::QExpr, parent_precedence::Int) where {S
     return
 end
 
-function show_qexpr_sum(io::IO, style::S, q::QExpr) where {S}
+function show_qexpr_sum(io::IO, style::PrintStyle, q::QExpr)
     isempty(q.args) && return write(io, "0")
     show_qexpr(io, style, first(q.args), QEXPR_PREC_ADD)
     for arg in Iterators.drop(q.args, 1)
@@ -89,7 +86,7 @@ function show_qexpr_sum(io::IO, style::S, q::QExpr) where {S}
     return
 end
 
-function show_qexpr_product(io::IO, style::S, q::QExpr) where {S}
+function show_qexpr_product(io::IO, style::PrintStyle, q::QExpr)
     isempty(q.args) && return show_scalar(io, style, q.coeff)
     show_qexpr_prefactor(io, style, q.coeff)
     show_qexpr(io, style, first(q.args), QEXPR_PREC_MUL)
@@ -100,13 +97,8 @@ function show_qexpr_product(io::IO, style::S, q::QExpr) where {S}
     return
 end
 
-show_qexpr(io::IO, q::QExpr, parent_precedence::Int) =
-    show_qexpr(io, TextStyle(), q, parent_precedence)
-qexpr_latex(q::QExpr, parent_precedence::Int) =
-    sprint(show_qexpr, LatexStyle(), q, parent_precedence)
-
-Base.show(io::IO, q::QExpr) = show_qexpr(io, q, 0)
+Base.show(io::IO, q::QExpr) = show_qexpr(io, TextStyle(), q, 0)
 
 @latexrecipe function f(q::QExpr)
-    return Expr(:latexifymerge, qexpr_latex(q, 0))
+    return Expr(:latexifymerge, sprint(show_qexpr, LatexStyle(), q, 0))
 end

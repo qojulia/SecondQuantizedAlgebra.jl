@@ -32,6 +32,8 @@ import SecondQuantizedAlgebra: SuperOperator, SuperExpr, sprepost, spre, spost, 
         @test repr(sprepost(a, a') - (1 // 2) * spre(a' * a)) == "a ⋅ (·) ⋅ a' - 1//2 * a' * a ⋅ (·)"
         @test repr("text/latex", sprepost(a, a')) == "\$a\\,\\cdot\\,a^{\\dagger}\$"
         @test latexify(spre(a)) isa AbstractString
+        @test repr((γ + im * γ^2) * spre(a)) == "(γ + (γ^2)im) * a ⋅ (·)"
+        @test startswith(repr("text/latex", [spre(a), spost(a)]), "\$\$ \\left[")
     end
 
     @testset "indexed" begin
