@@ -94,6 +94,11 @@ function Displace(a::Op, α::Coefficient, t::Num)
     return timed_transform(shift_transform(basis, mode_shift(c)), gauge, tt)
 end
 
+function number_generator(a::Op)
+    d = fock_or_throw(a, "`Rotation`")
+    return adjoint(d) * d
+end
+
 """
     Rotation(a, θ)
     Rotation(a, b, θ)
@@ -140,11 +145,6 @@ cos(θ) * Sx - sin(θ) * Sy
 
 See also [`RotatingFrame`](@ref), [`Squeeze`](@ref), [`Displace`](@ref).
 """
-function number_generator(a::Op)
-    d = fock_or_throw(a, "`Rotation`")
-    return adjoint(d) * d
-end
-
 Rotation(a::Op, θ::Real) = exact_generator_transform(number_generator(a), θ)
 Rotation(a::Op, θ::Num, t::Num) = generated_frame(number_generator(a), θ, time_or_throw(t))
 
