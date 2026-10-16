@@ -246,26 +246,16 @@ function reduce_raw_via_transient(
     return raw_coeff(result, tail.known_real)
 end
 
-function has_symbolic_trig(x)
-    x isa SymbolicUtils.BasicSymbolic || return false
-    SymbolicUtils.iscall(x) || return false
-    is_trig(SymbolicUtils.operation(x)) && return true
-    for arg in SymbolicUtils.arguments(x)
-        has_symbolic_trig(arg) && return true
-    end
-    return false
-end
+is_trig_call(x::SymbolicUtils.BasicSymbolic) = SymbolicUtils.iscall(x) && is_trig(SymbolicUtils.operation(x))
+has_symbolic_trig(x) = has_subterm(is_trig_call, x)
 
 @inline is_trig_relation(r::ParamRelation) =
     has_symbolic_trig(SymbolicUtils.unwrap(r.hi)) ||
     has_symbolic_trig(SymbolicUtils.unwrap(r.lo))
 
 function raw_uses_trig_relation(x, r::ParamRelation)
-    for member in (r.hi, r.lo)
-        raw = SymbolicUtils.unwrap(member)
-        has_symbolic_trig(raw) || continue
-        args = SymbolicUtils.arguments(raw)
-        isempty(args) || raw_depends_on(x, only(args)) && return true
+    for member in (r.hi, r.lo), trig in collect_trig!(RawExpression[], SymbolicUtils.unwrap(member))
+        raw_depends_on(x, only(SymbolicUtils.arguments(trig))) && return true
     end
     return false
 end

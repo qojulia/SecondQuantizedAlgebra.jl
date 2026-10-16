@@ -109,7 +109,7 @@ function to_cnum(x::Complex{Num})
     re, im = real(x), imag(x)
     raw_re, raw_im = SymbolicUtils.unwrap(re), SymbolicUtils.unwrap(im)
     if is_phase(raw_re) && is_const_zero(raw_im)
-        return phase_coeff(only(SymbolicUtils.arguments(raw_re)))
+        return phase_coeff(phase_argument(raw_re))
     end
     return cnum(re, im)
 end
@@ -262,7 +262,7 @@ raw_conj(x::Number) = conj(x)
 raw_conj(x::RawExpression) = SymbolicUtils.symtype(x) <: Real ? x : fold_tree(conj_leaf, x)
 function conj_leaf(x::RawExpression)
     SymbolicUtils.symtype(x) <: Real && return x
-    is_phase(x) && return expim_expanded(-only(SymbolicUtils.arguments(x)))
+    is_phase(x) && return expim_expanded(-phase_argument(x))
     is_call_of(x, conj) && return only(SymbolicUtils.arguments(x))
     if is_call_of(x, complex)
         args = SymbolicUtils.arguments(x)

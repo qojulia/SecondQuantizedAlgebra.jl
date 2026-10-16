@@ -58,11 +58,7 @@ exact_number(x::RawExpression) = with_const(Rational{BigInt}, x)
 @inline is_real_const(x::RawExpression) = const_payload_isa(x, ConstReal)
 real_const_float(x::RawExpression) = with_const(Float64, x)
 
-function const_sign(x::RawExpression)
-    is_real_const(x) || return 0
-    v = real_const_float(x)
-    return isnan(v) ? 0 : Int(sign(v))
-end
+const_sign(x::RawExpression) = is_real_const(x) ? leading_sign(real_const_float(x)) : 0
 
 is_const_minus_one(x::SymbolicUtils.BasicSymbolic) =
     SymbolicUtils.isconst(x) && x.val isa ConstReal && with_const(==(-1), x)
@@ -91,7 +87,7 @@ The coefficient of a raw expression that has no polynomial form. Unlike `raw_coe
 also recognizes a real expression and a lone unit phase.
 """
 function raw_leaf(x::RawExpression, known_real::Bool = false)
-    is_phase(x) && return phase_coeff(only(SymbolicUtils.arguments(x)))
+    is_phase(x) && return phase_coeff(phase_argument(x))
     real_part, imaginary_part = raw_realimag(x)
     is_const_zero(imaginary_part) && return raw_coeff(real_part, true)
     return raw_coeff(x, known_real)
@@ -141,8 +137,7 @@ end
 function monomial_power(m::Monomial, r::Rational{Int}, x)
     scalar = monomial_scalar(m)
     if any(is_phase, m.syms)
-        length(m.syms) == 1 && isone(scalar) &&
-            throw(ArgumentError("a unit phase cannot have a fractional power"))
+        length(m.syms) == 1 && isone(scalar) && fractional_phase_error()
         return raw_leaf(x)
     end
     length(m.syms) == 1 && only(m.exps) == 1 || return raw_leaf(x)
@@ -193,9 +188,9 @@ function to_cnum(x::RawExpression)
         length(args) == 2 && return cnum(Num(args[1]), Num(args[2]))
         return raw_leaf(x)
     end
-    if length(args) == 1 && (is_one_at_zero(op) || is_zero_at_zero(op))
-        a1 = to_cnum(only(args))
-        (is_native(a1) && iszero(native_scalar(a1))) && return is_one_at_zero(op) ? CNUM_ONE : CNUM_ZERO
+    if length(args) == 1 && is_const_zero(only(args))
+        is_one_at_zero(op) && return CNUM_ONE
+        is_zero_at_zero(op) && return CNUM_ZERO
     end
     return is_atom(x) ? atom_coeff(x) : raw_leaf(x)
 end

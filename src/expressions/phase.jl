@@ -39,10 +39,13 @@ end
 
 expim(x::Number) = nonreal_phase_argument(x)
 
+@noinline fractional_phase_error() = throw(ArgumentError("a unit phase cannot have a fractional power"))
+
 @inline is_call_of(x::SymbolicUtils.BasicSymbolic, op::F) where {F} =
     SymbolicUtils.iscall(x) && SymbolicUtils.operation(x) === op
 
 @inline is_phase(b) = b isa RawExpression && is_call_of(b, expim)
+@inline phase_argument(x::RawExpression) = only(SymbolicUtils.arguments(x))
 
 @inline is_imaginary_unit(x) = isequal(x, Symbolics.IM)
 
@@ -127,9 +130,9 @@ phase_coeff(x) = phase_coeff_expanded(Num(expand(x)))
     return length(args) == 2 && is_phase(args[1]) && is_const_int(args[2])
 end
 @inline function phase_power(x::RawExpression)
-    is_phase(x) && return (only(SymbolicUtils.arguments(x)), 1)
+    is_phase(x) && return (phase_argument(x), 1)
     args = SymbolicUtils.arguments(x)
-    return (only(SymbolicUtils.arguments(args[1])), const_int(args[2]))
+    return (phase_argument(args[1]), const_int(args[2]))
 end
 
 function split_phase_factors(factors)
@@ -155,7 +158,7 @@ function rewrite_phase(x::RawExpression)
     op = SymbolicUtils.operation(x)
     args = SymbolicUtils.arguments(x)
     if length(args) == 1 && is_phase(args[1])
-        argument = only(SymbolicUtils.arguments(args[1]))
+        argument = phase_argument(args[1])
         op === conj && return expim_expanded(-argument)
         op === real && return cos(argument)
         op === imag && return sin(argument)
@@ -179,7 +182,7 @@ function rewrite_phase(x::RawExpression)
     elseif op === (^) && length(args) == 2 && is_phase(args[1])
         is_const_int(args[2]) || return x
         exponent = const_int(args[2])
-        argument = only(SymbolicUtils.arguments(args[1]))
+        argument = phase_argument(args[1])
         iszero(exponent) && return RAW_ONE
         return expim_expanded(SymbolicUtils.expand(exponent * argument))
     end
@@ -210,9 +213,8 @@ end
         symbol = syms[i]
         exponent = exps[i]
         if is_phase(symbol)
-            denominator(exponent) == 1 ||
-                throw(ArgumentError("a unit phase cannot have a fractional power"))
-            argument = Num(only(SymbolicUtils.arguments(symbol)))
+            denominator(exponent) == 1 || fractional_phase_error()
+            argument = Num(phase_argument(symbol))
             term = scale_expanded(argument, flip ? -numerator(exponent) : numerator(exponent))
             angle = iszero_num(angle) ? term : angle + term
         else

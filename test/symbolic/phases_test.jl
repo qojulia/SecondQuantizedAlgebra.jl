@@ -157,6 +157,9 @@ import SecondQuantizedAlgebra: expim, exponential_form, phase_terms, to_num,
         @test length(phase_terms(expim(θ) / 2)) == 1
         @test length(phase_terms(conj(expim(θ)))) == 1
         @test length(phase_terms(expim(θ)^(-1))) == 1
+        # One component per phase: equal phases add their amplitudes.
+        merged = only(phase_terms(z * expim(θ) + ω * expim(θ)))
+        @test isequal(merged.phase, θ) && iszero(merged.amplitude - (z + ω))
 
         trig = trigonometric_form(Complex(Num(z), Num(z)))
         @test iszero(simplify(trig * a - (z + im * z) * a))

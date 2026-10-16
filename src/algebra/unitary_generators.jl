@@ -188,8 +188,9 @@ function rational_square_root(square::CNum)
     x = real(z)
     (x isa Rational{Int} && !iszero(x)) || return none
     magnitude = Rational{BigInt}(abs(x))
-    is_rational_power(magnitude, 1 // 2) || return none
-    return Int(sign(x)), Rational{Int}(rational_power_value(magnitude, 1 // 2))
+    exact, root = exact_rational_root(magnitude, 1 // 2)
+    exact || return none
+    return Int(sign(x)), Rational{Int}(root)
 end
 
 is_real_scaled_phase(terms::Vector{PhaseTerm}) =

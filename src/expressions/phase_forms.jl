@@ -12,11 +12,12 @@ end
     return CNUM_NEG_IM * CNUM_HALF * difference
 end
 
-function is_exponential_phase(argument)
+function exponential_leaf_phase(u::RawExpression, argument)
     real_part, imaginary_part = realimag(to_cnum(argument))
-    return iszero_num(real_part) && SymbolicUtils.symtype(SymbolicUtils.unwrap(imaginary_part)) <: Real
+    (iszero_num(real_part) && SymbolicUtils.symtype(SymbolicUtils.unwrap(imaginary_part)) <: Real) ||
+        return to_cnum(u)
+    return phase_coeff(imaginary_part)
 end
-phase_from_exponential_argument(argument) = phase_coeff(last(realimag(to_cnum(argument))))
 
 function exponential_tree(x)
     u = SymbolicUtils.unwrap(x)
@@ -30,7 +31,7 @@ function exponential_leaf(u::RawExpression)
     args = SymbolicUtils.arguments(u)
     length(args) == 1 || return to_cnum(u)
     argument = only(args)
-    op === exp && is_exponential_phase(argument) && return phase_from_exponential_argument(argument)
+    op === exp && return exponential_leaf_phase(u, argument)
     op === cis && return phase_coeff(argument)
     op === cos && return euler_cos(argument)
     op === sin && return euler_sin(argument)
@@ -38,10 +39,9 @@ function exponential_leaf(u::RawExpression)
 end
 
 function exponential_factor(symbol::RawExpression, exponent::Rational{Int})
-    denominator(exponent) == 1 || return factor_cnum(symbol, exponent)
-    is_call_of(symbol, cos) && return pow_cnum_integer(euler_cos(only(SymbolicUtils.arguments(symbol))), numerator(exponent))
-    is_call_of(symbol, sin) && return pow_cnum_integer(euler_sin(only(SymbolicUtils.arguments(symbol))), numerator(exponent))
-    return factor_cnum(symbol, exponent)
+    (denominator(exponent) == 1 && (is_call_of(symbol, cos) || is_call_of(symbol, sin))) ||
+        return factor_cnum(symbol, exponent)
+    return pow_cnum_integer(exponential_leaf(symbol), numerator(exponent))
 end
 
 function map_factors(f::F, terms::Vector{<:Monomial}) where {F}
@@ -65,14 +65,14 @@ end
 
 function trigonometric_factor(symbol::RawExpression, exponent::Rational{Int})
     (is_phase(symbol) && denominator(exponent) == 1) || return factor_cnum(symbol, exponent)
-    angle, flipped = canonical_angle(Num(only(SymbolicUtils.arguments(symbol))), numerator(exponent))
+    angle, flipped = canonical_angle(Num(phase_argument(symbol)), numerator(exponent))
     sine = to_cnum(sin(angle))
     return to_cnum(cos(angle)) + (flipped ? CNUM_NEG_IM : CNUM_IM) * sine
 end
 
 @inline function rewrite_phase_to_trig(x)
     is_phase(x) || return x
-    argument = only(SymbolicUtils.arguments(x))
+    argument = phase_argument(x)
     return cos(argument) + im * sin(argument)
 end
 
@@ -136,20 +136,24 @@ end
 
 @inline constant_phase_term(c::Coeff) = PhaseTerm(c, NUM_ZERO)
 
+@noinline no_phase_decomposition_error() = throw(
+    ArgumentError("a phase occurs inside an operation with no finite phase decomposition"),
+)
+@noinline phase_denominator_error() = throw(
+    ArgumentError("a phase-bearing denominator does not have a finite phase decomposition"),
+)
+
 function monomial_phase_term(m::Monomial)
     phase_index = phase_factor_index(m.syms)
     for i in eachindex(m.syms)
         i == phase_index && continue
-        contains_phase(m.syms[i]) && throw(
-            ArgumentError("a phase occurs inside an operation with no finite phase decomposition"),
-        )
+        contains_phase(m.syms[i]) && no_phase_decomposition_error()
     end
     phase_index == 0 && return constant_phase_term(from_poly([m]))
 
     exponent = m.exps[phase_index]
-    denominator(exponent) == 1 ||
-        throw(ArgumentError("a unit phase cannot have a fractional power"))
-    argument = only(SymbolicUtils.arguments(m.syms[phase_index]))
+    denominator(exponent) == 1 || fractional_phase_error()
+    argument = phase_argument(m.syms[phase_index])
     phase = scale_expanded(Num(argument), numerator(exponent))
     amplitude = from_poly([replace_exps(m, phase_index, 0 // 1, 0, 0 // 1)])
     return PhaseTerm(amplitude, phase)
@@ -161,17 +165,30 @@ function multiply_phase_terms(left::Vector{PhaseTerm}, right::Vector{PhaseTerm})
     result = PhaseTerm[]
     sizehint!(result, length(left) * length(right))
     for a in left, b in right
-        amplitude = a.amplitude * b.amplitude
-        iszero(amplitude) && continue
-        push!(result, PhaseTerm(amplitude, expand(a.phase + b.phase)))
+        push!(result, PhaseTerm(a.amplitude * b.amplitude, expand(a.phase + b.phase)))
     end
-    return result
+    return merge_phase_terms!(result)
+end
+
+function merge_phase_terms!(terms::Vector{PhaseTerm})
+    slot = Dict{Num, Int}()
+    kept = 0
+    for term in terms
+        k = get(slot, term.phase, 0)
+        if iszero(k)
+            kept += 1
+            terms[kept] = term
+            slot[term.phase] = kept
+        else
+            terms[k] = PhaseTerm(terms[k].amplitude + term.amplitude, term.phase)
+        end
+    end
+    resize!(terms, kept)
+    return filter!(term -> !iszero(term.amplitude), terms)
 end
 
 function phase_power_terms(base, exponent::Int)
-    exponent < 0 && contains_phase(base) && throw(
-        ArgumentError("a phase-bearing denominator does not have a finite phase decomposition"),
-    )
+    exponent < 0 && contains_phase(base) && phase_denominator_error()
     exponent < 0 && return PhaseTerm[constant_phase_term(pow_cnum_integer(to_cnum(base), exponent))]
 
     result = PhaseTerm[constant_phase_term(CNUM_ONE)]
@@ -187,7 +204,7 @@ function raw_phase_terms(x::RawExpression)
     is_numeric_const(x) && return PhaseTerm[constant_phase_term(const_coeff(x))]
     if is_phase_power(x)
         argument, exponent = phase_power(x)
-        return PhaseTerm[PhaseTerm(CNUM_ONE, expand(Num(exponent) * Num(argument)))]
+        return PhaseTerm[PhaseTerm(CNUM_ONE, scale_expanded(Num(argument), exponent))]
     end
 
     SymbolicUtils.iscall(x) || return PhaseTerm[constant_phase_term(to_cnum(x))]
@@ -206,35 +223,17 @@ function raw_phase_terms(x::RawExpression)
         end
         return result
     elseif op === (/) && length(args) == 2
-        numerator, denominator_ = args
-        contains_phase(denominator_) && throw(
-            ArgumentError(
-                "a phase-bearing denominator does not have a finite phase decomposition",
-            ),
-        )
-        denominator_coeff = to_cnum(denominator_)
-        return PhaseTerm[
-            PhaseTerm(term.amplitude / denominator_coeff, term.phase) for
-                term in raw_phase_terms(numerator)
-        ]
+        contains_phase(args[2]) && phase_denominator_error()
+        denominator_coeff = to_cnum(args[2])
+        return PhaseTerm[PhaseTerm(term.amplitude / denominator_coeff, term.phase) for term in raw_phase_terms(args[1])]
     elseif op === (^) && length(args) == 2
-        is_const_int(args[2]) || begin
-            contains_phase(args[1]) && throw(
-                ArgumentError("a unit phase cannot have a non-integer power"),
-            )
-            return PhaseTerm[constant_phase_term(to_cnum(x))]
-        end
-        return phase_power_terms(args[1], const_int(args[2]))
+        is_const_int(args[2]) && return phase_power_terms(args[1], const_int(args[2]))
+        contains_phase(args[1]) && fractional_phase_error()
+        return PhaseTerm[constant_phase_term(to_cnum(x))]
     elseif op === conj && length(args) == 1
-        return PhaseTerm[
-            PhaseTerm(conj(term.amplitude), -term.phase) for
-                term in raw_phase_terms(only(args))
-        ]
+        return PhaseTerm[PhaseTerm(conj(term.amplitude), -term.phase) for term in raw_phase_terms(only(args))]
     end
-
-    contains_phase(x) && throw(
-        ArgumentError("a phase occurs inside an operation with no finite phase decomposition"),
-    )
+    contains_phase(x) && no_phase_decomposition_error()
     return PhaseTerm[constant_phase_term(to_cnum(x))]
 end
 
@@ -273,9 +272,9 @@ function phase_terms(c::Coeff)
     if tail isa Native
         return iszero(normalized) ? PhaseTerm[] : PhaseTerm[constant_phase_term(normalized)]
     elseif tail isa Poly
-        return PhaseTerm[monomial_phase_term(monomial) for monomial in tail.terms]
+        return merge_phase_terms!(PhaseTerm[monomial_phase_term(monomial) for monomial in tail.terms])
     end
-    return raw_phase_terms(tail.expr)
+    return merge_phase_terms!(raw_phase_terms(tail.expr))
 end
 
 """
