@@ -3,11 +3,16 @@ struct OrderedTerm
     ops::Vector{Op}
 end
 
-const WEYL_K_FOCK = CNUM_ONE
-const WEYL_K_PHASE = CNUM_NEG_IM
+struct HeisenbergPair
+    raising::OpKind
+    lowering::OpKind
+    K::CNum
+end
 
-const FockSite = Tuple{Int, Symbol, Symbol, Int, Int}
-const PhaseSite = Tuple{Int, Symbol, Int, Int}
+const HEISENBERG_PAIRS = (
+    HeisenbergPair(OP_CREATE, OP_DESTROY, CNUM_ONE),
+    HeisenbergPair(OP_POSITION, OP_MOMENTUM, CNUM_NEG_IM),
+)
 
 """
     normal_to_symmetric(expr)
@@ -90,30 +95,19 @@ end
 
 Expand one term under Weyl/symmetric ordering and accumulate into `d`.
 
-Collects Fock (Create/Destroy) and PhaseSpace (Position/Momentum) conjugate
-pairs, runs each through `expand_site!` via the per-kind wrappers, then
-writes every resulting `OrderedTerm` into `d`. Terms with no conjugate pairs
-pass through unchanged.
-
-To add a new Heisenberg pair kind: add `count_X_sites`, `expand_X_site!`,
-and `remove_X_at!`, then add one loop here mirroring the Fock/Phase loops.
+Every site holding both operators of a pair in `HEISENBERG_PAIRS` is expanded by
+`expand_site!`; terms without such a site pass through unchanged. A new
+Heisenberg pair kind is one more entry in `HEISENBERG_PAIRS`.
 """
 function convert_term!(
         d::QTermDict, c::CNum, ops::Vector{Op},
         ne::Vector{NonEqualPair}, α::Rational,
     )
-    fock_sites = count_fock_sites(ops)
-    phase_sites = count_phase_sites(ops)
-    if isempty(fock_sites) && isempty(phase_sites)
-        addto!(d, ops, c, ne)
-        return
-    end
     current = OrderedTerm[OrderedTerm(c, ops)]
-    for site in fock_sites
-        current = expand_fock_site!(current, site, α)
-    end
-    for site in phase_sites
-        current = expand_phase_site!(current, site, α)
+    for pair in HEISENBERG_PAIRS
+        for (key, m, n) in conjugate_sites(ops, pair)
+            current = expand_site!(current, pair, key, m, n, α)
+        end
     end
     for t in current
         addto!(d, t.ops, t.prefactor, ne)
@@ -121,51 +115,27 @@ function convert_term!(
     return
 end
 
-function count_fock_sites(ops::Vector{Op})
-    counts = Dict{Tuple{Int, Symbol, Symbol}, Tuple{Int, Int}}()
+function conjugate_sites(ops::Vector{Op}, pair::HeisenbergPair)
+    counts = Dict{SiteKey, Tuple{Int, Int}}()
     for op in ops
-        if is_create(op)
-            k = (Int(op.space_index), index_name(op.index), operator_name(op))
-            m, n = get(counts, k, (0, 0))
-            counts[k] = (m + 1, n)
-        elseif is_destroy(op)
-            k = (Int(op.space_index), index_name(op.index), operator_name(op))
-            m, n = get(counts, k, (0, 0))
-            counts[k] = (m, n + 1)
-        end
+        raising = op.kind === pair.raising
+        (raising || op.kind === pair.lowering) || continue
+        key = site_key(op)
+        m, n = get(counts, key, (0, 0))
+        counts[key] = raising ? (m + 1, n) : (m, n + 1)
     end
-    sites = FockSite[]
-    for ((si, idxname, name), (m, n)) in counts
-        (m > 0 && n > 0) && push!(sites, (si, idxname, name, m, n))
+    sites = Tuple{SiteKey, Int, Int}[]
+    for (key, (m, n)) in counts
+        (m > 0 && n > 0) && push!(sites, (key, m, n))
     end
     return sites
 end
 
-function count_phase_sites(ops::Vector{Op})
-    counts = Dict{Tuple{Int, Symbol}, Tuple{Int, Int}}()
-    for op in ops
-        if is_position(op)
-            k = (Int(op.space_index), index_name(op.index))
-            m, n = get(counts, k, (0, 0))
-            counts[k] = (m + 1, n)
-        elseif is_momentum(op)
-            k = (Int(op.space_index), index_name(op.index))
-            m, n = get(counts, k, (0, 0))
-            counts[k] = (m, n + 1)
-        end
-    end
-    sites = PhaseSite[]
-    for ((si, idxname), (m, n)) in counts
-        (m > 0 && n > 0) && push!(sites, (si, idxname, m, n))
-    end
-    return sites
-end
-
-@inline function expand_site!(
-        current::Vector{OrderedTerm},
-        m::Int, n::Int, K::CNum, α::Rational, remove::F,
-    ) where {F}
-    Kα = K * to_cnum(α)
+function expand_site!(
+        current::Vector{OrderedTerm}, pair::HeisenbergPair,
+        key::SiteKey, m::Int, n::Int, α::Rational,
+    )
+    Kα = pair.K * to_cnum(α)
     kmax = min(m, n)
     next = OrderedTerm[]
     sizehint!(next, length(current) * (kmax + 1))
@@ -174,82 +144,23 @@ end
         Kα_pow = CNUM_ONE
         for k in 1:kmax
             Kα_pow = Kα_pow * Kα
-            r = binomial(m, k) * binomial(n, k) * factorial(k)
-            coeff = to_cnum(r) * Kα_pow
-            new_ops = remove(copy(t.ops), k)
+            coeff = to_cnum(binomial(m, k) * binomial(n, k) * factorial(k)) * Kα_pow
+            new_ops = remove_at!(copy(t.ops), pair.raising, key, k)
+            remove_at!(new_ops, pair.lowering, key, k)
             push!(next, OrderedTerm(t.prefactor * coeff, new_ops))
         end
     end
     return next
 end
 
-function expand_fock_site!(current::Vector{OrderedTerm}, site::FockSite, α::Rational)
-    si, idxname, name, m, n = site
-    return expand_site!(
-        current, m, n, WEYL_K_FOCK, α,
-        (ops, k) -> remove_fock_at!(ops, si, idxname, name, k),
-    )
-end
-
-function expand_phase_site!(current::Vector{OrderedTerm}, site::PhaseSite, α::Rational)
-    si, idxname, m, n = site
-    return expand_site!(
-        current, m, n, WEYL_K_PHASE, α,
-        (ops, k) -> remove_phase_at!(ops, si, idxname, k),
-    )
-end
-
-function remove_fock_at!(
-        ops::Vector{Op}, si::Int, idxname::Symbol, name::Symbol, k::Int,
-    )
-    creates = 0
+function remove_at!(ops::Vector{Op}, kind::OpKind, key::SiteKey, k::Int)
+    removed = 0
     i = 1
-    while i <= length(ops) && creates < k
+    while i <= length(ops) && removed < k
         op = ops[i]
-        if is_create(op) && op.space_index == si &&
-                index_name(op.index) == idxname && operator_name(op) == name
+        if op.kind === kind && site_key(op) == key
             deleteat!(ops, i)
-            creates += 1
-        else
-            i += 1
-        end
-    end
-    destroys = 0
-    i = 1
-    while i <= length(ops) && destroys < k
-        op = ops[i]
-        if is_destroy(op) && op.space_index == si &&
-                index_name(op.index) == idxname && operator_name(op) == name
-            deleteat!(ops, i)
-            destroys += 1
-        else
-            i += 1
-        end
-    end
-    return ops
-end
-
-function remove_phase_at!(
-        ops::Vector{Op}, si::Int, idxname::Symbol, k::Int,
-    )
-    positions = 0
-    i = 1
-    while i <= length(ops) && positions < k
-        op = ops[i]
-        if is_position(op) && op.space_index == si && index_name(op.index) == idxname
-            deleteat!(ops, i)
-            positions += 1
-        else
-            i += 1
-        end
-    end
-    momenta = 0
-    i = 1
-    while i <= length(ops) && momenta < k
-        op = ops[i]
-        if is_momentum(op) && op.space_index == si && index_name(op.index) == idxname
-            deleteat!(ops, i)
-            momenta += 1
+            removed += 1
         else
             i += 1
         end

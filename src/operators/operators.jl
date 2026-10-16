@@ -25,6 +25,8 @@ order_key(o::Op) = (o.space_index, Int(o.kind), name_rank(o.name_id), index_key(
 
 Base.isless(a::Op, b::Op) = isless(order_key(a), order_key(b))
 
+const SiteKey = Tuple{Int32, Index, Int32}
+
 site_key(o::Op) =
     (o.space_index, o.index, (is_position(o) || is_momentum(o)) ? Int32(0) : o.name_id)
 
@@ -70,20 +72,18 @@ end
 function commute_pair(a::Op, b::Op)
     ka = a.kind; kb = b.kind
     if ka === OP_DESTROY && kb === OP_CREATE
-        return (b, a, CNUM_ONE, EMPTY_OPS, CNUM_ZERO, EMPTY_OPS)
+        return (CNUM_ONE, a, CNUM_ZERO, a, 0)
     elseif ka === OP_MOMENTUM && kb === OP_POSITION
-        return (b, a, CNUM_NEG_IM, EMPTY_OPS, CNUM_ZERO, EMPTY_OPS)
+        return (CNUM_NEG_IM, a, CNUM_ZERO, a, 0)
     elseif ka === OP_SPIN && kb === OP_SPIN
         contracted, c = axis_product(a, b)
-        return (b, a, c, Op[contracted], CNUM_ZERO, EMPTY_OPS)
+        return (c, contracted, CNUM_ZERO, contracted, 1)
     elseif ka === OP_COLLECTIVE_TRANSITION && kb === OP_COLLECTIVE_TRANSITION
         c1 = a.l2 == b.l1 ? CNUM_ONE : CNUM_ZERO
         c2 = b.l2 == a.l1 ? CNUM_NEG1 : CNUM_ZERO
-        r1 = iszero(c1) ? EMPTY_OPS : Op[with_levels(a, a.l1, b.l2)]
-        r2 = iszero(c2) ? EMPTY_OPS : Op[with_levels(a, b.l1, a.l2)]
-        return (b, a, c1, r1, c2, r2)
+        return (c1, with_levels(a, a.l1, b.l2), c2, with_levels(a, b.l1, a.l2), 1)
     else
-        return (b, a, CNUM_ZERO, EMPTY_OPS, CNUM_ZERO, EMPTY_OPS)
+        return (CNUM_ZERO, a, CNUM_ZERO, a, 0)
     end
 end
 
