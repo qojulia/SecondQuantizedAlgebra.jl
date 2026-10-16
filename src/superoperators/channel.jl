@@ -156,7 +156,6 @@ into the coefficient.
 """
 function sum_under_scope(G::QAdd, scope::Vector{Index}, ne::Vector{NonEqualPair})
     isempty(scope) && isempty(ne) && return G
-    isempty(G.indices) || summed_side_error("a dissipator")
     out = QTermDict()
     for (t, c) in G.arguments
         temp = QTermDict()

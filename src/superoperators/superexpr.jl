@@ -117,7 +117,7 @@ function side_atoms!(out::Vector{SideAtom}, c::CNum, x::QAdd)
     iszero(x) && return out
     isempty(x.indices) || formal_scope_error()
     for (t, v) in x.arguments
-        push!(out, (c * v, QAdd(QTermDict(copy_key(t) => CNUM_ONE), Index[])))
+        push!(out, (c * v, side_qadd(t.ops, t.ne)))
     end
     return out
 end
@@ -144,27 +144,19 @@ atom_qexpr(x::QAdd) = qexpr_from_qadd(x)
 atom_qexpr(x::QExpr) = x
 
 struct SuperExprBuilder
-    poly::SuperTermDict
-    indices::Vector{Index}
+    poly::SuperBuilder
     formal::FormalDict
 end
-SuperExprBuilder() = SuperExprBuilder(SuperTermDict(), Index[], FormalDict())
-
-function add_formal!(d::FormalDict, key::FormalSandwich, c::CNum)
-    iszero(c) && return d
-    total = get(d, key, CNUM_ZERO) + c
-    iszero(total) ? delete!(d, key) : (d[key] = total)
-    return d
-end
+SuperExprBuilder() = SuperExprBuilder(SuperBuilder(), FormalDict())
 
 function add_atom_pair!(b::SuperExprBuilder, c::CNum, l::QExprArg, r::QExprArg)
     iszero(c) && return b
     if l isa QAdd && r isa QAdd
         tl, cl = first(l.arguments)
         tr, cr = first(r.arguments)
-        canonical_sandwich!(b.poly, tl.ops, tr.ops, c * (cl * cr), merge_ne(tl.ne, tr.ne))
+        canonical_sandwich!(b.poly.args, tl.ops, tr.ops, c * (cl * cr), merge_ne(tl.ne, tr.ne))
     else
-        add_formal!(b.formal, FormalSandwich(atom_qexpr(l), atom_qexpr(r)), c)
+        addto_key!(b.formal, FormalSandwich(atom_qexpr(l), atom_qexpr(r)), c)
     end
     return b
 end
@@ -178,69 +170,51 @@ function add_sandwich!(b::SuperExprBuilder, c::CNum, left::QExprArg, right::QExp
     return b
 end
 
-function accumulate!(b::SuperExprBuilder, S::SuperOperator, scale::CNum = CNUM_ONE)
-    iszero(scale) && return b
-    for (t, c) in S.arguments
-        addto_key!(b.poly, copy_key(t), c * scale)
-    end
-    merge_indices!(b.indices, S.indices)
-    return b
-end
+accumulate!(b::SuperExprBuilder, S::SuperOperator, scale::CNum = CNUM_ONE) =
+    (accumulate!(b.poly, S, scale); b)
 
 function accumulate!(b::SuperExprBuilder, X::SuperExpr, scale::CNum = CNUM_ONE)
-    accumulate!(b, X.poly, scale)
+    accumulate!(b.poly, X.poly, scale)
     iszero(scale) && return b
     for (t, c) in X.formal
-        add_formal!(b.formal, t, c * scale)
+        addto_key!(b.formal, t, c * scale)
     end
     return b
 end
 
-build(b::SuperExprBuilder) = SuperExpr(superop_pruned(copy(b.poly), copy(b.indices)), copy(b.formal))
-
-as_part(x::QExpr) = x
-as_part(x::Union{QField, Coefficient}) = as_side(x)
+finish!(b::SuperExprBuilder) = SuperExpr(finish!(b.poly), b.formal)
 
 sandwich_of(A::QAdd, B::QAdd) = sprepost_poly(A, B)
 function sandwich_of(A::QExprArg, B::QExprArg)
     b = SuperExprBuilder()
     add_sandwich!(b, CNUM_ONE, A, B)
-    return build(b)
+    return finish!(b)
 end
 
 function Base.:+(a::SuperExpr, b::SuperExpr)
     builder = SuperExprBuilder()
     accumulate!(builder, a)
     accumulate!(builder, b)
-    return build(builder)
+    return finish!(builder)
 end
 Base.:+(a::SuperExpr) = a
 
 function scale(X::SuperExpr, c::CNum)
     builder = SuperExprBuilder()
     accumulate!(builder, X, c)
-    return build(builder)
+    return finish!(builder)
 end
 Base.:-(X::SuperExpr) = scale(X, CNUM_NEG1)
 Base.:-(a::SuperExpr, b::SuperExpr) = a + (-b)
 Base.:*(X::SuperExpr, c::Coefficient) = scale(X, to_cnum(c))
 Base.:*(c::Coefficient, X::SuperExpr) = scale(X, to_cnum(c))
-Base.:/(X::SuperExpr, b::Number) =
-    b isa Integer && !(b isa Bool) && !iszero(b) ? X * (1 // b) : X * inv(b)
-Base.:/(X::SuperExpr, b::Coefficient) = X * inv(b)
-Base.://(X::SuperExpr, b::Integer) = X * (1 // b)
-Base.://(X::SuperExpr, b::Coefficient) = X / b
-Base.:+(X::SuperExpr, c::Coefficient) = X + scale(one(SuperExpr), to_cnum(c))
-Base.:+(c::Coefficient, X::SuperExpr) = X + c
-Base.:-(X::SuperExpr, c::Coefficient) = X + (-to_cnum(c))
-Base.:-(c::Coefficient, X::SuperExpr) = (-X) + c
 
 function lower_formal_hamiltonian!(b::SuperExprBuilder, H::QExpr)
     parts = H.kind == QEXPR_ADD ? H.args : QExprArg[H]
     for part in parts
         is_poly, p = part isa QAdd ? (true, part) : polynomial_qadd(part)
         if is_poly
-            merge_indices!(b.indices, lower_hamiltonian!(b.poly, p))
+            lower_hamiltonian!(b.poly, p)
         else
             one_side = single_qadd(CNUM_ONE, Op[])
             add_sandwich!(b, CNUM_NEG_IM, part, one_side)
@@ -272,13 +246,12 @@ function SuperExpr(L::Lindbladian{QExpr})
         pk, K = polynomial_qadd(ch.partner)
         if pj && pk
             lower_channel!(b.poly, J, K, γ, ch.scope, ch.ne)
-            merge_indices!(b.indices, ch.scope)
         else
             isempty(ch.scope) || formal_scope_error()
             lower_formal_channel!(b, ch.jump, ch.partner, γ)
         end
     end
-    return build(b)
+    return finish!(b)
 end
 
 const AnyMap = Union{SuperOperator, SuperExpr, Lindbladian}
@@ -286,15 +259,48 @@ const AnyMap = Union{SuperOperator, SuperExpr, Lindbladian}
 normal_to_symmetric(::AnyMap) = weyl_map_error()
 symmetric_to_normal(::AnyMap) = weyl_map_error()
 
-as_super_expr(X::SuperExpr) = X
-as_super_expr(S::SuperOperator) = SuperExpr(S)
-as_super_expr(L::Lindbladian{QAdd}) = SuperExpr(SuperOperator(L))
-as_super_expr(L::Lindbladian{QExpr}) = SuperExpr(L)
-
 const PolyMap = Union{SuperOperator, Lindbladian{QAdd}}
 
 lift(a::PolyMap, b::PolyMap) = (SuperOperator(a), SuperOperator(b))
-lift(a::AnyMap, b::AnyMap) = (as_super_expr(a), as_super_expr(b))
+lift(a::AnyMap, b::AnyMap) = (SuperExpr(a), SuperExpr(b))
+
+lowered(S::Union{SuperOperator, SuperExpr}) = S
+lowered(L::Lindbladian{QAdd}) = SuperOperator(L)
+lowered(L::Lindbladian{QExpr}) = SuperExpr(L)
+
+Base.:/(X::AnyMap, b::Number) =
+    b isa Integer && !(b isa Bool) && !iszero(b) ? X * (1 // b) : X * inv(b)
+Base.:/(X::AnyMap, b::Coefficient) = X * inv(b)
+Base.://(X::AnyMap, b::Integer) = X * (1 // b)
+Base.://(X::AnyMap, b::Coefficient) = X / b
+
+function Base.:+(X::AnyMap, c::Coefficient)
+    Y = lowered(X)
+    return Y + scale(one(Y), to_cnum(c))
+end
+Base.:+(c::Coefficient, X::AnyMap) = X + c
+Base.:-(X::AnyMap, c::Coefficient) = X + (-to_cnum(c))
+Base.:-(c::Coefficient, X::AnyMap) = (-lowered(X)) + c
+
+Base.transpose(L::Lindbladian) = transpose(lowered(L))
+Base.adjoint(L::Lindbladian) = adjoint(lowered(L))
+dagger(X::AnyMap) = adjoint(X)
+qadjoint(X::AnyMap) = adjoint(X)
+(L::Lindbladian)(ρ::Union{QField, Coefficient}) = lowered(L)(ρ)
+
+Base.inv(::AnyMap) = negative_power_error()
+
+function Base.:^(X::AnyMap, n::Integer)
+    n >= 0 || negative_power_error()
+    Y = lowered(X)
+    n == 0 && return one(Y)
+    n >= 2 && !isempty(get_sum_indices(Y)) && scoped_power_error()
+    result = Y
+    for _ in 2:n
+        result = compose(result, Y)
+    end
+    return result
+end
 
 Base.:+(a::AnyMap, b::AnyMap) = +(lift(a, b)...)
 Base.:-(a::AnyMap, b::AnyMap) = -(lift(a, b)...)
@@ -304,10 +310,6 @@ Base.:∘(a::AnyMap, b::AnyMap) = compose(a, b)
 commutator(a::AnyMap, b::AnyMap) = compose(a, b) - compose(b, a)
 anticommutator(a::AnyMap, b::AnyMap) = compose(a, b) + compose(b, a)
 
-Base.:+(L::Lindbladian{QExpr}, c::Coefficient) = SuperExpr(L) + c
-Base.:+(c::Coefficient, L::Lindbladian{QExpr}) = SuperExpr(L) + c
-Base.:-(L::Lindbladian{QExpr}, c::Coefficient) = SuperExpr(L) - c
-Base.:-(c::Coefficient, L::Lindbladian{QExpr}) = c - SuperExpr(L)
 
 function poly_sandwiches(S::SuperOperator)
     out = Tuple{CNum, QExpr, QExpr}[]
@@ -338,22 +340,7 @@ function compose(A::SuperExpr, B::SuperExpr)
     compose_sandwiches!(b, af, bf)
     isempty(af) || compose_sandwiches!(b, af, poly_sandwiches(B.poly))
     isempty(bf) || compose_sandwiches!(b, poly_sandwiches(A.poly), bf)
-    return build(b)
-end
-
-const FormalOperand = Union{SuperExpr, Lindbladian{QExpr}}
-
-Base.inv(::FormalOperand) = negative_power_error()
-
-function Base.:^(X::FormalOperand, n::Integer)
-    n >= 0 || negative_power_error()
-    S = as_super_expr(X)
-    n == 0 && return one(SuperExpr)
-    result = S
-    for _ in 2:n
-        result = compose(result, S)
-    end
-    return result
+    return finish!(b)
 end
 
 function apply_formal(S::SuperOperator, ρ::QExpr)
@@ -367,7 +354,6 @@ function apply_formal(S::SuperOperator, ρ::QExpr)
 end
 
 (S::SuperOperator)(ρ::QExpr) = apply_formal(S, ρ)
-(L::Lindbladian{QAdd})(ρ::QExpr) = apply_formal(SuperOperator(L), ρ)
 
 function apply_map(X::SuperExpr, ρ::QExprArg)
     terms = QExprArg[]
@@ -381,7 +367,6 @@ end
 (X::SuperExpr)(ρ::Union{QAdd, QExpr}) = apply_map(X, ρ)
 (X::SuperExpr)(ρ::QSym) = apply_map(X, to_qadd(ρ))
 (X::SuperExpr)(ρ::Coefficient) = apply_map(X, single_qadd(to_cnum(ρ), Op[]))
-(L::Lindbladian{QExpr})(ρ::Union{QSym, QField, Coefficient}) = SuperExpr(L)(ρ)
 
 function Base.adjoint(X::SuperExpr)
     b = SuperExprBuilder()
@@ -389,22 +374,17 @@ function Base.adjoint(X::SuperExpr)
     for (t, c) in X.formal
         add_sandwich!(b, conj(c), adjoint(t.left), adjoint(t.right))
     end
-    return build(b)
+    return finish!(b)
 end
 
 function Base.transpose(X::SuperExpr)
     b = SuperExprBuilder()
     accumulate!(b, transpose(X.poly))
     for (t, c) in X.formal
-        add_formal!(b.formal, FormalSandwich(t.right, t.left), c)
+        addto_key!(b.formal, FormalSandwich(t.right, t.left), c)
     end
-    return build(b)
+    return finish!(b)
 end
-
-Base.adjoint(L::Lindbladian{QExpr}) = adjoint(SuperExpr(L))
-Base.transpose(L::Lindbladian{QExpr}) = transpose(SuperExpr(L))
-dagger(X::SuperExpr) = adjoint(X)
-qadjoint(X::SuperExpr) = adjoint(X)
 
 function map_formal(fp::FP, fs::FS, fc::FC, X::SuperExpr) where {FP, FS, FC}
     b = SuperExprBuilder()
@@ -412,7 +392,7 @@ function map_formal(fp::FP, fs::FS, fc::FC, X::SuperExpr) where {FP, FS, FC}
     for (t, c) in X.formal
         add_sandwich!(b, fc(c), fs(t.left), fs(t.right))
     end
-    return build(b)
+    return finish!(b)
 end
 
 normal_order(X::SuperExpr) = map_formal(normal_order, normal_order, identity, X)
@@ -488,8 +468,6 @@ end
 
 get_sum_indices(X::SuperExpr) = get_sum_indices(X.poly)
 
-taylor_side(q::QExpr, order::Int) = lower_taylor_qexpr(q, order)
-
 """
     taylor(X::SuperExpr, ns)
     taylor(L::Lindbladian{QExpr}, ns)
@@ -505,19 +483,13 @@ function Symbolics.taylor(X::SuperExpr, ns::UnitRange{T}) where {T <: Integer}
     b = SuperBuilder()
     accumulate!(b, X.poly)
     for (t, c) in X.formal
-        accumulate!(b, c, taylor_side(t.left, order), taylor_side(t.right, order))
+        accumulate!(b, c, lower_taylor_qexpr(t.left, order), lower_taylor_qexpr(t.right, order))
     end
-    return build(b)
+    return finish!(b)
 end
 
 function Symbolics.taylor(L::Lindbladian{QExpr}, ns::UnitRange{T}) where {T <: Integer}
     order = taylor_prefix_order(ns)
-    b = LindbladianBuilder{QAdd}()
-    add_hamiltonian!(b.hamiltonian, taylor_side(L.hamiltonian, order))
-    for (ch, γ) in L.channels
-        J = taylor_side(ch.jump, order)
-        K = is_diagonal(ch) ? J : taylor_side(ch.partner, order)
-        add_channel!(b, J, K, γ, copy(ch.scope), ch.ne)
-    end
-    return build(b)
+    lowered_side(q) = lower_taylor_qexpr(q, order)
+    return map_lindbladian(lowered_side, lowered_side, identity, same_scope, QAdd, L)
 end
