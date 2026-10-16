@@ -58,6 +58,13 @@ function prune_dead_ne(args::QTermDict, indices::Vector{Index})
     return out
 end
 
+function drop_unused_indices(d::QTermDict, indices::Vector{Index})
+    isempty(indices) && return indices
+    used = Index[idx for idx in indices if any_depends_on_index(d, idx)]
+    length(used) == length(indices) && return indices
+    return used
+end
+
 @inline function pair_referenced(
         p::NonEqualPair, ops::Vector{Op}, c::CNum, scope::Vector{Index},
     )
@@ -104,6 +111,10 @@ function single_qadd(
     addto!(d, ops, c, ne)
     return QAdd(d, indices)
 end
+
+to_qadd(x::QAdd) = x
+to_qadd(x::QSym) = single_qadd(CNUM_ONE, Op[x])
+to_qadd(x::SymbolicUtils.BasicSymbolic) = single_qadd(to_cnum(x), Op[])
 
 Base.length(a::QAdd) = length(a.arguments)
 Base.iszero(a::QAdd) = isempty(a.arguments)
@@ -499,7 +510,7 @@ function coefficient(expr::Union{QField, Coefficient}, term::Union{QField, Coeff
 end
 
 coefficient_operand(x::QAdd, ::String) = x
-coefficient_operand(x::QSym, ::String) = single_qadd(CNUM_ONE, Op[x])
+coefficient_operand(x::QSym, ::String) = to_qadd(x)
 coefficient_operand(x::Coefficient, ::String) = single_qadd(to_cnum(x), Op[])
 coefficient_operand(::QField, what::String) = throw(
     ArgumentError(

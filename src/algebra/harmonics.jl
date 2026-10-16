@@ -87,7 +87,7 @@ See also [`harmonic`](@ref), [`secular`](@ref).
 harmonics(x::Union{Number, Coeff}, ω::Real, t::Num) =
     coefficient_harmonics(to_cnum(x), Num(ω), harmonic_frequency_coeff(ω, t), t)
 harmonics(op::QSym, ω::Real, t::Num) =
-    harmonics(single_qadd(CNUM_ONE, Op[op]), ω, t)
+    harmonics(to_qadd(op), ω, t)
 
 function harmonics(q::QAdd, ω::Real, t::Num)
     frequency = harmonic_frequency_coeff(ω, t)
@@ -122,10 +122,9 @@ See also [`secular`](@ref), [`phase_terms`](@ref).
 """
 harmonic(x::Union{Number, Coeff}, ω::Real, t::Num, n::Integer) =
     get(harmonics(x, ω, t), Int(n), CNUM_ZERO)
-harmonic(op::QSym, ω::Real, t::Num, n::Integer) =
-    harmonic(single_qadd(CNUM_ONE, Op[op]), ω, t, n)
-function harmonic(q::QAdd, ω::Real, t::Num, n::Integer)
+harmonic(q::Union{QSym, QAdd}, ω::Real, t::Num, n::Integer) = map_coefficients(harmonic_map(ω, t, n), q)
+
+function harmonic_map(ω::Real, t::Num, n::Integer)
     frequency = harmonic_frequency_coeff(ω, t)
-    order = Int(n)
-    return map_coefficients(c -> get(coefficient_harmonics(c, Num(ω), frequency, t), order, CNUM_ZERO), q)
+    return c -> get(coefficient_harmonics(c, Num(ω), frequency, t), Int(n), CNUM_ZERO)
 end

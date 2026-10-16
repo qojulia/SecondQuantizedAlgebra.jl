@@ -63,7 +63,7 @@ function to_numeric end
 to_numeric(op::Op, b::Basis, d::AbstractDict{<:QSym} = NO_SUBS) =
     numeric_materialize(QuantumOpticsBackend(), numeric_leaf(op, NumericContext(QuantumOpticsBackend(), b, d)), EagerOperator())
 to_numeric(op::Op, b::CompositeBasis, d::AbstractDict{<:QSym} = NO_SUBS) =
-    static_operator(single_qadd(CNUM_ONE, Op[op]), NumericContext(QuantumOpticsBackend(), b, d), EagerOperator())
+    static_operator(to_qadd(op), NumericContext(QuantumOpticsBackend(), b, d), EagerOperator())
 
 to_numeric(q::QAdd, b::Basis, d::AbstractDict{<:QSym} = NO_SUBS) =
     static_operator(q, NumericContext(QuantumOpticsBackend(), b, d), EagerOperator())

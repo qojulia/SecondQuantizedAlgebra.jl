@@ -200,6 +200,13 @@ function to_cnum(x::RawExpression)
     return is_atom(x) ? atom_coeff(x) : raw_leaf(x)
 end
 
+function has_subterm(pred::F, x) where {F}
+    x isa SymbolicUtils.BasicSymbolic || return false
+    pred(x) && return true
+    SymbolicUtils.iscall(x) || return false
+    return any(argument -> has_subterm(pred, argument), SymbolicUtils.arguments(x))
+end
+
 function fold_tree(leaf::F, x::RawExpression) where {F}
     SymbolicUtils.iscall(x) || return leaf(x)
     op = SymbolicUtils.operation(x)

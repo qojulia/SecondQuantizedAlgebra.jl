@@ -216,7 +216,7 @@ function check_operands(a::Union{QAdd, SuperOperator}, b::Union{QAdd, SuperOpera
 end
 
 as_side(x::QAdd) = x
-as_side(x::QSym) = single_qadd(CNUM_ONE, Op[x])
+as_side(x::QSym) = to_qadd(x)
 as_side(x::Coefficient) = single_qadd(to_cnum(x), Op[])
 
 """
@@ -397,7 +397,7 @@ function apply_map(S::SuperOperator, ρ::QAdd)
 end
 
 (S::SuperOperator)(ρ::QAdd) = apply_map(S, ρ)
-(S::SuperOperator)(ρ::QSym) = apply_map(S, single_qadd(CNUM_ONE, Op[ρ]))
+(S::SuperOperator)(ρ::QSym) = apply_map(S, to_qadd(ρ))
 (S::SuperOperator)(ρ::Coefficient) = apply_map(S, single_qadd(to_cnum(ρ), Op[]))
 
 @noinline function negative_power_error()

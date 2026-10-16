@@ -49,7 +49,7 @@ See also [`symmetric_to_normal`](@ref), [`normal_order`](@ref).
 function normal_to_symmetric(s::QAdd)
     return convert_ordering(s, -1 // 2)
 end
-normal_to_symmetric(op::QSym) = normal_to_symmetric(single_qadd(CNUM_ONE, Op[op]))
+normal_to_symmetric(op::QSym) = normal_to_symmetric(to_qadd(op))
 
 """
     symmetric_to_normal(expr)
@@ -79,12 +79,11 @@ See also [`normal_to_symmetric`](@ref), [`normal_order`](@ref).
 function symmetric_to_normal(s::QAdd)
     return convert_ordering(s, 1 // 2)
 end
-symmetric_to_normal(op::QSym) = symmetric_to_normal(single_qadd(CNUM_ONE, Op[op]))
+symmetric_to_normal(op::QSym) = symmetric_to_normal(to_qadd(op))
 
 function convert_ordering(s::QAdd, α::Rational)
     d = QTermDict()
     for (term, c) in s.arguments
-        iszero(c) && continue
         convert_term!(d, c, term.ops, term.ne, α)
     end
     return QAdd(d, copy(s.indices))
@@ -140,7 +139,7 @@ function expand_site!(
     next = OrderedTerm[]
     sizehint!(next, length(current) * (kmax + 1))
     for t in current
-        push!(next, OrderedTerm(t.prefactor, copy(t.ops)))
+        push!(next, t)
         Kα_pow = CNUM_ONE
         for k in 1:kmax
             Kα_pow = Kα_pow * Kα

@@ -9,7 +9,7 @@ function expand_parameter(parameter::AbstractDict)
         add_parameter_rule!(op_rules, scalar_rules, k, v)
     end
     add_adjoint_rules!(op_rules)
-    return op_rules, scalar_rules
+    return SubstitutionRules(op_rules, scalar_rules)
 end
 
 function add_parameter_rule!(op_rules::OpRules, scalar_rules::ScalarRules, k::Complex, v)

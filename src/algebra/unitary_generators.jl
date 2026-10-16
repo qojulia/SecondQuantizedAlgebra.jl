@@ -398,7 +398,7 @@ function UnitaryTransform(G::QAdd, θ::Real)
 end
 
 UnitaryTransform(G::QSym, θ::Real) =
-    UnitaryTransform(single_qadd(CNUM_ONE, Op[G]), θ)
+    UnitaryTransform(to_qadd(G), θ)
 
 """
     RotatingFrame(H0, t)
@@ -434,4 +434,4 @@ function RotatingFrame(H0::QAdd, t::Num)
 end
 
 RotatingFrame(H0::QSym, t::Num) =
-    RotatingFrame(single_qadd(CNUM_ONE, Op[H0]), t)
+    RotatingFrame(to_qadd(H0), t)

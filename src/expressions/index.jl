@@ -392,7 +392,7 @@ function sigma_term!(
 end
 
 function Σ(expr::QSym, i::Index, non_equal::Vector{Index} = Index[])
-    return Σ(single_qadd(CNUM_ONE, Op[expr]), i, non_equal)
+    return Σ(to_qadd(expr), i, non_equal)
 end
 
 function Σ(expr::Number, i::Index, non_equal::Vector{Index} = Index[])

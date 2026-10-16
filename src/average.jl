@@ -332,10 +332,6 @@ function average_term_ops(term::QTerm)
     return average_leaf(inner)
 end
 
-to_qadd(x::QAdd) = x
-to_qadd(x::QSym) = single_qadd(CNUM_ONE, Op[x])
-to_qadd(x::SymbolicUtils.BasicSymbolic) = single_qadd(to_cnum(x), Op[])
-
 function rebuild_indexed_sum(inner::QAdd, indices::Vector{Index}, ne::Vector{NonEqualPair})
     isempty(ne) && return QAdd(inner.arguments, indices)
     new_args = QTermDict()
@@ -355,13 +351,7 @@ function fold_qadds(op::F, args::Vector{QAdd}, empty::QAdd) where {F}
     return result
 end
 
-function contains_average(x)
-    x isa Num && return contains_average(SymbolicUtils.unwrap(x))
-    x isa SymbolicUtils.BasicSymbolic || return false
-    (is_average(x) || is_indexed_sum(x)) && return true
-    SymbolicUtils.iscall(x) || return false
-    return any(contains_average, SymbolicUtils.arguments(x))
-end
+contains_average(x) = has_subterm(y -> is_average(y) || is_indexed_sum(y), SymbolicUtils.unwrap(x))
 
 """
     undo_average(expr)
@@ -420,7 +410,7 @@ end
 
 undo_average(x::Number) = single_qadd(to_cnum(x), Op[])
 undo_average(x::Num) = undo_average(SymbolicUtils.unwrap(x))
-undo_average(x::QSym) = single_qadd(CNUM_ONE, Op[x])
+undo_average(x::QSym) = to_qadd(x)
 undo_average(x::QAdd) = x
 undo_average(eq::Symbolics.Equation) = undo_average(eq.lhs) => undo_average(eq.rhs)
 

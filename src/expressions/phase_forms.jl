@@ -155,12 +155,7 @@ function monomial_phase_term(m::Monomial)
     return PhaseTerm(amplitude, phase)
 end
 
-function contains_phase(x)
-    x isa SymbolicUtils.BasicSymbolic || return false
-    is_phase(x) && return true
-    SymbolicUtils.iscall(x) || return false
-    return any(contains_phase, SymbolicUtils.arguments(x))
-end
+contains_phase(x) = has_subterm(is_phase, x)
 
 function multiply_phase_terms(left::Vector{PhaseTerm}, right::Vector{PhaseTerm})
     result = PhaseTerm[]

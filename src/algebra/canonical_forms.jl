@@ -1,103 +1,3 @@
-Base.:*(a::QSym, b::Coefficient) = single_qadd(to_cnum(b), Op[a])
-Base.:*(b::Coefficient, a::QSym) = a * b
-
-function Base.:*(a::QAdd, b::Coefficient)
-    b isa Number && isone(b) && return a
-    cb = to_cnum(b)
-    d = QTermDict()
-    for (term, c) in a.arguments
-        new_c = c * cb
-        iszero(new_c) && continue
-        d[copy_key(term)] = new_c
-    end
-    return QAdd(d, copy(a.indices))
-end
-Base.:*(a::Coefficient, b::QAdd) = b * a
-
-function Base.:+(a::QSym, b::QSym)
-    d = QTermDict()
-    addto!(d, Op[a], CNUM_ONE)
-    addto!(d, Op[b], CNUM_ONE)
-    return QAdd(d, EMPTY_INDICES)
-end
-
-function Base.:+(a::QAdd, b::QSym)
-    d = copy_args(a.arguments)
-    addto!(d, Op[b], CNUM_ONE)
-    return QAdd(d, drop_unused_indices(d, a.indices))
-end
-Base.:+(a::QSym, b::QAdd) = b + a
-
-function Base.:+(a::QAdd, b::QAdd)
-    d = copy_args(a.arguments)
-    for (term, c) in b.arguments
-        addto_key!(d, copy_key(term), c)
-    end
-    return QAdd(d, drop_unused_indices(d, merge_unique(a.indices, b.indices)))
-end
-
-function Base.:+(a::QSym, b::Coefficient)
-    d = QTermDict()
-    addto!(d, Op[a], CNUM_ONE)
-    addto!(d, EMPTY_OPS, to_cnum(b))
-    return QAdd(d, EMPTY_INDICES)
-end
-Base.:+(a::Coefficient, b::QSym) = b + a
-
-function Base.:+(a::QAdd, b::Coefficient)
-    b isa Number && iszero(b) && return a
-    d = copy_args(a.arguments)
-    addto!(d, EMPTY_OPS, to_cnum(b))
-    return QAdd(d, copy(a.indices))
-end
-Base.:+(a::Coefficient, b::QAdd) = b + a
-
-Base.zero(::Type{QAdd}) = zero_qadd()
-Base.zero(::QAdd) = zero_qadd()
-
-Base.:+(a::QSym) = single_qadd(CNUM_ONE, Op[a])
-Base.:+(a::QAdd) = a
-
-Base.:-(a::QSym) = single_qadd(CNUM_NEG1, Op[a])
-
-function Base.:-(a::QAdd)
-    d = QTermDict()
-    for (term, c) in a.arguments
-        d[copy_key(term)] = -c
-    end
-    return QAdd(d, copy(a.indices))
-end
-
-Base.:-(a::QField, b::QField) = a + (-b)
-Base.:-(a::QField, b::Coefficient) = a + (-b)
-Base.:-(a::Coefficient, b::QField) = a + (-b)
-
-Base.:/(a::Union{QSym, QAdd}, b::Number) =
-    b isa Integer && !(b isa Bool) && !iszero(b) ? a * (1 // b) : a * inv(b)
-Base.:/(a::Union{QSym, QAdd}, b::Coefficient) = a * inv(b)
-
-Base.://(a::Union{QSym, QAdd}, b::Integer) = a * (1 // b)
-Base.://(a::Union{QSym, QAdd}, b::Coefficient) = a / b
-
-function Base.:^(a::QSym, n::Integer)
-    n >= 0 || throw(ArgumentError("Negative powers not supported"))
-    n == 0 && return single_qadd(CNUM_ONE, EMPTY_OPS)
-    out = QTermDict()
-    ops = Op[a for _ in 1:n]
-    canonicalize!(out, ops, CNUM_ONE, EMPTY_NE)
-    return QAdd(out, Index[])
-end
-
-function Base.:^(a::QAdd, n::Integer)
-    n >= 0 || throw(ArgumentError("Negative powers not supported"))
-    n == 0 && return single_qadd(CNUM_ONE, EMPTY_OPS)
-    result = a
-    for _ in 2:n
-        result = result * a
-    end
-    return result
-end
-
 """
     normal_order(expr::QField)
 
@@ -126,7 +26,7 @@ julia> normal_order(a * a')
 See also [`simplify`](@ref), [`expand_completeness`](@ref),
 [`normal_to_symmetric`](@ref), [`symmetric_to_normal`](@ref).
 """
-normal_order(op::QSym) = single_qadd(CNUM_ONE, Op[op])
+normal_order(op::QSym) = to_qadd(op)
 
 function normal_order(q::QAdd)
     out = QTermDict()
@@ -140,15 +40,7 @@ function simplify_raw_component(x; kwargs...)
     return Num(SymbolicUtils.simplify(SymbolicUtils.expand(x); kwargs...))
 end
 
-function contains_division(x)
-    x isa SymbolicUtils.BasicSymbolic || return false
-    SymbolicUtils.iscall(x) || return false
-    SymbolicUtils.operation(x) === (/) && return true
-    for argument in SymbolicUtils.arguments(x)
-        contains_division(argument) && return true
-    end
-    return false
-end
+contains_division(x) = has_subterm(y -> is_call_of(y, /), x)
 
 function simplify_prefactor(x::CNum; kwargs...)
     is_native(x) && return x
@@ -165,13 +57,6 @@ function simplify_prefactor(x::CNum; kwargs...)
 end
 
 SymbolicUtils.simplify(c::Coeff; kwargs...) = simplify_prefactor(c; kwargs...)
-
-function drop_unused_indices(d::QTermDict, indices::Vector{Index})
-    isempty(indices) && return indices
-    used = Index[idx for idx in indices if any_depends_on_index(d, idx)]
-    length(used) == length(indices) && return indices
-    return used
-end
 
 """
     simplify(expr::QField)
@@ -201,7 +86,7 @@ a' * a
 
 See also [`normal_order`](@ref), [`expand`](@ref), [`expand_completeness`](@ref).
 """
-SymbolicUtils.simplify(op::QSym; kwargs...) = single_qadd(CNUM_ONE, Op[op])
+SymbolicUtils.simplify(op::QSym; kwargs...) = to_qadd(op)
 
 SymbolicUtils.simplify(q::QAdd; kwargs...) =
     map_coefficients(simplify_prefactor, normal_order(q))
@@ -259,7 +144,7 @@ function map_coefficients(f::F, q::QAdd) where {F}
     return QAdd(out, drop_unused_indices(out, q.indices))
 end
 map_coefficients(f::F, op::QSym) where {F} =
-    map_coefficients(f, single_qadd(CNUM_ONE, Op[op]))
+    map_coefficients(f, to_qadd(op))
 
 """
     settle_mapped(mentions, c, new_c, ne, indices) -> (coef, ne)
@@ -291,13 +176,9 @@ end
     )
 end
 
-exponential_form(op::QSym) =
-    exponential_form(single_qadd(CNUM_ONE, Op[op]))
-exponential_form(q::QAdd) = map_coefficients(exponential_form, q)
+exponential_form(q::Union{QSym, QAdd}) = map_coefficients(exponential_form, q)
 
-trigonometric_form(op::QSym) =
-    trigonometric_form(single_qadd(CNUM_ONE, Op[op]))
-trigonometric_form(q::QAdd) = map_coefficients(trigonometric_form, q)
+trigonometric_form(q::Union{QSym, QAdd}) = map_coefficients(trigonometric_form, q)
 
 """
     expand(expr::QField)
@@ -324,16 +205,8 @@ exp(x^2 + x*y) * a
 
 See also [`simplify`](@ref), [`taylor`](@ref).
 """
-function Symbolics.expand(s::QAdd; kwargs...)
-    d = QTermDict()
-    for (term, c) in s.arguments
-        new_c = expand_prefactor(c; kwargs...)
-        iszero(new_c) && continue
-        addto!(d, term.ops, new_c, term.ne)
-    end
-    return QAdd(d, copy(s.indices))
-end
-Symbolics.expand(op::QSym; kwargs...) = single_qadd(CNUM_ONE, Op[op])
+Symbolics.expand(s::QAdd; kwargs...) = map_coefficients(c -> expand_prefactor(c; kwargs...), s)
+Symbolics.expand(op::QSym; kwargs...) = to_qadd(op)
 
 expand_prefactor(x::CNum; kwargs...) = (is_native(x) || is_poly(x) || iszero(x)) ? x : cnum(Symbolics.expand(real(x)), Symbolics.expand(imag(x)))
 
@@ -364,20 +237,14 @@ function expand_completeness(q::QAdd)
     out = QTermDict()
     for (t, c) in q
         depended = Index[idx for idx in q.indices if depends_on_index_term(c, t.ops, idx)]
-        if isempty(depended)
-            expand_gs_ops(copy(t.ops), c) do ops1, c1
-                stream!(out, ops1, c1, t.ne)
-            end
-        else
-            expand_gs_ops(copy(t.ops), c) do ops1, c1
-                emit_scaled_by_scope!(out, ops1, c1, t.ne, depended)
-            end
+        expand_gs_ops(copy(t.ops), c) do ops1, c1
+            isempty(depended) ? stream!(out, ops1, c1, t.ne) : emit_scaled_by_scope!(out, ops1, c1, t.ne, depended)
         end
     end
     return QAdd(out, copy(q.indices))
 end
 
-expand_completeness(op::QSym) = expand_completeness(single_qadd(CNUM_ONE, Op[op]))
+expand_completeness(op::QSym) = expand_completeness(to_qadd(op))
 
 """
     assume_distinct_index(expr, pairs::Vector{Tuple{Index, Index}})
@@ -418,124 +285,3 @@ function assume_distinct_index(q::QAdd, pairs::Vector{Tuple{Index, Index}})
     end
     return expand_completeness(QAdd(out, drop_unused_indices(out, copy(q.indices))))
 end
-
-const ZERO_QADD = QAdd(QTermDict(), Index[])
-zero_qadd() = ZERO_QADD
-
-"""
-    commutator(a, b)
-
-Commutator of `a` and `b`.
-
-Returns ``[a, b] = ab - ba`` in canonical form. If either argument is a formal
-operator function, the result stays formal until lowered with [`taylor`](@ref).
-
-# Examples
-
-```jldoctest
-julia> h = FockSpace(:f);
-
-julia> @qnumbers a::Destroy(h);
-
-julia> commutator(a, a')
-1
-
-julia> commutator(a' * a, a)
--a
-```
-
-See also [`anticommutator`](@ref), [`normal_order`](@ref), [`taylor`](@ref).
-"""
-function commutator end
-
-commutator(::Number, ::Number) = zero_qadd()
-commutator(::Number, ::QField) = zero_qadd()
-commutator(::QField, ::Number) = zero_qadd()
-
-function commutator(a::QSym, b::QSym)
-    site_compare(a, b, EMPTY_NE) === Equal || return zero_qadd()
-    isequal(a, b) && return zero_qadd()
-    forward = can_commute(a, b)
-    reverse = can_commute(b, a)
-    if !forward && reverse
-        c1, r1, c2, r2, n = commute_pair(a, b)
-    elseif forward && !reverse
-        c1, r1, c2, r2, n = commute_pair(b, a)
-        c1, c2 = -c1, -c2
-    else
-        return a * b - b * a
-    end
-    d = QTermDict()
-    iszero(c1) || addto!(d, n == 0 ? EMPTY_OPS : Op[r1], c1)
-    iszero(c2) || addto!(d, n == 0 ? EMPTY_OPS : Op[r2], c2)
-    return QAdd(d, EMPTY_INDICES)
-end
-
-function commutator(a::QAdd, b::QSym)
-    term = QTerm(Op[b], EMPTY_NE)
-    return commute_terms(a, [(term, CNUM_ONE, acts_on(term))], EMPTY_INDICES) do _, _
-        b
-    end
-end
-commutator(a::QSym, b::QAdd) = -commutator(b, a)
-
-function commutator(a::QAdd, b::QAdd)
-    isequal(a, b) && return zero_qadd()
-    bside = [(tb, cb, acts_on(tb)) for (tb, cb) in b.arguments]
-    return commute_terms(a, bside, b.indices) do tb, cb
-        QAdd(QTermDict(copy_key(tb) => cb), b.indices)
-    end
-end
-
-function commute_terms(
-        bfactor::F, a::QAdd, bside::Vector{Tuple{QTerm, CNum, Vector{Int}}},
-        b_indices::Vector{Index},
-    ) where {F}
-    indexed = !(isempty(a.indices) && isempty(b_indices))
-    d = QTermDict()
-    indices = EMPTY_INDICES
-    for (ta, ca) in a.arguments
-        aon_a = acts_on(ta)
-        qa = indexed ? QAdd(QTermDict(copy_key(ta) => ca), a.indices) : ZERO_QADD
-        for (tb, cb, aon_b) in bside
-            isdisjoint(aon_a, aon_b) && continue
-            if indexed
-                qb = bfactor(tb, cb)
-                indices = merge_unique(indices, merge_into!(d, qa * qb - qb * qa))
-            else
-                emit_product!(d, ta.ops, ca, ta.ne, tb.ops, cb, tb.ne, EMPTY_INDICES, false)
-                emit_product!(d, tb.ops, -cb, tb.ne, ta.ops, ca, ta.ne, EMPTY_INDICES, false)
-            end
-        end
-    end
-    return QAdd(d, drop_unused_indices(d, indices))
-end
-
-function merge_into!(d::QTermDict, r::QAdd)
-    for (term, c) in r.arguments
-        addto_key!(d, copy_key(term), c)
-    end
-    return r.indices
-end
-
-"""
-    anticommutator(a, b)
-
-Anticommutator of `a` and `b`.
-
-Returns ``\\{a, b\\} = ab + ba`` in canonical form.
-
-# Examples
-
-```jldoctest
-julia> h = FockSpace(:f);
-
-julia> @qnumbers a::Destroy(h);
-
-julia> anticommutator(a, a')
-1 + 2 * a' * a
-```
-
-See also [`commutator`](@ref).
-"""
-anticommutator(a, b) = a * b + b * a

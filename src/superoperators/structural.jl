@@ -45,25 +45,23 @@ exponential_form(S::SuperOperator) = map_coefficients(exponential_form, S)
 trigonometric_form(S::SuperOperator) = map_coefficients(trigonometric_form, S)
 
 function SymbolicUtils.substitute(S::SuperOperator, rules::AbstractDict; replace_adjoint::Bool = true)
-    iszero(S) && return S
-    op_rules, scalar_rules = split_substitution_rules(rules, replace_adjoint)
-    return substitute_split(S, op_rules, scalar_rules)
+    return substitute_with(S, SubstitutionRules(rules, replace_adjoint))
 end
 
-function substitute_side(ops::Vector{Op}, ne::Vector{NonEqualPair}, op_rules::OpRules, scalar_rules::ScalarRules)
-    side = substitute_split(side_qadd(ops, ne), op_rules, scalar_rules)
+function substitute_side(ops::Vector{Op}, ne::Vector{NonEqualPair}, r::SubstitutionRules)
+    side = substitute_with(side_qadd(ops, ne), r)
     isempty(side.indices) || summed_side_error("an operator substitution inside a superoperator")
     return side
 end
 
-function substitute_split(S::SuperOperator, op_rules::OpRules, scalar_rules::ScalarRules)
-    phase_rules = nonreal_phase_substitutions(scalar_rules)
+function substitute_with(S::SuperOperator, r::SubstitutionRules)
+    (iszero(S) || isempty(r)) && return S
     out = SuperTermDict()
     for (t, c) in S.arguments
-        nc = substitute_cnum(c, scalar_rules, phase_rules)
+        nc = substitute_cnum(c, r)
         iszero(nc) && continue
-        lt = substitute_side(t.left, t.ne, op_rules, scalar_rules)
-        rt = substitute_side(t.right, t.ne, op_rules, scalar_rules)
+        lt = substitute_side(t.left, t.ne, r)
+        rt = substitute_side(t.right, t.ne, r)
         bound = bound_indices(t, c, S.indices)
         for (a, ca) in lt.arguments, (b, cb) in rt.arguments
             settle_sandwich!(
@@ -153,19 +151,9 @@ function assume_distinct_index(L::Lindbladian{O}, pairs::Vector{Tuple{Index, Ind
 end
 
 function SymbolicUtils.substitute(L::Lindbladian{O}, rules::AbstractDict; replace_adjoint::Bool = true) where {O}
-    op_rules, scalar_rules = split_substitution_rules(rules, replace_adjoint)
-    phase_rules = nonreal_phase_substitutions(scalar_rules)
-    return map_lindbladian(
-        x -> substitute_part(x, op_rules, scalar_rules, phase_rules),
-        x -> substitute_part(x, op_rules, scalar_rules, phase_rules),
-        c -> substitute_cnum(c, scalar_rules, phase_rules), L,
-    )
+    r = SubstitutionRules(rules, replace_adjoint)
+    return map_lindbladian(x -> substitute_with(x, r), x -> substitute_with(x, r), c -> substitute_cnum(c, r), L)
 end
-
-substitute_part(q::QAdd, op_rules::OpRules, scalar_rules::ScalarRules, ::PhaseRules) =
-    iszero(q) ? q : substitute_split(q, op_rules, scalar_rules)
-substitute_part(q::QExpr, op_rules::OpRules, scalar_rules::ScalarRules, phase_rules::PhaseRules) =
-    iszero(q) ? q : substitute_qexpr_split(q, op_rules, scalar_rules, phase_rules)
 
 function change_index(L::Lindbladian{O}, m::IndexMap) where {O}
     renames_nothing(m) && return L
