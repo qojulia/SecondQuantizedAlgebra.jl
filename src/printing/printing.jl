@@ -54,7 +54,11 @@ function Base.show(io::IO, x::Op)
     return
 end
 
-is_call_to(x, heads::Tuple) = SymbolicUtils.iscall(x) && SymbolicUtils.operation(x) in heads
+function is_call_to(x, heads::Tuple)
+    SymbolicUtils.iscall(x) || return false
+    op = SymbolicUtils.operation(x)
+    return any(h -> op === h, heads)
+end
 
 needs_im_parens(v::Num) = SymbolicUtils.iscall(SymbolicUtils.unwrap(v))
 is_loose_head(v::Num) = is_call_to(SymbolicUtils.unwrap(v), (/, +))
