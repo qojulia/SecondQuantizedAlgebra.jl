@@ -133,7 +133,7 @@ function side_atoms!(out::Vector{SideAtom}, c::CNum, x::QExpr)
     elseif has_polynomial_body(x)
         side_atoms!(out, c, only(x.args))
     else
-        push!(out, (c * x.coeff, QExpr(x.kind, CNUM_ONE, qexpr_copy_args(x))))
+        push!(out, (c * x.coeff, QExpr(x.kind, CNUM_ONE, copy(x.args))))
     end
     return out
 end
@@ -234,13 +234,6 @@ Base.:+(X::SuperExpr, c::Coefficient) = X + scale(one(SuperExpr), to_cnum(c))
 Base.:+(c::Coefficient, X::SuperExpr) = X + c
 Base.:-(X::SuperExpr, c::Coefficient) = X + (-to_cnum(c))
 Base.:-(c::Coefficient, X::SuperExpr) = (-X) + c
-
-function polynomial_qadd(q::QExpr)
-    qexpr_is_scalar(q) && return (true, single_qadd(q.coeff, Op[]))
-    iszero(q) && return (true, zero_qadd())
-    has_polynomial_body(q) && return (true, only(q.args)::QAdd)
-    return (false, zero_qadd())
-end
 
 function lower_formal_hamiltonian!(b::SuperExprBuilder, H::QExpr)
     parts = H.kind == QEXPR_ADD ? H.args : QExprArg[H]
