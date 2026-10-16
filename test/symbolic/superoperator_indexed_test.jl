@@ -3,7 +3,7 @@ using Symbolics: @variables
 using Test
 
 import SecondQuantizedAlgebra: SuperOperator, sprepost, spre, spost, liouvillian, channels,
-    scope, get_sum_indices
+    scope, get_sum_indices, superterm, constraint_pairs
 
 @testset "Indexed superoperators" begin
     ha = NLevelSpace(:atom, 2)
@@ -105,6 +105,19 @@ import SecondQuantizedAlgebra: SuperOperator, sprepost, spre, spost, liouvillian
         L = Σ(dissipator(σ(1, 2, i) * s22(k) * s22(l)), i)
         Lk = Σ(dissipator(σ(1, 2, i) * s22(k)), i)
         @test iszero(simplify(SuperOperator(change_index(L, l, k)) - SuperOperator(Lk)))
+    end
+
+    @testset "inequalities without a referent are dropped" begin
+        hf = FockSpace(:modes)
+        b = Destroy(hf, :b)
+        m = Index(hf, :m, N, hf)
+        n = Index(hf, :n, N, hf)
+        bm = IndexedOperator(b, m)
+        @test SuperOperator([superterm([b], [b'], [(m, n)]) => 1], Index[]) == sprepost(b, b')
+        S = SuperOperator([superterm([bm], [bm'], [(m, n)]) => 1], Index[])
+        S′ = SuperOperator([superterm([bm'], [bm], [(m, n)]) => 1], Index[])
+        @test constraint_pairs(S(1)) == [(m, n)]
+        @test isone(S(1) - S′(1))
     end
 
     @testset "joint coincidences of several binders" begin

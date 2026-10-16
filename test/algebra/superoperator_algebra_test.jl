@@ -1,5 +1,5 @@
 using SecondQuantizedAlgebra
-using Symbolics: @variables
+using Symbolics: @variables, unwrap
 using Test
 
 import SecondQuantizedAlgebra: SuperOperator, SuperTerm, sprepost, spre, spost, superterm,
@@ -78,6 +78,12 @@ import SecondQuantizedAlgebra: SuperOperator, SuperTerm, sprepost, spre, spost, 
         @test (A + B)(ρ) == A(ρ) + B(ρ)
         @test (Δ * A)(ρ) == Δ * A(ρ)
         @test A / 2 == (1 // 2) * A
+        @test A / g == inv(g) * A
+        @test A / unwrap(g) == inv(g) * A
+        @test A // 2 == (1 // 2) * A
+        @test A // g == inv(g) * A
+        @test qadjoint(C) == C'
+        @test qadjoint(A) == sprepost(a', a)
         @test iszero(A - A)
     end
 

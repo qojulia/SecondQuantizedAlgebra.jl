@@ -41,13 +41,6 @@ function coeff_identity(n::Int)
     return result
 end
 
-function simplify_coeffs!(matrix::CoeffMatrix)
-    for k in eachindex(matrix)
-        matrix[k] = simplify_prefactor(matrix[k])
-    end
-    return matrix
-end
-
 function canonical_operator(operator::Union{QSym, QAdd})
     result = simplify(expand_completeness(as_side(operator)))
     isempty(result.indices) || throw(
