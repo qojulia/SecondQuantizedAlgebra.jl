@@ -54,8 +54,8 @@ function closed_adjoint_basis(G::QAdd)
         append!(raw, local_basis)
     end
 
-    structure = all(is_fock, raw) ? AFFINE_BOSONIC_NAMBU :
-        all(is_phase_space, raw) ? AFFINE_SYMPLECTIC_PHASE_SPACE : AFFINE_UNITARY_LINEAR
+    structure = operator_affine_structure(first(raw))
+    all(o -> operator_affine_structure(o) === structure, raw) || (structure = AFFINE_NONE)
     return canonical_block_basis(structure, raw)
 end
 
@@ -85,7 +85,7 @@ function affine_commutator_data(G::QAdd, basis::Vector{Op})
                 )
                 linear[row, column] = linear[row, column] + coefficient
             else
-                unsupported = rule_qadd((coefficient, copy(term.ops)))
+                unsupported = single_qadd(coefficient, copy(term.ops))
                 unitary_error(
                     "the adjoint action on `$generator` is not affine-linear; got " *
                         "`$(sprint(show, unsupported))`",

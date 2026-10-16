@@ -70,7 +70,6 @@ function AffineAction(
     length(shift) == n || unitary_error(
         "an affine block on $n generators needs $n shifts; got $(length(shift))",
     )
-    length(Set(basis)) == n || unitary_error("an affine block basis cannot contain duplicates")
     return validated_action(AffineBlock[AffineBlock(structure, basis, linear, shift)], relations)
 end
 
@@ -80,7 +79,6 @@ function reduce_affine(c::CNum, relations::Vector{ParamRelation}, scratch::Vecto
 end
 
 dagger_linear(linear::Matrix{CNum}) = Matrix{CNum}(linear')
-transpose_linear(linear::Matrix{CNum}) = Matrix{CNum}(transpose(linear))
 
 function inverse_bosonic_nambu(linear::Matrix{CNum})
     n = size(linear, 1)
@@ -113,7 +111,7 @@ end
 function inverse_linear(linear::Matrix{CNum}, structure::AffineStructure)
     structure === AFFINE_BOSONIC_NAMBU && return inverse_bosonic_nambu(linear)
     structure === AFFINE_SYMPLECTIC_PHASE_SPACE && return inverse_symplectic(linear)
-    structure === AFFINE_ORTHOGONAL && return transpose_linear(linear)
+    structure === AFFINE_ORTHOGONAL && return Matrix{CNum}(transpose(linear))
     structure === AFFINE_UNITARY_LINEAR && return dagger_linear(linear)
     unitary_error("no exact inverse strategy is registered for affine structure `$structure`")
 end
@@ -214,13 +212,6 @@ function is_identity_affine_linear(linear::Matrix{CNum})
     return true
 end
 
-function is_zero_affine_shift(shift::Vector{CNum})
-    for coefficient in shift
-        iszero(coefficient) || return false
-    end
-    return true
-end
-
 function compose_subset_block(
         first::AffineBlock, second::AffineBlock, positions::Vector{Int},
         relations::Vector{ParamRelation},
@@ -243,7 +234,7 @@ function compose_subset_block(
         out
     end
 
-    shift = if is_zero_affine_shift(second.shift)
+    shift = if all(iszero, second.shift)
         first.shift
     else
         out = Vector{CNum}(undef, n)
@@ -400,11 +391,7 @@ function validate_transform_substitution_rules(rules::AbstractDict)
 end
 
 function conjugation_closed_substitutions(rules::AbstractDict)
-    closed = ScalarRules()
-    sizehint!(closed, 2 * length(rules))
-    for (from, to) in rules
-        add_scalar_rule!(closed, from, to)
-    end
+    closed = copy(scalar_substitution_rules(rules))
     for (from, to) in rules
         add_conjugate_rule!(closed, from, to)
     end

@@ -62,17 +62,13 @@ See also [`conjugate`](@ref), [`transform`](@ref), [`generators`](@ref).
 struct UnitaryTransform{T}
     action::AffineAction
     rules::Dict{Op, QAdd}
-    generators::Vector{Op}
     gauge::QAdd
     time::T
 
-    function UnitaryTransform{T}(
-            action::AffineAction, rules::Dict{Op, QAdd}, generators::Vector{Op},
-            gauge::QAdd, time::T,
-        ) where {T}
+    function UnitaryTransform{T}(action::AffineAction, rules::Dict{Op, QAdd}, gauge::QAdd, time::T) where {T}
         (T === StaticTime || T === DynamicTime) ||
             throw(ArgumentError("invalid unitary-transform time marker `$T`"))
-        return new{T}(action, rules, generators, gauge, time)
+        return new{T}(action, rules, gauge, time)
     end
 end
 
@@ -113,12 +109,6 @@ function validate_complete(generators::Vector{Op})
         key = site_key(first_generator)
         key in checked && continue
         push!(checked, key)
-        if is_phase_space(first_generator)
-            on_site(kind) = any(g -> site_key(g) == key && kind(g), generators)
-            (on_site(is_position) && on_site(is_momentum)) || unitary_error(
-                "incomplete rule set: `$first_generator` has no rule for its conjugate variable",
-            )
-        end
         for generator in site_generators(first_generator)
             generator in available || unitary_error(
                 "incomplete rule set: `$first_generator` is covered but `$generator` is not",
@@ -146,7 +136,7 @@ function validated_transform(
         )
     end
     validate_complete(generators)
-    return UnitaryTransform{T}(action, rules, generators, gauge, time)
+    return UnitaryTransform{T}(action, rules, gauge, time)
 end
 
 function time_or_throw(t::Num)
@@ -158,17 +148,11 @@ function time_or_throw(t::Num)
 end
 
 function timed_transform(U::UnitaryTransform{StaticTime}, gauge::QAdd, t::Num)
-    time = DynamicTime(time_or_throw(t))
-    reduced = reduce_params(gauge, U.action.relations, true)
-    return UnitaryTransform{DynamicTime}(U.action, U.rules, U.generators, reduced, time)
+    reduced = reduce_params(gauge, U.action.relations)
+    return UnitaryTransform{DynamicTime}(U.action, U.rules, reduced, DynamicTime(t))
 end
 
-function covered_site(U::UnitaryTransform, key::SiteKey)
-    for generator in U.generators
-        site_key(generator) == key && return true
-    end
-    return false
-end
+covered_site(U::UnitaryTransform, key::SiteKey) = any(generator -> site_key(generator) == key, keys(U.rules))
 
 function validate_coverage(q::QAdd, U::UnitaryTransform)
     for (term, _) in q, operator in term.ops
@@ -184,10 +168,10 @@ end
 
 apply_rules(q::QAdd, rules::Dict{Op, QAdd}) = substitute_with(q, SubstitutionRules(rules))
 
-function reduce_params(q::QAdd, relations::Vector{ParamRelation}, gated::Bool)
+function reduce_params(q::QAdd, relations::Vector{ParamRelation})
     isempty(relations) && return q
     scratch = ParamRelation[]
-    return map_coefficients(c -> reduce_all(c, relations, gated, scratch), q)
+    return map_coefficients(c -> reduce_all(c, relations, true, scratch), q)
 end
 
 """
@@ -217,7 +201,7 @@ See also [`transform`](@ref), [`UnitaryTransform`](@ref).
 """
 function conjugate(q::QAdd, U::UnitaryTransform)
     validate_coverage(q, U)
-    return reduce_params(apply_rules(q, U.rules), U.action.relations, true)
+    return reduce_params(apply_rules(q, U.rules), U.action.relations)
 end
 
 conjugate(o::QSym, U::UnitaryTransform) =
@@ -306,7 +290,7 @@ julia> generators(Rotation(a, b, θ))
 
 See also [`UnitaryTransform`](@ref).
 """
-generators(U::UnitaryTransform) = copy(U.generators)
+generators(U::UnitaryTransform) = sort!(collect(keys(U.rules)))
 
 """
     displacement(U::UnitaryTransform, o::Op)
@@ -329,14 +313,8 @@ function Base.inv(U::UnitaryTransform{T}) where {T}
     inverse_action = canonical_affine_inverse(U.action)
     inverse_rules = affine_rules(inverse_action)
     relations = U.action.relations
-    gauge = if T === StaticTime || iszero(U.gauge)
-        U.gauge
-    else
-        -reduce_params(apply_rules(U.gauge, inverse_rules), relations, true)
-    end
-    return UnitaryTransform{T}(
-        inverse_action, inverse_rules, U.generators, gauge, U.time,
-    )
+    gauge = iszero(U.gauge) ? U.gauge : -reduce_params(apply_rules(U.gauge, inverse_rules), relations)
+    return UnitaryTransform{T}(inverse_action, inverse_rules, gauge, U.time)
 end
 
 Base.adjoint(U::UnitaryTransform) = inv(U)
@@ -364,26 +342,8 @@ function merge_relations(a::Vector{ParamRelation}, b::Vector{ParamRelation})
     return out
 end
 
-function add_gauges(left::QAdd, right::QAdd)
-    if isempty(left.indices) && isempty(right.indices) &&
-            length(left.arguments) == length(right.arguments) == 1
-        first_term, first_coefficient = first(left.arguments)
-        second_term, second_coefficient = first(right.arguments)
-        if isequal(first_term, second_term)
-            coefficient = first_coefficient + second_coefficient
-            iszero(coefficient) && return zero_qadd()
-            return QAdd(QTermDict(first_term => coefficient), EMPTY_INDICES)
-        end
-    end
-    return left + right
-end
-
-
-rules_depend_on(U::UnitaryTransform{StaticTime}, t::Num) =
-    any(image -> qadd_depends_on(image, SymbolicUtils.unwrap(t)), values(U.rules))
-
 function check_adopted_time(U::UnitaryTransform{StaticTime}, t::Num)
-    rules_depend_on(U, t) && unitary_error(
+    any(image -> qadd_depends_on(image, SymbolicUtils.unwrap(t)), values(U.rules)) && unitary_error(
         "a static transform whose rules depend on `$t` cannot be composed with a timed " *
             "transform; construct the moving transform with its timed constructor",
     )
@@ -397,18 +357,9 @@ function compose(
     action = compose_action(first.action, second.action, relations)
     rules = affine_rules(action)
 
-    gauge = if iszero(first.gauge)
-        second.gauge
-    else
-        transported = reduce_params(
-            apply_rules(first.gauge, second.rules), relations, true,
-        )
-        iszero(second.gauge) ? transported : add_gauges(transported, second.gauge)
-    end
-
-    same_layout = length(rules) == length(first.rules) && all(in(keys(rules)), first.generators)
-    generators = same_layout ? first.generators : sort!(collect(keys(rules)))
-    return UnitaryTransform{T}(action, rules, generators, gauge, time)
+    gauge = iszero(first.gauge) ? second.gauge :
+        reduce_params(apply_rules(first.gauge, second.rules), relations) + second.gauge
+    return UnitaryTransform{T}(action, rules, gauge, time)
 end
 
 composed_time(::UnitaryTransform{StaticTime}, ::UnitaryTransform{StaticTime}) = StaticTime()
@@ -444,7 +395,6 @@ end
 
 rule_qadd(pairs::Vararg{Tuple{CNum, Vector{Op}}}) =
     rule_qadd(Tuple{CNum, Vector{Op}}[pairs...])
-scaled(coefficient::CNum, operator::Op) = rule_qadd((coefficient, Op[operator]))
 
 phase(ϕ::Real) = phase_coeff(as_num(ϕ))
 conj_phase(ϕ::Real) = conj(phase(ϕ))

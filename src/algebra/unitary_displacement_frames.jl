@@ -27,7 +27,7 @@ function linear_fock_hamiltonian(H::QAdd, d::Op)
         elseif term.ops == Op[d]
             drive_adjoint = drive_adjoint + coefficient
         else
-            unsupported = rule_qadd((coefficient, copy(term.ops)))
+            unsupported = single_qadd(coefficient, copy(term.ops))
             unitary_error(
                 "`DisplacementFrame` expects only scalar, `$raising * $d`, `$raising`, " *
                     "and `$d` terms; got `$(sprint(show, unsupported))`",
@@ -225,7 +225,7 @@ function linear_quadrature_hamiltonian(H::QAdd, x::Op, p::Op)
         elseif term.ops == Op[p]
             drive_p = drive_p + coefficient
         else
-            unsupported = rule_qadd((coefficient, copy(term.ops)))
+            unsupported = single_qadd(coefficient, copy(term.ops))
             unitary_error(
                 "`DisplacementFrame` expects only scalar, `$x * $x`, `$x * $p`, " *
                     "`$p * $p`, `$x`, and `$p` terms; got " *

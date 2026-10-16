@@ -334,7 +334,7 @@ function Displace(x::Op, p::Op, dx::Real, dp::Real, t::Num)
     return timed_transform(quadrature_displacement(x, p, cx, cp), gauge, tt)
 end
 
-axis_or_throw(axis::Integer) = 1 <= axis <= 3 ? Int32(axis) :
+axis_or_throw(axis::Integer) = 1 <= axis <= 3 ? Int(axis) :
     unitary_error("axis must be 1, 2, or 3, got $axis")
 
 function triple_or_throw(S::Op)
@@ -346,7 +346,7 @@ end
 
 function Rotation(S::Op, axis::Integer, θ::Real)
     triple_or_throw(S)
-    main_axis = Int(axis_or_throw(axis))
+    main_axis = axis_or_throw(axis)
     u = with_levels(S, mod1(main_axis + 1, 3), 0)
     v = with_levels(S, mod1(main_axis + 2, 3), 0)
     fixed = with_levels(S, main_axis, 0)
@@ -362,8 +362,8 @@ end
 function Rotation(S::Op, axis::Integer, θ::Real, t::Num)
     triple_or_throw(S)
     tt = time_or_throw(t)
-    fixed = with_levels(S, Int(axis_or_throw(axis)), 0)
-    generator = scaled(S.kind === OP_PAULI ? CNUM_HALF : CNUM_ONE, fixed)
+    fixed = with_levels(S, axis_or_throw(axis), 0)
+    generator = single_qadd(is_pauli(S) ? CNUM_HALF : CNUM_ONE, Op[fixed])
     return timed_transform(Rotation(S, axis, θ), gauge(generator, θ, tt), tt)
 end
 
@@ -379,8 +379,7 @@ function nlevel_or_throw(σ::Op, W::AbstractMatrix)
 end
 
 function nlevel_rotation(σ::Op, W::AbstractMatrix)
-    nlevel_or_throw(σ, W)
-    n = size(W, 1)
+    n = nlevel_or_throw(σ, W)
     coefficients = CNum[to_cnum(W[i, j]) for i in 1:n, j in 1:n]
     linear = fill(CNUM_ZERO, n * n, n * n)
     for i in 1:n, j in 1:n, k in 1:n, l in 1:n

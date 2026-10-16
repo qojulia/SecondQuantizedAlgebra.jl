@@ -1,4 +1,4 @@
-function reduce_map_params(S::SuperOperator, relations::Vector{ParamRelation})
+function reduce_params(S::SuperOperator, relations::Vector{ParamRelation})
     isempty(relations) && return S
     scratch = ParamRelation[]
     return map_coefficients(c -> reduce_all(c, relations, true, scratch), S)
@@ -6,7 +6,7 @@ end
 
 function conjugate(S::SuperOperator, U::UnitaryTransform)
     conjugated = map_sides((ops, ne) -> conjugate(side_qadd(ops, ne), U), S)
-    return reduce_map_params(conjugated, U.action.relations)
+    return reduce_params(conjugated, U.action.relations)
 end
 
 conjugate(L::Lindbladian, U::UnitaryTransform) =
