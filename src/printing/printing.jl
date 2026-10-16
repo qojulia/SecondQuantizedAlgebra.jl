@@ -1,4 +1,8 @@
-function Base.show(io::IO, h::FockSpace)
+struct TextStyle end
+struct LatexStyle end
+const PrintStyle = Union{TextStyle, LatexStyle}
+
+function Base.show(io::IO, h::Union{FockSpace, NLevelSpace, CollectiveNLevelSpace, PauliSpace, SpinSpace, PhaseSpace})
     write(io, "ℋ(")
     print(io, h.name)
     return write(io, ")")
@@ -11,12 +15,6 @@ function Base.show(io::IO, h::ProductSpace)
     end
     return
 end
-
-Base.show(io::IO, h::NLevelSpace) = (write(io, "ℋ("); print(io, h.name); write(io, ")"))
-Base.show(io::IO, h::CollectiveNLevelSpace) = (write(io, "ℋ("); print(io, h.name); write(io, ")"))
-Base.show(io::IO, h::PauliSpace) = (write(io, "ℋ("); print(io, h.name); write(io, ")"))
-Base.show(io::IO, h::SpinSpace) = (write(io, "ℋ("); print(io, h.name); write(io, ")"))
-Base.show(io::IO, h::PhaseSpace) = (write(io, "ℋ("); print(io, h.name); write(io, ")"))
 
 Base.show(io::IO, idx::Index) = print(io, index_name(idx))
 
@@ -56,18 +54,16 @@ function Base.show(io::IO, x::Op)
     return
 end
 
-function needs_im_parens(v::Num)
-    u = SymbolicUtils.unwrap(v)
-    return u isa SymbolicUtils.BasicSymbolic && SymbolicUtils.iscall(u)
+function is_call_to(x, heads::Tuple)
+    SymbolicUtils.iscall(x) || return false
+    op = SymbolicUtils.operation(x)
+    return any(h -> op === h, heads)
 end
 
-function is_loose_head(v::Num)
-    needs_im_parens(v) || return false
-    op = SymbolicUtils.operation(SymbolicUtils.unwrap(v))
-    return op === (/) || op === (+)
-end
+needs_im_parens(v::Num) = SymbolicUtils.iscall(SymbolicUtils.unwrap(v))
+is_loose_head(v::Num) = is_call_to(SymbolicUtils.unwrap(v), (/, +))
 
-function show_part(io::IO, v::Num, brace::Bool)
+function show_part(io::IO, v, brace::Bool)
     brace && write(io, "(")
     print(io, v)
     brace && write(io, ")")
@@ -102,17 +98,9 @@ function show_display(io::IO, c::Complex{Num})
         write(io, "im)")
     end
 end
-show_prefactor(io::IO, c::Number) = print(io, c)
 
-function is_unit(c::CNum)
-    return isequal(c, CNUM_ONE)
-end
-is_unit(c::Number) = isone(c)
-
-function is_neg_unit(c::CNum)
-    return isequal(c, CNUM_NEG1)
-end
-is_neg_unit(c::Number) = isequal(c, -1)
+is_unit(c::CNum) = isequal(c, CNUM_ONE)
+is_neg_unit(c::CNum) = isequal(c, CNUM_NEG1)
 
 function is_real_negative(c::CNum)
     is_native(c) && return imag(native_scalar(c)) == 0 && real(native_scalar(c)) < 0
@@ -137,12 +125,7 @@ function show_scaled_prefactor(io::IO, c::CNum)
     is_unit(c) && return
     tail = c.tail
     if tail isa RawSymbolicCoeff
-        expr = tail.expr
-        brace = SymbolicUtils.iscall(expr) &&
-            (SymbolicUtils.operation(expr) === (+) || SymbolicUtils.operation(expr) === (/))
-        brace && write(io, "(")
-        print(io, expr)
-        brace && write(io, ")")
+        show_part(io, tail.expr, is_call_to(tail.expr, (+, /)))
     else
         d = to_num(c)
         brace = !is_native(c) && needs_pf_parens(d)
@@ -154,17 +137,18 @@ function show_scaled_prefactor(io::IO, c::CNum)
     return
 end
 
+function show_ops(io::IO, ops::Vector{Op})
+    for (k, op) in enumerate(ops)
+        k > 1 && write(io, " * ")
+        show(io, op)
+    end
+    return
+end
+
 function show_term(io::IO, c::CNum, ops::Vector{Op})
-    if isempty(ops)
-        show_prefactor(io, c)
-        return
-    end
+    isempty(ops) && return show_prefactor(io, c)
     show_scaled_prefactor(io, c)
-    show(io, ops[1])
-    for i in 2:length(ops)
-        write(io, " * ")
-        show(io, ops[i])
-    end
+    show_ops(io, ops)
     return
 end
 
@@ -190,7 +174,7 @@ function show_terms(io::IO, st::Vector{QAdd})
     return
 end
 
-function group_dep_terms(dep_qadds, indices::Vector{Index})
+function group_dep_terms(dep_qadds::Vector{QAdd}, indices::Vector{Index})
     groups = Tuple{Vector{Index}, Vector{NonEqualPair}, Vector{QAdd}}[]
     for q in dep_qadds
         ops, c, ne = term_signature(q)
@@ -205,7 +189,7 @@ function group_dep_terms(dep_qadds, indices::Vector{Index})
     return groups
 end
 
-function show_sum_prefix(io::IO, indices::Vector{Index}, ne_pairs::Vector{NonEqualPair})
+function show_sum_prefix(io::IO, ::TextStyle, indices::Vector{Index}, ne_pairs::Vector{NonEqualPair})
     for idx in indices
         write(io, "Σ(")
         print(io, index_name(idx))
@@ -223,43 +207,36 @@ function show_sum_prefix(io::IO, indices::Vector{Index}, ne_pairs::Vector{NonEqu
         end
         write(io, ")")
     end
-    return io
+    write(io, " ")
+    return
 end
 
 function show_sum_group(io::IO, terms::Vector{QAdd}, indices::Vector{Index}, ne_pairs::Vector{NonEqualPair})
-    show_sum_prefix(io, indices, ne_pairs)
-    write(io, " ")
-    if length(terms) > 1
-        write(io, "(")
-        show_terms(io, terms)
-        write(io, ")")
-    else
-        show_terms(io, terms)
-    end
+    show_sum_prefix(io, TextStyle(), indices, ne_pairs)
+    group = length(terms) > 1
+    group && write(io, "(")
+    show_terms(io, terms)
+    group && write(io, ")")
     return io
 end
 
 function SymbolicUtils.show_call(io::IO, ::typeof(expim), x::SymbolicUtils.BasicSymbolic; kw...)
-    arg = only(SymbolicUtils.arguments(x))
-    neg = leading_sign(arg) < 0
+    neg, body = split_phase_sign(only(SymbolicUtils.arguments(x)))
     write(io, neg ? "exp(-im*" : "exp(im*")
-    body = neg ? SymbolicUtils.unwrap(expand(-arg)) : arg
-    paren = SymbolicUtils.iscall(body) && SymbolicUtils.operation(body) === (+)
-    paren && write(io, "(")
-    print(io, body)
-    paren && write(io, ")")
+    show_part(io, body, is_call_to(body, (+,)))
     write(io, ")")
     return io
 end
 
+function split_phase_sign(arg)
+    neg = leading_sign(arg) < 0
+    return neg, neg ? SymbolicUtils.unwrap(expand(-arg)) : arg
+end
+
 function SymbolicUtils.show_call(io::IO, ::SumFunc, x::SymbolicUtils.BasicSymbolic; kw...)
-    show_sum_prefix(io, sum_indices(x), sum_ne(x))
-    write(io, " ")
+    show_sum_prefix(io, TextStyle(), sum_indices(x), sum_ne(x))
     body = sum_body(x)
-    paren = SymbolicUtils.iscall(body) && SymbolicUtils.operation(body) === (+)
-    paren && write(io, "(")
-    print(io, body)
-    paren && write(io, ")")
+    show_part(io, body, is_call_to(body, (+,)))
     return io
 end
 
@@ -318,47 +295,29 @@ function show_unitary_rule(io::IO, U::UnitaryTransform, generator::Op)
     return show(io, U.rules[generator])
 end
 
-show_unitary_time(::IO, ::UnitaryTransform{StaticTime}) = false
-function show_unitary_time(io::IO, U::UnitaryTransform{DynamicTime})
-    write(io, "time = ")
-    show(io, U.time.variable)
-    return true
-end
-
-function show_unitary_metadata(io::IO, U::UnitaryTransform)
-    shown = show_unitary_time(io, U)
-    if !iszero(U.gauge)
-        shown && write(io, ", ")
-        write(io, "gauge = ")
-        show(io, U.gauge)
-        shown = true
-    end
-    return shown
-end
+rules_elided(io::IO, U::UnitaryTransform) = get(io, :limit, false) && length(U.generators) > SHOW_RULE_LIMIT
 
 function Base.show(io::IO, U::UnitaryTransform)
-    gs = U.generators
-    n = length(gs)
     write(io, "UnitaryTransform(")
-    limited = get(io, :limit, false) && n > SHOW_RULE_LIMIT
-    if limited
-        print(io, n, " rules")
+    if rules_elided(io, U)
+        print(io, length(U.generators), " rules")
     else
-        for (k, generator) in enumerate(gs)
+        for (k, generator) in enumerate(U.generators)
             k > 1 && write(io, ", ")
             show_unitary_rule(io, U, generator)
         end
     end
-    if U isa UnitaryTransform{DynamicTime} || !iszero(U.gauge)
-        write(io, "; ")
-        show_unitary_metadata(io, U)
+    timed = U isa UnitaryTransform{DynamicTime}
+    timed && print(io, "; time = ", U.time.variable)
+    if !iszero(U.gauge)
+        write(io, timed ? ", gauge = " : "; gauge = ")
+        show(io, U.gauge)
     end
     return write(io, ")")
 end
 
 function Base.show(io::IO, ::MIME"text/plain", U::UnitaryTransform)
-    gs = U.generators
-    n = length(gs)
+    n = length(U.generators)
     if U isa UnitaryTransform{DynamicTime}
         write(io, "Time-dependent UnitaryTransform in ")
         show(io, U.time.variable)
@@ -366,11 +325,9 @@ function Base.show(io::IO, ::MIME"text/plain", U::UnitaryTransform)
         write(io, "UnitaryTransform")
     end
     print(io, " with ", n, n == 1 ? " rule" : " rules")
-
-    limited = get(io, :limit, false) && n > SHOW_RULE_LIMIT
-    if !limited
+    if !rules_elided(io, U)
         write(io, ":")
-        for generator in gs
+        for generator in U.generators
             write(io, "\n  ")
             show_unitary_rule(io, U, generator)
         end

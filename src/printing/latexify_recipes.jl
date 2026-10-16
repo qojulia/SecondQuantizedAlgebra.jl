@@ -83,23 +83,23 @@ end
 
 const LATEX_FRAGMENT = Union{String, Symbol, QSym, Number, SymbolicUtils.BasicSymbolic}
 
-function needs_pf_brackets(pf::Number)
-    return false
-end
-needs_pf_brackets(pf::Complex) = !is_zero_part(real(pf)) && !is_zero_part(imag(pf))
+needs_pf_brackets(pf::Number) = false
+needs_pf_brackets(pf::Complex) = has_both_parts(pf)
+has_both_parts(z) = !is_zero_part(real(z)) && !is_zero_part(imag(z))
 is_zero_part(x::Num) = iszero_num(x)
 is_zero_part(x::Real) = iszero(x)
-function needs_pf_brackets(pf::SymbolicUtils.BasicSymbolic)
-    SymbolicUtils.iscall(pf) || return false
-    op = SymbolicUtils.operation(pf)
-    return op === (/) || op === (+)
-end
+needs_pf_brackets(pf::SymbolicUtils.BasicSymbolic) = is_call_to(pf, (/, +))
 
 function latex_term(c::CNum, ops::Vector{Op})
     is_native(c) && return latex_native_term(native_scalar(c), ops)
     re, im = realimag(c)
     iszero_num(im) && return latex_pf_term(SymbolicUtils.unwrap(re), ops)
     return latex_pf_term(Complex(re, im), ops)
+end
+
+function latex_term(t::QAdd)
+    ops, c, _ = term_signature(t)
+    return latex_term(c, ops)
 end
 
 function latex_pf_term(pf, ops::Vector{Op})
@@ -124,39 +124,26 @@ end
 
 function latex_sum_prefix(indices::Vector{Index}, ne_pairs::Vector{NonEqualPair})
     isempty(indices) && return ""
-    idx_parts = String[]
     last_name = index_name(indices[end])
-    for (k, idx) in enumerate(indices)
-        r = Symbolics.value(SymbolicUtils.unwrap(index_range(idx)))
-        if k == length(indices) && !isempty(ne_pairs)
-            chain = string(index_name(idx))
+    constraint = join(
+        index_name(a) == last_name ? "{\\neq}$(index_name(b))" : ",$(index_name(a)){\\neq}$(index_name(b))"
             for (a, b) in ne_pairs
-                if index_name(a) == last_name
-                    chain *= "{\\neq}$(index_name(b))"
-                else
-                    chain *= ",$(index_name(a)){\\neq}$(index_name(b))"
-                end
-            end
-            push!(idx_parts, "\\underset{$chain}{\\overset{$r}{\\sum}}")
-        else
-            push!(idx_parts, "\\underset{$(index_name(idx))}{\\overset{$r}{\\sum}}")
-        end
+    )
+    parts = map(enumerate(indices)) do (k, idx)
+        r = Symbolics.value(SymbolicUtils.unwrap(index_range(idx)))
+        label = string(index_name(idx), k == length(indices) ? constraint : "")
+        "\\underset{$label}{\\overset{$r}{\\sum}}"
     end
-    return join(idx_parts, " ")
+    return join(parts, " ")
 end
+
+show_sum_prefix(io::IO, ::LatexStyle, indices::Vector{Index}, ne_pairs::Vector{NonEqualPair}) =
+    write(io, latex_sum_prefix(indices, ne_pairs), " ")
 
 function latex_sum_group(indices::Vector{Index}, ne_pairs::Vector{NonEqualPair}, terms::Vector{QAdd})
     prefix = latex_sum_prefix(indices, ne_pairs)
-    term_exprs = Expr[
-        let
-            ops, c, _ = term_signature(t)
-            latex_term(c, ops)
-        end for t in terms
-    ]
-    if length(term_exprs) == 1
-        return Expr(:latexifymerge, prefix, term_exprs[1])
-    end
-    return Expr(:latexifymerge, prefix, Expr(:call, :+, term_exprs...))
+    length(terms) == 1 && return Expr(:latexifymerge, prefix, latex_term(only(terms)))
+    return Expr(:latexifymerge, prefix, Expr(:call, :+, map(latex_term, terms)...))
 end
 
 function latex_string(@nospecialize(tex))
@@ -168,13 +155,9 @@ latex_body(@nospecialize(tex)) = String(strip(latex_string(tex), '$'))
 
 latex_inline(x) = latex_body(latexify(x; env = :inline))
 
-function latex_fragment(x)
+function latex_avg_expr(x)
     inner = SymbolicUtils.isconst(x) ? x.val : x
-    return latex_body(latexify(inner))
-end
-
-function latex_avg_expr(inner)
-    return "\\langle $(latex_fragment(inner)) \\rangle"
+    return "\\langle $(latex_body(latexify(inner))) \\rangle"
 end
 
 function Symbolics._toexpr_op(::AvgFunc, args; kwargs...)
@@ -182,9 +165,7 @@ function Symbolics._toexpr_op(::AvgFunc, args; kwargs...)
 end
 
 function Symbolics._toexpr_op(::typeof(expim), args; kwargs...)
-    arg = only(args)
-    neg = leading_sign(arg) < 0
-    body = neg ? SymbolicUtils.unwrap(expand(-arg)) : arg
+    neg, body = split_phase_sign(only(args))
     return "e^{$(neg ? "-" : "")i $(latex_inline(body))}"
 end
 
@@ -192,7 +173,7 @@ function Symbolics._toexpr_op(::SumFunc, args; kwargs...)
     scope = scope_of(args[2])
     body = args[1]
     body_tex = latex_inline(body)
-    if SymbolicUtils.iscall(body) && SymbolicUtils.operation(body) === (+)
+    if is_call_to(body, (+,))
         body_tex = string("\\left( ", body_tex, " \\right)")
     end
     return string(latex_sum_prefix(scope.indices, scope.ne), body_tex)
@@ -208,41 +189,17 @@ end
 
 @latexrecipe function f(x::QAdd)
     st = sorted_arguments(x)
-    if !isempty(x.indices)
-        dep_qadds = QAdd[]
-        terms_out = Expr[]
-        for t in st
-            ops, c, ne = term_signature(t)
-            term_expr = latex_term(c, ops)
-            if any(idx -> depends_on_scope_index(c, ops, ne, idx), x.indices)
-                push!(dep_qadds, t)
-            else
-                push!(terms_out, term_expr)
-            end
-        end
-        if !isempty(dep_qadds)
-            for (used, ne_pairs, terms) in group_dep_terms(dep_qadds, x.indices)
-                push!(terms_out, latex_sum_group(used, ne_pairs, terms))
-            end
-        end
-        if isempty(terms_out)
-            return 0
-        elseif length(terms_out) == 1
-            return only(terms_out)
-        end
-        return Expr(:call, :+, terms_out...)
+    isempty(st) && return 0
+    isempty(x.indices) && return Expr(:call, :+, map(latex_term, st)...)
+    dep, indep = split_index_dependent(st, x.indices)
+    terms = Expr[latex_term(t) for t in indep]
+    for (used, ne_pairs, group) in group_dep_terms(dep, x.indices)
+        push!(terms, latex_sum_group(used, ne_pairs, group))
     end
-    terms = Expr[
-        let
-            ops, c, _ = term_signature(t)
-            latex_term(c, ops)
-        end for t in st
-    ]
-    isempty(terms) && return 0
-    return Expr(:call, :+, terms...)
+    return length(terms) == 1 ? only(terms) : Expr(:call, :+, terms...)
 end
 
-const QLaTeX = Union{QField, Coeff}
+const QLaTeX = Union{QField, Coeff, SuperOperator, SuperExpr, Lindbladian}
 Base.show(io::IO, ::MIME"text/latex", x::QLaTeX) = write(io, latex_string(latexify(x)))
 Base.show(io::IO, ::MIME"text/latex", x::AbstractArray{<:QLaTeX}) =
     print(io, "\$\$ ", latex_string(latexify(x; env = :raw)), " \$\$")

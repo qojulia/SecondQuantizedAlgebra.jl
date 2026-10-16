@@ -1,54 +1,13 @@
-function show_coeff_prefix(io::IO, c::CNum)
-    is_unit(c) && return
-    if is_neg_unit(c)
-        write(io, "-")
-        return
-    end
-    tail = c.tail
-    if tail isa RawSymbolicCoeff
-        expr = tail.expr
-        brace = SymbolicUtils.iscall(expr) &&
-            (SymbolicUtils.operation(expr) === (+) || SymbolicUtils.operation(expr) === (/))
-        brace && write(io, "(")
-        print(io, expr)
-        brace && write(io, ")")
-    else
-        d = to_num(c)
-        brace = !is_native(c) && (needs_pf_parens(d) || !iszero_num(imag(d)) && !iszero_num(real(d)))
-        brace && write(io, "(")
-        show_display(io, d)
-        brace && write(io, ")")
-    end
-    write(io, " * ")
-    return
+const SuperMap = Union{SuperOperator, SuperExpr, Lindbladian}
+
+function sorted_by_key(key::F, d::AbstractDict) where {F}
+    ps = collect(d)
+    return ps[sortperm(map(key, ps))]
 end
 
-function show_ops(io::IO, ops::Vector{Op})
-    for (k, op) in enumerate(ops)
-        k > 1 && write(io, " * ")
-        show(io, op)
-    end
-    return
-end
-
-function show_sandwich(io::IO, left::Vector{Op}, right::Vector{Op})
-    if !isempty(left)
-        show_ops(io, left)
-        write(io, " ⋅ ")
-    end
-    write(io, "(·)")
-    if !isempty(right)
-        write(io, " ⋅ ")
-        show_ops(io, right)
-    end
-    return
-end
-
-function sorted_superterms(S::SuperOperator)
-    ps = collect(S.arguments)
-    sort!(ps; by = p -> superterm_order_key(p.first))
-    return ps
-end
+sorted_superterms(S::SuperOperator) = sorted_by_key(p -> superterm_order_key(p.first), S.arguments)
+sorted_formal(X::SuperExpr) =
+    sorted_by_key(p -> (sprint(show, p.first.left), sprint(show, p.first.right)), X.formal)
 
 function displays_negative(c::CNum)
     is_real_negative(c) && return true
@@ -63,195 +22,114 @@ function write_sign!(io::IO, first_term::Bool, c::CNum)
     return negative ? -c : c
 end
 
-function Base.show(io::IO, S::SuperOperator)
-    isempty(S.arguments) && return write(io, "0")
-    first_term = true
-    for (t, c) in sorted_superterms(S)
-        c = write_sign!(io, first_term, c)
-        first_term = false
-        used = bound_indices(t, c, S.indices)
-        if !isempty(used)
-            show_sum_prefix(io, used, t.ne)
-            write(io, " ")
-        end
-        show_coeff_prefix(io, c)
-        show_sandwich(io, t.left, t.right)
-    end
-    return
-end
-
-function show_side(io::IO, q::QField)
-    s = sprint(show, q)
-    print(io, s)
-    return
-end
-
-function show_scope_prefix(io::IO, ch::Channel)
-    if !isempty(ch.scope)
-        show_sum_prefix(io, ch.scope, ch.ne)
-        write(io, " ")
-    end
-    return nothing
-end
-
-function show_dissipator(io::IO, ch::Channel)
-    write(io, "𝒟[")
-    show_side(io, ch.jump)
-    if !is_diagonal(ch)
-        write(io, ", ")
-        show_side(io, ch.partner)
-    end
-    write(io, "]")
-    return nothing
-end
-
-function sorted_formal(X::SuperExpr)
-    ps = collect(X.formal)
-    sort!(ps; by = p -> (sprint(show, p.first.left), sprint(show, p.first.right)))
-    return ps
-end
-
-function Base.show(io::IO, L::Lindbladian)
-    first_term = true
-    if !iszero(L.hamiltonian)
-        write(io, "-i[")
-        show_side(io, L.hamiltonian)
-        write(io, ", ·]")
-        first_term = false
-    end
-    for (ch, γ) in channels(L)
-        γ = write_sign!(io, first_term, γ)
-        first_term = false
-        show_scope_prefix(io, ch)
-        show_coeff_prefix(io, γ)
-        show_dissipator(io, ch)
-    end
-    first_term && write(io, "0")
-    return
-end
-
-function Base.show(io::IO, X::SuperExpr)
-    first_term = true
-    if !iszero(X.poly)
-        show(io, X.poly)
-        first_term = false
-    end
-    for (t, c) in sorted_formal(X)
-        c = write_sign!(io, first_term, c)
-        first_term = false
-        show_coeff_prefix(io, c)
-        if !isone(t.left)
-            show_qexpr(io, t.left, QEXPR_PREC_MUL)
-            write(io, " ⋅ ")
-        end
-        write(io, "(·)")
-        if !isone(t.right)
-            write(io, " ⋅ ")
-            show_qexpr(io, t.right, QEXPR_PREC_MUL)
-        end
-    end
-    first_term && write(io, "0")
-    return
-end
-
-Base.show(io::IO, t::SuperTerm) = show_sandwich(io, t.left, t.right)
-function Base.show(io::IO, ch::Channel)
-    show_scope_prefix(io, ch)
-    show_dissipator(io, ch)
-    return nothing
-end
-
-latex_ops(ops::Vector{Op}) = join((latex_inline(op) for op in ops), " ")
-
 function latex_coeff_prefix(c::CNum)
     is_unit(c) && return ""
     is_neg_unit(c) && return "-"
     displays_negative(c) && return string("-", latex_coeff_prefix(-c))
     body = latex_inline(c)
     if is_native(c)
-        z = native_scalar(c)
-        needs = !iszero(real(z)) && !iszero(imag(z))
+        needs = has_both_parts(native_scalar(c))
     else
         d = to_num(c)
-        needs = needs_pf_parens(d) || (!iszero_num(real(d)) && !iszero_num(imag(d)))
+        needs = needs_pf_parens(d) || has_both_parts(d)
     end
     return needs ? string("\\left( ", body, " \\right) ") : string(body, " ")
 end
 
-function latex_sandwich(left::String, right::String)
-    isempty(left) && isempty(right) && return "\\cdot"
-    isempty(left) && return string("\\cdot\\,", right)
-    isempty(right) && return string(left, "\\,\\cdot")
-    return string(left, "\\,\\cdot\\,", right)
+sandwich_tokens(::TextStyle) = (" ⋅ ", "(·)")
+sandwich_tokens(::LatexStyle) = ("\\,", "\\cdot")
+
+commutator_delimiters(::TextStyle) = ("-i[", ", ·]")
+commutator_delimiters(::LatexStyle) = ("-i\\left[", ",\\cdot\\right]")
+
+dissipator_delimiters(::TextStyle) = ("𝒟[", ", ", "]")
+dissipator_delimiters(::LatexStyle) = ("\\mathcal{D}\\left[", ",", "\\right]")
+
+render_ops(::TextStyle, ops::Vector{Op}) = sprint(show_ops, ops)
+render_ops(style::LatexStyle, ops::Vector{Op}) = join((latex_inline(op) for op in ops), product_separator(style))
+
+render_side(style::PrintStyle, q::QField) = isone(q) ? "" : sprint(show_qexpr, style, q, QEXPR_PREC_MUL)
+
+show_rate(io::IO, ::TextStyle, c::CNum, ::Bool) = show_scaled_prefactor(io, c)
+function show_rate(io::IO, ::LatexStyle, c::CNum, dissipator::Bool)
+    prefix = latex_coeff_prefix(c)
+    dissipator && !isempty(prefix) && return write(io, rstrip(prefix), "\\,")
+    return write(io, prefix)
 end
 
-function super_latex(S::SuperOperator)
-    isempty(S.arguments) && return "0"
-    io = IOBuffer()
+function show_sandwich(io::IO, style::PrintStyle, left::String, right::String)
+    sep, dot = sandwich_tokens(style)
+    isempty(left) || write(io, left, sep)
+    write(io, dot)
+    isempty(right) || write(io, sep, right)
+    return
+end
+
+show_superterm(io::IO, style::PrintStyle, t::SuperTerm) =
+    show_sandwich(io, style, render_ops(style, t.left), render_ops(style, t.right))
+
+function show_channel(io::IO, style::PrintStyle, ch::Channel, rate::CNum)
+    isempty(ch.scope) || show_sum_prefix(io, style, ch.scope, ch.ne)
+    show_rate(io, style, rate, true)
+    open, sep, close = dissipator_delimiters(style)
+    write(io, open)
+    show_qexpr(io, style, ch.jump, 0)
+    if !is_diagonal(ch)
+        write(io, sep)
+        show_qexpr(io, style, ch.partner, 0)
+    end
+    write(io, close)
+    return
+end
+
+function show_map(io::IO, style::PrintStyle, S::SuperOperator)
+    isempty(S.arguments) && return write(io, "0")
     first_term = true
     for (t, c) in sorted_superterms(S)
         c = write_sign!(io, first_term, c)
         first_term = false
         used = bound_indices(t, c, S.indices)
-        isempty(used) || write(io, latex_sum_prefix(used, t.ne), " ")
-        write(io, latex_coeff_prefix(c))
-        write(io, latex_sandwich(latex_ops(t.left), latex_ops(t.right)))
+        isempty(used) || show_sum_prefix(io, style, used, t.ne)
+        show_rate(io, style, c, false)
+        show_superterm(io, style, t)
     end
-    return String(take!(io))
+    return
 end
 
-latex_part(q::QAdd) = latex_inline(q)
-latex_part(q::QExpr) = qexpr_latex(q, 0)
-
-function super_latex(L::Lindbladian)
-    io = IOBuffer()
-    first_term = true
-    if !iszero(L.hamiltonian)
-        write(io, "-i\\left[", latex_part(L.hamiltonian), ",\\cdot\\right]")
-        first_term = false
+function show_map(io::IO, style::PrintStyle, L::Lindbladian)
+    first_term = iszero(L.hamiltonian)
+    if !first_term
+        open, close = commutator_delimiters(style)
+        write(io, open)
+        show_qexpr(io, style, L.hamiltonian, 0)
+        write(io, close)
     end
     for (ch, γ) in channels(L)
         γ = write_sign!(io, first_term, γ)
         first_term = false
-        isempty(ch.scope) || write(io, latex_sum_prefix(ch.scope, ch.ne), " ")
-        prefix = latex_coeff_prefix(γ)
-        write(io, isempty(prefix) ? "" : string(rstrip(prefix), "\\,"))
-        write(io, "\\mathcal{D}\\left[", latex_part(ch.jump))
-        is_diagonal(ch) || write(io, ",", latex_part(ch.partner))
-        write(io, "\\right]")
+        show_channel(io, style, ch, γ)
     end
     first_term && write(io, "0")
-    return String(take!(io))
+    return
 end
 
-function super_latex(X::SuperExpr)
-    io = IOBuffer()
-    first_term = true
-    if !iszero(X.poly)
-        write(io, super_latex(X.poly))
-        first_term = false
-    end
+function show_map(io::IO, style::PrintStyle, X::SuperExpr)
+    first_term = iszero(X.poly)
+    first_term || show_map(io, style, X.poly)
     for (t, c) in sorted_formal(X)
         c = write_sign!(io, first_term, c)
         first_term = false
-        write(io, latex_coeff_prefix(c))
-        left = isone(t.left) ? "" : qexpr_latex(t.left, QEXPR_PREC_MUL)
-        right = isone(t.right) ? "" : qexpr_latex(t.right, QEXPR_PREC_MUL)
-        write(io, latex_sandwich(left, right))
+        show_rate(io, style, c, false)
+        show_sandwich(io, style, render_side(style, t.left), render_side(style, t.right))
     end
     first_term && write(io, "0")
-    return String(take!(io))
+    return
 end
 
-@latexrecipe function f(S::SuperOperator)
-    return Expr(:latexifymerge, super_latex(S))
-end
-@latexrecipe function f(L::Lindbladian)
-    return Expr(:latexifymerge, super_latex(L))
-end
-@latexrecipe function f(X::SuperExpr)
-    return Expr(:latexifymerge, super_latex(X))
-end
+Base.show(io::IO, x::SuperMap) = show_map(io, TextStyle(), x)
+Base.show(io::IO, t::SuperTerm) = show_superterm(io, TextStyle(), t)
+Base.show(io::IO, ch::Channel) = show_channel(io, TextStyle(), ch, CNUM_ONE)
 
-const MapLaTeX = Union{SuperOperator, SuperExpr, Lindbladian}
-Base.show(io::IO, ::MIME"text/latex", x::MapLaTeX) = write(io, latex_string(latexify(x)))
+@latexrecipe function f(x::SuperMap)
+    return Expr(:latexifymerge, sprint(show_map, LatexStyle(), x))
+end
