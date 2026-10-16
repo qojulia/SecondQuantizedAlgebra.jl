@@ -1,5 +1,7 @@
-linear_transform(basis::Vector{Op}, linear::Matrix{CNum}, relations::Vector{ParamRelation} = ParamRelation[]) =
-    canonical_transform(AffineAction(basis, linear, fill(CNUM_ZERO, length(basis)), relations))
+linear_transform(basis::Vector{Op}, linear::Matrix{CNum}) =
+    canonical_transform(AffineAction(basis, linear, fill(CNUM_ZERO, length(basis))))
+
+generated_frame(G::QAdd, θ::Real, t::Num) = timed_transform(exact_generator_transform(G, θ), gauge(G, θ, t), t)
 
 fock_displacement(d::Op, c::CNum) =
     canonical_transform(AffineAction(Op[d, adjoint(d)], identity_linear(2), CNum[c, conj(c)]))
@@ -111,16 +113,13 @@ cos(θ) * Sx - sin(θ) * Sy
 
 See also [`RotatingFrame`](@ref), [`Squeeze`](@ref), [`Displace`](@ref).
 """
-function Rotation(a::Op, θ::Real)
+function number_generator(a::Op)
     d = fock_or_throw(a, "`Rotation`")
-    return linear_transform(Op[d, adjoint(d)], CNum[conj_phase(θ) CNUM_ZERO; CNUM_ZERO phase(θ)])
+    return adjoint(d) * d
 end
 
-function Rotation(a::Op, θ::Num, t::Num)
-    d = fock_or_throw(a, "`Rotation`")
-    tt = time_or_throw(t)
-    return timed_transform(Rotation(a, θ), gauge(adjoint(d) * d, θ, tt), tt)
-end
+Rotation(a::Op, θ::Real) = exact_generator_transform(number_generator(a), θ)
+Rotation(a::Op, θ::Num, t::Num) = generated_frame(number_generator(a), θ, time_or_throw(t))
 
 """
     Squeeze(a, r, ϕ = 0)
@@ -176,9 +175,9 @@ end
 
 function single_mode_squeeze(a::Op, r::Real, ϕ::Real)
     d = fock_or_throw(a, "`Squeeze`")
-    ch = to_cnum(cosh(r))
-    sh = phase(ϕ) * to_cnum(sinh(r))
-    return linear_transform(Op[d, adjoint(d)], CNum[ch sh; conj(sh) conj(ch)], ParamRelation[hyp_rel(r)])
+    rate = CNUM_HALF * CNUM_IM * phase(ϕ)
+    G = rule_qadd((rate, Op[adjoint(d), adjoint(d)]), (conj(rate), Op[d, d]))
+    return exact_generator_transform(G, r)
 end
 
 function squeeze_gauge(d::Op, r::Real, ϕ::Real, t::Num)
@@ -188,15 +187,16 @@ function squeeze_gauge(d::Op, r::Real, ϕ::Real, t::Num)
     dϕ = dt(ϕ, t)
     diagonal = dϕ * (sh * sh)
     mixing = dϕ * (sh * ch)
+    rotation = phase(ϕ)
     return rule_qadd(
         (diagonal, Op[adjoint(d), d]),
         (CNUM_HALF * diagonal, Op[]),
         (
-            CNUM_HALF * (phase(ϕ) * (mixing - imaginary_dr)),
+            CNUM_HALF * (rotation * (mixing - imaginary_dr)),
             Op[adjoint(d), adjoint(d)],
         ),
         (
-            CNUM_HALF * (conj_phase(ϕ) * (mixing + imaginary_dr)),
+            CNUM_HALF * (conj(rotation) * (mixing + imaginary_dr)),
             Op[d, d],
         ),
     )
@@ -225,81 +225,28 @@ function phase_pair(x::Op, p::Op, what::AbstractString)
     return (x, p)
 end
 
-function fock_mode_rotation(a::Op, b::Op, θ::Real)
-    x, y = two_modes(a, b, "`Rotation`")
-    c = to_cnum(cos(θ))
-    s = to_cnum(sin(θ))
-    return linear_transform(
-        Op[x, y, adjoint(x), adjoint(y)],
-        CNum[
-            c s CNUM_ZERO CNUM_ZERO
-            -s c CNUM_ZERO CNUM_ZERO
-            CNUM_ZERO CNUM_ZERO conj(c) conj(s)
-            CNUM_ZERO CNUM_ZERO -conj(s) conj(c)
-        ],
-        ParamRelation[trig_rel(θ)],
-    )
-end
-
-function quadrature_rotation(x::Op, p::Op, θ::Real)
-    phase_pair(x, p, "`Rotation`")
-    c = to_cnum(cos(θ))
-    s = to_cnum(sin(θ))
-    return linear_transform(Op[x, p], CNum[c s; -s c], ParamRelation[trig_rel(θ)])
-end
-
-Rotation(a::Op, b::Op, θ::Real) =
-    is_phase_space(a) ? quadrature_rotation(a, b, θ) : fock_mode_rotation(a, b, θ)
-
-function Rotation(a::Op, b::Op, θ::Real, t::Num)
-    tt = time_or_throw(t)
+function rotation_generator(a::Op, b::Op)
     if is_phase_space(a)
-        U = quadrature_rotation(a, b, θ)
-        generator = (a * a + b * b) * (1 // 2)
-        return timed_transform(U, gauge(generator, θ, tt), tt)
+        phase_pair(a, b, "`Rotation`")
+        return (a * a + b * b) * (1 // 2)
     end
     x, y = two_modes(a, b, "`Rotation`")
-    generator = im * (adjoint(x) * y - adjoint(y) * x)
-    return timed_transform(fock_mode_rotation(x, y, θ), gauge(generator, θ, tt), tt)
+    return im * (adjoint(x) * y - adjoint(y) * x)
 end
 
-function fock_two_mode_squeeze(a::Op, b::Op, r::Real)
-    x, y = two_modes(a, b, "`Squeeze`")
-    u = to_cnum(cosh(r))
-    v = to_cnum(sinh(r))
-    return linear_transform(
-        Op[x, y, adjoint(x), adjoint(y)],
-        CNum[
-            u CNUM_ZERO CNUM_ZERO v
-            CNUM_ZERO u v CNUM_ZERO
-            CNUM_ZERO conj(v) conj(u) CNUM_ZERO
-            conj(v) CNUM_ZERO CNUM_ZERO conj(u)
-        ],
-        ParamRelation[hyp_rel(r)],
-    )
-end
-
-function quadrature_squeeze(x::Op, p::Op, r::Real)
-    phase_pair(x, p, "`Squeeze`")
-    up = to_cnum(exp(r))
-    down = to_cnum(inv(exp(r)))
-    return linear_transform(Op[x, p], CNum[up CNUM_ZERO; CNUM_ZERO down])
-end
-
-Squeeze(a::Op, b::Op, r::Real) =
-    is_phase_space(a) ? quadrature_squeeze(a, b, r) : fock_two_mode_squeeze(a, b, r)
-
-function Squeeze(a::Op, b::Op, r::Real, t::Num)
-    tt = time_or_throw(t)
+function squeeze_generator(a::Op, b::Op)
     if is_phase_space(a)
-        U = quadrature_squeeze(a, b, r)
-        generator = (a * b + b * a) * (1 // 2)
-        return timed_transform(U, gauge(generator, r, tt), tt)
+        phase_pair(a, b, "`Squeeze`")
+        return (a * b + b * a) * (1 // 2)
     end
     x, y = two_modes(a, b, "`Squeeze`")
-    generator = im * (adjoint(x) * adjoint(y) - y * x)
-    return timed_transform(fock_two_mode_squeeze(x, y, r), gauge(generator, r, tt), tt)
+    return im * (adjoint(x) * adjoint(y) - y * x)
 end
+
+Rotation(a::Op, b::Op, θ::Real) = exact_generator_transform(rotation_generator(a, b), θ)
+Rotation(a::Op, b::Op, θ::Real, t::Num) = generated_frame(rotation_generator(a, b), θ, time_or_throw(t))
+Squeeze(a::Op, b::Op, r::Real) = exact_generator_transform(squeeze_generator(a, b), r)
+Squeeze(a::Op, b::Op, r::Real, t::Num) = generated_frame(squeeze_generator(a, b), r, time_or_throw(t))
 
 quadrature_displacement(x::Op, p::Op, cx::CNum, cp::CNum) =
     canonical_transform(AffineAction(Op[x, p], identity_linear(2), CNum[cx, cp]))
@@ -334,38 +281,16 @@ function Displace(x::Op, p::Op, dx::Real, dp::Real, t::Num)
     return timed_transform(quadrature_displacement(x, p, cx, cp), gauge, tt)
 end
 
-axis_or_throw(axis::Integer) = 1 <= axis <= 3 ? Int(axis) :
-    unitary_error("axis must be 1, 2, or 3, got $axis")
-
-function triple_or_throw(S::Op)
+function spin_generator(S::Op, axis::Integer)
     (is_pauli(S) || is_spin(S)) || unitary_error(
         "`Rotation` expects a Pauli or Spin operator, got $(S.kind)",
     )
-    return S
+    1 <= axis <= 3 || unitary_error("axis must be 1, 2, or 3, got $axis")
+    return single_qadd(is_pauli(S) ? CNUM_HALF : CNUM_ONE, Op[with_levels(S, Int(axis), 0)])
 end
 
-function Rotation(S::Op, axis::Integer, θ::Real)
-    triple_or_throw(S)
-    main_axis = axis_or_throw(axis)
-    u = with_levels(S, mod1(main_axis + 1, 3), 0)
-    v = with_levels(S, mod1(main_axis + 2, 3), 0)
-    fixed = with_levels(S, main_axis, 0)
-    c = to_cnum(cos(θ))
-    s = to_cnum(sin(θ))
-    return linear_transform(
-        Op[u, v, fixed],
-        CNum[c -s CNUM_ZERO; s c CNUM_ZERO; CNUM_ZERO CNUM_ZERO CNUM_ONE],
-        ParamRelation[trig_rel(θ)],
-    )
-end
-
-function Rotation(S::Op, axis::Integer, θ::Real, t::Num)
-    triple_or_throw(S)
-    tt = time_or_throw(t)
-    fixed = with_levels(S, axis_or_throw(axis), 0)
-    generator = single_qadd(is_pauli(S) ? CNUM_HALF : CNUM_ONE, Op[fixed])
-    return timed_transform(Rotation(S, axis, θ), gauge(generator, θ, tt), tt)
-end
+Rotation(S::Op, axis::Integer, θ::Real) = exact_generator_transform(spin_generator(S, axis), θ)
+Rotation(S::Op, axis::Integer, θ::Real, t::Num) = generated_frame(spin_generator(S, axis), θ, time_or_throw(t))
 
 function nlevel_or_throw(σ::Op, W::AbstractMatrix)
     is_transition(σ) || unitary_error(

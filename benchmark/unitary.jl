@@ -103,6 +103,13 @@ function phase_harmonic_workflow(a, t, ω, ν, r)
         rendered
 end
 
+function many_mode_workflow(modes, θ)
+    frame = reduce(*, [Rotation(mode, θ) for mode in modes])
+    chain = reduce(*, [Rotation(modes[i], modes[i + 1], θ) for i in 1:19])
+    H = sum(mode' * mode for mode in modes)
+    return conjugate(H, frame), conjugate(modes[1], chain)
+end
+
 function benchmark_unitary!(SUITE)
     # CI compares complete workflows rather than individual phase products or rule
     # lookups. Millisecond-scale leaves collect enough samples to be stable while
@@ -137,6 +144,9 @@ function benchmark_unitary!(SUITE)
         Transition(atom, :σ, 2, 1),
     )
 
+    many = reduce(⊗, [FockSpace(Symbol(:m, i)) for i in 1:100])
+    modes = [Destroy(many, Symbol(:a, i), i) for i in 1:100]
+
     group = SUITE["Unitary and exact phase workflows"]
     group["Transformations"]["Fock Gaussian constructor family"] = @benchmarkable gaussian_family_workflow(
         $a, $b, $t, $Δa, $Δb, $J, $η, $κ, $θ, $r, $ϕ, $ω, $α,
@@ -150,6 +160,9 @@ function benchmark_unitary!(SUITE)
     ) seconds = 3 evals = 1
     group["Transformations"]["Static and moving two-level basis"] = @benchmarkable moving_two_level_workflow(
         $σ, $transitions, $t, $Ω, $Δ1, $Δ2, $g,
+    ) seconds = 3 evals = 1
+    group["Transformations"]["Hundred-mode frame and twenty-mode chain"] = @benchmarkable many_mode_workflow(
+        $modes, $θ,
     ) seconds = 3 evals = 1
     group["Exact phases"]["Thirty-three-sideband exact phase pipeline"] = @benchmarkable phase_harmonic_workflow(
         $a, $t, $ω, $ν, $r,

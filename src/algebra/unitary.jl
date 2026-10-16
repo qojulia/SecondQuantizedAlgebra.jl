@@ -354,8 +354,11 @@ function compose(
         first::UnitaryTransform, second::UnitaryTransform, time::T,
     ) where {T <: Union{StaticTime, DynamicTime}}
     relations = merge_relations(first.action.relations, second.action.relations)
-    action = compose_action(first.action, second.action, relations)
-    rules = affine_rules(action)
+    action, kept = compose_action(first.action, second.action, relations)
+    rules = copy(first.rules)
+    for i in (kept + 1):length(action.blocks)
+        add_block_rules!(rules, action.blocks[i])
+    end
 
     gauge = iszero(first.gauge) ? second.gauge :
         reduce_params(apply_rules(first.gauge, second.rules), relations) + second.gauge

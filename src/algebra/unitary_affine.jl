@@ -116,22 +116,27 @@ function inverse_linear(linear::Matrix{CNum}, structure::AffineStructure)
     unitary_error("no exact inverse strategy is registered for affine structure `$structure`")
 end
 
+function add_block_rules!(rules::Dict{Op, QAdd}, block::AffineBlock)
+    n = length(block.basis)
+    for i in 1:n
+        terms = QTermDict()
+        sizehint!(terms, n + 1)
+        for j in 1:n
+            coefficient = block.linear[i, j]
+            iszero(coefficient) || addto!(terms, Op[block.basis[j]], coefficient)
+        end
+        offset = block.shift[i]
+        iszero(offset) || addto!(terms, Op[], offset)
+        rules[block.basis[i]] = QAdd(terms, EMPTY_INDICES)
+    end
+    return rules
+end
+
 function affine_rules(action::AffineAction)
     rules = Dict{Op, QAdd}()
     sizehint!(rules, sum(length(block.basis) for block in action.blocks))
     for block in action.blocks
-        n = length(block.basis)
-        for i in 1:n
-            terms = QTermDict()
-            sizehint!(terms, n + 1)
-            for j in 1:n
-                coefficient = block.linear[i, j]
-                iszero(coefficient) || addto!(terms, Op[block.basis[j]], coefficient)
-            end
-            offset = block.shift[i]
-            iszero(offset) || addto!(terms, Op[], offset)
-            rules[block.basis[i]] = QAdd(terms, EMPTY_INDICES)
-        end
+        add_block_rules!(rules, block)
     end
     return rules
 end
@@ -252,33 +257,6 @@ function compose_subset_block(
     return AffineBlock(first.structure, first.basis, linear, shift)
 end
 
-function compose_affine_data(
-        first_linear::Matrix{CNum}, first_shift::Vector{CNum},
-        second_linear::Matrix{CNum}, second_shift::Vector{CNum},
-        relations::Vector{ParamRelation},
-    )
-    n = length(first_shift)
-    linear = Matrix{CNum}(undef, n, n)
-    shift = Vector{CNum}(undef, n)
-    scratch = ParamRelation[]
-
-    for j in 1:n, i in 1:n
-        value = CNUM_ZERO
-        for k in 1:n
-            value = value + first_linear[i, k] * second_linear[k, j]
-        end
-        linear[i, j] = reduce_affine(value, relations, scratch)
-    end
-    for i in 1:n
-        value = first_shift[i]
-        for k in 1:n
-            value = value + first_linear[i, k] * second_shift[k]
-        end
-        shift[i] = reduce_affine(value, relations, scratch)
-    end
-    return linear, shift
-end
-
 function compose_overlapping(
         first_blocks::Vector{AffineBlock}, second::AffineBlock, relations::Vector{ParamRelation},
     )
@@ -286,39 +264,36 @@ function compose_overlapping(
     all(block -> block.structure === structure, first_blocks) || unitary_error(
         "overlapping affine blocks must describe the same canonical algebra",
     )
-    if length(first_blocks) == 1
-        first = only(first_blocks)
-        positions = subset_positions(second.basis, first.basis)
-        all(!iszero, positions) && return compose_subset_block(first, second, positions, relations)
+    first = if length(first_blocks) == 1 && all(in(only(first_blocks).basis), second.basis)
+        only(first_blocks)
+    else
+        raw = copy(second.basis)
+        for block in first_blocks
+            append!(raw, block.basis)
+        end
+        basis = canonical_block_basis(structure, raw)
+        AffineBlock(structure, basis, extend_blocks(first_blocks, basis)...)
     end
-    raw = copy(second.basis)
-    for block in first_blocks
-        append!(raw, block.basis)
-    end
-    basis = canonical_block_basis(structure, raw)
-    first_linear, first_shift = extend_blocks(first_blocks, basis)
-    second_linear, second_shift = extend_blocks(AffineBlock[second], basis)
-    linear, shift = compose_affine_data(
-        first_linear, first_shift, second_linear, second_shift, relations,
-    )
-    return AffineBlock(structure, basis, linear, shift)
+    return compose_subset_block(first, second, subset_positions(second.basis, first.basis), relations)
 end
 
 function compose_action(
         first::AffineAction, second::AffineAction, relations::Vector{ParamRelation},
     )
     result = copy(first.blocks)
+    kept = length(result)
     for block in second.blocks
         overlapping = findall(existing -> blocks_overlap(existing, block), result)
         if isempty(overlapping)
             push!(result, block)
         else
             composed = compose_overlapping(result[overlapping], block, relations)
+            kept -= count(<=(kept), overlapping)
             deleteat!(result, overlapping)
             push!(result, composed)
         end
     end
-    return AffineAction(result, relations)
+    return AffineAction(result, relations), kept
 end
 
 function canonical_block_inverse(block::AffineBlock, relations::Vector{ParamRelation})
