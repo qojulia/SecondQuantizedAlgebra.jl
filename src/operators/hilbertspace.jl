@@ -45,8 +45,6 @@ struct FockSpace <: HilbertSpace
     name::Symbol
 end
 FockSpace(name::AbstractString) = name_must_be_symbol(name)
-Base.:(==)(a::FockSpace, b::FockSpace) = a.name == b.name
-Base.hash(a::FockSpace, h::UInt) = hash(:FockSpace, hash(a.name, h))
 
 """
     ProductSpace{T} <: HilbertSpace
@@ -139,16 +137,36 @@ Base.length(h::ProductSpace) = length(h.spaces)
 """
     unique_subspace_index(h::ProductSpace, ::Type{T}) -> Int
 
-Return the index of the unique subspace of type `T` inside `h`. Throws
-`ArgumentError` if there are zero or more than one such subspaces — the caller
-must then specify the subspace index explicitly.
+Index of the only factor of `h` that is a `T`. Throws an `ArgumentError` unless exactly one
+factor is a `T`.
 """
 function unique_subspace_index(h::ProductSpace, ::Type{T}) where {T <: HilbertSpace}
-    matches = findall(s -> s isa T, collect(h.spaces))
-    if isempty(matches)
-        throw(ArgumentError("No $T found in ProductSpace; specify the subspace index explicitly"))
-    elseif length(matches) > 1
-        throw(ArgumentError("$(length(matches)) $T subspaces found in ProductSpace; specify which one with the subspace index argument"))
-    end
-    return only(matches)
+    n = count(s -> s isa T, h.spaces)
+    n == 0 && throw(ArgumentError("No $T found in ProductSpace; specify the subspace index explicitly"))
+    n > 1 && throw(ArgumentError("$n $T subspaces found in ProductSpace; specify which one with the subspace index argument"))
+    return position_of(s -> s isa T, h.spaces)
 end
+
+"""
+    subspace(h::ProductSpace, idx::Int, ::Type{T}) -> T
+
+Factor `idx` of `h`, checked to exist and to be a `T`. Throws an `ArgumentError` otherwise.
+"""
+function subspace(h::ProductSpace, idx::Int, ::Type{T}) where {T <: HilbertSpace}
+    n = length(h.spaces)
+    1 <= idx <= n || throw(ArgumentError("Index $idx out of range for ProductSpace with $n spaces"))
+    space = h.spaces[idx]
+    space isa T || throw(ArgumentError("Space at index $idx is a $(nameof(typeof(space))), expected $(nameof(T))"))
+    return space
+end
+
+"""
+    on_factor(constructor, h::ProductSpace, ::Type{T}, idx::Int, name::Symbol, args...)
+
+Operator built by `constructor` on factor `idx` of `h`, which must be a `T`.
+
+The operator is built and validated on the single space, then moved to factor `idx`, so
+every role constructor gets its `ProductSpace` methods from its single-space one.
+"""
+on_factor(constructor::F, h::ProductSpace, ::Type{T}, idx::Int, name::Symbol, args...) where {F, T <: HilbertSpace} =
+    set_acts_on(constructor(subspace(h, idx, T), name, args...), idx)

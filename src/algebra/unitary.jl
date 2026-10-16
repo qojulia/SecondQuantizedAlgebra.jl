@@ -95,13 +95,13 @@ function site_generators(o::Op)
         return Op[d, adjoint(d)]
     elseif is_pauli(o) || is_spin(o)
         return Op[
-            Op(o.kind, o.name_id, o.space_index, o.index, Int32(axis), 0, 0, 0)
+            with_levels(o, axis, 0)
                 for axis in 1:3
         ]
     elseif is_transition(o)
         n = Int(o.nlev)
         return Op[
-            Op(OP_TRANSITION, o.name_id, o.space_index, o.index, Int32(i), Int32(j), o.g, o.nlev)
+            with_levels(o, i, j)
                 for i in 1:n for j in 1:n
         ]
     end

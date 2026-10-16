@@ -185,7 +185,6 @@ end
     )
 end
 
-mentions_index(q::QAdd, idx::Index) = any_depends_on_index(q, idx)
 function mentions_index(S::SuperOperator, idx::Index)
     for (t, c) in S.arguments
         depends_on_scope_sandwich(c, t.left, t.right, t.ne, idx) && return true

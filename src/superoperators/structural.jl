@@ -167,18 +167,16 @@ substitute_part(q::QAdd, op_rules::OpRules, scalar_rules::ScalarRules, ::PhaseRu
 substitute_part(q::QExpr, op_rules::OpRules, scalar_rules::ScalarRules, phase_rules::PhaseRules) =
     iszero(q) ? q : substitute_qexpr_split(q, op_rules, scalar_rules, phase_rules)
 
-change_index(L::Lindbladian, from::Index, to::Index) = change_index(L, Dict(from => to))
-
-function change_index(L::Lindbladian{O}, pairs::AbstractDict{Index, Index}) where {O}
-    isempty(pairs) && return L
+function change_index(L::Lindbladian{O}, m::IndexMap) where {O}
+    renames_nothing(m) && return L
     b = LindbladianBuilder{O}()
-    add_hamiltonian!(b.hamiltonian, change_index(L.hamiltonian, pairs))
+    add_hamiltonian!(b.hamiltonian, change_index(L.hamiltonian, m))
     for (ch, γ) in L.channels
-        ne_becomes_contradictory(ch.ne, pairs) && continue
-        J = change_index(ch.jump, pairs)
-        K = is_diagonal(ch) ? J : change_index(ch.partner, pairs)
-        sc = unique!(Index[get(pairs, idx, idx) for idx in ch.scope])
-        add_channel!(b, J, K, change_index(γ, pairs), sc, substitute_ne(ch.ne, pairs))
+        ne_becomes_contradictory(ch.ne, m) && continue
+        J = change_index(ch.jump, m)
+        K = is_diagonal(ch) ? J : change_index(ch.partner, m)
+        sc = unique!(Index[reindex(m, idx) for idx in ch.scope])
+        add_channel!(b, J, K, change_index(γ, m), sc, substitute_ne(ch.ne, m))
     end
     return build(b)
 end
