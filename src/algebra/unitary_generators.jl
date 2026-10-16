@@ -51,9 +51,9 @@ function closed_adjoint_basis(G::QAdd)
         append!(raw, local_basis)
     end
 
-    structure = operator_affine_structure(first(raw))
-    all(o -> operator_affine_structure(o) === structure, raw) || (structure = AFFINE_NONE)
-    return canonical_block_basis(structure, raw)
+    leading = operator_affine_structure(first(raw))
+    shared = all(o -> operator_affine_structure(o) === leading, raw)
+    return canonical_block_basis(shared ? leading : AFFINE_NONE, raw)
 end
 
 function add_adjoint_entry!(
@@ -274,19 +274,20 @@ function exact_closed_adjoint_action(
     rotations = Dict{Tuple{CNum, CNum}, Tuple{CNum, CNum, CNum}}()
     for component in connected_components(flow)
         if length(component) == 1
-            i = only(component)
-            rate = flow[i, i]
-            result[i, i] = get(exponentials, rate) do
+            k = only(component)
+            rate = flow[k, k]
+            result[k, k] = get(exponentials, rate) do
                 haskey(exponentials, -rate) ? inv(exponentials[-rate]) : generated_scalar_exponential(rate, θ)
             end
-            exponentials[rate] = result[i, i]
+            exponentials[rate] = result[k, k]
         elseif length(component) == 2
-            i, j = component
+            i, j = component[1], component[2]
             iszero(flow[i, i]) && iszero(flow[j, j]) || unitary_error(
                 "exact two-dimensional adjoint blocks currently require zero diagonal entries",
             )
-            diagonal, upper, lower = get!(rotations, (flow[i, j], flow[j, i])) do
-                exact_two_by_two_flow(flow[i, j], flow[j, i], θ, relations)
+            rising, falling = flow[i, j], flow[j, i]
+            diagonal, upper, lower = get!(rotations, (rising, falling)) do
+                exact_two_by_two_flow(rising, falling, θ, relations)
             end
             result[i, i] = diagonal
             result[i, j] = upper
