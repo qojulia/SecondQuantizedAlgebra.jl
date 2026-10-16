@@ -246,7 +246,7 @@ end
 Base.show(io::IO, c::Coeff) = show(io, to_num(c))
 
 @inline function rewrite_complex_slots(x)
-    x isa SymbolicUtils.BasicSymbolic || return x
+    x isa RawExpression || return x
     is_call_of(x, complex) || return x
     args = SymbolicUtils.arguments(x)
     length(args) == 2 || return x
