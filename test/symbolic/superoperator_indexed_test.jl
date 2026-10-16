@@ -75,6 +75,11 @@ import SecondQuantizedAlgebra: SuperOperator, sprepost, spre, spost, liouvillian
         # Two free partners not known to be distinct: the count is undecidable.
         S3 = Σ(spre(σ(1, 2, j) * σ(1, 2, k)), i, [j, k])
         @test i in get_sum_indices(S3)
+        # Summing a partner makes the count of an earlier binder known.
+        hf = FockSpace(:modes)
+        m, p, q = (Index(hf, x, 5, hf) for x in (:m, :p, :q))
+        @test Σ(Σ(one(SuperOperator), m, [p, q]), p) == 16 * one(SuperOperator)
+        @test Σ(Σ(Σ(one(SuperOperator), m, [p, q]), p), q) == 80 * one(SuperOperator)
     end
 
     @testset "matrix-rate orientation" begin
