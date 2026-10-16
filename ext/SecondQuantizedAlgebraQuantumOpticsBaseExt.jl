@@ -111,10 +111,8 @@ function SQA.numeric_assemble_td(be::QuantumOpticsBackend, b, td_terms)
     return QOB.TimeDependentSum(ComplexF64, b, b, coeffs, ops)
 end
 
-constant_function(c::ComplexF64) = t -> c
-
-function td_function(@nospecialize(c::SQA.TDCoeff))
-    c isa ComplexF64 && return constant_function(c)
+td_function(c::ComplexF64) = t -> c
+function td_function(@nospecialize(c::Function))
     SQA.tp_reads_p(c) && throw(
         ArgumentError(
             "solver-parameter (p, t) coefficients require the QuantumToolbox backend; " *
@@ -163,25 +161,27 @@ function SQA.static_operator(
         ::SQA.EagerOperator,
     ) where {B <: QOB.CompositeBasis}
     b = ctx.basis
+    factors = Dict{Tuple{Op, Int}, SparseMatrixCSC{ComplexF64, Int}}()
     rows, cols, vals = Int[], Int[], ComplexF64[]
     for (c, ops) in terms
-        append_scaled!(rows, cols, vals, c, eager_term(ops, ctx))
+        append_scaled!(rows, cols, vals, c, eager_term(ops, ctx, factors))
     end
     return QOB.Operator(b, b, sparse(rows, cols, vals, length(b), length(b)))
 end
 
-function eager_term(ops::Vector{Op}, ctx::SQA.NumericContext)
-    m = sparse_identity(length(ctx.basis))
-    for op in ops
-        m = m * eager_factor(op, ctx)
+function eager_term(ops::Vector{Op}, ctx::SQA.NumericContext, factors::Dict{Tuple{Op, Int}, SparseMatrixCSC{ComplexF64, Int}})
+    isempty(ops) && return sparse_identity(length(ctx.basis))
+    m = eager_factor(ops[1], ctx, factors)
+    for k in 2:length(ops)
+        m = m * eager_factor(ops[k], ctx, factors)
     end
     return m
 end
 
-function eager_factor(op::Op, ctx::SQA.NumericContext)
+function eager_factor(op::Op, ctx::SQA.NumericContext, factors::Dict{Tuple{Op, Int}, SparseMatrixCSC{ComplexF64, Int}})
     haskey(ctx.op_subs, op) && return QOB.sparse(ctx.op_subs[op]).data
     slot = SQA.resolve_slot(op, ctx.sites)
-    return embed_matrix(ctx.basis, slot, slot_matrix(op, ctx.basis.bases, slot, 1))
+    return get!(() -> embed_matrix(ctx.basis, slot, slot_matrix(op, ctx.basis.bases, slot, 1)), factors, (op, slot))
 end
 
 slot_matrix(::Op, ::Tuple{}, slot::Int, k::Int) =
@@ -228,6 +228,8 @@ end
 
 SQA.operator_adjoint(::QuantumOpticsBackend, v::QOB.Operator) =
     QOB.Operator(v.basis_r, v.basis_l, copy(adjoint(v.data)))
+
+SQA.numeric_backend(::QOBState) = QuantumOpticsBackend()
 
 SQA.numeric_expect(::QuantumOpticsBackend, numop, state::QOBState) =
     ComplexF64(QOB.expect(numop, state))

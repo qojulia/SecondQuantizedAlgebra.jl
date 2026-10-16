@@ -144,8 +144,10 @@ function numeric_average(op, states::AbstractVector, d::AbstractDict{<:QSym} = N
     return numeric_average_vec(op, states, d)
 end
 
+state_context(state, d::AbstractDict{<:QSym}) = NumericContext(numeric_backend(state), numeric_basis(state), d)
+
 numeric_average_impl(op::QField, state, d::AbstractDict{<:QSym}) =
-    numeric_expect(numeric_backend(state), to_numeric_lazy(op, NumericContext(numeric_backend(state), numeric_basis(state), d)), state)
+    numeric_expect(numeric_backend(state), to_numeric_lazy(op, state_context(state, d)), state)
 numeric_average_impl(x::Number, ::Any, ::AbstractDict{<:QSym}) = to_complex(x)
 numeric_average_impl(x::Num, state, d::AbstractDict{<:QSym}) =
     numeric_average_impl(SymbolicUtils.unwrap(x), state, d)
@@ -166,29 +168,21 @@ function numeric_average_impl(avg::RawExpression, state, d::AbstractDict{<:QSym}
     SymbolicUtils.iscall(avg) || throw(ArgumentError("numeric_average not implemented for $(typeof(avg))"))
     f, args = SymbolicUtils.operation(avg), SymbolicUtils.arguments(avg)
     f === (^) && return to_complex(numeric_average_impl(args[1], state, d))^to_complex(args[2])
-    f === (+) && return sum_avg(args, state, d)
-    f === (*) && return prod_avg(args, state, d)
+    f === (+) && return fold_averages(+, zero(ComplexF64), args, state, d)
+    f === (*) && return fold_averages(*, one(ComplexF64), args, state, d)
     f === expim && return exp(im * to_complex(numeric_average_impl(only(args), state, d)))
     throw(ArgumentError("numeric_average not implemented for operation $f"))
 end
 
-function sum_avg(args, state, d::AbstractDict{<:QSym})
-    r = ComplexF64(0)
+function fold_averages(op::F, r::ComplexF64, args, state, d::AbstractDict{<:QSym}) where {F}
     for a in args
-        r += to_complex(numeric_average_impl(a, state, d))
-    end
-    return r
-end
-function prod_avg(args, state, d::AbstractDict{<:QSym})
-    r = ComplexF64(1)
-    for a in args
-        r *= to_complex(numeric_average_impl(a, state, d))
+        r = op(r, to_complex(numeric_average_impl(a, state, d)))
     end
     return r
 end
 
 numeric_average_vec(op::QField, states, d::AbstractDict{<:QSym}) =
-    numeric_expect(numeric_backend(first(states)), to_numeric_lazy(op, NumericContext(numeric_backend(first(states)), numeric_basis(first(states)), d)), states)
+    numeric_expect(numeric_backend(first(states)), to_numeric_lazy(op, state_context(first(states), d)), states)
 numeric_average_vec(op, states, d::AbstractDict{<:QSym}) =
     [numeric_average(op, ψ, d) for ψ in states]
 

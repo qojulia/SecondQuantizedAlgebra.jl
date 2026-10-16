@@ -113,8 +113,6 @@ end
 coeff_is_const(c::Complex{Num}) =
     isempty(Symbolics.get_variables(real(c))) && isempty(Symbolics.get_variables(imag(c)))
 
-const_coeff(c::Complex{Num}) = to_complex(c)
-
 as_cnum(x::Complex) = Complex{Num}(Num(real(x)), Num(imag(x)))
 as_cnum(x) = Complex{Num}(Num(x), Num(false))
 
@@ -156,15 +154,18 @@ function compile_coeff(c::Complex{Num}, vars...)
     return (vals...) -> g_re(vals...) + im * g_im(vals...)
 end
 
+function at_time(g::G, @nospecialize(valuefuncs), p_aware::Bool) where {G}
+    p_aware && return (p, t) -> g(t, map(f -> f(p, t), valuefuncs))
+    return t -> g(t, map(f -> f(t), valuefuncs))
+end
+
 const CoeffTerm = Tuple{CNum, Vector{Op}}
 
 coeff_terms(q::QAdd) = CoeffTerm[(c, t.ops) for (t, c) in q.arguments]
 
-compile_td_coeffs(q::QAdd, time_parameter) = compile_td_coeffs(coeff_terms(q), time_parameter)
-
-function compile_td_coeffs(terms::Vector{CoeffTerm}, time_parameter)
+function compile_td_coeffs(coeffs, time_parameter)
     basevars, valuefuncs, p_aware = time_basis(time_parameter)
-    exprs = Complex{Num}[to_num(c) for (c, _) in terms]
+    exprs = Complex{Num}[to_num(c) for c in coeffs]
     isempty(exprs) && push!(exprs, Complex{Num}(0))
     for e in exprs
         check_time_variables(e, basevars)
@@ -175,19 +176,21 @@ end
 function compile_coeffs(exprs::Vector{Complex{Num}}, basevars::Vector{Num}, @nospecialize(valuefuncs), p_aware::Bool)
     f_re = first(build_function(Num[real(e) for e in exprs], basevars...; expression = Val(false)))
     f_im = first(build_function(Num[imag(e) for e in exprs], basevars...; expression = Val(false)))
-    return let f_re = f_re, f_im = f_im, valuefuncs = valuefuncs
-        if p_aware
-            (u, p, t) -> complex_values(f_re, f_im, map(f -> f(p, t), valuefuncs))
-        else
-            (u, p, t) -> complex_values(f_re, f_im, map(f -> f(t), valuefuncs))
-        end
-    end
+    g = at_time((t, vals) -> complex_values(f_re, f_im, vals), valuefuncs, p_aware)
+    p_aware && return (u, p, t) -> g(p, t)
+    return (u, p, t) -> g(t)
 end
 
 function complex_values(f_re::F, f_im::G, vals::Tuple) where {F, G}
     re = f_re(vals...)
     imag_part = f_im(vals...)
     return ComplexF64[re[k] + im * imag_part[k] for k in eachindex(re)]
+end
+
+struct SplitScalarRules
+    re::ScalarRules
+    im::ScalarRules
+    has_imag::Bool
 end
 
 function split_scalar_subs(scalar_subs::AbstractDict)
@@ -197,7 +200,7 @@ function split_scalar_subs(scalar_subs::AbstractDict)
     for (k, v) in scalar_subs
         has_imag |= add_split_scalar_sub!(sub_re, sub_im, raw_rule(k), v)
     end
-    return sub_re, sub_im, has_imag
+    return SplitScalarRules(sub_re, sub_im, has_imag)
 end
 
 function add_split_scalar_sub!(sub_re::ScalarRules, sub_im::ScalarRules, k::RawExpression, v::Complex)
@@ -211,21 +214,16 @@ function add_split_scalar_sub!(sub_re::ScalarRules, sub_im::ScalarRules, k::RawE
     return false
 end
 
-function apply_scalar_subs(c::CNum, sub_re::ScalarRules, sub_im::ScalarRules, has_imag::Bool)
-    (isempty(sub_re) || is_native(c)) && return c
+function apply_scalar_subs(c::CNum, s::SplitScalarRules)
+    (isempty(s.re) || is_native(c)) && return c
     re, im = realimag(c)
     re_part = SymbolicUtils.unwrap(re)
     im_part = SymbolicUtils.unwrap(im)
-    if !has_imag
-        return cnum(
-            Num(Symbolics.substitute(re_part, sub_re)),
-            Num(Symbolics.substitute(im_part, sub_re)),
-        )
+    if !s.has_imag
+        return cnum(Num(Symbolics.substitute(re_part, s.re)), Num(Symbolics.substitute(im_part, s.re)))
     end
-    new_re = Symbolics.substitute(re_part, sub_re) -
-        Symbolics.substitute(im_part, sub_im)
-    new_im = Symbolics.substitute(re_part, sub_im) +
-        Symbolics.substitute(im_part, sub_re)
+    new_re = Symbolics.substitute(re_part, s.re) - Symbolics.substitute(im_part, s.im)
+    new_im = Symbolics.substitute(re_part, s.im) + Symbolics.substitute(im_part, s.re)
     return cnum(Num(new_re), Num(new_im))
 end
 
@@ -236,70 +234,44 @@ function reduce_const(n::Num)
     catch err
         err isa ArgumentError || rethrow()
         isempty(Symbolics.get_variables(n)) || rethrow()
-        return compile_const(n)
+        v = SymbolicUtils.evaluate(x)
+        is_float_const(v) && return const_complex(v)
+        return not_const_error(v)
     end
-end
-
-function compile_const(n::Num)
-    x = SymbolicUtils.evaluate(SymbolicUtils.unwrap(n))
-    is_float_const(x) && return const_complex(x)
-    throw(ArgumentError("cannot reduce symbolic expression $x to a concrete number"))
 end
 
 function fold_const(x::RawExpression)
-    if SymbolicUtils.iscall(x)
-        op = SymbolicUtils.operation(x)
-        args = SymbolicUtils.arguments(x)
-        if op === (+)
-            acc = zero(ComplexF64)
-            for a in args
-                acc += fold_const(a)
-            end
-            return acc
-        elseif op === (*)
-            acc = one(ComplexF64)
-            for a in args
-                acc *= fold_const(a)
-            end
-            return acc
-        elseif op === conj
-            return conj(fold_const(first(args)))
-        elseif op === real
-            return real(fold_const(first(args)))
-        elseif op === imag
-            return imag(fold_const(first(args)))
-        elseif op === (/)
-            return fold_const(first(args)) / fold_const(last(args))
-        elseif op === (^)
-            return fold_const(first(args))^fold_const(last(args))
-        elseif op === (-)
-            return length(args) == 1 ? -fold_const(first(args)) :
-                fold_const(first(args)) - fold_const(last(args))
-        elseif op === expim
-            return exp(im * fold_const(only(args)))
-        elseif op === sqrt
-            return sqrt(fold_const(only(args)))
-        elseif op === cbrt
-            z = fold_const(only(args))
-            iszero(imag(z)) && return ComplexF64(cbrt(real(z)))
-        end
-    elseif is_float_const(x)
-        return const_complex(x)
-    end
-    throw(ArgumentError("cannot reduce symbolic expression $x to a concrete number"))
+    SymbolicUtils.iscall(x) || return is_float_const(x) ? const_complex(x) : not_const_error(x)
+    z::ComplexF64 = fold_call(SymbolicUtils.operation(x), SymbolicUtils.arguments(x), x)
+    return z
 end
 
-to_complex(c::Coeff) = is_native(c) ? to_float_scalar(native_scalar(c)) : to_complex(to_num(c))
+@noinline not_const_error(x) = throw(ArgumentError("cannot reduce symbolic expression $x to a concrete number"))
 
+fold_call(::typeof(+), args, ::RawExpression) = mapfoldl(fold_const, +, args; init = zero(ComplexF64))
+fold_call(::typeof(*), args, ::RawExpression) = mapfoldl(fold_const, *, args; init = one(ComplexF64))
+fold_call(::typeof(conj), args, ::RawExpression) = conj(fold_const(first(args)))
+fold_call(::typeof(real), args, ::RawExpression) = real(fold_const(first(args)))
+fold_call(::typeof(imag), args, ::RawExpression) = imag(fold_const(first(args)))
+fold_call(::typeof(/), args, ::RawExpression) = fold_const(first(args)) / fold_const(last(args))
+fold_call(::typeof(^), args, ::RawExpression) = fold_const(first(args))^fold_const(last(args))
+fold_call(::typeof(-), args, ::RawExpression) =
+    length(args) == 1 ? -fold_const(first(args)) : fold_const(first(args)) - fold_const(last(args))
+fold_call(::typeof(expim), args, ::RawExpression) = exp(im * fold_const(only(args)))
+fold_call(::typeof(sqrt), args, ::RawExpression) = sqrt(fold_const(only(args)))
+function fold_call(::typeof(cbrt), args, x::RawExpression)
+    z = fold_const(only(args))
+    return iszero(imag(z)) ? ComplexF64(cbrt(real(z))) : not_const_error(x)
+end
+fold_call(op, args, x::RawExpression) = not_const_error(x)
+
+to_complex(c::Coeff) = is_native(c) ? to_float_scalar(native_scalar(c)) : to_complex(to_num(c))
 function to_complex(x)
-    x isa ComplexF64   && return x
+    x isa ComplexF64 && return x
     x isa Complex{Num} && return reduce_const(real(x)) + im * reduce_const(imag(x))
-    x isa Complex      && return convert(ComplexF64, x)
-    x isa Num          && return reduce_const(x)
-    if x isa SymbolicUtils.BasicSymbolic
-        (x isa RawExpression && is_float_const(x)) ||
-            throw(ArgumentError("cannot reduce symbolic expression $x to a concrete number"))
-        return const_complex(x)
-    end
+    x isa Complex && return convert(ComplexF64, x)
+    x isa Num && return reduce_const(x)
+    x isa RawExpression && is_float_const(x) && return const_complex(x)
+    x isa SymbolicUtils.BasicSymbolic && return not_const_error(x)
     return convert(ComplexF64, Complex(x, false))
 end
