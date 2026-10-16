@@ -66,5 +66,4 @@ jobs:
           comment-always: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository }}
           fail-on-alert: true
           benchmark-data-dir-path: benchmark
-          max-items-in-chart: 100
           auto-push: ${{ github.event_name != 'pull_request' }}
