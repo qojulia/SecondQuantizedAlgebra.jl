@@ -60,15 +60,7 @@ end
 
 function drop_unused_indices(d::QTermDict, indices::Vector{Index})
     isempty(indices) && return indices
-    used = Index[]
-    for idx in indices
-        for (term, c) in d
-            if depends_on_scope_index(c, term.ops, term.ne, idx)
-                push!(used, idx)
-                break
-            end
-        end
-    end
+    used = Index[idx for idx in indices if any_depends_on_index(d, idx)]
     length(used) == length(indices) && return indices
     return used
 end
@@ -236,7 +228,7 @@ function sorted_arguments(q::QAdd)
 end
 
 full_op_key(op::QSym) = (
-    sort_key(op)..., type_order(op), name_rank(op.name_id),
+    sort_key(op)..., Int(op.kind), name_rank(op.name_id),
     Int(op.l1), Int(op.l2), Int(op.g), Int(op.nlev),
 )
 

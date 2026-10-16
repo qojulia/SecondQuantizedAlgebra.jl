@@ -48,15 +48,15 @@ function benchmark_operator_functions!(SUITE)
     cA2 = cA^2
 
     group = SUITE["Formal operator functions"]
-    group["Unary cos construction"] = @benchmarkable cos($A) seconds = 3 evals = 1
-    group["64 unary function nodes"] = @benchmarkable qexpr_unary_batch($A, 64) seconds = 3 evals = 1
-    group["Nested unary depth 8"] = @benchmarkable qexpr_nested($A, 8) seconds = 3 evals = 1
-    group["Mixed formal expression"] = @benchmarkable qexpr_mixed_workflow($a, $A) seconds = 3 evals = 1
-    group["Collect 32 identical formal terms"] = @benchmarkable qexpr_collected_sum($cA, 32) seconds = 3 evals = 1
-    group["Mixed polynomial/formal sum 32"] = @benchmarkable qexpr_mixed_polynomial_sum($a, $cA, 32) seconds = 3 evals = 1
-    group["Formal power 16"] = @benchmarkable ($cA)^16 seconds = 3 evals = 1
-    group["cos Taylor order 8"] = @benchmarkable taylor($cA, 0:8) seconds = 3 evals = 1
-    group["expim Taylor order 8"] = @benchmarkable taylor($eA, 0:8) seconds = 3 evals = 1
-    group["Repeated-node Taylor order 4"] = @benchmarkable taylor($cA2, 0:4) seconds = 3 evals = 1
+    group["Construction"]["Unary cos construction"] = @benchmarkable cos($A) seconds = 3 evals = 1
+    group["Construction"]["64 unary function nodes"] = @benchmarkable qexpr_unary_batch($A, 64) seconds = 3 evals = 1
+    group["Construction"]["Nested unary depth 8"] = @benchmarkable qexpr_nested($A, 8) seconds = 3 evals = 1
+    group["Construction"]["Mixed formal expression"] = @benchmarkable qexpr_mixed_workflow($a, $A) seconds = 3 evals = 1
+    group["Arithmetic"]["Collect 32 identical formal terms"] = @benchmarkable qexpr_collected_sum($cA, 32) seconds = 3 evals = 1
+    group["Arithmetic"]["Mixed polynomial and formal sum 32"] = @benchmarkable qexpr_mixed_polynomial_sum($a, $cA, 32) seconds = 3 evals = 1
+    group["Arithmetic"]["Formal power 16"] = @benchmarkable ($cA)^16 seconds = 3 evals = 1
+    group["Taylor expansion"]["cos Taylor order 8"] = @benchmarkable taylor($cA, 0:8) seconds = 3 evals = 1
+    group["Taylor expansion"]["expim Taylor order 8"] = @benchmarkable taylor($eA, 0:8) seconds = 3 evals = 1
+    group["Taylor expansion"]["Repeated-node Taylor order 4"] = @benchmarkable taylor($cA2, 0:4) seconds = 3 evals = 1
     return SUITE
 end

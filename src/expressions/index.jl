@@ -58,9 +58,7 @@ function DoubleIndexedVariable(
         name::Symbol, i::Index, j::Index;
         identical::Bool = true
     )
-    if !identical && i == j
-        return Num(0)
-    end
+    !identical && i == j && return Num(0)
     f = SymbolicUtils.Sym{SymbolicUtils.SymReal}(
         name;
         type = SymbolicUtils.FnType{Tuple{Int, Int}, Real, Nothing},
@@ -100,106 +98,66 @@ julia> change_index(σ(2, 1, i) * σ(1, 2, j), Dict(i => j, j => i))
 
 See also [`get_indices`](@ref), [`substitute`](@ref).
 """
-change_index(x::Number, ::Index, ::Index) = x
-function change_index(x::Num, from::Index, to::Index)
+change_index(x, from::Index, to::Index) = change_index(x, from => to)
+
+change_index(x::Number, ::IndexMap) = x
+function change_index(x::Num, m::IndexMap)
+    renames_nothing(m) && return x
     raw = SymbolicUtils.unwrap(x)
-    isym = SymbolicUtils.unwrap(index_sym(from))
-    vars = Symbolics.get_variables(raw)
-    any(v -> isequal(v, isym), vars) || return x
-    result = Symbolics.substitute(raw, Dict(isym => SymbolicUtils.unwrap(index_sym(to))))
-    return check_not_identical(result)
-end
-function change_index(x::CNum, from::Index, to::Index)
-    is_native(x) && return x
-    tail = x.tail
-    if tail isa RawSymbolicCoeff
-        raw = change_index(Num(tail.expr), from, to)
-        isequal(raw, Num(tail.expr)) && return x
-        result = SymbolicUtils.unwrap(raw)
-        is_numeric_const(result) && return const_coeff(result)
-        return raw_coeff(result, tail.known_real)
-    end
-    raw_re, raw_im = realimag(x)
-    re = change_index(raw_re, from, to)
-    im = change_index(raw_im, from, to)
-    return cnum(re, im)
+    mentions_renamed(raw, m) || return x
+    return check_not_identical(Symbolics.substitute(raw, index_sym_substitutions(m)))
 end
 
-with_index(op::Op, i::Index) = IndexedOperator(op, i)
+mentions_renamed(raw::RawExpression, m::Pair{Index, Index}) =
+    raw_depends_on(raw, SymbolicUtils.unwrap(index_sym(m.first)))
+mentions_renamed(raw::RawExpression, m::AbstractDict{Index, Index}) =
+    any(from -> raw_depends_on(raw, SymbolicUtils.unwrap(index_sym(from))), keys(m))
 
-function change_index(op::QSym, from::Index, to::Index)
-    return with_index(op, op.index == from ? to : op.index)
-end
-
-function change_index(s::QAdd, from::Index, to::Index)
-    out = QTermDict()
-    needs = !isempty(s.indices)
-    for (term, c) in s.arguments
-        ne_becomes_contradictory(term.ne, from, to) && continue
-        new_c = change_index(c, from, to)
-        new_ops = Op[change_index(op, from, to) for op in term.ops]
-        new_ne = substitute_ne(term.ne, from, to)
-        if needs
-            accumulate_with_diag!(out, new_ops, new_c, s.indices, new_ne)
-        else
-            canonicalize!(out, new_ops, new_c, new_ne)
-        end
-    end
-    new_indices = Index[idx == from ? to : idx for idx in s.indices]
-    return QAdd(out, new_indices)
-end
-
-change_index(x::Number, ::AbstractDict{Index, Index}) = x
-function change_index(x::Num, pairs::AbstractDict{Index, Index})
-    isempty(pairs) && return x
-    raw = SymbolicUtils.unwrap(x)
+index_sym_substitutions(m::Pair{Index, Index}) =
+    Dict(SymbolicUtils.unwrap(index_sym(m.first)) => SymbolicUtils.unwrap(index_sym(m.second)))
+function index_sym_substitutions(m::AbstractDict{Index, Index})
     sub = Dict{SymbolicUtils.BasicSymbolic, SymbolicUtils.BasicSymbolic}()
-    for (from, to) in pairs
+    for (from, to) in m
         sub[SymbolicUtils.unwrap(index_sym(from))] = SymbolicUtils.unwrap(index_sym(to))
     end
-    vars = Symbolics.get_variables(raw)
-    any(v -> haskey(sub, v), vars) || return x
-    result = Symbolics.substitute(raw, sub)
-    return check_not_identical(result)
+    return sub
 end
-function change_index(x::CNum, pairs::AbstractDict{Index, Index})
+
+function change_index(x::CNum, m::IndexMap)
     is_native(x) && return x
     tail = x.tail
     if tail isa RawSymbolicCoeff
-        raw = change_index(Num(tail.expr), pairs)
+        raw = change_index(Num(tail.expr), m)
         isequal(raw, Num(tail.expr)) && return x
         result = SymbolicUtils.unwrap(raw)
         is_numeric_const(result) && return const_coeff(result)
         return raw_coeff(result, tail.known_real)
     end
     raw_re, raw_im = realimag(x)
-    re = change_index(raw_re, pairs)
-    im = change_index(raw_im, pairs)
-    return cnum(re, im)
+    return cnum(change_index(raw_re, m), change_index(raw_im, m))
 end
 
-function change_index(op::QSym, pairs::AbstractDict{Index, Index})
-    new_idx = get(pairs, op.index, op.index)
-    return new_idx === op.index ? op : with_index(op, new_idx)
+function change_index(op::QSym, m::IndexMap)
+    new_idx = reindex(m, op.index)
+    return new_idx === op.index ? op : IndexedOperator(op, new_idx)
 end
 
-function change_index(s::QAdd, pairs::AbstractDict{Index, Index})
-    isempty(pairs) && return s
+function change_index(s::QAdd, m::IndexMap)
+    renames_nothing(m) && return s
     out = QTermDict()
     needs = !isempty(s.indices)
     for (term, c) in s.arguments
-        ne_becomes_contradictory(term.ne, pairs) && continue
-        new_c = change_index(c, pairs)
-        new_ops = Op[change_index(op, pairs) for op in term.ops]
-        new_ne = substitute_ne(term.ne, pairs)
+        ne_becomes_contradictory(term.ne, m) && continue
+        new_c = change_index(c, m)
+        new_ops = Op[change_index(op, m) for op in term.ops]
+        new_ne = substitute_ne(term.ne, m)
         if needs
             accumulate_with_diag!(out, new_ops, new_c, s.indices, new_ne)
         else
             canonicalize!(out, new_ops, new_c, new_ne)
         end
     end
-    new_indices = Index[get(pairs, idx, idx) for idx in s.indices]
-    return QAdd(out, new_indices)
+    return QAdd(out, Index[reindex(m, idx) for idx in s.indices])
 end
 
 """
@@ -229,22 +187,9 @@ end
 function get_indices(s::QAdd)
     inds = copy(s.indices)
     for term in keys(s.arguments)
-        for op in term.ops
-            has_index(op.index) && op.index ∉ inds && push!(inds, op.index)
-        end
+        push_op_indices!(inds, term.ops)
     end
     return inds
-end
-
-"""
-    create_index_arrays(indices::Vector{Index}, ranges::Vector{<:AbstractRange}) -> Vector
-
-Cartesian product of `ranges`, returned as a flat vector.
-Single-index case returns `collect(only(ranges))`.
-"""
-function create_index_arrays(indices::Vector{Index}, ranges::Vector{<:AbstractRange})
-    length(indices) == 1 && return collect(only(ranges))
-    return vec(collect(Iterators.product(ranges...)))
 end
 
 """
@@ -285,11 +230,7 @@ end
 function depends_on_scope_index(
         c::CNum, ops::Vector{Op}, ne::Vector{NonEqualPair}, idx::Index,
     )
-    depends_on_index_term(c, ops, idx) && return true
-    for (α, β) in ne
-        (α == idx || β == idx) && return true
-    end
-    return false
+    return depends_on_index_term(c, ops, idx) || ne_mentions(ne, idx)
 end
 
 bound_indices(c::CNum, ops::Vector{Op}, ne::Vector{NonEqualPair}, indices::Vector{Index}) =
@@ -306,13 +247,15 @@ are themselves provably distinct; otherwise `eliminated` is `false` and the term
 the binder together with its constraints.
 """
 function eliminate_binder(ne::Vector{NonEqualPair}, idx::Index)
-    partners = Index[]
+    partners = EMPTY_INDICES
     mentions = false
     for (α, β) in ne
         (α == idx || β == idx) || continue
         mentions = true
         other = α == idx ? β : α
-        other.space_index == idx.space_index && push!(partners, other)
+        other.space_index == idx.space_index || continue
+        partners === EMPTY_INDICES && (partners = Index[])
+        push!(partners, other)
     end
     for p in 1:length(partners), q in (p + 1):length(partners)
         ne_contains(ne, partners[p], partners[q]) ||
@@ -369,7 +312,10 @@ function any_depends_on_index(d::QTermDict, idx::Index)
     end
     return false
 end
-any_depends_on_index(s::QAdd, idx::Index) = any_depends_on_index(s.arguments, idx)
+mentions_index(s::QAdd, idx::Index) = any_depends_on_index(s.arguments, idx)
+
+require_sum_range(i::Index) =
+    i.range_id == 0 && throw(ArgumentError("Σ: index $(index_name(i)) has no summation range"))
 
 """
     Σ(expr, i::Index, [non_equal::Vector{Index}])
@@ -404,8 +350,8 @@ julia> Σ(σ(2, 2, j), i, [j])
 See also [`Index`](@ref), [`IndexedOperator`](@ref), [`assume_distinct_index`](@ref).
 """
 function Σ(expr::QAdd, i::Index, non_equal::Vector{Index} = Index[])
-    i.range_id == 0 && throw(ArgumentError("Σ: index $(index_name(i)) has no summation range"))
-    if isempty(non_equal) && !any_depends_on_index(expr, i)
+    require_sum_range(i)
+    if isempty(non_equal) && !mentions_index(expr, i)
         return expr * index_range(i)
     end
 
@@ -413,11 +359,11 @@ function Σ(expr::QAdd, i::Index, non_equal::Vector{Index} = Index[])
     diag = QTermDict()
 
     for (term, c) in expr.arguments
-        scope = vcat(bound_indices(term, c, expr.indices), [i])
+        scope = push!(bound_indices(term, c, expr.indices), i)
         sigma_term!(off_diag, diag, term, c, i, non_equal, scope)
     end
 
-    result = QAdd(off_diag, drop_unused_indices(off_diag, vcat(expr.indices, [i])))
+    result = QAdd(off_diag, drop_unused_indices(off_diag, push!(copy(expr.indices), i)))
     isempty(diag) && return result
     return result + QAdd(diag, drop_unused_indices(diag, copy(expr.indices)))
 end
@@ -426,26 +372,15 @@ function sigma_term!(
         off_diag::QTermDict, diag::QTermDict, term::QTerm, c::CNum,
         i::Index, non_equal::Vector{Index}, scope::Vector{Index},
     )
-    ne_aug = term.ne
-    for j in non_equal
-        ne_aug = merge_ne_pair(ne_aug, i, j)
-    end
+    ne_aug = merge_ne_pairs(term.ne, i, non_equal)
 
     if !depends_on_index_term(c, term.ops, i)
         emit_scaled_by_scope!(off_diag, copy(term.ops), c, ne_aug, scope)
         return nothing
     end
 
-    diag_pairs = Tuple{Index, Index}[]
-    for ext_idx in distinct_op_indices(term.ops)
-        may_coincide(i, ext_idx, ne_aug) && push!(diag_pairs, (i, ext_idx))
-    end
-
-    full_ne = ne_aug
-    for (a, b) in diag_pairs
-        full_ne = merge_ne_pair(full_ne, a, b)
-    end
-    emit_scaled_by_scope!(off_diag, copy(term.ops), c, full_ne, scope)
+    diag_pairs = coinciding_pairs(i, term.ops, ne_aug)
+    emit_scaled_by_scope!(off_diag, copy(term.ops), c, merge_ne_pairs(ne_aug, diag_pairs), scope)
 
     for (_, ext_idx) in diag_pairs
         sub_ops = Op[change_index(o, i, ext_idx) for o in term.ops]

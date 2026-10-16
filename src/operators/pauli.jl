@@ -22,8 +22,9 @@ struct PauliSpace <: HilbertSpace
     name::Symbol
 end
 PauliSpace(name::AbstractString) = name_must_be_symbol(name)
-Base.:(==)(a::PauliSpace, b::PauliSpace) = a.name == b.name
-Base.hash(a::PauliSpace, h::UInt) = hash(:PauliSpace, hash(a.name, h))
+
+check_axis(role::Symbol, axis::Int) =
+    1 <= axis <= 3 ? axis : throw(ArgumentError("$role axis must be 1, 2, or 3, got $axis"))
 
 """
     Pauli(h::PauliSpace, name::Symbol, axis::Int)
@@ -53,22 +54,9 @@ julia> σx * σx
 
 See also [`PauliSpace`](@ref), [`Spin`](@ref).
 """
-function Pauli(name::Symbol, axis::Int, si::Int, idx::Index)
-    1 <= axis <= 3 || throw(ArgumentError("Pauli axis must be 1, 2, or 3, got $axis"))
-    return Op(OP_PAULI, name_id(name), si, idx, axis, 0, 0, 0)
-end
-Pauli(name::Symbol, axis::Int, si::Int) = Pauli(name, axis, si, NO_INDEX)
-
+Pauli(name::Symbol, axis::Int, si::Int) = Op(OP_PAULI, name_id(name), si, NO_INDEX, check_axis(:Pauli, axis), 0, 0, 0)
 Pauli(h::PauliSpace, name::Symbol, axis::Int) = Pauli(name, axis, 1)
-function Pauli(h::ProductSpace, name::Symbol, axis::Int, idx::Int)
-    1 <= idx <= length(h.spaces) || throw(ArgumentError("Index $idx out of range"))
-    h.spaces[idx] isa PauliSpace || throw(ArgumentError("Space at index $idx is not a PauliSpace"))
-    return Pauli(name, axis, idx)
-end
-
-Pauli(h::ProductSpace, name::Symbol, axis::Int) =
-    Pauli(h, name, axis, unique_subspace_index(h, PauliSpace))
+Pauli(h::ProductSpace, name::Symbol, axis::Int, idx::Int = unique_subspace_index(h, PauliSpace)) =
+    on_factor(Pauli, h, PauliSpace, idx, name, axis)
 
 Pauli(::HilbertSpace, name::AbstractString, args...) = name_must_be_symbol(name)
-
-const levi_civita = ((0, 1, -1), (-1, 0, 1), (1, -1, 0))

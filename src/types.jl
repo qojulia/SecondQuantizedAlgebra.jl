@@ -58,7 +58,7 @@ Outcome tag for `reduce_pair`:
 """
 @enum ReduceKind::UInt8 NoReduction ScalarReduction OpReduction
 
-function position_of(pred::F, v::AbstractVector) where {F}
+function position_of(pred::F, v::Union{AbstractVector, Tuple}) where {F}
     for i in eachindex(v)
         pred(v[i]) && return i
     end

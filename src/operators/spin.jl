@@ -22,8 +22,6 @@ struct SpinSpace <: HilbertSpace
     name::Symbol
 end
 SpinSpace(name::AbstractString) = name_must_be_symbol(name)
-Base.:(==)(a::SpinSpace, b::SpinSpace) = a.name == b.name
-Base.hash(a::SpinSpace, h::UInt) = hash(:SpinSpace, hash(a.name, h))
 
 """
     Spin(h::SpinSpace, name::Symbol, axis::Int)
@@ -50,20 +48,9 @@ julia> Sy * Sx
 
 See also [`SpinSpace`](@ref), [`Pauli`](@ref).
 """
-function Spin(name::Symbol, axis::Int, si::Int, idx::Index)
-    1 <= axis <= 3 || throw(ArgumentError("Spin axis must be 1, 2, or 3, got $axis"))
-    return Op(OP_SPIN, name_id(name), si, idx, axis, 0, 0, 0)
-end
-Spin(name::Symbol, axis::Int, si::Int) = Spin(name, axis, si, NO_INDEX)
-
+Spin(name::Symbol, axis::Int, si::Int) = Op(OP_SPIN, name_id(name), si, NO_INDEX, check_axis(:Spin, axis), 0, 0, 0)
 Spin(h::SpinSpace, name::Symbol, axis::Int) = Spin(name, axis, 1)
-function Spin(h::ProductSpace, name::Symbol, axis::Int, idx::Int)
-    1 <= idx <= length(h.spaces) || throw(ArgumentError("Index $idx out of range"))
-    h.spaces[idx] isa SpinSpace || throw(ArgumentError("Space at index $idx is not a SpinSpace"))
-    return Spin(name, axis, idx)
-end
-
-Spin(h::ProductSpace, name::Symbol, axis::Int) =
-    Spin(h, name, axis, unique_subspace_index(h, SpinSpace))
+Spin(h::ProductSpace, name::Symbol, axis::Int, idx::Int = unique_subspace_index(h, SpinSpace)) =
+    on_factor(Spin, h, SpinSpace, idx, name, axis)
 
 Spin(::HilbertSpace, name::AbstractString, args...) = name_must_be_symbol(name)
