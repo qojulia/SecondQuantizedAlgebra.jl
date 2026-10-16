@@ -103,16 +103,6 @@ to_numeric_td(::SuperOperator, ::NumericContext, time_parameter) = throw(
     ),
 )
 
-function compile_td_coeffs(S::SuperOperator, time_parameter)
-    basevars, valuefuncs, p_aware = time_basis(time_parameter)
-    exprs = Complex{Num}[to_num(c) for (_, c) in S.arguments]
-    isempty(exprs) && push!(exprs, Complex{Num}(0))
-    for e in exprs
-        check_time_variables(e, basevars)
-    end
-    return compile_coeffs(exprs, basevars, valuefuncs, p_aware)
-end
-
 function to_numeric(
         S::Union{NumericMap, FormalMap}, b::Basis;
         parameter = NO_PARAMETER, time_parameter = NO_TIME_PARAMETER,
@@ -127,55 +117,16 @@ to_numeric(::FormalMap, ::Basis, ::AbstractDict{<:QSym}) = formal_map_numeric_er
 to_numeric(S::Union{NumericMap, FormalMap}, state::QuantumState, d::AbstractDict{<:QSym}) =
     to_numeric(S, numeric_basis(state), d)
 
-function for_each_assignment(f::F, dep::Vector{Index}, ne::Vector{NonEqualPair}, sites::Dict{Int, Vector{Int}}) where {F}
-    if isempty(dep)
-        f(Dict{Index, Index}(), Dict{Index, Index}())
-        return nothing
-    end
-    lens = Int[length(get(sites, Int(idx.space_index), Int[])) for idx in dep]
-    any(iszero, lens) && throw(
-        ArgumentError("no sites supplied for the space of a bound summation index"),
-    )
-    sub_op = Dict{Index, Index}()
-    sub_coef = Dict{Index, Index}()
-    for combo in 1:prod(lens)
-        empty!(sub_op)
-        empty!(sub_coef)
-        rem = combo - 1
-        for k in eachindex(dep)
-            kpos = (rem % lens[k]) + 1
-            rem ÷= lens[k]
-            idx = dep[k]
-            sub_op[idx] = Index(idx.name_id, idx.range_id, idx.space_index, Int32(kpos))
-            sub_coef[idx] = Index(Int32(0), idx.range_id, idx.space_index, Int32(kpos))
-        end
-        violates_ne(ne, sub_op) && continue
-        f(sub_op, sub_coef)
-    end
-    return nothing
-end
-
 function to_numeric_indexed(
         be::NumericBackend, basis, S::SuperOperator,
         sites::AbstractDict{Int, Vector{Int}},
         d::AbstractDict{<:QSym}, scalar_subs::AbstractDict,
     )
     validate_sites(be, basis, sites)
-    site_map = Dict{Int, Vector{Int}}(sites)
-    ctx = NumericContext(be, basis, d, scalar_subs, site_map)
-    sub_re, sub_im, has_imag = split_scalar_subs(scalar_subs)
+    ctx = NumericContext(be, basis, d, Dict{Int, Vector{Int}}(sites))
     terms = SandwichTerm[]
-    for (t, c) in S.arguments
-        dep = bound_indices(t, c, S.indices)
-        for_each_assignment(dep, t.ne, site_map) do sub_op, sub_coef
-            nc = apply_scalar_subs(change_index(c, sub_coef), sub_re, sub_im, has_imag)
-            push!(
-                terms, (
-                    to_complex(nc), Op[change_index(o, sub_op) for o in t.left],
-                    Op[change_index(o, sub_op) for o in t.right],
-                ),
-            )
-        end
+    foreach_unrolled(S, ctx.sites, split_scalar_subs(scalar_subs)) do t, c, sub_op
+        push!(terms, (to_complex(c), relabel(t.left, sub_op), relabel(t.right, sub_op)))
     end
     return numeric_superoperator(be, ctx, terms)
 end
@@ -250,8 +201,8 @@ function to_numeric_master(
     isempty(site_map) || validate_sites(backend, basis, site_map)
     rules = expand_parameter(parameter)
     tp = normalize_time_parameter(time_parameter)
-    ctx = NumericContext(backend, basis, NO_SUBS, NO_SCALAR_SUBS, site_map)
-    coeffs = CoefficientRules(rules, split_scalar_subs(scalar_subs)...)
+    ctx = NumericContext(backend, basis, NO_SUBS, site_map)
+    coeffs = CoefficientRules(rules, split_scalar_subs(scalar_subs))
     H = master_hamiltonian(L.hamiltonian, ctx, coeffs, tp)
     c_ops = master_collapse_operators(L, ctx, coeffs, tp, tol)
     return (hamiltonian = H, collapse_operators = c_ops)
@@ -261,25 +212,11 @@ to_numeric_master(::Lindbladian{QExpr}, h::HilbertSpace, dims; kwargs...) = form
 
 struct CoefficientRules
     parameter::SubstitutionRules
-    sub_re::ScalarRules
-    sub_im::ScalarRules
-    has_imag::Bool
+    sites::SplitScalarRules
 end
 
 resolve_coefficient(c::CNum, sub_coef::Dict{Index, Index}, r::CoefficientRules) =
-    apply_scalar_subs(change_index(c, sub_coef), r.sub_re, r.sub_im, r.has_imag)
-
-function unrolled_terms(q::QAdd, ctx::NumericContext, r::CoefficientRules)
-    terms = CoeffTerm[]
-    for (t, c) in q.arguments
-        dep = bound_indices(t, c, q.indices)
-        for_each_assignment(dep, t.ne, ctx.sites) do sub_op, sub_coef
-            nc = resolve_coefficient(c, sub_coef, r)
-            push!(terms, (nc, Op[change_index(o, sub_op) for o in t.ops]))
-        end
-    end
-    return terms
-end
+    apply_scalar_subs(change_index(c, sub_coef), r.sites)
 
 @noinline non_hermitian_error() = throw(
     ArgumentError("`to_numeric_master` requires a Hermitian Hamiltonian"),
@@ -287,7 +224,7 @@ end
 
 function master_hamiltonian(H::QAdd, ctx::NumericContext, r::CoefficientRules, tp)
     H_ = apply_parameter(H, r.parameter)
-    terms = unrolled_terms(H_, ctx, r)
+    terms = unrolled_terms(H_, ctx.sites, r.sites)
     if !isempty(tp)
         check_td_hermitian(H_, terms, ctx, tp)
         return to_numeric_td(terms, ctx, tp)
@@ -353,10 +290,9 @@ function unrolled_jump(
         J::QAdd, sub_op::Dict{Index, Index}, sub_coef::Dict{Index, Index}, r::CoefficientRules,
         basis::MonomialBasis, ctx::NumericContext,
     )
-    J_ = apply_parameter(J, r.parameter)
     u = JumpVector()
-    for (t, c) in J_.arguments
-        m = monomial!(basis, Op[change_index(o, sub_op) for o in t.ops], ctx)
+    for (t, c) in J.arguments
+        m = monomial!(basis, relabel(t.ops, sub_op), ctx)
         u[m] = get(u, m, 0.0im) + to_complex(resolve_coefficient(c, sub_coef, r))
     end
     return u
@@ -397,18 +333,20 @@ function master_collapse_operators(
     basis = MonomialBasis()
     Γ = Dict{Tuple{Int, Int}, ComplexF64}()
     td = Tuple{JumpVector, Complex{Num}}[]
-    for (ch, γ) in L.channels
+    for (ch, γ) in channels(L)
+        jump = apply_parameter(ch.jump, r.parameter)
+        partner = is_diagonal(ch) ? jump : apply_parameter(ch.partner, r.parameter)
         for_each_assignment(ch.scope, ch.ne, ctx.sites) do sub_op, sub_coef
             rate = apply_parameter(to_num(change_index(γ, sub_coef)), r.parameter)
-            rate = to_num(apply_scalar_subs(to_cnum(rate), r.sub_re, r.sub_im, r.has_imag))
-            u = unrolled_jump(ch.jump, sub_op, sub_coef, r, basis, ctx)
+            rate = to_num(apply_scalar_subs(to_cnum(rate), r.sites))
+            u = unrolled_jump(jump, sub_op, sub_coef, r, basis, ctx)
             if !coeff_is_const(rate)
                 isempty(tp) && symbolic_rate_error()
                 is_diagonal(ch) || td_block_error()
                 push!(td, (u, rate))
                 return nothing
             end
-            v = is_diagonal(ch) ? u : unrolled_jump(ch.partner, sub_op, sub_coef, r, basis, ctx)
+            v = is_diagonal(ch) ? u : unrolled_jump(partner, sub_op, sub_coef, r, basis, ctx)
             γn = to_complex(rate)
             for (m, cu) in u, (n, cv) in v
                 Γ[(m, n)] = get(Γ, (m, n), 0.0im) + γn * cu * conj(cv)
@@ -492,15 +430,7 @@ function td_collapse(terms::Vector{OpTerm}, rate::Complex{Num}, ctx::NumericCont
     basevars, valuefuncs, p_aware = time_basis(tp)
     check_time_variables(rate, basevars)
     f = compile_coeff(rate, basevars...)
-    if p_aware
-        g = let f = f, valuefuncs = valuefuncs
-            (p, t) -> collapse_amplitude(f(map(v -> v(p, t), valuefuncs)...), t)
-        end
-        return numeric_scaled_td(ctx.backend, op, g)
-    end
-    g = let f = f, valuefuncs = valuefuncs
-        t -> collapse_amplitude(f(map(v -> v(t), valuefuncs)...), t)
-    end
-    foreach(g, HERMITIAN_SAMPLE_TIMES)
+    g = at_time((t, vals) -> collapse_amplitude(f(vals...), t), valuefuncs, p_aware)
+    p_aware || foreach(g, HERMITIAN_SAMPLE_TIMES)
     return numeric_scaled_td(ctx.backend, op, g)
 end
