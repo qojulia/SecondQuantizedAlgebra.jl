@@ -449,7 +449,7 @@ function Base.:^(L::Lindbladian{QAdd}, n::Integer)
 end
 
 function Σ(L::Lindbladian{QAdd}, i::Index, non_equal::Vector{Index} = Index[])
-    i.range_id == 0 && throw(ArgumentError("Σ: index $(index_name(i)) has no summation range"))
+    require_sum_range(i)
     i in L.hamiltonian.indices && shared_binder_error(i)
     b = LindbladianBuilder{QAdd}()
     iszero(L.hamiltonian) || add_hamiltonian!(b.hamiltonian, Σ(L.hamiltonian, i, non_equal))

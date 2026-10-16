@@ -101,11 +101,7 @@ end
 function depends_on_scope_sandwich(
         c::CNum, left::Vector{Op}, right::Vector{Op}, ne::Vector{NonEqualPair}, idx::Index,
     )
-    depends_on_sandwich(c, left, right, idx) && return true
-    for (α, β) in ne
-        (α == idx || β == idx) && return true
-    end
-    return false
+    return depends_on_sandwich(c, left, right, idx) || ne_mentions(ne, idx)
 end
 
 bound_indices(t::SuperTerm, c::CNum, indices::Vector{Index}) =
@@ -209,9 +205,6 @@ function settle_sandwich!(
     canonical_sandwich!(temp, left, right, c, ne)
     return settle_scope!(out, temp, scope)
 end
-
-coinciding_pairs(i::Index, ops::Vector{Op}, ne::Vector{NonEqualPair}) =
-    Tuple{Index, Index}[(i, ext) for ext in distinct_op_indices(ops) if may_coincide(i, ext, ne)]
 
 """
     emit_sandwich!(out, left, right, c, ne, scope)

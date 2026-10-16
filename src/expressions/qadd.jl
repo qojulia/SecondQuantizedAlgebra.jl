@@ -217,7 +217,7 @@ function sorted_arguments(q::QAdd)
 end
 
 full_op_key(op::QSym) = (
-    sort_key(op)..., type_order(op), name_rank(op.name_id),
+    sort_key(op)..., Int(op.kind), name_rank(op.name_id),
     Int(op.l1), Int(op.l2), Int(op.g), Int(op.nlev),
 )
 
