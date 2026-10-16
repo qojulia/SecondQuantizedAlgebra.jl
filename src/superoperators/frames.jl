@@ -1,4 +1,4 @@
-function reduce_map_params(S::SuperOperator, relations::Vector{ParamRelation})
+function reduce_params(S::SuperOperator, relations::Vector{ParamRelation})
     isempty(relations) && return S
     scratch = ParamRelation[]
     return map_coefficients(c -> reduce_all(c, relations, true, scratch), S)
@@ -6,7 +6,7 @@ end
 
 function conjugate(S::SuperOperator, U::UnitaryTransform)
     conjugated = map_sides((ops, ne) -> conjugate(side_qadd(ops, ne), U), S)
-    return reduce_map_params(conjugated, U.action.relations)
+    return reduce_params(conjugated, U.action.relations)
 end
 
 conjugate(L::Lindbladian, U::UnitaryTransform) =
@@ -68,11 +68,6 @@ function DisplacementFrame(a::Op, L::Lindbladian{QAdd}, t::Num)
     amplitude = bounded_harmonic_displacement(
         CNUM_IM * offset, CNUM_IM * drift.rate, tt,
     )
-    derivative = drift.rate * amplitude + offset
-    derivative_adjoint = conj(derivative)
-    gauge = fock_displacement_gauge(
-        d, amplitude, derivative, derivative_adjoint,
-        CNUM_NEG_IM * derivative, CNUM_IM * derivative_adjoint,
-    )
+    gauge = fock_displacement_gauge(d, amplitude, drift.rate * amplitude + offset)
     return timed_transform(fock_displacement(d, amplitude), gauge, tt)
 end

@@ -295,14 +295,14 @@ function show_unitary_rule(io::IO, U::UnitaryTransform, generator::Op)
     return show(io, U.rules[generator])
 end
 
-rules_elided(io::IO, U::UnitaryTransform) = get(io, :limit, false) && length(U.generators) > SHOW_RULE_LIMIT
+rules_elided(io::IO, U::UnitaryTransform) = get(io, :limit, false) && length(U.rules) > SHOW_RULE_LIMIT
 
 function Base.show(io::IO, U::UnitaryTransform)
     write(io, "UnitaryTransform(")
     if rules_elided(io, U)
-        print(io, length(U.generators), " rules")
+        print(io, length(U.rules), " rules")
     else
-        for (k, generator) in enumerate(U.generators)
+        for (k, generator) in enumerate(generators(U))
             k > 1 && write(io, ", ")
             show_unitary_rule(io, U, generator)
         end
@@ -317,7 +317,7 @@ function Base.show(io::IO, U::UnitaryTransform)
 end
 
 function Base.show(io::IO, ::MIME"text/plain", U::UnitaryTransform)
-    n = length(U.generators)
+    n = length(U.rules)
     if U isa UnitaryTransform{DynamicTime}
         write(io, "Time-dependent UnitaryTransform in ")
         show(io, U.time.variable)
@@ -327,7 +327,7 @@ function Base.show(io::IO, ::MIME"text/plain", U::UnitaryTransform)
     print(io, " with ", n, n == 1 ? " rule" : " rules")
     if !rules_elided(io, U)
         write(io, ":")
-        for generator in U.generators
+        for generator in generators(U)
             write(io, "\n  ")
             show_unitary_rule(io, U, generator)
         end

@@ -27,7 +27,7 @@ function linear_fock_hamiltonian(H::QAdd, d::Op)
         elseif term.ops == Op[d]
             drive_adjoint = drive_adjoint + coefficient
         else
-            unsupported = rule_qadd((coefficient, copy(term.ops)))
+            unsupported = single_qadd(coefficient, copy(term.ops))
             unitary_error(
                 "`DisplacementFrame` expects only scalar, `$raising * $d`, `$raising`, " *
                     "and `$d` terms; got `$(sprint(show, unsupported))`",
@@ -35,11 +35,11 @@ function linear_fock_hamiltonian(H::QAdd, d::Op)
         end
     end
 
-    isequal(frequency, conj(frequency)) || unitary_error(
+    coefficient_is_real(frequency) || unitary_error(
         "`DisplacementFrame` requires a real oscillator frequency; " *
             "got `$(to_num(frequency))`",
     )
-    isequal(scalar, conj(scalar)) || unitary_error(
+    coefficient_is_real(scalar) || unitary_error(
         "`DisplacementFrame` requires a Hermitian scalar reference term",
     )
     normalized_drive = exponential_form(drive)
@@ -92,40 +92,35 @@ function harmonic_frequency(monomial::Monomial, t::Num)
     return to_cnum(frequency)
 end
 
-function bounded_harmonic_displacement(drive::CNum, frequency::CNum, t::Num)
-    iszero(drive) && return CNUM_ZERO
+function harmonic_components(drive::CNum, t::Num)
     tail = drive.tail
-    if tail isa Native
-        iszero(frequency) && unitary_error(
-            "`DisplacementFrame` found a resonant constant drive with zero frequency",
-        )
-        return -drive / frequency
-    elseif !(tail isa Poly)
-        unitary_error(
-            "`DisplacementFrame` supports only finite harmonic drive coefficients; " *
-                "got `$(to_num(drive))`",
-        )
-    end
+    tail isa Native && return Tuple{CNum, CNum}[(drive, CNUM_ZERO)]
+    tail isa Poly || unitary_error(
+        "`DisplacementFrame` supports only finite harmonic drive coefficients; " *
+            "got `$(to_num(drive))`",
+    )
+    return Tuple{CNum, CNum}[(from_poly([monomial]), harmonic_frequency(monomial, t)) for monomial in tail.terms]
+end
 
+function constant_drive_response(drive::CNum, frequency::CNum)
+    iszero(drive) && return CNUM_ZERO
+    iszero(frequency) && unitary_error(
+        "`DisplacementFrame` found a resonant constant drive with zero frequency",
+    )
+    return -drive / frequency
+end
+
+function bounded_harmonic_displacement(drive::CNum, frequency::CNum, t::Num)
+    (iszero(drive) || drive.tail isa Native) && return constant_drive_response(drive, frequency)
     amplitude = CNUM_ZERO
-    for monomial in tail.terms
-        harmonic = harmonic_frequency(monomial, t)
+    for (component, harmonic) in harmonic_components(drive, t)
         divisor = frequency + harmonic
-        component = from_poly([monomial])
         iszero(divisor) && unitary_error(
             "`DisplacementFrame` found a resonant drive component `$(to_num(component))`",
         )
         amplitude = amplitude + (-component) / divisor
     end
     return amplitude
-end
-
-function static_fock_displacement(data::FockLinearReference)
-    iszero(data.drive) && return CNUM_ZERO
-    iszero(data.frequency) && unitary_error(
-        "`DisplacementFrame` found a resonant constant drive with zero frequency",
-    )
-    return -data.drive / data.frequency
 end
 
 """
@@ -166,7 +161,7 @@ See also [`Displace`](@ref), [`transform`](@ref).
 function DisplacementFrame(a::Op, Hlin::QAdd)
     d = fock_or_throw(a, "`DisplacementFrame`")
     data = linear_fock_hamiltonian(Hlin, d)
-    return fock_displacement(d, static_fock_displacement(data))
+    return fock_displacement(d, constant_drive_response(data.drive, data.frequency))
 end
 
 function DisplacementFrame(a::Op, Hlin::QAdd, t::Num)
@@ -195,11 +190,6 @@ struct QuadratureLinearReference
     drive_p::CNum
     normalized_drive_x::CNum
     normalized_drive_p::CNum
-end
-
-@enum QuadratureDriveAxis::UInt8 begin
-    QUADRATURE_DRIVE_X
-    QUADRATURE_DRIVE_P
 end
 
 @noinline function quadrature_reference_error(coefficient::CNum, name::AbstractString)
@@ -235,7 +225,7 @@ function linear_quadrature_hamiltonian(H::QAdd, x::Op, p::Op)
         elseif term.ops == Op[p]
             drive_p = drive_p + coefficient
         else
-            unsupported = rule_qadd((coefficient, copy(term.ops)))
+            unsupported = single_qadd(coefficient, copy(term.ops))
             unitary_error(
                 "`DisplacementFrame` expects only scalar, `$x * $x`, `$x * $p`, " *
                     "`$p * $p`, `$x`, and `$p` terms; got " *
@@ -254,14 +244,14 @@ function linear_quadrature_hamiltonian(H::QAdd, x::Op, p::Op)
             (quadratic_cross, "symmetrized x-p"),
             (quadratic_p, "p²"),
         )
-        isequal(coefficient, conj(coefficient)) ||
+        coefficient_is_real(coefficient) ||
             quadrature_reference_error(coefficient, name)
     end
     normalized_drive_x = exponential_form(drive_x)
     normalized_drive_p = exponential_form(drive_p)
-    isequal(normalized_drive_x, conj(normalized_drive_x)) ||
+    coefficient_is_real(normalized_drive_x) ||
         quadrature_reference_error(normalized_drive_x, "x-drive")
-    isequal(normalized_drive_p, conj(normalized_drive_p)) ||
+    coefficient_is_real(normalized_drive_p) ||
         quadrature_reference_error(normalized_drive_p, "p-drive")
     return QuadratureLinearReference(
         quadratic_x, quadratic_cross, quadratic_p,
@@ -317,27 +307,13 @@ function static_quadrature_displacement(data::QuadratureLinearReference)
 end
 
 function bounded_quadrature_drive(
-        drive::CNum, data::QuadratureLinearReference, t::Num, axis::QuadratureDriveAxis,
+        drive::CNum, data::QuadratureLinearReference, t::Num, along_x::Bool,
     )
-    iszero(drive) && return (x = CNUM_ZERO, p = CNUM_ZERO)
-    tail = drive.tail
     displacement_x = CNUM_ZERO
     displacement_p = CNUM_ZERO
-    if tail isa Native
-        return axis === QUADRATURE_DRIVE_X ?
-            quadrature_response_component(data, drive, CNUM_ZERO, CNUM_ZERO) :
-            quadrature_response_component(data, CNUM_ZERO, drive, CNUM_ZERO)
-    elseif !(tail isa Poly)
-        unitary_error(
-            "`DisplacementFrame` supports only finite harmonic drive coefficients; " *
-                "got `$(to_num(drive))`",
-        )
-    end
-
-    for monomial in tail.terms
-        harmonic = harmonic_frequency(monomial, t)
-        component = from_poly([monomial])
-        response = axis === QUADRATURE_DRIVE_X ?
+    iszero(drive) && return (x = displacement_x, p = displacement_p)
+    for (component, harmonic) in harmonic_components(drive, t)
+        response = along_x ?
             quadrature_response_component(data, component, CNUM_ZERO, harmonic) :
             quadrature_response_component(data, CNUM_ZERO, component, harmonic)
         displacement_x = displacement_x + response.x
@@ -347,16 +323,9 @@ function bounded_quadrature_drive(
 end
 
 function bounded_quadrature_displacement(data::QuadratureLinearReference, t::Num)
-    from_x = bounded_quadrature_drive(
-        data.normalized_drive_x, data, t, QUADRATURE_DRIVE_X,
-    )
-    from_p = bounded_quadrature_drive(
-        data.normalized_drive_p, data, t, QUADRATURE_DRIVE_P,
-    )
-    return (
-        x = from_x.x + from_p.x,
-        p = from_x.p + from_p.p,
-    )
+    from_x = bounded_quadrature_drive(data.normalized_drive_x, data, t, true)
+    from_p = bounded_quadrature_drive(data.normalized_drive_p, data, t, false)
+    return (x = from_x.x + from_p.x, p = from_x.p + from_p.p)
 end
 
 function DisplacementFrame(x::Op, p::Op, Hlin::QAdd)

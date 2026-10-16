@@ -30,10 +30,6 @@ function closed_adjoint_basis(G::QAdd)
             "`UnitaryTransform(G, θ)` does not support constrained generator terms",
         )
         for operator in term.ops
-            (has_index(operator.index) && iszero(index_slot(operator.index))) &&
-                unitary_error(
-                "`UnitaryTransform(G, θ)` does not yet support free indexed families",
-            )
             push!(get!(by_site, site_key(operator), Op[]), operator)
         end
     end
@@ -55,28 +51,24 @@ function closed_adjoint_basis(G::QAdd)
         append!(raw, local_basis)
     end
 
-    if all(is_fock, raw)
-        lowerings = sort!(unique(lowering.(raw)))
-        return vcat(lowerings, adjoint.(lowerings))
-    elseif all(is_phase_space, raw)
-        positions = sort!(Op[operator for operator in raw if is_position(operator)])
-        momenta = Op[]
-        for position in positions
-            found = position_of(
-                operator -> is_momentum(operator) &&
-                    site_key(operator) == site_key(position), raw,
-            )
-            iszero(found) && unitary_error(
-                "closed-adjoint basis lost the momentum paired with `$position`",
-            )
-            push!(momenta, raw[found])
-        end
-        return vcat(positions, momenta)
-    end
+    leading = operator_affine_structure(first(raw))
+    shared = all(o -> operator_affine_structure(o) === leading, raw)
+    return canonical_block_basis(shared ? leading : AFFINE_NONE, raw)
+end
 
-    sort!(raw)
-    unique!(raw)
-    return raw
+function add_adjoint_entry!(
+        linear::Matrix{CNum}, shift::Vector{CNum}, row::Int, locations::Dict{Op, Int},
+        ops::Vector{Op}, weight::CNum,
+    )
+    if isempty(ops)
+        shift[row] = shift[row] + weight
+        return true
+    end
+    length(ops) == 1 || return false
+    column = get(locations, only(ops), 0)
+    column == 0 && return false
+    linear[row, column] = linear[row, column] + weight
+    return true
 end
 
 function affine_commutator_data(G::QAdd, basis::Vector{Op})
@@ -84,40 +76,34 @@ function affine_commutator_data(G::QAdd, basis::Vector{Op})
     locations = Dict{Op, Int}(operator => i for (i, operator) in enumerate(basis))
     linear = fill(CNUM_ZERO, n, n)
     shift = fill(CNUM_ZERO, n)
-
     for (row, generator) in enumerate(basis)
-        image = simplify(commutator(G, generator))
-        isempty(image.indices) || unitary_error(
-            "the adjoint action on `$generator` produced a summed expression",
-        )
-        for (term, coefficient) in image
-            isempty(term.ne) || unitary_error(
-                "the adjoint action on `$generator` produced constrained terms",
-            )
-            if isempty(term.ops)
-                shift[row] = shift[row] + coefficient
-            elseif length(term.ops) == 1
-                target = first(term.ops)
-                column = get(locations, target, 0)
-                column == 0 && unitary_error(
-                    "the adjoint action leaves the finite generator basis: " *
-                        "`[$G, $generator]` contains `$target`",
-                )
-                linear[row, column] = linear[row, column] + coefficient
-            else
-                unsupported = rule_qadd((coefficient, copy(term.ops)))
-                unitary_error(
-                    "the adjoint action on `$generator` is not affine-linear; got " *
-                        "`$(sprint(show, unsupported))`",
-                )
+        residual = zero_qadd()
+        for (term, coefficient) in G, (position, factor) in enumerate(term.ops)
+            for (inner, scale) in commutator(factor, generator)
+                ops = vcat(view(term.ops, 1:(position - 1)), inner.ops, view(term.ops, (position + 1):length(term.ops)))
+                weight = coefficient * scale
+                add_adjoint_entry!(linear, shift, row, locations, ops, weight) ||
+                    (residual = residual + weight * prod(ops))
             end
         end
+        isempty(residual.arguments) && continue
+        for (term, coefficient) in simplify(residual)
+            add_adjoint_entry!(linear, shift, row, locations, term.ops, coefficient) && continue
+            length(term.ops) == 1 && unitary_error(
+                "the adjoint action leaves the finite generator basis: " *
+                    "`[$G, $generator]` contains `$(only(term.ops))`",
+            )
+            unitary_error(
+                "the adjoint action on `$generator` is not affine-linear; got " *
+                    "`$(sprint(show, single_qadd(coefficient, copy(term.ops))))`",
+            )
+        end
+    end
+    for entries in (linear, shift), k in eachindex(entries)
+        is_native(entries[k]) || (entries[k] = simplify(entries[k]))
     end
     return linear, shift
 end
-
-coefficient_is_real(c::CNum) = isequal(c, conj(c))
-coefficient_is_zero(c::CNum) = iszero(c)
 
 function coefficient_equal(left::CNum, right::CNum)
     return iszero(left - right)
@@ -130,15 +116,17 @@ function exact_real_argument(rate::CNum, θ::Real)
 end
 
 function generated_scalar_exponential(flow::CNum, θ::Real)
-    coefficient_is_zero(flow) && return CNUM_ONE
+    iszero(flow) && return CNUM_ONE
     if coefficient_is_real(flow)
         coefficient_equal(flow, CNUM_ONE) && return to_cnum(exp(θ))
-        coefficient_equal(flow, CNUM_NEG1) && return to_cnum(inv(exp(θ)))
+        coefficient_equal(flow, CNUM_NEG1) && return inv(to_cnum(exp(θ)))
         return to_cnum(exp(exact_real_argument(flow, θ)))
     end
 
     phase_rate = CNUM_NEG_IM * flow
     if coefficient_is_real(phase_rate)
+        coefficient_equal(phase_rate, CNUM_ONE) && return phase(θ)
+        coefficient_equal(phase_rate, CNUM_NEG1) && return conj_phase(θ)
         return phase(exact_real_argument(phase_rate, θ))
     end
 
@@ -161,8 +149,8 @@ function connected_components(linear::Matrix{CNum})
             push!(component, current)
             for other in 1:n
                 other == current && continue
-                connected = !coefficient_is_zero(linear[current, other]) ||
-                    !coefficient_is_zero(linear[other, current])
+                connected = !iszero(linear[current, other]) ||
+                    !iszero(linear[other, current])
                 connected || continue
                 visited[other] && continue
                 visited[other] = true
@@ -175,118 +163,78 @@ function connected_components(linear::Matrix{CNum})
     return components
 end
 
-function exact_rotation_pair(rate::CNum, θ::Real)
-    if coefficient_equal(rate, CNUM_ONE)
-        return to_cnum(cos(θ)), to_cnum(sin(θ))
-    elseif coefficient_equal(rate, CNUM_NEG1)
-        return to_cnum(cos(θ)), -to_cnum(sin(θ))
+function exact_rotation_pair!(relations::Vector{ParamRelation}, rate::CNum, θ::Real)
+    coefficient_equal(rate, CNUM_ONE) && return trig_pair!(relations, θ)
+    if coefficient_equal(rate, CNUM_NEG1)
+        cosine, sine = trig_pair!(relations, θ)
+        return cosine, -sine
     end
-    angle = exact_real_argument(rate, θ)
-    return to_cnum(cos(angle)), to_cnum(sin(angle))
-end
-
-function push_exact_relation!(
-        relations::Vector{ParamRelation}, relation::ParamRelation,
-    )
-    any(
-        existing -> isequal(existing.hi, relation.hi) &&
-            isequal(existing.lo, relation.lo) && existing.sign == relation.sign,
-        relations,
-    ) || push!(relations, relation)
-    return relations
+    return trig_pair!(relations, exact_real_argument(rate, θ))
 end
 
 function rational_square_root(square::CNum)
-    is_native(square) || return nothing
+    none = (0, 0 // 1)
+    is_native(square) || return none
     z = native_scalar(square)
-    iszero(imag(z)) || return nothing
+    iszero(imag(z)) || return none
     x = real(z)
-    (x isa Rational{Int} && !iszero(x)) || return nothing
+    (x isa Rational{Int} && !iszero(x)) || return none
     magnitude = Rational{BigInt}(abs(x))
-    is_rational_power(magnitude, 1 // 2) || return nothing
-    return sign(x), Rational{Int}(rational_power_value(magnitude, 1 // 2))
+    is_rational_power(magnitude, 1 // 2) || return none
+    return Int(sign(x)), Rational{Int}(rational_power_value(magnitude, 1 // 2))
 end
 
 is_real_scaled_phase(terms::Vector{PhaseTerm}) =
     length(terms) == 1 && coefficient_is_real(only(terms).amplitude)
 
-function exact_two_by_two_flow!(
-        result::Matrix{CNum}, flow::Matrix{CNum}, i::Int, j::Int, θ::Real,
-        relations::Vector{ParamRelation},
-    )
-    coefficient_is_zero(flow[i, i]) && coefficient_is_zero(flow[j, j]) ||
-        unitary_error(
-        "exact two-dimensional adjoint blocks currently require zero diagonal entries",
-    )
-    upper = flow[i, j]
-    lower = flow[j, i]
+function relation_of(relation::ParamRelation, sign::Int8, angle)
+    relation.sign == sign || return false
+    hi = SymbolicUtils.unwrap(relation.hi)
+    return SymbolicUtils.iscall(hi) && isequal(only(SymbolicUtils.arguments(hi)), angle)
+end
 
+function relation_pair!(relations::Vector{ParamRelation}, angle::Real, build::F, sign::Int8) where {F}
+    raw = SymbolicUtils.unwrap(angle)
+    found = position_of(relation -> relation_of(relation, sign, raw), relations)
+    relation = iszero(found) ? build(angle) : relations[found]
+    iszero(found) && push_relation!(relations, relation)
+    return to_cnum(relation.hi), to_cnum(relation.lo)
+end
+
+trig_pair!(relations::Vector{ParamRelation}, angle::Real) = relation_pair!(relations, angle, trig_rel, Int8(-1))
+
+hyperbolic_pair!(relations::Vector{ParamRelation}, angle::Real) = relation_pair!(relations, angle, hyp_rel, Int8(1))
+
+function exact_two_by_two_flow(upper::CNum, lower::CNum, θ::Real, relations::Vector{ParamRelation})
     if coefficient_is_real(upper) && coefficient_is_real(lower) &&
             coefficient_equal(lower, -upper)
-        cosine, sine = exact_rotation_pair(upper, θ)
-        push_exact_relation!(relations, trig_rel(exact_real_argument(upper, θ)))
-        result[i, i] = cosine
-        result[i, j] = sine
-        result[j, i] = -sine
-        result[j, j] = cosine
-        return result
+        cosine, sine = exact_rotation_pair!(relations, upper, θ)
+        return cosine, sine, -sine
     end
 
     if coefficient_equal(lower, conj(upper))
-        norm_squared = upper * lower
-        if coefficient_equal(norm_squared, CNUM_ONE)
-            ch = to_cnum(cosh(θ))
-            sh = to_cnum(sinh(θ))
-            push_exact_relation!(relations, hyp_rel(θ))
-            result[i, i] = ch
-            result[i, j] = upper * sh
-            result[j, i] = lower * sh
-            result[j, j] = ch
-            return result
+        if coefficient_equal(upper * lower, CNUM_ONE)
+            ch, sh = hyperbolic_pair!(relations, θ)
+            return ch, upper * sh, lower * sh
         elseif coefficient_is_real(upper) && coefficient_equal(lower, upper)
-            angle = exact_real_argument(upper, θ)
-            ch = to_cnum(cosh(angle))
-            sh = to_cnum(sinh(angle))
-            push_exact_relation!(relations, hyp_rel(angle))
-            result[i, i] = ch
-            result[i, j] = sh
-            result[j, i] = sh
-            result[j, j] = ch
-            return result
+            ch, sh = hyperbolic_pair!(relations, exact_real_argument(upper, θ))
+            return ch, sh, sh
         end
-
         terms = phase_terms(upper)
         if is_real_scaled_phase(terms)
-            rate, direction = only(terms).amplitude, phase(only(terms).phase)
-            angle = exact_real_argument(rate, θ)
-            ch = to_cnum(cosh(angle))
-            sh = to_cnum(sinh(angle))
-            push_exact_relation!(relations, hyp_rel(angle))
-            result[i, i] = ch
-            result[i, j] = direction * sh
-            result[j, i] = conj(direction) * sh
-            result[j, j] = ch
-            return result
+            direction = phase(only(terms).phase)
+            ch, sh = hyperbolic_pair!(relations, exact_real_argument(only(terms).amplitude, θ))
+            return ch, direction * sh, conj(direction) * sh
         end
     end
 
-    root = rational_square_root(upper * lower)
-    if root !== nothing
-        sign_of_square, rate = root
+    sign_of_square, rate = rational_square_root(upper * lower)
+    if !iszero(sign_of_square)
         angle = exact_real_argument(to_cnum(rate), θ)
-        diagonal, off_diagonal = if sign_of_square < 0
-            push_exact_relation!(relations, trig_rel(angle))
-            to_cnum(cos(angle)), to_cnum(sin(angle))
-        else
-            push_exact_relation!(relations, hyp_rel(angle))
-            to_cnum(cosh(angle)), to_cnum(sinh(angle))
-        end
+        diagonal, off_diagonal = sign_of_square < 0 ? trig_pair!(relations, angle) :
+            hyperbolic_pair!(relations, angle)
         scaled = to_cnum(inv(rate)) * off_diagonal
-        result[i, i] = diagonal
-        result[i, j] = upper * scaled
-        result[j, i] = lower * scaled
-        result[j, j] = diagonal
-        return result
+        return diagonal, upper * scaled, lower * scaled
     end
 
     unitary_error(
@@ -308,8 +256,8 @@ function exact_closed_adjoint_action(
         affine_flow[i] = CNUM_IM * shift[i]
     end
 
-    has_linear = any(value -> !coefficient_is_zero(value), flow)
-    has_shift = any(value -> !coefficient_is_zero(value), affine_flow)
+    has_linear = any(value -> !iszero(value), flow)
+    has_shift = any(value -> !iszero(value), affine_flow)
     if has_shift
         has_linear && unitary_error(
             "closed affine adjoint actions with simultaneous linear and translation parts " *
@@ -317,23 +265,34 @@ function exact_closed_adjoint_action(
         )
         parameter = to_cnum(θ)
         offsets = CNum[parameter * value for value in affine_flow]
-        identity = fill(CNUM_ZERO, n, n)
-        for i in 1:n
-            identity[i, i] = CNUM_ONE
-        end
-        return AffineAction(basis, identity, offsets)
+        return AffineAction(basis, identity_linear(n), offsets)
     end
 
     result = fill(CNUM_ZERO, n, n)
     relations = ParamRelation[]
+    exponentials = Dict{CNum, CNum}()
+    rotations = Dict{Tuple{CNum, CNum}, Tuple{CNum, CNum, CNum}}()
     for component in connected_components(flow)
         if length(component) == 1
-            i = only(component)
-            result[i, i] = generated_scalar_exponential(flow[i, i], θ)
+            k = only(component)
+            rate = flow[k, k]
+            result[k, k] = get(exponentials, rate) do
+                haskey(exponentials, -rate) ? inv(exponentials[-rate]) : generated_scalar_exponential(rate, θ)
+            end
+            exponentials[rate] = result[k, k]
         elseif length(component) == 2
-            exact_two_by_two_flow!(
-                result, flow, component[1], component[2], θ, relations,
+            i, j = component[1], component[2]
+            iszero(flow[i, i]) && iszero(flow[j, j]) || unitary_error(
+                "exact two-dimensional adjoint blocks currently require zero diagonal entries",
             )
+            rising, falling = flow[i, j], flow[j, i]
+            diagonal, upper, lower = get!(rotations, (rising, falling)) do
+                exact_two_by_two_flow(rising, falling, θ, relations)
+            end
+            result[i, i] = diagonal
+            result[i, j] = upper
+            result[j, i] = lower
+            result[j, j] = diagonal
         else
             unitary_error(
                 "the adjoint action closes on a $(length(component))-dimensional coupled " *
@@ -342,16 +301,8 @@ function exact_closed_adjoint_action(
         end
     end
     return AffineAction(
-        basis, result, fill(CNUM_ZERO, n); relations = relations,
+        basis, result, fill(CNUM_ZERO, n), relations,
     )
-end
-
-function operator_affine_structure(o::Op)
-    is_fock(o) && return AFFINE_BOSONIC_NAMBU
-    is_phase_space(o) && return AFFINE_SYMPLECTIC_PHASE_SPACE
-    (is_pauli(o) || is_spin(o)) && return AFFINE_ORTHOGONAL
-    is_transition(o) && return AFFINE_UNITARY_LINEAR
-    return AFFINE_NONE
 end
 
 function generator_structure_parts(G::QAdd)
@@ -370,12 +321,7 @@ function generator_structure_parts(G::QAdd)
     length(groups) <= 1 && return QAdd[G]
 
     parts = QAdd[]
-    for structure in (
-            AFFINE_BOSONIC_NAMBU,
-            AFFINE_SYMPLECTIC_PHASE_SPACE,
-            AFFINE_ORTHOGONAL,
-            AFFINE_UNITARY_LINEAR,
-        )
+    for structure in instances(AffineStructure)
         haskey(groups, structure) && push!(parts, QAdd(groups[structure], EMPTY_INDICES))
     end
     return parts
@@ -423,12 +369,9 @@ See also [`transform`](@ref), [`Rotation`](@ref).
 """
 function RotatingFrame(H0::QAdd, t::Num)
     tt = time_or_throw(t)
-    variable = SymbolicUtils.unwrap(tt)
-    for (_, coefficient) in H0
-        coefficient_depends_on(coefficient, variable) && unitary_error(
-            "`RotatingFrame(H0, t)` requires a time-independent `H0`",
-        )
-    end
+    qadd_depends_on(H0, SymbolicUtils.unwrap(tt)) && unitary_error(
+        "`RotatingFrame(H0, t)` requires a time-independent `H0`",
+    )
     U = UnitaryTransform(H0, tt)
     return timed_transform(U, -H0, tt)
 end

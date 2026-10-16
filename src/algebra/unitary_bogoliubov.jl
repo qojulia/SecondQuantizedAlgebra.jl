@@ -1,4 +1,7 @@
-function bogoliubov_modes(modes::AbstractVector{Op})
+const BogoliubovModes = Union{Op, Tuple{Vararg{Op}}, AbstractVector{Op}}
+
+bogoliubov_modes(mode::Op) = bogoliubov_modes(Op[mode])
+function bogoliubov_modes(modes::Union{Tuple{Vararg{Op}}, AbstractVector{Op}})
     isempty(modes) && unitary_error("`Bogoliubov` needs at least one Fock mode")
     lowering_modes = Op[]
     sizehint!(lowering_modes, length(modes))
@@ -13,16 +16,6 @@ function bogoliubov_modes(modes::AbstractVector{Op})
         push!(lowering_modes, lowering_mode)
     end
     return lowering_modes
-end
-
-function bogoliubov_basis(modes::Vector{Op})
-    n = length(modes)
-    basis = Vector{Op}(undef, 2 * n)
-    for i in 1:n
-        basis[i] = modes[i]
-        basis[n + i] = adjoint(modes[i])
-    end
-    return basis
 end
 
 function bogoliubov_matrix(S::AbstractMatrix, n::Int)
@@ -57,15 +50,8 @@ function bogoliubov_matrix(U::AbstractMatrix, V::AbstractMatrix, n::Int)
     return matrix
 end
 
-function bogoliubov_action(modes::Vector{Op}, matrix::Matrix{CNum})
-    basis = bogoliubov_basis(modes)
-    return AffineAction(
-        AFFINE_BOSONIC_NAMBU, basis, matrix, fill(CNUM_ZERO, length(basis)),
-    )
-end
-
-exact_bogoliubov(modes::Vector{Op}, matrix::Matrix{CNum}) =
-    canonical_transform(bogoliubov_action(modes, matrix))
+bogoliubov_transform(modes::Vector{Op}, matrix::Matrix{CNum}) =
+    linear_transform(vcat(modes, adjoint.(modes)), matrix)
 
 """
     Bogoliubov(modes, S::AbstractMatrix)
@@ -100,26 +86,12 @@ julia> conjugate(a, substitute(B, Dict(u => 5//3, v => 4//3)))
 
 See also [`Squeeze`](@ref), [`Rotation`](@ref), [`UnitaryTransform`](@ref).
 """
-function Bogoliubov(modes::AbstractVector{Op}, S::AbstractMatrix)
+function Bogoliubov(modes::BogoliubovModes, S::AbstractMatrix)
     lowering_modes = bogoliubov_modes(modes)
-    return exact_bogoliubov(
-        lowering_modes, bogoliubov_matrix(S, length(lowering_modes)),
-    )
+    return bogoliubov_transform(lowering_modes, bogoliubov_matrix(S, length(lowering_modes)))
 end
 
-Bogoliubov(mode::Op, S::AbstractMatrix) = Bogoliubov(Op[mode], S)
-Bogoliubov(modes::Tuple{Vararg{Op}}, S::AbstractMatrix) = Bogoliubov(Op[modes...], S)
-
-function Bogoliubov(
-        modes::AbstractVector{Op}, U::AbstractMatrix, V::AbstractMatrix,
-    )
+function Bogoliubov(modes::BogoliubovModes, U::AbstractMatrix, V::AbstractMatrix)
     lowering_modes = bogoliubov_modes(modes)
-    return exact_bogoliubov(
-        lowering_modes,
-        bogoliubov_matrix(U, V, length(lowering_modes)),
-    )
+    return bogoliubov_transform(lowering_modes, bogoliubov_matrix(U, V, length(lowering_modes)))
 end
-
-Bogoliubov(mode::Op, U::AbstractMatrix, V::AbstractMatrix) = Bogoliubov(Op[mode], U, V)
-Bogoliubov(modes::Tuple{Vararg{Op}}, U::AbstractMatrix, V::AbstractMatrix) =
-    Bogoliubov(Op[modes...], U, V)

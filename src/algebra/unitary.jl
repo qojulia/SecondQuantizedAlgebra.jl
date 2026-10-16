@@ -62,17 +62,13 @@ See also [`conjugate`](@ref), [`transform`](@ref), [`generators`](@ref).
 struct UnitaryTransform{T}
     action::AffineAction
     rules::Dict{Op, QAdd}
-    generators::Vector{Op}
     gauge::QAdd
     time::T
 
-    function UnitaryTransform{T}(
-            action::AffineAction, rules::Dict{Op, QAdd}, generators::Vector{Op},
-            gauge::QAdd, time::T,
-        ) where {T}
+    function UnitaryTransform{T}(action::AffineAction, rules::Dict{Op, QAdd}, gauge::QAdd, time::T) where {T}
         (T === StaticTime || T === DynamicTime) ||
             throw(ArgumentError("invalid unitary-transform time marker `$T`"))
-        return new{T}(action, rules, generators, gauge, time)
+        return new{T}(action, rules, gauge, time)
     end
 end
 
@@ -113,24 +109,7 @@ function validate_complete(generators::Vector{Op})
         key = site_key(first_generator)
         key in checked && continue
         push!(checked, key)
-
-        expected = site_generators(first_generator)
-        if isempty(expected)
-            if is_phase_space(first_generator)
-                has_x = false
-                has_p = false
-                for generator in generators
-                    site_key(generator) == key || continue
-                    has_x |= is_position(generator)
-                    has_p |= is_momentum(generator)
-                end
-                (has_x && has_p) || unitary_error(
-                    "incomplete rule set: `$first_generator` has no rule for its conjugate variable",
-                )
-            end
-            continue
-        end
-        for generator in expected
+        for generator in site_generators(first_generator)
             generator in available || unitary_error(
                 "incomplete rule set: `$first_generator` is covered but `$generator` is not",
             )
@@ -139,20 +118,25 @@ function validate_complete(generators::Vector{Op})
     return generators
 end
 
+is_free_family(o::Op) = has_index(o.index) && iszero(index_slot(o.index))
+
+coefficient_is_real(c::CNum) = isequal(c, conj(c))
+
+qadd_depends_on(q::QAdd, variable) = any(((_, c),) -> coefficient_depends_on(c, variable), q)
+
 function validated_transform(
         action::AffineAction, gauge::QAdd, time::T,
     ) where {T <: Union{StaticTime, DynamicTime}}
     rules = affine_rules(action)
     generators = sort!(collect(keys(rules)))
     for generator in generators
-        (has_index(generator.index) && iszero(index_slot(generator.index))) &&
-            unitary_error(
+        is_free_family(generator) && unitary_error(
             "unitary transforms of free indexed-operator families are not part of " *
                 "the exact closed-form API; resolve the index to one site first",
         )
     end
     validate_complete(generators)
-    return UnitaryTransform{T}(action, rules, generators, gauge, time)
+    return UnitaryTransform{T}(action, rules, gauge, time)
 end
 
 function time_or_throw(t::Num)
@@ -164,17 +148,11 @@ function time_or_throw(t::Num)
 end
 
 function timed_transform(U::UnitaryTransform{StaticTime}, gauge::QAdd, t::Num)
-    time = DynamicTime(time_or_throw(t))
-    reduced = reduce_params(gauge, U.action.relations, true)
-    return UnitaryTransform{DynamicTime}(U.action, U.rules, U.generators, reduced, time)
+    reduced = reduce_params(gauge, U.action.relations)
+    return UnitaryTransform{DynamicTime}(U.action, U.rules, reduced, DynamicTime(t))
 end
 
-function covered_site(U::UnitaryTransform, key::SiteKey)
-    for generator in U.generators
-        site_key(generator) == key && return true
-    end
-    return false
-end
+covered_site(U::UnitaryTransform, key::SiteKey) = any(generator -> site_key(generator) == key, keys(U.rules))
 
 function validate_coverage(q::QAdd, U::UnitaryTransform)
     for (term, _) in q, operator in term.ops
@@ -190,10 +168,10 @@ end
 
 apply_rules(q::QAdd, rules::Dict{Op, QAdd}) = substitute_with(q, SubstitutionRules(rules))
 
-function reduce_params(q::QAdd, relations::Vector{ParamRelation}, gated::Bool)
+function reduce_params(q::QAdd, relations::Vector{ParamRelation})
     isempty(relations) && return q
     scratch = ParamRelation[]
-    return map_coefficients(c -> reduce_all(c, relations, gated, scratch), q)
+    return map_coefficients(c -> reduce_all(c, relations, true, scratch), q)
 end
 
 """
@@ -223,7 +201,7 @@ See also [`transform`](@ref), [`UnitaryTransform`](@ref).
 """
 function conjugate(q::QAdd, U::UnitaryTransform)
     validate_coverage(q, U)
-    return reduce_params(apply_rules(q, U.rules), U.action.relations, true)
+    return reduce_params(apply_rules(q, U.rules), U.action.relations)
 end
 
 conjugate(o::QSym, U::UnitaryTransform) =
@@ -259,6 +237,13 @@ transform(q::QAdd, U::UnitaryTransform{StaticTime}) = conjugate(q, U)
 transform(q::QAdd, U::UnitaryTransform{DynamicTime}) = conjugate(q, U) + U.gauge
 transform(o::QSym, U::UnitaryTransform) =
     transform(to_qadd(o), U)
+
+conjugate(q::QExpr, U::UnitaryTransform)::QExpr = map_args(
+    arg -> conjugate(arg, U), q, reduce_affine(q.coeff, U.action.relations, ParamRelation[]),
+)
+
+transform(q::QExpr, U::UnitaryTransform{StaticTime}) = conjugate(q, U)
+transform(q::QExpr, U::UnitaryTransform{DynamicTime}) = conjugate(q, U) + U.gauge
 
 """
     gauge_term(U::UnitaryTransform)
@@ -305,7 +290,7 @@ julia> generators(Rotation(a, b, θ))
 
 See also [`UnitaryTransform`](@ref).
 """
-generators(U::UnitaryTransform) = copy(U.generators)
+generators(U::UnitaryTransform) = sort!(collect(keys(U.rules)))
 
 """
     displacement(U::UnitaryTransform, o::Op)
@@ -328,14 +313,8 @@ function Base.inv(U::UnitaryTransform{T}) where {T}
     inverse_action = canonical_affine_inverse(U.action)
     inverse_rules = affine_rules(inverse_action)
     relations = U.action.relations
-    gauge = if T === StaticTime || iszero(U.gauge)
-        U.gauge
-    else
-        -reduce_params(apply_rules(U.gauge, inverse_rules), relations, true)
-    end
-    return UnitaryTransform{T}(
-        inverse_action, inverse_rules, U.generators, gauge, U.time,
-    )
+    gauge = iszero(U.gauge) ? U.gauge : -reduce_params(apply_rules(U.gauge, inverse_rules), relations)
+    return UnitaryTransform{T}(inverse_action, inverse_rules, gauge, U.time)
 end
 
 Base.adjoint(U::UnitaryTransform) = inv(U)
@@ -348,164 +327,66 @@ function contains_relation(relations::Vector{ParamRelation}, relation::ParamRela
     return false
 end
 
+function push_relation!(relations::Vector{ParamRelation}, relation::ParamRelation)
+    contains_relation(relations, relation) || push!(relations, relation)
+    return relations
+end
+
 function merge_relations(a::Vector{ParamRelation}, b::Vector{ParamRelation})
     isempty(a) && return b
-    isempty(b) && return a
-
-    first_new = 0
-    for i in eachindex(b)
-        if !contains_relation(a, b[i])
-            first_new = i
-            break
-        end
-    end
-    iszero(first_new) && return a
-
+    all(relation -> contains_relation(a, relation), b) && return a
     out = copy(a)
-    for i in first_new:lastindex(b)
-        relation = b[i]
-        contains_relation(out, relation) || push!(out, relation)
+    for relation in b
+        push_relation!(out, relation)
     end
     return out
-end
-
-function compose_rule_image(image::QAdd, rules::Dict{Op, QAdd})
-    isempty(image.indices) || return apply_rules(image, rules)
-    out = QTermDict()
-    for (term, coefficient) in image
-        if isempty(term.ops)
-            addto_key!(out, copy_key(term), coefficient)
-        elseif length(term.ops) == 1 && haskey(rules, first(term.ops))
-            replacement = rules[first(term.ops)]
-            for (replacement_term, replacement_coefficient) in replacement
-                addto_key!(
-                    out, copy_key(replacement_term),
-                    coefficient * replacement_coefficient,
-                )
-            end
-        elseif length(term.ops) == 1
-            addto_key!(out, copy_key(term), coefficient)
-        else
-            return apply_rules(image, rules)
-        end
-    end
-    return QAdd(out, EMPTY_INDICES)
-end
-
-function compose_rules(first::Dict{Op, QAdd}, second::Dict{Op, QAdd})
-    out = Dict{Op, QAdd}()
-    sizehint!(out, length(first) + length(second))
-    for (generator, image) in first
-        out[generator] = compose_rule_image(image, second)
-    end
-    for (generator, image) in second
-        haskey(out, generator) || (out[generator] = image)
-    end
-    return out
-end
-
-function add_gauges(left::QAdd, right::QAdd)
-    if isempty(left.indices) && isempty(right.indices) &&
-            length(left.arguments) == length(right.arguments) == 1
-        first_term, first_coefficient = first(left.arguments)
-        second_term, second_coefficient = first(right.arguments)
-        if isequal(first_term, second_term)
-            coefficient = first_coefficient + second_coefficient
-            iszero(coefficient) && return zero_qadd()
-            return QAdd(QTermDict(first_term => coefficient), EMPTY_INDICES)
-        end
-    end
-    return left + right
-end
-
-
-function rules_depend_on(U::UnitaryTransform{StaticTime}, t::Num)
-    variable = SymbolicUtils.unwrap(t)
-    for image in values(U.rules), (_, coefficient) in image
-        coefficient_depends_on(coefficient, variable) && return true
-    end
-    return false
 end
 
 function check_adopted_time(U::UnitaryTransform{StaticTime}, t::Num)
-    rules_depend_on(U, t) && unitary_error(
+    any(image -> qadd_depends_on(image, SymbolicUtils.unwrap(t)), values(U.rules)) && unitary_error(
         "a static transform whose rules depend on `$t` cannot be composed with a timed " *
             "transform; construct the moving transform with its timed constructor",
     )
     return U
 end
 
-function compose_action(
-        first::AffineAction, second::AffineAction, relations::Vector{ParamRelation},
-    )
-    if length(first.blocks) == 1 && length(second.blocks) == 1
-        first_block = only(first.blocks)
-        second_block = only(second.blocks)
-        if blocks_overlap(first_block, second_block)
-            return AffineAction(
-                AffineBlock[compose_overlapping_block(first_block, second_block, relations)],
-                relations,
-            )
-        end
-        return AffineAction(AffineBlock[first_block, second_block], relations)
-    end
-    return compose_action_metadata(first, second, relations)
-end
-
 function compose(
         first::UnitaryTransform, second::UnitaryTransform, time::T,
     ) where {T <: Union{StaticTime, DynamicTime}}
     relations = merge_relations(first.action.relations, second.action.relations)
-    action = compose_action(first.action, second.action, relations)
-    rules = compose_rules(first.rules, second.rules)
-
-    gauge = if iszero(first.gauge)
-        second.gauge
-    else
-        transported = reduce_params(
-            apply_rules(first.gauge, second.rules), relations, true,
-        )
-        iszero(second.gauge) ? transported : add_gauges(transported, second.gauge)
+    action, kept = compose_action(first.action, second.action, relations)
+    rules = copy(first.rules)
+    for i in (kept + 1):length(action.blocks)
+        add_block_rules!(rules, action.blocks[i])
     end
 
-    if length(rules) == length(first.rules)
-        same_layout = all(generator -> haskey(rules, generator), first.generators)
-        generators = same_layout ? first.generators : sort!(collect(keys(rules)))
-    else
-        generators = sort!(collect(keys(rules)))
-    end
-    return UnitaryTransform{T}(action, rules, generators, gauge, time)
+    gauge = iszero(first.gauge) ? second.gauge :
+        reduce_params(apply_rules(first.gauge, second.rules), relations) + second.gauge
+    return UnitaryTransform{T}(action, rules, gauge, time)
 end
 
-Base.:*(
-    first::UnitaryTransform{StaticTime}, second::UnitaryTransform{StaticTime},
-) = compose(first, second, StaticTime())
+composed_time(::UnitaryTransform{StaticTime}, ::UnitaryTransform{StaticTime}) = StaticTime()
 
-function Base.:*(
-        first::UnitaryTransform{StaticTime}, second::UnitaryTransform{DynamicTime},
-    )
-    t = second.time.variable
-    check_adopted_time(first, t)
-    return compose(first, second, second.time)
+function composed_time(first::UnitaryTransform{StaticTime}, second::UnitaryTransform{DynamicTime})
+    check_adopted_time(first, second.time.variable)
+    return second.time
 end
 
-function Base.:*(
-        first::UnitaryTransform{DynamicTime}, second::UnitaryTransform{StaticTime},
-    )
-    t = first.time.variable
-    check_adopted_time(second, t)
-    return compose(first, second, first.time)
+function composed_time(first::UnitaryTransform{DynamicTime}, second::UnitaryTransform{StaticTime})
+    check_adopted_time(second, first.time.variable)
+    return first.time
 end
 
-function Base.:*(
-        first::UnitaryTransform{DynamicTime}, second::UnitaryTransform{DynamicTime},
-    )
+function composed_time(first::UnitaryTransform{DynamicTime}, second::UnitaryTransform{DynamicTime})
     isequal(first.time.variable, second.time.variable) || unitary_error(
         "cannot compose transforms with different time variables " *
             "(`$(first.time.variable)` and `$(second.time.variable)`)",
     )
-    return compose(first, second, first.time)
+    return first.time
 end
+
+Base.:*(first::UnitaryTransform, second::UnitaryTransform) =
+    compose(first, second, composed_time(first, second))
 
 function rule_qadd(pairs::Vector{Tuple{CNum, Vector{Op}}})
     out = QTermDict()
@@ -517,7 +398,6 @@ end
 
 rule_qadd(pairs::Vararg{Tuple{CNum, Vector{Op}}}) =
     rule_qadd(Tuple{CNum, Vector{Op}}[pairs...])
-scaled(coefficient::CNum, operator::Op) = rule_qadd((coefficient, Op[operator]))
 
 phase(ϕ::Real) = phase_coeff(as_num(ϕ))
 conj_phase(ϕ::Real) = conj(phase(ϕ))
