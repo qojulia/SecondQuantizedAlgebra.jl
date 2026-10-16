@@ -4,29 +4,16 @@ function Σ(S::SuperOperator, i::Index, non_equal::Vector{Index} = Index[])
     if isempty(non_equal) && !mentions_index(S, i)
         return S * index_range(i)
     end
-    off_diag = SuperTermDict()
-    diag = SuperTermDict()
-    scope_i = Index[i]
+    out = SuperTermDict()
+    scope = Index[i]
     for (t, c) in S.arguments
-        ne_aug = merge_ne_pairs(t.ne, i, non_equal)
-        if !depends_on_term(c, t, i)
-            settle_sandwich!(off_diag, t.left, t.right, c, ne_aug, scope_i)
-            continue
-        end
-        diag_pairs = coinciding_pairs(i, vcat(t.left, t.right), ne_aug)
-        settle_sandwich!(off_diag, t.left, t.right, c, merge_ne_pairs(ne_aug, diag_pairs), scope_i)
-        for (_, ext) in diag_pairs
-            canonical_sandwich!(
-                diag, Op[change_index(o, i, ext) for o in t.left],
-                Op[change_index(o, i, ext) for o in t.right], change_index(c, i, ext),
-                diagonal_ne(ne_aug, diag_pairs, i, ext),
-            )
+        term_scope = push!(bound_indices(t, c, S.indices), i)
+        ne = merge_ne_pairs(t.ne, i, non_equal)
+        partition_binders!((t.left, t.right), c, ne, scope, scope) do (l, r), pc, pne, pscope, _
+            settle_sandwich!(out, l, r, pc, pne, isempty(pscope) ? pscope : term_scope)
         end
     end
-    binds = any(((t, c),) -> mentions_in_scope(c, t, i), off_diag)
-    result = superop_pruned(off_diag, binds ? vcat(S.indices, scope_i) : copy(S.indices))
-    isempty(diag) && return result
-    return result + superop_pruned(diag, copy(S.indices))
+    return superop_pruned(out, push!(copy(S.indices), i))
 end
 
 Σ(S::SuperOperator, i::Index, j::Index, rest::Index...) = Σ(Σ(S, i), j, rest...)

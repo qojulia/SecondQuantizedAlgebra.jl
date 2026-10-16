@@ -80,21 +80,6 @@ end
 
 unit_monomial(term::QTerm) = single_qadd(CNUM_ONE, term.ops, term.ne)
 
-function basis_coordinates(operators::Vector{QAdd})
-    found = Set{QTerm}()
-    for operator in operators, term in keys(operator.arguments)
-        isempty(term.ops) || push!(found, term)
-    end
-    monomials = sort!(collect(found); by = term_order_key)
-    row = Dict{QTerm, Int}(term => k for (k, term) in enumerate(monomials))
-    coordinates = coeff_zeros(length(monomials), length(operators))
-    for (column, operator) in enumerate(operators), (term, c) in operator.arguments
-        isempty(term.ops) && continue
-        coordinates[row[term], column] = c
-    end
-    return monomials, coordinates
-end
-
 function pivot_row!(work::CoeffMatrix, first_row::Int, column::Int)
     for row in first_row:size(work, 1)
         value = simplify_prefactor(work[row, column])
@@ -111,40 +96,6 @@ function swap_rows!(matrix::CoeffMatrix, first_row::Int, second_row::Int)
             matrix[second_row, column], matrix[first_row, column]
     end
     return matrix
-end
-
-function eliminate_below!(work::CoeffMatrix, pivot_row::Int, column::Int)
-    pivot = work[pivot_row, column]
-    for row in (pivot_row + 1):size(work, 1)
-        entry = simplify_prefactor(work[row, column])
-        iszero(entry) && continue
-        factor = simplify_prefactor(entry * inv(pivot))
-        for trailing in column:size(work, 2)
-            work[row, trailing] = simplify_prefactor(
-                work[row, trailing] - factor * work[pivot_row, trailing]
-            )
-        end
-    end
-    return work
-end
-
-function pivot_monomials(coordinates::CoeffMatrix)
-    monomial_count, operator_count = size(coordinates)
-    operator_count == 0 && return Int[]
-    monomial_count < operator_count && return Int[]
-    work = permutedims(coordinates)
-    pivots = Int[]
-    row = 1
-    for column in 1:monomial_count
-        candidate = pivot_row!(work, row, column)
-        iszero(candidate) && continue
-        swap_rows!(work, row, candidate)
-        eliminate_below!(work, row, column)
-        push!(pivots, column)
-        row += 1
-        row > operator_count && break
-    end
-    return pivots
 end
 
 function coeff_inverse(matrix::CoeffMatrix)
@@ -235,14 +186,49 @@ struct JumpBasis
     pivot_inverse::CoeffMatrix
 end
 
+function reduce_against!(vector::QTermDict, echelon::Vector{Pair{QTerm, QTermDict}})
+    for (pivot, row) in echelon
+        entry = get(vector, pivot, CNUM_ZERO)
+        iszero(entry) && continue
+        factor = simplify_prefactor(entry * inv(row[pivot]))
+        for (term, c) in row
+            updated = simplify_prefactor(get(vector, term, CNUM_ZERO) - factor * c)
+            iszero(updated) ? delete!(vector, term) : (vector[term] = updated)
+        end
+    end
+    return vector
+end
+
+"""
+    leading_terms(operators) -> (terms, independent)
+
+Sparse row reduction of `operators` in order: the leading monomial of every operator that is
+linearly independent of those before it, and which operators are.
+"""
+function leading_terms(operators::Vector{QAdd})
+    echelon = Pair{QTerm, QTermDict}[]
+    independent = falses(length(operators))
+    for (k, operator) in enumerate(operators)
+        vector = reduce_against!(copy(operator.arguments), echelon)
+        isempty(vector) && continue
+        push!(echelon, argmin(term_order_key, collect(keys(vector))) => vector)
+        independent[k] = true
+    end
+    return QTerm[first(row) for row in echelon], independent
+end
+
 function basis_from_operators(projected::Vector{QAdd})
-    monomials, coordinates = basis_coordinates(projected)
-    pivots = pivot_monomials(coordinates)
-    length(pivots) == length(projected) || throw(
+    pivots, independent = leading_terms(projected)
+    all(independent) || throw(
         ArgumentError("jump-basis operators are linearly dependent modulo the identity")
     )
-    pivot_inverse = coeff_inverse(coordinates[pivots, :])
-    return JumpBasis(projected, monomials[pivots], pivot_inverse)
+    return basis_from_pivots(projected, pivots)
+end
+
+function basis_from_pivots(operators::Vector{QAdd}, pivots::Vector{QTerm})
+    sort!(pivots; by = term_order_key)
+    block = CNum[get(F.arguments, term, CNUM_ZERO) for term in pivots, F in operators]
+    return JumpBasis(operators, pivots, coeff_inverse(block))
 end
 
 JumpBasis(operators::AbstractVector) =
@@ -261,19 +247,6 @@ Base.keys(basis::JumpBasis) = keys(basis.operators)
 Base.:(==)(a::JumpBasis, b::JumpBasis) = a.operators == b.operators
 Base.isequal(a::JumpBasis, b::JumpBasis) = isequal(a.operators, b.operators)
 Base.hash(basis::JumpBasis, h::UInt) = hash(:JumpBasis, hash(basis.operators, h))
-
-function reduce_against!(vector::QTermDict, echelon::Vector{Pair{QTerm, QTermDict}})
-    for (pivot, row) in echelon
-        entry = get(vector, pivot, CNUM_ZERO)
-        iszero(entry) && continue
-        factor = simplify_prefactor(entry * inv(row[pivot]))
-        for (term, c) in row
-            updated = simplify_prefactor(get(vector, term, CNUM_ZERO) - factor * c)
-            iszero(updated) ? delete!(vector, term) : (vector[term] = updated)
-        end
-    end
-    return vector
-end
 
 """
     independent_basis(candidates::AbstractVector) -> JumpBasis
@@ -298,18 +271,13 @@ JumpBasis with 2 operators:
 See also [`JumpBasis`](@ref), [`support_basis`](@ref).
 """
 function independent_basis(candidates::AbstractVector)
-    kept = QAdd[]
-    echelon = Pair{QTerm, QTermDict}[]
+    projected = QAdd[]
     for candidate in candidates
-        projected = identity_free(canonical_operator(candidate))
-        iszero(projected) && continue
-        vector = reduce_against!(copy(projected.arguments), echelon)
-        isempty(vector) && continue
-        pivot = argmin(term_order_key, collect(keys(vector)))
-        push!(echelon, pivot => vector)
-        push!(kept, projected)
+        operator = identity_free(canonical_operator(candidate))
+        iszero(operator) || push!(projected, operator)
     end
-    return basis_from_operators(kept)
+    pivots, independent = leading_terms(projected)
+    return basis_from_pivots(projected[independent], pivots)
 end
 
 function canonical_map(S::SuperOperator)

@@ -354,41 +354,16 @@ function Σ(expr::QAdd, i::Index, non_equal::Vector{Index} = Index[])
     if isempty(non_equal) && !mentions_index(expr, i)
         return expr * index_range(i)
     end
-
-    off_diag = QTermDict()
-    diag = QTermDict()
-
+    out = QTermDict()
+    scope = Index[i]
     for (term, c) in expr.arguments
-        scope = push!(bound_indices(term, c, expr.indices), i)
-        sigma_term!(off_diag, diag, term, c, i, non_equal, scope)
+        term_scope = push!(bound_indices(term, c, expr.indices), i)
+        ne = merge_ne_pairs(term.ne, i, non_equal)
+        partition_binders!((term.ops,), c, ne, scope, scope) do (ops,), pc, pne, pscope, _
+            emit_scaled_by_scope!(out, copy(ops), pc, pne, isempty(pscope) ? pscope : term_scope)
+        end
     end
-
-    result = QAdd(off_diag, drop_unused_indices(off_diag, push!(copy(expr.indices), i)))
-    isempty(diag) && return result
-    return result + QAdd(diag, drop_unused_indices(diag, copy(expr.indices)))
-end
-
-function sigma_term!(
-        off_diag::QTermDict, diag::QTermDict, term::QTerm, c::CNum,
-        i::Index, non_equal::Vector{Index}, scope::Vector{Index},
-    )
-    ne_aug = merge_ne_pairs(term.ne, i, non_equal)
-
-    if !depends_on_index_term(c, term.ops, i)
-        emit_scaled_by_scope!(off_diag, copy(term.ops), c, ne_aug, scope)
-        return nothing
-    end
-
-    diag_pairs = coinciding_pairs(i, term.ops, ne_aug)
-    emit_scaled_by_scope!(off_diag, copy(term.ops), c, merge_ne_pairs(ne_aug, diag_pairs), scope)
-
-    for (_, ext_idx) in diag_pairs
-        sub_ops = Op[change_index(o, i, ext_idx) for o in term.ops]
-        sub_c = change_index(c, i, ext_idx)
-        sub_ne = diagonal_ne(ne_aug, diag_pairs, i, ext_idx)
-        canonicalize!(diag, sub_ops, sub_c, sub_ne)
-    end
-    return nothing
+    return QAdd(out, drop_unused_indices(out, push!(copy(expr.indices), i)))
 end
 
 function Σ(expr::QSym, i::Index, non_equal::Vector{Index} = Index[])

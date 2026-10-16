@@ -90,16 +90,14 @@ end
     )
 end
 
-"""
-    map_lindbladian(fH, fJ, fγ, L) -> Lindbladian
-
-Rebuild `L` from transformed parts, renormalizing every channel.
-"""
-map_lindbladian(fH::FH, fJ::FJ, fγ::FG, L::Lindbladian{O}) where {FH, FJ, FG, O} =
-    map_lindbladian(fH, fJ, fγ, same_scope, O, L)
-
 same_scope(scope::Vector{Index}, ne::Vector{NonEqualPair}) = (true, copy(scope), ne)
 
+"""
+    map_lindbladian(fH, fJ, fγ, fscope, P, L) -> Lindbladian{P}
+
+Rebuild `L` from transformed parts, renormalizing every channel. `fscope(scope, ne)` returns
+whether the channel is kept, with its new scope and constraints.
+"""
 function map_lindbladian(
         fH::FH, fJ::FJ, fγ::FG, fscope::FS, ::Type{P}, L::Lindbladian,
     ) where {FH, FJ, FG, FS, P}
@@ -115,34 +113,15 @@ function map_lindbladian(
     return finish!(b)
 end
 
-normal_order(L::Lindbladian) = map_lindbladian(normal_order, normal_order, identity, L)
-SymbolicUtils.simplify(L::Lindbladian; kwargs...) = map_lindbladian(
-    x -> SymbolicUtils.simplify(x; kwargs...), x -> SymbolicUtils.simplify(x; kwargs...),
-    c -> simplify_prefactor(c; kwargs...), L,
-)
-Symbolics.expand(L::Lindbladian; kwargs...) = map_lindbladian(
-    x -> Symbolics.expand(x; kwargs...), x -> Symbolics.expand(x; kwargs...),
-    c -> expand_prefactor(c; kwargs...), L,
-)
-expand_completeness(L::Lindbladian) =
-    map_lindbladian(expand_completeness, expand_completeness, identity, L)
-exponential_form(L::Lindbladian{QAdd}) =
-    map_lindbladian(exponential_form, exponential_form, exponential_form, L)
-trigonometric_form(L::Lindbladian{QAdd}) =
-    map_lindbladian(trigonometric_form, trigonometric_form, trigonometric_form, L)
-map_coefficients(f::F, L::Lindbladian{QAdd}) where {F} = map_lindbladian(
-    x -> map_coefficients(f, x), x -> map_coefficients(f, x), c -> to_cnum(f(c)), L,
-)
+exponential_form(L::Lindbladian{QAdd}) = rewrite(exponential_form, exponential_form, L)
+trigonometric_form(L::Lindbladian{QAdd}) = rewrite(trigonometric_form, trigonometric_form, L)
+map_coefficients(f::F, L::Lindbladian{QAdd}) where {F} =
+    rewrite(x -> map_coefficients(f, x), c -> to_cnum(f(c)), L)
 
 function assume_distinct_index(L::Lindbladian{O}, pairs::Vector{Tuple{Index, Index}}) where {O}
     distinct(x) = assume_distinct_index(x, pairs)
     distinct_scope(scope, ne) = (true, copy(scope), merge_ne_pairs(ne, pairs))
     return map_lindbladian(distinct, distinct, identity, distinct_scope, O, L)
-end
-
-function SymbolicUtils.substitute(L::Lindbladian{O}, rules::AbstractDict; replace_adjoint::Bool = true) where {O}
-    r = SubstitutionRules(rules, replace_adjoint)
-    return map_lindbladian(x -> substitute_with(x, r), x -> substitute_with(x, r), c -> substitute_cnum(c, r), L)
 end
 
 function change_index(L::Lindbladian{O}, m::IndexMap) where {O}
@@ -171,41 +150,6 @@ function get_indices(L::Lindbladian)
         merge_indices!(out, get_indices(ch.partner))
     end
     return out
-end
-
-function get_operators(L::Lindbladian)
-    ops = copy(get_operators(L.hamiltonian))
-    for ch in keys(L.channels)
-        append!(ops, get_operators(ch.jump))
-        append!(ops, get_operators(ch.partner))
-    end
-    unique!(ops)
-    sort!(ops; by = order_key)
-    return ops
-end
-
-function acts_on(L::Lindbladian)
-    out = copy(acts_on(L.hamiltonian))
-    for ch in keys(L.channels)
-        append!(out, acts_on(ch.jump))
-        append!(out, acts_on(ch.partner))
-    end
-    unique!(sort!(out))
-    return out
-end
-
-function Symbolics.get_variables(L::Lindbladian; kwargs...)
-    vars = SymbolicUtils.BasicSymbolic[]
-    append!(vars, Symbolics.get_variables(L.hamiltonian; kwargs...))
-    for (ch, γ) in L.channels
-        append!(vars, Symbolics.get_variables(ch.jump; kwargs...))
-        append!(vars, Symbolics.get_variables(ch.partner; kwargs...))
-        append!(vars, Symbolics.get_variables(real(γ); kwargs...))
-        append!(vars, Symbolics.get_variables(imag(γ); kwargs...))
-    end
-    unique!(vars)
-    sort!(vars; by = string)
-    return vars
 end
 
 function constraint_pairs(L::Lindbladian)
