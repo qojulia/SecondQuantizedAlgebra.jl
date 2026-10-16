@@ -49,6 +49,9 @@ end
 displacement_gauge(basis::Vector{Op}, shift::Vector{CNum}, velocity::Vector{CNum}) =
     displacement_gauge(basis, shift, velocity, velocity)
 
+mode_basis(a::Op, what::AbstractString) = (d = fock_or_throw(a, what); Op[d, adjoint(d)])
+mode_shift(c::CNum) = CNum[c, conj(c)]
+
 """
     Displace(a, α)
     Displace(x, p, dx, dp)
@@ -81,9 +84,6 @@ dp*dx + dp * x + dx * p + x * p
 
 See also [`DisplacementFrame`](@ref), [`Rotation`](@ref), [`Squeeze`](@ref).
 """
-mode_basis(a::Op, what::AbstractString) = (d = fock_or_throw(a, what); Op[d, adjoint(d)])
-mode_shift(c::CNum) = CNum[c, conj(c)]
-
 Displace(a::Op, α::Coefficient) = shift_transform(mode_basis(a, "`Displace`"), mode_shift(to_cnum(α)))
 
 function Displace(a::Op, α::Coefficient, t::Num)
@@ -92,6 +92,11 @@ function Displace(a::Op, α::Coefficient, t::Num)
     c = to_cnum(α)
     gauge = displacement_gauge(basis, mode_shift(c), mode_shift(dt(c, tt)))
     return timed_transform(shift_transform(basis, mode_shift(c)), gauge, tt)
+end
+
+function number_generator(a::Op)
+    d = fock_or_throw(a, "`Rotation`")
+    return adjoint(d) * d
 end
 
 """
@@ -140,11 +145,6 @@ cos(θ) * Sx - sin(θ) * Sy
 
 See also [`RotatingFrame`](@ref), [`Squeeze`](@ref), [`Displace`](@ref).
 """
-function number_generator(a::Op)
-    d = fock_or_throw(a, "`Rotation`")
-    return adjoint(d) * d
-end
-
 Rotation(a::Op, θ::Real) = exact_generator_transform(number_generator(a), θ)
 Rotation(a::Op, θ::Num, t::Num) = generated_frame(number_generator(a), θ, time_or_throw(t))
 
