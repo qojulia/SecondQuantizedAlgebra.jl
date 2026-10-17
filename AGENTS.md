@@ -6,7 +6,7 @@ A Julia package for symbolic manipulation of second-quantized operators used in 
 
 ## Read ARCHITECTURE.md first
 
-**Always read [`ARCHITECTURE.md`](ARCHITECTURE.md) before changing anything under `src/` or `ext/`.** It lists the invariants a change must keep, each with its reason: eager canonical form, the pipeline order, why `σᵍᵍ` stays atomic, the naming policy (the algebra never mints `Index` objects on the user's behalf), diagonal splitting, the dead-NE rule, the `QAdd`/`QExpr` split, and the coefficient tiers. Many "obvious" changes are deliberately not made for reasons recorded there. It also has the recipe for adding a built-in operator kind. The developer manual in `docs/src/dev/` is for packages that depend on this one and uses only public names: the workflow (`contributing.md`), and reading expressions, adding an operator kind and adding a numeric backend (`extending.md`).
+**Always read [`ARCHITECTURE.md`](ARCHITECTURE.md) before changing anything under `src/` or `ext/`.** It lists the invariants a change must keep, each with its reason: eager canonical form, the pipeline order, why `σᵍᵍ` stays atomic, the naming policy (the algebra never mints `Index` objects on the user's behalf), diagonal splitting, the dead-NE rule, the `QAdd`/`QExpr` split, and the coefficient tiers. Many "obvious" changes are deliberately not made for reasons recorded there. It also has the recipe for adding an operator kind. The developer manual in `docs/src/dev/` is for packages that depend on this one and uses only public names: the workflow (`contributing.md`), and reading expressions and adding a numeric backend (`extending.md`).
 
 ## Git policy
 

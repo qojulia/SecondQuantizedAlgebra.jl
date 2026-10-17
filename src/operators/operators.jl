@@ -6,8 +6,6 @@ function Base.adjoint(o::Op)
         return with_kind(o, OP_DESTROY)
     elseif k === OP_TRANSITION || k === OP_COLLECTIVE_TRANSITION
         return with_levels(o, o.l2, o.l1)
-    elseif k === OP_CUSTOM
-        return custom_adjoint(o)
     else
         return o
     end
@@ -18,12 +16,12 @@ end
 
 Total ordering key of an operator that ties two operators exactly when they are `isequal`.
 
-The tuple is `(space_index, kind, custom kind rank, name rank, index, l1, l2, g, nlev)`:
-operators group by subspace, then by kind and the name of a custom kind, then alphabetically
-by name, and the packed level and axis fields keep the remaining operators apart. Unlike `hash`, the key is reproducible across sessions
+The tuple is `(space_index, kind, name rank, index, l1, l2, g, nlev)`: operators group by
+subspace, then by kind, then alphabetically by name, and the packed level and axis fields
+keep the remaining operators apart. Unlike `hash`, the key is reproducible across sessions
 and Julia versions.
 """
-order_key(o::Op) = (o.space_index, Int(o.kind), kind_rank(o.custom), name_rank(o.name_id), index_key(o.index), Int(o.l1), Int(o.l2), Int(o.g), Int(o.nlev))
+order_key(o::Op) = (o.space_index, Int(o.kind), name_rank(o.name_id), index_key(o.index), Int(o.l1), Int(o.l2), Int(o.g), Int(o.nlev))
 
 """
     canonical_isless(a, b) -> Bool
@@ -74,7 +72,6 @@ function site_compare(a::Op, b::Op, ne::Vector{NonEqualPair})
     a.space_index == b.space_index || return a.space_index < b.space_index ? Less : Greater
     fa = site_family(ka)
     fa === site_family(kb) || return UInt8(ka) < UInt8(kb) ? Less : Greater
-    a.custom == b.custom || return kind_rank(a.custom) < kind_rank(b.custom) ? Less : Greater
     if !(fa === 0x05 && ka !== kb)
         a.name_id == b.name_id || return name_rank(a.name_id) < name_rank(b.name_id) ? Less : Greater
     end
@@ -131,10 +128,6 @@ const levi_civita = ((0, 1, -1), (-1, 0, 1), (1, -1, 0))
 
 @inline same_site(a::Op, b::Op) =
     a.name_id == b.name_id && a.space_index == b.space_index && a.index == b.index
-
-@inline needs_rewrite(a::Op, b::Op) =
-    a.kind === OP_CUSTOM && b.kind === OP_CUSTOM && a.custom == b.custom && same_site(a, b) &&
-    !kind_data(a).ordered[a.l1, b.l1]
 
 may_reduce(a::Op, b::Op) =
     (a.kind === OP_TRANSITION && b.kind === OP_TRANSITION) ||

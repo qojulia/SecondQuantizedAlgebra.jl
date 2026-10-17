@@ -48,7 +48,7 @@ julia> Sy * Sx
 
 See also [`SpinSpace`](@ref), [`Pauli`](@ref).
 """
-Spin(name::Symbol, axis::Int, si::Int) = Op(OP_SPIN, 0x0000, name_id(name), si, NO_INDEX, check_axis(:Spin, axis), 0, 0, 0)
+Spin(name::Symbol, axis::Int, si::Int) = Op(OP_SPIN, name_id(name), si, NO_INDEX, check_axis(:Spin, axis), 0, 0, 0)
 Spin(h::SpinSpace, name::Symbol, axis::Int) = Spin(name, axis, 1)
 Spin(h::ProductSpace, name::Symbol, axis::Int, idx::Int = unique_subspace_index(h, SpinSpace)) =
     on_factor(Spin, h, SpinSpace, idx, name, axis)

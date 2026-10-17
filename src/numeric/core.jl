@@ -26,7 +26,7 @@ function numeric_leaf(op::Op, ctx::NumericContext)
 end
 
 function embedded_leaf(op::Op, slot::Int, ctx::NumericContext)
-    leaf = operator_leaf(ctx.backend, op, numeric_subbasis(ctx.backend, ctx.basis, slot))
+    leaf = numeric_operator(ctx.backend, op, numeric_subbasis(ctx.backend, ctx.basis, slot))
     return numeric_embed(ctx.backend, ctx.basis, slot, leaf)
 end
 

@@ -54,7 +54,7 @@ julia> σx * σx
 
 See also [`PauliSpace`](@ref), [`Spin`](@ref).
 """
-Pauli(name::Symbol, axis::Int, si::Int) = Op(OP_PAULI, 0x0000, name_id(name), si, NO_INDEX, check_axis(:Pauli, axis), 0, 0, 0)
+Pauli(name::Symbol, axis::Int, si::Int) = Op(OP_PAULI, name_id(name), si, NO_INDEX, check_axis(:Pauli, axis), 0, 0, 0)
 Pauli(h::PauliSpace, name::Symbol, axis::Int) = Pauli(name, axis, 1)
 Pauli(h::ProductSpace, name::Symbol, axis::Int, idx::Int = unique_subspace_index(h, PauliSpace)) =
     on_factor(Pauli, h, PauliSpace, idx, name, axis)

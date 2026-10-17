@@ -8,7 +8,7 @@ using Symbolics: Equation, Num
 using Latexify: latexify
 using QuantumToolbox: QuantumToolbox
 import SciMLOperators as SO
-using SecondQuantizedAlgebra: OperatorKind, CustomOperator, operator_kind, operator_label, Coeff, coefficient_terms, canonical_isless, QAdd, SuperBuilder, LindbladianBuilder, accumulate!, build, compose, support_basis, kossakowski, independent_basis, hamiltonian, channels, jump, partner, scope, formal_terms, poly, coefficient, map_coefficients, displacement, harmonics, secular, harmonic, n_levels, transition_levels, ground_state, operator_axis, SuperOperator, SuperExpr, sprepost, spre, spost, liouvillian, to_numeric_master, constraint_pairs, expect, exponential_form, expim, get_sum_body, get_sum_indices, get_sum_non_equal, indexed_sum, phase_terms, rename, set_acts_on, to_cnum, to_num, transition_superscript, trigonometric_form
+using SecondQuantizedAlgebra: Coeff, coefficient_terms, canonical_isless, QAdd, SuperBuilder, LindbladianBuilder, accumulate!, build, compose, support_basis, kossakowski, independent_basis, hamiltonian, channels, jump, partner, scope, formal_terms, poly, coefficient, map_coefficients, displacement, harmonics, secular, harmonic, n_levels, transition_levels, ground_state, operator_axis, SuperOperator, SuperExpr, sprepost, spre, spost, liouvillian, to_numeric_master, constraint_pairs, expect, exponential_form, expim, get_sum_body, get_sum_indices, get_sum_non_equal, indexed_sum, phase_terms, rename, set_acts_on, to_cnum, to_num, transition_superscript, trigonometric_form
 
 const TARGETS = (
     SecondQuantizedAlgebra,
@@ -160,14 +160,6 @@ end
         ).data
         vq = rand(ComplexF64, 8); wq = similar(vq)
         vl = rand(ComplexF64, 64); wl = similar(vl)
-
-        su11 = OperatorKind(
-            :su11, FockSpace, 3;
-            adjoint = (3, 2, 1),
-            relations = K -> ((K[2], K[1]) => K[1] * K[2] + K[1], (K[3], K[2]) => K[2] * K[3] + K[3], (K[3], K[1]) => K[1] * K[3] + 2 * K[2]),
-            realization = (ad * ad / 2, (ad * a + 1 // 2) / 2, a * a / 2),
-        )
-        Kp, K0, Km = (CustomOperator(su11, hf, :K, g) for g in 1:3)
 
         @testset "Spaces, operators and indices" begin
             test_entries(
@@ -561,21 +553,6 @@ end
                     ("to_numeric(L, dims)", () -> to_numeric(Lnum, 5)),
                     ("to_numeric_master QuantumOptics", () -> to_numeric_master(Lnum, hf, 4; backend = QuantumOpticsBackend())),
                     ("to_numeric_master QuantumToolbox", () -> to_numeric_master(Lnum, hf, 4; backend = QuantumToolboxBackend())),
-                ],
-            )
-        end
-
-        @testset "Operator kinds" begin
-            test_entries(
-                [
-                    ("CustomOperator", () -> CustomOperator(su11, hf, :K, 1)),
-                    ("operator_kind / operator_label", () -> (operator_kind(Kp), operator_label(Kp))),
-                    ("relations", () -> Km * K0 * Kp),
-                    ("adjoint", () -> (Km * Kp)'),
-                    ("commutator", () -> commutator(Km, Kp)),
-                    ("printing", () -> (repr(Km * Kp), latexify(Km * Kp))),
-                    ("to_numeric QuantumOptics", () -> to_numeric(Km * Kp, hf, 4; backend = QuantumOpticsBackend())),
-                    ("to_numeric QuantumToolbox", () -> to_numeric(Km * Kp, hf, 4; backend = QuantumToolboxBackend())),
                 ],
             )
         end

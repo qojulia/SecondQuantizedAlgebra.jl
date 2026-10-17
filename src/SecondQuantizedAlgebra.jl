@@ -43,7 +43,6 @@ include("expressions/rational_zero.jl")
 include("expressions/reduce.jl")
 include("expressions/qterm.jl")
 include("expressions/qadd.jl")
-include("operators/custom.jl")
 
 include("algebra/passes.jl")
 include("algebra/pipelines.jl")
@@ -168,8 +167,7 @@ export FockSpace, ProductSpace,
     is_pauli, is_spin, is_position, is_momentum,
     expect,
     OP_DESTROY, OP_CREATE, OP_TRANSITION, OP_PAULI, OP_SPIN, OP_POSITION, OP_MOMENTUM,
-    OP_COLLECTIVE_TRANSITION, OP_CUSTOM,
-    OperatorKind, CustomOperator, operator_kind, operator_label,
+    OP_COLLECTIVE_TRANSITION,
     QAdd, QTerm, QExpr, Coeff, CNum, PhaseTerm,
     is_indexed_sum, has_sum_metadata, get_sum_indices, get_sum_non_equal, get_sum_body, indexed_sum,
     set_acts_on, rename, n_levels, ground_state, transition_levels, operator_axis,

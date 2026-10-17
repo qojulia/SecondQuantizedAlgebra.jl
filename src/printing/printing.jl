@@ -50,8 +50,6 @@ function Base.show(io::IO, x::Op)
         write_subscript(io, Int(x.l2))
     elseif k === OP_PAULI || k === OP_SPIN
         print(io, xyz_sym[x.l1])
-    elseif k === OP_CUSTOM
-        print(io, kind_data(x).suffixes[x.l1])
     end
     return
 end

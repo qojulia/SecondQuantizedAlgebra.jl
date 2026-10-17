@@ -273,10 +273,10 @@ function check_td_hermitian(H::QAdd, terms::Vector{CoeffTerm}, ctx::NumericConte
     return nothing
 end
 
-const MonomialKey = Vector{NTuple{9, Int}}
+const MonomialKey = Vector{NTuple{8, Int}}
 
 monomial_op_key(o::Op, slot::Int) = (
-    Int(o.kind), Int(o.custom), Int(o.name_id), Int(o.space_index), slot, Int(o.l1), Int(o.l2), Int(o.g),
+    Int(o.kind), Int(o.name_id), Int(o.space_index), slot, Int(o.l1), Int(o.l2), Int(o.g),
     Int(o.nlev),
 )
 

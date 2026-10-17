@@ -63,29 +63,6 @@ for `op`'s slot). Backends implement it as a closed `k === OP_*` value-branch on
 """
 function numeric_operator end
 
-operator_leaf(be::NumericBackend, op::Op, subbasis) =
-    is_custom(op) ? realized_leaf(be, op, subbasis) : numeric_operator(be, op, subbasis)
-
-function realized_leaf(be::NumericBackend, op::Op, subbasis)
-    data = kind_data(op)
-    isempty(data.realization) &&
-        throw(ArgumentError("operator kind $(data.name) has no realization, so it cannot be converted to a numeric operator"))
-    leaf = 0.0im * numeric_operator(be, data.probe, subbasis)
-    for (c, ops) in data.realization[op.l1]
-        leaf = leaf + c * realized_product(be, ops, subbasis)
-    end
-    return leaf
-end
-
-function realized_product(be::NumericBackend, ops::Vector{Op}, subbasis)
-    isempty(ops) && return numeric_identity(be, subbasis)
-    m = numeric_operator(be, ops[1], subbasis)
-    for k in 2:length(ops)
-        m = m * numeric_operator(be, ops[k], subbasis)
-    end
-    return m
-end
-
 """
     numeric_basis(be, h::HilbertSpace, dims)
 
