@@ -1,6 +1,6 @@
 # Contributing
 
-Contributions follow the [ColPrac](https://github.com/SciML/ColPrac) guidelines for pull requests, review and releases. Before changing code under `src/`, read the [Architecture](@ref) page.
+Contributions follow the [ColPrac](https://github.com/SciML/ColPrac) guidelines for pull requests, review and releases. Before changing code under `src/`, read [`ARCHITECTURE.md`](https://github.com/qojulia/SecondQuantizedAlgebra.jl/blob/main/ARCHITECTURE.md).
 
 ```@contents
 Pages = ["contributing.md"]
