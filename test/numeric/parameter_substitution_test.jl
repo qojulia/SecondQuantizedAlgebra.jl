@@ -119,6 +119,13 @@ dat(x) = dense(x).data
         @test to_numeric(E * a, b; time_parameter = Dict(E => t -> 1), op_type = identity) isa TimeDependentSum
         @test_throws ArgumentError to_numeric(E * a, b; time_parameter = Dict(E => t -> 1), op_type = dense)
         @test_throws ArgumentError to_numeric(E * a, b; time_parameter = Dict(E => (p, t) -> p[1]))
+
+        @variables Ec::Complex x::Real
+        fc = to_numeric(Ec * a + conj(Ec) * a', b; time_parameter = Dict(Ec => t -> 1 + im * t))
+        @test expect(fc(0.5), ψ) ≈ expect((1 + 0.5im) * A + (1 - 0.5im) * A', ψ)
+        fconj = to_numeric(conj(Ec) * a, b; time_parameter = Dict(conj(Ec) => t -> 2 + im * t))
+        @test expect(fconj(1.0), ψ) ≈ expect((2 + 1im) * A, ψ)
+        @test_throws ArgumentError to_numeric(Ec * a, b; time_parameter = Dict(Ec + x => t -> 1))
     end
 
     @testset "keyword to_numeric, scalar argument" begin

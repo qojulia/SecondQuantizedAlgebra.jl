@@ -15,6 +15,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `QTermDict`, `NumericContext`, `superterm`, `poly`, `formal_terms` and the builders `SuperBuilder`, `LindbladianBuilder`, `accumulate!` and `build` are internal. Sum many maps with `sum` over an array.
 - Custom backends implement `numeric_superoperator(be, basis, terms)`, where each term is `(c, L, R)` with `L` and `R` already backend matrices, instead of receiving the conversion context.
 
+## [v0.14.1]
+
+### Fixed
+
+- `to_numeric` accepts a `time_parameter` key declared `@variables E::Complex`, and its conjugate `conj(E)`, again. v0.14.0 rejected both.
+
 ## [v0.14.0]
 
 Adds symbolic dissipative dynamics and exact GKSL extraction, with breaking API changes for type stability.
