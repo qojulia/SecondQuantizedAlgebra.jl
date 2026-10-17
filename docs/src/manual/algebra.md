@@ -98,6 +98,12 @@ An expression in canonical form has its own type, which is what products, sums a
 QAdd
 ```
 
+Expressions also have a total order, used to sort reproducibly and to pick one of two expressions as the canonical one, such as an operator or its adjoint. It is a named comparison rather than `<`, since it says nothing about the operators as physical quantities.
+
+```@docs
+canonical_isless
+```
+
 ## Commutators
 
 Since both orderings of a product are already canonical, a commutator costs no more than two products and a subtraction. The Pauli matrices show both brackets at once: different components anticommute, and their commutator is the third component.

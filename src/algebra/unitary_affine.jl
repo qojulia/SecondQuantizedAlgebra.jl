@@ -144,10 +144,10 @@ end
 function canonical_block_basis(structure::AffineStructure, raw::Vector{Op})
     unique!(raw)
     if structure === AFFINE_BOSONIC_NAMBU
-        lowerings = sort!(unique(lowering.(raw)))
+        lowerings = sort!(unique(lowering.(raw)); lt = canonical_isless)
         return vcat(lowerings, adjoint.(lowerings))
     elseif structure === AFFINE_SYMPLECTIC_PHASE_SPACE
-        positions = sort!(unique(Op[generator for generator in raw if is_position(generator)]))
+        positions = sort!(unique(Op[generator for generator in raw if is_position(generator)]); lt = canonical_isless)
         momenta = Op[]
         for x in positions
             found = position_of(
@@ -160,7 +160,7 @@ function canonical_block_basis(structure::AffineStructure, raw::Vector{Op})
         end
         return vcat(positions, momenta)
     end
-    sort!(raw)
+    sort!(raw; lt = canonical_isless)
     return raw
 end
 

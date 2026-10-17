@@ -47,7 +47,7 @@ julia> X isa SecondQuantizedAlgebra.SuperExpr
 true
 ```
 
-See also [`SuperOperator`](@ref), [`taylor`](@ref), [`poly`](@ref).
+See also [`SuperOperator`](@ref), [`taylor`](@ref).
 """
 struct SuperExpr
     poly::SuperOperator

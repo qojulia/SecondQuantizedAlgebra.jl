@@ -170,6 +170,7 @@ using SecondQuantizedAlgebra: to_num
 ```@docs
 QTerm
 Coeff
+CNum
 to_num
 ```
 

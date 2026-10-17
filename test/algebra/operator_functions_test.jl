@@ -2,7 +2,7 @@ using SecondQuantizedAlgebra
 using Symbolics: @variables, unwrap
 using Test
 
-import SecondQuantizedAlgebra: QAdd, QExpr, expim
+import SecondQuantizedAlgebra: QAdd, QExpr, expim, canonical_isless
 
 @testset "Formal operator expressions" begin
     h = FockSpace(:f)
@@ -67,11 +67,12 @@ import SecondQuantizedAlgebra: QAdd, QExpr, expim
     @test_throws ArgumentError cA^n
     @test hash(cA) == hash(cos(A))
 
-    @test sort([cos(2 * A), cos(A)]) == sort([cos(A), cos(2 * A)])
+    csort(v) = sort(v; lt = canonical_isless)
+    @test csort([cos(2 * A), cos(A)]) == csort([cos(A), cos(2 * A)])
     p2 = a * cA
     p3 = p2 * a
-    @test sort([p3, p2]) == sort([p2, p3])
-    @test sort([2 * cA, cA]) == sort([cA, 2 * cA])
+    @test csort([p3, p2]) == csort([p2, p3])
+    @test csort([2 * cA, cA]) == csort([cA, 2 * cA])
 
     @test @inferred(expim(A)) isa QExpr
     @test @inferred(expim(θ * A)) isa QExpr

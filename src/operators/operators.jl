@@ -23,7 +23,39 @@ and Julia versions.
 """
 order_key(o::Op) = (o.space_index, Int(o.kind), name_rank(o.name_id), index_key(o.index), Int(o.l1), Int(o.l2), Int(o.g), Int(o.nlev))
 
-Base.isless(a::Op, b::Op) = isless(order_key(a), order_key(b))
+"""
+    canonical_isless(a, b) -> Bool
+
+Whether `a` precedes `b` in the canonical order of operators, operator sums, operator
+functions, superoperators or dissipation channels.
+
+The order is total and reproducible: for two objects of the same type, exactly one of
+`canonical_isless(a, b)`, `canonical_isless(b, a)` and `isequal(a, b)` holds, in every
+session and Julia version. Use it to pick a canonical representative, e.g. of an operator
+and its adjoint, or to sort with `sort(v; lt = canonical_isless)`.
+
+It is not a method of `Base.isless` on purpose. `a + b < 2a` would read as a comparison of
+operator values, and `sort`, `max` and `<` would silently use an order that has no physical
+meaning.
+
+# Examples
+```jldoctest
+julia> using SecondQuantizedAlgebra: canonical_isless
+
+julia> h = FockSpace(:cavity); a = Destroy(h, :a); b = Destroy(h, :b);
+
+julia> canonical_isless(a, b), canonical_isless(b, a)
+(true, false)
+
+julia> sort([b, a]; lt = canonical_isless)
+2-element Vector{Op}:
+ a
+ b
+```
+
+See also [`QAdd`](@ref), [`channels`](@ref).
+"""
+canonical_isless(a::Op, b::Op) = isless(order_key(a), order_key(b))
 
 const SiteKey = Tuple{Int32, Index, Int32}
 

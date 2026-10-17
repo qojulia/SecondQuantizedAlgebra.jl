@@ -1,4 +1,5 @@
 using SecondQuantizedAlgebra
+import SecondQuantizedAlgebra: is_pauli
 import SecondQuantizedAlgebra: simplify
 using Test
 

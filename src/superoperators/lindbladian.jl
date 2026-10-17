@@ -40,8 +40,8 @@ end
     hamiltonian(L::Lindbladian)
     channels(L::Lindbladian)
 
-The Hamiltonian of a Lindbladian, and a vector of its `Channel => rate` pairs in
-[`channel_order_key`](@ref) order.
+The Hamiltonian of a Lindbladian, and a vector of its `Channel => rate` pairs sorted by
+[`canonical_isless`](@ref).
 
 # Examples
 ```jldoctest
@@ -62,11 +62,16 @@ See also [`Channel`](@ref), [`jump`](@ref).
 """
 hamiltonian(L::Lindbladian) = L.hamiltonian
 function channels(L::Lindbladian)
-    entries = collect(L.channels)
-    order = sortperm([channel_order_key(ch) for (ch, _) in entries])
-    return entries[order]
+    return sort!(collect(L.channels); by = first, lt = canonical_isless)
 end
-@doc (@doc hamiltonian) channels
+
+"""
+    channels(L::Lindbladian) -> Vector
+
+The decay channels of `L` as `Channel => rate` pairs, sorted by [`canonical_isless`](@ref). See
+[`hamiltonian`](@ref) for an example.
+"""
+channels
 
 """
     LindbladianBuilder{O}()

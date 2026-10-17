@@ -21,6 +21,9 @@ Base.nameof(::AvgFunc) = :avg
 Base.show(io::IO, ::AvgFunc) = print(io, "avg")
 SymbolicUtils.promote_symtype(::AvgFunc, Ts...) = Number
 
+SymbolicUtils.:<ₑ(a::Op, b::Op) = canonical_isless(a, b)
+SymbolicUtils.:<ₑ(a::QAdd, b::QAdd) = canonical_isless(a, b)
+
 function SymbolicUtils.show_call(io::IO, ::AvgFunc, x::SymbolicUtils.BasicSymbolic; kw...)
     print(io, "⟨")
     for (i, arg) in enumerate(SymbolicUtils.arguments(x))
@@ -91,6 +94,8 @@ The indices and constraints of the sum are read with [`get_sum_indices`](@ref) a
 
 # Examples
 ```jldoctest
+julia> using SecondQuantizedAlgebra: is_indexed_sum
+
 julia> h = NLevelSpace(:atom, 2); i = Index(h, :i, 10, h);
 
 julia> x = average(Σ(IndexedOperator(Transition(h, :σ, 2, 2), i), i))

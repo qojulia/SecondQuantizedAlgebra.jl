@@ -62,8 +62,20 @@ name_id(s::Symbol) = intern!(NAME_BY_ID, NAME_TO_ID, s, new_name!)
 
 const RANGE_BY_ID = Num[]
 const RANGE_TO_ID = Dict{Num, Int32}()
+const RANGE_RANK = Int32[]
 
 range_from_id(id::Int32) = id == 0 ? Num(0) : RANGE_BY_ID[id]
+range_rank(id::Int32) = id == 0 ? Int32(0) : RANGE_RANK[id]
 
-intern_range(r::Num) = intern!(RANGE_BY_ID, RANGE_TO_ID, r, identity)
+function new_range!(id::Int32)
+    s = string(RANGE_BY_ID[id])
+    r = Int32(1)
+    for j in 1:(id - 1)
+        string(RANGE_BY_ID[j]) < s ? (r += Int32(1)) : (RANGE_RANK[j] += Int32(1))
+    end
+    push!(RANGE_RANK, r)
+    return id
+end
+
+intern_range(r::Num) = intern!(RANGE_BY_ID, RANGE_TO_ID, r, new_range!)
 intern_range(r::Integer) = intern_range(Num(r))

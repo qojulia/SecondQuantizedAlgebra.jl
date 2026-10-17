@@ -252,7 +252,12 @@ function qadd_order_key(q::QAdd)
     return pairs
 end
 
-Base.isless(a::QAdd, b::QAdd) = isless(qadd_order_key(a), qadd_order_key(b))
+indices_key(indices::Vector{Index}) = sort!(map(index_key, indices))
+
+canonical_isless(a::QAdd, b::QAdd) =
+    isless((qadd_order_key(a), indices_key(a.indices)), (qadd_order_key(b), indices_key(b.indices)))
+canonical_isless(a::Op, b::QAdd) = (qa = to_qadd(a); canonical_isless(qa, b) || !canonical_isless(b, qa))
+canonical_isless(a::QAdd, b::Op) = !canonical_isless(b, a)
 Base.isless(a::Type{<:QField}, b::Type{<:QField}) = isless(nameof(a), nameof(b))
 
 function coeff_key(c::CNum)

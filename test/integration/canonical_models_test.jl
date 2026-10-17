@@ -1,4 +1,5 @@
 using SecondQuantizedAlgebra
+import SecondQuantizedAlgebra: is_indexed_sum
 using Test
 using Symbolics: @variables
 import SecondQuantizedAlgebra: constraint_pairs

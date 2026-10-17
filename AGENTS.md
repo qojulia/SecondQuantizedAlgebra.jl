@@ -4,9 +4,9 @@
 
 A Julia package for symbolic manipulation of second-quantized operators used in quantum many-body theory and quantum optics. Refactored from QuantumCumulants.jl, it provides eagerly-canonicalized algebraic expressions over bosonic, spin, and N-level operators with automatic commutation relations and numeric conversion via QuantumOpticsBase.
 
-## Read the architecture page first
+## Read ARCHITECTURE.md first
 
-**Always read [`docs/src/dev/architecture.md`](docs/src/dev/architecture.md) before changing anything under `src/` or `ext/`.** It lists the invariants a change must keep, each with its reason and the test that pins it: eager canonical form, the pipeline order, why `σᵍᵍ` stays atomic, the naming policy (the algebra never mints `Index` objects on the user's behalf), diagonal splitting, the dead-NE rule, the `QAdd`/`QExpr` split, and the coefficient tiers. Several of them are not covered by tests, and many "obvious" changes are deliberately not made for reasons recorded there. The developer manual in `docs/src/dev/` also covers the workflow (`contributing.md`), adding an operator kind or a numeric backend (`extending.md`), and the internal docstrings (`internals.md`).
+**Always read [`ARCHITECTURE.md`](ARCHITECTURE.md) before changing anything under `src/` or `ext/`.** It lists the invariants a change must keep, each with its reason: eager canonical form, the pipeline order, why `σᵍᵍ` stays atomic, the naming policy (the algebra never mints `Index` objects on the user's behalf), diagonal splitting, the dead-NE rule, the `QAdd`/`QExpr` split, and the coefficient tiers. Many "obvious" changes are deliberately not made for reasons recorded there. It also has the recipe for adding an operator kind. The developer manual in `docs/src/dev/` is for packages that depend on this one and uses only public names: the workflow (`contributing.md`), and reading expressions and adding a numeric backend (`extending.md`).
 
 ## Git policy
 
@@ -94,7 +94,7 @@ Before merging any PR:
 
 - **Comments: compact, why not what.** Default to no comment; add one only for a non-obvious *why*. Keep it to a couple of lines.
 - **Changelog entries: short.** One to two sentences per entry. State what changed and where it matters, not the mechanism.
-- **Developer manual: invariants and recipes, not private-function tours.** State the rule and its reason in a sentence or two and point to the test that pins it. Do not enumerate private functions or struct fields; those belong in internal docstrings.
+- **Developer manual: invariants and recipes, not private-function tours.** State the rule and its reason in a sentence or two. Do not enumerate private functions or struct fields; those belong in internal docstrings.
 -
 ## Performance terminology
 

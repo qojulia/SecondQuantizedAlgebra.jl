@@ -224,16 +224,14 @@ function superoperator_order_key(S::SuperOperator)
     return pairs
 end
 
-"""
-    channel_order_key(c::Channel)
+canonical_isless(a::SuperOperator, b::SuperOperator) = isless(
+    (superoperator_order_key(a), indices_key(a.indices)), (superoperator_order_key(b), indices_key(b.indices)),
+)
 
-Total ordering key for a channel: its jump and partner, then its scope and constraints.
-"""
-channel_order_key(c::Channel{QAdd}) = (
-    qadd_order_key(c.jump), qadd_order_key(c.partner),
-    [(Int(i.space_index), name_rank(i.name_id)) for i in c.scope], ne_sort_key(c.ne),
-)
-channel_order_key(c::Channel{QExpr}) = (
-    sprint(show, c.jump), sprint(show, c.partner),
-    [(Int(i.space_index), name_rank(i.name_id)) for i in c.scope], ne_sort_key(c.ne),
-)
+function canonical_isless(a::Channel{O}, b::Channel{O}) where {O}
+    isequal(a.jump, b.jump) || return canonical_isless(a.jump, b.jump)
+    isequal(a.partner, b.partner) || return canonical_isless(a.partner, b.partner)
+    sa, sb = map(index_key, a.scope), map(index_key, b.scope)
+    sa != sb && return isless(sa, sb)
+    return isless(ne_sort_key(a.ne), ne_sort_key(b.ne))
+end

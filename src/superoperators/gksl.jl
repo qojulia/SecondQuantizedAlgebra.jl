@@ -551,7 +551,7 @@ end
     support_basis(L::Lindbladian) -> JumpBasis
 
 The [`JumpBasis`](@ref) of the operator monomials on the two-sided sandwiches of a map, after
-[`expand_completeness`](@ref), in [`term_order_key`](@ref) order. Every jump direction of the
+[`expand_completeness`](@ref), in canonical order. Every jump direction of the
 map lies in its span, so [`Lindbladian`](@ref)`(S)` reads `S` in this basis.
 
 # Examples

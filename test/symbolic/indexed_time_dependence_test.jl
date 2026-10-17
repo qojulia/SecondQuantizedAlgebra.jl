@@ -1,4 +1,5 @@
 using SecondQuantizedAlgebra
+import SecondQuantizedAlgebra: is_indexed_sum
 using Test
 using Symbolics: @variables
 import SecondQuantizedAlgebra: get_sum_body, get_sum_indices, has_sum_metadata

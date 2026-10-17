@@ -1,4 +1,5 @@
 using SecondQuantizedAlgebra
+import SecondQuantizedAlgebra: is_collective_transition, is_transition
 import SecondQuantizedAlgebra: transition_superscript
 using Latexify: latexify
 using QuantumOpticsBase

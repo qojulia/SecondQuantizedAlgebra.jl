@@ -1,4 +1,5 @@
 using SecondQuantizedAlgebra
+import SecondQuantizedAlgebra: is_collective_transition, is_create, is_destroy, is_indexed_sum, is_momentum, is_pauli, is_position, is_spin, is_transition, numeric_backend, numeric_basis, numeric_embed, numeric_expect, numeric_identity, numeric_num_subsystems, numeric_operator, numeric_subbasis, optype
 using Test
 using JET
 using QuantumOpticsBase: FockBasis, ManyBodyBasis, NLevelBasis, SpinBasis, LazyKet, basisstate, bosonstates, coherentstate, dense, destroy, fockstate, nlevelstate, tensor
@@ -7,7 +8,7 @@ using Symbolics: Equation, Num
 using Latexify: latexify
 using QuantumToolbox: QuantumToolbox
 import SciMLOperators as SO
-using SecondQuantizedAlgebra: Coeff, coefficient_terms, QAdd, SuperBuilder, LindbladianBuilder, accumulate!, build, compose, support_basis, kossakowski, independent_basis, hamiltonian, channels, jump, partner, scope, formal_terms, poly, coefficient, map_coefficients, displacement, harmonics, secular, harmonic, n_levels, transition_levels, ground_state, operator_axis, SuperOperator, SuperExpr, sprepost, spre, spost, liouvillian, to_numeric_master, constraint_pairs, expect, exponential_form, expim, get_sum_body, get_sum_indices, get_sum_non_equal, indexed_sum, order_key, phase_terms, qadd_order_key, rename, set_acts_on, term_order_key, to_cnum, to_num, transition_superscript, trigonometric_form
+using SecondQuantizedAlgebra: Coeff, coefficient_terms, canonical_isless, QAdd, SuperBuilder, LindbladianBuilder, accumulate!, build, compose, support_basis, kossakowski, independent_basis, hamiltonian, channels, jump, partner, scope, formal_terms, poly, coefficient, map_coefficients, displacement, harmonics, secular, harmonic, n_levels, transition_levels, ground_state, operator_axis, SuperOperator, SuperExpr, sprepost, spre, spost, liouvillian, to_numeric_master, constraint_pairs, expect, exponential_form, expim, get_sum_body, get_sum_indices, get_sum_non_equal, indexed_sum, phase_terms, rename, set_acts_on, to_cnum, to_num, transition_superscript, trigonometric_form
 
 const TARGETS = (
     SecondQuantizedAlgebra,
@@ -172,7 +173,7 @@ end
                     ("operator_name / operator_index", () -> (operator_name(a), operator_index(σi(1, 2, i)))),
                     ("operator accessors", () -> (n_levels(σ12), transition_levels(σ12), ground_state(σ12), operator_axis(px))),
                     ("index accessors", () -> (index_name(i), index_range(i), index_slot(i), index_sym(i), has_index(i))),
-                    ("order keys", () -> (order_key(a), qadd_order_key(ad * a + a), term_order_key(first(keys((ad * a).arguments))))),
+                    ("canonical_isless", () -> (canonical_isless(a, ad), canonical_isless(ad * a + a, a * 1))),
                     ("transition_superscript", () -> transition_superscript(true)),
                     ("rename / set_acts_on", () -> (rename(a, :b), set_acts_on(a, 2))),
                     ("acts_on(leaf)", () -> (acts_on(a), acts_on(σ12))),

@@ -565,10 +565,10 @@ Base.hash(q::QExpr, h::UInt) = hash(q.args, hash(q.coeff, hash(q.kind, hash(:QEx
 function qexpr_arg_less(a::QExprArg, b::QExprArg)
     if a isa QAdd
         b isa QAdd || return true
-        return !isequal(a, b) && isless(a, b)
+        return !isequal(a, b) && canonical_isless(a, b)
     end
     b isa QAdd && return false
-    return !isequal(a, b) && isless(a, b)
+    return !isequal(a, b) && canonical_isless(a, b)
 end
 
 function qexpr_args_less(a::Vector{QExprArg}, b::Vector{QExprArg})
@@ -583,7 +583,7 @@ end
 qexpr_body_less(a::QExpr, b::QExpr) =
     a.kind == b.kind ? qexpr_args_less(a.args, b.args) : a.kind < b.kind
 
-function Base.isless(a::QExpr, b::QExpr)
+function canonical_isless(a::QExpr, b::QExpr)
     a.kind != b.kind && return a.kind < b.kind
     isequal(a.args, b.args) || return qexpr_args_less(a.args, b.args)
     return isless(coeff_key(a.coeff), coeff_key(b.coeff))

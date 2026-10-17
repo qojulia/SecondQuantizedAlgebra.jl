@@ -25,9 +25,7 @@ pages = [
     "Comparison with other packages" => "comparison.md",
     "Developer manual" => [
         "Contributing" => "dev/contributing.md",
-        "Architecture" => "dev/architecture.md",
-        "Extending the package" => "dev/extending.md",
-        "Internals" => "dev/internals.md",
+        "Building on the package" => "dev/extending.md",
     ],
     "References" => "references.md",
     "Changelog" => "changelog.md",

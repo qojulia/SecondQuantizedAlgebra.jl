@@ -90,7 +90,7 @@ end
 function Base.hash(a::Index, h::UInt)
     return hash(:Index, hash(a.name_id, hash(a.space_index, h)))
 end
-index_key(idx::Index) = (idx.space_index, name_rank(idx.name_id))
+index_key(idx::Index) = (idx.space_index, name_rank(idx.name_id), range_rank(idx.range_id), idx.slot)
 Base.isless(a::Index, b::Index) = index_key(a) < index_key(b)
 
 Index(h::HilbertSpace, name::Symbol, range::Union{Int, Num}, space::HilbertSpace) =

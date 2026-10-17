@@ -146,7 +146,7 @@ function validated_transform(
         action::AffineAction, gauge::QAdd, time::T,
     ) where {T <: Union{StaticTime, DynamicTime}}
     rules = affine_rules(action)
-    generators = sort!(collect(keys(rules)))
+    generators = sort!(collect(keys(rules)); lt = canonical_isless)
     for generator in generators
         is_free_family(generator) && unitary_error(
             "unitary transforms of free indexed-operator families are not part of " *
@@ -308,7 +308,7 @@ julia> generators(Rotation(a, b, θ))
 
 See also [`UnitaryTransform`](@ref).
 """
-generators(U::UnitaryTransform) = sort!(collect(keys(U.rules)))
+generators(U::UnitaryTransform) = sort!(collect(keys(U.rules)); lt = canonical_isless)
 
 """
     displacement(U::UnitaryTransform, o::Op)

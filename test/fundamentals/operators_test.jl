@@ -1,4 +1,5 @@
 using SecondQuantizedAlgebra
+import SecondQuantizedAlgebra: is_destroy, is_pauli, is_spin, optype
 using Test
 using Symbolics: Symbolics, @variables
 import SecondQuantizedAlgebra: OP_DESTROY, OP_PAULI, OP_TRANSITION, rename, set_acts_on
