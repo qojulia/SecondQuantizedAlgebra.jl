@@ -8,6 +8,10 @@ on:
       - synchronize
       - ready_for_review
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ startsWith(github.ref, 'refs/pull/') }}
+
 jobs:
   typos-check:
     name: Spell Check with Typos

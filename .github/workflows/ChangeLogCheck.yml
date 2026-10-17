@@ -8,6 +8,10 @@ on:
   pull_request:
     types: [opened, synchronize, reopened, ready_for_review, labeled, unlabeled]
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ startsWith(github.ref, 'refs/pull/') }}
+
 jobs:
   changelog:
     runs-on: ubuntu-latest
