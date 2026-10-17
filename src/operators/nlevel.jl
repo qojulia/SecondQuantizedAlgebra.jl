@@ -146,7 +146,7 @@ julia> σ * σ', σ' * σ, σ * σ
 See also [`NLevelSpace`](@ref), [`expand_completeness`](@ref), [`@qnumbers`](@ref).
 """
 Transition(name::Symbol, i::Integer, j::Integer, si::Integer, idx::Index, ground_state::Integer, n_levels::Integer) =
-    Op(OP_TRANSITION, name_id(name), si, idx, i, j, ground_state, n_levels)
+    Op(OP_TRANSITION, 0x0000, name_id(name), si, idx, i, j, ground_state, n_levels)
 
 Transition(h::NLevelSpace, name::Symbol, i::L, j::L) where {L <: Union{Int, Symbol}} =
     Transition(name, level_index(h, i), level_index(h, j), 1, NO_INDEX, h.ground_state, h.n)
@@ -183,7 +183,7 @@ S₁₁ - S₂₂ + S₂₁ * S₁₂
 See also [`CollectiveNLevelSpace`](@ref), [`Transition`](@ref).
 """
 CollectiveTransition(name::Symbol, i::Integer, j::Integer, si::Integer) =
-    Op(OP_COLLECTIVE_TRANSITION, name_id(name), si, NO_INDEX, i, j, 0, 0)
+    Op(OP_COLLECTIVE_TRANSITION, 0x0000, name_id(name), si, NO_INDEX, i, j, 0, 0)
 
 CollectiveTransition(h::CollectiveNLevelSpace, name::Symbol, i::L, j::L) where {L <: Union{Int, Symbol}} =
     CollectiveTransition(name, level_index(h, i), level_index(h, j), 1)

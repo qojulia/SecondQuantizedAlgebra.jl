@@ -4,7 +4,7 @@ CurrentModule = SecondQuantizedAlgebra
 
 # Building on the package
 
-Packages such as QuantumCumulants.jl derive equations from the expressions of this package, and others add numeric backends. Both work through the public API: an expression is read term by term, and a backend implements a fixed set of conversion hooks.
+Packages such as QuantumCumulants.jl derive equations from the expressions of this package, and others add operator kinds or numeric backends. All of them work through the public API: an expression is read term by term, a kind is described by data, and a backend implements a fixed set of hooks.
 
 ```@contents
 Pages = ["extending.md"]
@@ -58,6 +58,50 @@ Any [`SuperOperator`](@ref) iterates as sandwiches with their coefficients, and 
 ```@example reading
 using SecondQuantizedAlgebra: SuperOperator, left_operator, right_operator
 [(left_operator(t), right_operator(t), c) for (t, c) in SuperOperator(dissipator(a))]
+```
+
+## Adding an operator kind
+
+An algebra that no built-in operator covers is added as an [`OperatorKind`](@ref): a finite set of generators on one type of space, their adjoints, the relations that rewrite their products, and a realization in built-in operators for numerics. Its operators are made with [`CustomOperator`](@ref) and are ordinary [`Op`](@ref)s, so they need no further methods.
+
+The generators of ``\mathfrak{su}(1,1)`` obey ``[K_0, K_\pm] = \pm K_\pm`` and ``[K_-, K_+] = 2K_0``. Ordered as ``K_+``, ``K_0``, ``K_-``, an unordered pair becomes the ordered pair plus its commutator. On a Fock space they are realized by ``K_+ = a^{\dagger 2}/2``, ``K_- = a^2/2`` and ``K_0 = (a^\dagger a + 1/2)/2``.
+
+```@example kind
+using SecondQuantizedAlgebra
+using SecondQuantizedAlgebra: OperatorKind, CustomOperator
+
+SU11 = OperatorKind(
+    :su11, FockSpace, 3;
+    adjoint = (3, 2, 1),
+    relations = function (K)
+        Kp, K0, Km = K
+        return ((K0, Kp) => Kp * K0 + Kp, (Km, K0) => K0 * Km + Km, (Km, Kp) => Kp * Km + 2 * K0)
+    end,
+    realization = let a = Destroy(FockSpace(:mode), :a)
+        (a' * a' / 2, (a' * a + 1 // 2) / 2, a * a / 2)
+    end,
+    suffixes = ("₊", "₀", "₋"), latex = ("_{+}", "_{0}", "_{-}"),
+)
+
+h = FockSpace(:mode)
+Kp, K0, Km = (CustomOperator(SU11, h, :K, g) for g in 1:3)
+Km * Kp
+```
+
+The Casimir ``C = K_0^2 - (K_+ K_- + K_- K_+)/2`` commutes with every generator.
+
+```@example kind
+C = K0 * K0 - (Kp * Km + Km * Kp) / 2
+commutator(C, Kp), commutator(C, K0), commutator(C, Km)
+```
+
+The relations apply to generators of one kind with the same name and site, and all other operators act independently of them, as two modes with different names do. Rules and realization are stored as data, so operators of the new kind run through the same compiled code as built-in ones. A kind lives in the current session like an operator name, so a package creates it in `__init__`.
+
+```@docs
+OperatorKind
+CustomOperator
+operator_kind
+operator_label
 ```
 
 ## Adding a numeric backend

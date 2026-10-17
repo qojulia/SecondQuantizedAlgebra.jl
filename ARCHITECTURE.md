@@ -45,7 +45,7 @@ Every operator is the single concrete struct `Op`, and its role (annihilation, t
 
 **Free indices stay undetermined.** Two operators on the same space with different free indices may or may not act on the same site, so no rule fires between them and they keep their written order. Only a `Σ` or `assume_distinct_index` resolves them.
 
-**The canonical form does not depend on declaration order.** Operator and index names are interned to integer ids in insertion order, so ordering by id would make the canonical form depend on which name was declared first. All orderings go through the alphabetical rank of the name instead.
+**The canonical form does not depend on declaration order.** Operator and index names are interned to integer ids in insertion order, so ordering by id would make the canonical form depend on which name was declared first. All orderings go through the alphabetical rank of the name instead, and operator kinds defined in other packages by the rank of their name.
 
 **A pass that forks must copy.** The pipeline streams terms through nested passes without materializing intermediate lists. A pass with one output may mutate the operator vector in place; a pass with several outputs copies it for every branch but one. A missed copy gives two terms that share one vector, a silent aliasing bug.
 
@@ -63,7 +63,7 @@ Every operator is the single concrete struct `Op`, and its role (annihilation, t
 
 **Binary `+` copies; reductions do not.** Both operands of `+` are still held by the caller, so `+` copies the accumulated dictionary and a chain of $n$ additions costs $O(n^2)$. `sum` and `reduce(+, …)` over an array instead thread one accumulator through the fold and build the result once; the result must stay identical to the chain of `+`. Products are left as repeated `*`, because their cost is the distributive expansion itself, which an accumulator cannot save.
 
-**Interned ids never leave the session.** The name and range tables in `intern.jl` are written only at construction, from one thread, and their ids follow insertion order. Ids are never serialized, and no SymbolicUtils symbol built from them may be cached at precompile time: it would be a stale copy of the symbol the new session hashconses.
+**Interned ids never leave the session.** The name, range and kind tables in `intern.jl` are written only at construction, from one thread, and their ids follow insertion order. Ids are never serialized, and no SymbolicUtils symbol built from them may be cached at precompile time: it would be a stale copy of the symbol the new session hashconses.
 
 ### Expression layers
 
@@ -117,7 +117,9 @@ Every operator is the single concrete struct `Op`, and its role (annihilation, t
 
 **The numeric core is backend-neutral.** `src/numeric/` never names a backend type, and the type of an assembled operator does not depend on the number of terms.
 
-## Adding an operator kind
+## Adding a built-in operator kind
+
+A kind defined in another package needs none of this: `OperatorKind` stores its relations and realization as data in `src/operators/custom.jl`, its unordered pairs are rewritten in `reduce_ops`, and numerics expand the realization through `numeric_operator`.
 
 Every operator is an `Op`, and its role is the `kind` field of type `OpKind`. The algebra never inspects an operator directly. It talks to operators through six functions in `src/operators/operators.jl`, each a single method on `(::Op, ::Op)` that branches on `kind`:
 

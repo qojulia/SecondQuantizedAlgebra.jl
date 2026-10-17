@@ -187,7 +187,7 @@ end
 slot_matrix(::Op, ::Tuple{}, slot::Int, k::Int) =
     throw(ArgumentError("QuantumOptics composite basis has $(k - 1) subsystems, not slot $slot"))
 function slot_matrix(op::Op, bases::Tuple, slot::Int, k::Int)
-    k == slot && return QOB.sparse(SQA.numeric_operator(QuantumOpticsBackend(), op, first(bases))).data
+    k == slot && return QOB.sparse(SQA.operator_leaf(QuantumOpticsBackend(), op, first(bases))).data
     return slot_matrix(op, Base.tail(bases), slot, k + 1)
 end
 

@@ -50,6 +50,7 @@ same-site pair `(a, b)` for which `reduce_pair(a, b)` returns a reduction.
     while i < length(ops)
         a, b = ops[i], ops[i + 1]
         if !may_reduce(a, b)
+            needs_rewrite(a, b) && return rewrite_pair(sink, ops, c, i)
             i += 1
             continue
         end
@@ -69,6 +70,28 @@ same-site pair `(a, b)` for which `reduce_pair(a, b)` returns a reduction.
         end
     end
     sink(ops, c)
+    return
+end
+
+"""
+    rewrite_pair(sink, ops, c, i)
+
+Replace the unordered pair `ops[i], ops[i + 1]` of an operator kind defined elsewhere by
+the right-hand side of its relation, forking once per term, and reduce each branch again.
+"""
+@noinline function rewrite_pair(sink::F, ops::Vector{Op}, c::CNum, i::Int) where {F}
+    a = ops[i]
+    n = length(ops)
+    for (ct, labels) in kind_data(a).rules[a.l1, ops[i + 1].l1]
+        m = length(labels)
+        new_ops = Vector{Op}(undef, n - 2 + m)
+        copyto!(new_ops, 1, ops, 1, i - 1)
+        for k in 1:m
+            new_ops[i + k - 1] = with_levels(a, labels[k], 0)
+        end
+        copyto!(new_ops, i + m, ops, i + 2, n - i - 1)
+        reduce_ops(sink, new_ops, c * ct)
+    end
     return
 end
 
@@ -148,7 +171,7 @@ function expand_gs_ops(sink::F, ops::Vector{Op}, c::CNum) where {F}
     for k in 1:n_levels
         k == g && continue
         new_ops = copy(ops)
-        new_ops[idx] = Op(OP_TRANSITION, op.name_id, site, op.index, k, k, g, n_levels)
+        new_ops[idx] = Op(OP_TRANSITION, 0x0000, op.name_id, site, op.index, k, k, g, n_levels)
         expand_gs_ops(sink, new_ops, neg_c)
     end
     return

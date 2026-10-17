@@ -51,7 +51,7 @@ im
 
 See also [`Momentum`](@ref), [`PhaseSpace`](@ref).
 """
-Position(name::Symbol, si::Int) = Op(OP_POSITION, name_id(name), si, NO_INDEX, 0, 0, 0, 0)
+Position(name::Symbol, si::Int) = Op(OP_POSITION, 0x0000, name_id(name), si, NO_INDEX, 0, 0, 0, 0)
 
 """
     Momentum(h::PhaseSpace, name::Symbol)
@@ -78,7 +78,7 @@ julia> p * x
 
 See also [`Position`](@ref), [`PhaseSpace`](@ref).
 """
-Momentum(name::Symbol, si::Int) = Op(OP_MOMENTUM, name_id(name), si, NO_INDEX, 0, 0, 0, 0)
+Momentum(name::Symbol, si::Int) = Op(OP_MOMENTUM, 0x0000, name_id(name), si, NO_INDEX, 0, 0, 0, 0)
 
 Position(h::PhaseSpace, name::Symbol) = Position(name, 1)
 Momentum(h::PhaseSpace, name::Symbol) = Momentum(name, 1)

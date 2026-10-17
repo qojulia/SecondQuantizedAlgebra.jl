@@ -4,11 +4,13 @@
 Kind of an operator, as returned by [`optype`](@ref).
 
 The values are `OP_DESTROY`, `OP_CREATE`, `OP_TRANSITION`, `OP_COLLECTIVE_TRANSITION`,
-`OP_PAULI`, `OP_SPIN`, `OP_POSITION` and `OP_MOMENTUM`. They are public but not exported.
+`OP_PAULI`, `OP_SPIN`, `OP_POSITION`, `OP_MOMENTUM`, and `OP_CUSTOM` for an operator of a
+kind defined in another package, see [`OperatorKind`](@ref). They are public but not
+exported.
 
 See also [`optype`](@ref), [`is_destroy`](@ref).
 """
-@enum OpKind::UInt8 OP_DESTROY OP_CREATE OP_TRANSITION OP_PAULI OP_SPIN OP_POSITION OP_MOMENTUM OP_COLLECTIVE_TRANSITION
+@enum OpKind::UInt8 OP_DESTROY OP_CREATE OP_TRANSITION OP_PAULI OP_SPIN OP_POSITION OP_MOMENTUM OP_COLLECTIVE_TRANSITION OP_CUSTOM
 
 """
     Op <: QSym
@@ -17,7 +19,8 @@ Type of every single operator, whatever its kind.
 
 Operators are made with [`Destroy`](@ref), [`Create`](@ref), [`Transition`](@ref),
 [`CollectiveTransition`](@ref), [`Pauli`](@ref), [`Spin`](@ref), [`Position`](@ref)
-and [`Momentum`](@ref), never with `Op` directly. Since all of them share this
+and [`Momentum`](@ref), or [`CustomOperator`](@ref) for a kind defined elsewhere, never
+with `Op` directly. Since all of them share this
 type, use [`optype`](@ref) or the predicates such as [`is_destroy`](@ref) to tell
 them apart instead of `isa`.
 
@@ -25,6 +28,7 @@ See also [`optype`](@ref), [`operator_name`](@ref), [`acts_on`](@ref).
 """
 struct Op <: QSym
     kind::OpKind
+    custom::UInt16
     name_id::Int32
     space_index::Int32
     index::Index
@@ -36,7 +40,7 @@ end
 
 const NOIDX_H = hash(NO_INDEX, zero(UInt))
 function Base.hash(o::Op, h::UInt)
-    h = hash(o.kind, h)
+    h = hash(UInt32(o.kind) | UInt32(o.custom) << 8, h)
     h = hash(o.name_id, h)
     h = hash(o.space_index, h)
     h = hash(o.l1, h)
@@ -46,7 +50,7 @@ function Base.hash(o::Op, h::UInt)
     return o.index === NO_INDEX ? hash(NOIDX_H, h) : hash(o.index, h)
 end
 Base.isequal(a::Op, b::Op) =
-    a.kind === b.kind && a.name_id == b.name_id && a.space_index == b.space_index &&
+    a.kind === b.kind && a.custom == b.custom && a.name_id == b.name_id && a.space_index == b.space_index &&
     a.l1 == b.l1 && a.l2 == b.l2 && a.g == b.g && a.nlev == b.nlev && a.index == b.index
 
 """
@@ -280,13 +284,13 @@ a * σ₂₁
 See also [`acts_on`](@ref), [`rename`](@ref).
 """
 set_acts_on(o::Op, aon::Integer) =
-    Op(o.kind, o.name_id, Int32(aon), o.index, o.l1, o.l2, o.g, o.nlev)
+    Op(o.kind, o.custom, o.name_id, Int32(aon), o.index, o.l1, o.l2, o.g, o.nlev)
 
 rename(o::Op, name::Symbol) =
-    Op(o.kind, name_id(name), o.space_index, o.index, o.l1, o.l2, o.g, o.nlev)
+    Op(o.kind, o.custom, name_id(name), o.space_index, o.index, o.l1, o.l2, o.g, o.nlev)
 rename(o::Op, name::AbstractString) = name_must_be_symbol(name)
 
-with_kind(o::Op, kind::OpKind) = Op(kind, o.name_id, o.space_index, o.index, o.l1, o.l2, o.g, o.nlev)
+with_kind(o::Op, kind::OpKind) = Op(kind, o.custom, o.name_id, o.space_index, o.index, o.l1, o.l2, o.g, o.nlev)
 
 """
     with_levels(o::Op, l1, l2) -> Op
@@ -295,7 +299,7 @@ Copy of `o` with the level fields replaced: the levels of a transition, or the a
 (with `l2 = 0`) of a Pauli or spin operator.
 """
 with_levels(o::Op, l1::Integer, l2::Integer) =
-    Op(o.kind, o.name_id, o.space_index, o.index, Int32(l1), Int32(l2), o.g, o.nlev)
+    Op(o.kind, o.custom, o.name_id, o.space_index, o.index, Int32(l1), Int32(l2), o.g, o.nlev)
 
 """
     IndexedOperator(op, i::Index)
@@ -320,7 +324,7 @@ See also [`Index`](@ref), [`Σ`](@ref), [`operator_index`](@ref).
 function IndexedOperator(op::Op, i::Index)
     is_collective_transition(op) && has_index(i) &&
         throw(ArgumentError("CollectiveTransition is already collective and cannot be indexed"))
-    return Op(op.kind, op.name_id, op.space_index, i, op.l1, op.l2, op.g, op.nlev)
+    return Op(op.kind, op.custom, op.name_id, op.space_index, i, op.l1, op.l2, op.g, op.nlev)
 end
 
 const EMPTY_OPS = Op[]

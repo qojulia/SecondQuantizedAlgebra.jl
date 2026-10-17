@@ -59,6 +59,8 @@ end
         "{$(name)}$(suffix)$(transition_idx_script[]){{$(Int(x.l1))$(Int(x.l2))}}"
     elseif k === OP_PAULI || k === OP_SPIN
         "{$(name)}$(suffix)_{{$(xyz_sym[x.l1])}}"
+    elseif k === OP_CUSTOM
+        "{$(name)}$(suffix)$(kind_data(x).latex[x.l1])"
     else
         "\\hat{$(name)}$(suffix)"
     end

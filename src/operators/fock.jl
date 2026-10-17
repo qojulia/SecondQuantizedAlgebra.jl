@@ -22,7 +22,7 @@ julia> a * a'
 
 See also [`Create`](@ref), [`FockSpace`](@ref), [`@qnumbers`](@ref).
 """
-Destroy(name::Symbol, si::Int) = Op(OP_DESTROY, name_id(name), si, NO_INDEX, 0, 0, 0, 0)
+Destroy(name::Symbol, si::Int) = Op(OP_DESTROY, 0x0000, name_id(name), si, NO_INDEX, 0, 0, 0, 0)
 
 """
     Create(h::FockSpace, name::Symbol)
@@ -46,7 +46,7 @@ true
 
 See also [`Destroy`](@ref), [`FockSpace`](@ref).
 """
-Create(name::Symbol, si::Int) = Op(OP_CREATE, name_id(name), si, NO_INDEX, 0, 0, 0, 0)
+Create(name::Symbol, si::Int) = Op(OP_CREATE, 0x0000, name_id(name), si, NO_INDEX, 0, 0, 0, 0)
 
 Destroy(h::FockSpace, name::Symbol) = Destroy(name, 1)
 Create(h::FockSpace, name::Symbol) = Create(name, 1)
