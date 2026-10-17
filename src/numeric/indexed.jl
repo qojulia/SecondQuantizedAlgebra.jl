@@ -53,12 +53,8 @@ function to_numeric_indexed(
     isempty(q.indices) &&
         return to_numeric(q, basis; operators = d, adjoint_ops = false, parameter = scalar_subs)
     validate_sites(be, basis, sites)
-    ctx = NumericContext(be, basis, d, scalar_subs, Dict{Int, Vector{Int}}(sites))
-    sub_re, sub_im, has_imag = split_scalar_subs(scalar_subs)
-    terms = OpTerm[]
-    for (term, c) in q.arguments
-        accumulate_indexed_term!(terms, term, c, q.indices, ctx, sub_re, sub_im, has_imag)
-    end
+    ctx = NumericContext(be, basis, d, Dict{Int, Vector{Int}}(sites))
+    terms = OpTerm[(to_complex(c), ops) for (c, ops) in unrolled_terms(q, ctx.sites, split_scalar_subs(scalar_subs))]
     return static_operator(terms, ctx, EagerOperator())
 end
 
@@ -84,40 +80,49 @@ function validate_sites(be::NumericBackend, basis, sites)
     return sites
 end
 
-function push_indexed_combo!(terms::Vector{OpTerm}, ops::Vector{Op}, c::CNum)
-    push!(terms, (to_complex(c), ops))
-    return terms
-end
-
-function accumulate_indexed_term!(
-        terms::Vector{OpTerm}, term::QTerm, c::CNum, indices::Vector{Index},
-        ctx::NumericContext, sub_re::ScalarRules, sub_im::ScalarRules, has_imag::Bool,
-    )
-    dep_indices = bound_indices(term, c, indices)
-    if isempty(dep_indices)
-        c_resolved = apply_scalar_subs(c, sub_re, sub_im, has_imag)
-        return push_indexed_combo!(terms, term.ops, c_resolved)
+function for_each_assignment(f::F, dep::Vector{Index}, ne::Vector{NonEqualPair}, sites::Dict{Int, Vector{Int}}) where {F}
+    if isempty(dep)
+        f(Dict{Index, Index}(), Dict{Index, Index}())
+        return nothing
     end
-    lens = Int[length(ctx.sites[Int(idx.space_index)]) for idx in dep_indices]
-    total = prod(lens)
+    lens = Int[length(get(sites, Int(idx.space_index), Int[])) for idx in dep]
+    any(iszero, lens) && throw(
+        ArgumentError("no sites supplied for the space of a bound summation index"),
+    )
     sub_op = Dict{Index, Index}()
     sub_coef = Dict{Index, Index}()
-    for combo in 1:total
+    for combo in 1:prod(lens)
         empty!(sub_op)
         empty!(sub_coef)
         rem = combo - 1
-        for k in 1:length(dep_indices)
+        for k in eachindex(dep)
             kpos = (rem % lens[k]) + 1
             rem ÷= lens[k]
-            idx = dep_indices[k]
+            idx = dep[k]
             sub_op[idx] = Index(idx.name_id, idx.range_id, idx.space_index, Int32(kpos))
             sub_coef[idx] = Index(Int32(0), idx.range_id, idx.space_index, Int32(kpos))
         end
-        violates_ne(term.ne, sub_op) && continue
-        new_ops = Op[change_index(op, sub_op) for op in term.ops]
-        new_c = change_index(c, sub_coef)
-        new_c = apply_scalar_subs(new_c, sub_re, sub_im, has_imag)
-        push_indexed_combo!(terms, new_ops, new_c)
+        violates_ne(ne, sub_op) && continue
+        f(sub_op, sub_coef)
+    end
+    return nothing
+end
+
+function foreach_unrolled(f::F, X::Union{QAdd, SuperOperator}, sites::Dict{Int, Vector{Int}}, s::SplitScalarRules) where {F}
+    for (t, c) in X.arguments
+        for_each_assignment(bound_indices(t, c, X.indices), t.ne, sites) do sub_op, sub_coef
+            f(t, apply_scalar_subs(change_index(c, sub_coef), s), sub_op)
+        end
+    end
+    return nothing
+end
+
+relabel(ops::Vector{Op}, sub::Dict{Index, Index}) = Op[change_index(o, sub) for o in ops]
+
+function unrolled_terms(q::QAdd, sites::Dict{Int, Vector{Int}}, s::SplitScalarRules)
+    terms = CoeffTerm[]
+    foreach_unrolled(q, sites, s) do t, c, sub_op
+        push!(terms, (c, relabel(t.ops, sub_op)))
     end
     return terms
 end

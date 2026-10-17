@@ -202,11 +202,12 @@ function SQA.numeric_assemble(be::QuantumToolboxBackend, basis, terms)
 end
 
 function SQA.to_numeric_td(terms::Vector{SQA.CoeffTerm}, ctx::SQA.NumericContext{QuantumToolboxBackend}, time_parameter)
-    factor_lists = [SQA.term_factors(ops, ctx) for (_, ops) in terms]
-    isempty(factor_lists) && push!(factor_lists, SQA.term_factors(Op[], ctx))
+    leaves = SQA.leaf_cache(ctx)
+    factor_lists = [SQA.term_factors(ops, ctx, leaves) for (_, ops) in terms]
+    isempty(factor_lists) && push!(factor_lists, SQA.term_factors(Op[], ctx, leaves))
     be, basis = ctx.backend, ctx.basis
     ops = [SO.MatrixOperator(fuse(be, basis, factors).data) for factors in factor_lists]
-    coeffs = SQA.compile_td_coeffs(terms, time_parameter)
+    coeffs = SQA.compile_td_coeffs((c for (c, _) in terms), time_parameter)
     refid = SQA.numeric_identity(be, basis)
     return QTB.QobjEvo(VecSum(coeffs, zeros(ComplexF64, length(ops)), ops), QTB.Operator(), refid.dimensions)
 end
@@ -230,7 +231,7 @@ qtb_eager(op::QTB.QuantumObjectEvolution) =
 qtb_eager(op::QTB.QuantumObject) = op
 
 SQA.to_numeric_lazy(op::Op, ctx::SQA.NumericContext{QuantumToolboxBackend}) =
-    SQA.to_numeric_static(SQA.single_qadd(SQA.CNUM_ONE, Op[op]), ctx)
+    SQA.to_numeric_lazy(SQA.single_qadd(SQA.CNUM_ONE, Op[op]), ctx)
 
 function expect_ket(L::VecSum, data::AbstractVector)
     work = similar(data, ComplexF64)
@@ -396,19 +397,14 @@ function SQA.to_numeric_td(S::SQA.SuperOperator, ctx::SQA.NumericContext{Quantum
         n = size(SQA.numeric_identity(ctx.backend, ctx.basis), 1)
         push!(ops, SO.MatrixOperator(spzeros(ComplexF64, n^2, n^2)))
     end
-    coeffs = SQA.compile_td_coeffs(S, time_parameter)
+    coeffs = SQA.compile_td_coeffs(values(S.arguments), time_parameter)
     vecsum = VecSum(coeffs, zeros(ComplexF64, length(ops)), ops)
     return QTB.QobjEvo(vecsum, QTB.SuperOperator(), super_dimensions(ctx.backend, ctx.basis))
 end
 
 SQA.numeric_matrix(::QuantumToolboxBackend, op::QTB.QuantumObject) = op.data
 
-function SQA.numeric_scaled_td(::QuantumToolboxBackend, op::QTB.QuantumObject, f)
-    g = SQA.tp_reads_p(f) ? f : let f = f
-            (p, t) -> f(t)
-    end
-    return QTB.QobjEvo(op, g)
-end
+SQA.numeric_scaled_td(::QuantumToolboxBackend, op::QTB.QuantumObject, f) = QTB.QobjEvo(op, SQA.lift_pt(f))
 
 const QTBMap = Union{SQA.SuperOperator, SQA.SuperExpr, SQA.Lindbladian}
 
