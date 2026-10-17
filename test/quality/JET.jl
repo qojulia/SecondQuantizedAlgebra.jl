@@ -3,11 +3,11 @@ using Test
 using JET
 using QuantumOpticsBase: FockBasis, ManyBodyBasis, NLevelBasis, SpinBasis, LazyKet, basisstate, bosonstates, coherentstate, dense, destroy, fockstate, nlevelstate, tensor
 using LinearAlgebra: det, dot, norm
-using Symbolics: Equation
+using Symbolics: Equation, Num
 using Latexify: latexify
 using QuantumToolbox: QuantumToolbox
 import SciMLOperators as SO
-using SecondQuantizedAlgebra: Coeff, SuperOperator, SuperExpr, sprepost, spre, spost, liouvillian, to_numeric_master, constraint_pairs, expect, exponential_form, expim, get_sum_body, get_sum_indices, get_sum_non_equal, indexed_sum, order_key, phase_terms, qadd_order_key, rename, set_acts_on, term_order_key, to_cnum, to_num, transition_superscript, trigonometric_form
+using SecondQuantizedAlgebra: Coeff, coefficient_terms, SuperOperator, SuperExpr, sprepost, spre, spost, liouvillian, to_numeric_master, constraint_pairs, expect, exponential_form, expim, get_sum_body, get_sum_indices, get_sum_non_equal, indexed_sum, order_key, phase_terms, qadd_order_key, rename, set_acts_on, term_order_key, to_cnum, to_num, transition_superscript, trigonometric_form
 
 const TARGETS = (
     SecondQuantizedAlgebra,
@@ -265,6 +265,10 @@ end
                     ("Coeff linear algebra", () -> (det(C), norm(Coeff[to_cnum(3), to_cnum(4)]), norm(expim(θ)), dot(c, c))),
                     ("simplify(Coeff)", () -> simplify(c + c)),
                     ("phase forms of operators", () -> (exponential_form(a), trigonometric_form(a))),
+                    ("recognized sum and product", () -> (to_cnum(g * Δ + Δ^2 + 2), to_cnum(3 * g * Δ * sqrt(2) * (g + Δ)))),
+                    ("to_num with merged radicals", () -> to_num(to_cnum(sqrt(Num(3)) * sqrt(Num(5)) * g))),
+                    ("coefficient_terms", () -> coefficient_terms(g^2 + 2g + 3)),
+                    ("simplify trigonometric identity", () -> simplify((cos(θ)^2 + sin(θ)^2) * a)),
                 ],
             )
         end
@@ -407,6 +411,7 @@ end
                     ("get_indices / get_operators(cos)", () -> (get_indices(Fi), get_operators(F))),
                     ("change_index(cos, Dict)", () -> change_index(Fi, Dict(im_ => km))),
                     ("transform(expim, timed Rotation)", () -> transform(P, Ubt)),
+                    ("scalar * (cos * polynomial)", () -> 2 * (F * bt)),
                 ],
             )
         end
@@ -512,6 +517,7 @@ end
             Lfor = hamiltonian_action(cos(xx))
             Xsup = SuperExpr(Lfor)
             Dsup = Displace(a, α)
+            Lmix = κ * dissipator(cos(xx)) + dissipator(xx)
             test_entries(
                 [
                     ("sprepost / spre / spost", () -> (sprepost(a, ad), spre(a), spost(a))),
@@ -528,6 +534,9 @@ end
                     ("simplify maps", () -> (simplify(Lsup), simplify(Asup))),
                     ("transform maps", () -> (transform(Lsup, Dsup), transform(Lsup, Ut), transform(Asup, Dsup))),
                     ("SuperExpr", () -> (SuperExpr(Lfor), Xsup + Xsup, taylor(Xsup, 0:2))),
+                    ("formal and polynomial jumps", () -> (Lmix, dissipator(cos(xx), xx + 1), SuperExpr(Lmix))),
+                    ("hamiltonian_action(cos(x) + 1)", () -> hamiltonian_action(cos(xx) + 1)),
+                    ("Lindbladian(SuperOperator)", () -> (Lindbladian(SuperOperator(Lsup)), Lindbladian(SuperOperator(Lnum)))),
                     ("to_numeric(L, basis)", () -> to_numeric(Lnum, FockBasis(4))),
                     ("to_numeric(L, dims)", () -> to_numeric(Lnum, 5)),
                     ("to_numeric_master QuantumOptics", () -> to_numeric_master(Lnum, hf, 4; backend = QuantumOpticsBackend())),
