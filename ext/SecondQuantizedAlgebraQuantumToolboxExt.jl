@@ -370,15 +370,13 @@ SQA.to_numeric(x::Number, state::QTB.QuantumObject) = SQA.to_numeric(x, SQA.nume
 SQA.numeric_average(op, state::QTB.QuantumObject, d::AbstractDict{<:SQA.QSym} = SQA.NO_SUBS) =
     SQA.numeric_average_impl(op, state, d)
 
-const SideCache = Dict{SQA.SideKey, SparseMatrixCSC{ComplexF64, Int}}
-
-sandwich_matrix(left::Vector{Op}, right::Vector{Op}, ctx::SQA.NumericContext, cache::SideCache) =
+sandwich_matrix(left::Vector{Op}, right::Vector{Op}, ctx::SQA.NumericContext, cache::Dict{SQA.SideKey}) =
     kron(transpose(SQA.side_matrix(right, ctx, cache)), SQA.side_matrix(left, ctx, cache))
 
 super_dimensions(be::QuantumToolboxBackend, basis) =
     QTB.spre(SQA.numeric_identity(be, basis)).dimensions
 
-function SQA.numeric_superoperator(be::QuantumToolboxBackend, basis, terms::Vector{Tuple{ComplexF64, M, M}}) where {M <: AbstractMatrix}
+function SQA.numeric_superoperator(be::QuantumToolboxBackend, basis, terms::Vector{<:Tuple{ComplexF64, Any, Any}})
     n = size(SQA.numeric_identity(be, basis), 1)
     rows, cols, vals = Int[], Int[], ComplexF64[]
     for (c, left, right) in terms
@@ -389,7 +387,7 @@ function SQA.numeric_superoperator(be::QuantumToolboxBackend, basis, terms::Vect
 end
 
 function SQA.to_numeric_td(S::SQA.SuperOperator, ctx::SQA.NumericContext{QuantumToolboxBackend}, time_parameter)
-    cache = SideCache()
+    cache = SQA.side_cache(ctx)
     ops = [SO.MatrixOperator(sandwich_matrix(t.left, t.right, ctx, cache)) for (t, _) in S.arguments]
     if isempty(ops)
         n = size(SQA.numeric_identity(ctx.backend, ctx.basis), 1)

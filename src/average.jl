@@ -23,7 +23,6 @@ SymbolicUtils.promote_symtype(::AvgFunc, Ts...) = Number
 
 SymbolicUtils.:<ₑ(a::Op, b::Op) = canonical_isless(a, b)
 SymbolicUtils.:<ₑ(a::QAdd, b::QAdd) = canonical_isless(a, b)
-SymbolicUtils.:<ₑ(a::QExpr, b::QExpr) = canonical_isless(a, b)
 
 function SymbolicUtils.show_call(io::IO, ::AvgFunc, x::SymbolicUtils.BasicSymbolic; kw...)
     print(io, "⟨")

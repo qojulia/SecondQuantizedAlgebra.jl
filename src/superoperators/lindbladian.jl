@@ -62,9 +62,7 @@ See also [`Channel`](@ref), [`jump`](@ref).
 """
 hamiltonian(L::Lindbladian) = L.hamiltonian
 function channels(L::Lindbladian)
-    entries = collect(L.channels)
-    order = sortperm([channel_order_key(ch) for (ch, _) in entries])
-    return entries[order]
+    return sort!(collect(L.channels); by = first, lt = canonical_isless)
 end
 
 """

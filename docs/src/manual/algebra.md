@@ -100,11 +100,6 @@ QAdd
 
 Expressions also have a total order, used to sort reproducibly and to pick one of two expressions as the canonical one, such as an operator or its adjoint. It is a named comparison rather than `<`, since it says nothing about the operators as physical quantities.
 
-```@example canonical
-using SecondQuantizedAlgebra: canonical_isless
-canonical_isless(σ(1, 2), σ(2, 1)), sort([σ(2, 1), σ(1, 2)]; lt = canonical_isless)
-```
-
 ```@docs
 canonical_isless
 ```

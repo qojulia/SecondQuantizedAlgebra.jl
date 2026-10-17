@@ -69,11 +69,26 @@ import SecondQuantizedAlgebra: canonical_isless, QAdd, SuperOperator, spre, spos
         @test trichotomous(entries[1], entries[2])
     end
 
-    @testset "the comparison is a Bool for every input" begin
+    @testset "indices take part in the order" begin
+        hi = NLevelSpace(:sites, 2)
+        @variables N M
+        i = Index(hi, :i, N, hi)
+        iM = Index(hi, :i, M, hi)
+        σ(k) = IndexedOperator(Transition(hi, :σ, 2, 1), k)
+        @test trichotomous(σ(i), σ(iM))
+        @test trichotomous(Σ(σ(i), i), σ(i) * 1)
+        @test trichotomous(Σ(σ(i), i), Σ(σ(iM), iM))
+        @test trichotomous(SuperOperator(Σ(spre(σ(i)), i)), SuperOperator(spre(σ(i))))
+        sums = [Σ(σ(i), i), σ(i) * 1, σ(iM) * 1, 2 * σ(i)]
+        @test sort(sums; lt = canonical_isless) == sort(reverse(sums); lt = canonical_isless)
+    end
+
+    @testset "operators and sums compare with each other" begin
         a = Destroy(h, :a)
-        @inferred canonical_isless(a, a')
-        @inferred canonical_isless(a * 1, a' * a)
-        @test all(==(Bool), Base.return_types(canonical_isless, (Union{Op, QAdd}, Union{Op, QAdd})))
+        mixed = Union{Op, QAdd}[a' * a, a, a * 1, a']
+        @test sort(mixed; lt = canonical_isless) == sort(reverse(mixed); lt = canonical_isless)
+        @test canonical_isless(a, a * 1) && !canonical_isless(a * 1, a)
+        @test @inferred(canonical_isless(mixed[1], mixed[2])) isa Bool
     end
 
     @testset "it is not Base.isless" begin

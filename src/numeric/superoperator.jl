@@ -1,11 +1,11 @@
 const SandwichTerm = Tuple{ComplexF64, Vector{Op}, Vector{Op}}
 
 """
-    numeric_superoperator(be, basis, terms::Vector{Tuple{ComplexF64, M, M}})
+    numeric_superoperator(be, basis, terms::Vector{<:Tuple{ComplexF64, Any, Any}})
 
 Build the backend's eager superoperator `Σ c * sprepost(L, R)` on `basis` from the terms
-`(c, L, R)`. Both sides are already matrices of type `M`, as returned by
-[`numeric_matrix`](@ref), so the backend only combines and wraps them.
+`(c, L, R)`. Both sides are already matrices, as returned by [`numeric_matrix`](@ref), so
+the backend only combines and wraps them.
 """
 function numeric_superoperator end
 

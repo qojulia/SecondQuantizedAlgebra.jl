@@ -90,7 +90,7 @@ Every operator is the single concrete struct `Op`, and its role (annihilation, t
 
 **GKSL extraction is exact by default.** Float maps carry roundoff that grows as the basis approaches linear dependence, so no fixed tolerance both keeps small genuine terms and accepts every valid float map; `rtol` is an opt-in, measured in map units so that rescaling the basis cannot hide a term. Trace preservation is checked first, so a trace defect is reported as one.
 
-**Channel order is reproducible.** `channels(L)` sorts by `channel_order_key`, since `Dict` order depends on hashing and printing and positional access must not.
+**Channel order is reproducible.** `channels(L)` sorts by `canonical_isless`, since `Dict` order depends on hashing and printing and positional access must not.
 
 **The return type never depends on values.** A side with a formal function makes a `SuperExpr`, and a `SuperExpr` whose formal part is empty stays one until `SuperOperator(X)` is called.
 
