@@ -241,4 +241,25 @@ import SecondQuantizedAlgebra: expim
         nonunique = DisplacementFrame(x, p, (ω / 2) * x^2)
         @test iszero(simplify(conjugate(x + p, nonunique) - (x + p)))
     end
+
+    @testset "multi-mode Fock displacement frame" begin
+        modes = FockSpace(:left) ⊗ FockSpace(:right)
+        c = Destroy(modes, :c, 1)
+        d = Destroy(modes, :d, 2)
+        coupled = ω * (c' * c + d' * d) + g * (c' * d + d' * c) + η * (c + c')
+        U = DisplacementFrame((c, d), coupled)
+        for op in (c, d)
+            @test iszero(simplify(commutator(conjugate(coupled, U), op) - commutator(coupled - η * (c + c'), op)))
+        end
+
+        driven = ω * c' * c + Ω * d' * d + η * cos(ωd * t) * (c + c') + g * cos(ωd * t) * (d + d')
+        V = DisplacementFrame([c, d], driven, t)
+        free = ω * c' * c + Ω * d' * d
+        for op in (c, d)
+            @test iszero(simplify(commutator(transform(driven, V), op) - commutator(free, op)))
+        end
+
+        @test_throws ArgumentError DisplacementFrame((c, c'), coupled)
+        @test_throws ArgumentError DisplacementFrame(c, coupled)
+    end
 end

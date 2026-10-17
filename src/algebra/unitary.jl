@@ -83,6 +83,24 @@ function fock_or_throw(o::Op, what::AbstractString)
     return lowering(o)
 end
 
+const FockModes = Union{Op, Tuple{Vararg{Op}}, AbstractVector{Op}}
+
+fock_modes(mode::Op, what::AbstractString) = fock_modes(Op[mode], what)
+function fock_modes(modes::Union{Tuple{Vararg{Op}}, AbstractVector{Op}}, what::AbstractString)
+    isempty(modes) && unitary_error("$what needs at least one Fock mode")
+    lowering_modes = Op[]
+    sizehint!(lowering_modes, length(modes))
+    seen = Set{SiteKey}()
+    for mode in modes
+        lowering_mode = fock_or_throw(mode, what)
+        key = site_key(lowering_mode)
+        key in seen && unitary_error("$what received the same Fock mode more than once: `$lowering_mode`")
+        push!(seen, key)
+        push!(lowering_modes, lowering_mode)
+    end
+    return lowering_modes
+end
+
 function site_generators(o::Op)
     if is_fock(o)
         d = lowering(o)

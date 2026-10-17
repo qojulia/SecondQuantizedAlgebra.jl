@@ -1,148 +1,170 @@
-struct FockLinearReference
-    frequency::CNum
-    drive::CNum
-    drive_adjoint::CNum
-    normalized_drive::CNum
+struct LinearDrift
+    basis::Vector{Op}
+    primary::Int
+    rate::Matrix{CNum}
+    drive::Vector{CNum}
+    scale::CNum
 end
 
-function linear_fock_hamiltonian(H::QAdd, d::Op)
+function fock_frame_basis(modes::FockModes)
+    lowering_modes = fock_modes(modes, "`DisplacementFrame`")
+    return vcat(lowering_modes, adjoint.(lowering_modes)), length(lowering_modes)
+end
+
+function hamiltonian_drift(basis::Vector{Op}, primary::Int, H::QAdd, scale::CNum)
     isempty(H.indices) || unitary_error(
         "`DisplacementFrame` does not support summed reference Hamiltonians",
     )
-    frequency = CNUM_ZERO
-    drive = CNUM_ZERO
-    drive_adjoint = CNUM_ZERO
-    scalar = CNUM_ZERO
-    raising = adjoint(d)
-    for (term, coefficient) in H
+    displaced = Set(basis)
+    for (term, _) in H
         isempty(term.ne) || unitary_error(
             "`DisplacementFrame` does not support constrained reference terms",
         )
-        if isempty(term.ops)
-            scalar = scalar + coefficient
-        elseif term.ops == Op[raising, d]
-            frequency = frequency + coefficient
-        elseif term.ops == Op[raising]
-            drive = drive + coefficient
-        elseif term.ops == Op[d]
-            drive_adjoint = drive_adjoint + coefficient
-        else
-            unsupported = single_qadd(coefficient, copy(term.ops))
-            unitary_error(
-                "`DisplacementFrame` expects only scalar, `$raising * $d`, `$raising`, " *
-                    "and `$d` terms; got `$(sprint(show, unsupported))`",
+        for operator in term.ops
+            operator in displaced || unitary_error(
+                "`DisplacementFrame` reference acts on `$operator` outside the displaced modes",
             )
         end
     end
-
-    coefficient_is_real(frequency) || unitary_error(
-        "`DisplacementFrame` requires a real oscillator frequency; " *
-            "got `$(to_num(frequency))`",
+    adjoint_H = adjoint(H)
+    (isequal(H, adjoint_H) || isequal(exponential_form(H), exponential_form(adjoint_H))) || unitary_error(
+        "`DisplacementFrame` requires a Hermitian reference Hamiltonian",
     )
-    coefficient_is_real(scalar) || unitary_error(
-        "`DisplacementFrame` requires a Hermitian scalar reference term",
-    )
-    normalized_drive = exponential_form(drive)
-    normalized_adjoint = exponential_form(drive_adjoint)
-    isequal(normalized_adjoint, conj(normalized_drive)) || unitary_error(
-        "`DisplacementFrame` requires adjoint coefficients for `$raising` and `$d`",
-    )
-    return FockLinearReference(frequency, drive, drive_adjoint, normalized_drive)
+    rate, drive = affine_commutator_data(H, basis)
+    isone(scale) && return LinearDrift(basis, primary, rate, drive, scale)
+    return LinearDrift(basis, primary, scale .* rate, scale .* drive, scale)
 end
 
-function validate_fock_frame_time(data::FockLinearReference, t::Num)
-    variable = SymbolicUtils.unwrap(t)
-    coefficient_depends_on(data.frequency, variable) && unitary_error(
-        "`DisplacementFrame` requires a time-independent oscillator frequency; " *
-            "got `$(to_num(data.frequency))`",
-    )
-    return data
-end
-
-function harmonic_frequency(monomial::Monomial, t::Num)
-    phase_index = 0
-    variable = SymbolicUtils.unwrap(t)
-    @inbounds for i in eachindex(monomial.syms)
-        factor = monomial.syms[i]
-        if is_phase(factor)
-            phase_index == 0 || unitary_error(
-                "`DisplacementFrame` found more than one phase in one drive component",
-            )
-            phase_index = i
-        elseif raw_depends_on(factor, variable)
-            unitary_error(
-                "`DisplacementFrame` supports finite harmonic drives, not the " *
-                    "time-dependent envelope `$(Num(factor))`",
-            )
-        end
+function frequency_slot(components::Vector{Tuple{CNum, Vector{CNum}}}, frequency::CNum, n::Int)
+    for (k, (other, _)) in enumerate(components)
+        isequal(other, frequency) && return k
     end
-    phase_index == 0 && return CNUM_ZERO
-
-    exponent = monomial.exps[phase_index]
-    denominator(exponent) == 1 || unitary_error(
-        "`DisplacementFrame` requires integer phase powers; got exponent `$exponent`",
-    )
-    phase_factor = monomial.syms[phase_index]
-    argument = Num(only(SymbolicUtils.arguments(phase_factor))) * numerator(exponent)
-    frequency = Symbolics.derivative(argument, t)
-    raw_depends_on(SymbolicUtils.unwrap(frequency), variable) && unitary_error(
-        "`DisplacementFrame` requires a phase linear in `$t`; " *
-            "got `$(Num(only(SymbolicUtils.arguments(phase_factor))))`",
-    )
-    return to_cnum(frequency)
+    push!(components, (frequency, fill(CNUM_ZERO, n)))
+    return length(components)
 end
 
-function harmonic_components(drive::CNum, t::Num)
-    tail = drive.tail
-    tail isa Native && return Tuple{CNum, CNum}[(drive, CNUM_ZERO)]
-    tail isa Poly || unitary_error(
-        "`DisplacementFrame` supports only finite harmonic drive coefficients; " *
-            "got `$(to_num(drive))`",
-    )
-    return Tuple{CNum, CNum}[(from_poly([monomial]), harmonic_frequency(monomial, t)) for monomial in tail.terms]
-end
-
-function constant_drive_response(drive::CNum, frequency::CNum)
-    iszero(drive) && return CNUM_ZERO
-    iszero(frequency) && unitary_error(
-        "`DisplacementFrame` found a resonant constant drive with zero frequency",
-    )
-    return -drive / frequency
-end
-
-function bounded_harmonic_displacement(drive::CNum, frequency::CNum, t::Num)
-    (iszero(drive) || drive.tail isa Native) && return constant_drive_response(drive, frequency)
-    amplitude = CNUM_ZERO
-    for (component, harmonic) in harmonic_components(drive, t)
-        divisor = frequency + harmonic
-        iszero(divisor) && unitary_error(
-            "`DisplacementFrame` found a resonant drive component `$(to_num(component))`",
+function harmonic_drives(drive::Vector{CNum}, t::Num)
+    variable = SymbolicUtils.unwrap(t)
+    components = Tuple{CNum, Vector{CNum}}[]
+    for (row, entry) in enumerate(drive), term in phase_terms(entry)
+        coefficient_depends_on(term.amplitude, variable) && unitary_error(
+            "`DisplacementFrame` supports finite harmonic drives, not the " *
+                "time-dependent envelope `$(to_num(term.amplitude))`",
         )
-        amplitude = amplitude + (-component) / divisor
+        frequency = expand(Symbolics.derivative(term.phase, t))
+        raw_depends_on(SymbolicUtils.unwrap(frequency), variable) && unitary_error(
+            "`DisplacementFrame` requires a phase linear in `$t`; got `$(term.phase)`",
+        )
+        component = iszero(term.phase) ? term.amplitude : term.amplitude * phase_coeff(term.phase)
+        k = frequency_slot(components, to_cnum(frequency), length(drive))
+        rhs = last(components[k])
+        rhs[row] = rhs[row] + component
     end
-    return amplitude
+    return components
+end
+
+function cramer_column(matrix::Matrix{CNum}, column::Int, rhs::Vector{CNum})
+    replaced = copy(matrix)
+    replaced[:, column] = rhs
+    return LinearAlgebra.det(replaced)
+end
+
+resonance_check(denominator::CNum, frequency::CNum) = iszero(denominator) && unitary_error(
+    "`DisplacementFrame` found a resonant drive at frequency `$(to_num(frequency))`",
+)
+
+function steady_shift(drift::LinearDrift, components::Vector{Tuple{CNum, Vector{CNum}}})
+    n = length(drift.basis)
+    m = drift.primary
+    shift = fill(CNUM_ZERO, n)
+    for block in connected_components(drift.rate)
+        first(block) <= m || continue
+        for (frequency, drive) in components
+            all(row -> iszero(drive[row]), block) && continue
+            if length(block) == 1
+                row = only(block)
+                denominator = drift.scale * frequency - drift.rate[row, row]
+                resonance_check(denominator, frequency)
+                shift[row] = shift[row] + drive[row] / denominator
+                continue
+            end
+            rhs = drive[block]
+            response = CNum[
+                (i == j ? drift.scale * frequency : CNUM_ZERO) - drift.rate[i, j]
+                    for i in block, j in block
+            ]
+            denominator = LinearAlgebra.det(response)
+            resonance_check(denominator, frequency)
+            for (k, row) in enumerate(block)
+                row <= m || continue
+                shift[row] = shift[row] + cramer_column(response, k, rhs) / denominator
+            end
+        end
+    end
+    for row in (m + 1):n
+        shift[row] = conj(shift[row - m])
+    end
+    return shift
+end
+
+function drift_velocity(drift::LinearDrift, shift::Vector{CNum}, drive::Vector{CNum})
+    factor = CNUM_IM / drift.scale
+    velocity = similar(drive)
+    for row in eachindex(drive)
+        total = drive[row]
+        for column in eachindex(shift)
+            entry = drift.rate[row, column]
+            iszero(entry) || (total = entry * shift[column] + total)
+        end
+        velocity[row] = factor * total
+    end
+    return velocity
+end
+
+displacement_frame(drift::LinearDrift) =
+    shift_transform(drift.basis, steady_shift(drift, [(CNUM_ZERO, drift.drive)]))
+
+function displacement_frame(drift::LinearDrift, t::Num)
+    tt = time_or_throw(t)
+    variable = SymbolicUtils.unwrap(tt)
+    for entry in drift.rate
+        coefficient_depends_on(entry, variable) && unitary_error(
+            "`DisplacementFrame` requires a time-independent linear response; " *
+                "got `$(to_num(entry))`",
+        )
+    end
+    normalized = map(exponential_form, drift.drive)
+    shift = steady_shift(drift, harmonic_drives(normalized, tt))
+    gauge = displacement_gauge(
+        drift.basis, shift,
+        drift_velocity(drift, shift, drift.drive), drift_velocity(drift, shift, normalized),
+    )
+    return timed_transform(shift_transform(drift.basis, shift), gauge, tt)
 end
 
 """
     DisplacementFrame(a, H)
+    DisplacementFrame(modes, H)
     DisplacementFrame(x, p, H)
     DisplacementFrame(a, H, t)
+    DisplacementFrame(modes, H, t)
     DisplacementFrame(x, p, H, t)
-    DisplacementFrame(a, L)
-    DisplacementFrame(a, L, t)
+    DisplacementFrame(modes, L)
+    DisplacementFrame(modes, L, t)
 
-Displacement to the classical steady state of a driven mode.
+Displacement to the classical steady state of driven modes.
 
-`H` is a Hamiltonian of one mode that is at most linear in the drive, such as
-``\\Delta a^\\dagger a + \\eta a^\\dagger + \\eta^* a``. The transformation displaces the
-mode by its steady-state amplitude, here ``-\\eta/\\Delta``, which removes the drive. The
-quadrature form accepts any Hermitian quadratic `H`. With a time variable `t` the drive may
-be a finite sum of phases [`expim`](@ref)`(ω t)`, and the frame follows the steady driven
-response, without the transient free oscillation. A drive on resonance throws an
-`ArgumentError`, and symbolic denominators are kept as written.
+`H` is a Hermitian Hamiltonian of the displaced modes that is at most quadratic, such as
+``\\Delta a^\\dagger a + \\eta a^\\dagger + \\eta^* a``. The transformation displaces each
+mode by its steady-state amplitude, here ``-\\eta/\\Delta``, which removes the drive.
+`modes` is a mode or a collection of distinct modes, and the quadrature form takes one
+`(Position, Momentum)` pair. With a time variable `t` the drive may be a finite sum of
+phases [`expim`](@ref)`(ω t)`, and the frame follows the steady driven response, without the
+transient free oscillation. A drive on resonance throws an `ArgumentError`, and symbolic
+denominators are kept as written.
 
-With a damped linear [`Lindbladian`](@ref) `L` in place of `H`, the amplitude is the fixed
-point of the drift `transpose(L)(a) = λ a + c`, so loss and heating enter it as well.
+With a damped linear [`Lindbladian`](@ref) `L` in place of `H`, the amplitudes are the fixed
+point of the drift `transpose(L)(a) = λ a + c`, so loss and heating enter them as well.
 
 # Examples
 ```jldoctest
@@ -158,199 +180,14 @@ julia> conjugate(H, DisplacementFrame(a, H))
 
 See also [`Displace`](@ref), [`transform`](@ref).
 """
-function DisplacementFrame(a::Op, Hlin::QAdd)
-    d = fock_or_throw(a, "`DisplacementFrame`")
-    data = linear_fock_hamiltonian(Hlin, d)
-    return fock_displacement(d, constant_drive_response(data.drive, data.frequency))
-end
+DisplacementFrame(modes::FockModes, H::QAdd) =
+    displacement_frame(hamiltonian_drift(fock_frame_basis(modes)..., H, CNUM_ONE))
+DisplacementFrame(modes::FockModes, H::QAdd, t::Num) =
+    displacement_frame(hamiltonian_drift(fock_frame_basis(modes)..., H, CNUM_ONE), t)
 
-function DisplacementFrame(a::Op, Hlin::QAdd, t::Num)
-    d = fock_or_throw(a, "`DisplacementFrame`")
-    tt = time_or_throw(t)
-    data = linear_fock_hamiltonian(Hlin, d)
-    validate_fock_frame_time(data, tt)
-    amplitude = bounded_harmonic_displacement(data.normalized_drive, data.frequency, tt)
+quadrature_frame_basis(x::Op, p::Op) = (phase_pair(x, p, "`DisplacementFrame`"); Op[x, p])
 
-    conjugate_amplitude = conj(amplitude)
-    derivative = CNUM_NEG_IM * (data.frequency * amplitude + data.normalized_drive)
-    derivative_adjoint = CNUM_IM * (data.frequency * conjugate_amplitude + conj(data.normalized_drive))
-    gauge = fock_displacement_gauge(
-        d, amplitude, derivative, derivative_adjoint,
-        -(data.drive + data.frequency * amplitude),
-        -(data.drive_adjoint + data.frequency * conjugate_amplitude),
-    )
-    return timed_transform(fock_displacement(d, amplitude), gauge, tt)
-end
-
-struct QuadratureLinearReference
-    quadratic_x::CNum
-    quadratic_cross::CNum
-    quadratic_p::CNum
-    drive_x::CNum
-    drive_p::CNum
-    normalized_drive_x::CNum
-    normalized_drive_p::CNum
-end
-
-@noinline function quadrature_reference_error(coefficient::CNum, name::AbstractString)
-    unitary_error(
-        "`DisplacementFrame` requires a real $name coefficient; " *
-            "got `$(to_num(coefficient))`",
-    )
-end
-
-function linear_quadrature_hamiltonian(H::QAdd, x::Op, p::Op)
-    isempty(H.indices) || unitary_error(
-        "`DisplacementFrame` does not support summed reference Hamiltonians",
-    )
-    half_quadratic_x = CNUM_ZERO
-    quadratic_cross = CNUM_ZERO
-    half_quadratic_p = CNUM_ZERO
-    drive_x = CNUM_ZERO
-    drive_p = CNUM_ZERO
-    for (term, coefficient) in H
-        isempty(term.ne) || unitary_error(
-            "`DisplacementFrame` does not support constrained reference terms",
-        )
-        if isempty(term.ops)
-            continue
-        elseif term.ops == Op[x, x]
-            half_quadratic_x = half_quadratic_x + coefficient
-        elseif term.ops == Op[x, p]
-            quadratic_cross = quadratic_cross + coefficient
-        elseif term.ops == Op[p, p]
-            half_quadratic_p = half_quadratic_p + coefficient
-        elseif term.ops == Op[x]
-            drive_x = drive_x + coefficient
-        elseif term.ops == Op[p]
-            drive_p = drive_p + coefficient
-        else
-            unsupported = single_qadd(coefficient, copy(term.ops))
-            unitary_error(
-                "`DisplacementFrame` expects only scalar, `$x * $x`, `$x * $p`, " *
-                    "`$p * $p`, `$x`, and `$p` terms; got " *
-                    "`$(sprint(show, unsupported))`",
-            )
-        end
-    end
-
-    isequal(H, H') || unitary_error(
-        "`DisplacementFrame` requires a Hermitian quadrature reference Hamiltonian",
-    )
-    quadratic_x = half_quadratic_x + half_quadratic_x
-    quadratic_p = half_quadratic_p + half_quadratic_p
-    for (coefficient, name) in (
-            (quadratic_x, "x²"),
-            (quadratic_cross, "symmetrized x-p"),
-            (quadratic_p, "p²"),
-        )
-        coefficient_is_real(coefficient) ||
-            quadrature_reference_error(coefficient, name)
-    end
-    normalized_drive_x = exponential_form(drive_x)
-    normalized_drive_p = exponential_form(drive_p)
-    coefficient_is_real(normalized_drive_x) ||
-        quadrature_reference_error(normalized_drive_x, "x-drive")
-    coefficient_is_real(normalized_drive_p) ||
-        quadrature_reference_error(normalized_drive_p, "p-drive")
-    return QuadratureLinearReference(
-        quadratic_x, quadratic_cross, quadratic_p,
-        drive_x, drive_p, normalized_drive_x, normalized_drive_p,
-    )
-end
-
-function validate_quadrature_frame_time(data::QuadratureLinearReference, t::Num)
-    variable = SymbolicUtils.unwrap(t)
-    for (coefficient, name) in (
-            (data.quadratic_x, "x²"),
-            (data.quadratic_cross, "symmetrized x-p"),
-            (data.quadratic_p, "p²"),
-        )
-        coefficient_depends_on(coefficient, variable) && unitary_error(
-            "`DisplacementFrame` requires a time-independent $name coefficient; " *
-                "got `$(to_num(coefficient))`",
-        )
-    end
-    return data
-end
-
-@noinline function quadrature_resonance_error(
-        drive_x::CNum, drive_p::CNum, harmonic::CNum,
-    )
-    unitary_error(
-        "`DisplacementFrame` found a resonant quadrature drive component " *
-            "`($(to_num(drive_x)), $(to_num(drive_p)))` at frequency " *
-            "`$(to_num(harmonic))`",
-    )
-end
-
-function quadrature_response_component(
-        data::QuadratureLinearReference, drive_x::CNum, drive_p::CNum,
-        harmonic::CNum,
-    )
-    imaginary_harmonic = CNUM_IM * harmonic
-    upper_right = data.quadratic_cross + imaginary_harmonic
-    lower_left = data.quadratic_cross - imaginary_harmonic
-    determinant = data.quadratic_x * data.quadratic_p - upper_right * lower_left
-    iszero(determinant) &&
-        quadrature_resonance_error(drive_x, drive_p, harmonic)
-
-    displacement_x = (-(data.quadratic_p * drive_x - upper_right * drive_p)) / determinant
-    displacement_p = (lower_left * drive_x - data.quadratic_x * drive_p) / determinant
-    return (x = displacement_x, p = displacement_p)
-end
-
-function static_quadrature_displacement(data::QuadratureLinearReference)
-    (iszero(data.drive_x) && iszero(data.drive_p)) &&
-        return (x = CNUM_ZERO, p = CNUM_ZERO)
-    return quadrature_response_component(data, data.drive_x, data.drive_p, CNUM_ZERO)
-end
-
-function bounded_quadrature_drive(
-        drive::CNum, data::QuadratureLinearReference, t::Num, along_x::Bool,
-    )
-    displacement_x = CNUM_ZERO
-    displacement_p = CNUM_ZERO
-    iszero(drive) && return (x = displacement_x, p = displacement_p)
-    for (component, harmonic) in harmonic_components(drive, t)
-        response = along_x ?
-            quadrature_response_component(data, component, CNUM_ZERO, harmonic) :
-            quadrature_response_component(data, CNUM_ZERO, component, harmonic)
-        displacement_x = displacement_x + response.x
-        displacement_p = displacement_p + response.p
-    end
-    return (x = displacement_x, p = displacement_p)
-end
-
-function bounded_quadrature_displacement(data::QuadratureLinearReference, t::Num)
-    from_x = bounded_quadrature_drive(data.normalized_drive_x, data, t, true)
-    from_p = bounded_quadrature_drive(data.normalized_drive_p, data, t, false)
-    return (x = from_x.x + from_p.x, p = from_x.p + from_p.p)
-end
-
-function DisplacementFrame(x::Op, p::Op, Hlin::QAdd)
-    phase_pair(x, p, "`DisplacementFrame`")
-    data = linear_quadrature_hamiltonian(Hlin, x, p)
-    displacement = static_quadrature_displacement(data)
-    return quadrature_displacement(x, p, displacement.x, displacement.p)
-end
-
-function DisplacementFrame(x::Op, p::Op, Hlin::QAdd, t::Num)
-    phase_pair(x, p, "`DisplacementFrame`")
-    tt = time_or_throw(t)
-    data = linear_quadrature_hamiltonian(Hlin, x, p)
-    validate_quadrature_frame_time(data, tt)
-    displacement = bounded_quadrature_displacement(data, tt)
-
-    derivative_x = data.quadratic_cross * displacement.x + data.quadratic_p * displacement.p + data.normalized_drive_p
-    derivative_p = -(data.quadratic_x * displacement.x + data.quadratic_cross * displacement.p + data.normalized_drive_x)
-    transformed_x_coefficient = data.quadratic_x * displacement.x + data.quadratic_cross * displacement.p + data.drive_x
-    transformed_p_coefficient = data.quadratic_cross * displacement.x + data.quadratic_p * displacement.p + data.drive_p
-    gauge = quadrature_displacement_gauge(
-        x, p, displacement.x, displacement.p, derivative_x, derivative_p,
-        -transformed_x_coefficient,
-        -transformed_p_coefficient,
-    )
-    static = quadrature_displacement(x, p, displacement.x, displacement.p)
-    return timed_transform(static, gauge, tt)
-end
+DisplacementFrame(x::Op, p::Op, H::QAdd) =
+    displacement_frame(hamiltonian_drift(quadrature_frame_basis(x, p), 2, H, CNUM_IM))
+DisplacementFrame(x::Op, p::Op, H::QAdd, t::Num) =
+    displacement_frame(hamiltonian_drift(quadrature_frame_basis(x, p), 2, H, CNUM_IM), t)
