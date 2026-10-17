@@ -41,6 +41,23 @@ import SecondQuantizedAlgebra: SuperOperator, SuperExpr, QAdd, QExpr, sprepost, 
         @test poly(X) == spre(φ)
     end
 
+    @testset "mixed sides split into atoms" begin
+        X = sprepost(cos(φ) + φ, π_ + 2)
+        @test X isa SuperExpr
+        @test poly(X) == sprepost(φ, π_) + 2 * spre(φ)
+        @test X == sprepost(cos(φ), π_) + 2 * sprepost(cos(φ), 1) + sprepost(φ, π_) + 2 * spre(φ)
+        @test X(φ) == cos(φ) * φ * π_ + 2 * cos(φ) * φ + φ * φ * π_ + 2 * φ * φ
+    end
+
+    @testset "adjoint and scalar division" begin
+        X = sprepost(cos(φ), π_)
+        @test qadjoint(im * X) == -im * X
+        @test qadjoint(X + im * spre(φ)) == X - im * spre(φ)
+        @test X / γ == inv(γ) * X
+        @test X // 3 == (1 // 3) * X
+        @test X // γ == inv(γ) * X
+    end
+
     @testset "promotion" begin
         Lf = hamiltonian_action(cos(φ))
         Lp = dissipator(φ)

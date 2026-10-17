@@ -127,4 +127,16 @@ import SecondQuantizedAlgebra: SuperOperator, SuperExpr, sprepost, spre, spost,
         @test_throws ArgumentError inv(X)
         @test spre(x)(cos(x)) == x * cos(x)
     end
+
+    @testset "SuperExpr index passes" begin
+        P = σ(1, 2, k) * σ(2, 1, l)
+        X = sprepost(cos(P), a) + spre(σ(2, 1, k))
+        @test X isa SuperExpr
+        @test change_index(X, k, i) == sprepost(cos(σ(1, 2, i) * σ(2, 1, l)), a) + spre(σ(2, 1, i))
+        Y = assume_distinct_index(X, [(k, l)])
+        @test Y == sprepost(cos(assume_distinct_index(P, [(k, l)])), a) +
+            assume_distinct_index(spre(σ(2, 1, k)), [(k, l)])
+        @test constraint_pairs(poly(Y)) == [(k, l)]
+        @test Y != X
+    end
 end
