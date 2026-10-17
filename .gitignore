@@ -38,3 +38,11 @@ test-run.log
 docs/src/changelog.md
 .github/issue-drafts/
 coverage/
+
+# Generated JOSS paper outputs
+paper/*.pdf
+paper/*.crossref
+paper/*.jats
+paper/*.log
+paper/jats/
+output/pdf/
