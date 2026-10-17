@@ -38,7 +38,7 @@ function acts_on(q::QExpr)
     return unique!(sort!(spaces))
 end
 
-function Symbolics.get_variables(q::QExpr, varlist...; kwargs...)::Vector{SymbolicUtils.BasicSymbolic}
+function Symbolics.get_variables(q::QExpr, varlist...; kwargs...)
     vars = Symbolics.get_variables!(SymbolicUtils.BasicSymbolic[], q, varlist...; kwargs...)
     unique!(vars)
     sort!(vars; by = string)

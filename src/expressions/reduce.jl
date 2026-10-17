@@ -164,7 +164,7 @@ function trig_relations!(rels::Vector{ParamRelation}, factors)
     return rels
 end
 
-trig_family(op)::UInt8 = (op === cos || op === sin) ? UInt8(1) :
+trig_family(op) = (op === cos || op === sin) ? UInt8(1) :
     ((op === cosh || op === sinh) ? UInt8(2) : UInt8(0))
 is_trig(op) = !iszero(trig_family(op))
 

@@ -221,7 +221,7 @@ function fold_tree(leaf::F, x::RawExpression) where {F}
 end
 
 function recognize_sum(args)
-    parts = Coeff[]
+    polys = Poly[]
     znative = CNUM_ZERO
     sym = CNUM_ZERO
     have_sym = false
@@ -231,62 +231,55 @@ function recognize_sum(args)
         if t isa Native
             znative = znative + ca
         elseif t isa Poly
-            push!(parts, ca)
+            push!(polys, t)
         else
             sym = sym + ca
             have_sym = true
         end
     end
-    iszero(znative) || push!(parts, znative)
-    poly = tiered(summed_terms, parts)
+    poly = tiered(summed_terms, polys, native_scalar(znative))
     return have_sym ? poly + sym : poly
 end
 
-function summed_terms(::Type{E}, parts::Vector{Coeff}) where {E}
+function summed_terms(::Type{E}, polys::Vector{Poly}, constant) where {E}
     terms = Monomial{E}[]
-    for c in parts
-        t = c.tail
-        if t isa Native
-            push!(terms, constant_term(E, native_scalar(c)))
-        else
-            append!(terms, as_tier(E, t::Poly))
-        end
+    for p in polys
+        append!(terms, as_tier(E, p))
     end
+    iszero(constant) || push!(terms, constant_term(E, constant))
     return canonical_terms!(terms)
 end
 
 function recognize_prod(args)
-    factors = Coeff[]
+    monomials = Poly[]
+    znative = CNUM_ONE
     other = CNUM_ONE
     have_other = false
     for a in args
         ca = to_cnum(a)
         t = ca.tail
-        if t isa Native || (t isa Poly && length(t.terms) == 1)
-            push!(factors, ca)
+        if t isa Native
+            znative = znative * ca
+        elseif t isa Poly && length(t.terms) == 1
+            push!(monomials, t)
         else
             other = mul_coeff_slow(other, ca)
             have_other = true
         end
     end
-    mono = tiered(product_terms, factors)
+    mono = tiered(product_terms, monomials, native_scalar(znative))
     return have_other ? mul_coeff_slow(mono, other) : mono
 end
 
-function product_terms(::Type{E}, factors::Vector{Coeff}) where {E}
-    scalar::Union{ComplexF64, E} = one(E)
+function product_terms(::Type{E}, monomials::Vector{Poly}, constant) where {E}
+    scalar::Union{ComplexF64, E} = constant
     syms = RawExpression[]
     exps = Rational{Int}[]
-    for c in factors
-        t = c.tail
-        if t isa Native
-            scalar = scalar_mul(scalar, as_tier(E, native_scalar(c)))
-        else
-            m = only(as_tier(E, t::Poly))
-            scalar = scalar_mul(scalar, monomial_scalar(m))
-            append!(syms, m.syms)
-            append!(exps, m.exps)
-        end
+    for p in monomials
+        m = only(as_tier(E, p))
+        scalar = scalar_mul(scalar, monomial_scalar(m))
+        append!(syms, m.syms)
+        append!(exps, m.exps)
     end
     iszero(scalar) && return Monomial{E}[]
     return Monomial{E}[monomial(E, scalar, syms, exps)]

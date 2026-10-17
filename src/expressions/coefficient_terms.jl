@@ -88,14 +88,15 @@ function coefficient_terms(c::Coeff)
     has_coefficient_terms(c) || throw(
         ArgumentError("coefficient `$(to_num(c))` is not stored as a sum of terms")
     )
-    if is_native(c)
-        scalar = native_scalar(c)
-        iszero(scalar) && return CoefficientTerm[]
-        return [CoefficientTerm(public_scalar(scalar), Pair{Num, Rational{Int}}[])]
+    tail = c.tail
+    if tail isa Poly
+        return CoefficientTerm[
+            CoefficientTerm(public_scalar(monomial_scalar(m)), public_powers(m))
+                for m in tail.terms if !iszero(monomial_scalar(m))
+        ]
     end
-    return CoefficientTerm[
-        CoefficientTerm(public_scalar(monomial_scalar(m)), public_powers(m))
-            for m in (c.tail::Poly).terms if !iszero(monomial_scalar(m))
-    ]
+    scalar = native_scalar(c)
+    iszero(scalar) && return CoefficientTerm[]
+    return [CoefficientTerm(public_scalar(scalar), Pair{Num, Rational{Int}}[])]
 end
 coefficient_terms(x::Coefficient) = coefficient_terms(to_cnum(x))

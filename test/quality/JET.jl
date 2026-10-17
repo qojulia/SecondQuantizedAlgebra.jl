@@ -3,11 +3,11 @@ using Test
 using JET
 using QuantumOpticsBase: FockBasis, ManyBodyBasis, NLevelBasis, SpinBasis, LazyKet, basisstate, bosonstates, coherentstate, dense, destroy, fockstate, nlevelstate, tensor
 using LinearAlgebra: det, dot, norm
-using Symbolics: Equation
+using Symbolics: Equation, Num
 using Latexify: latexify
 using QuantumToolbox: QuantumToolbox
 import SciMLOperators as SO
-using SecondQuantizedAlgebra: Coeff, SuperOperator, SuperExpr, sprepost, spre, spost, liouvillian, to_numeric_master, constraint_pairs, expect, exponential_form, expim, get_sum_body, get_sum_indices, get_sum_non_equal, indexed_sum, order_key, phase_terms, qadd_order_key, rename, set_acts_on, term_order_key, to_cnum, to_num, transition_superscript, trigonometric_form
+using SecondQuantizedAlgebra: Coeff, coefficient_terms, QAdd, SuperBuilder, LindbladianBuilder, accumulate!, build, compose, support_basis, kossakowski, independent_basis, hamiltonian, channels, jump, partner, scope, formal_terms, poly, coefficient, map_coefficients, displacement, harmonics, secular, harmonic, n_levels, transition_levels, ground_state, operator_axis, SuperOperator, SuperExpr, sprepost, spre, spost, liouvillian, to_numeric_master, constraint_pairs, expect, exponential_form, expim, get_sum_body, get_sum_indices, get_sum_non_equal, indexed_sum, order_key, phase_terms, qadd_order_key, rename, set_acts_on, term_order_key, to_cnum, to_num, transition_superscript, trigonometric_form
 
 const TARGETS = (
     SecondQuantizedAlgebra,
@@ -170,6 +170,7 @@ end
                     ("IndexedVariable", () -> IndexedVariable(:g, i)),
                     ("DoubleIndexedVariable", () -> DoubleIndexedVariable(:J, i, j)),
                     ("operator_name / operator_index", () -> (operator_name(a), operator_index(σi(1, 2, i)))),
+                    ("operator accessors", () -> (n_levels(σ12), transition_levels(σ12), ground_state(σ12), operator_axis(px))),
                     ("index accessors", () -> (index_name(i), index_range(i), index_slot(i), index_sym(i), has_index(i))),
                     ("order keys", () -> (order_key(a), qadd_order_key(ad * a + a), term_order_key(first(keys((ad * a).arguments))))),
                     ("transition_superscript", () -> transition_superscript(true)),
@@ -265,6 +266,12 @@ end
                     ("Coeff linear algebra", () -> (det(C), norm(Coeff[to_cnum(3), to_cnum(4)]), norm(expim(θ)), dot(c, c))),
                     ("simplify(Coeff)", () -> simplify(c + c)),
                     ("phase forms of operators", () -> (exponential_form(a), trigonometric_form(a))),
+                    ("recognized sum and product", () -> (to_cnum(g * Δ + Δ^2 + 2), to_cnum(3 * g * Δ * sqrt(2) * (g + Δ)))),
+                    ("to_num with merged radicals", () -> to_num(to_cnum(sqrt(Num(3)) * sqrt(Num(5)) * g))),
+                    ("coefficient_terms", () -> coefficient_terms(g^2 + 2g + 3)),
+                    ("simplify trigonometric identity", () -> simplify((cos(θ)^2 + sin(θ)^2) * a)),
+                    ("map_coefficients", () -> map_coefficients(x -> 2x, Hp)),
+                    ("harmonics / secular / harmonic", () -> (harmonics(g * a * expim(ω * t) + Δ * ad * a, ω, t), secular(g * a * expim(ω * t), ω, t), harmonic(g * a * expim(ω * t), ω, t, 1))),
                 ],
             )
         end
@@ -314,6 +321,7 @@ end
                     ("leaf generators", () -> (UnitaryTransform(pz, θ), RotatingFrame(pz, t))),
                     ("adjoint(U)", () -> U'),
                     ("transform(a, U)", () -> transform(a, U)),
+                    ("displacement(Displace, a)", () -> displacement(D, a)),
                 ],
             )
         end
@@ -407,6 +415,7 @@ end
                     ("get_indices / get_operators(cos)", () -> (get_indices(Fi), get_operators(F))),
                     ("change_index(cos, Dict)", () -> change_index(Fi, Dict(im_ => km))),
                     ("transform(expim, timed Rotation)", () -> transform(P, Ubt)),
+                    ("scalar * (cos * polynomial)", () -> 2 * (F * bt)),
                 ],
             )
         end
@@ -512,6 +521,7 @@ end
             Lfor = hamiltonian_action(cos(xx))
             Xsup = SuperExpr(Lfor)
             Dsup = Displace(a, α)
+            Lmix = κ * dissipator(cos(xx)) + dissipator(xx)
             test_entries(
                 [
                     ("sprepost / spre / spost", () -> (sprepost(a, ad), spre(a), spost(a))),
@@ -528,6 +538,16 @@ end
                     ("simplify maps", () -> (simplify(Lsup), simplify(Asup))),
                     ("transform maps", () -> (transform(Lsup, Dsup), transform(Lsup, Ut), transform(Asup, Dsup))),
                     ("SuperExpr", () -> (SuperExpr(Lfor), Xsup + Xsup, taylor(Xsup, 0:2))),
+                    ("formal and polynomial jumps", () -> (Lmix, dissipator(cos(xx), xx + 1), SuperExpr(Lmix))),
+                    ("hamiltonian_action(cos(x) + 1)", () -> hamiltonian_action(cos(xx) + 1)),
+                    ("Lindbladian(SuperOperator)", () -> (Lindbladian(SuperOperator(Lsup)), Lindbladian(SuperOperator(Lnum)))),
+                    ("SuperBuilder", () -> (sb = SuperBuilder(); accumulate!(sb, Asup); accumulate!(sb, g, ad * a, ad); build(sb))),
+                    ("LindbladianBuilder", () -> (lb = LindbladianBuilder{QAdd}(); accumulate!(lb, Lsup); build(lb))),
+                    ("compose", () -> compose(Asup, Bsup)),
+                    ("support_basis / kossakowski / independent_basis", () -> (kossakowski(Lsup, support_basis(Lsup)), independent_basis([a, 2a + 1, ad * a]))),
+                    ("kossakowski with float rtol", () -> kossakowski(Lnum, support_basis(Lnum); rtol = 1.0e-12)),
+                    ("Lindbladian accessors", () -> (hamiltonian(Lsup), [(jump(ch), partner(ch), scope(ch)) for (ch, _) in channels(Lsup)])),
+                    ("formal_terms / poly / coefficient", () -> (formal_terms(Xsup), poly(Xsup), coefficient(Asup, sprepost(a, ad)))),
                     ("to_numeric(L, basis)", () -> to_numeric(Lnum, FockBasis(4))),
                     ("to_numeric(L, dims)", () -> to_numeric(Lnum, 5)),
                     ("to_numeric_master QuantumOptics", () -> to_numeric_master(Lnum, hf, 4; backend = QuantumOpticsBackend())),
