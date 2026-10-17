@@ -64,7 +64,6 @@ function integer_root(n::Integer, q::Int)
     end
     return guess
 end
-@inline is_integer_power(n::Integer, q::Int) = integer_root(n, q)^q == n
 
 const RADICAL_TRIAL_BOUND = 1 << 16
 const RADICAL_RHO_BUDGET = 1 << 18
@@ -193,19 +192,16 @@ for T in (UInt64, BigInt)
     end
 end
 
-function is_rational_power(value::Rational{BigInt}, r::Rational{Int})
+function exact_rational_root(value::Rational{BigInt}, r::Rational{Int})
     q = denominator(r)
-    (is_integer_power(numerator(value), q) && is_integer_power(denominator(value), q)) ||
-        return false
-    return !(iszero(value) && numerator(r) < 0)
-end
-function rational_power_value(value::Rational{BigInt}, r::Rational{Int})
-    q = denominator(r)
-    return (integer_root(numerator(value), q) // integer_root(denominator(value), q))^numerator(r)
+    rn, rd = integer_root(numerator(value), q), integer_root(denominator(value), q)
+    exact = rn^q == numerator(value) && rd^q == denominator(value) && !(iszero(value) && numerator(r) < 0)
+    return exact, exact ? (rn // rd)^numerator(r) : zero(Rational{BigInt})
 end
 
 function numeric_radical(value::Rational{BigInt}, r::Rational{Int}, x)
-    is_rational_power(value, r) && return to_cnum(rational_power_value(value, r))
+    exact, root = exact_rational_root(value, r)
+    exact && return to_cnum(root)
     value > 0 || return raw_coeff(x, true)
     numerator_factors = Tuple{RadicalPrime, Int}[]
     denominator_factors = Tuple{RadicalPrime, Int}[]
@@ -269,9 +265,8 @@ function radical_factors(m::Monomial)
         is_radical_atom(s) || continue
         e = m.exps[i]
         p = s.val::RadicalPrime
-        mergeable = p isa Int && p < RADICAL_TRIAL_BOUND
-        k = mergeable ? findfirst(f -> f[1] == e && f[2] isa Int, factors) : nothing
-        if k === nothing
+        k = p isa Int && p < RADICAL_TRIAL_BOUND ? mergeable_factor(factors, e) : 0
+        if iszero(k)
             push!(factors, (e, p))
         else
             product, overflow = Base.mul_with_overflow(factors[k][2]::Int, p::Int)
@@ -280,11 +275,17 @@ function radical_factors(m::Monomial)
     end
     return insertion_sort!(factors, radical_factor_less)
 end
+function mergeable_factor(factors::Vector{Tuple{Rational{Int}, RadicalPrime}}, e::Rational{Int})
+    for k in eachindex(factors)
+        (factors[k][1] == e && factors[k][2] isa Int) && return k
+    end
+    return 0
+end
 @inline radical_factor_less(a::Tuple{Rational{Int}, RadicalPrime}, b::Tuple{Rational{Int}, RadicalPrime}) =
     a[1] == b[1] ? a[2] < b[2] : a[1] < b[1]
 
 function radical_expression(n::RadicalPrime, f::Rational{Int})
-    base = SymbolicUtils.Const{SymbolicUtils.SymReal}(n)
+    base = radical_atom(n)
     f == 1 // 2 && return sqrt(base)
     f == 1 // 3 && return cbrt(base)
     return SymbolicUtils.term(^, base, f; type = Real)

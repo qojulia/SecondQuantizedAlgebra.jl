@@ -157,6 +157,9 @@ import SecondQuantizedAlgebra: expim, exponential_form, phase_terms, to_num,
         @test length(phase_terms(expim(θ) / 2)) == 1
         @test length(phase_terms(conj(expim(θ)))) == 1
         @test length(phase_terms(expim(θ)^(-1))) == 1
+        # One component per phase: equal phases add their amplitudes.
+        merged = only(phase_terms(z * expim(θ) + ω * expim(θ)))
+        @test isequal(merged.phase, θ) && iszero(merged.amplitude - (z + ω))
 
         trig = trigonometric_form(Complex(Num(z), Num(z)))
         @test iszero(simplify(trig * a - (z + im * z) * a))
@@ -528,6 +531,27 @@ import SecondQuantizedAlgebra: expim, exponential_form, phase_terms, to_num,
                 )
             )
         )
+        raw_square = SymbolicUtils.term(
+            ^, raw_phase, 2;
+            type = Complex{Real}, shape = UnitRange{Int}[],
+        )
+        squared = only(phase_terms(exponential_form(Num(raw_square))))
+        @test isequal(squared.phase, 2θ) && isone(squared.amplitude)
+        raw_shifted = SymbolicUtils.term(
+            +, raw_phase, SymbolicUtils.unwrap(ω);
+            type = Complex{Real}, shape = UnitRange{Int}[],
+        )
+        @test isequal(trigonometric_form(Num(raw_shifted)), cos(θ) + ω + im * sin(θ))
+        raw_log = SymbolicUtils.term(
+            log, raw_shifted;
+            type = Complex{Real}, shape = UnitRange{Int}[],
+        )
+        @test_throws ArgumentError phase_terms(exponential_form(Num(raw_log)))
+        raw_power = SymbolicUtils.term(
+            ^, SymbolicUtils.unwrap(1 + ω), SymbolicUtils.unwrap(t);
+            type = Real, shape = UnitRange{Int}[],
+        )
+        @test iszero(only(phase_terms(exponential_form(Num(raw_power)))).phase)
         @test isequal(exponential_form(exp(ω * t)), exp(ω * t))
     end
 
