@@ -237,3 +237,6 @@ channel_order_key(c::Channel{QExpr}) = (
     sprint(show, c.jump), sprint(show, c.partner),
     [(Int(i.space_index), name_rank(i.name_id)) for i in c.scope], ne_sort_key(c.ne),
 )
+
+canonical_isless(a::SuperOperator, b::SuperOperator) = isless(superoperator_order_key(a), superoperator_order_key(b))
+canonical_isless(a::Channel{O}, b::Channel{O}) where {O} = isless(channel_order_key(a), channel_order_key(b))

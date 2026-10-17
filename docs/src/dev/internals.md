@@ -37,7 +37,7 @@ Poly
 
 ## Orderings
 
-The total, identity-faithful ordering used by downstream packages to choose canonical representatives.
+The keys behind [`canonical_isless`](@ref), each total and faithful to `isequal`. They stay internal so the key layout can change; the public contract is the comparison.
 
 ```@docs
 order_key
@@ -62,4 +62,23 @@ get_sum_indices
 get_sum_non_equal
 get_sum_body
 indexed_sum
+```
+
+## Accumulation
+
+Mutable builders behind `sum` over arrays of expressions and maps. A chain of `+` copies the canonical dictionary at every step; a builder adds in place, so `sum` costs linear time.
+
+```@docs
+SuperBuilder
+LindbladianBuilder
+accumulate!
+build
+```
+
+## Numeric conversion
+
+The settings of one conversion travel through the numeric core as a single context. Backend hooks never receive it: the core resolves operators, substitutions and sites itself and hands backends only their own objects.
+
+```@docs
+NumericContext
 ```

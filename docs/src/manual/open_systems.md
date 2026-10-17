@@ -310,17 +310,12 @@ term, c = first(D)
 left_operator(term), right_operator(term), c
 ```
 
-`sum` over an array of Lindbladians or `SuperOperator`s accumulates in place, like `sum` over operators, so a generator with many channels costs linear time. A loop uses a builder directly.
+`sum` over an array of Lindbladians or `SuperOperator`s accumulates in place, like `sum` over operators, so a generator with many channels costs linear time. A chain of `+` copies the whole map at every step, so a loop collects its terms into an array and sums it once.
 
 ```@example open
-using SecondQuantizedAlgebra: LindbladianBuilder, QAdd, accumulate!, build
 hm = reduce(⊗, [FockSpace(Symbol(:mode, n)) for n in 1:3])
 modes = [Destroy(hm, Symbol(:a, n), n) for n in 1:3]
-builder = LindbladianBuilder{QAdd}()
-for m in modes
-    accumulate!(builder, κ * dissipator(m))
-end
-build(builder) == sum([κ * dissipator(m) for m in modes])
+sum([κ * dissipator(m) for m in modes])
 ```
 
 ```@docs
@@ -331,10 +326,6 @@ SuperTerm
 superterm
 left_operator
 poly
-SuperBuilder
-LindbladianBuilder
-accumulate!
-build
 ```
 
 

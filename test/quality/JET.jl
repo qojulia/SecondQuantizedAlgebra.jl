@@ -8,7 +8,7 @@ using Symbolics: Equation
 using Latexify: latexify
 using QuantumToolbox: QuantumToolbox
 import SciMLOperators as SO
-using SecondQuantizedAlgebra: Coeff, SuperOperator, SuperExpr, sprepost, spre, spost, liouvillian, to_numeric_master, constraint_pairs, expect, exponential_form, expim, get_sum_body, get_sum_indices, get_sum_non_equal, indexed_sum, order_key, phase_terms, qadd_order_key, rename, set_acts_on, term_order_key, to_cnum, to_num, transition_superscript, trigonometric_form
+using SecondQuantizedAlgebra: Coeff, SuperOperator, SuperExpr, sprepost, spre, spost, liouvillian, to_numeric_master, constraint_pairs, expect, exponential_form, expim, get_sum_body, get_sum_indices, get_sum_non_equal, indexed_sum, canonical_isless, phase_terms, rename, set_acts_on, to_cnum, to_num, transition_superscript, trigonometric_form
 
 const TARGETS = (
     SecondQuantizedAlgebra,
@@ -172,7 +172,7 @@ end
                     ("DoubleIndexedVariable", () -> DoubleIndexedVariable(:J, i, j)),
                     ("operator_name / operator_index", () -> (operator_name(a), operator_index(σi(1, 2, i)))),
                     ("index accessors", () -> (index_name(i), index_range(i), index_slot(i), index_sym(i), has_index(i))),
-                    ("order keys", () -> (order_key(a), qadd_order_key(ad * a + a), term_order_key(first(keys((ad * a).arguments))))),
+                    ("canonical_isless", () -> (canonical_isless(a, ad), canonical_isless(ad * a + a, a * 1))),
                     ("transition_superscript", () -> transition_superscript(true)),
                     ("rename / set_acts_on", () -> (rename(a, :b), set_acts_on(a, 2))),
                     ("acts_on(leaf)", () -> (acts_on(a), acts_on(σ12))),

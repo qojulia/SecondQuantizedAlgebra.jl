@@ -11,6 +11,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed (breaking)
 
 - The operator-kind predicates (`optype`, `is_destroy`, `is_create`, `is_transition`, `is_collective_transition`, `is_pauli`, `is_spin`, `is_position`, `is_momentum`), `is_indexed_sum` and the numeric backend interface (`NumericBackend`, `EagerOperator`, `numeric_backend` and the `numeric_*` methods) are public but no longer exported. Import them explicitly, e.g. `using SecondQuantizedAlgebra: is_destroy`.
+- `canonical_isless(a, b)` replaces the public order keys (`order_key`, `term_order_key`, `qadd_order_key`, `superterm_order_key`, `superoperator_order_key`, `channel_order_key`), which are now internal. `Base.isless` is no longer defined on `Op`, `QAdd` or `QExpr`, so `sort`, `max` and `<` on operators throw; use `sort(v; lt = canonical_isless)`.
+- `QTermDict`, `NumericContext` and the builders `SuperBuilder`, `LindbladianBuilder`, `accumulate!` and `build` are internal. Sum many maps with `sum` over an array.
+- Custom backends implement `numeric_superoperator(be, basis, terms)`, where each term is `(c, L, R)` with `L` and `R` already backend matrices, instead of receiving the conversion context.
 
 ## [v0.14.0]
 

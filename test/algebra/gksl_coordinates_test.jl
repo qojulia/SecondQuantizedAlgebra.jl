@@ -3,7 +3,7 @@ using Symbolics: Symbolics, @variables
 using Test
 
 import SecondQuantizedAlgebra: SuperOperator, sprepost, spre, spost, hamiltonian, channels,
-    channel_order_key, independent_basis, support_basis, GKSLFormError, QAdd, to_num, jump,
+    canonical_isless, independent_basis, support_basis, GKSLFormError, QAdd, to_num, jump,
     partner
 
 side(x) = x * one(x)
@@ -189,7 +189,7 @@ end
         L = γ * dissipator(a' * a) + κ * dissipator(a) + g * dissipator(a^2)
         entries = channels(L)
         @test entries isa Vector
-        @test issorted(entries; by = entry -> channel_order_key(entry.first))
+        @test issorted(first.(entries); lt = canonical_isless)
         @test length(entries) == 3
         @test sum(rate * dissipator(jump(ch), partner(ch)) for (ch, rate) in entries) == L
     end

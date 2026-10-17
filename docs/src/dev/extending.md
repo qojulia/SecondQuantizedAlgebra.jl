@@ -102,5 +102,4 @@ numeric_backend
 numeric_superoperator
 numeric_matrix
 numeric_scaled_td
-NumericContext
 ```

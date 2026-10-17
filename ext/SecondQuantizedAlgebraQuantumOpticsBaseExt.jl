@@ -236,15 +236,11 @@ SQA.numeric_expect(::QuantumOpticsBackend, numop, state::QOBState) =
 SQA.numeric_expect(::QuantumOpticsBackend, numop, states::AbstractVector) =
     QOB.expect(QOB.sparse(numop), states)
 
-function SQA.numeric_superoperator(::QuantumOpticsBackend, ctx::SQA.NumericContext, terms::Vector{SQA.SandwichTerm})
-    b = ctx.basis
+function SQA.numeric_superoperator(::QuantumOpticsBackend, b::QOB.Basis, terms::Vector{Tuple{ComplexF64, M, M}}) where {M <: AbstractMatrix}
     n = length(b)
-    cache = Dict{SQA.SideKey, SparseMatrixCSC{ComplexF64, Int}}()
     rows, cols, vals = Int[], Int[], ComplexF64[]
     for (c, left, right) in terms
-        iszero(c) && continue
-        m = kron(transpose(SQA.side_matrix(right, ctx, cache)), SQA.side_matrix(left, ctx, cache))
-        append_scaled!(rows, cols, vals, c, m)
+        append_scaled!(rows, cols, vals, c, kron(transpose(right), left))
     end
     return QOB.SuperOperator((b, b), (b, b), sparse(rows, cols, vals, n^2, n^2))
 end

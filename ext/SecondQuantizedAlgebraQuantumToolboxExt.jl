@@ -378,16 +378,14 @@ sandwich_matrix(left::Vector{Op}, right::Vector{Op}, ctx::SQA.NumericContext, ca
 super_dimensions(be::QuantumToolboxBackend, basis) =
     QTB.spre(SQA.numeric_identity(be, basis)).dimensions
 
-function SQA.numeric_superoperator(be::QuantumToolboxBackend, ctx::SQA.NumericContext, terms::Vector{SQA.SandwichTerm})
-    n = size(SQA.numeric_identity(be, ctx.basis), 1)
-    cache = SideCache()
+function SQA.numeric_superoperator(be::QuantumToolboxBackend, basis, terms::Vector{Tuple{ComplexF64, M, M}}) where {M <: AbstractMatrix}
+    n = size(SQA.numeric_identity(be, basis), 1)
     rows, cols, vals = Int[], Int[], ComplexF64[]
     for (c, left, right) in terms
-        iszero(c) && continue
-        append_scaled!(rows, cols, vals, c, sandwich_matrix(left, right, ctx, cache))
+        append_scaled!(rows, cols, vals, c, kron(transpose(right), left))
     end
     data = sparse(rows, cols, vals, n^2, n^2)
-    return QTB.Qobj(data, QTB.SuperOperator(), super_dimensions(be, ctx.basis))
+    return QTB.Qobj(data, QTB.SuperOperator(), super_dimensions(be, basis))
 end
 
 function SQA.to_numeric_td(S::SQA.SuperOperator, ctx::SQA.NumericContext{QuantumToolboxBackend}, time_parameter)

@@ -1,10 +1,11 @@
 const SandwichTerm = Tuple{ComplexF64, Vector{Op}, Vector{Op}}
 
 """
-    numeric_superoperator(be, ctx::NumericContext, terms::Vector{Tuple{ComplexF64, Vector{Op}, Vector{Op}}})
+    numeric_superoperator(be, basis, terms::Vector{Tuple{ComplexF64, M, M}})
 
-Build the backend's eager superoperator `Σ c * sprepost(L, R)` from sandwich terms. Each side
-is converted with the ordinary operator path of `ctx`.
+Build the backend's eager superoperator `Σ c * sprepost(L, R)` on `basis` from the terms
+`(c, L, R)`. Both sides are already matrices of type `M`, as returned by
+[`numeric_matrix`](@ref), so the backend only combines and wraps them.
 """
 function numeric_superoperator end
 
@@ -72,6 +73,17 @@ function side_matrix(ops::Vector{Op}, ctx::NumericContext, cache::Dict{SideKey, 
     end
 end
 
+side_cache(ctx::C) where {C <: NumericContext} =
+    Dict{SideKey, Base.promote_op(numeric_matrix, typeof(ctx.backend), Base.promote_op(static_operator, Vector{OpTerm}, C, EagerOperator))}()
+
+function sandwich_matrices(terms::Vector{SandwichTerm}, ctx::NumericContext)
+    cache = side_cache(ctx)
+    return [(c, side_matrix(l, ctx, cache), side_matrix(r, ctx, cache)) for (c, l, r) in terms if !iszero(c)]
+end
+
+eager_superoperator(terms::Vector{SandwichTerm}, ctx::NumericContext) =
+    numeric_superoperator(ctx.backend, ctx.basis, sandwich_matrices(terms, ctx))
+
 sandwich_terms(S::SuperOperator) =
     SandwichTerm[(to_complex(c), t.left, t.right) for (t, c) in S.arguments]
 
@@ -85,7 +97,7 @@ function to_numeric_translated(S::SuperOperator, ctx::NumericContext, parameter,
     isempty(S.indices) || indexed_map_error()
     S_ = apply_parameter(S, parameter)
     if isempty(time_parameter)
-        return materialize_map(numeric_superoperator(ctx.backend, ctx, sandwich_terms(S_)), op_type)
+        return materialize_map(eager_superoperator(sandwich_terms(S_), ctx), op_type)
     end
     check_td_op_type(op_type)
     return to_numeric_td(S_, ctx, time_parameter)
@@ -128,7 +140,7 @@ function to_numeric_indexed(
     foreach_unrolled(S, ctx.sites, split_scalar_subs(scalar_subs)) do t, c, sub_op
         push!(terms, (to_complex(c), relabel(t.left, sub_op), relabel(t.right, sub_op)))
     end
-    return numeric_superoperator(be, ctx, terms)
+    return eager_superoperator(terms, ctx)
 end
 
 to_numeric_indexed(
