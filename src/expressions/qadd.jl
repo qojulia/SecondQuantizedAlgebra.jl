@@ -358,6 +358,52 @@ function get_operators(s::QAdd)
 end
 
 """
+    acts_on(expr) -> Vector{Int}
+    acts_on(i::Index) -> Vector{Int}
+
+Subsystems that `expr` acts on, as sorted positions in its [`ProductSpace`](@ref).
+
+Works on operators, operator expressions and their [`average`](@ref)s. A number
+acts on nothing and returns an empty vector. For an [`Index`](@ref) it returns the
+subsystem the index runs over.
+
+# Examples
+
+```jldoctest
+julia> h = FockSpace(:a) ⊗ NLevelSpace(:b, 2);
+
+julia> @qnumbers a::Destroy(h, 1) σ::Transition(h, 1, 2, 2);
+
+julia> acts_on(a' * a), acts_on(a' * σ)
+([1], [1, 2])
+```
+
+See also [`operator_name`](@ref), [`operator_index`](@ref).
+"""
+function acts_on end
+
+acts_on(op::QSym) = Int[op.space_index]
+acts_on(::Number) = Int[]
+acts_on(x::Num) = acts_on(SymbolicUtils.unwrap(x))
+
+acts_on(idx::Index) = Int[idx.space_index]
+
+function acts_on(t::QTerm)
+    aon = Int[x.space_index for x in t.ops]
+    unique!(sort!(aon))
+    return aon
+end
+
+function acts_on(op::QAdd)
+    aon = Int[]
+    for term in keys(op.arguments)
+        append!(aon, acts_on(term))
+    end
+    unique!(sort!(aon))
+    return aon
+end
+
+"""
     get_sum_indices(q::QAdd) -> Vector{Index}
     get_sum_indices(q::QSym) -> Vector{Index}
 

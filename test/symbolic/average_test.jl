@@ -195,6 +195,21 @@ import SecondQuantizedAlgebra:
         σj = IndexedOperator(σ12', j)
         @test Set(get_indices(σi + σj)) == Set([i, j])
         @test Set(get_indices(average(σi) + average(σj))) == Set([i, j])
+
+        @testset "wrapped as Num" begin
+            @variables g
+            @test acts_on(Symbolics.Num(average(field' * field))) == [1]
+            @test acts_on(Symbolics.Num(g * average(field' * σ12))) == [1, 2]
+            @test isempty(acts_on(g))
+        end
+
+        @testset "inside an indexed sum" begin
+            summed = average(Σ(field' * σi, i))
+            @test is_indexed_sum(summed)
+            @test acts_on(summed) == [1, 2]
+            @test get_indices(summed) == [i]
+            @test acts_on(Symbolics.Num(2 * summed + average(field))) == [1, 2]
+        end
     end
 
     @testset "Hermitian values expose their mathematical type" begin
@@ -261,6 +276,18 @@ import SecondQuantizedAlgebra:
         i = Index(hs, :i, 3, hs)
         summed = average(Σ(IndexedOperator(Transition(hs, :σ, 1, 2), i), i))
         @test isequal(qadjoint(summed), inner_adjoint(summed))
+        # Conjugating twice is the identity.
+        @test isequal(inner_adjoint(conj(g)), SymbolicUtils.unwrap(g))
+        @test isequal(inner_adjoint(conj(average(a))), average(a))
+        @test isequal(inner_adjoint(average(g * a)), conj(g) * average(ad))
+
+        @testset "average whose argument was substituted by a scalar" begin
+            avg_a = average(a)
+            scalar_avg = SymbolicUtils.substitute(avg_a, Dict(only(SymbolicUtils.arguments(avg_a)) => 2))
+            @test is_average(scalar_avg)
+            @test symtype(scalar_avg) === Number
+            @test_throws ArgumentError inner_adjoint(scalar_avg)
+        end
 
         @variables θ
         @test isequal(qadjoint(g * expim(θ)), conj(g) * expim(-θ))
