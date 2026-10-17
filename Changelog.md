@@ -6,6 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [v0.14.1]
+
+### Fixed
+
+- `to_numeric` accepts a `time_parameter` key declared `@variables E::Complex`, and its conjugate `conj(E)`, again. v0.14.0 rejected both.
+
 ## [v0.14.0]
 
 Adds symbolic dissipative dynamics and exact GKSL extraction, with breaking API changes for type stability.
