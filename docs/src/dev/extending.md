@@ -4,8 +4,6 @@ CurrentModule = SecondQuantizedAlgebra
 
 # Extending the package
 
-The package has two extension points. A new operator kind is added inside the package, since every operator is one concrete struct. A numeric backend is added from outside, by implementing a small interface.
-
 ```@contents
 Pages = ["extending.md"]
 Depth = 2:3
@@ -34,9 +32,9 @@ A new kind touches these places:
 4. **Adjoint.** A branch of `adjoint` in `src/operators/operators.jl`. `order_key` reads the shared fields and needs no change, as long as distinct operators of the kind differ in those fields.
 5. **Numerics.** A branch of `numeric_operator` in every backend under `ext/`, or a deliberate `ArgumentError` where a backend has no representation.
 6. **Printing.** The Unicode printer in `src/printing/printing.jl` and the LaTeX recipe in `src/printing/latexify_recipes.jl`.
-7. **Tests.** Construction in `test/fundamentals/`, the algebra rules in `test/algebra/`, the conversion in `test/numeric/`, and the output in `test/presentation/`. The `order_key` contract test in `test/fundamentals/ordering_test.jl` loops over a list of operators, which needs one of the new kind.
+7. **Tests.** Construction in `test/fundamentals/`, the algebra rules in `test/algebra/`, the conversion in `test/numeric/`, and the output in `test/presentation/`.
 
-An extra payload field on `Op`, for instance a `Union{Nothing, …}`, is not an option: `Op` must stay a concrete bits type, which the quality tests enforce.
+An extra payload field on `Op`, for instance a `Union{Nothing, …}`, is not an option: `Op` must stay a concrete bits type.
 
 ## Adding a numeric backend
 
@@ -83,7 +81,7 @@ It is used as `to_numeric(H, h, dims; backend = MyBackend())`; only the two bund
 | `numeric_average` and `expect` | the state methods and [`numeric_expect`](@ref) |
 | superoperators and `to_numeric_master` | [`numeric_superoperator`](@ref), [`numeric_matrix`](@ref), and [`numeric_scaled_td`](@ref) for time-dependent collapse operators |
 
-Two rules keep a backend fast and inferable. The type of the assembled object must not depend on the number of terms, so a vector-backed lazy sum is used rather than a tuple. And a time-dependent coefficient that reads the solver parameters is a two-argument function `(p, t) -> value`, recognized by its arity rather than by a wrapper type. The two bundled extensions under `ext/` are complete examples.
+The type of the assembled object must not depend on the number of terms, so a vector-backed lazy sum is used rather than a tuple. And a time-dependent coefficient that reads the solver parameters is a two-argument function `(p, t) -> value`, recognized by its arity rather than by a wrapper type. The two bundled extensions under `ext/` are complete examples.
 
 ```@docs
 NumericBackend

@@ -107,6 +107,23 @@ H = Σ(g * (a' * σ(1, 2) + a * σ(2, 1)), i)
 average(H)
 ```
 
+Each summed average keeps its index, its excluded sites and its summand, which code that derives equations of motion reads back.
+
+```@example sums
+using SecondQuantizedAlgebra: is_indexed_sum, get_sum_indices, get_sum_body
+x = average(Σ(a' * σ(1, 2), i))
+is_indexed_sum(x), get_sum_indices(x), get_sum_body(x)
+```
+
+```@docs
+is_indexed_sum
+has_sum_metadata
+get_sum_indices
+get_sum_non_equal
+get_sum_body
+indexed_sum
+```
+
 ## Numerical conversion
 
 [`to_numeric`](@ref) turns an operator expression into a matrix of [QuantumOpticsBase.jl](https://github.com/qojulia/QuantumOpticsBase.jl) or [QuantumToolbox.jl](https://github.com/qutip/QuantumToolbox.jl), ready for their solvers. The numerical side is an extension: it becomes available once one of the two packages is loaded, and the backend is chosen with [`QuantumOpticsBackend`](@ref) or [`QuantumToolboxBackend`](@ref). The portable form takes the symbolic Hilbert space and one truncation per factor, a photon cutoff for a mode. Every parameter needs a value.

@@ -27,7 +27,6 @@ pages = [
         "Contributing" => "dev/contributing.md",
         "Architecture" => "dev/architecture.md",
         "Extending the package" => "dev/extending.md",
-        "Internals" => "dev/internals.md",
     ],
     "References" => "references.md",
     "Changelog" => "changelog.md",

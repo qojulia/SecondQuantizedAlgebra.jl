@@ -1,6 +1,6 @@
 # Contributing
 
-Contributions follow the [ColPrac](https://github.com/SciML/ColPrac) guidelines for pull requests, review and releases. Before changing code under `src/`, read the [Architecture](@ref) page: several of its invariants are not covered by tests.
+Contributions follow the [ColPrac](https://github.com/SciML/ColPrac) guidelines for pull requests, review and releases. Before changing code under `src/`, read the [Architecture](@ref) page.
 
 ```@contents
 Pages = ["contributing.md"]

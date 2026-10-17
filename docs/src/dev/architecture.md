@@ -4,8 +4,6 @@ CurrentModule = SecondQuantizedAlgebra
 
 # Architecture
 
-This page is for anyone who changes code under `src/` or `ext/`. It describes how the package is put together and lists the invariants a change must keep. The invariants matter most: many of them look like missed optimizations or arbitrary choices, and several are not covered by any test.
-
 ```@contents
 Pages = ["architecture.md"]
 Depth = 2:3
@@ -43,8 +41,6 @@ Every operator is the single concrete struct `Op`, and its role (annihilation, t
 | `src/printing/` | Unicode and LaTeX rendering |
 
 ## Invariants
-
-Each invariant states the rule and the reason.
 
 ### Canonical form
 
@@ -110,7 +106,7 @@ Each invariant states the rule and the reason.
 
 **Only plain products become compound atoms.** A function of an atom, or of a product of real atoms such as `cos(ω*t)`, is a polynomial atom, which keeps its arithmetic on the fast path. Scaled or summed arguments stay raw, since `sin(2θ)` must reach the trigonometric reduction and `exp(-r)` must cancel `1/exp(r)`.
 
-**`GaussianRational` is not a `Number`.** Methods of a new `Number` subtype on `==`, `hash` and arithmetic invalidate SymbolicUtils code compiled for abstract numbers, which slowed its `simplify` by about a fifth.
+**`GaussianRational` is not a `Number`.** Methods of a new `Number` subtype on `==`, `hash` and arithmetic invalidate SymbolicUtils code compiled for abstract numbers.
 
 ### Averages
 
