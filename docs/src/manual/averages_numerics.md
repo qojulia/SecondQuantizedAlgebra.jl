@@ -107,7 +107,7 @@ H = Σ(g * (a' * σ(1, 2) + a * σ(2, 1)), i)
 average(H)
 ```
 
-Each summed average keeps its index, its excluded sites and its summand, which code that derives equations of motion reads back.
+A summed average keeps its index, its excluded sites and its summand, and each can be read back.
 
 ```@example sums
 using SecondQuantizedAlgebra: is_indexed_sum, get_sum_indices, get_sum_body
@@ -118,7 +118,7 @@ is_indexed_sum(x), get_sum_indices(x), get_sum_body(x)
 ```@docs
 is_indexed_sum
 has_sum_metadata
-get_sum_indices
+get_sum_indices(::SecondQuantizedAlgebra.SymbolicUtils.BasicSymbolic)
 get_sum_non_equal
 get_sum_body
 indexed_sum

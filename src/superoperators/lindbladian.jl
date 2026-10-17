@@ -68,9 +68,9 @@ function channels(L::Lindbladian)
 end
 
 """
-    channels(L::Lindbladian) -> Vector{Pair{Channel, rate}}
+    channels(L::Lindbladian) -> Vector
 
-The decay channels of `L` with their rates, sorted by [`canonical_isless`](@ref). See
+The decay channels of `L` as `Channel => rate` pairs, sorted by [`canonical_isless`](@ref). See
 [`hamiltonian`](@ref) for an example.
 """
 channels

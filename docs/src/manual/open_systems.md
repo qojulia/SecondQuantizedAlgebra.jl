@@ -310,7 +310,7 @@ term, c = first(D)
 left_operator(term), right_operator(term), c
 ```
 
-`sum` over an array of Lindbladians or `SuperOperator`s accumulates in place, like `sum` over operators, so a generator with many channels costs linear time. A chain of `+` copies the whole map at every step, so a loop collects its terms into an array and sums it once.
+`sum` over an array of Lindbladians or `SuperOperator`s accumulates in place, like `sum` over operators, so a Lindbladian with many channels costs linear time. A chain of `+` copies the whole map at every step, so a loop collects its terms into an array and sums it once.
 
 ```@example open
 hm = reduce(⊗, [FockSpace(Symbol(:mode, n)) for n in 1:3])

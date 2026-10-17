@@ -114,7 +114,7 @@ Every operator is the single concrete struct `Op`, and its role (annihilation, t
 
 ### Orderings
 
-**Three orderings, three purposes.** The site comparison decides which neighbours may swap and is deliberately partial. The display order in `sorted_arguments` is total but may tie distinct operators. Only `order_key` is faithful to identity, `order_key(a) == order_key(b)` exactly when `isequal(a, b)`, and downstream packages use it through `canonical_isless` to choose canonical representatives. None of them is `hash`, which is not stable across Julia versions.
+**Three orderings, three purposes.** The site comparison decides which neighbours may swap and is deliberately partial. The display order in `sorted_arguments` is total but may tie distinct operators. Only `order_key` is faithful to identity, `order_key(a) == order_key(b)` exactly when `isequal(a, b)`, and downstream packages use it through `canonical_isless` to choose canonical representatives. That comparison is deliberately not `Base.isless`, since `a + b < 2a` would read as a comparison of operator values. None of them is `hash`, which is not stable across Julia versions.
 
 ### Unitary transformations
 

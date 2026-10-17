@@ -52,6 +52,8 @@ julia> sort([b, a]; lt = canonical_isless)
  a
  b
 ```
+
+See also [`QAdd`](@ref), [`channels`](@ref).
 """
 canonical_isless(a::Op, b::Op) = isless(order_key(a), order_key(b))
 

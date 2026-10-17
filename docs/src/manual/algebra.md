@@ -98,7 +98,7 @@ An expression in canonical form has its own type, which is what products, sums a
 QAdd
 ```
 
-Expressions also have a total order, used to pick one representative among equivalent forms, such as an operator and its adjoint, and to sort reproducibly. It is a named comparison rather than `<`, since it says nothing about the operators as physical quantities.
+Expressions also have a total order, used to sort reproducibly and to pick one of two expressions as the canonical one, such as an operator or its adjoint. It is a named comparison rather than `<`, since it says nothing about the operators as physical quantities.
 
 ```@example canonical
 using SecondQuantizedAlgebra: canonical_isless
