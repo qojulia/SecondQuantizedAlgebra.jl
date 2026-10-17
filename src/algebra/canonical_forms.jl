@@ -128,20 +128,24 @@ a + 2 * a' * a
 See also [`simplify`](@ref), [`substitute`](@ref).
 """
 function map_coefficients(f::F, q::QAdd) where {F}
-    out = QTermDict()
-    for (term, c) in q.arguments
+    out = mapped_terms(f, q.arguments, q.indices)
+    return QAdd(out, drop_unused_indices(out, q.indices))
+end
+
+function mapped_terms(f::F, args::Dict{K, CNum}, indices::Vector{Index}) where {F, K}
+    out = Dict{K, CNum}()
+    for (term, c) in args
         new_c = to_cnum(f(c))
         iszero(new_c) && continue
-        if isempty(q.indices) || new_c === c
+        if isempty(indices) || new_c === c
             addto_key!(out, copy_key(term), new_c)
             continue
         end
-        mentions(x, idx) = depends_on_index_term(x, term.ops, idx)
-        coef, ne = settle_mapped(mentions, c, new_c, term.ne, q.indices)
-        key = ne === term.ne ? copy_key(term) : QTerm(copy(term.ops), ne)
-        addto_key!(out, key, coef)
+        mentions(x, idx) = depends_on_term(x, term, idx)
+        coef, ne = settle_mapped(mentions, c, new_c, term.ne, indices)
+        addto_key!(out, ne === term.ne ? copy_key(term) : with_ne(term, ne), coef)
     end
-    return QAdd(out, drop_unused_indices(out, q.indices))
+    return out
 end
 map_coefficients(f::F, op::QSym) where {F} =
     map_coefficients(f, to_qadd(op))

@@ -9,7 +9,7 @@ function Σ(S::SuperOperator, i::Index, non_equal::Vector{Index} = Index[])
     scope_i = Index[i]
     for (t, c) in S.arguments
         ne_aug = merge_ne_pairs(t.ne, i, non_equal)
-        if !depends_on_sandwich(c, t.left, t.right, i)
+        if !depends_on_term(c, t, i)
             settle_sandwich!(off_diag, t.left, t.right, c, ne_aug, scope_i)
             continue
         end
@@ -23,7 +23,7 @@ function Σ(S::SuperOperator, i::Index, non_equal::Vector{Index} = Index[])
             )
         end
     end
-    binds = any(((t, c),) -> depends_on_scope_sandwich(c, t.left, t.right, t.ne, i), off_diag)
+    binds = any(((t, c),) -> mentions_in_scope(c, t, i), off_diag)
     result = superop_pruned(off_diag, binds ? vcat(S.indices, scope_i) : copy(S.indices))
     isempty(diag) && return result
     return result + superop_pruned(diag, copy(S.indices))
@@ -47,25 +47,15 @@ function change_index(S::SuperOperator, m::IndexMap)
     return superop_pruned(out, unique!(new_indices))
 end
 
-function expand_completeness(S::SuperOperator)
-    out = SuperTermDict()
-    for (t, c) in S.arguments
-        lt = QTermDict()
-        expand_gs_ops(copy(t.left), CNUM_ONE) do ops1, c1
-            stream!(lt, ops1, c1, t.ne)
-        end
-        rt = QTermDict()
-        expand_gs_ops(copy(t.right), CNUM_ONE) do ops1, c1
-            stream!(rt, ops1, c1, t.ne)
-        end
-        temp = SuperTermDict()
-        for (a, ca) in lt, (b, cb) in rt
-            addto_key!(temp, SuperTerm(a.ops, b.ops, t.ne), c * (ca * cb))
-        end
-        settle_scope!(out, temp, bound_indices(t, c, S.indices))
+function completeness_side(ops::Vector{Op}, ne::Vector{NonEqualPair})
+    out = QTermDict()
+    expand_gs_ops(copy(ops), CNUM_ONE) do expanded, c
+        stream!(out, expanded, c, ne)
     end
-    return superop_pruned(out, copy(S.indices))
+    return out
 end
+
+expand_completeness(S::SuperOperator) = map_sides(completeness_side, S)
 
 function assume_distinct_index(S::SuperOperator, pairs::Vector{Tuple{Index, Index}})
     out = SuperTermDict()

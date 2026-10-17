@@ -1,11 +1,6 @@
-function harmonics(S::SuperOperator, ω::Real, t::Num)
-    frequency = harmonic_frequency_coeff(ω, t)
-    parts = Dict{Int, SuperTermDict}()
-    for (term, c) in S.arguments, (n, cn) in coefficient_harmonics(c, Num(ω), frequency, t)
-        addto_key!(get!(SuperTermDict, parts, n), copy_key(term), cn)
-    end
-    return Dict{Int, SuperOperator}(n => superop_pruned(d, copy(S.indices)) for (n, d) in parts)
-end
+harmonics(S::SuperOperator, ω::Real, t::Num) = Dict{Int, SuperOperator}(
+    n => superop_pruned(d, copy(S.indices)) for (n, d) in harmonic_parts(S.arguments, ω, t)
+)
 
 harmonic(S::SuperOperator, ω::Real, t::Num, n::Integer) = map_coefficients(harmonic_map(ω, t, n), S)
 
@@ -26,7 +21,7 @@ function harmonics(L::Lindbladian{QAdd}, ω::Real, t::Num)
     end
     out = Dict{Int, Lindbladian{QAdd}}()
     for (n, b) in builders
-        Ln = build(b)
+        Ln = finish!(b)
         iszero(Ln) || (out[n] = Ln)
     end
     return out

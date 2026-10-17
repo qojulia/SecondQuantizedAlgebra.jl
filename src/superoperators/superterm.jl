@@ -66,80 +66,26 @@ See also [`SuperTerm`](@ref).
 superterm(left::AbstractVector{<:QSym}, right::AbstractVector{<:QSym}, ne::Vector{NonEqualPair} = EMPTY_NE) =
     SuperTerm(Op[o for o in left], Op[o for o in right], canonical_ne(ne))
 
-function addto_key!(d::SuperTermDict, term::SuperTerm, c::CNum)
-    existing = get(d, term, CNUM_ZERO)
-    if existing === CNUM_ZERO
-        iszero(c) && return d
-        d[term] = c
-        return d
-    end
-    new_c = existing + c
-    if iszero(new_c)
-        delete!(d, term)
-    else
-        d[term] = new_c
-    end
-    return d
-end
-
-function copy_args(d::SuperTermDict)
-    out = SuperTermDict()
-    sizehint!(out, length(d))
-    for (term, c) in d
-        out[copy_key(term)] = c
-    end
-    return out
-end
-
-function depends_on_sandwich(c::CNum, left::Vector{Op}, right::Vector{Op}, idx::Index)
-    for op in right
+function depends_on_term(c::CNum, t::SuperTerm, idx::Index)
+    for op in t.right
         op.index == idx && return true
     end
-    return depends_on_index_term(c, left, idx)
+    return depends_on_index_term(c, t.left, idx)
 end
 
-function depends_on_scope_sandwich(
-        c::CNum, left::Vector{Op}, right::Vector{Op}, ne::Vector{NonEqualPair}, idx::Index,
-    )
-    return depends_on_sandwich(c, left, right, idx) || ne_mentions(ne, idx)
-end
+mentions_in_scope(c::CNum, t::SuperTerm, idx::Index) = depends_on_term(c, t, idx) || ne_mentions(t.ne, idx)
+
+with_ne(t::SuperTerm, ne::Vector{NonEqualPair}) = SuperTerm(copy(t.left), copy(t.right), ne)
 
 bound_indices(t::SuperTerm, c::CNum, indices::Vector{Index}) =
-    Index[idx for idx in indices if depends_on_scope_sandwich(c, t.left, t.right, t.ne, idx)]
-
-@inline function pair_referenced(
-        p::NonEqualPair, t::SuperTerm, c::CNum, scope::Vector{Index},
-    )
-    α, β = p
-    α in scope && return true
-    β in scope && return true
-    depends_on_sandwich(c, t.left, t.right, α) && return true
-    depends_on_sandwich(c, t.left, t.right, β) && return true
-    return false
-end
-
-function prune_dead_ne(args::SuperTermDict, indices::Vector{Index})
-    dead((term, c)) = any(p -> !pair_referenced(p, term, c, indices), term.ne)
-    any(dead, args) || return args
-    out = SuperTermDict()
-    sizehint!(out, length(args))
-    for (term, c) in args
-        kept = NonEqualPair[]
-        for p in term.ne
-            pair_referenced(p, term, c, indices) && push_ne_unique!(kept, p)
-        end
-        kept_ne = isempty(kept) ? EMPTY_NE : insertion_sort!(kept, isless)
-        addto_key!(out, SuperTerm(copy(term.left), copy(term.right), kept_ne), c)
-    end
-    return out
-end
+    Index[idx for idx in indices if mentions_in_scope(c, t, idx)]
 
 function drop_unused_indices(d::SuperTermDict, indices::Vector{Index})
     isempty(indices) && return indices
     used = Index[]
     for idx in indices
         for (term, c) in d
-            if depends_on_scope_sandwich(c, term.left, term.right, term.ne, idx)
+            if mentions_in_scope(c, term, idx)
                 push!(used, idx)
                 break
             end
@@ -147,14 +93,6 @@ function drop_unused_indices(d::SuperTermDict, indices::Vector{Index})
     end
     length(used) == length(indices) && return indices
     return used
-end
-
-function constraint_pairs(args::SuperTermDict)
-    out = NonEqualPair[]
-    for term in keys(args), p in term.ne
-        push_ne_unique!(out, p)
-    end
-    return out
 end
 
 """
@@ -188,7 +126,7 @@ constrained count, or kept with its constraints when the count is unknown.
 """
 function settle_scope!(out::SuperTermDict, temp::SuperTermDict, scope::Vector{Index})
     for (term, cv) in temp
-        mentions(c, idx) = depends_on_sandwich(c, term.left, term.right, idx)
+        mentions(c, idx) = depends_on_term(c, term, idx)
         coef, ne = eliminate_binders(mentions, cv, term.ne, scope)
         key = ne === term.ne ? term : SuperTerm(term.left, term.right, ne)
         addto_key!(out, key, coef)

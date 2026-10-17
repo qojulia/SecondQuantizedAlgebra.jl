@@ -41,15 +41,6 @@ function coeff_identity(n::Int)
     return result
 end
 
-simplify_coeff(c::CNum) = simplify_prefactor(c)
-
-function simplify_coeffs!(matrix::CoeffMatrix)
-    for k in eachindex(matrix)
-        matrix[k] = simplify_coeff(matrix[k])
-    end
-    return matrix
-end
-
 function canonical_operator(operator::Union{QSym, QAdd})
     result = simplify(expand_completeness(as_side(operator)))
     isempty(result.indices) || throw(
@@ -62,7 +53,7 @@ function scalar_part(operator::QAdd)
     scalar = CNUM_ZERO
     for (term, c) in operator.arguments
         isempty(term.ops) || continue
-        scalar = simplify_coeff(scalar + c)
+        scalar = simplify_prefactor(scalar + c)
     end
     return scalar
 end
@@ -99,7 +90,7 @@ end
 
 function pivot_row!(work::CoeffMatrix, first_row::Int, column::Int)
     for row in first_row:size(work, 1)
-        value = simplify_coeff(work[row, column])
+        value = simplify_prefactor(work[row, column])
         work[row, column] = value
         iszero(value) || return row
     end
@@ -118,11 +109,11 @@ end
 function eliminate_below!(work::CoeffMatrix, pivot_row::Int, column::Int)
     pivot = work[pivot_row, column]
     for row in (pivot_row + 1):size(work, 1)
-        entry = simplify_coeff(work[row, column])
+        entry = simplify_prefactor(work[row, column])
         iszero(entry) && continue
-        factor = simplify_coeff(entry * inv(pivot))
+        factor = simplify_prefactor(entry * inv(pivot))
         for trailing in column:size(work, 2)
-            work[row, trailing] = simplify_coeff(
+            work[row, trailing] = simplify_prefactor(
                 work[row, trailing] - factor * work[pivot_row, trailing]
             )
         end
@@ -160,18 +151,18 @@ function coeff_inverse(matrix::CoeffMatrix)
         swap_rows!(right, column, candidate)
         scale = inv(left[column, column])
         for trailing in 1:n
-            left[column, trailing] = simplify_coeff(left[column, trailing] * scale)
-            right[column, trailing] = simplify_coeff(right[column, trailing] * scale)
+            left[column, trailing] = simplify_prefactor(left[column, trailing] * scale)
+            right[column, trailing] = simplify_prefactor(right[column, trailing] * scale)
         end
         for row in 1:n
             row == column && continue
-            factor = simplify_coeff(left[row, column])
+            factor = simplify_prefactor(left[row, column])
             iszero(factor) && continue
             for trailing in 1:n
                 left[row, trailing] =
-                    simplify_coeff(left[row, trailing] - factor * left[column, trailing])
+                    simplify_prefactor(left[row, trailing] - factor * left[column, trailing])
                 right[row, trailing] =
-                    simplify_coeff(right[row, trailing] - factor * right[column, trailing])
+                    simplify_prefactor(right[row, trailing] - factor * right[column, trailing])
             end
         end
     end
@@ -187,7 +178,7 @@ function coeff_product(left::CoeffMatrix, right::CoeffMatrix)
             (iszero(left[row, k]) || iszero(right[k, column])) && continue
             value = value + left[row, k] * right[k, column]
         end
-        result[row, column] = simplify_coeff(value)
+        result[row, column] = simplify_prefactor(value)
     end
     return result
 end
@@ -233,9 +224,7 @@ See also [`independent_basis`](@ref), [`support_basis`](@ref).
 """
 struct JumpBasis
     operators::Vector{QAdd}
-    monomials::Vector{QTerm}
-    coordinates::CoeffMatrix
-    pivots::Vector{Int}
+    pivot_terms::Vector{QTerm}
     pivot_inverse::CoeffMatrix
 end
 
@@ -246,7 +235,7 @@ function basis_from_operators(projected::Vector{QAdd})
         ArgumentError("jump-basis operators are linearly dependent modulo the identity")
     )
     pivot_inverse = coeff_inverse(coordinates[pivots, :])
-    return JumpBasis(projected, monomials, coordinates, pivots, pivot_inverse)
+    return JumpBasis(projected, monomials[pivots], pivot_inverse)
 end
 
 JumpBasis(operators::AbstractVector) =
@@ -270,9 +259,9 @@ function reduce_against!(vector::QTermDict, echelon::Vector{Pair{QTerm, QTermDic
     for (pivot, row) in echelon
         entry = get(vector, pivot, CNUM_ZERO)
         iszero(entry) && continue
-        factor = simplify_coeff(entry * inv(row[pivot]))
+        factor = simplify_prefactor(entry * inv(row[pivot]))
         for (term, c) in row
-            updated = simplify_coeff(get(vector, term, CNUM_ZERO) - factor * c)
+            updated = simplify_prefactor(get(vector, term, CNUM_ZERO) - factor * c)
             iszero(updated) ? delete!(vector, term) : (vector[term] = updated)
         end
     end
@@ -325,12 +314,12 @@ function canonical_map(S::SuperOperator)
         left = canonical_operator(left_operator(term))
         right = canonical_operator(right_operator(term))
         for (lt, lc) in left.arguments, (rt, rc) in right.arguments
-            c = simplify_coeff(coefficient * lc * rc)
+            c = simplify_prefactor(coefficient * lc * rc)
             iszero(c) && continue
             accumulate!(builder, c, unit_monomial(lt), unit_monomial(rt))
         end
     end
-    return build(builder)
+    return finish!(builder)
 end
 
 two_sided(left::QAdd, right::QAdd) = !isone(left) && !isone(right)
@@ -345,7 +334,7 @@ end
 function sandwich_pivot_matrix(canonical::SuperOperator, basis::JumpBasis)
     q = length(basis)
     result = coeff_zeros(q, q)
-    index = Dict{QTerm, Int}(basis.monomials[p] => k for (k, p) in enumerate(basis.pivots))
+    index = Dict{QTerm, Int}(term => k for (k, term) in enumerate(basis.pivot_terms))
     for (term, coefficient) in canonical.arguments
         left = left_operator(term)
         right = right_operator(term)
@@ -356,7 +345,7 @@ function sandwich_pivot_matrix(canonical::SuperOperator, basis::JumpBasis)
             isempty(rt.ops) && continue
             column = get(index, rt, 0)
             iszero(column) && continue
-            result[row, column] = simplify_coeff(result[row, column] + coefficient * conj(rc))
+            result[row, column] = simplify_prefactor(result[row, column] + coefficient * conj(rc))
         end
     end
     return result
@@ -369,11 +358,11 @@ function dissipative_map(operators::Vector{QAdd}, matrix::CoeffMatrix)
         iszero(c) && continue
         accumulate!(builder, c * SuperOperator(dissipator(operators[row], operators[column])))
     end
-    return canonical_map(build(builder))
+    return canonical_map(finish!(builder))
 end
 
 function conjugate_pair(left::CNum, right::CNum)
-    iszero(simplify_coeff(left - conj(right))) && return true
+    iszero(simplify_prefactor(left - conj(right))) && return true
     difference = to_num(left) - conj(to_num(right))
     return iszero(Symbolics.expand(real(difference))) &&
         iszero(Symbolics.expand(imag(difference)))
@@ -383,9 +372,9 @@ function hermitian_part(matrix::CoeffMatrix)
     result = copy(matrix)
     for row in axes(matrix, 1), column in row:size(matrix, 2)
         conjugate_pair(matrix[row, column], matrix[column, row]) && continue
-        average = simplify_coeff((matrix[row, column] + conj(matrix[column, row])) * CNUM_HALF)
+        average = simplify_prefactor((matrix[row, column] + conj(matrix[column, row])) * CNUM_HALF)
         result[row, column] = average
-        result[column, row] = simplify_coeff(conj(average))
+        result[column, row] = simplify_prefactor(conj(average))
     end
     return result
 end
@@ -438,11 +427,11 @@ end
 magnitude(matrix::CoeffMatrix) = map(magnitude, matrix)
 
 function magnitude(operator::QAdd)
-    result = zero_qadd()
+    result = QAddBuilder()
     for (term, c) in operator.arguments
-        result = result + magnitude(c) * unit_monomial(term)
+        accumulate!(result, magnitude(c) * unit_monomial(term))
     end
-    return result
+    return build(result)
 end
 
 function negligible(residual::CNum, references::NTuple{2, CNum}, rtol::Float64)
@@ -475,7 +464,7 @@ const FLOAT_HINT =
 function roundoff_scale(
         canonical::SuperOperator, basis::JumpBasis, sandwich::CoeffMatrix, rtol::Float64,
     )
-    floats = has_float(canonical) || has_float(basis.coordinates)
+    floats = has_float(canonical) || any(F -> any(has_float, values(F.arguments)), basis.operators)
     hint = floats && iszero(rtol) ? FLOAT_HINT : ""
     (floats && rtol > 0) || return RoundoffScale(canonical, zero(SuperOperator), 0.0, hint)
     inverse = magnitude(basis.pivot_inverse)
@@ -492,7 +481,7 @@ function drop_roundoff(residual::SuperOperator, scale::RoundoffScale)
         negligible(c, references, scale.rtol) && continue
         accumulate!(builder, c, left_operator(term), right_operator(term))
     end
-    return build(builder)
+    return finish!(builder)
 end
 
 function hermitian_modulo_identity(H::QAdd, rtol::Float64)
@@ -506,13 +495,13 @@ function hermitian_modulo_identity(H::QAdd, rtol::Float64)
 end
 
 function residual_hamiltonian(residual::SuperOperator, scale::RoundoffScale)
-    H = zero_qadd()
+    builder = QAddBuilder()
     for (term, coefficient) in residual.arguments
         left = left_operator(term)
         (isone(right_operator(term)) && !isone(left)) || continue
-        H = H + (im * coefficient) * left
+        accumulate!(builder, (im * coefficient) * left)
     end
-    H = simplify(H)
+    H = simplify(build(builder))
     rest = drop_roundoff(canonical_map(residual - SuperOperator(hamiltonian_action(H))), scale)
     iszero(rest) || throw(
         GKSLFormError("the one-sided part of the map is not a Hamiltonian commutator" * scale.hint)
@@ -532,14 +521,15 @@ function dissipative_residual(
 end
 
 function trace_preserving(canonical::SuperOperator, rtol::Float64)
-    defect = zero_qadd()
-    bound = zero_qadd()
+    defects = QAddBuilder()
+    bounds = QAddBuilder()
     for (term, c) in canonical.arguments
         product = canonical_operator(right_operator(term) * left_operator(term))
-        defect = defect + c * product
-        iszero(rtol) || (bound = bound + magnitude(c) * magnitude(product))
+        accumulate!(defects, c * product)
+        iszero(rtol) || accumulate!(bounds, magnitude(c) * magnitude(product))
     end
-    defect = simplify(defect)
+    defect = simplify(build(defects))
+    bound = build(bounds)
     for (term, c) in defect.arguments
         negligible(c, (get(bound.arguments, term, CNUM_ZERO), CNUM_ZERO), rtol) || return false
     end
@@ -656,7 +646,8 @@ end
 kossakowski(L::Lindbladian{QAdd}, basis::JumpBasis; rtol::Real = 0) =
     kossakowski(SuperOperator(L), basis; rtol)
 
-function gksl_lindbladian(H::QAdd, basis::JumpBasis, matrix::CoeffMatrix)
+function gksl_lindbladian(canonical::SuperOperator, basis::JumpBasis, rtol::Real)
+    H, matrix = extract_gksl(canonical, basis, Float64(rtol))
     builder = LindbladianBuilder{QAdd}()
     accumulate!(builder, hamiltonian_action(H))
     for row in axes(matrix, 1), column in axes(matrix, 2)
@@ -666,7 +657,7 @@ function gksl_lindbladian(H::QAdd, basis::JumpBasis, matrix::CoeffMatrix)
             matrix[row, column],
         )
     end
-    return build(builder)
+    return finish!(builder)
 end
 
 """
@@ -695,16 +686,12 @@ julia> Lindbladian(SuperOperator(dissipator(a + 3)))
 
 See also [`kossakowski`](@ref), [`support_basis`](@ref).
 """
-function Lindbladian(S::SuperOperator, basis::JumpBasis; rtol::Real = 0)
-    H, matrix = extract_gksl(canonical_map(S), basis, Float64(rtol))
-    return gksl_lindbladian(H, basis, matrix)
-end
+Lindbladian(S::SuperOperator, basis::JumpBasis; rtol::Real = 0) =
+    gksl_lindbladian(canonical_map(S), basis, rtol)
 
 function Lindbladian(S::SuperOperator; rtol::Real = 0)
     canonical = canonical_map(S)
-    basis = support_basis_canonical(canonical)
-    H, matrix = extract_gksl(canonical, basis, Float64(rtol))
-    return gksl_lindbladian(H, basis, matrix)
+    return gksl_lindbladian(canonical, support_basis_canonical(canonical), rtol)
 end
 
 function Base.show(io::IO, basis::JumpBasis)

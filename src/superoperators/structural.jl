@@ -20,22 +20,8 @@ end
 
 normal_order(S::SuperOperator) = map_sides(restream_side, S)
 
-function map_coefficients(f::F, S::SuperOperator) where {F}
-    out = SuperTermDict()
-    for (t, c) in S.arguments
-        nc = to_cnum(f(c))
-        iszero(nc) && continue
-        if isempty(S.indices) || nc === c
-            addto_key!(out, copy_key(t), nc)
-            continue
-        end
-        mentions(x, idx) = depends_on_sandwich(x, t.left, t.right, idx)
-        coef, ne = settle_mapped(mentions, c, nc, t.ne, S.indices)
-        key = ne === t.ne ? copy_key(t) : SuperTerm(copy(t.left), copy(t.right), ne)
-        addto_key!(out, key, coef)
-    end
-    return superop_pruned(out, copy(S.indices))
-end
+map_coefficients(f::F, S::SuperOperator) where {F} =
+    superop_pruned(mapped_terms(f, S.arguments, S.indices), copy(S.indices))
 
 SymbolicUtils.simplify(S::SuperOperator; kwargs...) =
     map_coefficients(c -> simplify_prefactor(c; kwargs...), normal_order(S))
@@ -109,15 +95,24 @@ end
 
 Rebuild `L` from transformed parts, renormalizing every channel.
 """
-function map_lindbladian(fH::FH, fJ::FJ, fγ::FG, L::Lindbladian{O}) where {FH, FJ, FG, O}
-    b = LindbladianBuilder{O}()
+map_lindbladian(fH::FH, fJ::FJ, fγ::FG, L::Lindbladian{O}) where {FH, FJ, FG, O} =
+    map_lindbladian(fH, fJ, fγ, same_scope, O, L)
+
+same_scope(scope::Vector{Index}, ne::Vector{NonEqualPair}) = (true, copy(scope), ne)
+
+function map_lindbladian(
+        fH::FH, fJ::FJ, fγ::FG, fscope::FS, ::Type{P}, L::Lindbladian,
+    ) where {FH, FJ, FG, FS, P}
+    b = LindbladianBuilder{P}()
     add_hamiltonian!(b.hamiltonian, fH(L.hamiltonian))
     for (ch, γ) in L.channels
+        kept, scope, ne = fscope(ch.scope, ch.ne)
+        kept || continue
         J = fJ(ch.jump)
         K = is_diagonal(ch) ? J : fJ(ch.partner)
-        add_channel!(b, J, K, fγ(γ), copy(ch.scope), ch.ne)
+        add_channel!(b, J, K, fγ(γ), scope, ne)
     end
-    return build(b)
+    return finish!(b)
 end
 
 normal_order(L::Lindbladian) = map_lindbladian(normal_order, normal_order, identity, L)
@@ -140,14 +135,9 @@ map_coefficients(f::F, L::Lindbladian{QAdd}) where {F} = map_lindbladian(
 )
 
 function assume_distinct_index(L::Lindbladian{O}, pairs::Vector{Tuple{Index, Index}}) where {O}
-    b = LindbladianBuilder{O}()
-    add_hamiltonian!(b.hamiltonian, assume_distinct_index(L.hamiltonian, pairs))
-    for (ch, γ) in L.channels
-        J = assume_distinct_index(ch.jump, pairs)
-        K = is_diagonal(ch) ? J : assume_distinct_index(ch.partner, pairs)
-        add_channel!(b, J, K, γ, copy(ch.scope), merge_ne_pairs(ch.ne, pairs))
-    end
-    return build(b)
+    distinct(x) = assume_distinct_index(x, pairs)
+    distinct_scope(scope, ne) = (true, copy(scope), merge_ne_pairs(ne, pairs))
+    return map_lindbladian(distinct, distinct, identity, distinct_scope, O, L)
 end
 
 function SymbolicUtils.substitute(L::Lindbladian{O}, rules::AbstractDict; replace_adjoint::Bool = true) where {O}
@@ -157,16 +147,10 @@ end
 
 function change_index(L::Lindbladian{O}, m::IndexMap) where {O}
     renames_nothing(m) && return L
-    b = LindbladianBuilder{O}()
-    add_hamiltonian!(b.hamiltonian, change_index(L.hamiltonian, m))
-    for (ch, γ) in L.channels
-        ne_becomes_contradictory(ch.ne, m) && continue
-        J = change_index(ch.jump, m)
-        K = is_diagonal(ch) ? J : change_index(ch.partner, m)
-        sc = unique!(Index[reindex(m, idx) for idx in ch.scope])
-        add_channel!(b, J, K, change_index(γ, m), sc, substitute_ne(ch.ne, m))
-    end
-    return build(b)
+    renamed(x) = change_index(x, m)
+    renamed_scope(scope, ne) = ne_becomes_contradictory(ne, m) ? (false, scope, ne) :
+        (true, unique!(Index[reindex(m, idx) for idx in scope]), substitute_ne(ne, m))
+    return map_lindbladian(renamed, renamed, renamed, renamed_scope, O, L)
 end
 
 function get_sum_indices(L::Lindbladian)
@@ -232,60 +216,25 @@ function constraint_pairs(L::Lindbladian)
     return out
 end
 
-"""
-    SuperBuilder()
-
-An accumulator that builds a [`SuperOperator`](@ref) from many terms in linear time.
-
-Add maps with `accumulate!(b, S)` and single sandwiches `c * A ρ B` with
-`accumulate!(b, c, A, B)`, and finish with [`build`](@ref). `sum` over an array of maps uses
-it already.
-
-# Examples
-```jldoctest
-julia> using SecondQuantizedAlgebra: SuperBuilder, spre, accumulate!, build
-
-julia> h = FockSpace(:c); a = Destroy(h, :a);
-
-julia> b = SuperBuilder();
-
-julia> accumulate!(b, spre(a)); accumulate!(b, 2, a, a');
-
-julia> build(b)
-a ⋅ (·) + 2 * a ⋅ (·) ⋅ a'
-```
-
-See also [`LindbladianBuilder`](@ref).
-"""
-struct SuperBuilder
-    args::SuperTermDict
-    indices::Vector{Index}
-end
-SuperBuilder() = SuperBuilder(SuperTermDict(), Index[])
-
-function accumulate!(b::SuperBuilder, S::SuperOperator)
+function accumulate!(b::SuperBuilder, S::SuperOperator, scale::CNum = CNUM_ONE)
+    iszero(scale) && return b
     for (t, c) in S.arguments
-        addto_key!(b.args, copy_key(t), c)
+        addto_key!(b.args, copy_key(t), scale === CNUM_ONE ? c : c * scale)
     end
     isempty(S.indices) || merge_indices!(b.indices, S.indices)
     return b
 end
 accumulate!(b::SuperBuilder, L::Lindbladian{QAdd}) = accumulate!(b, SuperOperator(L))
 
-function accumulate!(b::SuperBuilder, c::Coefficient, A::Union{QField, Coefficient}, B::Union{QField, Coefficient})
+function accumulate!(b::SuperBuilder, c::Coefficient, A::Union{QAdd, QSym, Coefficient}, B::Union{QAdd, QSym, Coefficient})
     cc = to_cnum(c)
     iszero(cc) && return b
-    Aq = as_side(A)
-    Bq = as_side(B)
-    isempty(Aq.indices) || summed_side_error("`accumulate!`")
-    isempty(Bq.indices) || summed_side_error("`accumulate!`")
-    for (ta, ca) in Aq.arguments, (tb, cb) in Bq.arguments
-        canonical_sandwich!(b.args, ta.ops, tb.ops, cc * (ca * cb), merge_ne(ta.ne, tb.ne))
-    end
+    add_sandwiches!(b.args, cc, as_side(A), as_side(B), "`accumulate!`")
     return b
 end
 
 build(b::SuperBuilder) = superop_pruned(copy(b.args), copy(b.indices))
+finish!(b::SuperBuilder) = superop_pruned(b.args, b.indices)
 
 function Base.sum(a::AbstractArray{SuperOperator})
     isempty(a) && return zero(SuperOperator)
@@ -293,7 +242,7 @@ function Base.sum(a::AbstractArray{SuperOperator})
     for x in a
         accumulate!(b, x)
     end
-    return build(b)
+    return finish!(b)
 end
 
 function Base.sum(a::AbstractArray{Lindbladian{O}}) where {O}
@@ -302,7 +251,7 @@ function Base.sum(a::AbstractArray{Lindbladian{O}}) where {O}
     for x in a
         accumulate!(b, x)
     end
-    return build(b)
+    return finish!(b)
 end
 
 MA.operate(::typeof(sum), a::AbstractArray{SuperOperator}) = sum(a)
