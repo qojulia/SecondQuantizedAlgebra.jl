@@ -1,4 +1,5 @@
 using SecondQuantizedAlgebra
+import SecondQuantizedAlgebra: is_spin
 import SecondQuantizedAlgebra: simplify
 using Test
 

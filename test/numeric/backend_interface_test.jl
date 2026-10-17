@@ -1,4 +1,5 @@
 using SecondQuantizedAlgebra
+import SecondQuantizedAlgebra: numeric_backend, numeric_basis
 using QuantumOpticsBase
 using Test
 

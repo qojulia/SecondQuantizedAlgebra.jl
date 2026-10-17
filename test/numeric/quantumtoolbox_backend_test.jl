@@ -7,6 +7,7 @@
 # convention differs across backends), with states built per-backend in slot order.
 
 using SecondQuantizedAlgebra
+import SecondQuantizedAlgebra: numeric_assemble, numeric_backend, numeric_basis, numeric_expect
 import QuantumToolbox as QTB
 import QuantumOpticsBase as QOB
 import SciMLOperators as SO

@@ -161,6 +161,7 @@ Momentum
 Every operator has the same type, so its kind is read with a function rather than a type check. Methods for any operator expression are written for [`QField`](@ref), and for single operators for [`QSym`](@ref).
 
 ```@example hybrid
+using SecondQuantizedAlgebra: optype, is_create, is_transition
 optype(a'), is_create(a'), is_transition(σ(:g, :e))
 ```
 

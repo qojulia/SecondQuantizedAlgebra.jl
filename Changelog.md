@@ -6,6 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [Unreleased]
+
+### Changed (breaking)
+
+- The operator-kind predicates (`optype`, `is_destroy`, `is_create`, `is_transition`, `is_collective_transition`, `is_pauli`, `is_spin`, `is_position`, `is_momentum`), `is_indexed_sum` and the numeric backend interface (`NumericBackend`, `EagerOperator`, `numeric_backend` and the `numeric_*` methods) are public but no longer exported. Import them explicitly, e.g. `using SecondQuantizedAlgebra: is_destroy`.
+
 ## [v0.14.0]
 
 Adds symbolic dissipative dynamics and exact GKSL extraction, with breaking API changes for type stability.

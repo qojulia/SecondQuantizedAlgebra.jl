@@ -1,4 +1,5 @@
 using SecondQuantizedAlgebra
+import SecondQuantizedAlgebra: is_collective_transition, is_create, is_destroy, is_indexed_sum, is_momentum, is_pauli, is_position, is_spin, is_transition, numeric_backend, numeric_basis, numeric_embed, numeric_expect, numeric_identity, numeric_num_subsystems, numeric_operator, numeric_subbasis, optype
 using Test
 using JET
 using QuantumOpticsBase: FockBasis, ManyBodyBasis, NLevelBasis, SpinBasis, LazyKet, basisstate, bosonstates, coherentstate, dense, destroy, fockstate, nlevelstate, tensor

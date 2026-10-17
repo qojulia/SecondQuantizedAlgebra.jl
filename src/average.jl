@@ -91,6 +91,8 @@ The indices and constraints of the sum are read with [`get_sum_indices`](@ref) a
 
 # Examples
 ```jldoctest
+julia> using SecondQuantizedAlgebra: is_indexed_sum
+
 julia> h = NLevelSpace(:atom, 2); i = Index(h, :i, 10, h);
 
 julia> x = average(Σ(IndexedOperator(Transition(h, :σ, 2, 2), i), i))

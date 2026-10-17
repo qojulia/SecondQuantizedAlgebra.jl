@@ -1,4 +1,5 @@
 using SecondQuantizedAlgebra
+import SecondQuantizedAlgebra: is_create, is_destroy, is_momentum, is_pauli, is_position, is_spin, is_transition
 using Test
 using Symbolics: @variables
 import SecondQuantizedAlgebra: constraint_pairs

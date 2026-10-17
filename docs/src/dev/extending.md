@@ -28,7 +28,7 @@ Two residual slots exist because a collective commutator ``[S^{ij}, S^{kl}] = \d
 
 A new kind touches these places:
 
-1. **The kind.** An `OP_*` member of `OpKind` in `src/operators/op.jl`, an `is_*` predicate, and an export.
+1. **The kind.** An `OP_*` member of `OpKind` in `src/operators/op.jl`, an `is_*` predicate, and a `@public` entry.
 2. **The constructor.** A function in the file of its Hilbert space that validates the arguments and returns an `Op`. Levels or axes go in the shared fields `l1`, `l2`, `g`, `nlev`; a kind that needs none leaves them zero. Write the constructor for the single space only; its `ProductSpace` methods are one-liners through `on_factor`, which checks the factor and moves the operator onto it.
 3. **The algebra.** A branch in each function of the table that the kind needs. Kinds on one space that interact, like annihilation and creation, form a family in `site_family`.
 4. **Adjoint.** A branch of `adjoint` in `src/operators/operators.jl`. `order_key` reads the shared fields and needs no change, as long as distinct operators of the kind differ in those fields.

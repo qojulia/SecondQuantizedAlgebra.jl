@@ -8,6 +8,8 @@ The values are `OP_DESTROY`, `OP_CREATE`, `OP_TRANSITION`, `OP_COLLECTIVE_TRANSI
 
 # Examples
 ```jldoctest
+julia> using SecondQuantizedAlgebra: optype
+
 julia> optype(Destroy(FockSpace(:cavity), :a)') === SecondQuantizedAlgebra.OP_CREATE
 true
 ```
@@ -30,6 +32,8 @@ them apart instead of `isa`.
 # Examples
 
 ```jldoctest
+julia> using SecondQuantizedAlgebra: is_destroy, is_create
+
 julia> a = Destroy(FockSpace(:cavity), :a);
 
 julia> a isa Op, is_destroy(a), is_create(a')
@@ -91,6 +95,8 @@ Whether `o` is an annihilation operator, see [`Destroy`](@ref).
 # Examples
 
 ```jldoctest
+julia> using SecondQuantizedAlgebra: is_destroy
+
 julia> a = Destroy(FockSpace(:cavity), :a);
 
 julia> is_destroy(a), is_destroy(a')
@@ -111,6 +117,8 @@ Whether `o` is a creation operator, see [`Create`](@ref).
 # Examples
 
 ```jldoctest
+julia> using SecondQuantizedAlgebra: is_create
+
 julia> a = Destroy(FockSpace(:cavity), :a);
 
 julia> is_create(a'), is_create(a)
@@ -129,6 +137,8 @@ Whether `o` is a transition operator, see [`Transition`](@ref).
 # Examples
 
 ```jldoctest
+julia> using SecondQuantizedAlgebra: is_transition
+
 julia> σ = Transition(NLevelSpace(:atom, 2), :σ, 1, 2);
 
 julia> is_transition(σ)
@@ -147,6 +157,8 @@ Whether `o` is a collective transition operator, see [`CollectiveTransition`](@r
 # Examples
 
 ```jldoctest
+julia> using SecondQuantizedAlgebra: is_collective_transition, is_transition
+
 julia> S = CollectiveTransition(CollectiveNLevelSpace(:atoms, 2), :S, 1, 2);
 
 julia> is_collective_transition(S), is_transition(S)
@@ -165,6 +177,8 @@ Whether `o` is a Pauli operator, see [`Pauli`](@ref).
 # Examples
 
 ```jldoctest
+julia> using SecondQuantizedAlgebra: is_pauli
+
 julia> σx = Pauli(PauliSpace(:qubit), :σ, 1);
 
 julia> is_pauli(σx)
@@ -183,6 +197,8 @@ Whether `o` is a spin operator, see [`Spin`](@ref).
 # Examples
 
 ```jldoctest
+julia> using SecondQuantizedAlgebra: is_spin
+
 julia> Sx = Spin(SpinSpace(:S), :S, 1);
 
 julia> is_spin(Sx)
@@ -201,6 +217,8 @@ Whether `o` is a position quadrature, see [`Position`](@ref).
 # Examples
 
 ```jldoctest
+julia> using SecondQuantizedAlgebra: is_position, is_momentum
+
 julia> x = Position(PhaseSpace(:osc), :x);
 
 julia> is_position(x), is_momentum(x)
@@ -219,6 +237,8 @@ Whether `o` is a momentum quadrature, see [`Momentum`](@ref).
 # Examples
 
 ```jldoctest
+julia> using SecondQuantizedAlgebra: is_momentum
+
 julia> p = Momentum(PhaseSpace(:osc), :p);
 
 julia> is_momentum(p)
@@ -241,6 +261,8 @@ such as [`is_destroy`](@ref) read better.
 # Examples
 
 ```jldoctest
+julia> using SecondQuantizedAlgebra: optype
+
 julia> σ = Transition(NLevelSpace(:atom, 2), :σ, 2, 1);
 
 julia> optype(σ) == SecondQuantizedAlgebra.OP_TRANSITION

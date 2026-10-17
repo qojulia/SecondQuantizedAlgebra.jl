@@ -1,4 +1,5 @@
 using SecondQuantizedAlgebra
+import SecondQuantizedAlgebra: is_momentum, is_position
 using QuantumOpticsBase
 using Latexify
 using Symbolics: @variables, Num

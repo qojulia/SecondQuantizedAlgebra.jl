@@ -1,4 +1,5 @@
 using SecondQuantizedAlgebra
+import SecondQuantizedAlgebra: is_destroy
 using Test
 
 @testset "@qnumbers" begin
