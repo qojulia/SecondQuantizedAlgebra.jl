@@ -266,6 +266,9 @@ See also [`JumpBasis`](@ref), [`support_basis`](@ref).
 function independent_basis(candidates::AbstractVector)
     projected = QAdd[]
     for candidate in candidates
+        candidate isa Union{Op, QAdd} || throw(
+            ArgumentError("a jump-basis candidate must be an operator or a polynomial, got $(typeof(candidate))")
+        )
         operator = identity_free(canonical_operator(candidate))
         iszero(operator) || push!(projected, operator)
     end

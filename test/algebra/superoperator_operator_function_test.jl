@@ -30,6 +30,9 @@ import SecondQuantizedAlgebra: SuperOperator, SuperExpr, QAdd, QExpr, sprepost, 
         # Loss terms are split into the same additive atoms as the gain term.
         @test iszero(simplify(transpose(dissipator(cos(φ) + sin(φ)))(1)))
         @test iszero(simplify(transpose(dissipator(cos(φ) + 2sin(φ), sin(φ) + φ))(1)))
+        shifted = dissipator(cos(φ), φ + 1)
+        @test taylor(SuperExpr(shifted), 0:2) == SuperOperator(dissipator(taylor(cos(φ), 0:2), φ + 1))
+        @test iszero(simplify(transpose(shifted)(1)))
     end
 
     @testset "key canonicality" begin
