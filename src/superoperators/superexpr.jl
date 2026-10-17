@@ -386,39 +386,45 @@ function Base.transpose(X::SuperExpr)
     return finish!(b)
 end
 
-function map_formal(fp::FP, fs::FS, fc::FC, X::SuperExpr) where {FP, FS, FC}
+"""
+    rewrite(f, fc, X)
+
+`X` with `f` applied to every operator side and `fc` to every coefficient. A `Lindbladian`
+renormalizes its channels; maps that change a channel's scope use `map_lindbladian`.
+"""
+function rewrite(f::F, fc::FC, X::SuperExpr) where {F, FC}
     b = SuperExprBuilder()
-    accumulate!(b, fp(X.poly))
+    accumulate!(b, f(X.poly))
     for (t, c) in X.formal
-        add_sandwich!(b, fc(c), fs(t.left), fs(t.right))
+        add_sandwich!(b, fc(c), f(t.left), f(t.right))
     end
     return finish!(b)
 end
 
-normal_order(X::SuperExpr) = map_formal(normal_order, normal_order, identity, X)
-SymbolicUtils.simplify(X::SuperExpr; kwargs...) = map_formal(
-    S -> SymbolicUtils.simplify(S; kwargs...), q -> SymbolicUtils.simplify(q; kwargs...),
-    c -> simplify_prefactor(c; kwargs...), X,
-)
-Symbolics.expand(X::SuperExpr; kwargs...) = map_formal(
-    S -> Symbolics.expand(S; kwargs...), q -> Symbolics.expand(q; kwargs...),
-    c -> expand_prefactor(c; kwargs...), X,
-)
-expand_completeness(X::SuperExpr) = map_formal(expand_completeness, expand_completeness, identity, X)
-assume_distinct_index(X::SuperExpr, pairs::Vector{Tuple{Index, Index}}) = map_formal(
-    S -> assume_distinct_index(S, pairs), q -> assume_distinct_index(q, pairs), identity, X,
-)
-change_index(X::SuperExpr, m::IndexMap) = map_formal(
-    S -> change_index(S, m), q -> change_index(q, m), c -> change_index(c, m), X,
-)
+rewrite(f::F, fc::FC, L::Lindbladian{O}) where {F, FC, O} =
+    map_lindbladian(f, f, fc, same_scope, O, L)
 
-function SymbolicUtils.substitute(X::SuperExpr, rules::AbstractDict; replace_adjoint::Bool = true)
+const StructuredMap = Union{SuperExpr, Lindbladian}
+
+normal_order(X::StructuredMap) = rewrite(normal_order, identity, X)
+SymbolicUtils.simplify(X::StructuredMap; kwargs...) = rewrite(
+    x -> SymbolicUtils.simplify(x; kwargs...), c -> simplify_prefactor(c; kwargs...), X,
+)
+Symbolics.expand(X::StructuredMap; kwargs...) =
+    rewrite(x -> Symbolics.expand(x; kwargs...), c -> expand_prefactor(c; kwargs...), X)
+expand_completeness(X::StructuredMap) = rewrite(expand_completeness, identity, X)
+conjugate(X::StructuredMap, U::UnitaryTransform) = rewrite(x -> conjugate(x, U), identity, X)
+
+function SymbolicUtils.substitute(X::StructuredMap, rules::AbstractDict; replace_adjoint::Bool = true)
     r = SubstitutionRules(rules, replace_adjoint)
-    return map_formal(S -> substitute_with(S, r), q -> substitute_with(q, r), c -> substitute_cnum(c, r), X)
+    return rewrite(x -> substitute_with(x, r), c -> substitute_cnum(c, r), X)
 end
 
-conjugate(X::SuperExpr, U::UnitaryTransform) =
-    map_formal(S -> conjugate(S, U), q -> conjugate(q, U), identity, X)
+assume_distinct_index(X::SuperExpr, pairs::Vector{Tuple{Index, Index}}) =
+    rewrite(x -> assume_distinct_index(x, pairs), identity, X)
+change_index(X::SuperExpr, m::IndexMap) =
+    rewrite(x -> change_index(x, m), c -> change_index(c, m), X)
+
 transform(X::SuperExpr, U::UnitaryTransform{StaticTime}) = conjugate(X, U)
 transform(X::SuperExpr, U::UnitaryTransform{DynamicTime}) =
     conjugate(X, U) + SuperExpr(SuperOperator(hamiltonian_action(U.gauge)))
@@ -432,32 +438,44 @@ function get_indices(X::SuperExpr)
     return out
 end
 
-function get_operators(X::SuperExpr)
-    ops = copy(get_operators(X.poly))
+function foreach_operand(f::F, X::SuperExpr) where {F}
+    f(X.poly)
     for t in keys(X.formal)
-        append!(ops, get_operators(t.left))
-        append!(ops, get_operators(t.right))
+        f(t.left)
+        f(t.right)
     end
+    return nothing
+end
+
+function foreach_operand(f::F, L::Lindbladian) where {F}
+    f(L.hamiltonian)
+    for ch in keys(L.channels)
+        f(ch.jump)
+        f(ch.partner)
+    end
+    return nothing
+end
+
+rates(X::SuperExpr) = values(X.formal)
+rates(L::Lindbladian) = values(L.channels)
+
+function get_operators(X::StructuredMap)
+    ops = Op[]
+    foreach_operand(x -> append!(ops, get_operators(x)), X)
     unique!(ops)
-    sort!(ops; by = order_key)
-    return ops
+    return sort!(ops; by = order_key)
 end
 
-function acts_on(X::SuperExpr)
-    out = copy(acts_on(X.poly))
-    for t in keys(X.formal)
-        append!(out, acts_on(t.left))
-        append!(out, acts_on(t.right))
-    end
-    unique!(sort!(out))
-    return out
+function acts_on(X::StructuredMap)
+    out = Int[]
+    foreach_operand(x -> append!(out, acts_on(x)), X)
+    return unique!(sort!(out))
 end
 
-function Symbolics.get_variables(X::SuperExpr; kwargs...)
-    vars = copy(Symbolics.get_variables(X.poly; kwargs...))
-    for (t, c) in X.formal
-        append!(vars, Symbolics.get_variables(t.left; kwargs...))
-        append!(vars, Symbolics.get_variables(t.right; kwargs...))
+function Symbolics.get_variables(X::StructuredMap; kwargs...)
+    vars = SymbolicUtils.BasicSymbolic[]
+    foreach_operand(x -> append!(vars, Symbolics.get_variables(x; kwargs...)), X)
+    for c in rates(X)
         append!(vars, Symbolics.get_variables(real(c); kwargs...))
         append!(vars, Symbolics.get_variables(imag(c); kwargs...))
     end

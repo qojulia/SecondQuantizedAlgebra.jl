@@ -9,24 +9,43 @@ function conjugate(S::SuperOperator, U::UnitaryTransform)
     return reduce_params(conjugated, U.action.relations)
 end
 
-conjugate(L::Lindbladian, U::UnitaryTransform) =
-    map_lindbladian(H -> conjugate(H, U), J -> conjugate(J, U), identity, L)
-
 transform(S::SuperOperator, U::UnitaryTransform{StaticTime}) = conjugate(S, U)
 transform(S::SuperOperator, U::UnitaryTransform{DynamicTime}) =
     conjugate(S, U) + SuperOperator(hamiltonian_action(U.gauge))
 
-transform(L::Lindbladian, U::UnitaryTransform) =
-    map_lindbladian(H -> transform(H, U), J -> conjugate(J, U), identity, L)
+transform(L::Lindbladian{O}, U::UnitaryTransform) where {O} =
+    map_lindbladian(H -> transform(H, U), J -> conjugate(J, U), identity, same_scope, O, L)
+
+"""
+    local_lindbladian(L, space)
+
+The Hamiltonian terms and channels of `L` that act on `space`. Every other part commutes with
+an operator on `space`, so its Heisenberg action on that operator vanishes.
+"""
+function local_lindbladian(L::Lindbladian{QAdd}, space::Int32)
+    H = QTermDict()
+    for (t, c) in L.hamiltonian.arguments
+        acts_on_space(t.ops, space) && (H[copy_key(t)] = c)
+    end
+    chans = Dict{Channel{QAdd}, CNum}()
+    for (ch, γ) in L.channels
+        (acts_on_space(ch.jump, space) || acts_on_space(ch.partner, space)) && (chans[ch] = γ)
+    end
+    return Lindbladian{QAdd}(QAdd(H, drop_unused_indices(H, copy(L.hamiltonian.indices))), chans)
+end
+
+acts_on_space(ops::Vector{Op}, space::Int32) = any(o -> o.space_index == space, ops)
+acts_on_space(q::QAdd, space::Int32) = any(t -> acts_on_space(t.ops, space), keys(q.arguments))
 
 function lindblad_drift(basis::Vector{Op}, primary::Int, L::Lindbladian{QAdd})
     n = length(basis)
     locations = Dict{Op, Int}(operator => i for (i, operator) in enumerate(basis))
     rate = fill(CNUM_ZERO, n, n)
     drive = fill(CNUM_ZERO, n)
-    heisenberg = transpose(L)
+    heisenberg = Dict{Int32, SuperOperator}()
     for (row, operator) in enumerate(basis)
-        drift = heisenberg(operator)
+        space = operator.space_index
+        drift = get!(() -> transpose(local_lindbladian(L, space)), heisenberg, space)(operator)
         isempty(drift.indices) || unitary_error(
             "`DisplacementFrame` requires a drift without bound sums; got `$(sprint(show, drift))`",
         )
