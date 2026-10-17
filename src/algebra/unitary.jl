@@ -256,7 +256,7 @@ transform(q::QAdd, U::UnitaryTransform{DynamicTime}) = conjugate(q, U) + U.gauge
 transform(o::QSym, U::UnitaryTransform) =
     transform(to_qadd(o), U)
 
-conjugate(q::QExpr, U::UnitaryTransform)::QExpr = map_args(
+conjugate(q::QExpr, U::UnitaryTransform) = map_args(
     arg -> conjugate(arg, U), q, reduce_affine(q.coeff, U.action.relations, ParamRelation[]),
 )
 

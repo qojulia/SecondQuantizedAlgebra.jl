@@ -266,6 +266,9 @@ See also [`JumpBasis`](@ref), [`support_basis`](@ref).
 function independent_basis(candidates::AbstractVector)
     projected = QAdd[]
     for candidate in candidates
+        candidate isa Union{Op, QAdd} || throw(
+            ArgumentError("a jump-basis candidate must be an operator or a polynomial, got $(typeof(candidate))")
+        )
         operator = identity_free(canonical_operator(candidate))
         iszero(operator) || push!(projected, operator)
     end
@@ -351,11 +354,12 @@ const AtomPowers = Tuple{Vector{RawExpression}, Vector{Rational{Int}}}
 
 function monomial_entries(c::CNum)
     entries = Tuple{AtomPowers, CoeffScalar}[]
-    if is_native(c)
+    tail = c.tail
+    if tail isa Native
         scalar = native_scalar(c)
         iszero(scalar) || push!(entries, ((EMPTY_SYMS, EMPTY_EXPS), scalar))
-    elseif is_poly(c)
-        for m in (c.tail::Poly).terms
+    elseif tail isa Poly
+        for m in tail.terms
             scalar = monomial_scalar(m)
             iszero(scalar) || push!(entries, ((m.syms, m.exps), scalar))
         end
@@ -373,7 +377,8 @@ function has_float_constant(node)
 end
 
 function has_float(c::CNum)
-    c.tail isa RawSymbolicCoeff && return has_float_constant((c.tail::RawSymbolicCoeff).expr)
+    tail = c.tail
+    tail isa RawSymbolicCoeff && return has_float_constant(tail.expr)
     return any(entry -> last(entry) isa ComplexF64, monomial_entries(c))
 end
 has_float(S::SuperOperator) = any(has_float, values(S.arguments))

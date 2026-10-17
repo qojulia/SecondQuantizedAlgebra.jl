@@ -99,8 +99,9 @@ end
 
 function split_constant(J::QExpr)
     qexpr_is_scalar(J) && return (qexpr_zero(), single_qadd(J.coeff, Op[]))
-    if has_polynomial_body(J)
-        body, constant = split_constant(only(J.args)::QAdd)
+    polynomial, poly = polynomial_body(J)
+    if polynomial
+        body, constant = split_constant(poly)
         return (qexpr_from_qadd(body), constant)
     end
     J.kind == QEXPR_ADD || return (J, zero_qadd())
@@ -145,7 +146,8 @@ end
 
 function jump_content(J::QExpr)
     iszero(J) && return CNUM_ONE
-    has_polynomial_body(J) && return jump_content(only(J.args)::QAdd)
+    polynomial, body = polynomial_body(J)
+    polynomial && return jump_content(body)
     J.kind == QEXPR_ADD && return CNUM_ONE
     return native_content(J.coeff)
 end
@@ -238,8 +240,10 @@ well_scaled(c::CNum) = !is_native(c) || well_scaled(native_scalar(c))
 well_scaled(_) = true
 
 jump_coefficients(J::QAdd) = collect(values(J.arguments))
-jump_coefficients(J::QExpr) =
-    has_polynomial_body(J) ? jump_coefficients(only(J.args)::QAdd) : CNum[J.coeff]
+function jump_coefficients(J::QExpr)
+    polynomial, body = polynomial_body(J)
+    return polynomial ? jump_coefficients(body) : CNum[J.coeff]
+end
 
 function lowered_well_scaled(J::Union{QAdd, QExpr}, K::Union{QAdd, QExpr}, rate::CNum)
     (well_scaled(rate) && !iszero(rate)) || return false

@@ -141,7 +141,7 @@ end
 @inline is_big(::Union{BigExactComplex, BigInt, Rational{BigInt}}) = true
 @inline is_big(p::Poly) = p.terms isa Vector{Monomial{BigExactComplex}}
 @inline is_big(c::Coeff) = c.tail isa Poly && is_big(c.tail)
-@inline is_big(parts::Vector{Coeff}) = any(is_big, parts)
+@inline is_big(parts::Vector{Poly}) = any(is_big, parts)
 @inline is_big(_) = false
 
 @inline as_tier(::Type{E}, p::Poly) where {E <: ExactScalar} = as_tier(E, p.terms)

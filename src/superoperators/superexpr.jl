@@ -128,14 +128,12 @@ function side_atoms!(out::Vector{SideAtom}, c::CNum, x::QExpr)
         for arg in x.args
             side_atoms!(out, c, arg)
         end
-    elseif qexpr_is_scalar(x)
-        push!(out, (c * x.coeff, single_qadd(CNUM_ONE, Op[])))
-    elseif has_polynomial_body(x)
-        side_atoms!(out, c, only(x.args))
-    else
-        push!(out, (c * x.coeff, QExpr(x.kind, CNUM_ONE, copy(x.args))))
+        return out
     end
-    return out
+    qexpr_is_scalar(x) && return push!(out, (c * x.coeff, single_qadd(CNUM_ONE, Op[])))
+    polynomial, body = polynomial_body(x)
+    polynomial && return side_atoms!(out, c, body)
+    return push!(out, (c * x.coeff, QExpr(x.kind, CNUM_ONE, copy(x.args))))
 end
 
 side_atoms(x::QExprArg) = side_atoms!(SideAtom[], CNUM_ONE, x)

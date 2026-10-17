@@ -90,14 +90,17 @@ function qexpr_from_qadd(q::QAdd)
     return QExpr(QEXPR_MUL, CNUM_ONE, QExprArg[q])
 end
 
-has_polynomial_body(q::QExpr) =
-    q.kind == QEXPR_MUL && length(q.args) == 1 && only(q.args) isa QAdd
+function polynomial_body(q::QExpr)
+    (q.kind == QEXPR_MUL && length(q.args) == 1) || return (false, ZERO_QADD)
+    body = only(q.args)
+    body isa QAdd || return (false, ZERO_QADD)
+    return (true, body)
+end
 
 function polynomial_qadd(q::QExpr)
     qexpr_is_scalar(q) && return (true, single_qadd(q.coeff, EMPTY_OPS))
     iszero(q) && return (true, zero_qadd())
-    has_polynomial_body(q) && return (true, only(q.args)::QAdd)
-    return (false, ZERO_QADD)
+    return polynomial_body(q)
 end
 
 qexpr_same_body(a::QExpr, b::QExpr) = a.kind == b.kind && isequal(a.args, b.args)
@@ -105,7 +108,8 @@ qexpr_same_body(a::QExpr, b::QExpr) = a.kind == b.kind && isequal(a.args, b.args
 function qexpr_scale(q::QExpr, c::CNum)
     iszero(c) && return qexpr_zero()
     isequal(c, CNUM_ONE) && return q
-    has_polynomial_body(q) && return qexpr_from_qadd(only(q.args)::QAdd * c)
+    polynomial, body = polynomial_body(q)
+    polynomial && return qexpr_from_qadd(body * c)
     if q.kind == QEXPR_ADD
         args = QExprArg[]
         sizehint!(args, length(q.args))

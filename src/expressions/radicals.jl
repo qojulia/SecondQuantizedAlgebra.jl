@@ -265,21 +265,26 @@ function radical_factors(m::Monomial)
         is_radical_atom(s) || continue
         e = m.exps[i]
         p = s.val::RadicalPrime
-        k = p isa Int && p < RADICAL_TRIAL_BOUND ? mergeable_factor(factors, e) : 0
-        if iszero(k)
-            push!(factors, (e, p))
-        else
-            product, overflow = Base.mul_with_overflow(factors[k][2]::Int, p::Int)
-            overflow ? push!(factors, (e, p)) : (factors[k] = (e, product))
+        if p isa Int && p < RADICAL_TRIAL_BOUND
+            k, q = mergeable_factor(factors, e)
+            if !iszero(k)
+                product, overflow = Base.mul_with_overflow(q, p)
+                if !overflow
+                    factors[k] = (e, product)
+                    continue
+                end
+            end
         end
+        push!(factors, (e, p))
     end
     return insertion_sort!(factors, radical_factor_less)
 end
 function mergeable_factor(factors::Vector{Tuple{Rational{Int}, RadicalPrime}}, e::Rational{Int})
     for k in eachindex(factors)
-        (factors[k][1] == e && factors[k][2] isa Int) && return k
+        f, q = factors[k]
+        (f == e && q isa Int) && return (k, q)
     end
-    return 0
+    return (0, 0)
 end
 @inline radical_factor_less(a::Tuple{Rational{Int}, RadicalPrime}, b::Tuple{Rational{Int}, RadicalPrime}) =
     a[1] == b[1] ? a[2] < b[2] : a[1] < b[1]
