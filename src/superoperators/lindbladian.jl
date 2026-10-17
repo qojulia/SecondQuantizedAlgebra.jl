@@ -40,8 +40,8 @@ end
     hamiltonian(L::Lindbladian)
     channels(L::Lindbladian)
 
-The Hamiltonian of a Lindbladian, and a vector of its `Channel => rate` pairs in
-[`channel_order_key`](@ref) order.
+The Hamiltonian of a Lindbladian, and a vector of its `Channel => rate` pairs sorted by
+[`canonical_isless`](@ref).
 
 # Examples
 ```jldoctest
