@@ -66,7 +66,14 @@ function channels(L::Lindbladian)
     order = sortperm([channel_order_key(ch) for (ch, _) in entries])
     return entries[order]
 end
-@doc (@doc hamiltonian) channels
+
+"""
+    channels(L::Lindbladian) -> Vector{Pair{Channel, rate}}
+
+The decay channels of `L` with their rates, sorted by [`canonical_isless`](@ref). See
+[`hamiltonian`](@ref) for an example.
+"""
+channels
 
 """
     LindbladianBuilder{O}()

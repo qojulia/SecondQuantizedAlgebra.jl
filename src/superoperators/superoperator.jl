@@ -134,7 +134,14 @@ See also [`SuperTerm`](@ref).
 """
 left_operator(t::SuperTerm) = side_qadd(t.left, t.ne)
 right_operator(t::SuperTerm) = side_qadd(t.right, t.ne)
-@doc (@doc left_operator) right_operator
+
+"""
+    right_operator(t::SuperTerm)
+
+The operator acting from the right in the sandwich `t`. See [`left_operator`](@ref) for an
+example.
+"""
+right_operator
 
 side_qadd(ops::Vector{Op}, ne::Vector{NonEqualPair}) =
     QAdd(QTermDict(QTerm(copy(ops), copy_ne(ne)) => CNUM_ONE), Index[])

@@ -82,3 +82,13 @@ The settings of one conversion travel through the numeric core as a single conte
 ```@docs
 NumericContext
 ```
+
+## Superoperator storage
+
+A `SuperOperator` stores its sandwiches in a dictionary keyed by `SuperTerm`, and a `SuperExpr` adds formal sandwiches to a polynomial part.
+
+```@docs
+superterm
+poly
+formal_terms
+```

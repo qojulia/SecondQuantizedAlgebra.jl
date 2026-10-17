@@ -5,7 +5,7 @@ One term of a [`SuperOperator`](@ref), without its coefficient.
 
 A term is a sandwich `ρ ↦ A * ρ * B`. Iterating a `SuperOperator` gives
 `SuperTerm => coefficient` pairs. The two sides share their index inequalities, and are
-read with [`left_operator`](@ref) and `right_operator`.
+read with [`left_operator`](@ref) and [`right_operator`](@ref).
 
 # Examples
 ```jldoctest
@@ -17,7 +17,7 @@ julia> first(sprepost(2a, a'))
 a ⋅ (·) ⋅ a' => 2
 ```
 
-See also [`superterm`](@ref).
+See also [`left_operator`](@ref), [`coefficient`](@ref).
 """
 struct SuperTerm
     left::Vector{Op}

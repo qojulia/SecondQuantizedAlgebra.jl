@@ -66,8 +66,22 @@ See also [`Channel`](@ref), [`hamiltonian`](@ref).
 jump(c::Channel) = c.jump
 partner(c::Channel) = c.partner
 scope(c::Channel) = c.scope
-@doc (@doc jump) partner
-@doc (@doc jump) scope
+
+"""
+    partner(c::Channel)
+
+The partner `K` of a channel `Σ 𝒟[J, K]`. For an independent channel `𝒟[J]` it is `J`.
+See [`jump`](@ref) for an example.
+"""
+partner
+
+"""
+    scope(c::Channel) -> Vector{Index}
+
+The summation indices of a channel `Σ 𝒟[J, K]`, empty for a channel without a sum. See
+[`jump`](@ref) for an example.
+"""
+scope
 
 is_diagonal(c::Channel) = c.partner === c.jump || isequal(c.partner, c.jump)
 

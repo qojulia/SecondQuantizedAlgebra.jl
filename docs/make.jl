@@ -78,7 +78,7 @@ makedocs(;
     warnonly = [:linkcheck],
     draft = DRAFT,
     doctest = true,
-    checkdocs = :exports,
+    checkdocs = :public,
 )
 
 if CI
