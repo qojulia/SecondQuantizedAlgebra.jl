@@ -37,7 +37,7 @@ Poly
 
 ## Orderings
 
-The keys behind [`canonical_isless`](@ref), each total and faithful to `isequal`. They stay internal so the key layout can change; the public contract is the comparison.
+The total, identity-faithful ordering behind [`canonical_isless`](@ref).
 
 ```@docs
 order_key
@@ -66,8 +66,6 @@ indexed_sum
 
 ## Accumulation
 
-Mutable builders behind `sum` over arrays of expressions and maps. A chain of `+` copies the canonical dictionary at every step; a builder adds in place, so `sum` costs linear time.
-
 ```@docs
 SuperBuilder
 LindbladianBuilder
@@ -77,15 +75,11 @@ build
 
 ## Numeric conversion
 
-The settings of one conversion travel through the numeric core as a single context. Backend hooks never receive it: the core resolves operators, substitutions and sites itself and hands backends only their own objects.
-
 ```@docs
 NumericContext
 ```
 
 ## Superoperator storage
-
-A `SuperOperator` stores its sandwiches in a dictionary keyed by `SuperTerm`, and a `SuperExpr` adds formal sandwiches to a polynomial part.
 
 ```@docs
 superterm

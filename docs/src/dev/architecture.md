@@ -118,9 +118,7 @@ Each invariant states the rule, the reason, and the test that pins it, or "not t
 
 ### Orderings
 
-**Three orderings, three purposes.** The site comparison decides which neighbours may swap and is deliberately partial. The display order in `sorted_arguments` is total but may tie distinct operators. Only `order_key` is faithful to identity, `order_key(a) == order_key(b)` exactly when `isequal(a, b)`. None of them is `hash`, which is not stable across Julia versions. Pinned by `test/fundamentals/ordering_test.jl`.
-
-**The public order is a comparison, not a key.** Downstream packages choose canonical representatives with `canonical_isless`, which returns `Bool` for every input, so a call on a `Union` of expression types stays inferable, while the internal keys differ in type per object and may change layout. It is deliberately not `Base.isless`: `a + b < 2a` would read as a comparison of operator values, and `sort`, `max` and `<` would silently use an order with no physical meaning. Pinned by `test/fundamentals/ordering_test.jl`.
+**Three orderings, three purposes.** The site comparison decides which neighbours may swap and is deliberately partial. The display order in `sorted_arguments` is total but may tie distinct operators. Only `order_key` is faithful to identity, `order_key(a) == order_key(b)` exactly when `isequal(a, b)`, and downstream packages use it through `canonical_isless` to choose canonical representatives. None of them is `hash`, which is not stable across Julia versions. Pinned by `test/fundamentals/ordering_test.jl`.
 
 ### Unitary transformations
 
