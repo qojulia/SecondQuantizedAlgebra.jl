@@ -387,5 +387,6 @@ The final `2` in `Transition` selects the atom's subsystem in `h`, not its level
 [v0.12.0]: https://github.com/qojulia/SecondQuantizedAlgebra.jl/releases/tag/v0.12.0
 [v0.13.0]: https://github.com/qojulia/SecondQuantizedAlgebra.jl/releases/tag/v0.13.0
 [v0.14.0]: https://github.com/qojulia/SecondQuantizedAlgebra.jl/releases/tag/v0.14.0
+[v0.14.1]: https://github.com/qojulia/SecondQuantizedAlgebra.jl/releases/tag/v0.14.1
 [#156]: https://github.com/qojulia/SecondQuantizedAlgebra.jl/issues/156
 [#291]: https://github.com/qojulia/SecondQuantizedAlgebra.jl/issues/291
