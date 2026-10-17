@@ -77,6 +77,8 @@ import SecondQuantizedAlgebra: expim, exponential_form
         )
         @test iszero(simplify(conjugate(number, beamsplitter) - number))
         @test iszero(simplify(conjugate(weighted_number, beamsplitter) - weighted_number))
+        rational = 1 / (1 + θ) * spectator' * spectator + 1 / (1 + g) * spectator
+        @test isequal(conjugate(rational, beamsplitter), rational)
 
         two_mode_squeeze = Squeeze(left, right, r)
         @test iszero(

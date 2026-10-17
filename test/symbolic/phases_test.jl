@@ -531,6 +531,27 @@ import SecondQuantizedAlgebra: expim, exponential_form, phase_terms, to_num,
                 )
             )
         )
+        raw_square = SymbolicUtils.term(
+            ^, raw_phase, 2;
+            type = Complex{Real}, shape = UnitRange{Int}[],
+        )
+        squared = only(phase_terms(exponential_form(Num(raw_square))))
+        @test isequal(squared.phase, 2θ) && isone(squared.amplitude)
+        raw_shifted = SymbolicUtils.term(
+            +, raw_phase, SymbolicUtils.unwrap(ω);
+            type = Complex{Real}, shape = UnitRange{Int}[],
+        )
+        @test isequal(trigonometric_form(Num(raw_shifted)), cos(θ) + ω + im * sin(θ))
+        raw_log = SymbolicUtils.term(
+            log, raw_shifted;
+            type = Complex{Real}, shape = UnitRange{Int}[],
+        )
+        @test_throws ArgumentError phase_terms(exponential_form(Num(raw_log)))
+        raw_power = SymbolicUtils.term(
+            ^, SymbolicUtils.unwrap(1 + ω), SymbolicUtils.unwrap(t);
+            type = Real, shape = UnitRange{Int}[],
+        )
+        @test iszero(only(phase_terms(exponential_form(Num(raw_power)))).phase)
         @test isequal(exponential_form(exp(ω * t)), exp(ω * t))
     end
 
