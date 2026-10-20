@@ -101,6 +101,7 @@ It is used as `to_numeric(H, h, dims; backend = MyBackend())`; only the two bund
 | Feature | Additional methods |
 | :-- | :-- |
 | time-dependent parameters | [`numeric_assemble_td`](@ref) |
+| static formal operator functions | [`numeric_function`](@ref) |
 | conversion with a state in place of a basis | [`numeric_backend`](@ref)`(state)`, `numeric_basis(state)` |
 | `numeric_average` and `expect` | the state methods and [`numeric_expect`](@ref) |
 | superoperators and `to_numeric_master` | [`numeric_superoperator`](@ref), [`numeric_matrix`](@ref), and [`numeric_scaled_td`](@ref) for time-dependent collapse operators |
@@ -118,6 +119,7 @@ numeric_identity
 numeric_assemble
 numeric_assemble_td
 numeric_materialize
+numeric_function
 EagerOperator
 numeric_expect
 numeric_backend

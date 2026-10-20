@@ -67,7 +67,7 @@ Every operator is the single concrete struct `Op`, and its role (annihilation, t
 
 ### Expression layers
 
-**`QExpr` never touches the polynomial path.** Polynomial work always stays in canonical `QAdd` leaves, and a formal function is never expanded implicitly. `taylor` is the only way back to `QAdd`, and `average`, `to_numeric` and `numeric_average` refuse an unlowered `QExpr`. A change to `QExpr` must not cost the polynomial algebra anything.
+**`QExpr` never touches the polynomial path.** Polynomial work stays in canonical `QAdd` leaves, and a formal function is never expanded implicitly. `taylor` is the only way back to `QAdd`. Static `to_numeric` instead evaluates matrix functions on complete materialized arguments at the chosen finite basis, after all free parameters have been replaced by static values. A nonempty `time_parameter` is unsupported. `average` and `numeric_average` still refuse an unlowered `QExpr`. A change to `QExpr` must not cost the polynomial algebra anything.
 
 ### Superoperators
 

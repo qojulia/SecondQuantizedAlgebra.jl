@@ -11,7 +11,6 @@ using Test
     d = Dict{SecondQuantizedAlgebra.QSym, Any}()
 
     for thunk in (
-            () -> to_numeric(expr, b),
             () -> to_numeric(expr, b, d),
             () -> to_numeric(expr, ψ),
             () -> numeric_average(expr, ψ),
