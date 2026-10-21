@@ -97,14 +97,29 @@ The operator method of `taylor` takes an operator expression and an order range.
 
 ## Numerical conversion
 
-A formal function has no numerical form of its own. [`to_numeric`](@ref), [`numeric_average`](@ref), `expect` and [`average`](@ref) throw an `ArgumentError` on it rather than pick an expansion order silently, so the expression is lowered first.
+Static formal functions can be converted directly on a chosen finite basis. [`to_numeric`](@ref)
+materializes the complete argument of each function, then applies the corresponding matrix
+function. Outer sums, ordered products, scalar prefactors, and nested functions are preserved.
+There is no implicit symbolic Taylor expansion. All free parameters, including those in
+arguments and outer prefactors, must be replaced by static values via `parameter`.
 
 ```@example functions
 using QuantumOpticsBase
 backend = QuantumOpticsBackend()
 parameter = Dict(η => 0.1, Ω => 1.0, ν => 1.0)
-Hn = to_numeric(taylor(H, 0:2), h, (10, 2); backend, parameter)
+Hn = to_numeric(H, h, (10, 2); backend, parameter)
 size(Hn)
 ```
 
-Matrix functions evaluated directly on the truncated space are not available yet ([#268](https://github.com/qojulia/SecondQuantizedAlgebra.jl/issues/268)). A symbolic [`Σ`](@ref) over a formal function and conversion between normal and symmetric order with [`normal_to_symmetric`](@ref) and [`symmetric_to_normal`](@ref) are not supported either; both need the polynomial from `taylor`. Perturbative frame changes such as Schrieffer–Wolff or van Vleck transformations are a separate problem of effective Hamiltonians and are not part of the formal functions.
+The finite basis is a numerical truncation; increasing a bosonic cutoff can change the
+result. Use [`taylor`](@ref) when a symbolic polynomial approximation is desired.
+
+Formal conversion rejects nonempty `time_parameter`, including time-dependent scalar
+prefactors. [`average`](@ref), [`numeric_average`](@ref), `expect`, and formal superoperator
+conversion still require explicit polynomial lowering. The positional operator-dictionary
+`QExpr` overloads also retain their existing refusals; use the keyword `operators` form.
+
+A symbolic [`Σ`](@ref) over a formal function and conversion between normal and symmetric
+order with [`normal_to_symmetric`](@ref) and [`symmetric_to_normal`](@ref) remain unsupported;
+both require polynomial lowering. Perturbative frame changes such as Schrieffer–Wolff or
+van Vleck transformations are separate effective-Hamiltonian calculations.

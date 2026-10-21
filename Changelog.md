@@ -8,6 +8,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- `to_numeric` evaluates static formal operator functions directly on a finite basis with both numeric backends. All free parameters require static values via `parameter`; nonempty `time_parameter` remains unsupported.
+
 ### Changed (breaking)
 
 - The operator-kind predicates (`optype`, `is_destroy`, `is_create`, `is_transition`, `is_collective_transition`, `is_pauli`, `is_spin`, `is_position`, `is_momentum`), `is_indexed_sum` and the numeric backend interface (`NumericBackend`, `EagerOperator`, `numeric_backend` and the `numeric_*` methods) are public but no longer exported. Import them explicitly, e.g. `using SecondQuantizedAlgebra: is_destroy`.

@@ -38,3 +38,6 @@ test-run.log
 docs/src/changelog.md
 .github/issue-drafts/
 coverage/
+
+# Blocking folder with random dev stuff from going to git. 
+dev/

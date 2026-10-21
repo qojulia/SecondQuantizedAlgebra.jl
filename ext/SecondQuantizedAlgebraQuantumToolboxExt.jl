@@ -225,6 +225,9 @@ function SQA.numeric_materialize(::QuantumToolboxBackend, op, op_type)
     op_type === SO.concretize && return eager.data
     return op_type(eager)
 end
+function SQA.numeric_function(::QuantumToolboxBackend, f::F, op::QTB.QuantumObject) where {F}
+    return f(op)
+end
 
 qtb_eager(op::QTB.QuantumObjectEvolution) =
     QTB.Qobj(SO.concretize(op.data), QTB.Operator(), op.dimensions)

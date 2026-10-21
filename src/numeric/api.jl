@@ -38,7 +38,11 @@ Keywords:
   always the backend's time-dependent operator, so only the default and `identity` are
   accepted.
 
-Formal operator functions throw an `ArgumentError`; expand them with [`taylor`](@ref) first.
+Static formal operator functions are evaluated directly on the chosen finite basis.
+Their complete arguments are materialized before the matrix function is applied.
+All free parameters, including those in arguments and outer prefactors, must be
+replaced by static values via `parameter` before evaluation.
+A non-empty `time_parameter` is unsupported for formal expressions.
 
 # Examples
 ```jldoctest

@@ -64,6 +64,14 @@ for `op`'s slot). Backends implement it as a closed `k === OP_*` value-branch on
 function numeric_operator end
 
 """
+    numeric_function(backend, f, op)
+
+Apply the matrix function f to the complete materialized operator op.
+Return a backend operator preserving its basis/dimensions and supporting ordered arithmetic.
+"""
+function numeric_function end
+
+"""
     numeric_basis(be, h::HilbertSpace, dims)
 
 Build the full numeric basis for Hilbert space `h` with user dimensions `dims` (Fock
