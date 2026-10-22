@@ -62,6 +62,19 @@ import SecondQuantizedAlgebra: Coeff, CNum, to_cnum, to_num, Monomial, ExactComp
         @test hash(simplified) == hash(g * a)
     end
 
+    @testset "complex parameters lower to their real and imaginary parts" begin
+        @variables g::Number x::Real
+        re, im_ = Num(real(g)), Num(imag(g))
+        c = to_num(stored_coefficient(g * a))
+        @test isequal(c, Complex(re, im_))
+        @test isequal(conj(c), Complex(re, -im_))
+        @test isequal(collect(Symbolics.get_variables(c)), [g])
+        @test isequal(to_num(stored_coefficient(conj(g) * a)), Complex(re, -im_))
+        @test isequal(to_num(stored_coefficient(im * x * g * a)), Complex(-x * im_, x * re))
+        @test isequal(real(stored_coefficient(g * a)), re)
+        @test isequal(stored_coefficient((g * a)'), stored_coefficient(conj(g) * a'))
+    end
+
     @testset "wide sums fold and dedup through public algebra" begin
         @variables p[1:6] ω g κ
         distinct = [Num(k) * p[k] for k in 1:6]

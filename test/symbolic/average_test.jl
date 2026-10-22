@@ -47,6 +47,13 @@ import SecondQuantizedAlgebra:
         @test iszero(undo_average(average(κ * a)) - κ * a)
     end
 
+    @testset "complex parameters stay one symbol" begin
+        @variables g::Number x::Real
+        @test isequal(average(g * a), g * average(a))
+        @test isequal(average(g * a + conj(g) * ad), g * average(a) + conj(g) * average(ad))
+        @test isequal(average((g + x) * ad * a), (g + x) * average(ad * a))
+    end
+
     @testset "round trips" begin
         expressions = (a, ad, ad * a, 3 * ad * a, (2 + 3im) * a)
         for expression in expressions

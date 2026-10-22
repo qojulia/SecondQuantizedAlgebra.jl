@@ -73,6 +73,7 @@ end
 function show_prefactor(io::IO, c::CNum)
     tail = c.tail
     tail isa RawSymbolicCoeff && return print(io, tail.expr)
+    tail isa Poly && has_complex_atom(tail) && return print(io, poly_to_raw(tail))
     return show_display(io, to_num(c))
 end
 
@@ -126,6 +127,9 @@ function show_scaled_prefactor(io::IO, c::CNum)
     tail = c.tail
     if tail isa RawSymbolicCoeff
         show_part(io, tail.expr, is_call_to(tail.expr, (+, /)))
+    elseif tail isa Poly && has_complex_atom(tail)
+        raw = poly_to_raw(tail)
+        show_part(io, raw, is_call_to(raw, (+, /)))
     else
         d = to_num(c)
         brace = !is_native(c) && needs_pf_parens(d)

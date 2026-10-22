@@ -15,6 +15,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `QTermDict`, `NumericContext`, `superterm`, `poly`, `formal_terms` and the builders `SuperBuilder`, `LindbladianBuilder`, `accumulate!` and `build` are internal. Sum many maps with `sum` over an array.
 - Custom backends implement `numeric_superoperator(be, basis, terms)`, where each term is `(c, L, R)` with `L` and `R` already backend matrices, instead of receiving the conversion context.
 
+### Fixed
+
+- `to_num`, `get_prefactor`, `real` and `imag` give `real(g)` and `imag(g)` for a complex parameter `@variables g::Number` instead of treating `g` as real, so Symbolics `conj`, `==`, `expand` and `get_variables` work on the result. Averages and printing keep `g` as one symbol.
+
 ## [v0.14.1]
 
 ### Fixed
