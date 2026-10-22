@@ -92,6 +92,8 @@ needs_pf_brackets(pf::SymbolicUtils.BasicSymbolic) = is_call_to(pf, (/, +))
 
 function latex_term(c::CNum, ops::Vector{Op})
     is_native(c) && return latex_native_term(native_scalar(c), ops)
+    tail = c.tail
+    tail isa Poly && has_complex_atom(tail) && return latex_pf_term(poly_to_raw(tail), ops)
     re, im = realimag(c)
     iszero_num(im) && return latex_pf_term(SymbolicUtils.unwrap(re), ops)
     return latex_pf_term(Complex(re, im), ops)

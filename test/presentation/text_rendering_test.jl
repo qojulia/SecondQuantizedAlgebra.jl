@@ -197,6 +197,14 @@ import SecondQuantizedAlgebra: simplify, transition_superscript, make_time_depen
             @test repr(g^2 * c' * c) == "g^2 * c' * c"
         end
 
+        @testset "Complex parameters print unsplit" begin
+            @variables g::Number
+            @test repr(g * af) == "g * a"
+            @test repr(conj(g) * af) == "conj(g) * a"
+            @test repr(sqrt(2) * g * af) == "1.4142135623730951g * a"
+            @test latexify(g * af) == L"g a"
+        end
+
         @testset "Sum separates index-independent terms" begin
             @variables N Δ
             h2 = FockSpace(:c) ⊗ NLevelSpace(:atom, 2, 1)

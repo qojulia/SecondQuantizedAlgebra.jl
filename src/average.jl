@@ -315,6 +315,8 @@ function average_term(c::CNum, term::QTerm)
     if c.tail isa RawSymbolicCoeff && !is_call_of(c.tail.expr, complex)
         return SymbolicUtils.unwrap(Num(c.tail.expr) * avg)
     end
+    tail = c.tail
+    tail isa Poly && has_complex_atom(tail) && return SymbolicUtils.unwrap(Num(poly_to_raw(tail)) * avg)
     r, i = realimag(c)
     contrib = Num(0)
     iszero(r) || (contrib += r * avg)

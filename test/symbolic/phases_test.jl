@@ -164,7 +164,8 @@ import SecondQuantizedAlgebra: expim, exponential_form, phase_terms, to_num,
         trig = trigonometric_form(Complex(Num(z), Num(z)))
         @test iszero(simplify(trig * a - (z + im * z) * a))
         complex_coefficient = Complex(Num(z), Num(z)) * a
-        @test isequal(get_prefactor(complex_coefficient), Complex(Num(z), Num(z)))
+        zr, zi = Num(real(z)), Num(imag(z))
+        @test isequal(get_prefactor(complex_coefficient), Complex(zr - zi, zr + zi))
         @test isequal(
             exponential_form(Complex(Num(z), Num(z))),
             Complex(Num(z), Num(z)),
@@ -218,10 +219,11 @@ import SecondQuantizedAlgebra: expim, exponential_form, phase_terms, to_num,
         @test isequal(real(large), Num(big(2)^70))
         @test isequal(imag(large), Num(big(3)^70))
 
-        @test isequal(real(raw), z)
-        @test isequal(imag(raw), z)
-        @test isequal(real(conj(raw)), conj(z))
-        @test isequal(imag(conj(raw)), -conj(z))
+        zr, zi = Num(real(z)), Num(imag(z))
+        @test isequal(real(raw), zr - zi)
+        @test isequal(imag(raw), zr + zi)
+        @test isequal(real(conj(raw)), zr - zi)
+        @test isequal(imag(conj(raw)), -zr - zi)
         @test iszero(raw + -raw)
         @test iszero(phase_product + -phase_product)
         @test length(phase_terms(phase_product)) == 1
@@ -598,11 +600,12 @@ import SecondQuantizedAlgebra: expim, exponential_form, phase_terms, to_num,
         @test_throws MethodError abs2(exponential_form(g))
 
         raw = exponential_form(Complex(Num(z), Num(z)))
-        @test isequal(to_num(raw), Complex(Num(z), Num(z)))
-        @test isequal(real(raw), z)
-        @test isequal(imag(raw), z)
-        @test isequal(real(conj(raw)), conj(z))
-        @test isequal(imag(conj(raw)), -conj(z))
+        @test isequal(to_num(raw), Complex(Num(real(z)) - Num(imag(z)), Num(real(z)) + Num(imag(z))))
+        zr, zi = Num(real(z)), Num(imag(z))
+        @test isequal(real(raw), zr - zi)
+        @test isequal(imag(raw), zr + zi)
+        @test isequal(real(conj(raw)), zr - zi)
+        @test isequal(imag(conj(raw)), -zr - zi)
         product = phase * expim(φ) * exp(ω * t)
         quotient = phase / (expim(φ) * exp(ω * t))
         @test isequal(phase_terms(product)[1].phase, θ + φ)
