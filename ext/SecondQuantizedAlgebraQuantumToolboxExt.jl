@@ -336,6 +336,9 @@ SQA.to_numeric(op::Op, dims::QTBDims, d::AbstractDict{<:SQA.QSym} = SQA.NO_SUBS)
     SQA.NumericContext(QuantumToolboxBackend(), dims, d),
     SQA.EagerOperator(),
 )
+SQA.to_numeric(q::SQA.QExpr, dims::QTBDims, d::AbstractDict{<:SQA.QSym}) =
+    SQA.to_numeric(q, dims; operators = d, adjoint_ops = false)
+
 SQA.to_numeric(q::SQA.QAdd, dims::QTBDims, d::AbstractDict{<:SQA.QSym} = SQA.NO_SUBS) =
     SQA.static_operator(q, SQA.NumericContext(QuantumToolboxBackend(), dims, d), SQA.EagerOperator())
 SQA.to_numeric(x::Number, dims::QTBDims, ::AbstractDict{<:SQA.QSym} = SQA.NO_SUBS) =

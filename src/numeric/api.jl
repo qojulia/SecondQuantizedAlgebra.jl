@@ -53,8 +53,8 @@ and nested functions are preserved without an implicit symbolic Taylor expansion
 The finite basis is a numerical truncation; increasing a bosonic cutoff can change
 the result. Use [`taylor`](@ref) for a symbolic polynomial approximation.
 Polynomial sums inside formal arguments are accumulated before applying the function.
-For formal expressions, positional operator dictionaries remain unsupported; use
-`operators` as a keyword. [`average`](@ref), [`numeric_average`](@ref), `expect`, and
+Positional operator dictionaries also support formal expressions, with
+`adjoint_ops = false` as for polynomial expressions. [`average`](@ref), [`numeric_average`](@ref), `expect`, and
 formal superoperator conversion still require explicit polynomial lowering.
 
 # Examples

@@ -27,11 +27,8 @@ function to_numeric_translated(
     return formal_static_operator(q_sub, ctx, op_type, parameter)
 end
 
-to_numeric(::QExpr, ::Basis, ::AbstractDict{<:QSym}) = qexpr_numeric_error()
-to_numeric(::QExpr, ::Integer, ::AbstractDict{<:QSym}) = qexpr_numeric_error()
-to_numeric(::QExpr, ::AbstractVector{<:Integer}, ::AbstractDict{<:QSym}) =
-    qexpr_numeric_error()
-to_numeric(::QExpr, ::Tuple, ::AbstractDict{<:QSym}) = qexpr_numeric_error()
+to_numeric(q::QExpr, b::Basis, d::AbstractDict{<:QSym}) =
+    to_numeric(q, b; operators = d, adjoint_ops = false)
 
 has_numeric_sum(q::QAdd) = !isempty(q.indices)
 has_numeric_sum(q::QExpr) = any(has_numeric_sum, q.args)

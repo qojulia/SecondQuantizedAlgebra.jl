@@ -8,11 +8,8 @@ using Test
     expr = cos(a + a')
     b = QOB.FockBasis(5)
     ψ = QOB.fockstate(b, 0)
-    d = Dict{SecondQuantizedAlgebra.QSym, Any}()
 
     for thunk in (
-            () -> to_numeric(expr, b, d),
-            () -> to_numeric(expr, ψ),
             () -> numeric_average(expr, ψ),
             () -> SecondQuantizedAlgebra.expect(expr, ψ),
         )
