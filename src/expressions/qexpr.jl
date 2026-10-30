@@ -15,9 +15,19 @@ Polynomials in the operators are kept in canonical form, with products reordered
 terms collected. An expression containing a formal function cannot be brought into that
 form, so it is held as written: products keep the order of factors on a shared subsystem,
 factors on different subsystems are sorted, and products are not multiplied out over sums.
-Exact operations such as `adjoint`, [`substitute`](@ref) or [`simplify`](@ref) act on the
-arguments of the functions. [`taylor`](@ref) turns a `QExpr` back into an ordinary
-polynomial. The type is public but not exported.
+Exact operations act on the arguments: `adjoint`, [`substitute`](@ref),
+[`change_index`](@ref), [`normal_order`](@ref), [`simplify`](@ref), [`expand`](@ref),
+[`expand_completeness`](@ref), [`assume_distinct_index`](@ref), and frame changes with
+[`conjugate`](@ref). A commutator with a formal function stays formal. Identities
+between functions, including sine/cosine completeness and inverse exponential products,
+are not applied automatically.
+
+[`taylor`](@ref) turns a `QExpr` back into an ordinary polynomial. A symbolic [`Σ`](@ref)
+over a formal function, [`normal_to_symmetric`](@ref), and [`symmetric_to_normal`](@ref)
+require polynomial lowering. Static [`to_numeric`](@ref) instead evaluates the complete
+arguments as finite matrices. [`average`](@ref), [`numeric_average`](@ref), `expect`, and
+formal superoperator conversion require polynomial lowering. The type is public but
+not exported.
 
 # Examples
 ```jldoctest
@@ -492,7 +502,8 @@ Exponential of `im` times a Hermitian operator expression, kept as a formal func
 The result is the unitary ``e^{iA}``. `A` must be Hermitian as written, meaning that
 `A - A'` simplifies to zero; parameters in it must therefore be real. Otherwise an
 `ArgumentError` is thrown. No series is expanded until [`taylor`](@ref) is called, and
-products such as ``e^{iA} e^{-iA}`` are not combined. To change the frame of an expression
+products such as ``e^{iA} e^{-iA}`` are not combined. General operator `exp(A)` is
+unsupported; use `expim(A)` for this unitary exponential. To change the frame of an expression
 by such a unitary, use a [`UnitaryTransform`](@ref), which applies ``e^{iA} X e^{-iA}``
 exactly.
 

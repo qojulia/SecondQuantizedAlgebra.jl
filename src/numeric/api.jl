@@ -47,7 +47,15 @@ Static formal operator functions are evaluated directly on the chosen finite bas
 Their complete arguments are materialized before the matrix function is applied.
 All free parameters, including those in arguments and outer prefactors, must be
 replaced by static values via `parameter` before evaluation.
-A non-empty `time_parameter` is unsupported for formal expressions.
+A non-empty `time_parameter` is unsupported for formal expressions, including
+scalar time-dependent prefactors. Outer sums, ordered products, scalar prefactors,
+and nested functions are preserved without an implicit symbolic Taylor expansion.
+The finite basis is a numerical truncation; increasing a bosonic cutoff can change
+the result. Use [`taylor`](@ref) for a symbolic polynomial approximation.
+Polynomial sums inside formal arguments are accumulated before applying the function.
+For formal expressions, positional operator dictionaries remain unsupported; use
+`operators` as a keyword. [`average`](@ref), [`numeric_average`](@ref), `expect`, and
+formal superoperator conversion still require explicit polynomial lowering.
 
 # Examples
 ```jldoctest
