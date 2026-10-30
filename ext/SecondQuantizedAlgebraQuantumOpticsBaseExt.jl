@@ -156,6 +156,11 @@ function append_scaled!(
 end
 SQA.numeric_materialize(::QuantumOpticsBackend, op, ::SQA.EagerOperator) = QOB.sparse(op)
 
+function SQA.numeric_function(::QuantumOpticsBackend, ::typeof(SQA.expim), op::QOB.Operator)
+    data = SQA.numeric_expim(Matrix{ComplexF64}(op.data))
+    return QOB.sparse(QOB.Operator(op.basis_l, op.basis_r, data))
+end
+
 function SQA.numeric_function(::QuantumOpticsBackend, f::F, op::QOB.Operator) where {F}
     return QOB.sparse(QOB.Operator(op.basis_l, op.basis_r, f(Matrix{ComplexF64}(op.data))))
 end

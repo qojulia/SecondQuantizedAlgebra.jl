@@ -225,6 +225,11 @@ function SQA.numeric_materialize(::QuantumToolboxBackend, op, op_type)
     op_type === SO.concretize && return eager.data
     return op_type(eager)
 end
+function SQA.numeric_function(::QuantumToolboxBackend, ::typeof(SQA.expim), op::QTB.QuantumObject)
+    data = SQA.numeric_expim(Matrix{ComplexF64}(op.data))
+    return QTB.to_sparse(QTB.Qobj(data, QTB.Operator(), op.dimensions))
+end
+
 function SQA.numeric_function(::QuantumToolboxBackend, f::F, op::QTB.QuantumObject) where {F}
     return f(op)
 end

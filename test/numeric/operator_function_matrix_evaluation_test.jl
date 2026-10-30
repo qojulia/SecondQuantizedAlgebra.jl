@@ -42,3 +42,26 @@ operator_matrix(op::Union{QOB.Operator, QTB.QuantumObject}) = Matrix{ComplexF64}
         backend = SQA.QuantumOpticsBackend()
     )
 end
+
+@testset "Hermitian formal exponential" begin
+    C = im * (lowering - lowering')
+    Cm = ComplexF64[0 im; -im 0]
+    for be in backends
+        for (expr, expected) in (
+                (SQA.expim(C), exp(im * Cm)),
+                (SQA.expim(cos(A)), exp(im * cos(Am))),
+            )
+            result = SQA.to_numeric(expr, atom, 2; backend = be)
+            matrix = operator_matrix(result)
+            @test matrix ≈ expected
+            @test matrix' * matrix ≈ ComplexF64[1 0; 0 1]
+        end
+        projector = Transition(atom, :σ, 2, 2)
+        replacement = SQA.to_numeric(lowering, atom, 2; backend = be)
+        result = SQA.to_numeric(
+            SQA.expim(projector), atom, 2; backend = be,
+            operators = Dict(projector => replacement), adjoint_ops = false,
+        )
+        @test operator_matrix(result) ≈ exp(im * operator_matrix(replacement))
+    end
+end

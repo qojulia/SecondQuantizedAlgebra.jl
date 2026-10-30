@@ -66,7 +66,10 @@ function numeric_operator end
 """
     numeric_function(backend, f, op)
 
-Apply the matrix function f to the complete materialized operator op.
+Apply the matrix function `f` to the complete materialized operator `op`.
+The function tokens are `sin`, `cos`, and `expim`; the last means `exp(im * op)`.
+Hermitian exponential arguments can use eigendecomposition; numeric replacements
+that break Hermiticity must retain their general matrix-exponential semantics.
 Return a backend operator preserving its basis/dimensions and supporting ordered arithmetic.
 """
 function numeric_function end
@@ -228,3 +231,8 @@ function numeric_zero end
 
 """Accumulate a scaled product without retaining summand-local operators or mutating replacements."""
 function numeric_add_term! end
+
+function numeric_expim(matrix::Matrix{ComplexF64})
+    LinearAlgebra.ishermitian(matrix) || return exp(im * matrix)
+    return cis(LinearAlgebra.Hermitian(matrix))
+end

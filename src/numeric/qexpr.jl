@@ -60,9 +60,13 @@ function formal_static_operator(q::QExpr, ctx::NumericContext, op_type, rules::S
         end
     else
         argument = formal_numeric_argument(only(q.args), ctx, rules)
-        f = q.kind == QEXPR_SIN ? sin :
-            q.kind == QEXPR_COS ? cos : A -> exp(im * A)
-        result = numeric_function(ctx.backend, f, argument)
+        result = if q.kind == QEXPR_SIN
+            numeric_function(ctx.backend, sin, argument)
+        elseif q.kind == QEXPR_COS
+            numeric_function(ctx.backend, cos, argument)
+        else
+            numeric_function(ctx.backend, expim, argument)
+        end
     end
     return numeric_materialize(ctx.backend, to_complex(q.coeff) * result, op_type)
 end

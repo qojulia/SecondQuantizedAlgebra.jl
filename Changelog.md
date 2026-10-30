@@ -10,6 +10,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Formal `expim` conversion uses Hermitian eigendecomposition when applicable, with direct function dispatch on both numeric backends.
+
 - Numeric conversion now expands single and multiple indexed sums over inferred or explicit sites, accumulating eager results one summand at a time. Static formal functions evaluate the completed sum, including site-dependent parameter substitutions.
 
 ### Added
