@@ -8,6 +8,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- Numeric conversion now expands single and multiple indexed sums over inferred or explicit sites, accumulating eager results one summand at a time. Static formal functions evaluate the completed sum, including site-dependent parameter substitutions.
+
 ### Added
 
 - `to_numeric` evaluates static formal operator functions directly on a finite basis with both numeric backends. All free parameters require static values via `parameter`; nonempty `time_parameter` remains unsupported.

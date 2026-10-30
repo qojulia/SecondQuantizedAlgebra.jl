@@ -222,3 +222,9 @@ function default_backend()
         ),
     )
 end
+
+"""Create a fresh eager zero operator for streaming indexed assembly."""
+function numeric_zero end
+
+"""Accumulate a scaled product without retaining summand-local operators or mutating replacements."""
+function numeric_add_term! end

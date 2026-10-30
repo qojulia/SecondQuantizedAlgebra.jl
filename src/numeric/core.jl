@@ -59,7 +59,10 @@ end
 
 static_operator(terms::Vector{OpTerm}, ctx::NumericContext, op_type) =
     numeric_materialize(ctx.backend, assemble_op_terms(terms, ctx), op_type)
-static_operator(q::QAdd, ctx::NumericContext, op_type) = static_operator(op_terms(q), ctx, op_type)
+function static_operator(q::QAdd, ctx::NumericContext, op_type)
+    isempty(q.indices) && return static_operator(op_terms(q), ctx, op_type)
+    return streamed_sum(q, ctx, op_type)
+end
 
 to_numeric_lazy(op::Op, ctx::NumericContext) = numeric_leaf(op, ctx)
 to_numeric_lazy(q::QAdd, ctx::NumericContext) = assemble_op_terms(op_terms(q), ctx)
@@ -103,6 +106,12 @@ operator_key(k::Op) = k
 operator_key(k) = throw(ArgumentError("operator substitution key `$k` is not a QSym"))
 
 function to_numeric_kw(be::NumericBackend, op, b; parameter, time_parameter, operators, adjoint_ops, op_type)
+    if op isa QAdd && !isempty(op.indices)
+        ops = numeric_operator_dict(be, operators, adjoint_ops)
+        q = apply_parameter(op, expand_parameter(parameter))
+        ctx = NumericContext(be, b, ops)
+        return indexed_result(q, ctx, parameter, time_parameter, op_type)
+    end
     rules = expand_parameter(parameter)
     tp = normalize_time_parameter(time_parameter)
     ops = numeric_operator_dict(be, operators, adjoint_ops)
@@ -129,6 +138,11 @@ function to_numeric_translated(op::QAdd, ctx::NumericContext, parameter, time_pa
     op_ = apply_parameter(op, parameter)
     isempty(time_parameter) && return static_operator(op_, ctx, op_type)
     check_td_op_type(op_type)
+    if !isempty(op_.indices)
+        ctx = sum_context(op_, ctx)
+        terms = unrolled_terms(op_, ctx.sites, split_scalar_subs(NO_SCALAR_SUBS))
+        return to_numeric_td(terms, ctx, time_parameter)
+    end
     return to_numeric_td(op_, ctx, time_parameter)
 end
 

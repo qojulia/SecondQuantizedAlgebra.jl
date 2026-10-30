@@ -18,6 +18,11 @@ also accepts its own dimension tuple, which counts states rather than photons. T
 argument `operators` replaces operators by given matrices, as the keyword does with
 `adjoint_ops = false`. A vector of expressions gives a vector of matrices.
 
+For a bound sum over a single symbolic subsystem, a range of `N` sites is mapped
+onto all `N` factors of the numeric basis. Ambiguous layouts require an explicit
+`sites` mapping. Eager static sums accumulate one summand at a time; lazy and
+native time-dependent results may retain multiple operators.
+
 Keywords:
 
 - `parameter`: values of the symbolic parameters. A coefficient that does not reduce to a

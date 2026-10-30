@@ -440,4 +440,12 @@ QTB.sprepost(A::Number, B::SQA.QField) = SQA.sprepost(A, B)
 QTB.liouvillian(H::SQA.QField, c_ops::AbstractVector{<:SQA.QField}) = SQA.liouvillian(H, c_ops)
 QTB.liouvillian(H::SQA.QField, c_ops::Tuple{Vararg{SQA.QField}}) = SQA.liouvillian(H, collect(c_ops))
 
+SQA.numeric_zero(be::QuantumToolboxBackend, basis) = QTB.to_sparse(0.0im * SQA.numeric_identity(be, basis))
+
+function SQA.numeric_add_term!(result, coefficient::ComplexF64, ops::Vector{Op}, ctx::SQA.NumericContext{QuantumToolboxBackend})
+    term = SQA.static_operator(SQA.OpTerm[(1.0 + 0.0im, ops)], ctx, SQA.EagerOperator())
+    result.data .+= coefficient .* term.data
+    return result
+end
+
 end
