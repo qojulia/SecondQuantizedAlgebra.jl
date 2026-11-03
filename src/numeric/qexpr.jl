@@ -10,13 +10,17 @@ to_numeric_lazy(::QExpr, ::NumericContext) = qexpr_numeric_error()
 function to_numeric_translated(
         q::QExpr, ctx::NumericContext, parameter, time_parameter, op_type,
     )
-    isempty(time_parameter) || throw(
-        ArgumentError(
-            "numeric conversion supports static QExpr only; nonempty time_parameter is unsupported, " *
-                "including scalar time-dependent prefactors. Supply static values via parameter.",
-        )
-    )
     q_sub = substitute_with(q, parameter)
+    if !isempty(time_parameter)
+        check_td_op_type(op_type)
+        terms = formal_td_terms(q_sub, ctx, parameter)
+        basevars, valuefuncs, p_aware = time_basis(time_parameter)
+        td_terms = Tuple{TDCoeff, Vector{typeof(last(first(terms)))}}[]
+        for (c, op) in terms
+            push!(td_terms, (td_coeff(to_num(c), basevars, valuefuncs, p_aware), [op]))
+        end
+        return numeric_assemble_td(ctx.backend, ctx.basis, td_terms)
+    end
     vars = get_variables(q_sub)
     (has_numeric_sum(q_sub) || isempty(vars)) || throw(
         ArgumentError(
@@ -25,6 +29,48 @@ function to_numeric_translated(
         )
     )
     return formal_static_operator(q_sub, ctx, op_type, parameter)
+end
+
+function formal_td_terms(q::QAdd, ctx::NumericContext, rules::SubstitutionRules)
+    if isempty(q.indices)
+        terms = coeff_terms(q)
+    else
+        ctx = sum_context(q, ctx, rules.scalars)
+        validate_sites(ctx.backend, ctx.basis, ctx.sites)
+        terms = unrolled_terms(q, ctx.sites, split_scalar_subs(rules.scalars))
+    end
+    identity_op = numeric_materialize(ctx.backend, numeric_identity(ctx.backend, ctx.basis), EagerOperator())
+    result = Tuple{CNum, typeof(identity_op)}[]
+    for (c, ops) in terms
+        op = static_operator(single_qadd(CNUM_ONE, ops), ctx, EagerOperator())
+        push!(result, (c, op))
+    end
+    isempty(result) && push!(result, (CNUM_ZERO, identity_op))
+    return result
+end
+
+function formal_td_terms(q::QExpr, ctx::NumericContext, rules::SubstitutionRules)
+    identity_op = numeric_materialize(ctx.backend, numeric_identity(ctx.backend, ctx.basis), EagerOperator())
+    result = Tuple{CNum, typeof(identity_op)}[]
+    if q.kind == QEXPR_ADD
+        for arg in q.args
+            append!(result, formal_td_terms(arg, ctx, rules))
+        end
+        isempty(result) && push!(result, (CNUM_ZERO, identity_op))
+    elseif q.kind == QEXPR_MUL
+        push!(result, (q.coeff, identity_op))
+        for arg in q.args
+            children = formal_td_terms(arg, ctx, rules)
+            result = [(c * d, left * right) for (c, left) in result for (d, right) in children]
+        end
+    else
+        # Only coefficients outside matrix functions may vary during a solve.
+        argument = formal_numeric_argument(only(q.args), ctx, rules)
+        f = q.kind == QEXPR_SIN ? sin : q.kind == QEXPR_COS ? cos : expim
+        op = numeric_materialize(ctx.backend, numeric_function(ctx.backend, f, argument), EagerOperator())
+        push!(result, (q.coeff, op))
+    end
+    return result
 end
 
 to_numeric(q::QExpr, b::Basis, d::AbstractDict{<:QSym}) =

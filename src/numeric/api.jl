@@ -45,10 +45,10 @@ Keywords:
 
 Static formal operator functions are evaluated directly on the chosen finite basis.
 Their complete arguments are materialized before the matrix function is applied.
-All free parameters, including those in arguments and outer prefactors, must be
-replaced by static values via `parameter` before evaluation.
-A non-empty `time_parameter` is unsupported for formal expressions, including
-scalar time-dependent prefactors. Outer sums, ordered products, scalar prefactors,
+Parameters inside matrix-function arguments must be replaced by static values via
+`parameter` before evaluation. Scalar coefficients outside matrix functions may use
+`time_parameter`, as in `x * cos(A)`: `cos(A)` is evaluated once and its coefficient
+is updated during the solve. Outer sums, ordered products, scalar prefactors,
 and nested functions are preserved without an implicit symbolic Taylor expansion.
 The finite basis is a numerical truncation; increasing a bosonic cutoff can change
 the result. Use [`taylor`](@ref) for a symbolic polynomial approximation.

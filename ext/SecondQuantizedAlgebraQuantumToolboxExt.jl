@@ -201,6 +201,14 @@ function SQA.numeric_assemble(be::QuantumToolboxBackend, basis, terms)
     return QTB.QobjEvo(static_vecsum(coeffs, ops), QTB.Operator(), refid.dimensions)
 end
 
+function SQA.numeric_assemble_td(be::QuantumToolboxBackend, basis, terms)
+    functions = Function[c isa Number ? ((p, t) -> c) : SQA.lift_pt(c) for (c, _) in terms]
+    coeffs = (u, p, t) -> ComplexF64[f(p, t) for f in functions]
+    ops = [SO.MatrixOperator(fuse(be, basis, factors).data) for (_, factors) in terms]
+    refid = SQA.numeric_identity(be, basis)
+    return QTB.QobjEvo(VecSum(coeffs, zeros(ComplexF64, length(ops)), ops), QTB.Operator(), refid.dimensions)
+end
+
 function SQA.to_numeric_td(terms::Vector{SQA.CoeffTerm}, ctx::SQA.NumericContext{QuantumToolboxBackend}, time_parameter)
     leaves = SQA.leaf_cache(ctx)
     factor_lists = [SQA.term_factors(ops, ctx, leaves) for (_, ops) in terms]

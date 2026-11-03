@@ -97,7 +97,7 @@ The operator method of `taylor` takes an operator expression and an order range.
 
 ## Numerical conversion
 
-Static formal functions can be converted directly with [`to_numeric`](@ref), which evaluates each matrix function on its complete argument at the chosen finite basis. All free parameters must have static values supplied via `parameter`; nonempty `time_parameter` is unsupported. [`numeric_average`](@ref), `expect` and [`average`](@ref) still require the polynomial from [`taylor`](@ref).
+Formal functions can be converted directly with [`to_numeric`](@ref), which evaluates each matrix function on its complete argument at the chosen finite basis. Parameters inside function arguments require static values supplied via `parameter`. Scalar coefficients outside matrix functions may use `time_parameter`: `x * cos(A)` evaluates `cos(A)` once and updates only the coefficient of the resulting matrix during the solve. Time dependence inside a function, such as `cos(x * A)`, remains unsupported. [`numeric_average`](@ref), `expect` and [`average`](@ref) still require the polynomial from [`taylor`](@ref).
 
 ```@example functions
 using QuantumOpticsBase

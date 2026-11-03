@@ -18,7 +18,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- `to_numeric` evaluates static formal operator functions directly on a finite basis with both numeric backends. All free parameters require static values via `parameter`; nonempty `time_parameter` remains unsupported.
+- `to_numeric` evaluates formal operator functions directly on a finite basis with both numeric backends. Parameters inside function arguments require static values via `parameter`; scalar coefficients outside matrix functions support `time_parameter`.
 
 ### Changed (breaking)
 

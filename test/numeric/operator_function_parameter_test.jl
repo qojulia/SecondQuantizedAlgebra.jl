@@ -23,7 +23,7 @@ using Test: @test, @testset, @test_throws
         cos(x * A), h, 3;
         backend = QuantumOpticsBackend(), parameter = Dict(x => y),
     )
-    @test_throws "nonempty time_parameter is unsupported" to_numeric(
+    @test_throws ArgumentError to_numeric(
         cos(x * A), h, 3;
         backend = QuantumOpticsBackend(), time_parameter = Dict(x => identity),
     )
