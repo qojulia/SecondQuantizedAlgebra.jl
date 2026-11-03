@@ -14,12 +14,7 @@ function to_numeric_translated(
     if !isempty(time_parameter)
         check_td_op_type(op_type)
         terms = formal_td_terms(q_sub, ctx, parameter)
-        basevars, valuefuncs, p_aware = time_basis(time_parameter)
-        td_terms = Tuple{TDCoeff, Vector{typeof(last(first(terms)))}}[]
-        for (c, op) in terms
-            push!(td_terms, (td_coeff(to_num(c), basevars, valuefuncs, p_aware), [op]))
-        end
-        return numeric_assemble_td(ctx.backend, ctx.basis, td_terms)
+        return formal_td_operator(terms, ctx, time_parameter)
     end
     vars = get_variables(q_sub)
     (has_numeric_sum(q_sub) || isempty(vars)) || throw(
@@ -29,6 +24,15 @@ function to_numeric_translated(
         )
     )
     return formal_static_operator(q_sub, ctx, op_type, parameter)
+end
+
+function formal_td_operator(terms::Vector{Tuple{CNum, O}}, ctx::NumericContext, time_parameter) where {O}
+    basevars, valuefuncs, p_aware = time_basis(time_parameter)
+    td_terms = Tuple{TDCoeff, Vector{O}}[]
+    for (c, op) in terms
+        push!(td_terms, (td_coeff(to_num(c), basevars, valuefuncs, p_aware), [op]))
+    end
+    return numeric_assemble_td(ctx.backend, ctx.basis, td_terms)
 end
 
 function formal_td_terms(q::QAdd, ctx::NumericContext, rules::SubstitutionRules)
@@ -83,7 +87,7 @@ static_operator(q::QExpr, ctx::NumericContext, op_type) =
     formal_static_operator(q, ctx, op_type, SubstitutionRules())
 
 function formal_numeric_argument(q::QAdd, ctx::NumericContext, rules::SubstitutionRules)
-    isempty(q.indices) && return to_numeric_translated(q, ctx, rules, NO_TIME_PARAMETER, EagerOperator())
+    isempty(q.indices) && return static_operator(apply_parameter(q, rules), ctx, EagerOperator())
     return indexed_result(q, ctx, rules.scalars, NO_TIME_PARAMETER, EagerOperator())
 end
 formal_numeric_argument(q::QExpr, ctx::NumericContext, rules::SubstitutionRules) =

@@ -103,7 +103,10 @@ function time_basis(time_parameter::Dict{Num, Any})
                 "time_parameter key `$k` must depend on exactly one variable, got $(length(vs)).",
             ),
         )
-        if isequal(uk, conj(vs[1]))
+        if isequal(uk, vs[1])
+            push!(basevars, k)
+            push!(valuefuncs, g)
+        elseif isequal(uk, conj(vs[1]))
             push!(basevars, Num(vs[1]))
             push!(valuefuncs, conj_vf(g, p_aware))
         else
@@ -123,9 +126,17 @@ coeff_is_const(c::Complex{Num}) =
 as_cnum(x::Complex) = Complex{Num}(Num(real(x)), Num(imag(x)))
 as_cnum(x) = Complex{Num}(Num(x), Num(false))
 
+# IndexedVariable calls lack Symbolics' dependent-variable metadata.
+function coefficient_atom(x::SymbolicUtils.BasicSymbolic)
+    SymbolicUtils.default_is_atomic(x) && return true
+    SymbolicUtils.iscall(x) || return false
+    op = SymbolicUtils.operation(x)
+    return op isa SymbolicUtils.BasicSymbolic && SymbolicUtils.issym(op)
+end
+
 function raw_variables(x::RawExpression)
     vars = RawExpression[]
-    for v in Symbolics.get_variables(x)
+    for v in Symbolics.get_variables(x; is_atomic = coefficient_atom)
         push!(vars, v)
     end
     return vars
@@ -182,17 +193,34 @@ function compile_td_coeffs(coeffs, time_parameter)
 end
 
 function compile_coeffs(exprs::Vector{Complex{Num}}, basevars::Vector{Num}, @nospecialize(valuefuncs), p_aware::Bool)
-    f_re = first(build_function(Num[real(e) for e in exprs], basevars...; expression = Val(false)))
-    f_im = first(build_function(Num[imag(e) for e in exprs], basevars...; expression = Val(false)))
-    g = at_time((t, vals) -> complex_values(f_re, f_im, vals), valuefuncs, p_aware)
-    p_aware && return (u, p, t) -> g(p, t)
-    return (u, p, t) -> g(t)
+    f_re = last(build_function(Num[real(e) for e in exprs], basevars...; expression = Val(false), skipzeros = false))
+    f_im = last(build_function(Num[imag(e) for e in exprs], basevars...; expression = Val(false), skipzeros = false))
+    reader = let valuefuncs = valuefuncs
+        p_aware ? ((p, t) -> map(f -> f(p, t), valuefuncs)) : ((p, t) -> map(f -> f(t), valuefuncs))
+    end
+    n = length(exprs)
+    return let f_re = f_re, f_im = f_im, reader = reader, n = n
+        coefficients!(out::Vector{ComplexF64}, u, p, t) = complex_values!(out, f_re, f_im, reader(p, t))
+        coefficients!(u, p, t) = complex_values!(Vector{ComplexF64}(undef, n), f_re, f_im, reader(p, t))
+        coefficients!
+    end
 end
 
-function complex_values(f_re::F, f_im::G, vals::Tuple) where {F, G}
-    re = f_re(vals...)
-    imag_part = f_im(vals...)
-    return ComplexF64[re[k] + im * imag_part[k] for k in eachindex(re)]
+function complex_values!(out::Vector{ComplexF64}, f_re::F, f_im::G, vals::Tuple) where {F, G}
+    if vals isa Tuple{Vararg{Real}}
+        components = reinterpret(Float64, out)
+        f_re(view(components, 1:2:length(components)), vals...)
+        f_im(view(components, 2:2:length(components)), vals...)
+    else
+        # Preserve complex runtime values supplied for symbols declared real.
+        re, im_part = similar(out), similar(out)
+        f_re(re, vals...)
+        f_im(im_part, vals...)
+        for k in eachindex(out)
+            out[k] = re[k] + im * im_part[k]
+        end
+    end
+    return out
 end
 
 struct SplitScalarRules

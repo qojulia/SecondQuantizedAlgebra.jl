@@ -5,6 +5,7 @@ using SecondQuantizedAlgebra: QuantumToolboxBackend, Op
 import QuantumToolbox as QTB
 import SciMLOperators as SO
 import SymbolicUtils: BasicSymbolic
+using Symbolics: Num
 import SparseArrays: SparseMatrixCSC, nonzeros, nzrange, rowvals, sparse, spzeros
 import LinearAlgebra: dot, mul!
 
@@ -20,17 +21,32 @@ struct ConstCoeffs{T}
     c::Vector{T}
 end
 (f::ConstCoeffs)(u, p, t) = f.c
+(f::ConstCoeffs)(out::Vector, u, p, t) = copyto!(out, f.c)
 
 struct ConjCoeffs{F}
     f::F
 end
 (f::ConjCoeffs)(u, p, t) = conj.(f.f(u, p, t))
+function (f::ConjCoeffs)(out::Vector, u, p, t)
+    f.f(out, u, p, t)
+    out .= conj.(out)
+    return out
+end
 
 struct ProductCoeffs{FA, FB}
     a::FA
     b::FB
 end
 (f::ProductCoeffs)(u, p, t) = outer_values(f.a(u, p, t), f.b(u, p, t))
+function (f::ProductCoeffs)(out::Vector, u, p, t)
+    left, right = f.a(u, p, t), f.b(u, p, t)
+    k = 0
+    for a in left, b in right
+        k += 1
+        out[k] = a * b
+    end
+    return out
+end
 
 outer_values(a::Vector, b::Vector) = [x * y for x in a for y in b]
 
@@ -47,11 +63,15 @@ Base.eltype(::VecSum{T}) where {T} = T
 SO.issquare(::VecSum) = true
 SO.isconstant(L::VecSum) = L.coeffs isa ConstCoeffs
 function SO.update_coefficients!(L::VecSum, u, p, t)
-    SO.isconstant(L) || copyto!(L.vals, L.coeffs(u, p, t))
+    SO.isconstant(L) || L.coeffs(L.vals, u, p, t)
     return L
 end
-SO.update_coefficients(L::VecSum{T}, u, p, t) where {T} =
-    SO.isconstant(L) ? L : VecSum(L.coeffs, convert(Vector{T}, L.coeffs(u, p, t)), L.ops)
+function SO.update_coefficients(L::VecSum, u, p, t)
+    SO.isconstant(L) && return L
+    vals = similar(L.vals)
+    L.coeffs(vals, u, p, t)
+    return VecSum(L.coeffs, vals, L.ops)
+end
 
 function mul!(w::AbstractVecOrMat, L::VecSum, v::AbstractVecOrMat)
     mul!(w, L.ops[1], v, L.vals[1], false)
@@ -203,7 +223,13 @@ end
 
 function SQA.numeric_assemble_td(be::QuantumToolboxBackend, basis, terms)
     functions = Function[c isa Number ? ((p, t) -> c) : SQA.lift_pt(c) for (c, _) in terms]
-    coeffs = (u, p, t) -> ComplexF64[f(p, t) for f in functions]
+    function coeffs(out::Vector{ComplexF64}, u, p, t)
+        for k in eachindex(functions)
+            out[k] = functions[k](p, t)
+        end
+        return out
+    end
+    coeffs(u, p, t) = ComplexF64[f(p, t) for f in functions]
     ops = [SO.MatrixOperator(fuse(be, basis, factors).data) for (_, factors) in terms]
     refid = SQA.numeric_identity(be, basis)
     return QTB.QobjEvo(VecSum(coeffs, zeros(ComplexF64, length(ops)), ops), QTB.Operator(), refid.dimensions)
@@ -217,6 +243,15 @@ function SQA.to_numeric_td(terms::Vector{SQA.CoeffTerm}, ctx::SQA.NumericContext
     ops = [SO.MatrixOperator(fuse(be, basis, factors).data) for factors in factor_lists]
     coeffs = SQA.compile_td_coeffs((c for (c, _) in terms), time_parameter)
     refid = SQA.numeric_identity(be, basis)
+    return QTB.QobjEvo(VecSum(coeffs, zeros(ComplexF64, length(ops)), ops), QTB.Operator(), refid.dimensions)
+end
+
+function SQA.formal_td_operator(
+        terms::Vector{Tuple{SQA.CNum, O}}, ctx::SQA.NumericContext{QuantumToolboxBackend}, time_parameter,
+    ) where {O}
+    ops = [SO.MatrixOperator(op.data) for (_, op) in terms]
+    coeffs = SQA.compile_td_coeffs((c for (c, _) in terms), time_parameter)
+    refid = SQA.numeric_identity(ctx.backend, ctx.basis)
     return QTB.QobjEvo(VecSum(coeffs, zeros(ComplexF64, length(ops)), ops), QTB.Operator(), refid.dimensions)
 end
 
@@ -348,34 +383,41 @@ SQA.to_numeric(q::SQA.QExpr, dims::QTBDims, d::AbstractDict{<:SQA.QSym}) =
     SQA.to_numeric(q, dims; operators = d, adjoint_ops = false)
 
 SQA.to_numeric(q::SQA.QAdd, dims::QTBDims, d::AbstractDict{<:SQA.QSym} = SQA.NO_SUBS) =
-    SQA.static_operator(q, SQA.NumericContext(QuantumToolboxBackend(), dims, d), SQA.EagerOperator())
+    SQA.to_numeric(q, dims; operators = d, adjoint_ops = false)
 SQA.to_numeric(x::Number, dims::QTBDims, ::AbstractDict{<:SQA.QSym} = SQA.NO_SUBS) =
-    SQA.numeric_materialize(
-    QuantumToolboxBackend(),
-    SQA.to_complex(x) * SQA.numeric_identity(QuantumToolboxBackend(), dims),
-    SQA.EagerOperator(),
+    SQA.to_numeric_kw(
+    QuantumToolboxBackend(), x, dims;
+    parameter = SQA.NO_PARAMETER, time_parameter = SQA.NO_TIME_PARAMETER,
+    operators = SQA.NO_SUBS, adjoint_ops = false, op_type = SQA.EagerOperator(),
 )
 
-SQA.to_numeric(
-    q::SQA.QAdd, dims::QTBDims,
-    sites::AbstractDict{Int, Vector{Int}},
-    d::AbstractDict{<:SQA.QSym} = SQA.NO_SUBS,
-    scalar_subs::AbstractDict = SQA.NO_SCALAR_SUBS,
-) = SQA.to_numeric_indexed(QuantumToolboxBackend(), dims, q, sites, d, scalar_subs)
+function SQA.to_numeric(
+        q::SQA.QAdd, dims::QTBDims, sites::AbstractDict{Int, Vector{Int}},
+        d::AbstractDict{<:SQA.QSym} = SQA.NO_SUBS, scalar_subs::AbstractDict = SQA.NO_SCALAR_SUBS;
+        default_time_dependence::Bool = true,
+    )
+    return SQA.to_numeric_kw(
+        QuantumToolboxBackend(), q, dims; parameter = scalar_subs, time_parameter = SQA.NO_TIME_PARAMETER,
+        operators = d, adjoint_ops = false, op_type = SQA.EagerOperator(),
+        default_time_dependence, sites = Dict{Int, Vector{Int}}(sites),
+    )
+end
 
 function SQA.to_numeric(
         op::SQA.QField, dims::QTBDims;
         parameter = SQA.NO_PARAMETER, time_parameter = SQA.NO_TIME_PARAMETER,
         operators = SQA.NO_SUBS, adjoint_ops = true, op_type = SQA.EagerOperator(),
+        default_time_dependence::Bool = true,
     )
-    return SQA.to_numeric_kw(QuantumToolboxBackend(), op, dims; parameter, time_parameter, operators, adjoint_ops, op_type)
+    return SQA.to_numeric_kw(QuantumToolboxBackend(), op, dims; parameter, time_parameter, operators, adjoint_ops, op_type, default_time_dependence)
 end
 function SQA.to_numeric(
         x::Union{Number, BasicSymbolic}, dims::QTBDims;
         parameter = SQA.NO_PARAMETER, time_parameter = SQA.NO_TIME_PARAMETER,
         operators = SQA.NO_SUBS, adjoint_ops = true, op_type = SQA.EagerOperator(),
+        default_time_dependence::Bool = true,
     )
-    return SQA.to_numeric_kw(QuantumToolboxBackend(), x, dims; parameter, time_parameter, operators, adjoint_ops, op_type)
+    return SQA.to_numeric_kw(QuantumToolboxBackend(), x, dims; parameter, time_parameter, operators, adjoint_ops, op_type, default_time_dependence)
 end
 
 SQA.to_numeric(ops::AbstractVector{T}, dims::D; kwargs...) where {T, D <: QTBDims} =
@@ -462,6 +504,147 @@ function SQA.numeric_add_term!(result, coefficient::ComplexF64, ops::Vector{Op},
     term = SQA.static_operator(SQA.OpTerm[(1.0 + 0.0im, ops)], ctx, SQA.EagerOperator())
     result.data .+= coefficient .* term.data
     return result
+end
+
+function parameter_variables!(variables::Vector{Num}, c::SQA.CNum)
+    append!(variables, Num.(SQA.coefficient_variables(SQA.to_num(c))))
+    return variables
+end
+
+function parameter_variables!(variables::Vector{Num}, q::SQA.QAdd, ctx::SQA.NumericContext, rules::SQA.SubstitutionRules)
+    if isempty(q.indices)
+        for c in values(q.arguments)
+            parameter_variables!(variables, c)
+        end
+    else
+        ctx = SQA.sum_context(q, ctx, rules.scalars)
+        SQA.foreach_unrolled(q, ctx.sites, SQA.split_scalar_subs(rules.scalars)) do term, c, substitution
+            parameter_variables!(variables, c)
+        end
+    end
+    return variables
+end
+
+function parameter_variables!(variables::Vector{Num}, q::SQA.QExpr, ctx::SQA.NumericContext, rules::SQA.SubstitutionRules)
+    parameter_variables!(variables, q.coeff)
+    if q.kind == SQA.QEXPR_ADD || q.kind == SQA.QEXPR_MUL
+        for arg in q.args
+            parameter_variables!(variables, arg, ctx, rules)
+        end
+    end
+    return variables
+end
+
+SQA.numeric_time_parameters(::Op, ::SQA.NumericContext{QuantumToolboxBackend}, ::SQA.SubstitutionRules, tp, ::Bool) = tp
+
+function SQA.numeric_time_parameters(
+        op::Union{SQA.QField, Number, BasicSymbolic}, ctx::SQA.NumericContext{QuantumToolboxBackend},
+        rules::SQA.SubstitutionRules, time_parameter, default_time_dependence::Bool,
+    )
+    q = if op isa SQA.QField
+        SQA.substitute_with(op isa SQA.QSym ? SQA.to_qadd(op) : op, rules)
+    else
+        SQA.single_qadd(SQA.to_cnum(SQA.as_cnum(SQA.apply_parameter(op, rules))), Op[])
+    end
+    result = isempty(time_parameter) ? Dict{Num, Any}() : copy(time_parameter)
+    specified = isempty(result) ? Num[] : first(SQA.time_basis(result))
+    for key in parameter_variables!(Num[], q, ctx, rules)
+        (haskey(result, key) || any(v -> isequal(v, key), specified)) && continue
+        result[key] = let key = key
+            default_time_dependence ? ((p, t) -> p[key](t)) : ((p, t) -> p[key])
+        end
+    end
+    return result
+end
+
+function inferred_site_count(index::SQA.Index, rules::SQA.SubstitutionRules)
+    value = try
+        SQA.to_complex(SQA.apply_parameter(SQA.index_range(index), rules))
+    catch err
+        err isa ArgumentError || rethrow()
+        throw(ArgumentError("dimension inference needs static integer index ranges; supply `parameter` or explicit dimensions"))
+    end
+    if !iszero(imag(value)) || !isinteger(real(value)) || !(0 < real(value) <= typemax(Int))
+        throw(ArgumentError("dimension inference needs positive integer index ranges; supply explicit dimensions"))
+    end
+    return Int(real(value))
+end
+
+function inferred_layout!(
+        dimensions::Dict{Int, Int}, counts::Dict{Int, Int}, unindexed::Set{Int},
+        q::SQA.QAdd, rules::SQA.SubstitutionRules,
+    )
+    for index in q.indices
+        slot = Int(index.space_index)
+        count = inferred_site_count(index, rules)
+        get(counts, slot, count) == count || throw(ArgumentError("conflicting indexed ranges; supply explicit dimensions and sites"))
+        counts[slot] = count
+    end
+    for op in SQA.get_operators(q)
+        slot = Int(op.space_index)
+        dimension = if SQA.is_transition(op)
+            Int(op.nlev)
+        elseif SQA.is_pauli(op)
+            2
+        else
+            throw(ArgumentError("cannot infer the dimension of `$op`; supply an explicit basis, bosonic cutoff, or spin length"))
+        end
+        get(dimensions, slot, dimension) == dimension || throw(ArgumentError("conflicting subsystem dimensions; supply an explicit basis"))
+        dimensions[slot] = dimension
+        if SQA.has_index(op.index)
+            if iszero(SQA.index_slot(op.index)) && !(op.index in q.indices)
+                throw(ArgumentError("cannot infer a layout for a free index; bind it with Σ or supply explicit dimensions and sites"))
+            end
+            count = inferred_site_count(op.index, rules)
+            get(counts, slot, count) == count || throw(ArgumentError("conflicting indexed ranges; supply explicit dimensions and sites"))
+            counts[slot] = count
+            SQA.index_slot(op.index) <= count || throw(ArgumentError("indexed site exceeds its range"))
+        else
+            push!(unindexed, slot)
+        end
+    end
+    return nothing
+end
+
+function inferred_layout!(
+        dimensions::Dict{Int, Int}, counts::Dict{Int, Int}, unindexed::Set{Int},
+        q::SQA.QExpr, rules::SQA.SubstitutionRules,
+    )
+    for arg in q.args
+        inferred_layout!(dimensions, counts, unindexed, arg, rules)
+    end
+    return nothing
+end
+
+function inferred_layout(op::SQA.QField, rules::SQA.SubstitutionRules)
+    dimensions, counts, unindexed = Dict{Int, Int}(), Dict{Int, Int}(), Set{Int}()
+    q = op isa SQA.QSym ? SQA.to_qadd(op) : op
+    inferred_layout!(dimensions, counts, unindexed, q, rules)
+    isempty(dimensions) && throw(ArgumentError("no operator dimensions remain to infer; supply an explicit basis"))
+    slots = sort!(collect(keys(dimensions)))
+    slots == collect(1:last(slots)) || throw(ArgumentError("missing subsystem dimensions; supply an explicit basis"))
+    dims, sites = Int[], Dict{Int, Vector{Int}}()
+    for slot in slots
+        count = get(counts, slot, 1)
+        slot in unindexed && count > 1 && throw(ArgumentError("ambiguous indexed and unindexed subsystem; supply explicit dimensions and sites"))
+        sites[slot] = collect((length(dims) + 1):(length(dims) + count))
+        append!(dims, fill(dimensions[slot], count))
+    end
+    return (length(dims) == 1 ? only(dims) : Tuple(dims)), sites
+end
+
+function SQA.to_numeric(
+        op::SQA.QField, backend::QuantumToolboxBackend;
+        parameter = SQA.NO_PARAMETER, time_parameter = SQA.NO_TIME_PARAMETER,
+        operators = SQA.NO_SUBS, adjoint_ops = true, op_type = SQA.EagerOperator(),
+        default_time_dependence::Bool = true,
+    )
+    rules = SQA.expand_parameter(parameter)
+    dims, sites = inferred_layout(op, rules)
+    return SQA.to_numeric_kw(
+        backend, op, dims; parameter, time_parameter, operators, adjoint_ops, op_type,
+        default_time_dependence, sites,
+    )
 end
 
 end

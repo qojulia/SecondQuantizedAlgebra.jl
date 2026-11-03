@@ -126,7 +126,7 @@ indexed_sum
 
 ## Numerical conversion
 
-[`to_numeric`](@ref) turns an operator expression into a matrix of [QuantumOpticsBase.jl](https://github.com/qojulia/QuantumOpticsBase.jl) or [QuantumToolbox.jl](https://github.com/qutip/QuantumToolbox.jl), ready for their solvers. The numerical side is an extension: it becomes available once one of the two packages is loaded, and the backend is chosen with [`QuantumOpticsBackend`](@ref) or [`QuantumToolboxBackend`](@ref). The portable form takes the symbolic Hilbert space and one truncation per factor, a photon cutoff for a mode. Every parameter needs a value.
+[`to_numeric`](@ref) turns an operator expression into a matrix of [QuantumOpticsBase.jl](https://github.com/qojulia/QuantumOpticsBase.jl) or [QuantumToolbox.jl](https://github.com/qutip/QuantumToolbox.jl), ready for their solvers. The numerical side is an extension: it becomes available once one of the two packages is loaded, and the backend is chosen with [`QuantumOpticsBackend`](@ref) or [`QuantumToolboxBackend`](@ref). The portable form takes the symbolic Hilbert space and one truncation per factor, a photon cutoff for a mode. Parameter values can be supplied at conversion time or, with QuantumToolbox, through solver parameters.
 
 ```@example avg
 using QuantumOpticsBase
@@ -153,6 +153,21 @@ b = bf ⊗ bn
 to_numeric(σ(:g, :e), b) == embed(b, 2, transition(bn, 1, 2))
 ```
 
+QuantumToolbox also accepts `to_numeric(expr, QuantumToolboxBackend())` without explicit dimensions for unambiguous systems of N-level or Pauli operators. Level counts come from the operators, and bound index ranges determine the number of copies of each subsystem. The ranges must be positive integers known at conversion time; symbolic counts can be fixed through `parameter`.
+
+```julia
+import QuantumToolbox
+
+atom = NLevelSpace(:atom, 2)
+P = Transition(atom, :P, 2, 2)
+i = Index(atom, :i, 3, atom)
+S = Σ(IndexedOperator(P, i), i)
+Sn = to_numeric(cos(S), QuantumToolboxBackend())
+size(Sn) # (8, 8): three two-level sites
+```
+
+Inference uses only the subsystems represented in the expression. Supply an explicit basis or dimensions to retain spectator subsystems or resolve an ambiguous layout, and an explicit `sites` mapping when needed. Bosonic and phase-space operators still require a cutoff, and spin operators require a spin length, through the existing space-and-dimensions form.
+
 ### Time-dependent parameters
 
 Parameters that change in time go into `time_parameter`, as functions of time. The result is then the backend's time-dependent operator, a `TimeDependentSum` for QuantumOptics.
@@ -168,6 +183,24 @@ An explicit time dependence of the coefficients, such as a phase from a rotating
 Hd = η * (expim(Δ * t) * a + expim(-Δ * t) * a')
 to_numeric(Hd, h, (10, 2); backend, parameter = Dict(Δ => 0.5), time_parameter = Dict(t => identity, η => 0.2)) isa TimeDependentSum
 ```
+
+### QuantumToolbox solver parameters
+
+With QuantumToolbox, scalar parameters left unspecified by `parameter` or `time_parameter` automatically become symbolic keys in the solver's parameter dictionary `p`, and the result is a native `QobjEvo`. The default `default_time_dependence = true` generates callbacks of the form `p[η](t)`; set it to `false` to use numeric values through `p[η]` instead. Explicit parameter mappings take precedence.
+
+```julia
+import QuantumToolbox
+
+Ht = to_numeric(H, h, (10, 2); backend = QuantumToolboxBackend(), parameter = Dict(Δ => 0.5, g => 0.1))
+Ht(Dict(η => t -> 0.2 * sin(t)), 0.5)
+
+Hp = to_numeric(H, h, (10, 2); backend = QuantumToolboxBackend(), default_time_dependence = false)
+Hp(Dict(Δ => 0.5, g => 0.1, η => 0.2), 0.5)
+```
+
+The same dictionary can be passed to a QuantumToolbox solver through its `params` keyword. Scalar prefactors of static matrix functions, such as `x * cos(S)`, also support these callbacks; parameters inside matrix-function arguments still require static values via `parameter`.
+
+Coefficient updates reuse the existing coefficient buffer, reducing allocations during solver updates. Callable dictionary values may still allocate, and evaluating `Ht(p, t)` materializes an operator and allocates its result.
 
 ### Custom operators and lazy output
 

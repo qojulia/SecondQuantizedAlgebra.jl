@@ -61,7 +61,8 @@ end
         n = a' * a
 
         @test @inferred(to_numeric(a, 8)) isa QTB.QuantumObject
-        @test @inferred(to_numeric(n, 8)) isa QTB.QuantumObject
+        # A QAdd's free coefficients determine whether conversion returns a QobjEvo.
+        @test (@inferred QTB.QuantumObjectEvolution to_numeric(n, 8)) isa QTB.QuantumObject
         @test @inferred(inferred_qtb_uniform(a, h, 7)) isa QTB.QuantumObject
 
         hp = FockSpace(:c) ⊗ NLevelSpace(:atom, 3, 1)

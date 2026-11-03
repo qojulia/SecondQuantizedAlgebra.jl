@@ -26,7 +26,12 @@ using Symbolics: @variables
         @test Matrix(actual.data) ≈ ComplexF64[0 0 0 0; 0 1 0 0; 0 0 1 0; 0 0 0 2]
         @test Matrix(SQA.to_numeric(g * S, target; parameter = Dict(g => 3)).data) ≈ 3 * Matrix(expected.data)
         @test Matrix(SQA.to_numeric(excluded, target).data) ≈ Matrix(expected.data)^2 - Matrix(expected.data)
-        @test_throws ArgumentError SQA.to_numeric(g * S, target)
+        if target isa Tuple
+            parameterized = SQA.to_numeric(g * S, target; default_time_dependence = false)
+            @test Matrix(parameterized(Dict(g => 3), 0.5).data) ≈ 3 * Matrix(expected.data)
+        else
+            @test_throws ArgumentError SQA.to_numeric(g * S, target)
+        end
         weighted_matrix = Matrix(SQA.to_numeric(weighted, target, Dict(1 => [1, 2]), SQA.NO_SUBS, parameters).data)
         @test sort(real.([weighted_matrix[k, k] for k in 1:4])) == [0, 1, 2, 3]
         @test Matrix(SQA.to_numeric(weighted, target; parameter = parameters).data) ≈ weighted_matrix

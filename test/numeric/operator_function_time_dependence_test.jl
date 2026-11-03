@@ -42,7 +42,13 @@ using Test: @test, @testset, @test_throws
                     expr, h, 3; backend, time_parameter = Dict(x => identity, y => identity),
                 )
             end
-            @test_throws ArgumentError to_numeric(x * cos(A) + y * a, h, 3; backend, time_parameter = Dict(x => identity))
+            if backend isa QuantumToolboxBackend
+                automatic = to_numeric(x * cos(A) + y * a, h, 3; backend, time_parameter = Dict(x => identity), default_time_dependence = false)
+                expected = to_numeric(x * cos(A) + y * a, h, 3; backend, parameter = Dict(x => 0.4, y => 0.2))
+                @test Matrix(automatic(Dict(y => 0.2), 0.4).data) ≈ Matrix(expected.data)
+            else
+                @test_throws ArgumentError to_numeric(x * cos(A) + y * a, h, 3; backend, time_parameter = Dict(x => identity))
+            end
             @test_throws ArgumentError to_numeric(x * cos(A), h, 3; backend, time_parameter = Dict(x => identity), op_type = Matrix)
             lazy = to_numeric(x * cos(A), h, 3; backend, time_parameter = Dict(x => 2), op_type = identity)
             @test Matrix(at(lazy, 0.4).data) ≈ Matrix(to_numeric(2 * cos(A), h, 3; backend).data)

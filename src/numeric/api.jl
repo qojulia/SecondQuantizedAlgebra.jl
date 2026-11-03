@@ -109,9 +109,10 @@ function to_numeric(
         backend::B = default_backend(),
         parameter = NO_PARAMETER, time_parameter = NO_TIME_PARAMETER,
         operators = NO_SUBS, adjoint_ops = true, op_type = EagerOperator(),
+        default_time_dependence::Bool = true,
     ) where {H <: HilbertSpace, B <: NumericBackend}
     b = numeric_basis(backend, h, dims)
-    return to_numeric_kw(backend, op, b; parameter, time_parameter, operators, adjoint_ops, op_type)
+    return to_numeric_kw(backend, op, b; parameter, time_parameter, operators, adjoint_ops, op_type, default_time_dependence)
 end
 
 to_numeric(ops::AbstractVector{T}, h::H, dims; backend::B = default_backend(), kwargs...) where {T, H <: HilbertSpace, B <: NumericBackend} =

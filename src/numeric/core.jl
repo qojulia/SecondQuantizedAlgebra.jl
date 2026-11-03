@@ -105,19 +105,22 @@ operator_adjoint(::NumericBackend, v) = Base.adjoint(v)
 operator_key(k::Op) = k
 operator_key(k) = throw(ArgumentError("operator substitution key `$k` is not a QSym"))
 
-function to_numeric_kw(be::NumericBackend, op, b; parameter, time_parameter, operators, adjoint_ops, op_type)
-    if op isa QAdd && !isempty(op.indices)
-        ops = numeric_operator_dict(be, operators, adjoint_ops)
-        q = apply_parameter(op, expand_parameter(parameter))
-        ctx = NumericContext(be, b, ops)
-        return indexed_result(q, ctx, parameter, time_parameter, op_type)
-    end
+function to_numeric_kw(
+        be::NumericBackend, op, b; parameter, time_parameter, operators, adjoint_ops, op_type,
+        default_time_dependence::Bool = true, sites::Dict{Int, Vector{Int}} = EMPTY_SITES,
+    )
     rules = expand_parameter(parameter)
     tp = normalize_time_parameter(time_parameter)
     ops = numeric_operator_dict(be, operators, adjoint_ops)
-    ctx = NumericContext(be, b, ops)
+    ctx = NumericContext(be, b, ops, sites)
+    tp = numeric_time_parameters(op, ctx, rules, tp, default_time_dependence)
+    if op isa QAdd && !isempty(op.indices)
+        return indexed_result(apply_parameter(op, rules), ctx, rules.scalars, tp, op_type)
+    end
     return to_numeric_translated(op, ctx, rules, tp, op_type)
 end
+
+numeric_time_parameters(op, ctx::NumericContext, rules::SubstitutionRules, tp, ::Bool) = tp
 
 apply_parameter(q::QAdd, r::SubstitutionRules) = substitute_with(q, r)
 
