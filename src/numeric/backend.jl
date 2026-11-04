@@ -83,6 +83,13 @@ cutoff / spin number; ignored for spaces that carry their own level count). Retu
 """
 function numeric_basis end
 
+implicit_dimensions(h::NLevelSpace) = h.n
+implicit_dimensions(::PauliSpace) = 2
+implicit_dimensions(h::ProductSpace) = map(implicit_dimensions, h.spaces)
+implicit_dimensions(h::HilbertSpace) = throw(
+    ArgumentError("$(typeof(h)) requires explicit dimensions; use `to_numeric(op, h, dims; backend, kwargs...)` with a bosonic cutoff or spin length"),
+)
+
 """
     numeric_subbasis(be, basis, slot::Int)
 

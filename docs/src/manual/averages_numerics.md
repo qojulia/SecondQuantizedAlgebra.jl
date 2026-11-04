@@ -126,7 +126,7 @@ indexed_sum
 
 ## Numerical conversion
 
-[`to_numeric`](@ref) turns an operator expression into a matrix of [QuantumOpticsBase.jl](https://github.com/qojulia/QuantumOpticsBase.jl) or [QuantumToolbox.jl](https://github.com/qutip/QuantumToolbox.jl), ready for their solvers. The numerical side is an extension: it becomes available once one of the two packages is loaded, and the backend is chosen with [`QuantumOpticsBackend`](@ref) or [`QuantumToolboxBackend`](@ref). The portable form takes the symbolic Hilbert space and one truncation per factor, a photon cutoff for a mode. Parameter values can be supplied at conversion time or, with QuantumToolbox, through solver parameters.
+[`to_numeric`](@ref) turns an operator expression into a matrix of [QuantumOpticsBase.jl](https://github.com/qojulia/QuantumOpticsBase.jl) or [QuantumToolbox.jl](https://github.com/qutip/QuantumToolbox.jl), ready for their solvers. The numerical side is an extension: it becomes available once one of the two packages is loaded, and the backend is chosen with [`QuantumOpticsBackend`](@ref) or [`QuantumToolboxBackend`](@ref). Both backends accept `to_numeric(op, h; backend)` for N-level and Pauli spaces and their tensor products. When a truncation is needed, use `to_numeric(op, h, dims; backend)` with one entry per factor, such as a photon cutoff for a mode. Parameter values can be supplied at conversion time or, with QuantumToolbox, through solver parameters.
 
 ```@example avg
 using QuantumOpticsBase
@@ -143,6 +143,42 @@ QuantumToolboxBackend
 ```
 
 ### Bases and levels
+
+For an `NLevelSpace`, a `PauliSpace`, or a product of these, dimensions can be omitted
+with either `QuantumOpticsBackend()` or `QuantumToolboxBackend()`. The N-level state
+count comes from the space, and a Pauli space has two states.
+
+```julia
+import QuantumOpticsBase
+import QuantumToolbox
+
+atom = NLevelSpace(:atom, 2)
+P = Transition(atom, :P, 2, 2)
+Poptics = to_numeric(P, atom; backend = QuantumOpticsBackend())
+Ptoolbox = to_numeric(P, atom; backend = QuantumToolboxBackend())
+# Equivalent explicit-dimension forms:
+Poptics = to_numeric(P, atom, 2; backend = QuantumOpticsBackend())
+Ptoolbox = to_numeric(P, atom, 2; backend = QuantumToolboxBackend())
+
+hfinite = atom ⊗ PauliSpace(:qubit)
+Pfinite = Transition(hfinite, :P, 2, 2, 1)
+for be in (QuantumOpticsBackend(), QuantumToolboxBackend())
+    @assert to_numeric(Pfinite, hfinite; backend = be) ≈
+        to_numeric(Pfinite, hfinite, (2, 2); backend = be)
+end
+
+@variables λ
+Hp = to_numeric(λ * cos(P), atom;
+    backend = QuantumToolboxBackend(), default_time_dependence = false)
+Hp(Dict(λ => 0.5), 0.7)
+```
+
+Both Hilbert-space forms accept `default_time_dependence`. This keyword affects only
+QuantumToolbox: the default `true` uses `p[λ](t)`, and `false` uses `p[λ]`.
+QuantumOptics continues to use explicit `parameter` and `time_parameter` mappings;
+`default_time_dependence` has no effect on that backend. The supplied Hilbert space
+retains every tensor factor, including spectator subsystems absent from the expression.
+Fock and phase spaces still need a cutoff, and spin spaces need a spin length.
 
 A basis of the backend can be passed in place of the space and its truncation, and then also fixes the backend. Symbolic level names map to basis indices in the order of the levels of the [`NLevelSpace`](@ref), so ``g`` is the first basis state and ``e`` the second.
 
@@ -166,7 +202,7 @@ Sn = to_numeric(cos(S), QuantumToolboxBackend())
 size(Sn) # (8, 8): three two-level sites
 ```
 
-Inference uses only the subsystems represented in the expression. Supply an explicit basis or dimensions to retain spectator subsystems or resolve an ambiguous layout, and an explicit `sites` mapping when needed. Bosonic and phase-space operators still require a cutoff, and spin operators require a spin length, through the existing space-and-dimensions form.
+The QuantumToolbox backend-only shorthand infers only the subsystems represented in the expression. Supply a Hilbert space to retain finite spectator subsystems, or an explicit basis or dimensions to resolve an ambiguous layout, and an explicit `sites` mapping when needed. Bosonic and phase-space operators still require a cutoff, and spin operators require a spin length, through the existing space-and-dimensions form.
 
 ### Time-dependent parameters
 
