@@ -115,7 +115,7 @@ Every operator is the single concrete struct `Op`, and its role (annihilation, t
 
 **Struct fields are concrete, and `Op` and `Index` are bits types.** `Vector{Op}` is then an inline buffer that is hashed and compared on integers.
 
-**The numeric core is backend-neutral.** `src/numeric/` never names a backend type, and the type of an assembled operator does not depend on the number of terms.
+**The numeric core is backend-neutral.** `src/numeric/` never names a backend type. QuantumToolbox conversion uses its standard `QobjEvo` constructors and SciMLOperators representations; the native time-dependent composition can encode its term count in its type.
 
 ## Adding an operator kind
 

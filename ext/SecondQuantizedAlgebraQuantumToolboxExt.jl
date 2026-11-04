@@ -6,108 +6,10 @@ import QuantumToolbox as QTB
 import SciMLOperators as SO
 import SymbolicUtils: BasicSymbolic
 using Symbolics: Num
-import SparseArrays: SparseMatrixCSC, nonzeros, nzrange, rowvals, sparse, spzeros
-import LinearAlgebra: dot, mul!
+import SparseArrays: SparseMatrixCSC, nonzeros, nzrange, rowvals, sparse
+import LinearAlgebra: dot
 
 const QTBDims = Union{Integer, AbstractVector{<:Integer}, Tuple{Vararg{T}} where {T <: Integer}}
-
-struct VecSum{T, F, O <: SO.AbstractSciMLOperator} <: SO.AbstractSciMLOperator{T}
-    coeffs::F
-    vals::Vector{T}
-    ops::Vector{O}
-end
-
-struct ConstCoeffs{T}
-    c::Vector{T}
-end
-(f::ConstCoeffs)(u, p, t) = f.c
-(f::ConstCoeffs)(out::Vector, u, p, t) = copyto!(out, f.c)
-
-struct ConjCoeffs{F}
-    f::F
-end
-(f::ConjCoeffs)(u, p, t) = conj.(f.f(u, p, t))
-function (f::ConjCoeffs)(out::Vector, u, p, t)
-    f.f(out, u, p, t)
-    out .= conj.(out)
-    return out
-end
-
-struct ProductCoeffs{FA, FB}
-    a::FA
-    b::FB
-end
-(f::ProductCoeffs)(u, p, t) = outer_values(f.a(u, p, t), f.b(u, p, t))
-function (f::ProductCoeffs)(out::Vector, u, p, t)
-    left, right = f.a(u, p, t), f.b(u, p, t)
-    k = 0
-    for a in left, b in right
-        k += 1
-        out[k] = a * b
-    end
-    return out
-end
-
-outer_values(a::Vector, b::Vector) = [x * y for x in a for y in b]
-
-conj_coeffs(f::ConstCoeffs) = ConstCoeffs(conj.(f.c))
-conj_coeffs(f) = ConjCoeffs(f)
-product_coeffs(a::ConstCoeffs, b::ConstCoeffs) = ConstCoeffs(outer_values(a.c, b.c))
-product_coeffs(a, b) = ProductCoeffs(a, b)
-
-static_vecsum(c::Vector{T}, ops::Vector) where {T} = VecSum(ConstCoeffs(c), copy(c), ops)
-
-Base.size(L::VecSum) = size(L.ops[1])
-Base.size(L::VecSum, i::Int) = size(L.ops[1], i)
-Base.eltype(::VecSum{T}) where {T} = T
-SO.issquare(::VecSum) = true
-SO.isconstant(L::VecSum) = L.coeffs isa ConstCoeffs
-function SO.update_coefficients!(L::VecSum, u, p, t)
-    SO.isconstant(L) || L.coeffs(L.vals, u, p, t)
-    return L
-end
-function SO.update_coefficients(L::VecSum, u, p, t)
-    SO.isconstant(L) && return L
-    vals = similar(L.vals)
-    L.coeffs(vals, u, p, t)
-    return VecSum(L.coeffs, vals, L.ops)
-end
-
-function mul!(w::AbstractVecOrMat, L::VecSum, v::AbstractVecOrMat)
-    mul!(w, L.ops[1], v, L.vals[1], false)
-    for i in 2:length(L.ops)
-        mul!(w, L.ops[i], v, L.vals[i], true)
-    end
-    return w
-end
-function mul!(w::AbstractVecOrMat, L::VecSum, v::AbstractVecOrMat, α, β)
-    mul!(w, L.ops[1], v, L.vals[1] * α, β)
-    for i in 2:length(L.ops)
-        mul!(w, L.ops[i], v, L.vals[i] * α, true)
-    end
-    return w
-end
-
-function Base.:*(L::VecSum, v::AbstractVector)
-    w = similar(v, promote_type(eltype(L), eltype(v)), size(L, 1))
-    return mul!(w, L, v)
-end
-function Base.:*(L::VecSum, v::AbstractMatrix)
-    w = similar(v, promote_type(eltype(L), eltype(v)), size(L, 1), size(v, 2))
-    return mul!(w, L, v)
-end
-
-(L::VecSum)(w, v, u, p, t) = (SO.update_coefficients!(L, u, p, t); mul!(w, L, v))
-(L::VecSum)(w, v, u, p, t, α, β) = (SO.update_coefficients!(L, u, p, t); mul!(w, L, v, α, β))
-
-function SO.concretize(L::VecSum{T}) where {T}
-    rows, cols, vals = Int[], Int[], T[]
-    for i in eachindex(L.ops)
-
-        append_scaled!(rows, cols, vals, L.vals[i], sparse(SO.concretize(L.ops[i])))
-    end
-    return sparse(rows, cols, vals, size(L)...)
-end
 
 function append_scaled!(rows::Vector{Int}, cols::Vector{Int}, vals::Vector{T}, c::T, m::SparseMatrixCSC) where {T}
     rv, nz = rowvals(m), nonzeros(m)
@@ -116,25 +18,6 @@ function append_scaled!(rows::Vector{Int}, cols::Vector{Int}, vals::Vector{T}, c
     end
     return rows
 end
-Base.convert(::Type{AbstractMatrix}, L::VecSum) = SO.concretize(L)
-
-SO.cache_operator(L::VecSum, ::AbstractVecOrMat) = L
-
-Base.transpose(L::VecSum) = VecSum(L.coeffs, copy(L.vals), [transpose(o) for o in L.ops])
-Base.adjoint(L::VecSum) = VecSum(conj_coeffs(L.coeffs), conj.(L.vals), [adjoint(o) for o in L.ops])
-
-QTB._spre(A::VecSum) = VecSum(A.coeffs, copy(A.vals), [QTB._spre(o) for o in A.ops])
-QTB._spost(B::VecSum) = VecSum(B.coeffs, copy(B.vals), [QTB._spost(o) for o in B.ops])
-
-opprod(x::SO.MatrixOperator, y::SO.MatrixOperator) = SO.MatrixOperator(x.A * y.A)
-opprod(x, y) = x * y
-
-Base.:*(A::VecSum{T}, B::VecSum{T}) where {T} = VecSum(
-    product_coeffs(A.coeffs, B.coeffs),
-    outer_values(A.vals, B.vals),
-    [opprod(x, y) for x in A.ops for y in B.ops],
-)
-
 @inline function SQA.numeric_operator(be::QuantumToolboxBackend, op::Op, N::Integer)
     k = op.kind
     k === SQA.OP_DESTROY    && return QTB.destroy(N)
@@ -215,44 +98,53 @@ SQA.numeric_identity(::QuantumToolboxBackend, ds::Tuple{Vararg{T}}) where {T <: 
     QTB.tensor((QTB.qeye(d) for d in ds)...)
 
 function SQA.numeric_assemble(be::QuantumToolboxBackend, basis, terms)
-    refid = SQA.numeric_identity(be, basis)
-    coeffs = ComplexF64[c for (c, _) in terms]
-    ops = [SO.MatrixOperator(fuse(be, basis, factors).data) for (_, factors) in terms]
-    return QTB.QobjEvo(static_vecsum(coeffs, ops), QTB.Operator(), refid.dimensions)
+    result = QTB.to_sparse(0.0im * SQA.numeric_identity(be, basis))
+    for (c, factors) in terms
+        result += QTB.to_sparse(c * fuse(be, basis, factors))
+    end
+    return QTB.QobjEvo(result)
+end
+
+native_coefficient(c::Number) = (p, t) -> c
+native_coefficient(f::Function) = SQA.lift_pt(f)
+
+function native_time_operator(coefficients, operators)
+    entries = Tuple((op, native_coefficient(c)) for (c, op) in zip(coefficients, operators))
+    op = first(operators)
+    return QTB.QobjEvo(entries)::QTB.QuantumObjectEvolution{typeof(op.type), typeof(op.dimensions)}
 end
 
 function SQA.numeric_assemble_td(be::QuantumToolboxBackend, basis, terms)
-    functions = Function[c isa Number ? ((p, t) -> c) : SQA.lift_pt(c) for (c, _) in terms]
-    function coeffs(out::Vector{ComplexF64}, u, p, t)
-        for k in eachindex(functions)
-            out[k] = functions[k](p, t)
-        end
-        return out
+    ops = [fuse(be, basis, factors) for (_, factors) in terms]
+    if isempty(ops)
+        return QTB.QobjEvo(SQA.numeric_identity(be, basis), (p, t) -> 0.0im)
     end
-    coeffs(u, p, t) = ComplexF64[f(p, t) for f in functions]
-    ops = [SO.MatrixOperator(fuse(be, basis, factors).data) for (_, factors) in terms]
-    refid = SQA.numeric_identity(be, basis)
-    return QTB.QobjEvo(VecSum(coeffs, zeros(ComplexF64, length(ops)), ops), QTB.Operator(), refid.dimensions)
+    return native_time_operator((c for (c, _) in terms), ops)
 end
 
 function SQA.to_numeric_td(terms::Vector{SQA.CoeffTerm}, ctx::SQA.NumericContext{QuantumToolboxBackend}, time_parameter)
     leaves = SQA.leaf_cache(ctx)
-    factor_lists = [SQA.term_factors(ops, ctx, leaves) for (_, ops) in terms]
-    isempty(factor_lists) && push!(factor_lists, SQA.term_factors(Op[], ctx, leaves))
-    be, basis = ctx.backend, ctx.basis
-    ops = [SO.MatrixOperator(fuse(be, basis, factors).data) for factors in factor_lists]
-    coeffs = SQA.compile_td_coeffs((c for (c, _) in terms), time_parameter)
-    refid = SQA.numeric_identity(be, basis)
-    return QTB.QobjEvo(VecSum(coeffs, zeros(ComplexF64, length(ops)), ops), QTB.Operator(), refid.dimensions)
+    ops = [fuse(ctx.backend, ctx.basis, SQA.term_factors(factors, ctx, leaves)) for (_, factors) in terms]
+    if isempty(ops)
+        return QTB.QobjEvo(SQA.numeric_identity(ctx.backend, ctx.basis), (p, t) -> 0.0im)
+    end
+    basevars, valuefuncs, p_aware = SQA.time_basis(time_parameter)
+    coefficients = SQA.TDCoeff[]
+    for (c, _) in terms
+        push!(coefficients, SQA.td_coeff(SQA.to_num(c), basevars, valuefuncs, p_aware))
+    end
+    return native_time_operator(coefficients, ops)
 end
 
 function SQA.formal_td_operator(
         terms::Vector{Tuple{SQA.CNum, O}}, ctx::SQA.NumericContext{QuantumToolboxBackend}, time_parameter,
     ) where {O}
-    ops = [SO.MatrixOperator(op.data) for (_, op) in terms]
-    coeffs = SQA.compile_td_coeffs((c for (c, _) in terms), time_parameter)
-    refid = SQA.numeric_identity(ctx.backend, ctx.basis)
-    return QTB.QobjEvo(VecSum(coeffs, zeros(ComplexF64, length(ops)), ops), QTB.Operator(), refid.dimensions)
+    basevars, valuefuncs, p_aware = SQA.time_basis(time_parameter)
+    coefficients = SQA.TDCoeff[]
+    for (c, _) in terms
+        push!(coefficients, SQA.td_coeff(SQA.to_num(c), basevars, valuefuncs, p_aware))
+    end
+    return native_time_operator(coefficients, (op for (_, op) in terms))
 end
 
 function fuse(be::QuantumToolboxBackend, basis, factors)
@@ -284,12 +176,6 @@ qtb_eager(op::QTB.QuantumObject) = op
 SQA.to_numeric_lazy(op::Op, ctx::SQA.NumericContext{QuantumToolboxBackend}) =
     SQA.to_numeric_lazy(SQA.single_qadd(SQA.CNUM_ONE, Op[op]), ctx)
 
-function expect_ket(L::VecSum, data::AbstractVector)
-    work = similar(data, ComplexF64)
-    mul!(work, L, data)
-    return ComplexF64(dot(data, work))
-end
-
 function trace_product(A::SparseMatrixCSC, ρ::AbstractMatrix)
     value = 0.0im
     rows = rowvals(A)
@@ -307,36 +193,9 @@ function trace_product(A::AbstractMatrix, ρ::AbstractMatrix)
     return value
 end
 
-function expect_density(L::VecSum, data::AbstractMatrix)
-    acc = Ref(0.0im)
-    for i in eachindex(L.ops)
-        add_trace!(acc, L.vals[i], L.ops[i], data)
-    end
-    return acc[]
-end
-function add_trace!(acc::Base.RefValue{ComplexF64}, c::ComplexF64, op, data::AbstractMatrix)
-    acc[] += c * trace_product(SO.concretize(op), data)
-    return acc
-end
-
-QTB.expect(
-    numop::QTB.QuantumObjectEvolution{QTB.Operator, D, <:VecSum{ComplexF64}},
-    state::QTB.QuantumObject{QTB.Ket},
-) where {D} = expect_ket(numop.data, state.data)
-QTB.expect(
-    numop::QTB.QuantumObjectEvolution{QTB.Operator, D, <:VecSum{ComplexF64}},
-    state::QTB.QuantumObject{QTB.Bra},
-) where {D} = QTB.expect(numop, adjoint(state))
-QTB.expect(
-    numop::QTB.QuantumObjectEvolution{QTB.Operator, D, <:VecSum{ComplexF64}},
-    state::QTB.QuantumObject{QTB.Operator},
-) where {D} = expect_density(numop.data, state.data)
-
 SQA.numeric_expect(
-    ::QuantumToolboxBackend,
-    numop::QTB.QuantumObjectEvolution{QTB.Operator, D, <:VecSum{ComplexF64}},
-    state::QTB.QuantumObject,
-) where {D} = QTB.expect(numop, state)
+    be::QuantumToolboxBackend, numop::QTB.QuantumObjectEvolution, state::QTB.QuantumObject,
+) = SQA.numeric_expect(be, qtb_eager(numop), state)
 
 SQA.numeric_expect(
     ::QuantumToolboxBackend,
@@ -449,14 +308,18 @@ end
 
 function SQA.to_numeric_td(S::SQA.SuperOperator, ctx::SQA.NumericContext{QuantumToolboxBackend}, time_parameter)
     cache = SQA.side_cache(ctx)
-    ops = [SO.MatrixOperator(sandwich_matrix(t.left, t.right, ctx, cache)) for (t, _) in S.arguments]
+    dimensions = super_dimensions(ctx.backend, ctx.basis)
+    ops = [QTB.Qobj(sandwich_matrix(t.left, t.right, ctx, cache), QTB.SuperOperator(), dimensions) for (t, _) in S.arguments]
     if isempty(ops)
-        n = size(SQA.numeric_identity(ctx.backend, ctx.basis), 1)
-        push!(ops, SO.MatrixOperator(spzeros(ComplexF64, n^2, n^2)))
+        identity_op = SQA.numeric_identity(ctx.backend, ctx.basis)
+        return QTB.QobjEvo(QTB.spre(identity_op), (p, t) -> 0.0im)
     end
-    coeffs = SQA.compile_td_coeffs(values(S.arguments), time_parameter)
-    vecsum = VecSum(coeffs, zeros(ComplexF64, length(ops)), ops)
-    return QTB.QobjEvo(vecsum, QTB.SuperOperator(), super_dimensions(ctx.backend, ctx.basis))
+    basevars, valuefuncs, p_aware = SQA.time_basis(time_parameter)
+    coefficients = SQA.TDCoeff[]
+    for c in values(S.arguments)
+        push!(coefficients, SQA.td_coeff(SQA.to_num(c), basevars, valuefuncs, p_aware))
+    end
+    return native_time_operator(coefficients, ops)
 end
 
 SQA.numeric_matrix(::QuantumToolboxBackend, op::QTB.QuantumObject) = op.data

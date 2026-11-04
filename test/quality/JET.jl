@@ -55,13 +55,12 @@ end
 
 function generated_constructor_dispatch(report)
     report isa JET.RuntimeDispatchReport || return false
-    last(report.vst).linfo.def.name in (:to_numeric_td, :formal_td_operator) || return false
+    last(report.vst).linfo.def.name == :native_time_operator || return false
     report.sig.tt === nothing && return false
     signature = Base.unwrap_unionall(report.sig.tt)
     signature isa DataType && signature <: Tuple || return false
     callee = first(signature.parameters)
-    vecsum = Base.get_extension(SecondQuantizedAlgebra, :SecondQuantizedAlgebraQuantumToolboxExt).VecSum
-    return callee <: Type{<:vecsum} || callee <: Type{<:QuantumToolbox.QuantumObjectEvolution}
+    return callee <: Type{<:QuantumToolbox.QuantumObjectEvolution}
 end
 
 # Calls whose runtime dispatch comes from a backend's own type design. Errors must still be
@@ -539,8 +538,8 @@ end
                     ("numeric_average(a' a, [ψq, ψq])", () -> numeric_average(ad * a, [ψq, ψq])),
                     ("numeric_average(density)", () -> numeric_average(ad * a, ρq)),
                     ("expect(a' a, ket)", () -> expect(ad * a, ψq)),
-                    ("expect(VecSum, density)", () -> QuantumToolbox.expect(Hq, ρq)),
-                    ("concretize(VecSum)", () -> SO.concretize(Hq.data)),
+                    ("expect(native QobjEvo, density)", () -> QuantumToolbox.expect(Hq(nothing, 0.0), ρq)),
+                    ("concretize(native QobjEvo)", () -> SO.concretize(Hq.data)),
                     ("numeric_basis", () -> numeric_basis(ψq)),
                     ("Pauli / Spin / phase-space averages", () -> (numeric_average(px, ψspin), numeric_average(sx, ψspin), numeric_average(xx, ψq))),
                     ("backend hooks", () -> (numeric_subbasis(QuantumToolboxBackend(), (4, 2), 1), numeric_embed(QuantumToolboxBackend(), (4, 2), 1, QuantumToolbox.destroy(4)), numeric_identity(QuantumToolboxBackend(), (4, 2)), numeric_num_subsystems(QuantumToolboxBackend(), [4, 2]), numeric_identity(QuantumToolboxBackend(), [4, 2]))),

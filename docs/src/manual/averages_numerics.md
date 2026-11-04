@@ -200,7 +200,7 @@ Hp(Dict(Δ => 0.5, g => 0.1, η => 0.2), 0.5)
 
 The same dictionary can be passed to a QuantumToolbox solver through its `params` keyword. Scalar prefactors of static matrix functions, such as `x * cos(S)`, also support these callbacks; parameters inside matrix-function arguments still require static values via `parameter`.
 
-Coefficient updates reuse the existing coefficient buffer, reducing allocations during solver updates. Callable dictionary values may still allocate, and evaluating `Ht(p, t)` materializes an operator and allocates its result.
+Conversion uses QuantumToolbox's standard `QobjEvo` constructors and SciMLOperators representation. Coefficients are ordinary `(p, t)` callbacks, with the same evaluation and solver behavior as a hand-built `QobjEvo`. Evaluating `Ht(p, t)` materializes an operator and allocates its result.
 
 ### Custom operators and lazy output
 

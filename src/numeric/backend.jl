@@ -119,7 +119,7 @@ function numeric_num_subsystems end
 
 Assemble a static lazy operator from a backend-neutral `terms` list. Each entry is
 `(c::ComplexF64, factors::Vector{<leaf>})` with `factors` already embedded at their slots.
-The result is one concrete vector-backed lazy type for any term count.
+The result uses the backend's native lazy representation.
 """
 function numeric_assemble end
 

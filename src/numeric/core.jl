@@ -71,6 +71,9 @@ const TDCoeff = Union{ComplexF64, Function}
 
 function td_coeff(c::Complex{Num}, basevars::Vector{Num}, @nospecialize(valuefuncs), p_aware::Bool)
     coeff_is_const(c) && return to_complex(c)
+    for (k, variable) in enumerate(basevars)
+        isequal(real(c), variable) && iszero(imag(c)) && return valuefuncs[k]::Function
+    end
     check_time_variables(c, basevars)
     pref = compile_coeff(c, basevars...)
     return at_time((t, vals) -> pref(vals...), valuefuncs, p_aware)

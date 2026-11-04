@@ -63,6 +63,17 @@ using Test: @test, @testset, @test_throws
         timed = to_numeric(x * cos(S), b; time_parameter = Dict(x => t -> 0.5 * cos(t)))
         expected = cos(Matrix(to_numeric(S, b).data))
         @test Matrix(QOB.dense(QOB.static_operator(timed(0.7))).data) ≈ (0.5 * cos(0.7)) * expected
+
+        native = to_numeric(x * cos(S), QuantumToolboxBackend())
+        static = to_numeric(cos(S), QuantumToolboxBackend())
+        reference = QTB.QobjEvo(static, (p, t) -> p[x](t))
+        @test parentmodule(typeof(native.data)) === SciMLOperators
+        @test typeof(native.data).name.wrapper === typeof(reference.data).name.wrapper
+        for t in (0.0, 0.7, 2.0)
+            p = Dict(x => t -> 0.5 * cos(t))
+            @test native(p, t).data ≈ reference(p, t).data
+        end
+        @test !occursin("VecSum", sprint(show, MIME"text/plain"(), native))
     end
 
     @testset "QuantumToolbox solver parameters" begin

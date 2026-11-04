@@ -182,47 +182,6 @@ const CoeffTerm = Tuple{CNum, Vector{Op}}
 
 coeff_terms(q::QAdd) = CoeffTerm[(c, t.ops) for (t, c) in q.arguments]
 
-function compile_td_coeffs(coeffs, time_parameter)
-    basevars, valuefuncs, p_aware = time_basis(time_parameter)
-    exprs = Complex{Num}[to_num(c) for c in coeffs]
-    isempty(exprs) && push!(exprs, Complex{Num}(0))
-    for e in exprs
-        check_time_variables(e, basevars)
-    end
-    return compile_coeffs(exprs, basevars, valuefuncs, p_aware)
-end
-
-function compile_coeffs(exprs::Vector{Complex{Num}}, basevars::Vector{Num}, @nospecialize(valuefuncs), p_aware::Bool)
-    f_re = last(build_function(Num[real(e) for e in exprs], basevars...; expression = Val(false), skipzeros = false))
-    f_im = last(build_function(Num[imag(e) for e in exprs], basevars...; expression = Val(false), skipzeros = false))
-    reader = let valuefuncs = valuefuncs
-        p_aware ? ((p, t) -> map(f -> f(p, t), valuefuncs)) : ((p, t) -> map(f -> f(t), valuefuncs))
-    end
-    n = length(exprs)
-    return let f_re = f_re, f_im = f_im, reader = reader, n = n
-        coefficients!(out::Vector{ComplexF64}, u, p, t) = complex_values!(out, f_re, f_im, reader(p, t))
-        coefficients!(u, p, t) = complex_values!(Vector{ComplexF64}(undef, n), f_re, f_im, reader(p, t))
-        coefficients!
-    end
-end
-
-function complex_values!(out::Vector{ComplexF64}, f_re::F, f_im::G, vals::Tuple) where {F, G}
-    if vals isa Tuple{Vararg{Real}}
-        components = reinterpret(Float64, out)
-        f_re(view(components, 1:2:length(components)), vals...)
-        f_im(view(components, 2:2:length(components)), vals...)
-    else
-        # Preserve complex runtime values supplied for symbols declared real.
-        re, im_part = similar(out), similar(out)
-        f_re(re, vals...)
-        f_im(im_part, vals...)
-        for k in eachindex(out)
-            out[k] = re[k] + im * im_part[k]
-        end
-    end
-    return out
-end
-
 struct SplitScalarRules
     re::ScalarRules
     im::ScalarRules
