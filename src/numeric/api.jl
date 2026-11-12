@@ -1,7 +1,8 @@
 const QuantumState = Union{StateVector, AbstractOperator}
 
 """
-    to_numeric(op, h::HilbertSpace, dims; backend, parameter, time_parameter, operators, adjoint_ops, op_type)
+    to_numeric(op, h::HilbertSpace, dims; backend, parameter, time_parameter, operators, adjoint_ops, op_type, default_time_dependence)
+    to_numeric(op, h::HilbertSpace; backend, kwargs...)
     to_numeric(op, basis; kwargs...)
     to_numeric(op, state; kwargs...)
     to_numeric(op, basis_or_state, operators)
@@ -18,10 +19,26 @@ also accepts its own dimension tuple, which counts states rather than photons. T
 argument `operators` replaces operators by given matrices, as the keyword does with
 `adjoint_ops = false`. A vector of expressions gives a vector of matrices.
 
+With either `QuantumOpticsBackend()` or `QuantumToolboxBackend()`, omit `dims` when
+`h` is an `NLevelSpace`, a `PauliSpace`, or a product of these spaces. N-level counts
+come from the space, and Pauli spaces have two states.
+The complete supplied space determines the layout, including factors absent from `op`.
+Fock and phase spaces require an explicit cutoff, and spin spaces a spin length.
+
+For a bound sum over a single symbolic subsystem, a range of `N` sites is mapped
+onto all `N` factors of the numeric basis. Ambiguous layouts require an explicit
+`sites` mapping. Eager static sums accumulate one summand at a time; lazy and
+native time-dependent results may retain multiple operators.
+
 Keywords:
 
+- `default_time_dependence = true`: with QuantumToolbox, unspecified scalar parameters
+  become callbacks `p[x](t)`. Set to `false` for numeric dictionary entries `p[x]`.
+  Explicit `parameter` and `time_parameter` mappings take precedence. This keyword
+  is accepted by both Hilbert-space forms and has no effect with QuantumOptics.
 - `parameter`: values of the symbolic parameters. A coefficient that does not reduce to a
-  number throws an `ArgumentError`.
+  number throws an `ArgumentError` with QuantumOptics. QuantumToolbox automatically
+  looks up unspecified scalar parameters in `p`, following `default_time_dependence`.
 - `time_parameter`: values that depend on time, as functions `t -> value` or numbers; the
   time variable itself is given as `t => identity`. A non-empty `time_parameter` makes the
   result time dependent, a `TimeDependentSum` for QuantumOptics and a `QobjEvo` for
@@ -38,9 +55,42 @@ Keywords:
   always the backend's time-dependent operator, so only the default and `identity` are
   accepted.
 
-Formal operator functions throw an `ArgumentError`; expand them with [`taylor`](@ref) first.
+Static formal operator functions are evaluated directly on the chosen finite basis.
+Their complete arguments are materialized before the matrix function is applied.
+Parameters inside matrix-function arguments must be replaced by static values via
+`parameter` before evaluation. Scalar coefficients outside matrix functions may use
+`time_parameter`, as in `x * cos(A)`: `cos(A)` is evaluated once and its coefficient
+is updated during the solve. Outer sums, ordered products, scalar prefactors,
+and nested functions are preserved without an implicit symbolic Taylor expansion.
+The finite basis is a numerical truncation; increasing a bosonic cutoff can change
+the result. Use [`taylor`](@ref) for a symbolic polynomial approximation.
+Polynomial sums inside formal arguments are accumulated before applying the function.
+Positional operator dictionaries also support formal expressions, with
+`adjoint_ops = false` as for polynomial expressions. [`average`](@ref), [`numeric_average`](@ref), `expect`, and
+formal superoperator conversion still require explicit polynomial lowering.
 
 # Examples
+
+Finite spaces support the same shorthand with both backends:
+
+```julia
+import QuantumOpticsBase
+import QuantumToolbox
+
+atom = NLevelSpace(:atom, 2)
+P = Transition(atom, :P, 2, 2)
+for backend in (QuantumOpticsBackend(), QuantumToolboxBackend())
+    @assert to_numeric(P, atom; backend) ≈ to_numeric(P, atom, 2; backend)
+end
+
+@variables λ
+Hp = to_numeric(λ * cos(P), atom;
+    backend = QuantumToolboxBackend(), default_time_dependence = false)
+Hp(Dict(λ => 0.5), 0.7) # numeric p[λ]; the default instead uses p[λ](t)
+```
+
+Spaces needing a truncation use explicit dimensions:
+
 ```jldoctest
 julia> using QuantumOpticsBase
 
@@ -59,6 +109,12 @@ julia> size(Hn)
 See also [`numeric_average`](@ref), [`QuantumOpticsBackend`](@ref), [`QuantumToolboxBackend`](@ref).
 """
 function to_numeric end
+
+to_numeric(op, h::HilbertSpace; backend::NumericBackend = default_backend(), kwargs...) =
+    to_numeric(op, h, implicit_dimensions(h); backend, kwargs...)
+
+to_numeric(ops::AbstractVector, h::HilbertSpace; backend::NumericBackend = default_backend(), kwargs...) =
+    to_numeric(ops, h, implicit_dimensions(h); backend, kwargs...)
 
 to_numeric(op::Op, b::Basis, d::AbstractDict{<:QSym} = NO_SUBS) =
     numeric_materialize(QuantumOpticsBackend(), numeric_leaf(op, NumericContext(QuantumOpticsBackend(), b, d)), EagerOperator())
@@ -92,9 +148,10 @@ function to_numeric(
         backend::B = default_backend(),
         parameter = NO_PARAMETER, time_parameter = NO_TIME_PARAMETER,
         operators = NO_SUBS, adjoint_ops = true, op_type = EagerOperator(),
+        default_time_dependence::Bool = true,
     ) where {H <: HilbertSpace, B <: NumericBackend}
     b = numeric_basis(backend, h, dims)
-    return to_numeric_kw(backend, op, b; parameter, time_parameter, operators, adjoint_ops, op_type)
+    return to_numeric_kw(backend, op, b; parameter, time_parameter, operators, adjoint_ops, op_type, default_time_dependence)
 end
 
 to_numeric(ops::AbstractVector{T}, h::H, dims; backend::B = default_backend(), kwargs...) where {T, H <: HilbertSpace, B <: NumericBackend} =

@@ -126,7 +126,7 @@ indexed_sum
 
 ## Numerical conversion
 
-[`to_numeric`](@ref) turns an operator expression into a matrix of [QuantumOpticsBase.jl](https://github.com/qojulia/QuantumOpticsBase.jl) or [QuantumToolbox.jl](https://github.com/qutip/QuantumToolbox.jl), ready for their solvers. The numerical side is an extension: it becomes available once one of the two packages is loaded, and the backend is chosen with [`QuantumOpticsBackend`](@ref) or [`QuantumToolboxBackend`](@ref). The portable form takes the symbolic Hilbert space and one truncation per factor, a photon cutoff for a mode. Every parameter needs a value.
+[`to_numeric`](@ref) turns an operator expression into a matrix of [QuantumOpticsBase.jl](https://github.com/qojulia/QuantumOpticsBase.jl) or [QuantumToolbox.jl](https://github.com/qutip/QuantumToolbox.jl), ready for their solvers. The numerical side is an extension: it becomes available once one of the two packages is loaded, and the backend is chosen with [`QuantumOpticsBackend`](@ref) or [`QuantumToolboxBackend`](@ref). Both backends accept `to_numeric(op, h; backend)` for N-level and Pauli spaces and their tensor products. When a truncation is needed, use `to_numeric(op, h, dims; backend)` with one entry per factor, such as a photon cutoff for a mode. Parameter values can be supplied at conversion time or, with QuantumToolbox, through solver parameters.
 
 ```@example avg
 using QuantumOpticsBase
@@ -144,6 +144,42 @@ QuantumToolboxBackend
 
 ### Bases and levels
 
+For an `NLevelSpace`, a `PauliSpace`, or a product of these, dimensions can be omitted
+with either `QuantumOpticsBackend()` or `QuantumToolboxBackend()`. The N-level state
+count comes from the space, and a Pauli space has two states.
+
+```julia
+import QuantumOpticsBase
+import QuantumToolbox
+
+atom = NLevelSpace(:atom, 2)
+P = Transition(atom, :P, 2, 2)
+Poptics = to_numeric(P, atom; backend = QuantumOpticsBackend())
+Ptoolbox = to_numeric(P, atom; backend = QuantumToolboxBackend())
+# Equivalent explicit-dimension forms:
+Poptics = to_numeric(P, atom, 2; backend = QuantumOpticsBackend())
+Ptoolbox = to_numeric(P, atom, 2; backend = QuantumToolboxBackend())
+
+hfinite = atom ⊗ PauliSpace(:qubit)
+Pfinite = Transition(hfinite, :P, 2, 2, 1)
+for be in (QuantumOpticsBackend(), QuantumToolboxBackend())
+    @assert to_numeric(Pfinite, hfinite; backend = be) ≈
+        to_numeric(Pfinite, hfinite, (2, 2); backend = be)
+end
+
+@variables λ
+Hp = to_numeric(λ * cos(P), atom;
+    backend = QuantumToolboxBackend(), default_time_dependence = false)
+Hp(Dict(λ => 0.5), 0.7)
+```
+
+Both Hilbert-space forms accept `default_time_dependence`. This keyword affects only
+QuantumToolbox: the default `true` uses `p[λ](t)`, and `false` uses `p[λ]`.
+QuantumOptics continues to use explicit `parameter` and `time_parameter` mappings;
+`default_time_dependence` has no effect on that backend. The supplied Hilbert space
+retains every tensor factor, including spectator subsystems absent from the expression.
+Fock and phase spaces still need a cutoff, and spin spaces need a spin length.
+
 A basis of the backend can be passed in place of the space and its truncation, and then also fixes the backend. Symbolic level names map to basis indices in the order of the levels of the [`NLevelSpace`](@ref), so ``g`` is the first basis state and ``e`` the second.
 
 ```@example avg
@@ -152,6 +188,21 @@ bn = NLevelBasis(2)
 b = bf ⊗ bn
 to_numeric(σ(:g, :e), b) == embed(b, 2, transition(bn, 1, 2))
 ```
+
+QuantumToolbox also accepts `to_numeric(expr, QuantumToolboxBackend())` without explicit dimensions for unambiguous systems of N-level or Pauli operators. Level counts come from the operators, and bound index ranges determine the number of copies of each subsystem. The ranges must be positive integers known at conversion time; symbolic counts can be fixed through `parameter`.
+
+```julia
+import QuantumToolbox
+
+atom = NLevelSpace(:atom, 2)
+P = Transition(atom, :P, 2, 2)
+i = Index(atom, :i, 3, atom)
+S = Σ(IndexedOperator(P, i), i)
+Sn = to_numeric(cos(S), QuantumToolboxBackend())
+size(Sn) # (8, 8): three two-level sites
+```
+
+The QuantumToolbox backend-only shorthand infers only the subsystems represented in the expression. Supply a Hilbert space to retain finite spectator subsystems, or an explicit basis or dimensions to resolve an ambiguous layout, and an explicit `sites` mapping when needed. Bosonic and phase-space operators still require a cutoff, and spin operators require a spin length, through the existing space-and-dimensions form.
 
 ### Time-dependent parameters
 
@@ -168,6 +219,24 @@ An explicit time dependence of the coefficients, such as a phase from a rotating
 Hd = η * (expim(Δ * t) * a + expim(-Δ * t) * a')
 to_numeric(Hd, h, (10, 2); backend, parameter = Dict(Δ => 0.5), time_parameter = Dict(t => identity, η => 0.2)) isa TimeDependentSum
 ```
+
+### QuantumToolbox solver parameters
+
+With QuantumToolbox, scalar parameters left unspecified by `parameter` or `time_parameter` automatically become symbolic keys in the solver's parameter dictionary `p`, and the result is a native `QobjEvo`. The default `default_time_dependence = true` generates callbacks of the form `p[η](t)`; set it to `false` to use numeric values through `p[η]` instead. Explicit parameter mappings take precedence.
+
+```julia
+import QuantumToolbox
+
+Ht = to_numeric(H, h, (10, 2); backend = QuantumToolboxBackend(), parameter = Dict(Δ => 0.5, g => 0.1))
+Ht(Dict(η => t -> 0.2 * sin(t)), 0.5)
+
+Hp = to_numeric(H, h, (10, 2); backend = QuantumToolboxBackend(), default_time_dependence = false)
+Hp(Dict(Δ => 0.5, g => 0.1, η => 0.2), 0.5)
+```
+
+The same dictionary can be passed to a QuantumToolbox solver through its `params` keyword. Scalar prefactors of static matrix functions, such as `x * cos(S)`, also support these callbacks; parameters inside matrix-function arguments still require static values via `parameter`.
+
+Conversion uses QuantumToolbox's standard `QobjEvo` constructors and SciMLOperators representation. Coefficients are ordinary `(p, t)` callbacks, with the same evaluation and solver behavior as a hand-built `QobjEvo`. Evaluating `Ht(p, t)` materializes an operator and allocates its result.
 
 ### Custom operators and lazy output
 

@@ -8,8 +8,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- `to_numeric` evaluates the formal functions `sin`, `cos` and `expim` exactly on the chosen finite basis with both numeric backends. Parameters inside function arguments need static values; scalar prefactors may depend on time.
+- `to_numeric(op, h; backend)` omits the dimensions when `h` is built from N-level and Pauli spaces.
+- With QuantumToolbox, parameters without a value become entries of the solver dictionary `p`, as `p[x](t)` by default or `p[x]` with `default_time_dependence = false`.
+
+### Fixed
+
+- `to_numeric` of an indexed `Σ` without a `sites` mapping expands the sum over all sites when the range matches the numeric basis, instead of keeping a single summand. Other layouts throw and ask for `sites`.
+
 ### Changed (breaking)
 
+- With QuantumToolbox, `to_numeric` with unresolved parameters returns a `QobjEvo` instead of throwing.
 - The operator-kind predicates (`optype`, `is_destroy`, `is_create`, `is_transition`, `is_collective_transition`, `is_pauli`, `is_spin`, `is_position`, `is_momentum`), `is_indexed_sum` and the numeric backend interface (`NumericBackend`, `EagerOperator`, `numeric_backend` and the `numeric_*` methods) are public but no longer exported. Import them explicitly, e.g. `using SecondQuantizedAlgebra: is_destroy`.
 - `canonical_isless(a, b)` replaces the public order keys (`order_key`, `term_order_key`, `qadd_order_key`, `superterm_order_key`, `superoperator_order_key`, `channel_order_key`), which are now internal. `Base.isless` is no longer defined on `Op`, `QAdd` or `QExpr`, so `sort`, `max` and `<` on operators throw; use `sort(v; lt = canonical_isless)`.
 - `QTermDict`, `NumericContext`, `superterm`, `poly`, `formal_terms` and the builders `SuperBuilder`, `LindbladianBuilder`, `accumulate!` and `build` are internal. Sum many maps with `sum` over an array.

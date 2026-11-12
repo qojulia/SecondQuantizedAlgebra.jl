@@ -41,8 +41,10 @@ function to_numeric(
         scalar_subs::AbstractDict = NO_SCALAR_SUBS;
         operators::AbstractDict{<:QSym} = d,
         parameter::AbstractDict = scalar_subs,
+        time_parameter = NO_TIME_PARAMETER, op_type = EagerOperator(),
     )
-    return to_numeric_indexed(QuantumOpticsBackend(), b, q, sites, operators, parameter)
+    ctx = NumericContext(QuantumOpticsBackend(), b, operators, Dict{Int, Vector{Int}}(sites))
+    return indexed_result(q, ctx, parameter, time_parameter, op_type)
 end
 
 function to_numeric_indexed(
@@ -54,8 +56,7 @@ function to_numeric_indexed(
         return to_numeric(q, basis; operators = d, adjoint_ops = false, parameter = scalar_subs)
     validate_sites(be, basis, sites)
     ctx = NumericContext(be, basis, d, Dict{Int, Vector{Int}}(sites))
-    terms = OpTerm[(to_complex(c), ops) for (c, ops) in unrolled_terms(q, ctx.sites, split_scalar_subs(scalar_subs))]
-    return static_operator(terms, ctx, EagerOperator())
+    return streamed_sum(q, ctx, EagerOperator(), split_scalar_subs(scalar_subs))
 end
 
 function validate_sites(be::NumericBackend, basis, sites)
@@ -160,4 +161,46 @@ function resolve_slot(op::QSym, sites::AbstractDict{Int, Vector{Int}})
                 "and sites[$si] has $(length(slots)) candidates",
         ),
     )
+end
+
+function sum_context(q::QAdd, ctx::NumericContext, parameter::AbstractDict = NO_PARAMETER)
+    isempty(q.indices) && return ctx
+    !isempty(ctx.sites) && return ctx
+    n = numeric_num_subsystems(ctx.backend, ctx.basis)
+    rules = expand_parameter(parameter)
+    all(i -> i.space_index == 1 && to_complex(apply_parameter(index_range(i), rules)) == n, q.indices) &&
+        all(t -> all(op -> op.space_index == 1, t.ops), keys(q.arguments)) || throw(
+        ArgumentError("cannot infer summed sites; supply an explicit sites mapping"),
+    )
+    return NumericContext(ctx.backend, ctx.basis, ctx.op_subs, Dict(1 => collect(1:n)))
+end
+
+function streamed_sum(
+        q::QAdd, ctx::NumericContext, op_type,
+        rules::SplitScalarRules = split_scalar_subs(NO_SCALAR_SUBS),
+    )
+    ctx = sum_context(q, ctx)
+    validate_sites(ctx.backend, ctx.basis, ctx.sites)
+    if op_type === identity
+        terms = OpTerm[(to_complex(c), ops) for (c, ops) in unrolled_terms(q, ctx.sites, rules)]
+        return static_operator(terms, ctx, op_type)
+    end
+    result = numeric_zero(ctx.backend, ctx.basis)
+    foreach_unrolled(q, ctx.sites, rules) do term, coefficient, substitution
+        ops = relabel(term.ops, substitution)
+        numeric_add_term!(result, to_complex(coefficient), ops, ctx)
+    end
+    return numeric_materialize(ctx.backend, result, op_type)
+end
+
+function indexed_result(q::QAdd, ctx::NumericContext, parameter::AbstractDict, time_parameter, op_type)
+    ctx = sum_context(q, ctx, parameter)
+    validate_sites(ctx.backend, ctx.basis, ctx.sites)
+    rules = split_scalar_subs(parameter)
+    tp = normalize_time_parameter(time_parameter)
+    if isempty(tp)
+        return streamed_sum(q, ctx, op_type, rules)
+    end
+    check_td_op_type(op_type)
+    return to_numeric_td(unrolled_terms(q, ctx.sites, rules), ctx, tp)
 end

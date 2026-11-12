@@ -64,6 +64,17 @@ for `op`'s slot). Backends implement it as a closed `k === OP_*` value-branch on
 function numeric_operator end
 
 """
+    numeric_function(backend, f, op)
+
+Apply the matrix function `f` to the complete materialized operator `op`.
+The function tokens are `sin`, `cos`, and `expim`; the last means `exp(im * op)`.
+Hermitian exponential arguments can use eigendecomposition; numeric replacements
+that break Hermiticity must retain their general matrix-exponential semantics.
+Return a backend operator preserving its basis/dimensions and supporting ordered arithmetic.
+"""
+function numeric_function end
+
+"""
     numeric_basis(be, h::HilbertSpace, dims)
 
 Build the full numeric basis for Hilbert space `h` with user dimensions `dims` (Fock
@@ -71,6 +82,13 @@ cutoff / spin number; ignored for spaces that carry their own level count). Retu
 `Basis` (QuantumOptics) or integer dims (QuantumToolbox).
 """
 function numeric_basis end
+
+implicit_dimensions(h::NLevelSpace) = h.n
+implicit_dimensions(::PauliSpace) = 2
+implicit_dimensions(h::ProductSpace) = map(implicit_dimensions, h.spaces)
+implicit_dimensions(h::HilbertSpace) = throw(
+    ArgumentError("$(typeof(h)) requires explicit dimensions; use `to_numeric(op, h, dims; backend, kwargs...)` with a bosonic cutoff or spin length"),
+)
 
 """
     numeric_subbasis(be, basis, slot::Int)
@@ -108,7 +126,7 @@ function numeric_num_subsystems end
 
 Assemble a static lazy operator from a backend-neutral `terms` list. Each entry is
 `(c::ComplexF64, factors::Vector{<leaf>})` with `factors` already embedded at their slots.
-The result is one concrete vector-backed lazy type for any term count.
+The result uses the backend's native lazy representation.
 """
 function numeric_assemble end
 
@@ -213,4 +231,17 @@ function default_backend()
                 "to enable `to_numeric`/`numeric_average`.",
         ),
     )
+end
+
+"""Create a fresh eager zero operator for streaming indexed assembly."""
+function numeric_zero end
+
+"""Accumulate a scaled product without retaining summand-local operators or mutating replacements."""
+function numeric_add_term! end
+
+function numeric_expim(matrix::Matrix{ComplexF64})
+    # Accept only round-off asymmetry (backward-error scale n·eps) and use the nearest
+    # Hermitian matrix, so the dropped anti-Hermitian part never exceeds round-off.
+    isapprox(matrix, matrix'; rtol = size(matrix, 1) * eps()) || return exp(im * matrix)
+    return cis(LinearAlgebra.Hermitian((matrix + matrix') / 2))
 end

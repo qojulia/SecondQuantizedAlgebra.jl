@@ -97,14 +97,39 @@ The operator method of `taylor` takes an operator expression and an order range.
 
 ## Numerical conversion
 
-A formal function has no numerical form of its own. [`to_numeric`](@ref), [`numeric_average`](@ref), `expect` and [`average`](@ref) throw an `ArgumentError` on it rather than pick an expansion order silently, so the expression is lowered first.
+[`to_numeric`](@ref) converts a formal function without an expansion. It applies the matrix function to the complete numerical argument on the chosen basis, so the trapped-ion Hamiltonian converts as written once its parameters have values.
 
 ```@example functions
 using QuantumOpticsBase
 backend = QuantumOpticsBackend()
 parameter = Dict(η => 0.1, Ω => 1.0, ν => 1.0)
-Hn = to_numeric(taylor(H, 0:2), h, (10, 2); backend, parameter)
+Hn = to_numeric(H, h, (10, 2); backend, parameter)
 size(Hn)
 ```
 
-Matrix functions evaluated directly on the truncated space are not available yet ([#268](https://github.com/qojulia/SecondQuantizedAlgebra.jl/issues/268)). A symbolic [`Σ`](@ref) over a formal function and conversion between normal and symmetric order with [`normal_to_symmetric`](@ref) and [`symmetric_to_normal`](@ref) are not supported either; both need the polynomial from `taylor`. Perturbative frame changes such as Schrieffer–Wolff or van Vleck transformations are a separate problem of effective Hamiltonians and are not part of the formal functions.
+The result is exact at the given cutoff, but the cutoff is still a truncation. The vacuum matrix element of a motional cosine changes as the cutoff grows, although the vacuum state is part of every basis.
+
+```@example functions
+V = cos(η * (a + a'))
+ηvalue = Dict(η => 0.7)
+[
+    (cutoff = n, vacuum = real(dense(to_numeric(
+        V, h, (n, 2); backend, parameter = ηvalue,
+    )).data[1, 1])) for n in (2, 4, 10)
+]
+```
+
+The order of a Taylor polynomial is a separate approximation. At a fixed cutoff, the second- and fourth-order polynomials approach the matrix cosine.
+
+```@example functions
+V2 = taylor(V, 0:2)
+V4 = taylor(V, 0:4)
+[
+    (method = label, vacuum = real(dense(to_numeric(
+        expr, h, (10, 2); backend, parameter = ηvalue,
+    )).data[1, 1])) for (label, expr) in
+        (("matrix cosine", V), ("Taylor order 2", V2), ("Taylor order 4", V4))
+]
+```
+
+[`numeric_average`](@ref), `expect` and [`average`](@ref) still need the polynomial from `taylor`. So do a symbolic [`Σ`](@ref) over a formal function and conversion between normal and symmetric order with [`normal_to_symmetric`](@ref) and [`symmetric_to_normal`](@ref). Perturbative frame changes such as Schrieffer–Wolff or van Vleck transformations are a separate problem of effective Hamiltonians and are not part of the formal functions.

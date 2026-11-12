@@ -3,7 +3,7 @@ module SecondQuantizedAlgebraQuantumOpticsBaseExt
 import SecondQuantizedAlgebra as SQA
 using SecondQuantizedAlgebra: QuantumOpticsBackend, Op
 import QuantumOpticsBase as QOB
-import SparseArrays: SparseMatrixCSC, nonzeros, nzrange, rowvals, sparse, spdiagm
+import SparseArrays: SparseMatrixCSC, nonzeros, nzrange, rowvals, sparse, spdiagm, spzeros
 import LinearAlgebra: dot
 
 const QOBState = Union{QOB.StateVector, QOB.AbstractOperator}
@@ -156,6 +156,15 @@ function append_scaled!(
 end
 SQA.numeric_materialize(::QuantumOpticsBackend, op, ::SQA.EagerOperator) = QOB.sparse(op)
 
+function SQA.numeric_function(::QuantumOpticsBackend, ::typeof(SQA.expim), op::QOB.Operator)
+    data = SQA.numeric_expim(Matrix{ComplexF64}(op.data))
+    return QOB.sparse(QOB.Operator(op.basis_l, op.basis_r, data))
+end
+
+function SQA.numeric_function(::QuantumOpticsBackend, f::F, op::QOB.Operator) where {F}
+    return QOB.sparse(QOB.Operator(op.basis_l, op.basis_r, f(Matrix{ComplexF64}(op.data))))
+end
+
 function SQA.static_operator(
         terms::Vector{SQA.OpTerm}, ctx::SQA.NumericContext{QuantumOpticsBackend, B},
         ::SQA.EagerOperator,
@@ -255,5 +264,13 @@ QOB.sprepost(A::SQA.QField, B::Number) = SQA.sprepost(A, B)
 QOB.sprepost(A::Number, B::SQA.QField) = SQA.sprepost(A, B)
 QOB.liouvillian(H::SQA.QField, J::AbstractVector{<:SQA.QField}; rates = nothing) =
     SQA.liouvillian(H, J; rates)
+
+SQA.numeric_zero(be::QuantumOpticsBackend, basis) = QOB.Operator(basis, basis, spzeros(ComplexF64, length(basis), length(basis)))
+
+function SQA.numeric_add_term!(result, coefficient::ComplexF64, ops::Vector{Op}, ctx::SQA.NumericContext{QuantumOpticsBackend})
+    term = SQA.static_operator(SQA.OpTerm[(1.0 + 0.0im, ops)], ctx, SQA.EagerOperator())
+    result.data .+= coefficient .* term.data
+    return result
+end
 
 end

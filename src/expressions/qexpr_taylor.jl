@@ -107,6 +107,8 @@ truncated at order `1` is `A^2`, and `sin(A)^2 + cos(A)^2` truncated at any orde
 `1`. A function inside another function throws an `ArgumentError`; lower the inner part
 first. So does a function of an argument containing a [`Σ`](@ref), since a power such as
 ``(\\sum_i A_i)^2`` would need fresh summation indices. The range must start at `0`.
+This operator overload is distinct from the scalar `taylor(f, x, 0:n)` method, which
+expands a scalar function in the variable `x`.
 
 # Examples
 ```jldoctest

@@ -182,8 +182,8 @@ export FockSpace, ProductSpace,
     to_numeric_master,
     NumericBackend, EagerOperator, numeric_backend,
     numeric_operator, numeric_basis, numeric_subbasis, numeric_embed,
-    numeric_identity, numeric_num_subsystems,
-    numeric_assemble, numeric_assemble_td, numeric_materialize, numeric_expect,
+    numeric_identity, numeric_num_subsystems, numeric_zero, numeric_add_term!,
+    numeric_assemble, numeric_assemble_td, numeric_materialize, numeric_function, numeric_expect,
     numeric_superoperator, numeric_matrix, numeric_scaled_td
 
 include("precompile.jl")

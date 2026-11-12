@@ -59,7 +59,10 @@ end
 
 static_operator(terms::Vector{OpTerm}, ctx::NumericContext, op_type) =
     numeric_materialize(ctx.backend, assemble_op_terms(terms, ctx), op_type)
-static_operator(q::QAdd, ctx::NumericContext, op_type) = static_operator(op_terms(q), ctx, op_type)
+function static_operator(q::QAdd, ctx::NumericContext, op_type)
+    isempty(q.indices) && return static_operator(op_terms(q), ctx, op_type)
+    return streamed_sum(q, ctx, op_type)
+end
 
 to_numeric_lazy(op::Op, ctx::NumericContext) = numeric_leaf(op, ctx)
 to_numeric_lazy(q::QAdd, ctx::NumericContext) = assemble_op_terms(op_terms(q), ctx)
@@ -68,6 +71,9 @@ const TDCoeff = Union{ComplexF64, Function}
 
 function td_coeff(c::Complex{Num}, basevars::Vector{Num}, @nospecialize(valuefuncs), p_aware::Bool)
     coeff_is_const(c) && return to_complex(c)
+    for (k, variable) in enumerate(basevars)
+        isequal(real(c), variable) && iszero(imag(c)) && return valuefuncs[k]::Function
+    end
     check_time_variables(c, basevars)
     pref = compile_coeff(c, basevars...)
     return at_time((t, vals) -> pref(vals...), valuefuncs, p_aware)
@@ -102,13 +108,22 @@ operator_adjoint(::NumericBackend, v) = Base.adjoint(v)
 operator_key(k::Op) = k
 operator_key(k) = throw(ArgumentError("operator substitution key `$k` is not a QSym"))
 
-function to_numeric_kw(be::NumericBackend, op, b; parameter, time_parameter, operators, adjoint_ops, op_type)
+function to_numeric_kw(
+        be::NumericBackend, op, b; parameter, time_parameter, operators, adjoint_ops, op_type,
+        default_time_dependence::Bool = true, sites::Dict{Int, Vector{Int}} = EMPTY_SITES,
+    )
     rules = expand_parameter(parameter)
     tp = normalize_time_parameter(time_parameter)
     ops = numeric_operator_dict(be, operators, adjoint_ops)
-    ctx = NumericContext(be, b, ops)
+    ctx = NumericContext(be, b, ops, sites)
+    tp = numeric_time_parameters(op, ctx, rules, tp, default_time_dependence)
+    if op isa QAdd && !isempty(op.indices)
+        return indexed_result(apply_parameter(op, rules), ctx, rules.scalars, tp, op_type)
+    end
     return to_numeric_translated(op, ctx, rules, tp, op_type)
 end
+
+numeric_time_parameters(op, ctx::NumericContext, rules::SubstitutionRules, tp, ::Bool) = tp
 
 apply_parameter(q::QAdd, r::SubstitutionRules) = substitute_with(q, r)
 
@@ -129,6 +144,11 @@ function to_numeric_translated(op::QAdd, ctx::NumericContext, parameter, time_pa
     op_ = apply_parameter(op, parameter)
     isempty(time_parameter) && return static_operator(op_, ctx, op_type)
     check_td_op_type(op_type)
+    if !isempty(op_.indices)
+        ctx = sum_context(op_, ctx)
+        terms = unrolled_terms(op_, ctx.sites, split_scalar_subs(NO_SCALAR_SUBS))
+        return to_numeric_td(terms, ctx, time_parameter)
+    end
     return to_numeric_td(op_, ctx, time_parameter)
 end
 

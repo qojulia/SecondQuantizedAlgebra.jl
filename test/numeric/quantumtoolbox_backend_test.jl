@@ -38,8 +38,7 @@ end
         @variables E::Number
         Htd = to_numeric(E * a + conj(E) * a', h, 5; backend = QTBB, time_parameter = Dict(E => t -> 1 + im * t))
 
-        # The vector-backed VecSum gives one concrete type for any term count (the property the
-        # custom VecSum buys over SciMLOperators' Tuple-locked AddedOperator).
+        # Constant native QobjEvo objects wrap the assembled sparse matrix.
         @test H2 isa QTB.QuantumObjectEvolution
         @test typeof(H2) === typeof(H3)
         @test Htd isa QTB.QuantumObjectEvolution
@@ -61,7 +60,8 @@ end
         n = a' * a
 
         @test @inferred(to_numeric(a, 8)) isa QTB.QuantumObject
-        @test @inferred(to_numeric(n, 8)) isa QTB.QuantumObject
+        # A QAdd's free coefficients determine whether conversion returns a QobjEvo.
+        @test (@inferred QTB.QuantumObjectEvolution to_numeric(n, 8)) isa QTB.QuantumObject
         @test @inferred(inferred_qtb_uniform(a, h, 7)) isa QTB.QuantumObject
 
         hp = FockSpace(:c) ⊗ NLevelSpace(:atom, 3, 1)
@@ -73,7 +73,7 @@ end
         @test @inferred(SO.concretize(lazy.data)) isa AbstractMatrix
         @test @inferred(QTB.expect(lazy, ψ)) ≈ QTB.expect(QTB.create(8) * QTB.destroy(8), ψ)
         @test @inferred(QTB.expect(lazy, bra)) ≈ QTB.expect(QTB.create(8) * QTB.destroy(8), bra)
-        @test @inferred(QTB.expect(lazy, ρ)) ≈ QTB.expect(QTB.create(8) * QTB.destroy(8), ρ)
+        @test @inferred(QTB.expect(lazy(nothing, 0.0), ρ)) ≈ QTB.expect(QTB.create(8) * QTB.destroy(8), ρ)
         @test numeric_basis(bra) == 8
         @test @inferred(numeric_average(a, ψ)) ≈ QTB.expect(QTB.destroy(8), ψ)
         @test @inferred(numeric_average(n, ψ)) ≈ QTB.expect(QTB.create(8) * QTB.destroy(8), ψ)
@@ -174,7 +174,7 @@ end
         )
     end
 
-    @testset "sesolve / mesolve consume the lazy VecSum" begin
+    @testset "sesolve / mesolve consume native QobjEvo" begin
         h = FockSpace(:f)
         @qnumbers a::Destroy(h)
         N = 6
@@ -409,7 +409,7 @@ end
         @test real(QTB.expect(nop, smix.states[end])) isa Float64
 
         # mesolve superoperator path with a p-aware collapse operator: no lazy-tensor warning,
-        # a VecSum superoperator, and κ (from p) flows into the dissipation.
+        # a native superoperator, and κ (from p) flows into the dissipation.
         c1 = to_numeric(sqrt(κ) * a, h, N; backend = QTBB, time_parameter = Dict(κ => (p, t) -> p[1]))
         @test c1.data isa SO.AbstractSciMLOperator
         L = QTB.liouvillian(to_numeric(2.0 * a' * a, h, N; backend = QTBB), [c1])

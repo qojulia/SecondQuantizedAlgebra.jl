@@ -101,6 +101,8 @@ It is used as `to_numeric(H, h, dims; backend = MyBackend())`; only the two bund
 | Feature | Additional methods |
 | :-- | :-- |
 | time-dependent parameters | [`numeric_assemble_td`](@ref) |
+| eager indexed sums | `numeric_zero`, `numeric_add_term!` (fresh storage and in-place scaled accumulation) |
+| static formal operator functions | [`numeric_function`](@ref), with an `expim` specialization for `exp(im * op)` |
 | conversion with a state in place of a basis | [`numeric_backend`](@ref)`(state)`, `numeric_basis(state)` |
 | `numeric_average` and `expect` | the state methods and [`numeric_expect`](@ref) |
 | superoperators and `to_numeric_master` | [`numeric_superoperator`](@ref), [`numeric_matrix`](@ref), and [`numeric_scaled_td`](@ref) for time-dependent collapse operators |
@@ -115,9 +117,12 @@ numeric_subbasis
 numeric_operator
 numeric_embed
 numeric_identity
+numeric_zero
+numeric_add_term!
 numeric_assemble
 numeric_assemble_td
 numeric_materialize
+numeric_function
 EagerOperator
 numeric_expect
 numeric_backend
@@ -125,3 +130,11 @@ numeric_superoperator
 numeric_matrix
 numeric_scaled_td
 ```
+
+Eager indexed sums call `numeric_zero(backend, basis)` once, then
+`numeric_add_term!(accumulator, coefficient, operators, context)` for each allowed
+index assignment. The accumulator must own its storage. Add the scaled product in
+place without mutating supplied replacements or retaining a cache of full-space
+operators across summands. Multiple bound indices are enumerated jointly, including
+their inequality constraints. Lazy and time-dependent representations may retain
+multiple operators; the eager streaming memory contract does not apply to them.

@@ -38,6 +38,31 @@ function test_entries(entries)
     return
 end
 
+# Generated callback types depend on runtime expressions. Permit their constructor
+# dispatch during conversion; solver update/application checks remain unfiltered.
+function test_generated_conversions(entries)
+    for (name, thunk) in entries
+        @testset "$name" begin
+            test_no_reports(JET.@report_call target_modules = TARGETS thunk())
+            report = JET.@report_opt target_modules = TARGETS thunk()
+            unexpected = filter(!generated_constructor_dispatch, JET.get_reports(report))
+            isempty(unexpected) || @info "unexpected conversion reports" reports = map(report_text, unexpected)
+            @test isempty(unexpected)
+        end
+    end
+    return
+end
+
+function generated_constructor_dispatch(report)
+    report isa JET.RuntimeDispatchReport || return false
+    last(report.vst).linfo.def.name == :native_time_operator || return false
+    report.sig.tt === nothing && return false
+    signature = Base.unwrap_unionall(report.sig.tt)
+    signature isa DataType && signature <: Tuple || return false
+    callee = first(signature.parameters)
+    return callee <: Type{<:QuantumToolbox.QuantumObjectEvolution}
+end
+
 # Calls whose runtime dispatch comes from a backend's own type design. Errors must still be
 # absent; `report_opt` is marked broken so an upstream fix surfaces as an unexpected pass.
 function test_known_dispatch(entries)
@@ -460,6 +485,10 @@ end
                     ("operators", () -> to_numeric(ad * a, b; operators = Dict(a => custom))),
                     ("time_parameter", () -> to_numeric(α * a + conj(α) * ad, b; time_parameter = Dict(α => t -> 1 + im * t))),
                     ("space + cutoff with QuantumOpticsBackend", () -> to_numeric(ad * a, hf, 7; backend = QuantumOpticsBackend())),
+                    ("static formal function", () -> to_numeric(cos(ad * a), hf, 7; backend = QuantumOpticsBackend())),
+                    ("time-dependent formal prefactor", () -> to_numeric(g * cos(ad * a), hf, 7; backend = QuantumOpticsBackend(), time_parameter = Dict(g => t -> cos(t)))),
+                    ("formal positional operators", () -> to_numeric(cos(ad * a), b, Dict(a => custom))),
+                    ("formal function parameter", () -> to_numeric(cos(g * ad * a), hf, 7; backend = QuantumOpticsBackend(), parameter = Dict(g => 0.5))),
                     ("composite basis", () -> to_numeric(Hjc, bjc)),
                     ("composite basis, op_type = identity", () -> to_numeric(ajc' * σjc, bjc; op_type = identity)),
                     ("indexed H with sites", () -> to_numeric(Hin, bi, sites)),
@@ -482,13 +511,21 @@ end
         end
 
         @testset "Numeric: QuantumToolbox" begin
-            test_entries(
+            test_generated_conversions(
                 [
                     ("to_numeric(a' a, 8)", () -> to_numeric(ad * a, 8)),
                     ("to_numeric(nlevel)", () -> to_numeric(σ12 + σ12', 3)),
                     ("to_numeric(Hjc, (4, 2))", () -> to_numeric(Hjc, (4, 2))),
                     ("space + dims with QuantumToolboxBackend", () -> to_numeric(Hjc, hjc, (3, 2); backend = QuantumToolboxBackend())),
+                    ("static formal function", () -> to_numeric(cos(ad * a), hf, 7; backend = QuantumToolboxBackend())),
+                    ("time-dependent formal prefactor", () -> to_numeric(g * cos(ad * a), hf, 7; backend = QuantumToolboxBackend(), time_parameter = Dict(g => (p, t) -> p[1] * cos(t)))),
+                    ("formal positional operators", () -> to_numeric(cos(ad * a), 8, Dict{SecondQuantizedAlgebra.QSym, Union{}}())),
+                    ("formal function parameter", () -> to_numeric(cos(g * ad * a), hf, 7; backend = QuantumToolboxBackend(), parameter = Dict(g => 0.5))),
                     ("indexed H with dims and sites", () -> to_numeric(Hin, (4, 2, 2, 2), sites)),
+                ],
+            )
+            test_entries(
+                [
                     ("op_type = concretize", () -> to_numeric(ad * a, 5; op_type = SO.concretize)),
                     ("op_type = to_dense", () -> to_numeric(ad * a, 5; op_type = QuantumToolbox.to_dense)),
                     ("solver apply: time-dependent QobjEvo", () -> Lq(wq, vq, nothing, nothing, 0.3)),
@@ -501,8 +538,8 @@ end
                     ("numeric_average(a' a, [ψq, ψq])", () -> numeric_average(ad * a, [ψq, ψq])),
                     ("numeric_average(density)", () -> numeric_average(ad * a, ρq)),
                     ("expect(a' a, ket)", () -> expect(ad * a, ψq)),
-                    ("expect(VecSum, density)", () -> QuantumToolbox.expect(Hq, ρq)),
-                    ("concretize(VecSum)", () -> SO.concretize(Hq.data)),
+                    ("expect(native QobjEvo, density)", () -> QuantumToolbox.expect(Hq(nothing, 0.0), ρq)),
+                    ("concretize(native QobjEvo)", () -> SO.concretize(Hq.data)),
                     ("numeric_basis", () -> numeric_basis(ψq)),
                     ("Pauli / Spin / phase-space averages", () -> (numeric_average(px, ψspin), numeric_average(sx, ψspin), numeric_average(xx, ψq))),
                     ("backend hooks", () -> (numeric_subbasis(QuantumToolboxBackend(), (4, 2), 1), numeric_embed(QuantumToolboxBackend(), (4, 2), 1, QuantumToolbox.destroy(4)), numeric_identity(QuantumToolboxBackend(), (4, 2)), numeric_num_subsystems(QuantumToolboxBackend(), [4, 2]), numeric_identity(QuantumToolboxBackend(), [4, 2]))),

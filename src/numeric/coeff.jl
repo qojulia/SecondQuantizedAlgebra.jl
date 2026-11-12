@@ -103,7 +103,10 @@ function time_basis(time_parameter::Dict{Num, Any})
                 "time_parameter key `$k` must depend on exactly one variable, got $(length(vs)).",
             ),
         )
-        if isequal(uk, conj(vs[1]))
+        if isequal(uk, vs[1])
+            push!(basevars, k)
+            push!(valuefuncs, g)
+        elseif isequal(uk, conj(vs[1]))
             push!(basevars, Num(vs[1]))
             push!(valuefuncs, conj_vf(g, p_aware))
         else
@@ -123,9 +126,17 @@ coeff_is_const(c::Complex{Num}) =
 as_cnum(x::Complex) = Complex{Num}(Num(real(x)), Num(imag(x)))
 as_cnum(x) = Complex{Num}(Num(x), Num(false))
 
+# IndexedVariable calls lack Symbolics' dependent-variable metadata.
+function coefficient_atom(x::SymbolicUtils.BasicSymbolic)
+    SymbolicUtils.default_is_atomic(x) && return true
+    SymbolicUtils.iscall(x) || return false
+    op = SymbolicUtils.operation(x)
+    return op isa SymbolicUtils.BasicSymbolic && SymbolicUtils.issym(op)
+end
+
 function raw_variables(x::RawExpression)
     vars = RawExpression[]
-    for v in Symbolics.get_variables(x)
+    for v in Symbolics.get_variables(x; is_atomic = coefficient_atom)
         push!(vars, v)
     end
     return vars
@@ -170,30 +181,6 @@ end
 const CoeffTerm = Tuple{CNum, Vector{Op}}
 
 coeff_terms(q::QAdd) = CoeffTerm[(c, t.ops) for (t, c) in q.arguments]
-
-function compile_td_coeffs(coeffs, time_parameter)
-    basevars, valuefuncs, p_aware = time_basis(time_parameter)
-    exprs = Complex{Num}[to_num(c) for c in coeffs]
-    isempty(exprs) && push!(exprs, Complex{Num}(0))
-    for e in exprs
-        check_time_variables(e, basevars)
-    end
-    return compile_coeffs(exprs, basevars, valuefuncs, p_aware)
-end
-
-function compile_coeffs(exprs::Vector{Complex{Num}}, basevars::Vector{Num}, @nospecialize(valuefuncs), p_aware::Bool)
-    f_re = first(build_function(Num[real(e) for e in exprs], basevars...; expression = Val(false)))
-    f_im = first(build_function(Num[imag(e) for e in exprs], basevars...; expression = Val(false)))
-    g = at_time((t, vals) -> complex_values(f_re, f_im, vals), valuefuncs, p_aware)
-    p_aware && return (u, p, t) -> g(p, t)
-    return (u, p, t) -> g(t)
-end
-
-function complex_values(f_re::F, f_im::G, vals::Tuple) where {F, G}
-    re = f_re(vals...)
-    imag_part = f_im(vals...)
-    return ComplexF64[re[k] + im * imag_part[k] for k in eachindex(re)]
-end
 
 struct SplitScalarRules
     re::ScalarRules
