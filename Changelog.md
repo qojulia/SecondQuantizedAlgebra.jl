@@ -6,7 +6,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
-## [Unreleased]
+## [v0.15.0]
 
 ### Changed (breaking)
 
@@ -18,11 +18,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - `to_num`, `get_prefactor`, `real` and `imag` give `real(g)` and `imag(g)` for a complex parameter `@variables g::Number` instead of treating `g` as real, so Symbolics `conj`, `==`, `expand` and `get_variables` work on the result. Averages and printing keep `g` as one symbol.
-
-## [v0.14.1]
-
-### Fixed
-
 - `to_numeric` accepts a `time_parameter` key declared `@variables E::Complex`, and its conjugate `conj(E)`, again. v0.14.0 rejected both.
 
 ## [v0.14.0]
@@ -391,6 +386,6 @@ The final `2` in `Transition` selects the atom's subsystem in `h`, not its level
 [v0.12.0]: https://github.com/qojulia/SecondQuantizedAlgebra.jl/releases/tag/v0.12.0
 [v0.13.0]: https://github.com/qojulia/SecondQuantizedAlgebra.jl/releases/tag/v0.13.0
 [v0.14.0]: https://github.com/qojulia/SecondQuantizedAlgebra.jl/releases/tag/v0.14.0
-[v0.14.1]: https://github.com/qojulia/SecondQuantizedAlgebra.jl/releases/tag/v0.14.1
+[v0.15.0]: https://github.com/qojulia/SecondQuantizedAlgebra.jl/releases/tag/v0.15.0
 [#156]: https://github.com/qojulia/SecondQuantizedAlgebra.jl/issues/156
 [#291]: https://github.com/qojulia/SecondQuantizedAlgebra.jl/issues/291
