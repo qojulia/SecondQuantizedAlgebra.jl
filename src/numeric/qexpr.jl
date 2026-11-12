@@ -70,8 +70,7 @@ function formal_td_terms(q::QExpr, ctx::NumericContext, rules::SubstitutionRules
     else
         # Only coefficients outside matrix functions may vary during a solve.
         argument = formal_numeric_argument(only(q.args), ctx, rules)
-        f = q.kind == QEXPR_SIN ? sin : q.kind == QEXPR_COS ? cos : expim
-        op = numeric_materialize(ctx.backend, numeric_function(ctx.backend, f, argument), EagerOperator())
+        op = numeric_materialize(ctx.backend, formal_function(q.kind, ctx, argument), EagerOperator())
         push!(result, (q.coeff, op))
     end
     return result
@@ -106,14 +105,14 @@ function formal_static_operator(q::QExpr, ctx::NumericContext, op_type, rules::S
             end
         end
     else
-        argument = formal_numeric_argument(only(q.args), ctx, rules)
-        result = if q.kind == QEXPR_SIN
-            numeric_function(ctx.backend, sin, argument)
-        elseif q.kind == QEXPR_COS
-            numeric_function(ctx.backend, cos, argument)
-        else
-            numeric_function(ctx.backend, expim, argument)
-        end
+        result = formal_function(q.kind, ctx, formal_numeric_argument(only(q.args), ctx, rules))
     end
     return numeric_materialize(ctx.backend, to_complex(q.coeff) * result, op_type)
+end
+
+# One branch per function so each `numeric_function` call specializes on a concrete `f`.
+function formal_function(kind::QExprKind, ctx::NumericContext, argument)
+    kind == QEXPR_SIN && return numeric_function(ctx.backend, sin, argument)
+    kind == QEXPR_COS && return numeric_function(ctx.backend, cos, argument)
+    return numeric_function(ctx.backend, expim, argument)
 end

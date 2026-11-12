@@ -3,6 +3,7 @@ import QuantumOpticsBase as QOB
 import QuantumToolbox as QTB
 import SciMLOperators
 import SparseArrays
+using LinearAlgebra: Hermitian
 using SecondQuantizedAlgebra: NLevelSpace, Transition
 using Symbolics: @variables
 using Test: @test, @testset, @test_throws
@@ -64,4 +65,10 @@ end
         )
         @test operator_matrix(result) ≈ exp(im * operator_matrix(replacement))
     end
+    # Round-off asymmetry must not drop the exactly unitary path.
+    nearly = ComplexF64[0.3 0.4 + 1.0e-17im; 0.4 0.1]
+    @test SQA.numeric_expim(nearly) == cis(Hermitian((nearly + nearly') / 2))
+    # Asymmetry above round-off is a genuinely non-Hermitian argument.
+    skewed = ComplexF64[0.3 0.4 + 1.0e-6im; 0.4 0.1]
+    @test SQA.numeric_expim(skewed) ≈ exp(im * skewed) rtol = 1.0e-14
 end

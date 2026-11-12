@@ -240,6 +240,8 @@ function numeric_zero end
 function numeric_add_term! end
 
 function numeric_expim(matrix::Matrix{ComplexF64})
-    LinearAlgebra.ishermitian(matrix) || return exp(im * matrix)
-    return cis(LinearAlgebra.Hermitian(matrix))
+    # Accept only round-off asymmetry (backward-error scale n·eps) and use the nearest
+    # Hermitian matrix, so the dropped anti-Hermitian part never exceeds round-off.
+    isapprox(matrix, matrix'; rtol = size(matrix, 1) * eps()) || return exp(im * matrix)
+    return cis(LinearAlgebra.Hermitian((matrix + matrix') / 2))
 end

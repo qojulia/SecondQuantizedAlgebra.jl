@@ -97,7 +97,7 @@ The operator method of `taylor` takes an operator expression and an order range.
 
 ## Numerical conversion
 
-Formal functions can be converted directly with [`to_numeric`](@ref), which evaluates each matrix function on its complete argument at the chosen finite basis. Parameters inside function arguments require static values supplied via `parameter`. Scalar coefficients outside matrix functions may use `time_parameter`: `x * cos(A)` evaluates `cos(A)` once and updates only the coefficient of the resulting matrix during the solve. Time dependence inside a function, such as `cos(x * A)`, remains unsupported. [`numeric_average`](@ref), `expect` and [`average`](@ref) still require the polynomial from [`taylor`](@ref).
+[`to_numeric`](@ref) converts a formal function without an expansion. It applies the matrix function to the complete numerical argument on the chosen basis, so the trapped-ion Hamiltonian converts as written once its parameters have values.
 
 ```@example functions
 using QuantumOpticsBase
@@ -107,11 +107,7 @@ Hn = to_numeric(H, h, (10, 2); backend, parameter)
 size(Hn)
 ```
 
-The finite basis is a numerical truncation; increasing a bosonic cutoff can change the result. Use [`taylor`](@ref) when a symbolic polynomial approximation is desired.
-
-For example, compare the vacuum matrix element of a motional cosine at several
-cutoffs. The same vacuum state is present in each basis, so the change is more than
-a change in matrix size:
+The result is exact at the given cutoff, but the cutoff is still a truncation. The vacuum matrix element of a motional cosine changes as the cutoff grows, although the vacuum state is part of every basis.
 
 ```@example functions
 V = cos(η * (a + a'))
@@ -123,9 +119,7 @@ V = cos(η * (a + a'))
 ]
 ```
 
-At a fixed cutoff, compare direct evaluation with second- and fourth-order
-polynomials. Here `taylor` sets the symbolic approximation order independently of
-the numerical basis:
+The order of a Taylor polynomial is a separate approximation. At a fixed cutoff, the second- and fourth-order polynomials approach the matrix cosine.
 
 ```@example functions
 V2 = taylor(V, 0:2)
@@ -138,7 +132,4 @@ V4 = taylor(V, 0:4)
 ]
 ```
 
-A Taylor polynomial still needs a numerical basis when converted; it does not remove
-the cutoff. The two comparisons vary the cutoff and polynomial order separately.
-
-A symbolic [`Σ`](@ref) over a formal function and conversion between normal and symmetric order with [`normal_to_symmetric`](@ref) and [`symmetric_to_normal`](@ref) are not supported either; both need the polynomial from `taylor`. Perturbative frame changes such as Schrieffer–Wolff or van Vleck transformations are a separate problem of effective Hamiltonians and are not part of the formal functions.
+[`numeric_average`](@ref), `expect` and [`average`](@ref) still need the polynomial from `taylor`. So do a symbolic [`Σ`](@ref) over a formal function and conversion between normal and symmetric order with [`normal_to_symmetric`](@ref) and [`symmetric_to_normal`](@ref). Perturbative frame changes such as Schrieffer–Wolff or van Vleck transformations are a separate problem of effective Hamiltonians and are not part of the formal functions.
