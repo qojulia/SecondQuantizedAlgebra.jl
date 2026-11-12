@@ -409,6 +409,7 @@ function terms_are_real(terms::Vector{<:Monomial})
         scalar_is_real(monomial) || return false
         for symbol in monomial.syms
             (is_phase(symbol) || is_imaginary_unit(symbol)) && return false
+            SymbolicUtils.symtype(symbol) <: Real || return false
         end
     end
     return true

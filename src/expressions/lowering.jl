@@ -6,9 +6,18 @@ function num_from_scalar(x::Rational{BigInt})
     return denominator(x) == 1 ? Num(numerator(x)) : Num(x)
 end
 
+is_complex_atom(s::RawExpression) =
+    !(SymbolicUtils.symtype(s) <: Real) && !is_phase(s) && !is_imaginary_unit(s)
+has_complex_atom(p::Poly) = any(m -> any(is_complex_atom, m.syms), p.terms)
+
 function term_to_num(m::Monomial)
-    prod = Num(factors_to_raw(m, num_power))
+    raw = factors_to_raw(m, num_power)
     scalar = monomial_scalar(m)
+    if any(is_complex_atom, m.syms)
+        re, im = raw_realimag(raw)
+        return Complex(num_from_scalar(real(scalar)), num_from_scalar(imag(scalar))) * Complex(Num(re), Num(im))
+    end
+    prod = Num(raw)
     real_scalar, imag_scalar = real(scalar), imag(scalar)
     re = iszero(real_scalar) ? NUM_ZERO : num_from_scalar(real_scalar) * prod
     imag_ = iszero(imag_scalar) ? NUM_ZERO : num_from_scalar(imag_scalar) * prod
@@ -76,7 +85,7 @@ end
     iszero(z.im) && return g(real(z))
     return g(Complex(real(z), imag(z)))
 end
-@inline with_raw_number(g::G, z::ComplexF64) where {G} = g(z)
+@inline with_raw_number(g::G, z::ComplexF64) where {G} = iszero(imag(z)) ? g(real(z)) : g(z)
 
 function raw_power(symbol::RawExpression, exponent::Rational{Int})
     denominator(exponent) == 1 && return symbol^numerator(exponent)
