@@ -3,9 +3,8 @@
 Scenario definitions, canonical keys, fairness contract and output format
 live in BENCHMARKS.md.
 
-OpenFermion notes (fairness contract, rule 5): coefficients must be numeric,
-so this script uses ω = 1.0, J = 0.5, U = 0.25 where the other packages use
-symbols. BosonOperator cannot be mixed with qubit/spin operators, so the
+OpenFermion notes (fairness contract, rule 5): coefficients use SymPy symbols, matching the symbolic-coefficient
+workloads of the other packages. BosonOperator cannot be mixed with qubit/spin operators, so the
 Jaynes–Cummings family, indexed sums, and symbolic expectation values are not
 expressible; only the purely bosonic scenarios run.
 
@@ -18,6 +17,7 @@ Usage:
 """
 
 import datetime
+from comparison_support import selected, save_result, validate_scenarios
 import json
 import os
 import platform
@@ -27,10 +27,11 @@ import time
 
 import pyperf
 import openfermion
+from sympy import symbols, Rational, expand
 from openfermion import BosonOperator, normal_ordered
 
 CAP_SECONDS = 30.0
-OMEGA, J, U = 1.0, 0.5, 0.25
+OMEGA, J, U = symbols("omega J U", real=True)
 
 
 def validate_equivalence():
@@ -61,10 +62,12 @@ def build_scenarios():
     a = BosonOperator("0")
     ad = BosonOperator("0^")
 
+    factor = normal_ordered(a * ad)
+
     def fock_reorder(n):
-        acc = normal_ordered(a * ad)
+        acc = factor
         for _ in range(n - 1):
-            acc = normal_ordered(acc * (a * ad))
+            acc = normal_ordered(acc * factor)
         return acc
 
     for n in (2, 4, 6, 8, 10, 12, 14):
@@ -73,15 +76,16 @@ def build_scenarios():
     # 3. Bose–Hubbard chain. Build-cost sweep over the chain length M feeds the
     # scaling figure (M = 8 reuses bose_hubbard_build); the fixed M = 8 pair
     # (build + H²) feeds the docs table.
+    mode_ops = {M: [BosonOperator(((k, 0),), 1) for k in range(M)] for M in (2, 4, 8, 16, 32)}
+
+    mode_adj = {M: [openfermion.hermitian_conjugated(a) for a in ops] for M, ops in mode_ops.items()}
+
     def bh_build_M(M):
-        H = BosonOperator()
-        for k in range(M):
-            H += BosonOperator(f"{k}^ {k}", OMEGA)
-        for k in range(M - 1):
-            H += BosonOperator(f"{k}^ {k + 1}", J)
-            H += BosonOperator(f"{k + 1}^ {k}", J)
-        for k in range(M):
-            H += BosonOperator(f"{k}^ {k}^ {k} {k}", U / 2)
+        ops = mode_ops[M]
+        adj = mode_adj[M]
+        H = sum((adj[k] * ops[k] * OMEGA for k in range(M)), BosonOperator())
+        H += sum(((adj[k] * ops[k+1] + adj[k+1] * ops[k]) * J for k in range(M-1)), BosonOperator())
+        H += sum((adj[k] * adj[k] * ops[k] * ops[k] * (U * Rational(1, 2)) for k in range(M)), BosonOperator())
         return normal_ordered(H)
 
     for M in (2, 4, 16, 32):
@@ -102,7 +106,7 @@ def build_scenarios():
 # scenarios stop early (~MAX_VALUES x MIN_TIME) instead of burning the full
 # budget; only scenarios slower than BUDGET_SECONDS / MAX_VALUES per call use it
 # all.
-BUDGET_SECONDS = 10.0
+BUDGET_SECONDS = float(os.environ.get("SQA_COMPARE_SECONDS", "10"))
 MIN_TIME = 0.1  # pyperf per-value batch floor (seconds)
 MAX_VALUES = 50  # early-stop sample cap for fast scenarios (~pyperf's default total)
 
@@ -119,15 +123,21 @@ def _single_trial(thunk):
 
 
 def _capfile():
-    return os.path.join(tempfile.gettempdir(), "sqa_capped_openfermion.json")
+    return os.path.join(os.environ.get("SQA_COMPARE_TEMP", tempfile.gettempdir()), "sqa_capped_openfermion.json")
 
 
 def main():
+    if os.environ.get("SQA_COMPARE_VALIDATE_ONLY") == "true":
+        if not validate_equivalence():
+            raise SystemExit("primitive checks failed")
+        validate_scenarios(openfermion, build_scenarios())
+        return
     runner = pyperf.Runner(processes=1, warmups=1, min_time=MIN_TIME)
     runner.parse_args()
+    runner.args.inherit_environ = list(set((runner.args.inherit_environ or []) + [key for key in os.environ if key.startswith("SQA_COMPARE_")]))
     is_worker = bool(runner.args.worker)
 
-    scenarios = build_scenarios()
+    scenarios = selected(build_scenarios())
 
     # The manager decides the >30 s cap and the per-scenario value count (both
     # from one quick timed call per scenario) and hands the capped set to
@@ -138,6 +148,7 @@ def main():
         print("Known-answer equivalence checks:", file=sys.stderr)
         if not validate_equivalence():
             raise SystemExit("equivalence checks failed; aborting")
+        validate_scenarios(openfermion, build_scenarios())
         capped, nvalues = {}, {}
         for key, thunk in scenarios:
             trial = _single_trial(thunk)
@@ -165,7 +176,7 @@ def main():
         if not is_worker and bench is not None:
             values = bench.get_values()
             if values:
-                results[key] = {"time_ns": min(values) * 1e9}
+                results[key] = {"time_ns": min(values) * 1e9, "samples_ns": [v * 1e9 for v in values]}
 
     if is_worker:
         return
@@ -191,11 +202,7 @@ def main():
         "results": results,
         "capped": capped,
     }
-    outdir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "results")
-    os.makedirs(outdir, exist_ok=True)
-    path = os.path.join(outdir, "openfermion.json")
-    with open(path, "w") as f:
-        json.dump(out, f, indent=2)
+    path = save_result("openfermion", out, __file__)
     print(f"wrote {path}", file=sys.stderr)
 
 

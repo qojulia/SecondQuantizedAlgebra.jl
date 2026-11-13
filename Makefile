@@ -30,10 +30,6 @@ bench:
 	${JULIA} --project=benchmark -e 'using Pkg; Pkg.develop(PackageSpec(path=pwd())); Pkg.instantiate()'
 	${JULIA} --project=benchmark benchmark/runbenchmarks.jl
 
-benchlocal: ## Run benchmarks, save to data/, and print changelog
-	${JULIA} --project=benchmark -e 'using Pkg; Pkg.develop(PackageSpec(path=pwd())); Pkg.instantiate()'
-	${JULIA} --project=benchmark benchmark/runbenchmarks_local.jl
-
 changelog: ## Format Changelog.md with Changelog.jl
 	${JULIA} -e 'using Changelog; Changelog.generate(Changelog.CommonMark(), "Changelog.md"; repo = "qojulia/SecondQuantizedAlgebra.jl")'
 
@@ -48,8 +44,7 @@ help:
 	@echo " - make docs: instantiate and build the documentation"
 	@echo " - make servedocs: serve the documentation locally"
 	@echo " - make bench: run the benchmarks"
-	@echo " - make benchlocal: run benchmarks, save results, and print changelog"
 	@echo " - make changelog: format Changelog.md with Changelog.jl"
 	@echo " - make all: run every commands in the above order"
 
-.PHONY: default setup format test jet docs servedocs bench benchlocal changelog all help
+.PHONY: default setup format test jet docs servedocs bench changelog all help

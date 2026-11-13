@@ -1,87 +1,104 @@
 # Comparison with other packages
 
-Several packages, across several languages, do symbolic second-quantized operator algebra. This page benchmarks SecondQuantizedAlgebra (SQA) head-to-head against four of them on a compact suite of practical tasks: building Hamiltonians, deriving Heisenberg equations of motion, nested commutators, operator powers, normal ordering, multi-mode chains, symbolic indexed sums, and mean-field expectation values.
+This suite compares symbolic operator calculations in SecondQuantizedAlgebra (SQA), [QuantumAlgebra.jl](https://github.com/jfeist/QuantumAlgebra.jl), [SymPy](https://docs.sympy.org/latest/modules/physics/quantum/index.html), [OpenFermion](https://quantumai.google/openfermion), and [SNEG](https://github.com/rokzitko/sneg). The benchmark contract and runners are in `benchmark/comparison/`.
 
-| Package | Language | Canonicalization | Bosons | Two-level / spin | Symbolic coefficients | Indexed sums (symbolic N) | Symbolic ⟨·⟩ |
-|---|---|---|---|---|---|---|---|
-| SecondQuantizedAlgebra.jl | Julia | eager | ✓ | ✓ (N-level, Pauli, spin-S) | ✓ | ✓ | ✓ |
-| [QuantumAlgebra.jl](https://github.com/jfeist/QuantumAlgebra.jl) | Julia | lazy (`normal_form`) | ✓ | ✓ (spin-½) | ✓ | ✓ | ✓ |
-| [SymPy](https://docs.sympy.org/latest/modules/physics/quantum/index.html) (`sympy.physics.quantum`) | Python | lazy (`normal_ordered_form`) | ✓ | ✓ (Pauli) | ✓ | ✗ | ✗ |
-| [OpenFermion](https://quantumai.google/openfermion) (`BosonOperator`) | Python | lazy (`normal_ordered`) | ✓ | ✗ (separate qubit type) | ✗ (numeric only) | ✗ | ✗ |
-| [sneg](http://auger.ijs.si/sneg/) | Mathematica | eager (`nc`) | ✓ | ✓ (fermionic mode) | ✓ | ✗ | ✗ |
+The table below describes **coverage in these runners**, not the complete capabilities of the packages. An unimplemented case does not establish that a package cannot express it.
 
-The suite definition, canonical benchmark keys, and the runner scripts live in the repository under `benchmark/comparison/`; see [Reproducing](@ref) below.
+| Runner | JC model and commutators | Bosonic products and chains | Indexed TC contraction | Expectation interface |
+|:--|:--:|:--:|:--:|:--:|
+| SQA | yes | yes | yes | Symbolics expression |
+| QuantumAlgebra | yes | yes | yes | native expectation expression |
+| SymPy | yes | yes | not implemented | not implemented |
+| OpenFermion | not implemented | yes | not implemented | not implemented |
+| SNEG | yes | yes | not implemented | not implemented |
 
 ## Methodology
 
-!!! note "Fairness contract"
-    The packages have different evaluation strategies, so a naive comparison is misleading. Every row times each package **producing the same canonical (normal-ordered) result from the same physical input**, written idiomatically in that package.
+The `canonical-symbolic-v2` contract times physically equivalent calculations using each package's native canonical form. Elementary operators, spaces, parameters, and input Hamiltonians are prepared outside the timed algebra operations. Hamiltonian construction starts from predefined elementary operators. Repeated products normalize after every multiplication in every runner; the initial `a a†` factor is also prepared outside the normal-ordering sweep. All runners use symbolic real coefficients, including OpenFermion's SymPy coefficient path.
 
-    * **Eager packages** (SQA, sneg) canonicalize on every multiplication, so the operation itself is timed.
-    * **Lazy packages** (QuantumAlgebra, SymPy, OpenFermion) keep products symbolic until a normalization call, so the arithmetic is timed *together with* the normalization that reaches the canonical form the eager packages hand you for free.
-    * **Products of three or more factors** use the eager workflow on the lazy side too: normalize after each multiply rather than expanding the whole product first. Timing a lazy package on the fully expanded product would penalize a workflow choice, not an algorithm (see the ergonomics note below).
+Before timing, the runners check primitive identities and representative scenario outputs. Independent targets include exact Stirling-number normal-order coefficients, analytical Heisenberg equations, and the indexed TC contraction. The Julia and SymPy runners also check nested commutators against a binomial expansion. These checks test the scenario families; they are not a proof of every library operation.
 
-    Before timing, every script checks textbook identities in its own package (``a a† = 1 + a†a``, ``a a a† = a†a a + 2a``, two-level completeness ``σ⁻σ⁺ + σ⁺σ⁻ = 1``). A failing check aborts that package's run. Any benchmark whose single trial evaluation exceeds 3 s is reported as *capped* instead of timed.
+The suites run sequentially. Julia uses BenchmarkTools, Python uses pyperf, and Mathematica uses calibrated batches. The reported statistic is minimum warmed runtime; loading, compilation, and verification are excluded. Raw samples, Julia allocations and allocated bytes, resolved environments, runner sources, and hardware/settings are retained in the reproduction archive. A warmed call exceeding 30 seconds is marked `capped`; a separate package-job deadline includes loading and warmup. Failed or incomplete runs cannot replace this report.
 
-Further caveats, each disclosed rather than silently absorbed:
+Native canonical bases differ: SQA retains finite-level transitions, while the QA and SymPy cases use their native two-level representations. SymPy includes a timed helper to commute independent boson and Pauli factors. SNEG represents the two-level atom by one fermionic mode, whose single-site algebra is equivalent here. The indexed case measures a contraction with a free site index, not the elimination of a sum into an ensemble-size factor.
 
-* **Cross-language ratios are order-of-magnitude indicators.** Every harness gives each scenario the same wall-clock budget (up to ~10 s) in a single process and reports the minimum per-call time (Julia via BenchmarkTools, Python via pyperf, Mathematica via a calibrated timing loop); fast scenarios stop early once ~50 samples are collected, and only scenarios slower than a few hundred ms per call use the full budget. Harness overhead and warm-up behavior still differ across runtimes, so read `90×` as "roughly two orders of magnitude", not as a precise figure. The Julia-vs-Julia column *is* precise.
-* **OpenFermion uses numeric coefficients** (ω = 1.0, J = 0.5, U = 0.25) because `BosonOperator` does not accept symbols. That is *less* work than the symbolic-coefficient arithmetic every other package performs, so OpenFermion's numbers are, if anything, flattered. It also cannot mix bosons with qubit operators in one expression, so the Jaynes–Cummings rows are not expressible.
-* **SymPy needs a small disclosed helper.** `normal_ordered_form` does not know that boson and Pauli operators act on different Hilbert spaces (and hence commute), so mixed products fail to merge out of the box. The benchmark script includes a ~15-line helper that sorts boson factors before Pauli factors in each product; its cost is included in SymPy's timed path.
-* **sneg encodes the two-level atom as a single fermionic mode.** For one site the fermion algebra (``f f† + f†f = 1``, ``f² = 0``) is isomorphic to the σ algebra and bosons commute with fermions, so all Jaynes–Cummings results are identical to a spin encoding; this is also sneg's idiomatic usage in quantum impurity physics.
-* **Different canonical bases.** QuantumAlgebra expands ``σ⁺σ⁻`` into ``σˣ/σʸ/σᶻ`` form and SymPy works in its Pauli basis, whereas SQA keeps the transition form. Results are physically equivalent but not term-by-term identical.
+These are measurements from a single workstation and run. Cross-language harness and cache behavior differ, and minima are not uncertainty estimates. Assess the workload definition and scaling as well as the ratio; there is no aggregate package score. The older numeric-coefficient OpenFermion timings and raw-input QA powers belong to the previous contract and are not merged into this dataset.
 
 ## Results
 
-Single Linux workstation, 2026-07-21: SQA 0.10.0 and QuantumAlgebra 1.6.0 on Julia 1.12.6, SymPy 1.14.0 and OpenFermion 1.8.1 on Python 3.14.6, sneg 2.0.21 on Mathematica 14.2. The SQA column is absolute time; every other cell shows that package's time with its ratio to SQA in parentheses, so `(9.1×)` means 9.1× slower than SQA. `n/a` means the scenario is not expressible in that package.
+<!-- comparison-results:start -->
+Run `20261026T091522258607Z`; contract `canonical-symbolic-v2`; minimum warm runtime.
+
+SQA 0.14.0 (Julia 1.13.2), QuantumAlgebra.jl 1.7.0 (Julia 1.13.2), SymPy 1.14.0 (Python 3.13.15), OpenFermion 1.8.1 (Python 3.13.15), sneg 2.1.1 (Mathematica 15.0).
 
 | Benchmark | SQA | QuantumAlgebra.jl | SymPy | OpenFermion | sneg |
 |---|---:|---:|---:|---:|---:|
-| Jaynes–Cummings: build H | 1.500 μs | 19.040 μs (13×) | 73.943 μs (49×) | n/a | 186.711 μs (120×) |
-| Jaynes–Cummings: H² | 5.140 μs | 220.801 μs (43×) | 463.839 μs (90×) | n/a | 5.251 ms (1000×) |
-| Heisenberg equation: [H, a] | 1.710 μs | 20.900 μs (12×) | 266.917 μs (160×) | n/a | 1.605 ms (940×) |
-| Nested [H, [H, … σ⁻]] depth 2 | 7.700 μs | 126.820 μs (16×) | 781.343 μs (100×) | n/a | 8.472 ms (1100×) |
-| Nested [H, [H, … σ⁻]] depth 4 | 61.240 μs | 1.166 ms (19×) | 5.402 ms (88×) | n/a | 102.622 ms (1700×) |
-| Nested [H, [H, … σ⁻]] depth 6 | 232.321 μs | 5.690 ms (24×) | 382.454 ms (1600×) | n/a | 672.748 ms (2900×) |
-| Normal-order (a·a†)⁴ | 5.020 μs | 29.221 μs (5.8×) | 1.044 ms (210×) | 188.194 μs (37×) | 6.054 ms (1200×) |
-| Normal-order (a·a†)⁸ | 40.350 μs | 163.951 μs (4.1×) | 9.967 ms (250×) | 1.174 ms (29×) | 75.820 ms (1900×) |
-| Bose–Hubbard (M = 8): build H | 30.240 μs | 78.550 μs (2.6×) | 712.174 μs (24×) | 145.807 μs (4.8×) | 2.990 ms (99×) |
-| Bose–Hubbard (M = 8): H² | 436.901 μs | 1.428 ms (3.3×) | 3.229 s (7400×) | 3.609 ms (8.3×) | 2.472 s (5700×) |
-| Tavis–Cummings Σᵢ: build H | 1.400 μs | 11.070 μs (7.9×) | n/a | n/a | n/a |
-| Tavis–Cummings: [H, σ⁺ⱼσ⁻ⱼ] | 30.000 μs | 354.721 μs (12×) | n/a | n/a | n/a |
-| Mean-field ⟨H⟩ | 39.241 μs | 1.360 μs (0.035×) | n/a | n/a | n/a |
+| Jaynes–Cummings: build H | 2.250 μs | 6.140 μs (2.7×) | 48.922 μs (22×) | not implemented | 149.832 μs (67×) |
+| Jaynes–Cummings: H² | 6.590 μs | 58.210 μs (8.8×) | 354.668 μs (54×) | not implemented | 5.381 ms (820×) |
+| Heisenberg equation: [H, a] | 2.130 μs | 2.740 μs (1.3×) | 211.476 μs (99×) | not implemented | 1.657 ms (780×) |
+| Nested [H, [H, … σ⁻]] depth 2 | 9.700 μs | 37.280 μs (3.8×) | 602.921 μs (62×) | not implemented | 8.602 ms (890×) |
+| Nested [H, [H, … σ⁻]] depth 4 | 71.900 μs | 351.591 μs (4.9×) | 4.077 ms (57×) | not implemented | 102.843 ms (1400×) |
+| Nested [H, [H, … σ⁻]] depth 6 | 261.691 μs | 1.729 ms (6.6×) | 300.573 ms (1100×) | not implemented | 673.068 ms (2600×) |
+| Normal-order (a·a†)⁴ | 5.540 μs | 14.610 μs (2.6×) | 632.873 μs (110×) | 130.472 μs (24×) | 6.299 ms (1100×) |
+| Normal-order (a·a†)⁸ | 41.190 μs | 77.741 μs (1.9×) | 7.212 ms (180×) | 1.090 ms (26×) | 78.747 ms (1900×) |
+| Bose–Hubbard (M = 8): build H | 33.770 μs | 34.950 μs (1×) | 460.960 μs (14×) | 541.036 ms (16000×) | 3.198 ms (95×) |
+| Bose–Hubbard (M = 8): H² | 556.251 μs | 828.203 μs (1.5×) | 2.597 s (4700×) | 15.319 s (28000×) | 2.464 s (4400×) |
+| Tavis–Cummings Σᵢ: build H | 1.610 μs | 5.340 μs (3.3×) | not implemented | not implemented | not implemented |
+| Tavis–Cummings: [H, σ⁺ⱼσ⁻ⱼ] | 22.650 μs | 6.490 μs (0.29×) | not implemented | not implemented | not implemented |
+| Interface construction: ⟨H⟩ (different representations) | 36.810 μs | 1.170 μs | not implemented | not implemented | not implemented |
+
+<!-- comparison-results:end -->
+
+The SQA column gives absolute times. Parenthesized ratios are `package time / SQA time`: values below one mean that package is faster. The expectation-interface row produces different representations and therefore shows absolute times without a comparative ratio. `not implemented` describes missing runner coverage.
+
+![Relative runtime by workload](assets/comparison_overview.svg)
+
+The overview includes the indexed commutator, including cases where SQA is slower. The dashed line denotes equal runtime. The expectation-interface row is excluded from this ranking.
 
 ![Scaling comparison](assets/comparison_scaling.png)
 
-### Reading the results
+The scaling panels vary commutator depth, operator power, normal-ordering power, and chain size. They measure algebra kernels, not complete perturbative methods. Native expression bases and output sizes need not be identical. Missing or capped points are not joined across a gap.
 
-* **SQA leads every operator-algebra row, against every package.** The closest competitor throughout is QuantumAlgebra, which shares SQA's Julia substrate and a specialized bosonic normal-ordering engine. The general-purpose CAS approaches (SymPy, Mathematica-based sneg) sit well behind on the same physics.
-* **The lead widens exactly where real derivations spend their time.** Nested commutators (the core of Heisenberg / Schrieffer–Wolff / cumulant derivations) are where the gap grows fastest with depth, as the top-left panel shows. Eager canonicalization keeps every intermediate compact, so the cost compounds more slowly.
-* **Operator powers separate width from depth.** The top-right panel sweeps ``Hⁿ`` (an eager fold, same contract as the table): a single wide product-and-collect rather than a deep recursion, and the place where general-CAS normal ordering degrades fastest while SQA and QuantumAlgebra stay near log-linear. It is the product-expansion counterpart of the nested-commutator panel and stresses like-term collection instead of cancellation.
-* **Chain length probes system size, not expression size.** The bottom-right panel builds the Bose–Hubbard Hamiltonian on M = 2, 4, 8, 16, 32 modes; unlike the other three sweeps it grows the number of Hilbert-space factors rather than the depth or width of a single expression. The Hamiltonian has ``O(M)`` terms, so every package scales near-linearly and the panel becomes a constant-factor race where the field bunches closest together. Building a Hamiltonian is the one axis with the least canonicalization work per term.
-* **OpenFermion is the strongest non-Julia contender on pure bosonic work,** while computing with plain numeric coefficients, a strictly easier task than the symbolic arithmetic every other column performs.
-* **The one row SQA loses is measuring different objects.** QuantumAlgebra's `expval` tags operators inside its own term type (a near-trivial field move), whereas SQA's `average` materializes a Symbolics.jl `Num` expression (splitting coefficients into real and imaginary parts and building a CAS term tree). That object is what feeds `substitute`, `simplify`, numeric conversion, and ModelingToolkit downstream, so the extra cost buys the bridge into the Julia symbolics ecosystem.
-* **Symbolic indexed sums are a two-package race.** Only SQA and QuantumAlgebra can express ``Σᵢ gᵢ(a†σ⁻ᵢ + aσ⁺ᵢ)`` with a *symbolic* atom number N, and the ``[H, σ⁺ⱼσ⁻ⱼ]`` diagonal split is the operation that turns such sums into mesoscopic equations of motion.
+## Research workflow demonstrations
 
-### Ergonomics: eager by default vs the lazy-product footgun
+Two standalone scripts in `benchmark/comparison/demonstrations/` connect the kernels to the research motivation.
 
-The contract above uses the *eager* workflow for lazy packages. Their *default* lazy workflow has a sharp footgun on powers, building the full product before canonicalizing: with QuantumAlgebra, `normal_form(H⁴)` for the Jaynes–Cummings H costs about 86 ms and 2.2 M allocations lazily versus 2.3 ms and 84 k allocations eagerly, a roughly 37× time difference from one workflow choice. SymPy's Bose–Hubbard H² row above is the same effect in a different package. SQA canonicalizes on every `*`, so this cliff does not exist for its users.
+### Higher-order analytical calculation
+
+`high_order.jl` applies the same graded Schrieffer-Wolff BCH calculation to SQA and QuantumAlgebra. It uses the known rotation generator for the Jaynes-Cummings model, truncates intermediate series by formal coupling order, and checks every coefficient against the independent exact excitation-block energy expansion. This is a complete model-specific transformation, not a general algorithm for finding perturbative generators. Coefficients are exact rationals; physical denominators enter through the expansion parameter `g/Δ`.
+
+![Schrieffer-Wolff runtime and verified energy error](assets/comparison_high_order.svg)
+
+The runtime excludes verification and compilation. The energy-error panel uses the ground-like branch, `g/Δ=0.1`, and photon numbers 0:4. Native term counts, bytes, allocations, samples, and verified orders are recorded in `high_order.json`; native term counts depend on each algebra's basis. These timings describe this structured calculation and do not establish performance for every perturbative method.
+
+### Shared symbolic model and numerical solvers
+
+`interoperability.jl` defines one SQA Hamiltonian and loss channel for a driven, damped bosonic mode. QuantumCumulants derives the moment equations, ModelingToolkit compiles them, and OrdinaryDiffEq solves them. The same symbolic generator is converted for direct master-equation simulation with QuantumOptics. Both routes are checked against the analytical coherent-state solution; dimensions 12 and 20 check the numerical cutoff.
+
+The first and second moments close exactly for this quadratic Hamiltonian and linear loss channel. This demonstrates reuse and numerical agreement, not a solver-speed comparison or general exactness of cumulant approximations. `interoperability.json` records the parameters, traces, package versions, and error checks.
+
+The demonstration uses pinned QuantumCumulants development revision `bfe9b198a375f81be061f9af6d852dfcbcaa18fe`. Registered releases and the current default branch do not resolve with SQA 0.14. The evidence therefore applies to this pinned development combination. Its separate environment leaves the kernel comparison environment unchanged.
 
 ## [Reproducing](@id Reproducing)
 
-Each language has a runner script in `benchmark/comparison/` that validates the known-answer identities, runs its scenarios, and writes one `results/<package>.json` per package (the Julia script covers both SQA and QuantumAlgebra in one run); `make_table.jl` merges whatever JSONs exist into the table and figure above. The scenario definitions and canonical keys live in `benchmark/comparison/BENCHMARKS.md`.
+Use the local entry point from the repository root:
 
 ```sh
-# Julia (SQA + QuantumAlgebra)
-julia --project=benchmark benchmark/comparison/julia_bench.jl
-
-# Python (each needs: pip install sympy openfermion pyperf)
-python benchmark/comparison/sympy_bench.py
-python benchmark/comparison/openfermion_bench.py
-
-# Mathematica (needs sneg installed)
-wolframscript -f benchmark/comparison/sneg_bench.wls
-
-# Merge into the docs table + figure
-julia --project=benchmark benchmark/comparison/make_table.jl
+python benchmark/comparison/run.py prepare
+python benchmark/comparison/run.py run --sneg
+python benchmark/comparison/run.py report benchmark/comparison/runs/RUN_ID --publish
 ```
+
+SNEG is optional and requires an installed Mathematica kernel; `SNEG_PATH` may point to the directory containing `sneg.m`. Omitting `--sneg` runs the four-package core suite. `prepare --refresh` intentionally updates dependencies; ordinary preparation instantiates existing locks. `prepare --from-run PATH` restores an archive's environments after its source and runtime checks.
+
+Each run is archived under `benchmark/comparison/runs/`. Published summary JSONs, the table, and `reproduction.tar.gz` are under `benchmark/comparison/results/`. The archive contains the raw samples, exact runner/environment snapshots, and the verified demonstration sources, environments, and results; the summary JSONs keep the tracked report readable. The report rejects mixed run IDs, contract hashes, source hashes, and incomplete coverage. Smoke runs can generate previews but cannot replace the published comparison.
+
+Run the two research demonstrations separately:
+
+```sh
+julia --project=benchmark benchmark/comparison/demonstrations/high_order.jl
+julia --project=benchmark/comparison/demonstrations -e 'import Pkg; Pkg.instantiate()'
+julia --project=benchmark/comparison/demonstrations benchmark/comparison/demonstrations/interoperability.jl
+```
+
+The demonstration README gives the derivation, validation targets, parameters, and limits. Supporting examples and full benchmark records live in the repository; a JOSS paper can summarize and cite this evidence without reproducing code examples.

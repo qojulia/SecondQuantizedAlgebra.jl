@@ -3,49 +3,159 @@
     "package": "OpenFermion",
     "version": "1.8.1",
     "language": "Python",
-    "runtime_version": "3.14.6",
-    "date": "2026-07-21"
+    "runtime_version": "3.13.15",
+    "date": "2026-10-26",
+    "contract": "canonical-symbolic-v2",
+    "run_id": "20261026T091522258607Z",
+    "cpu": "AMD Ryzen 5 5600X 6-Core Processor",
+    "source_revision": "49b9cade014c544fef0c9dcd21d87f869868a364",
+    "dirty": true,
+    "benchmark_script_sha256": "af4e154fb170159057476fc6660c56453e76ed6af93c5ca68d7e3d7fec0e22a2",
+    "statistic": "minimum",
+    "coefficient_domain": "symbolic",
+    "validation": "passed",
+    "threads": "1",
+    "orchestrator_sha256": "43f23e10d719bf43294fea99eb97baaa0a66bd2eabb5d596ecce236724b311ff",
+    "contract_sha256": "74a7e57afdcc7f47512656f426e7d15f7160525f91500a4c1520c4be719e02b2",
+    "seconds": 10,
+    "keys": [
+      "jc_build",
+      "jc_H2",
+      "jc_heisenberg",
+      "jc_nested_d1",
+      "jc_nested_d2",
+      "jc_nested_d3",
+      "jc_nested_d4",
+      "jc_nested_d5",
+      "jc_nested_d6",
+      "jc_nested_d7",
+      "jc_pow_n2",
+      "jc_pow_n3",
+      "jc_pow_n4",
+      "jc_pow_n5",
+      "jc_pow_n6",
+      "jc_pow_n7",
+      "fock_reorder_n2",
+      "fock_reorder_n4",
+      "fock_reorder_n6",
+      "fock_reorder_n8",
+      "fock_reorder_n10",
+      "fock_reorder_n12",
+      "fock_reorder_n14",
+      "bh_chain_M2",
+      "bh_chain_M4",
+      "bh_chain_M16",
+      "bh_chain_M32",
+      "bose_hubbard_build",
+      "bose_hubbard_H2",
+      "tavis_cummings_build",
+      "tavis_cummings_comm",
+      "meanfield_average"
+    ],
+    "julia_runtime": "julia version 1.13.2",
+    "python_runtime": "3.13.15",
+    "raw_samples_archive": "reproduction.tar.gz"
   },
   "results": {
     "fock_reorder_n2": {
-      "time_ns": 47936.676025983616
+      "time_ns": 19741.674071482863,
+      "sample_count": 50,
+      "median_ns": 20128.651123663134
     },
     "fock_reorder_n4": {
-      "time_ns": 188194.44335349544
+      "time_ns": 130471.95214710428,
+      "sample_count": 50,
+      "median_ns": 133607.5874007747
     },
     "fock_reorder_n6": {
-      "time_ns": 517439.4138975913
+      "time_ns": 431160.98436257744,
+      "sample_count": 50,
+      "median_ns": 433303.6699222248
     },
     "fock_reorder_n8": {
-      "time_ns": 1173749.3282453215
+      "time_ns": 1.090414531290662e6,
+      "sample_count": 50,
+      "median_ns": 1.1002509999684663e6
     },
     "fock_reorder_n10": {
-      "time_ns": 2458271.2812843965
+      "time_ns": 2.3923283124531736e6,
+      "sample_count": 50,
+      "median_ns": 2.4173229453481324e6
     },
     "fock_reorder_n12": {
-      "time_ns": 5058908.905994031
+      "time_ns": 4.840530062665493e6,
+      "sample_count": 50,
+      "median_ns": 4.871371718536465e6
     },
     "fock_reorder_n14": {
-      "time_ns": 10381674.503150862
+      "time_ns": 8.853032312799769e6,
+      "sample_count": 50,
+      "median_ns": 8.91206493770369e6
     },
     "bh_chain_M2": {
-      "time_ns": 32282.204827538408
+      "time_ns": 1.0786382699734531e8,
+      "sample_count": 50,
+      "median_ns": 1.0970477149385262e8
     },
     "bh_chain_M4": {
-      "time_ns": 69338.19383903028
+      "time_ns": 2.4804360800771976e8,
+      "sample_count": 39,
+      "median_ns": 2.5243511199369097e8
     },
     "bh_chain_M16": {
-      "time_ns": 301909.6112666375
+      "time_ns": 1.1213629960111575e9,
+      "sample_count": 9,
+      "median_ns": 1.1733703730133128e9
     },
     "bh_chain_M32": {
-      "time_ns": 623055.3319710452
+      "time_ns": 2.433210176997818e9,
+      "sample_count": 4,
+      "median_ns": 2.464487896002538e9
     },
     "bose_hubbard_build": {
-      "time_ns": 145807.23922108518
+      "time_ns": 5.410363740083995e8,
+      "sample_count": 17,
+      "median_ns": 5.482406079972861e8
     },
     "bose_hubbard_H2": {
-      "time_ns": 3608606.593843433
+      "time_ns": 1.5318703683995409e10,
+      "sample_count": 1,
+      "median_ns": 1.5318703683995409e10
     }
   },
-  "capped": {}
+  "capped": {},
+  "statuses": {
+    "fock_reorder_n2": "passed",
+    "fock_reorder_n4": "passed",
+    "fock_reorder_n6": "passed",
+    "fock_reorder_n8": "passed",
+    "fock_reorder_n10": "passed",
+    "fock_reorder_n12": "passed",
+    "fock_reorder_n14": "passed",
+    "bh_chain_M2": "passed",
+    "bh_chain_M4": "passed",
+    "bh_chain_M16": "passed",
+    "bh_chain_M32": "passed",
+    "bose_hubbard_build": "passed",
+    "bose_hubbard_H2": "passed",
+    "jc_build": "not_implemented",
+    "jc_H2": "not_implemented",
+    "jc_heisenberg": "not_implemented",
+    "jc_nested_d1": "not_implemented",
+    "jc_nested_d2": "not_implemented",
+    "jc_nested_d3": "not_implemented",
+    "jc_nested_d4": "not_implemented",
+    "jc_nested_d5": "not_implemented",
+    "jc_nested_d6": "not_implemented",
+    "jc_nested_d7": "not_implemented",
+    "jc_pow_n2": "not_implemented",
+    "jc_pow_n3": "not_implemented",
+    "jc_pow_n4": "not_implemented",
+    "jc_pow_n5": "not_implemented",
+    "jc_pow_n6": "not_implemented",
+    "jc_pow_n7": "not_implemented",
+    "tavis_cummings_build": "not_implemented",
+    "tavis_cummings_comm": "not_implemented",
+    "meanfield_average": "not_implemented"
+  }
 }
