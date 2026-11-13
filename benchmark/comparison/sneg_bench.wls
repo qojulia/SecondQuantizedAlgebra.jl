@@ -16,7 +16,8 @@
    Usage:  wolframscript -f sneg_bench.wls
 *)
 
-Needs["sneg`sneg`"];
+If[StringQ[Environment["SNEG_PATH"]], PrependTo[$Path, Environment["SNEG_PATH"]]];
+Needs["Sneg`", "sneg.m"];
 
 capSeconds = 30.0;
 
@@ -31,7 +32,7 @@ checks = {
     {"a a a\[Dagger] = a\[Dagger]a a + 2a",
         Expand[nc[b[AN], b[AN], b[CR]]] ===
             Expand[nc[b[CR], b[AN], b[AN]] + 2 b[AN]]},
-    {"\[Sigma]\[Minus]\[Sigma]\[Plus] + \[Sigma]\[Plus]\[Sigma]\[Minus] = 1",
+    {"\[Sigma]\[Minus]\[Sigma]+ + \[Sigma]+\[Sigma]\[Minus] = 1",
         Expand[nc[f[AN], f[CR]] + nc[f[CR], f[AN]]] === 1}
 };
 Print["Known-answer equivalence checks:"];
@@ -40,9 +41,11 @@ If[! AllTrue[checks, #[[2]] &],
     Print["equivalence checks failed; aborting"]; Exit[1]];
 
 (* -- Scenario thunks ------------------------------------------------------- *)
-jcBuild[] := Expand[
-    wc nc[b[CR], b[AN]] + wa nc[f[CR], f[AN]] +
-        g (nc[b[CR], f[AN]] + nc[b[AN], f[CR]])];
+jcDestroy = b[AN]; jcCreate = b[CR];
+jcLower = f[AN]; jcRaise = f[CR];
+jcExcited = nc[jcRaise, jcLower];
+jcBuild[] := Expand[wc nc[jcCreate, jcDestroy] + wa jcExcited +
+    g (nc[jcCreate, jcLower] + nc[jcDestroy, jcRaise])];
 Hjc = jcBuild[];
 
 nested[H_, op_, d_] := Nest[Expand[komutator[H, #]] &, op, d];
@@ -52,23 +55,28 @@ jcPow[p_] := Nest[Expand[nc[#, Hjc]] &, Hjc, p - 1];
 aad = Expand[nc[b[AN], b[CR]]];
 fockReorder[n_] := Nest[Expand[nc[#, aad]] &, aad, n - 1];
 
-bhBuildM[M_] := Expand[
-    Sum[w nc[b[CR, k], b[AN, k]], {k, M}] +
-        J Sum[nc[b[CR, k], b[AN, k + 1]] + nc[b[CR, k + 1], b[AN, k]], {k, M - 1}] +
-        U/2 Sum[nc[b[CR, k], b[CR, k], b[AN, k], b[AN, k]], {k, M}]];
+Do[
+    bhAn[m] = Table[b[AN,k], {k,m}];
+    bhCr[m] = Table[b[CR,k], {k,m}],
+    {m, {2,4,8,16,32}}
+];
+bhBuildM[M_] := Module[{ann = bhAn[M], cre = bhCr[M]}, Expand[
+    Sum[w nc[cre[[k]], ann[[k]]], {k, M}] +
+    J Sum[nc[cre[[k]], ann[[k+1]]] + nc[cre[[k+1]], ann[[k]]], {k, M-1}] +
+    U/2 Sum[nc[cre[[k]], cre[[k]], ann[[k]], ann[[k]]], {k, M}]]];
 Hbh = bhBuildM[8];
 
 scenarios = {
     {"jc_build", jcBuild},
     {"jc_H2", Function[{}, Expand[nc[Hjc, Hjc]]]},
-    {"jc_heisenberg", Function[{}, Expand[komutator[Hjc, b[AN]]]]},
-    {"jc_nested_d1", Function[{}, nested[Hjc, f[AN], 1]]},
-    {"jc_nested_d2", Function[{}, nested[Hjc, f[AN], 2]]},
-    {"jc_nested_d3", Function[{}, nested[Hjc, f[AN], 3]]},
-    {"jc_nested_d4", Function[{}, nested[Hjc, f[AN], 4]]},
-    {"jc_nested_d5", Function[{}, nested[Hjc, f[AN], 5]]},
-    {"jc_nested_d6", Function[{}, nested[Hjc, f[AN], 6]]},
-    {"jc_nested_d7", Function[{}, nested[Hjc, f[AN], 7]]},
+    {"jc_heisenberg", Function[{}, Expand[komutator[Hjc, jcDestroy]]]},
+    {"jc_nested_d1", Function[{}, nested[Hjc, jcLower, 1]]},
+    {"jc_nested_d2", Function[{}, nested[Hjc, jcLower, 2]]},
+    {"jc_nested_d3", Function[{}, nested[Hjc, jcLower, 3]]},
+    {"jc_nested_d4", Function[{}, nested[Hjc, jcLower, 4]]},
+    {"jc_nested_d5", Function[{}, nested[Hjc, jcLower, 5]]},
+    {"jc_nested_d6", Function[{}, nested[Hjc, jcLower, 6]]},
+    {"jc_nested_d7", Function[{}, nested[Hjc, jcLower, 7]]},
     {"jc_pow_n2", Function[{}, jcPow[2]]},
     {"jc_pow_n3", Function[{}, jcPow[3]]},
     {"jc_pow_n4", Function[{}, jcPow[4]]},
@@ -101,7 +109,7 @@ scenarios = {
    (minimum) and same per-scenario effort as the other packages, rather than
    RepeatedTiming's mean. *)
 minTiming[thunk_] := Module[
-    {loops = 1, batchTarget = 0.1, budget = 10.0, maxBatches = 50,
+    {loops = 1, batchTarget = 0.1, budget = If[StringQ[Environment["SQA_COMPARE_SECONDS"]], ToExpression[Environment["SQA_COMPARE_SECONDS"]], 10.0], maxBatches = 50,
      best = Infinity, elapsed = 0., batches = 0, dt},
     While[First[AbsoluteTiming[Do[thunk[], {loops}]]] < batchTarget && loops < 10^8,
         loops *= 2
@@ -113,6 +121,19 @@ minTiming[thunk_] := Module[
         batches += 1
     ];
     best
+];
+
+stirling[n_, k_] := StirlingS2[n, k];
+Do[
+    If[Expand[fockReorder[n] - Sum[stirling[n+1,k+1] nc[Sequence @@ Join[ConstantArray[b[CR],k],ConstantArray[b[AN],k]]], {k,0,n}]] =!= 0, Exit[1]],
+    {n, {2,4,8,14}}
+];
+If[Expand[komutator[Hjc,b[AN]] + wc b[AN] + g f[AN]] =!= 0, Exit[1]];
+If[Expand[komutator[Hbh,b[AN,1]] + w b[AN,1] + J b[AN,2] + U nc[b[CR,1],b[AN,1],b[AN,1]]] =!= 0, Exit[1]];
+Print["Scenario coefficient and analytical drift checks passed"];
+If[Environment["SQA_COMPARE_VALIDATE_ONLY"] === "true", Exit[0]];
+If[StringQ[Environment["SQA_COMPARE_KEYS"]] && Environment["SQA_COMPARE_KEYS"] =!= "",
+    scenarios = Select[scenarios, MemberQ[StringSplit[Environment["SQA_COMPARE_KEYS"], ","], First[#]] &]
 ];
 
 results = <||>;
@@ -143,7 +164,7 @@ out = <|
     "results" -> results,
     "capped" -> capped
 |>;
-outdir = FileNameJoin[{DirectoryName[$InputFileName], "results"}];
+outdir = If[StringQ[Environment["SQA_COMPARE_OUTPUT"]], Environment["SQA_COMPARE_OUTPUT"], FileNameJoin[{DirectoryName[$InputFileName], "results"}]];
 If[! DirectoryQ[outdir], CreateDirectory[outdir]];
 path = FileNameJoin[{outdir, "sneg.json"}];
 Export[path, out, "JSON"];

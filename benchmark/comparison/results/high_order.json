@@ -1,0 +1,421 @@
+{
+  "meta": {
+    "algorithm": "graded BCH with analytic JC rotation generator",
+    "coefficient_domain": "exact rational; formal epsilon degree",
+    "cpu": "AMD Ryzen 5 5600X 6-Core Processor",
+    "date": "2026-10-26",
+    "energy_error_branch": "ground-like",
+    "epsilon": 0.1,
+    "julia": "1.13.2",
+    "script_sha256": "2249e373bf04d6319c84a16632a84740987c4a819056ad62c529f0fe4f289fa1",
+    "statistic": "minimum warm runtime; compilation and verification excluded",
+    "threads": 1,
+    "verified_photon_numbers": [
+      0,
+      1,
+      2,
+      3,
+      4
+    ],
+    "versions": {
+      "QuantumAlgebra": "1.7.0",
+      "SQA": "0.14.0"
+    },
+    "source_revision": "49b9cade014c544fef0c9dcd21d87f869868a364",
+    "environment_sha256": "d8f4107a341ebe5c4c019574879e970489dbfd2d1a954de149524f5522ea7881"
+  },
+  "results": [
+    {
+      "allocs": 401,
+      "bytes": 36792,
+      "max_energy_error": 0.001483519286549597,
+      "native_terms": 4,
+      "order": 2,
+      "package": "SQA",
+      "samples_ns": [
+        46620.0,
+        23060.0,
+        1098513.0,
+        17340.0,
+        16670.0,
+        17240.0,
+        16620.0,
+        16520.0,
+        16430.0,
+        16971.0
+      ],
+      "time_ns": 16430.0,
+      "verified": true
+    },
+    {
+      "allocs": 1700,
+      "bytes": 166496,
+      "max_energy_error": 0.00011648071345040312,
+      "native_terms": 9,
+      "order": 4,
+      "package": "SQA",
+      "samples_ns": [
+        226261.0,
+        88690.0,
+        88670.0,
+        75251.0,
+        68480.0,
+        64340.0,
+        90280.0,
+        67171.0,
+        62770.0,
+        61890.0
+      ],
+      "time_ns": 61890.0,
+      "verified": true
+    },
+    {
+      "allocs": 4991,
+      "bytes": 568016,
+      "max_energy_error": 1.1519286549596876e-05,
+      "native_terms": 16,
+      "order": 6,
+      "package": "SQA",
+      "samples_ns": [
+        356541.0,
+        282191.0,
+        251070.0,
+        252241.0,
+        245751.0,
+        245971.0,
+        242741.0,
+        248290.0,
+        240091.0,
+        247231.0
+      ],
+      "time_ns": 240091.0,
+      "verified": true
+    },
+    {
+      "allocs": 12595,
+      "bytes": 1720888,
+      "max_energy_error": 1.2807134504031252e-06,
+      "native_terms": 25,
+      "order": 8,
+      "package": "SQA",
+      "samples_ns": [
+        1009253.0,
+        892763.0,
+        864163.0,
+        865722.0,
+        881563.0,
+        876472.0,
+        881783.0,
+        857403.0,
+        916933.0,
+        904343.0
+      ],
+      "time_ns": 857403.0,
+      "verified": true
+    },
+    {
+      "allocs": 30038,
+      "bytes": 5125032,
+      "max_energy_error": 1.5288654959687494e-07,
+      "native_terms": 36,
+      "order": 10,
+      "package": "SQA",
+      "samples_ns": [
+        2940709.0,
+        2812399.0,
+        2794458.0,
+        2770119.0,
+        3016649.0,
+        3151810.0,
+        2767958.0,
+        2768389.0,
+        2766438.0,
+        2805769.0
+      ],
+      "time_ns": 2766438.0,
+      "verified": true
+    },
+    {
+      "allocs": 70480,
+      "bytes": 14531168,
+      "max_energy_error": 1.914545040312507e-08,
+      "native_terms": 49,
+      "order": 12,
+      "package": "SQA",
+      "samples_ns": [
+        8459126.0,
+        8211185.0,
+        8215805.0,
+        8144865.0,
+        8900668.0,
+        12609699.0,
+        12775539.0,
+        12584189.0,
+        12740818.0,
+        12589889.0
+      ],
+      "time_ns": 8144865.0,
+      "verified": true
+    },
+    {
+      "allocs": 168595,
+      "bytes": 40625232,
+      "max_energy_error": 2.481429596874929e-09,
+      "native_terms": 64,
+      "order": 14,
+      "package": "SQA",
+      "samples_ns": [
+        23615332.0,
+        23707094.0,
+        30623004.0,
+        36629722.0,
+        35949641.0,
+        39015180.0,
+        28238337.0,
+        36140251.0,
+        38107037.0,
+        26828692.0
+      ],
+      "time_ns": 23615332.0,
+      "verified": true
+    },
+    {
+      "allocs": 423471,
+      "bytes": 117267232,
+      "max_energy_error": 3.3006480312507106e-10,
+      "native_terms": 81,
+      "order": 16,
+      "package": "SQA",
+      "samples_ns": [
+        87651749.0,
+        113399509.0,
+        96261466.0,
+        100039248.0,
+        97319060.0,
+        75605662.0,
+        72535083.0,
+        71568361.0,
+        70886878.0,
+        72256192.0
+      ],
+      "time_ns": 70886878.0,
+      "verified": true
+    },
+    {
+      "allocs": 1132578,
+      "bytes": 354748992,
+      "max_energy_error": 4.480111687492895e-11,
+      "native_terms": 100,
+      "order": 18,
+      "package": "SQA",
+      "samples_ns": [
+        300604095.0,
+        321791181.0,
+        237790722.0,
+        216153905.0,
+        216688627.0,
+        219083535.0,
+        219867107.0,
+        217874141.0,
+        218955994.0
+      ],
+      "time_ns": 216153905.0,
+      "verified": true
+    },
+    {
+      "allocs": 3226364,
+      "bytes": 1123640320,
+      "max_energy_error": 6.180648245071049e-12,
+      "native_terms": 121,
+      "order": 20,
+      "package": "SQA",
+      "samples_ns": [
+        904327136.0,
+        684424079.0,
+        691523902.0
+      ],
+      "time_ns": 684424079.0,
+      "verified": true
+    },
+    {
+      "allocs": 11416,
+      "bytes": 429672,
+      "max_energy_error": 0.001483519286549597,
+      "native_terms": 5,
+      "order": 2,
+      "package": "QuantumAlgebra",
+      "samples_ns": [
+        1187623.0,
+        262951.0,
+        254181.0,
+        236220.0,
+        240771.0,
+        230271.0,
+        226520.0,
+        221531.0,
+        259331.0,
+        225371.0
+      ],
+      "time_ns": 221531.0,
+      "verified": true
+    },
+    {
+      "allocs": 80271,
+      "bytes": 3046136,
+      "max_energy_error": 0.00011648071345040312,
+      "native_terms": 10,
+      "order": 4,
+      "package": "QuantumAlgebra",
+      "samples_ns": [
+        2173257.0,
+        1593915.0,
+        1575744.0,
+        1560086.0,
+        2238146.0,
+        1762765.0,
+        1744426.0,
+        1741855.0,
+        1756275.0,
+        1844576.0
+      ],
+      "time_ns": 1560086.0,
+      "verified": true
+    },
+    {
+      "allocs": 376774,
+      "bytes": 14487720,
+      "max_energy_error": 1.1519286549596876e-05,
+      "native_terms": 17,
+      "order": 6,
+      "package": "QuantumAlgebra",
+      "samples_ns": [
+        8289576.0,
+        7456243.0,
+        7483303.0,
+        7666173.0,
+        8130725.0,
+        7664514.0,
+        8173136.0,
+        7821283.0,
+        8783778.0,
+        7889584.0
+      ],
+      "time_ns": 7456243.0,
+      "verified": true
+    },
+    {
+      "allocs": 1426311,
+      "bytes": 55220608,
+      "max_energy_error": 1.2807134504031252e-06,
+      "native_terms": 26,
+      "order": 8,
+      "package": "QuantumAlgebra",
+      "samples_ns": [
+        30119802.0,
+        29556731.0,
+        29347241.0,
+        28957789.0,
+        38196558.0,
+        44601108.0,
+        146171211.0,
+        35914291.0,
+        29689252.0,
+        38908869.0
+      ],
+      "time_ns": 28957789.0,
+      "verified": true
+    },
+    {
+      "allocs": 4634621,
+      "bytes": 180796976,
+      "max_energy_error": 1.5288654959687494e-07,
+      "native_terms": 37,
+      "order": 10,
+      "package": "QuantumAlgebra",
+      "samples_ns": [
+        98585614.0,
+        243798803.0,
+        110660382.0,
+        136767241.0,
+        291530860.0,
+        98197574.0,
+        125873838.0,
+        119665460.0,
+        341962905.0,
+        99046816.0
+      ],
+      "time_ns": 98197574.0,
+      "verified": true
+    },
+    {
+      "allocs": 13521970,
+      "bytes": 531602776,
+      "max_energy_error": 1.914545040312507e-08,
+      "native_terms": 50,
+      "order": 12,
+      "package": "QuantumAlgebra",
+      "samples_ns": [
+        366399192.0,
+        568249435.0,
+        695106247.0,
+        362357499.0,
+        676216470.0
+      ],
+      "time_ns": 362357499.0,
+      "verified": true
+    },
+    {
+      "allocs": 36203176,
+      "bytes": 1437519648,
+      "max_energy_error": 2.481429596874929e-09,
+      "native_terms": 65,
+      "order": 14,
+      "package": "QuantumAlgebra",
+      "samples_ns": [
+        1357715369.0,
+        1410304523.0
+      ],
+      "time_ns": 1357715369.0,
+      "verified": true
+    },
+    {
+      "allocs": 90421762,
+      "bytes": 3637242256,
+      "max_energy_error": 3.3006480312507106e-10,
+      "native_terms": 82,
+      "order": 16,
+      "package": "QuantumAlgebra",
+      "samples_ns": [
+        4019402504.0
+      ],
+      "time_ns": 4019402504.0,
+      "verified": true
+    },
+    {
+      "allocs": 213474597,
+      "bytes": 8723781336,
+      "max_energy_error": 4.480111687492895e-11,
+      "native_terms": 101,
+      "order": 18,
+      "package": "QuantumAlgebra",
+      "samples_ns": [
+        9450645337.0
+      ],
+      "time_ns": 9450645337.0,
+      "verified": true
+    },
+    {
+      "allocs": 481587369,
+      "bytes": 20049357600,
+      "max_energy_error": 6.180648245071049e-12,
+      "native_terms": 122,
+      "order": 20,
+      "package": "QuantumAlgebra",
+      "samples_ns": [
+        21833533852.0
+      ],
+      "time_ns": 21833533852.0,
+      "verified": true
+    }
+  ]
+}

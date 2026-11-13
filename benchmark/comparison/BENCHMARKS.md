@@ -1,127 +1,138 @@
 # Cross-package benchmark contract
 
-This file is the canonical definition of the comparison suite. Every benchmark
-script in this directory implements the scenarios below and must use the
-**canonical keys verbatim**; the result merger (`make_table.jl`) joins the
-per-package JSON files on them.
+Contract: **canonical-symbolic-v2**. Results from the earlier contract are
+historical and must not be merged with v2 runs.
 
-## Packages and scripts
+## Workloads and timed boundaries
 
-| Package | Language | Script | Run with |
-|---|---|---|---|
-| SecondQuantizedAlgebra.jl (SQA) | Julia | `julia_bench.jl` | `julia --project=benchmark benchmark/comparison/julia_bench.jl` |
-| QuantumAlgebra.jl | Julia | `julia_bench.jl` (same run) | see above |
-| SymPy (`sympy.physics.quantum`) | Python | `sympy_bench.py` | `python sympy_bench.py` (needs `pip install sympy pyperf`) |
-| OpenFermion | Python | `openfermion_bench.py` | `python openfermion_bench.py` (needs `pip install openfermion pyperf`) |
-| sneg | Mathematica | `sneg_bench.wls` | `wolframscript -f sneg_bench.wls` (needs [sneg](http://auger.ijs.si/sneg/)) |
+All algebra rows use symbolic real coefficients and native canonical inputs.
+Elementary operators (including adjoints, population operators, and indexed
+factors), Hilbert spaces, parameters, and input Hamiltonians are prepared
+outside timing. Each package returns its own canonical form of the
+same physical operator; internal bases and term counts need not match.
 
-Each script writes `results/<package>.json`:
+Construction rows time assembling and canonicalizing a Hamiltonian from
+predefined elementary operators. Multiplication rows start with already
+canonical Hamiltonians. Every repeated product uses a canonicalizing left
+fold. The normal-ordering sweep starts with the prepared factor `a a†` and
+times its repeated multiplication. Canonicalization of intermediate products
+is included for all packages. QuantumAlgebra's automatic normalization is
+explicitly disabled, its xyz spin basis is fixed, and the required
+normalization calls are timed.
 
-```json
-{
-  "meta": {"package": "...", "version": "...", "language": "...",
-           "runtime_version": "...", "date": "YYYY-MM-DD"},
-  "results": {"<canonical key>": {"time_ns": 1234.5, "allocs": 42}},
-  "capped": {"<canonical key>": 4.2}
-}
+| Family | Physical input and operation | Keys |
+|---|---|---|
+| Jaynes–Cummings | `H = ω_c a†a + ω_a σ⁺σ⁻ + g(a†σ⁻ + aσ⁺)`; build, square, `[H,a]` | `jc_build`, `jc_H2`, `jc_heisenberg` |
+| Nested commutators | `C₀ = σ⁻`, `C_d = [H,C_{d-1}]`, including the full recursion | `jc_nested_d1` through `jc_nested_d7` |
+| Powers | Canonicalizing left fold for `Hⁿ` | `jc_pow_n2` through `jc_pow_n7` |
+| Bosonic products | Canonicalizing left fold for `(a a†)ⁿ` | `fock_reorder_n2`, `n4`, `n6`, `n8`, `n10`, `n12`, `n14` |
+| Bose–Hubbard | Open chain `H = Σω a†ₖaₖ + JΣ(a†ₖaₖ₊₁ + h.c.) + (U/2)Σa†ₖ²aₖ²`; build at M=8 and square | `bose_hubbard_build`, `bose_hubbard_H2` |
+| Chain size | Same Hamiltonian, construction at M=2,4,16,32; M=8 above | `bh_chain_M2`, `M4`, `M16`, `M32` |
+| Indexed ensemble | `H = Σᵢ gᵢ(a†σ⁻ᵢ + aσ⁺ᵢ)`; construct and compute `[H,σ⁺ⱼσ⁻ⱼ]` | `tavis_cummings_build`, `tavis_cummings_comm` |
+
+The indexed comparison measures the contraction needed by the commutator;
+it does not measure eliminating a sum to obtain a factor of the ensemble size.
+The SQA representation carries an explicit symbolic bound, while QA uses its
+native formal indexed sum.
+
+`meanfield_average` constructs `⟨H_JC⟩`. It is an **interface workload**:
+SQA creates Symbolics expressions; QA creates its internal expectation
+representation. Absolute times are reported separately without a speed ratio.
+This is not a benchmark of deriving, closing, or solving moment equations.
+
+The Python and Mathematica runners do not implement every family. A missing
+implementation is not evidence that a package cannot express the calculation.
+SNEG uses a single fermionic mode for the two-level system; the single-site
+algebra is equivalent here. SymPy includes a timed helper to commute factors
+on independent boson and Pauli spaces. OpenFermion uses SymPy coefficients,
+including exact `U/2`, rather than the numeric coefficients used historically.
+
+## Untimed verification
+
+A run aborts on failing primitive identities or scenario checks. Exact
+normal-order coefficients use the independent Stirling-number formula
+`(aa†)ⁿ = Σₖ S(n+1,k+1) a†ᵏaᵏ`. Representative JC nested commutators are checked
+against the binomial formula for repeated commutation; JC and Bose–Hubbard
+Heisenberg drifts have independent analytical targets. Julia also checks
+Bose–Hubbard Hermiticity and the indexed TC contraction
+`gⱼ(a†σ⁻ⱼ − aσ⁺ⱼ)`. Python checks Hermiticity and drift; SNEG checks the exact
+normal-order coefficients and both drifts. These are representative family
+checks, not a proof of every library operation or a complete perturbative
+calculation.
+
+## Measurement
+
+The primary statistic remains minimum warmed runtime for continuity with the
+historical suite. Compilation and validation are outside timing. Julia uses
+BenchmarkTools and records raw sample times, median, allocation count and
+allocated bytes. Python uses pyperf with one worker and records sample times.
+SNEG uses calibrated batches. Cross-language minima have different sampling
+and caching behavior, so ratios should not be interpreted as precise universal
+speedups. Independent repeated publication runs remain recommended.
+
+Default measurement budget: up to 10 seconds per scenario. A warmed single
+call above 30 seconds is recorded as `capped`. Separately, the orchestrator
+has a hard wall deadline for each **package job**, including loading,
+validation, warmup and child workers. A timed-out job is archived as
+`timed_out`, not silently omitted or interpreted as unsupported functionality.
+This first workflow does not restart individual scenarios after a job timeout.
+
+## Commands
+
+Prerequisites: Julia, Python, and uv. Mathematica/SNEG is optional.
+
+```sh
+# Instantiate the existing Julia environment and the pinned Python lock.
+python benchmark/comparison/run.py prepare
+
+# Explicitly update the dependency environments and Python lock.
+python benchmark/comparison/run.py prepare --refresh
+
+# Check all implemented algebra families, with no timings.
+python benchmark/comparison/run.py run --validate-only
+
+# Run the core suites sequentially into a new immutable run directory.
+python benchmark/comparison/run.py run
+
+# Optional installed SNEG; SNEG_PATH may point to the directory with sneg.m.
+python benchmark/comparison/run.py run --sneg
+
+# Small timing smoke run, never eligible for publication.
+python benchmark/comparison/run.py run --keys jc_heisenberg,fock_reorder_n2 --seconds 0.1
+
+# Validate and render an archived run; --publish also updates tracked outputs.
+python benchmark/comparison/run.py report benchmark/comparison/runs/RUN_ID
+python benchmark/comparison/run.py report benchmark/comparison/runs/RUN_ID --publish
+
+# Restore archived dependency environments before reproducing a run.
+python benchmark/comparison/run.py prepare --from-run benchmark/comparison/runs/RUN_ID
 ```
 
-`allocs` is optional (Julia only). A key absent from both `results` and
-`capped` means the scenario is not expressible in that package; a key in
-`capped` means a single trial evaluation exceeded the cap (value in seconds).
+`--julia /path/to/julia` before the subcommand selects an executable. `run`
+also accepts `--python`, `--timeout`, and `--seconds`. Complete core coverage is
+required for publication; SNEG remains optional.
+No preparation command updates dependencies unless `--refresh` is explicit.
+For frozen reproduction, check out the recorded SQA revision, retain/apply
+any archived source changes, and use the recorded runtime versions.
 
-## Fairness contract
+## Archives and publication
 
-1. **Same canonical result, same physical input.** Every package is timed
-   producing the normal-ordered canonical form of the same physical
-   expression, written idiomatically in that package. Lazy packages
-   (QuantumAlgebra, SymPy, OpenFermion) are timed *through* their
-   normalization call; eager packages (SQA, sneg) are timed on the operation
-   itself.
-2. **Eager fold for repeated products.** For products of n > 2 factors the
-   lazy packages normalize after each multiplication
-   (`foldl((x, y) -> normal_form(x * y), factors)`), matching the incremental
-   canonicalization eager packages perform. Timing a lazy package on the fully
-   expanded product would penalize a workflow choice, not an algorithm.
-3. **Known-answer checks before timing.** Each script verifies, in its own
-   package: `a a† = 1 + a†a`, `a a a† = a†a a + 2a`, and the two-level
-   completeness `σ⁻σ⁺ + σ⁺σ⁻ = 1` (in the package's own spin encoding, where
-   spins are supported). A failing check aborts the run.
-4. **Cap.** Any scenario whose single trial evaluation exceeds **30 s** is
-   reported in `capped` instead of being timed. Scenarios whose single call
-   sits between the budget and the cap are timed with a single sample (the
-   budget bounds how many samples fit, not how long one call may take).
-5. **Disclosed helpers.** SymPy's `normal_ordered_form` does not know that
-   boson and Pauli operators act on different Hilbert spaces (and hence
-   commute), so `sympy_bench.py` includes a small reordering helper that sorts
-   boson factors before Pauli factors in each product; its cost is part of
-   SymPy's timed path. OpenFermion supports only numeric coefficients, so it
-   uses ω = 1.0, J = 0.5, U = 0.25 where the others use symbols.
+Each run stores resolved Julia and Python environments, runner sources, the
+local package patch, logs, run ID, contract/hash, source revision/dirty state,
+CPU/thread settings, preferences, and timing settings. Setup is a separate
+command and never overlaps measurement. Python cap handoff files use a unique
+temporary directory shared with workers. Publication checks package completion,
+expected keys, script hashes, contract hashes and run IDs before rendering.
 
-## Timing methodology
+Scenario statuses are `passed`, `capped`, `not_implemented`, or `not_run`.
+Job statuses additionally distinguish `failed`, `timed_out`, and
+`not_installed`. Failures block publication. The current runners do not assert
+an `unsupported` status based merely on missing coverage.
 
-| Language | Harness | Statistic |
-|---|---|---|
-| Julia | BenchmarkTools `@benchmarkable`, up to 10 s budget | minimum time, allocations |
-| Python | pyperf (single worker), samples sized to a 10 s budget | minimum per-call time |
-| Mathematica | calibrated loop, timed to a 10 s budget | minimum per-call time |
-
-Every harness gives each scenario the same wall-clock budget (up to ~10 s), in a
-single process, and reports the minimum per-call time. Fast scenarios stop early
-once ~50 samples are collected rather than burning the full budget; only
-scenarios slower than a few hundred ms per call actually run the full 10 s,
-where the extra samples tighten the minimum. Cross-language ratios are still
-order-of-magnitude indicators, not decimal-precise: harness overhead and
-runtime warm-up behavior differ.
-
-## Scenarios
-
-Symbols ω_c, ω_a, g, ω, J, U, g_i, N are symbolic coefficients (numeric in
-OpenFermion, see above). `a†`/`a` are bosonic ladder operators; σ operators
-act on a two-level system in the package's native encoding.
-
-### 1. Jaynes–Cummings model (`jc_*`)
-
-`H_JC = ω_c a†a + ω_a σ⁺σ⁻ + g (a†σ⁻ + a σ⁺)` with the boson and the
-two-level system on distinct Hilbert spaces.
-
-| Key | Operation |
-|---|---|
-| `jc_build` | canonical form of `H_JC` built from scratch |
-| `jc_H2` | canonical form of `H_JC · H_JC` |
-| `jc_heisenberg` | canonical form of `[H_JC, a]` |
-| `jc_nested_d1` … `jc_nested_d6` | `C₀ = σ⁻`, `Cᵢ = canonical([H_JC, Cᵢ₋₁])`; time the full recursion to depth 1, 2, …, 6. The docs table shows depths 2/4/6; all six points feed the scaling figure |
-| `jc_pow_n2` … `jc_pow_n6` | canonical form of `H_JCⁿ` for n = 2, …, 6, built as an eager left fold of n factors `H_JC`. Product-width analog of the nested-commutator depth sweep (n = 2 coincides with `jc_H2`); all five points feed the scaling figure, none appear in the docs table |
-
-### 2. Bosonic normal ordering (`fock_reorder_*`)
-
-| Key | Operation |
-|---|---|
-| `fock_reorder_n2`, `fock_reorder_n4`, …, `fock_reorder_n14` | canonical form of `(a·a†)ⁿ` for n = 2, 4, 6, 8, 10, 12, 14, built as an eager left fold of n factors `a·a†`. The docs table shows n = 4/8; all seven points feed the scaling figure |
-
-### 3. Bose–Hubbard chain (`bose_hubbard_*`, `bh_chain_*`)
-
-Open chain of M modes:
-`H_BH = Σₖ ω a†ₖaₖ + J Σₖ (a†ₖaₖ₊₁ + a†ₖ₊₁aₖ) + (U/2) Σₖ a†ₖa†ₖaₖaₖ`.
-
-| Key | Operation |
-|---|---|
-| `bose_hubbard_build` | canonical form of `H_BH` built from scratch at M = 8 |
-| `bose_hubbard_H2` | canonical form of `H_BH · H_BH` at M = 8 |
-| `bh_chain_M2`, `bh_chain_M4`, `bh_chain_M16`, `bh_chain_M32` | build-cost of `H_BH` at chain length M = 2, 4, 16, 32. Together with `bose_hubbard_build` (M = 8) these form a system-size sweep M = 2, 4, 8, 16, 32 that feeds the scaling figure; only the M = 8 build and H² appear in the docs table |
-
-### 4. Tavis–Cummings symbolic sum (`tavis_cummings_*`)
-
-`H_TC = Σᵢ g_i (a†σ⁻ᵢ + a σ⁺ᵢ)` with a **symbolic** upper bound N
-(only expressible in SQA and QuantumAlgebra).
-
-| Key | Operation |
-|---|---|
-| `tavis_cummings_build` | canonical form of `H_TC` |
-| `tavis_cummings_comm` | canonical form of `[H_TC, σ⁺ⱼσ⁻ⱼ]` for a free index j (forces the i = j / i ≠ j diagonal split) |
-
-### 5. Mean-field expectation value (`meanfield_average`)
-
-| Key | Operation |
-|---|---|
-| `meanfield_average` | symbolic expectation value ⟨H_JC⟩ (SQA `average`, QuantumAlgebra `expval`). Not expressible in SymPy/OpenFermion. sneg's `vev` is a *vacuum* expectation value, a different operation, so sneg is excluded too. |
+The table, version information, PNG/SVG/PDF scaling figures, and relative-time
+overview are generated from one archive. Publishing replaces the marked
+results block in `docs/src/comparison.md`; no manual table copying is needed.
+The overview includes the indexed TC result and excludes the interface row.
+These artifacts are supporting research evidence for JOSS. The paper should
+summarize the contribution and link the report, rather than reproduce code
+examples or the entire benchmark inventory.
