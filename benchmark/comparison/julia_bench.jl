@@ -10,15 +10,18 @@ Usage:
     julia --project=benchmark benchmark/comparison/julia_bench.jl
 """
 
-using BenchmarkTools
-using SecondQuantizedAlgebra
+using BenchmarkTools: @benchmarkable, run, minimum, time, allocs, memory, prettytime
+using SecondQuantizedAlgebra: SecondQuantizedAlgebra, FockSpace, Destroy, NLevelSpace, Transition, ⊗, @variables, commutator, Index, IndexedVariable, IndexedOperator, Σ, average, expand_completeness
 import QuantumAlgebra as QA
-using Symbolics: @variables
 import JSON
 using Dates: today
+using BenchmarkTools: median
+
+QA.auto_normal_form(false)
+QA.use_σpm(false)
 
 const CAP_SECONDS = 30.0
-const RESULTS_DIR = joinpath(@__DIR__, "results")
+const RESULTS_DIR = get(ENV, "SQA_COMPARE_OUTPUT", joinpath(@__DIR__, "results"))
 
 # Eager fold for QA products of n > 2 factors (fairness contract, rule 2).
 qa_eager_prod(factors) = foldl((acc, h) -> QA.normal_form(acc * h), factors)
@@ -46,7 +49,7 @@ function validate_equivalence()
         ),
         (
             "σ⁻σ⁺ + σ⁺σ⁻ = 1",
-            isequal(σgg + σee, σ⁻ * σ⁻' + σ⁻' * σ⁻),
+            iszero(expand_completeness(σ⁻ * σ⁻' + σ⁻' * σ⁻) - 1),
             QA.normal_form(QA.σm() * QA.σp() + QA.σp() * QA.σm()) == QA.normal_form(QA.QuExpr(1)),
         ),
     ]
@@ -70,23 +73,25 @@ function build_scenarios()
     σge = Transition(hjc, :σ, 1, 2, 2)
     σee = Transition(hjc, :σ, 2, 2, 2)
     @variables ω_c ω_a g
-    Hjc_s() = ω_c * a' * a + ω_a * σee + g * (a' * σge + a * σge')
+    adag = a'
+    σeg = σge'
+    Hjc_s() = ω_c * adag * a + ω_a * σee + g * (adag * σge + a * σeg)
     H_s = Hjc_s()
 
     ωcq = QA.Pr"ω_c"; ωaq = QA.Pr"ω_a"; gq = QA.Pr"g"
-    Hjc_q_lazy = ωcq * QA.a'() * QA.a() + ωaq * QA.σp() * QA.σm() +
-        gq * (QA.a'() * QA.σm() + QA.a() * QA.σp())
-    Hjc_q() = QA.normal_form(
-        ωcq * QA.a'() * QA.a() + ωaq * QA.σp() * QA.σm() +
-            gq * (QA.a'() * QA.σm() + QA.a() * QA.σp())
-    )
+    aq_jc = QA.a()
+    adq_jc = QA.a'()
+    smq_jc = QA.σm()
+    spq_jc = QA.σp()
+    eeq_jc = QA.normal_form(spq_jc * smq_jc)
+    Hjc_q() = QA.normal_form(ωcq * adq_jc * aq_jc + ωaq * eeq_jc + gq * (adq_jc * smq_jc + aq_jc * spq_jc))
     H_q = Hjc_q()
 
     push!(scenarios, ("jc_build", Hjc_s, Hjc_q))
-    push!(scenarios, ("jc_H2", () -> H_s * H_s, () -> QA.normal_form(Hjc_q_lazy * Hjc_q_lazy)))
+    push!(scenarios, ("jc_H2", () -> H_s * H_s, () -> QA.normal_form(H_q * H_q)))
     push!(
         scenarios,
-        ("jc_heisenberg", () -> commutator(H_s, a), () -> QA.normal_form(QA.comm(H_q, QA.a()))),
+        ("jc_heisenberg", () -> commutator(H_s, a), () -> QA.normal_form(QA.comm(H_q, aq_jc))),
     )
 
     nested_s(H, op, n) = n == 0 ? op : commutator(H, nested_s(H, op, n - 1))
@@ -97,7 +102,7 @@ function build_scenarios()
             (
                 "jc_nested_d$d",
                 () -> nested_s(H_s, σge, d),
-                () -> nested_q(H_q, QA.σm(), d),
+                () -> nested_q(H_q, smq_jc, d),
             ),
         )
     end
@@ -108,7 +113,7 @@ function build_scenarios()
             (
                 "jc_pow_n$p",
                 () -> foldl(*, fill(H_s, p)),
-                () -> qa_eager_prod(fill(Hjc_q_lazy, p)),
+                () -> qa_eager_prod(fill(H_q, p)),
             ),
         )
     end
@@ -116,13 +121,15 @@ function build_scenarios()
     # 2. Bosonic normal ordering (a·a†)ⁿ.
     hf = FockSpace(:f)
     c = Destroy(hf, :c)
+    factor_s = c * c'
+    factor_q = QA.normal_form(QA.a() * QA.a'())
     for n in (2, 4, 6, 8, 10, 12, 14)
         push!(
             scenarios,
             (
                 "fock_reorder_n$n",
-                () -> foldl(*, fill(c * c', n)),
-                () -> qa_eager_prod(fill(QA.a() * QA.a'(), n)),
+                () -> foldl(*, fill(factor_s, n)),
+                () -> qa_eager_prod(fill(factor_q, n)),
             ),
         )
     end
@@ -137,41 +144,48 @@ function build_scenarios()
         Destroy(reduce(⊗, (FockSpace(Symbol(:f, k)) for k in 1:M)), Symbol(:a, k), k)
             for k in 1:M
     ]
-    bh_build_sqa(as, M) =
-        sum(ω * as[k]' * as[k] for k in 1:M) +
-        J * sum(as[k]' * as[k + 1] + as[k + 1]' * as[k] for k in 1:(M - 1)) +
-        (U / 2) * sum(as[k]' * as[k]' * as[k] * as[k] for k in 1:M)
-    bh_lazy_q(M) =
-        sum(ωq * QA.a'(k) * QA.a(k) for k in 1:M) +
-        sum(Jq * (QA.a'(k) * QA.a(k + 1) + QA.a'(k + 1) * QA.a(k)) for k in 1:(M - 1)) +
-        sum(Uq / 2 * QA.a'(k) * QA.a'(k) * QA.a(k) * QA.a(k) for k in 1:M)
+    bh_build_sqa(as, ads, M) =
+        sum(ω * ads[k] * as[k] for k in 1:M) +
+        J * sum(ads[k] * as[k + 1] + ads[k + 1] * as[k] for k in 1:(M - 1)) +
+        (U / 2) * sum(ads[k] * ads[k] * as[k] * as[k] for k in 1:M)
+    bh_ops_q(M) = [QA.a(k) for k in 1:M]
+    bh_lazy_q(aq, adq, M) =
+        sum(ωq * adq[k] * aq[k] for k in 1:M) +
+        sum(Jq * (adq[k] * aq[k + 1] + adq[k + 1] * aq[k]) for k in 1:(M - 1)) +
+        sum(Uq / 2 * adq[k] * adq[k] * aq[k] * aq[k] for k in 1:M)
 
     for M in (2, 4, 16, 32)
         as = bh_ops_sqa(M)
+        ads = adjoint.(as)
+        aqM = bh_ops_q(M)
+        adqM = adjoint.(aqM)
         push!(
             scenarios,
             (
                 "bh_chain_M$M",
-                () -> bh_build_sqa(as, M),
-                () -> QA.normal_form(bh_lazy_q(M)),
+                () -> bh_build_sqa(as, ads, M),
+                () -> QA.normal_form(bh_lazy_q(aqM, adqM, M)),
             ),
         )
     end
 
     M = 8
     as8 = bh_ops_sqa(M)
-    Hbh_s = bh_build_sqa(as8, M)
-    Hbh_q_lazy = bh_lazy_q(M)
+    ads8 = adjoint.(as8)
+    aq = bh_ops_q(M)
+    adq = adjoint.(aq)
+    Hbh_s = bh_build_sqa(as8, ads8, M)
+    Hbh_q = QA.normal_form(bh_lazy_q(aq, adq, M))
     push!(
         scenarios,
-        ("bose_hubbard_build", () -> bh_build_sqa(as8, M), () -> QA.normal_form(bh_lazy_q(M))),
+        ("bose_hubbard_build", () -> bh_build_sqa(as8, ads8, M), () -> QA.normal_form(bh_lazy_q(aq, adq, M))),
     )
     push!(
         scenarios,
         (
             "bose_hubbard_H2",
             () -> Hbh_s * Hbh_s,
-            () -> QA.normal_form(Hbh_q_lazy * Hbh_q_lazy),
+            () -> QA.normal_form(Hbh_q * Hbh_q),
         ),
     )
 
@@ -184,11 +198,17 @@ function build_scenarios()
     gi = IndexedVariable(:g, i)
     σi(α, β, idx) = IndexedOperator(Transition(htc, :σ, α, β, 2), idx)
 
-    tc_build_s() = Σ(gi * (atc' * σi(1, 2, i) + atc * σi(2, 1, i)), i)
+    atc_dag = atc'
+    sm_i = σi(1, 2, i)
+    sp_i = σi(2, 1, i)
+    population_s = σi(2, 2, j)
+    sm_iq = QA.σm(:i)
+    sp_iq = QA.σp(:i)
+    giq = QA.Pr"g_i"
+    population_q = QA.normal_form(QA.σp(:j) * QA.σm(:j))
+    tc_build_s() = Σ(gi * (atc_dag * sm_i + atc * sp_i), i)
     Htc_s = tc_build_s()
-    tc_build_q() = QA.normal_form(
-        QA.∑(:i, QA.Pr"g_i" * (QA.a'() * QA.σm(:i) + QA.a() * QA.σp(:i)))
-    )
+    tc_build_q() = QA.normal_form(QA.∑(:i, giq * (adq_jc * sm_iq + aq_jc * sp_iq)))
     Htc_q = tc_build_q()
 
     push!(scenarios, ("tavis_cummings_build", tc_build_s, tc_build_q))
@@ -196,14 +216,42 @@ function build_scenarios()
         scenarios,
         (
             "tavis_cummings_comm",
-            () -> commutator(Htc_s, σi(2, 2, j)),
-            () -> QA.normal_form(QA.comm(Htc_q, QA.σp(:j) * QA.σm(:j))),
+            () -> commutator(Htc_s, population_s),
+            () -> QA.normal_form(QA.comm(Htc_q, population_q)),
         ),
     )
 
     # 5. Mean-field expectation value.
     push!(scenarios, ("meanfield_average", () -> average(H_s), () -> QA.expval(H_q)))
 
+    if get(ENV, "SQA_COMPARE_VALIDATE", "true") == "true"
+        stirling(n, k) = k == 0 ? Int(n == 0) : n == 0 ? 0 : k * stirling(n - 1, k) + stirling(n - 1, k - 1)
+        for n in (2, 4, 8, 14)
+            expected_s = sum(stirling(n + 1, k + 1) * c'^k * c^k for k in 0:n)
+            expected_q = QA.normal_form(sum(stirling(n + 1, k + 1) * QA.a'()^k * QA.a()^k for k in 0:n))
+            @assert isequal(foldl(*, fill(c * c', n)), expected_s)
+            @assert qa_eager_prod(fill(QA.normal_form(QA.a() * QA.a'()), n)) == expected_q
+        end
+        @assert isequal(commutator(H_s, a), -ω_c * a - g * σge)
+        @assert QA.normal_form(QA.comm(H_q, QA.a())) == QA.normal_form(-ωcq * QA.a() - gq * QA.σm())
+        for d in (2, 4)
+            expected_s = sum((-1)^k * binomial(d, k) * H_s^(d - k) * σge * H_s^k for k in 0:d)
+            power_q(n) = n == 0 ? QA.QuExpr(1) : qa_eager_prod(fill(H_q, n))
+            expected_q = QA.normal_form(sum((-1)^k * binomial(d, k) * power_q(d - k) * QA.σm() * power_q(k) for k in 0:d))
+            @assert nested_q(H_q, QA.σm(), d) == expected_q
+            @assert isequal(nested_s(H_s, σge, d), expected_s)
+        end
+        @assert isequal(Hbh_s, Hbh_s')
+        @assert Hbh_q == QA.normal_form(Hbh_q')
+        expected_s = -ω * as8[1] - J * as8[2] - U * as8[1]' * as8[1]^2
+        expected_q = QA.normal_form(-ωq * aq[1] - Jq * aq[2] - Uq * aq[1]' * aq[1]^2)
+        @assert isequal(commutator(Hbh_s, as8[1]), expected_s)
+        @assert QA.normal_form(QA.comm(Hbh_q, aq[1])) == expected_q
+        gj = IndexedVariable(:g, j)
+        @assert isequal(commutator(Htc_s, σi(2, 2, j)), gj * (atc' * σi(1, 2, j) - atc * σi(2, 1, j)))
+        @assert QA.normal_form(QA.comm(Htc_q, QA.σp(:j) * QA.σm(:j))) == QA.normal_form(QA.Pr"g_j" * (QA.a'() * QA.σm(:j) - QA.a() * QA.σp(:j)))
+        println(stderr, "Scenario checks passed: exact normal-order coefficients, JC drift/binomial commutators, Bose–Hubbard drift/Hermiticity, indexed TC contraction")
+    end
     return scenarios
 end
 
@@ -222,10 +270,10 @@ function run_side!(results, capped, key, thunk)
     # Up to a 10 s wall-clock budget, but stop early once enough samples are
     # collected (BenchmarkTools' default sample cap): fast scenarios finish in a
     # fraction of a second, expensive ones use the full budget for a tighter min.
-    trial = run(b; seconds = 10, samples = 10_000)
-    m = minimum(trial)
-    results[key] = Dict("time_ns" => time(m), "allocs" => Int(allocs(m)))
-    println(stderr, "  $key: $(BenchmarkTools.prettytime(time(m))) ($(allocs(m)) allocs)")
+    measurement = run(b; seconds = parse(Float64, get(ENV, "SQA_COMPARE_SECONDS", "10")), samples = parse(Int, get(ENV, "SQA_COMPARE_SAMPLES", "10000")))
+    m = minimum(measurement)
+    results[key] = Dict("time_ns" => time(m), "median_ns" => median(measurement.times), "samples_ns" => measurement.times, "allocs" => Int(allocs(m)), "bytes" => memory(m))
+    println(stderr, "  $key: $(prettytime(time(m))) ($(allocs(m)) allocs)")
     return nothing
 end
 
@@ -237,13 +285,21 @@ function write_json(path, package, version, results, capped)
             "language" => "Julia",
             "runtime_version" => string(VERSION),
             "date" => string(today()),
+            "contract" => "canonical-symbolic-v2",
+            "run_id" => get(ENV, "SQA_COMPARE_RUN_ID", "standalone"),
+            "coefficient_domain" => "symbolic",
+            "julia_threads" => Threads.nthreads(),
+            "auto_normal_form" => false,
+            "spin_basis" => "xyz",
+            "validation" => "passed",
         ),
         "results" => results,
         "capped" => capped,
     )
-    open(path, "w") do io
+    open(path * ".tmp", "w") do io
         JSON.print(io, out, 2)
     end
+    mv(path * ".tmp", path; force = true)
     return path
 end
 
@@ -252,6 +308,9 @@ function main()
     validate_equivalence() || error("equivalence checks failed; aborting")
 
     scenarios = build_scenarios()
+    get(ENV, "SQA_COMPARE_VALIDATE_ONLY", "false") == "true" && return nothing
+    selected = split(get(ENV, "SQA_COMPARE_KEYS", ""), ",")
+    isempty(first(selected)) || filter!(sc -> sc[1] in selected, scenarios)
     mkpath(RESULTS_DIR)
 
     for (package, pkgmod, side) in (
