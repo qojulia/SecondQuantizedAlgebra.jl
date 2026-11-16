@@ -41,3 +41,16 @@ coverage/
 
 # Blocking folder with random dev stuff from going to git. 
 dev/
+
+# Generated JOSS paper outputs
+paper/*.pdf
+paper/*.crossref
+paper/*.jats
+paper/*.log
+paper/jats/
+output/pdf/
+
+# Local comparison environments and immutable run archives
+benchmark/comparison/.venv/
+benchmark/comparison/runs/
+benchmark/comparison/__pycache__/
