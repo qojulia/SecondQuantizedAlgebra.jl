@@ -1,140 +1,323 @@
 {
   "capped": {},
   "meta": {
-    "date": "2026-07-21",
+    "auto_normal_form": false,
+    "coefficient_domain": "symbolic",
+    "contract": "canonical-symbolic-v2",
+    "date": "2026-10-26",
+    "julia_threads": 1,
     "language": "Julia",
     "package": "QuantumAlgebra.jl",
-    "runtime_version": "1.12.6",
-    "version": "1.6.0"
+    "run_id": "20261026T091522258607Z",
+    "runtime_version": "1.13.2",
+    "spin_basis": "xyz",
+    "validation": "passed",
+    "version": "1.7.0",
+    "cpu": "AMD Ryzen 5 5600X 6-Core Processor",
+    "source_revision": "49b9cade014c544fef0c9dcd21d87f869868a364",
+    "dirty": true,
+    "statistic": "minimum",
+    "threads": "1",
+    "orchestrator_sha256": "43f23e10d719bf43294fea99eb97baaa0a66bd2eabb5d596ecce236724b311ff",
+    "contract_sha256": "74a7e57afdcc7f47512656f426e7d15f7160525f91500a4c1520c4be719e02b2",
+    "seconds": 10,
+    "keys": [
+      "jc_build",
+      "jc_H2",
+      "jc_heisenberg",
+      "jc_nested_d1",
+      "jc_nested_d2",
+      "jc_nested_d3",
+      "jc_nested_d4",
+      "jc_nested_d5",
+      "jc_nested_d6",
+      "jc_nested_d7",
+      "jc_pow_n2",
+      "jc_pow_n3",
+      "jc_pow_n4",
+      "jc_pow_n5",
+      "jc_pow_n6",
+      "jc_pow_n7",
+      "fock_reorder_n2",
+      "fock_reorder_n4",
+      "fock_reorder_n6",
+      "fock_reorder_n8",
+      "fock_reorder_n10",
+      "fock_reorder_n12",
+      "fock_reorder_n14",
+      "bh_chain_M2",
+      "bh_chain_M4",
+      "bh_chain_M16",
+      "bh_chain_M32",
+      "bose_hubbard_build",
+      "bose_hubbard_H2",
+      "tavis_cummings_build",
+      "tavis_cummings_comm",
+      "meanfield_average"
+    ],
+    "julia_runtime": "julia version 1.13.2",
+    "python_runtime": "3.13.15",
+    "benchmark_script_sha256": "cfe25aa163ce123c4c6decd8e7e7aaeec6247f4c4b832d672af911476f988377",
+    "raw_samples_archive": "reproduction.tar.gz"
   },
   "results": {
     "bh_chain_M16": {
-      "allocs": 8098,
-      "time_ns": 181111.0
+      "allocs": 3616,
+      "bytes": 249248,
+      "median_ns": 79600.0,
+      "time_ns": 74870.0,
+      "sample_count": 10000
     },
     "bh_chain_M2": {
-      "allocs": 812,
-      "time_ns": 14090.0
+      "allocs": 358,
+      "bytes": 20352,
+      "median_ns": 7700.0,
+      "time_ns": 6810.0,
+      "sample_count": 10000
     },
     "bh_chain_M32": {
-      "allocs": 16432,
-      "time_ns": 397751.0
+      "allocs": 7335,
+      "bytes": 561728,
+      "median_ns": 169335.5,
+      "time_ns": 160341.0,
+      "sample_count": 10000
     },
     "bh_chain_M4": {
-      "allocs": 1854,
-      "time_ns": 36341.0
+      "allocs": 826,
+      "bytes": 49280,
+      "median_ns": 18080.0,
+      "time_ns": 16130.0,
+      "sample_count": 10000
     },
     "bose_hubbard_H2": {
-      "allocs": 54714,
-      "time_ns": 1.428355e6
+      "allocs": 30228,
+      "bytes": 1621104,
+      "median_ns": 877457.5,
+      "time_ns": 828203.0,
+      "sample_count": 10000
     },
     "bose_hubbard_build": {
-      "allocs": 3928,
-      "time_ns": 78550.0
+      "allocs": 1753,
+      "bytes": 104416,
+      "median_ns": 37810.0,
+      "time_ns": 34950.0,
+      "sample_count": 10000
     },
     "fock_reorder_n10": {
-      "allocs": 8508,
-      "time_ns": 263051.0
+      "allocs": 5339,
+      "bytes": 268832,
+      "median_ns": 143071.0,
+      "time_ns": 136731.0,
+      "sample_count": 10000
     },
     "fock_reorder_n12": {
-      "allocs": 13181,
-      "time_ns": 442752.0
+      "allocs": 8368,
+      "bytes": 439136,
+      "median_ns": 227861.0,
+      "time_ns": 218821.0,
+      "sample_count": 10000
     },
     "fock_reorder_n14": {
-      "allocs": 19182,
-      "time_ns": 610852.0
+      "allocs": 12224,
+      "bytes": 671312,
+      "median_ns": 340701.0,
+      "time_ns": 328721.0,
+      "sample_count": 10000
     },
     "fock_reorder_n2": {
-      "allocs": 262,
-      "time_ns": 5900.0
+      "allocs": 110,
+      "bytes": 5104,
+      "median_ns": 2700.0,
+      "time_ns": 2560.0,
+      "sample_count": 10000
     },
     "fock_reorder_n4": {
-      "allocs": 1110,
-      "time_ns": 29221.0
+      "allocs": 611,
+      "bytes": 27616,
+      "median_ns": 15710.0,
+      "time_ns": 14610.0,
+      "sample_count": 10000
     },
     "fock_reorder_n6": {
-      "allocs": 2642,
-      "time_ns": 75001.0
+      "allocs": 1559,
+      "bytes": 73328,
+      "median_ns": 41200.0,
+      "time_ns": 38641.0,
+      "sample_count": 10000
     },
     "fock_reorder_n8": {
-      "allocs": 5050,
-      "time_ns": 163951.0
+      "allocs": 3097,
+      "bytes": 150544,
+      "median_ns": 82231.0,
+      "time_ns": 77741.0,
+      "sample_count": 10000
     },
     "jc_H2": {
-      "allocs": 8831,
-      "time_ns": 220801.0
+      "allocs": 2392,
+      "bytes": 113968,
+      "median_ns": 61870.0,
+      "time_ns": 58210.0,
+      "sample_count": 10000
     },
     "jc_build": {
-      "allocs": 921,
-      "time_ns": 19040.0
+      "allocs": 330,
+      "bytes": 15728,
+      "median_ns": 6770.0,
+      "time_ns": 6140.0,
+      "sample_count": 10000
     },
     "jc_heisenberg": {
-      "allocs": 856,
-      "time_ns": 20900.0
+      "allocs": 130,
+      "bytes": 7600,
+      "median_ns": 2940.0,
+      "time_ns": 2740.0,
+      "sample_count": 10000
     },
     "jc_nested_d1": {
-      "allocs": 1785,
-      "time_ns": 42470.0
+      "allocs": 498,
+      "bytes": 30672,
+      "median_ns": 12050.0,
+      "time_ns": 10820.0,
+      "sample_count": 10000
     },
     "jc_nested_d2": {
-      "allocs": 4959,
-      "time_ns": 126820.0
+      "allocs": 1535,
+      "bytes": 93264,
+      "median_ns": 39820.0,
+      "time_ns": 37280.0,
+      "sample_count": 10000
     },
     "jc_nested_d3": {
-      "allocs": 17197,
-      "time_ns": 465801.0
+      "allocs": 5515,
+      "bytes": 344720,
+      "median_ns": 148830.0,
+      "time_ns": 141861.0,
+      "sample_count": 10000
     },
     "jc_nested_d4": {
-      "allocs": 40315,
-      "time_ns": 1.166284e6
+      "allocs": 12955,
+      "bytes": 814992,
+      "median_ns": 367826.0,
+      "time_ns": 351591.0,
+      "sample_count": 10000
     },
     "jc_nested_d5": {
-      "allocs": 94849,
-      "time_ns": 2.834861e6
+      "allocs": 30949,
+      "bytes": 1996304,
+      "median_ns": 931543.0,
+      "time_ns": 894263.0,
+      "sample_count": 9563
     },
     "jc_nested_d6": {
-      "allocs": 177964,
-      "time_ns": 5.690481e6
+      "allocs": 58028,
+      "bytes": 3787328,
+      "median_ns": 1.803206e6,
+      "time_ns": 1.729355e6,
+      "sample_count": 4959
     },
     "jc_nested_d7": {
-      "allocs": 335052,
-      "time_ns": 1.077233e7
+      "allocs": 109914,
+      "bytes": 7323248,
+      "median_ns": 3.523366e6,
+      "time_ns": 3.397851e6,
+      "sample_count": 2562
     },
     "jc_pow_n2": {
-      "allocs": 8832,
-      "time_ns": 216960.0
+      "allocs": 2393,
+      "bytes": 114016,
+      "median_ns": 62280.0,
+      "time_ns": 57570.0,
+      "sample_count": 10000
     },
     "jc_pow_n3": {
-      "allocs": 28850,
-      "time_ns": 765983.0
+      "allocs": 10379,
+      "bytes": 491808,
+      "median_ns": 282601.0,
+      "time_ns": 265271.0,
+      "sample_count": 10000
     },
     "jc_pow_n4": {
-      "allocs": 83970,
-      "time_ns": 2.384479e6
+      "allocs": 32131,
+      "bytes": 1553856,
+      "median_ns": 953328.5,
+      "time_ns": 904323.0,
+      "sample_count": 9416
     },
     "jc_pow_n5": {
-      "allocs": 196808,
-      "time_ns": 6.373504e6
+      "allocs": 74717,
+      "bytes": 3789496,
+      "median_ns": 2.412338e6,
+      "time_ns": 2.253568e6,
+      "sample_count": 3704
     },
     "jc_pow_n6": {
-      "allocs": 408062,
-      "time_ns": 1.3804451e7
+      "allocs": 153611,
+      "bytes": 7905296,
+      "median_ns": 5.2872375e6,
+      "time_ns": 4.890086e6,
+      "sample_count": 1656
     },
     "jc_pow_n7": {
-      "allocs": 758090,
-      "time_ns": 2.7402032e7
+      "allocs": 280278,
+      "bytes": 14611144,
+      "median_ns": 9.789123e6,
+      "time_ns": 9.178661e6,
+      "sample_count": 919
     },
     "meanfield_average": {
-      "allocs": 81,
-      "time_ns": 1360.0
+      "allocs": 93,
+      "bytes": 3744,
+      "median_ns": 1270.0,
+      "time_ns": 1170.0,
+      "sample_count": 10000
     },
     "tavis_cummings_build": {
-      "allocs": 679,
-      "time_ns": 11070.0
+      "allocs": 287,
+      "bytes": 14880,
+      "median_ns": 5960.0,
+      "time_ns": 5340.0,
+      "sample_count": 10000
     },
     "tavis_cummings_comm": {
-      "allocs": 9264,
-      "time_ns": 354721.0
+      "allocs": 338,
+      "bytes": 22048,
+      "median_ns": 7250.0,
+      "time_ns": 6490.0,
+      "sample_count": 10000
     }
+  },
+  "statuses": {
+    "bh_chain_M16": "passed",
+    "bh_chain_M2": "passed",
+    "bh_chain_M32": "passed",
+    "bh_chain_M4": "passed",
+    "bose_hubbard_H2": "passed",
+    "bose_hubbard_build": "passed",
+    "fock_reorder_n10": "passed",
+    "fock_reorder_n12": "passed",
+    "fock_reorder_n14": "passed",
+    "fock_reorder_n2": "passed",
+    "fock_reorder_n4": "passed",
+    "fock_reorder_n6": "passed",
+    "fock_reorder_n8": "passed",
+    "jc_H2": "passed",
+    "jc_build": "passed",
+    "jc_heisenberg": "passed",
+    "jc_nested_d1": "passed",
+    "jc_nested_d2": "passed",
+    "jc_nested_d3": "passed",
+    "jc_nested_d4": "passed",
+    "jc_nested_d5": "passed",
+    "jc_nested_d6": "passed",
+    "jc_nested_d7": "passed",
+    "jc_pow_n2": "passed",
+    "jc_pow_n3": "passed",
+    "jc_pow_n4": "passed",
+    "jc_pow_n5": "passed",
+    "jc_pow_n6": "passed",
+    "jc_pow_n7": "passed",
+    "meanfield_average": "passed",
+    "tavis_cummings_build": "passed",
+    "tavis_cummings_comm": "passed"
   }
 }

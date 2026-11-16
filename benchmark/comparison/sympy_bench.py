@@ -18,6 +18,7 @@ Usage:
 """
 
 import datetime
+from comparison_support import selected, save_result, validate_scenarios
 import json
 import os
 import platform
@@ -90,8 +91,11 @@ def build_scenarios():
     sp, sm = SigmaPlus(), SigmaMinus()
     wc, wa, g = symbols("omega_c omega_a g", real=True)
 
+    ad = Dagger(a)
+    excited = canon(sp * sm)
+
     def jc_build():
-        return canon(wc * Dagger(a) * a + wa * sp * sm + g * (Dagger(a) * sm + a * sp))
+        return canon(wc * ad * a + wa * excited + g * (ad * sm + a * sp))
 
     H = jc_build()
     scenarios.append(("jc_build", jc_build))
@@ -117,10 +121,12 @@ def build_scenarios():
         scenarios.append((f"jc_pow_n{p}", lambda p=p: jc_pow(p)))
 
     # 2. Bosonic normal ordering (a·a†)ⁿ, eager left fold.
+    factor = canon(a * Dagger(a))
+
     def fock_reorder(n):
-        acc = canon(a * Dagger(a))
+        acc = factor
         for _ in range(n - 1):
-            acc = canon(acc * (a * Dagger(a)))
+            acc = canon(acc * factor)
         return acc
 
     for n in (2, 4, 6, 8, 10, 12, 14):
@@ -131,17 +137,22 @@ def build_scenarios():
     # (build + H²) feeds the docs table.
     w, J, U = symbols("omega J U", real=True)
 
+    mode_ops = {M: [BosonOp(f"a{k}") for k in range(M)] for M in (2, 4, 8, 16, 32)}
+
+    mode_adj = {M: [Dagger(a) for a in ops] for M, ops in mode_ops.items()}
+
     def bh_build_M(M):
-        ops = [BosonOp(f"a{k}") for k in range(M)]
-        H = sum(w * Dagger(ops[k]) * ops[k] for k in range(M))
+        ops = mode_ops[M]
+        adj = mode_adj[M]
+        H = sum(w * adj[k] * ops[k] for k in range(M))
         H += J * sum(
-            Dagger(ops[k]) * ops[k + 1] + Dagger(ops[k + 1]) * ops[k]
+            adj[k] * ops[k + 1] + adj[k + 1] * ops[k]
             for k in range(M - 1)
         )
         H += (
             U
             * Rational(1, 2)
-            * sum(Dagger(ops[k]) * Dagger(ops[k]) * ops[k] * ops[k] for k in range(M))
+            * sum(adj[k] * adj[k] * ops[k] * ops[k] for k in range(M))
         )
         return canon(H)
 
@@ -164,7 +175,7 @@ def build_scenarios():
 # scenarios stop early (~MAX_VALUES x MIN_TIME) instead of burning the full
 # budget; only scenarios slower than BUDGET_SECONDS / MAX_VALUES per call use it
 # all.
-BUDGET_SECONDS = 10.0
+BUDGET_SECONDS = float(os.environ.get("SQA_COMPARE_SECONDS", "10"))
 MIN_TIME = 0.1  # pyperf per-value batch floor (seconds)
 MAX_VALUES = 50  # early-stop sample cap for fast scenarios (~pyperf's default total)
 
@@ -181,15 +192,21 @@ def _single_trial(thunk):
 
 
 def _capfile():
-    return os.path.join(tempfile.gettempdir(), "sqa_capped_sympy.json")
+    return os.path.join(os.environ.get("SQA_COMPARE_TEMP", tempfile.gettempdir()), "sqa_capped_sympy.json")
 
 
 def main():
+    if os.environ.get("SQA_COMPARE_VALIDATE_ONLY") == "true":
+        if not validate_equivalence():
+            raise SystemExit("primitive checks failed")
+        validate_scenarios(sys.modules[__name__], build_scenarios())
+        return
     runner = pyperf.Runner(processes=1, warmups=1, min_time=MIN_TIME)
     runner.parse_args()
+    runner.args.inherit_environ = list(set((runner.args.inherit_environ or []) + [key for key in os.environ if key.startswith("SQA_COMPARE_")]))
     is_worker = bool(runner.args.worker)
 
-    scenarios = build_scenarios()
+    scenarios = selected(build_scenarios())
 
     # The manager decides the >30 s cap and the per-scenario value count (both
     # from one quick timed call per scenario) and hands the capped set to
@@ -200,6 +217,7 @@ def main():
         print("Known-answer equivalence checks:", file=sys.stderr)
         if not validate_equivalence():
             raise SystemExit("equivalence checks failed; aborting")
+        validate_scenarios(sys.modules[__name__], build_scenarios())
         capped, nvalues = {}, {}
         for key, thunk in scenarios:
             trial = _single_trial(thunk)
@@ -227,7 +245,7 @@ def main():
         if not is_worker and bench is not None:
             values = bench.get_values()
             if values:
-                results[key] = {"time_ns": min(values) * 1e9}
+                results[key] = {"time_ns": min(values) * 1e9, "samples_ns": [v * 1e9 for v in values]}
 
     if is_worker:
         return
@@ -253,11 +271,7 @@ def main():
         "results": results,
         "capped": capped,
     }
-    outdir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "results")
-    os.makedirs(outdir, exist_ok=True)
-    path = os.path.join(outdir, "sympy.json")
-    with open(path, "w") as f:
-        json.dump(out, f, indent=2)
+    path = save_result("sympy", out, __file__)
     print(f"wrote {path}", file=sys.stderr)
 
 
