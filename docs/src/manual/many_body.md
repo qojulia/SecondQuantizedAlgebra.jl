@@ -150,7 +150,7 @@ constraint_pairs
 
 ## Explicit sites
 
-An index treats all of its sites alike. A lattice with nearest-neighbour couplings, open boundaries or a definite number of sites is written instead with one subsystem per site, as in the driven Bose–Hubbard chain of ``M`` coupled cavities
+An index treats all of its sites alike. A lattice with nearest-neighbor couplings, open boundaries or a definite number of sites is written instead with one subsystem per site, as in the driven Bose–Hubbard chain of ``M`` coupled cavities
 
 ```math
 H = \sum_{k=1}^{M} \left[ -\Delta\, a_k^\dagger a_k + \frac{U}{2}\, a_k^\dagger a_k^\dagger a_k a_k + \Omega\,(a_k + a_k^\dagger) \right] - J \sum_{k=1}^{M-1} \left( a_k^\dagger a_{k+1} + a_{k+1}^\dagger a_k \right).

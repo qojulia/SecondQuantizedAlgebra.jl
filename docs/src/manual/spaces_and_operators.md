@@ -23,7 +23,7 @@ Depth = 2:3
 
 ## Hilbert spaces
 
-Each subsystem gets its own space, labelled by a name. The atom lists its levels by name, which then serve to address its transitions.
+Each subsystem gets its own space, labeled by a name. The atom lists its levels by name, which then serve to address its transitions.
 
 ```@example hybrid
 using SecondQuantizedAlgebra

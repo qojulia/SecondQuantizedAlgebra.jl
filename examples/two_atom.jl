@@ -10,8 +10,8 @@
 
 # ## Setup
 #
-# A single two-level Hilbert space, populated by two atoms via abstract
-# indices ``i`` and ``j``.  The convention `(:g, :e)` lets us name
+# Both atoms share a single two-level Hilbert space and are told apart by the
+# abstract indices ``i`` and ``j``.  The convention `(:g, :e)` lets us name
 # transitions by symbol rather than by integer level.
 
 using SecondQuantizedAlgebra
@@ -40,7 +40,7 @@ j = Index(ha, :j, 2, ha)
 # Building it with free indices leaves the site relationship `i = j` vs
 # `i ≠ j` ambiguous.  Calling [`assume_distinct_index`](@ref) records the
 # pair `(i, j)` as a permanent inequality constraint and triggers
-# re-canonicalisation, including completeness expansion of any ground-state
+# re-canonicalization, including completeness expansion of any ground-state
 # projectors that emerge from the new constraint:
 
 H = ω * (σee(i) + σee(j)) + J * (σeg(i) * σge(j) + σeg(j) * σge(i))
@@ -63,7 +63,7 @@ H = assume_distinct_index(H, [(i, j)])
 S_bright = assume_distinct_index(σeg(i) + σeg(j), [(i, j)])
 S_dark = assume_distinct_index(σeg(i) - σeg(j), [(i, j)])
 
-# ## Diagonalising the single-excitation manifold
+# ## Diagonalizing the single-excitation manifold
 #
 # Acting on the ground state ``|gg\rangle`` we have ``H\,|gg\rangle = 0``,
 # so ``H\,S_\pm^\dagger\,|gg\rangle = [H, S_\pm^\dagger]\,|gg\rangle``.  Each
@@ -111,15 +111,15 @@ expand_completeness(commutator(H, S_dark))
 
 commutator(assume_distinct_index(σee(i) + σee(j), [(i, j)]), H)
 
-# So the four-dimensional Hilbert space (``2\times 2`` atoms = ``\{|gg\rangle,
-# |eg\rangle, |ge\rangle, |ee\rangle\}``) decomposes into the
+# So the four-dimensional Hilbert space of the two atoms, ``\{|gg\rangle,
+# |eg\rangle, |ge\rangle, |ee\rangle\}``, decomposes into the
 # zero-excitation singlet, the dipole-split single-excitation doublet
-# ``\{|+\rangle, |-\rangle\}`` we just diagonalised, and the
+# ``\{|+\rangle, |-\rangle\}`` we just diagonalized, and the
 # two-excitation singlet ``|ee\rangle`` at energy ``2\omega``.
 
 # ## Numerical verification
 #
-# We diagonalise the 4-dimensional Hilbert space and check the spectrum
+# We diagonalize the 4-dimensional Hilbert space and check the spectrum
 # directly:
 
 using QuantumOpticsBase, LinearAlgebra
@@ -166,7 +166,7 @@ println(
 # ```
 #
 # the atom-field coupling appears only through the **collective lowering**
-# ``S_- = \sigma_i^{ge} + \sigma_j^{ge}`` and its hermitian conjugate.  The
+# ``S_- = \sigma_i^{ge} + \sigma_j^{ge}`` and its Hermitian conjugate.  The
 # dark raising operator ``S_-^\dagger`` is orthogonal to ``S_+`` and the
 # package confirms it directly: the cavity field commutes with the dark
 # operator:
@@ -189,14 +189,14 @@ S_dark_c = assume_distinct_index(σeg_c(ic) - σeg_c(jc), [(ic, jc)])
 commutator(H_int, S_dark_c)
 
 # The output is supported only on two-excitation operators of the form
-# ``\sigma^{ee}\sigma^{eg}`` that **annihilate the ground state**.  So
-# acting on ``|0_c, gg\rangle``, ``[H_\mathrm{int}, S_-^\dagger]`` returns
+# ``\sigma^{ee}\sigma^{eg}`` that **annihilate the ground state**.  Acting
+# on ``|0_c, gg\rangle``, ``[H_\mathrm{int}, S_-^\dagger]`` therefore returns
 # zero, so the dark single-excitation state is invisible to the cavity.
 #
-# The bright state, by contrast, hybridises with the cavity photon to form
+# The bright state, by contrast, hybridizes with the cavity photon to form
 # polaritons.  In the single-excitation basis
 # ``\{|1_c, gg\rangle, |0_c, +\rangle, |0_c, -\rangle\}``, the package's
-# canonical form factorises into a ``2\times 2`` polariton block and a
+# canonical form factorizes into a ``2\times 2`` polariton block and a
 # decoupled dark eigenvalue.  At resonance
 # ``\omega_0 = \omega + J`` the polariton block is
 # ``\begin{pmatrix}\omega_0 & g\sqrt{2}\\ g\sqrt{2} & \omega + J\end{pmatrix}``,
@@ -240,7 +240,7 @@ println(
 # would leave only the ordinary Jaynes-Cummings ``g`` splitting; the
 # ``\sqrt{2}`` is the collective enhancement.
 
-# ## Generalising to N atoms with `Σ`
+# ## Generalizing to N atoms with `Σ`
 #
 # Stepping up to ``N`` identical atoms uses the same operator
 # constructions, but now with a *symbolic* range ``N`` and explicit
@@ -320,6 +320,6 @@ end
 # form.  Doubling the atom count gives roughly a ``\sqrt{2}`` increase in
 # the bright-state cavity coupling, invisible to the dark manifold, which
 # remains at ``\omega - J`` regardless of how many atoms join.  All of
-# this came from the same indexed `NLevelSpace`, a single `\Sigma` for the
-# atom-cavity coupling, and a doubly-nested `\Sigma` (with `i \neq j`) for
-# the dipole-dipole term, with no per-atom Hilbert-space book-keeping.
+# this came from the same indexed `NLevelSpace`, a single ``\Sigma`` for the
+# atom-cavity coupling, and a doubly nested ``\Sigma`` (with ``i \neq j``) for
+# the dipole-dipole term, with no per-atom Hilbert-space bookkeeping.

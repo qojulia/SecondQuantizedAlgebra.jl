@@ -1,9 +1,9 @@
 # # Schrieffer-Wolff Transformation
 #
 # The [Schrieffer-Wolff transformation](https://en.wikipedia.org/wiki/Schrieffer%E2%80%93Wolff_transformation)
-# is a perturbative unitary transformation that block-diagonalises a Hamiltonian
+# is a perturbative unitary transformation that block-diagonalizes a Hamiltonian
 # order by order in a small parameter.  It is widely used to derive effective
-# low-energy Hamiltonians --- for example the **dispersive Hamiltonian** of
+# low-energy Hamiltonians, for example the **dispersive Hamiltonian** of
 # circuit QED from the Jaynes-Cummings model.
 #
 # Given a Hamiltonian ``H = H_0 + V`` split into a solvable diagonal part ``H_0``
@@ -105,7 +105,7 @@ B = commutator(S1, commutator(S1, V))
 # \bigr).
 # ```
 #
-# Note how ``S_2`` contains terms with **three** ladder operators --- these
+# Note how ``S_2`` contains terms with **three** ladder operators; these
 # generate photon-number-dependent corrections.
 
 S2 = ((4 // 3) * g^3 / Δ^3) * (a' * σge - a * σeg + a' * a' * a * σge - a' * a * a * σeg)
@@ -147,7 +147,7 @@ H_eff_4 = H_eff + comm_S2_V // 2 - C // 24
 # eigenvalues using [`numeric_average`](@ref) and [`substitute`](@ref).
 # For each Fock state ``|n, g\rangle`` we compute the expectation value
 # ``\langle n,g| H_{\mathrm{eff}} |n,g\rangle``.  Since the Schrieffer-Wolff
-# transformation block-diagonalises the Hamiltonian, this directly gives the
+# transformation block-diagonalizes the Hamiltonian, this directly gives the
 # dressed-state energy at each order.
 
 using QuantumOpticsBase, Plots, LaTeXStrings

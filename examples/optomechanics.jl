@@ -81,7 +81,7 @@ H = ω₀ * a' * a + ωₘ * b' * b + g * a' * a * (b + b')
 # where the first identity holds because ``a^\dagger a`` is the generator
 # of the transformation and commutes with ``a`` up to scalars that cancel
 # (cf. the Hadamard series).  Substitute these into ``H`` and the package
-# canonicalises the result:
+# canonicalizes the result:
 
 α = g / ωₘ
 b_tilde = b - α * a' * a
@@ -102,7 +102,7 @@ H_pol = ω₀ * a' * a + ωₘ * bd_tilde * b_tilde + g * a' * a * (b_tilde + bd
 # \;}
 # ```
 #
-# The optomechanical coupling has been **eliminated entirely** in favour of
+# The optomechanical coupling has been **eliminated entirely** in favor of
 # a Kerr nonlinearity of strength ``K = g^2/\omega_m`` on the cavity mode.
 # Photons attract each other with energy ``-K\,n(n-1)``, a self-Kerr
 # anharmonicity that is now routinely measured in superconducting and
@@ -111,7 +111,7 @@ H_pol = ω₀ * a' * a + ωₘ * bd_tilde * b_tilde + g * a' * a * (b_tilde + bd
 
 # ## Numerical verification
 #
-# We diagonalise both the original ``H`` and the Kerr-only effective
+# We diagonalize both the original ``H`` and the Kerr-only effective
 # Hamiltonian
 # ``H_\mathrm{Kerr} = \omega_0\,a^\dagger a + \omega_m\,b^\dagger b - (g^2/\omega_m)\,(a^\dagger a)^2``
 # and check that they share the same spectrum.
@@ -152,10 +152,10 @@ fig
 # ``E_{n,m}^\mathrm{eff} = \omega_0 n - (g^2/\omega_m)\,n^2 + \omega_m m``,
 # visible as bundles of ``\omega_m``-spaced mechanical phonons attached to
 # each Kerr-shifted cavity level.
-# Markers: exact diagonalisation of the full radiation-pressure
+# Markers: exact diagonalization of the full radiation-pressure
 # Hamiltonian.  They agree to truncation error across the whole coupling
 # range, since the polaron substitution is exact and the package's eager
-# canonicalisation reproduced the textbook derivation in three operator
+# canonicalization reproduced the textbook derivation in three operator
 # substitutions.
 
 # ## Membrane-in-the-middle: quadratic coupling
@@ -176,7 +176,7 @@ fig
 @variables g₂
 H_mim = ω₀ * a' * a + ωₘ * b' * b + g₂ * a' * a * (b + b')^2
 
-# Three distinct effects fall out: a constant cavity-frequency renormalisation
+# Three distinct effects fall out: a constant cavity-frequency renormalization
 # ``+g_2``, a **photon-number-dependent mechanical frequency** ``2 g_2\,
 # a^\dagger a`` accompanying ``b^\dagger b``, and a **photon-number-dependent
 # two-phonon drive** ``g_2\, a^\dagger a\,(b^2 + b^{\dagger 2})``.  Restricting
@@ -209,7 +209,7 @@ H_mim = ω₀ * a' * a + ωₘ * b' * b + g₂ * a' * a * (b + b')^2
 # E(n, m) = (\omega_0 + g_2)\,n + \varepsilon(n)\,m + \tfrac{1}{2}\bigl[\varepsilon(n) - \omega_m - 2 g_2 n\bigr].
 # ```
 #
-# We verify by exact diagonalisation:
+# We verify by exact diagonalization:
 
 ω₀_val2, ωm_val2, g2_val = 2.0, 1.0, 0.1
 b_total2 = FockBasis(4) ⊗ FockBasis(40)

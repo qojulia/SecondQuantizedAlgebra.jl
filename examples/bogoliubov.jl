@@ -8,8 +8,8 @@
 # ```
 #
 # arises whenever a quadratic bosonic system mixes particles and holes: in
-# parametric down-conversion, in the Bogoliubov-de-Gennes treatment of weakly
-# interacting Bose-Einstein condensates, and in the linearised dynamics of any
+# parametric down-conversion, in the Bogoliubov–de Gennes treatment of weakly
+# interacting Bose-Einstein condensates, and in the linearized dynamics of any
 # optomechanical or polariton system above its Hopf bifurcation.  A canonical
 # transformation
 #
@@ -21,7 +21,7 @@
 # In this example we use SecondQuantizedAlgebra.jl to drive this story end to
 # end without ever resorting to a pen-and-paper expansion: symbolic
 # commutators, Heisenberg dynamics, vacuum expectation values, EPR squeezing,
-# and Weyl (Wigner) symbol.
+# and the Weyl (Wigner) symbol.
 
 # ## Setup
 
@@ -53,7 +53,7 @@ commutator(c, c')
 commutator(c, d), commutator(c, d')
 
 # Try the ansatz ``H = \varepsilon\,(c^\dagger c + d^\dagger d) + \text{const}``.
-# The package canonicalises ``c^\dagger c + d^\dagger d`` eagerly, returning a
+# The package canonicalizes ``c^\dagger c + d^\dagger d`` eagerly, returning a
 # polynomial in the original ``a, b``:
 
 c' * c + d' * d
@@ -78,7 +78,7 @@ c' * c + d' * d
 # ## Heisenberg dynamics: the BdG matrix
 #
 # An equivalent route is to derive the Heisenberg equations of motion and
-# diagonalise the resulting linear system.  The commutator structure pairs
+# diagonalize the resulting linear system.  The commutator structure pairs
 # ``a`` with ``b^\dagger`` and ``b`` with ``a^\dagger``:
 
 eq_a = -1im * commutator(a, H)
@@ -86,7 +86,7 @@ eq_bd = -1im * commutator(b', H)
 
 # Reading off the coefficients, ``\dot a = -i\omega\,a - i\kappa\,b^\dagger``
 # and ``\dot b^\dagger = +i\kappa\,a + i\omega\,b^\dagger``, the closed
-# ``(a, b^\dagger)`` block evolves under the **Bogoliubov-de-Gennes matrix**
+# ``(a, b^\dagger)`` block evolves under the **Bogoliubov–de Gennes matrix**
 #
 # ```math
 # M = \begin{pmatrix} -i\omega & -i\kappa \\ \phantom{-}i\kappa & \phantom{-}i\omega \end{pmatrix}.
@@ -109,7 +109,7 @@ tr(M), simplify(det(M))
 # ## Vacuum expectations from the inverse transformation
 #
 # A different trick (also handled fully symbolically) gives the vacuum
-# correlation functions of the Bogoliubov ground state without diagonalising
+# correlation functions of the Bogoliubov ground state without diagonalizing
 # anything numerically.  Treat the Bogoliubov modes as the fundamental Fock
 # operators, and rebuild the *physical* operators on top of them via the
 # inverse transformation ``a = u c - v d^\dagger``, ``b = u d - v c^\dagger``.
@@ -143,7 +143,7 @@ a_phys * b_phys
 
 # ## EPR quadratures and two-mode squeezing
 #
-# Define unnormalised quadratures ``q_j = a_j + a_j^\dagger`` and
+# Define unnormalized quadratures ``q_j = a_j + a_j^\dagger`` and
 # ``p_j = -i(a_j - a_j^\dagger)`` (single-mode vacuum variance is ``1``).  The
 # symmetric and anti-symmetric EPR combinations are
 # ``Q_\pm = (q_a \pm q_b)/\sqrt{2}`` and ``P_\pm = (p_a \pm p_b)/\sqrt{2}``.
@@ -164,7 +164,7 @@ Q_plus * Q_plus
 P_plus * P_plus
 
 # The constant term of ``Q_+^2`` is ``2(u-v)^2`` and of ``P_+^2`` is
-# ``2(u+v)^2``.  Dividing by the omitted normalisation factor ``2``:
+# ``2(u+v)^2``.  Dividing by the omitted normalization factor ``2``:
 #
 # ```math
 # \mathrm{Var}(Q_+) = (u - v)^2 = e^{-2 r},
@@ -203,7 +203,7 @@ normal_to_symmetric(H)
 # ```
 #
 # whose constant ``-\omega`` is Bogoliubov-invariant.  Exactly the same shift
-# appears on the diagonalised form ``H = \varepsilon(c^\dagger c +
+# appears on the diagonalized form ``H = \varepsilon(c^\dagger c +
 # d^\dagger d) - 2\varepsilon v^2``:
 
 @variables ε
@@ -217,7 +217,7 @@ normal_to_symmetric(H_diag)
 
 # ## Numerical verification
 #
-# We diagonalise ``H`` in a truncated Fock space and compare both the
+# We diagonalize ``H`` in a truncated Fock space and compare both the
 # ground-state energy and the photon number ``\langle a^\dagger a\rangle`` to
 # the closed-form predictions.
 
@@ -247,11 +247,11 @@ for κ_val in κs
 end
 
 fig = plot(; layout = (1, 2), size = (820, 360), margin = 5Plots.mm)
-scatter!(fig[1], collect(κs) ./ ω_val, E0_num; label = "diagonalisation", marker = :circle)
+scatter!(fig[1], collect(κs) ./ ω_val, E0_num; label = "diagonalization", marker = :circle)
 plot!(fig[1], collect(κs) ./ ω_val, E0_th.(κs); label = L"\sqrt{\omega^2-\kappa^2}-\omega", linestyle = :dash)
 plot!(fig[1]; xlabel = L"\kappa / \omega", ylabel = L"E_0 / \omega", title = "Ground-state energy", legend = :bottomleft)
 
-scatter!(fig[2], collect(κs) ./ ω_val, n_num; label = "diagonalisation", marker = :diamond)
+scatter!(fig[2], collect(κs) ./ ω_val, n_num; label = "diagonalization", marker = :diamond)
 plot!(fig[2], collect(κs) ./ ω_val, n_th.(κs); label = L"v^2", linestyle = :dash)
 plot!(fig[2]; xlabel = L"\kappa / \omega", ylabel = L"\langle a^\dagger a \rangle", title = L"\mathrm{Photon\ number} = v^2", legend = :topleft)
 fig
@@ -259,4 +259,4 @@ fig
 # Both observables match the closed-form predictions to truncation error: the
 # entire Bogoliubov story (dispersion, vacuum correlations, EPR squeezing,
 # and zero-point energy) emerged from a handful of symbolic manipulations
-# carried out by the eager canonicalisation built into the package.
+# carried out by the eager canonicalization built into the package.
