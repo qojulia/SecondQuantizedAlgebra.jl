@@ -66,11 +66,12 @@ S_dark = assume_distinct_index(σeg(i) - σeg(j), [(i, j)])
 #
 # Acting on the ground state ``|gg\rangle`` we have ``H\,|gg\rangle = 0``,
 # so ``H\,S_\pm^\dagger\,|gg\rangle = [H, S_\pm^\dagger]\,|gg\rangle``.  Each
-# commutator is a single line in the package, but the raw form mixes
-# single-excitation and two-excitation operators because ``\sigma^{ee}`` and
-# ``\sigma^{eg}`` don't quite commute even at distinct sites.
-# [`expand_completeness`](@ref) projects to the ``\{\sigma^{ij} : (i,j) \neq
-# (g,g)\} \cup \{1\}`` basis and the structure becomes clear:
+# commutator is a single line in the package.  Operators on distinct sites
+# commute, but the on-site commutator ``[\sigma_j^{ge}, \sigma_j^{eg}]
+# = \sigma_j^{gg} - \sigma_j^{ee}`` leaves a projector on the partner site, so
+# the raw form mixes single-excitation and two-excitation operators.
+# [`expand_completeness`](@ref) rewrites ``\sigma^{gg} = 1 - \sigma^{ee}`` and
+# the structure becomes clear:
 
 expand_completeness(commutator(H, S_bright))
 
@@ -97,8 +98,9 @@ expand_completeness(commutator(H, S_dark))
 #
 # The **bright** state ``S_+^\dagger\,|gg\rangle`` sits at ``\omega + J`` and
 # carries the full collective dipole moment, so when the atoms are coupled to a
-# common radiation continuum, this state decays at rate ``2\Gamma``
-# (superradiance).  The **dark** state ``S_-^\dagger\,|gg\rangle`` sits at
+# common radiation continuum, this state decays at rate ``2\Gamma``, twice the
+# single-atom decay rate ``\Gamma`` (superradiance).  The **dark** state
+# ``S_-^\dagger\,|gg\rangle`` sits at
 # ``\omega - J`` and has zero collective dipole moment, so it is decoupled
 # from the symmetric radiation mode and is effectively immortal
 # (subradiance).
@@ -112,9 +114,9 @@ commutator(assume_distinct_index(σee(i) + σee(j), [(i, j)]), H)
 
 # So the four-dimensional Hilbert space of the two atoms, ``\{|gg\rangle,
 # |eg\rangle, |ge\rangle, |ee\rangle\}``, decomposes into the
-# zero-excitation singlet, the dipole-split single-excitation doublet
+# ground state ``|gg\rangle``, the dipole-split single-excitation doublet
 # ``\{|+\rangle, |-\rangle\}`` we just diagonalized, and the
-# two-excitation singlet ``|ee\rangle`` at energy ``2\omega``.
+# doubly excited state ``|ee\rangle`` at energy ``2\omega``.
 
 # ## Numerical verification
 #
@@ -146,7 +148,7 @@ println(
 )
 
 # The four eigenvalues come out as ``\{0, \omega - J, \omega + J,
-# 2\omega\}`` (the singlet, dark, bright, and doubly-excited levels), in
+# 2\omega\}`` (the ground, dark, bright, and doubly-excited levels), in
 # exact agreement with the symbolic derivation.  All four sat in a
 # four-dimensional Hilbert space derived from two indexed atoms with no
 # physical Hilbert-space duplication: the same `NLevelSpace` carries both
@@ -165,10 +167,10 @@ println(
 # ```
 #
 # the atom-field coupling appears only through the **collective lowering**
-# ``S_- = \sigma_i^{ge} + \sigma_j^{ge}`` and its Hermitian conjugate.  The
-# dark raising operator ``S_-^\dagger`` is orthogonal to ``S_+`` and the
-# package confirms it directly: the cavity field commutes with the dark
-# operator:
+# operator ``\sigma_i^{ge} + \sigma_j^{ge} = \sqrt{2}\,S_+`` and its Hermitian
+# conjugate.  The antisymmetric combination ``S_-`` does not appear, so the
+# dark state should decouple from the cavity.  The package confirms it through
+# the commutator of the coupling with the dark raising operator:
 
 hcav = FockSpace(:cavity)
 hatom = NLevelSpace(:atom, (:g, :e))
@@ -236,7 +238,7 @@ println(
 # result predicts: a lower polariton at ``\omega_0 - g\sqrt{2}``, the
 # untouched dark state at ``\omega - J``, and an upper polariton at
 # ``\omega_0 + g\sqrt{2}``.  Dropping a single atom from this experiment
-# would leave only the ordinary Jaynes-Cummings ``g`` splitting; the
+# would leave only the ordinary Jaynes-Cummings splitting ``2g``; the
 # ``\sqrt{2}`` is the collective enhancement.
 
 # ## Generalizing to N atoms with `Σ`

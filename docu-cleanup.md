@@ -18,14 +18,12 @@ Line numbers refer to the state of the branch after the typo pass.
 - [x] **1.7** [optomechanics.jl:192-193, 246-250](examples/optomechanics.jl#L192): describe it as the single-mode analogue of the Bogoliubov example, and fix the phonon-counting logic
 - [x] **1.8** [schrieffer_wolff.jl:131-139](examples/schrieffer_wolff.jl#L131-L139): fix χ_eff for the excited branch (the extra |n,e⟩ check was left out on purpose)
 - [x] **1.9** [parametric_oscillator.jl:165-169](examples/parametric_oscillator.jl#L165-L169): define M and det, or derive the result from ε = √(δ²−κ²)
-- [ ] **1.11** [two_atom.jl](examples/two_atom.jl):
-  - [ ] **1.11a** lines 71-72: say that distinct sites commute exactly
-  - [ ] **1.11b** lines 191-194: describe the actual commutator output, or apply `expand_completeness`
-  - [ ] **1.11c** line 240: the single-atom splitting is 2g, not g
-  - [ ] **1.11d** lines 115-118, 150: rename the "singlet" states
-  - [ ] **1.11e** line 169: rename the clashing S₋
-  - [ ] **1.11f** lines 85-88: fix the 1/√2 normalization
-  - [ ] **1.11g** line 102: define Γ
+- [x] **1.11** [two_atom.jl](examples/two_atom.jl):
+  - [x] **1.11a** lines 71-72: say that distinct sites commute exactly
+  - [x] **1.11c** line 240: the single-atom splitting is 2g, not g
+  - [x] **1.11d** lines 115-118, 150: rename the "singlet" states
+  - [x] **1.11e** line 169: rename the clashing S₋
+  - [x] **1.11g** line 102: define Γ
 - [x] **1.12** [truncated_wigner.jl:257](examples/truncated_wigner.jl#L257): the plot title should say t = 400; line 259 is a stale Makie comment that splits the code block
 - [x] **1.13** [bogoliubov.jl:193-196](examples/bogoliubov.jl#L193-L196): define u, v before line 135
 - [x] **1.14** [spaces_and_operators.md:225](docs/src/manual/spaces_and_operators.md#L225): the LaTeX example shows counter-rotating terms; it probably needs `Transition(h, 1, 2, 2)`
