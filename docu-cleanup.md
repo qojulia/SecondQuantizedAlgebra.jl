@@ -28,9 +28,7 @@ Line numbers refer to the state of the branch after the typo pass.
   - [ ] **1.11g** line 102: define Γ
 - [x] **1.12** [truncated_wigner.jl:257](examples/truncated_wigner.jl#L257): the plot title should say t = 400; line 259 is a stale Makie comment that splits the code block
 - [x] **1.13** [bogoliubov.jl:193-196](examples/bogoliubov.jl#L193-L196): define u, v before line 135
-- [ ] **1.14** [spaces_and_operators.md:225](docs/src/manual/spaces_and_operators.md#L225): the LaTeX example shows counter-rotating terms; it probably needs `Transition(h, 1, 2, 2)`
-- [ ] **1.15** [algebra.md:109](docs/src/manual/algebra.md#L109): the Pauli commutator is 2i times the third component
-- [ ] **1.16** [README.md:23](README.md#L23): remove the stale "Extensible for custom operator types"
+- [x] **1.14** [spaces_and_operators.md:225](docs/src/manual/spaces_and_operators.md#L225): the LaTeX example shows counter-rotating terms; it probably needs `Transition(h, 1, 2, 2)`
 
 ## 2. Integrate the sections appended by recent PRs
 

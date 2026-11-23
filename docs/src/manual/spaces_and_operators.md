@@ -222,7 +222,7 @@ Expressions print with Unicode subscripts in the REPL. With Latexify.jl loaded, 
 ```@example latex
 using SecondQuantizedAlgebra, Latexify
 h = FockSpace(:cavity) ⊗ NLevelSpace(:atom, 2)
-@qnumbers a::Destroy(h, 1) σ::Transition(h, 2, 1, 2)
+@qnumbers a::Destroy(h, 1) σ::Transition(h, 1, 2, 2)
 @variables g
 
 latexify(g * (a' * σ + σ' * a))
