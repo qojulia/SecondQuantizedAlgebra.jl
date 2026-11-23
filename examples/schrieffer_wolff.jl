@@ -1,7 +1,7 @@
 # # Schrieffer-Wolff Transformation
 #
 # The [Schrieffer-Wolff transformation](https://en.wikipedia.org/wiki/Schrieffer%E2%80%93Wolff_transformation)
-# is a perturbative unitary transformation that block-diagonalizes a Hamiltonian
+# [Schrieffer1966](@cite) is a perturbative unitary transformation that block-diagonalizes a Hamiltonian
 # order by order in a small parameter.  It is widely used to derive effective
 # low-energy Hamiltonians, for example the **dispersive Hamiltonian** of
 # circuit QED from the Jaynes-Cummings model.

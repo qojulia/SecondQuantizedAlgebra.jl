@@ -6,7 +6,7 @@
 # drops.  In the thermodynamic limit ``N \to \infty`` it exhibits a quantum
 # phase transition from a normal phase with ``\langle a\rangle = 0`` to a
 # *superradiant* phase with a macroscopically occupied cavity at the critical
-# coupling ``\lambda_c = \sqrt{\omega_0\,\omega_a}/2``.
+# coupling ``\lambda_c = \sqrt{\omega_0\,\omega_a}/2`` [Emary2003](@cite).
 #
 # In the collective-spin form,
 #
@@ -95,7 +95,8 @@ commutator(Sz, Sx)
 # Around the normal-phase fixed point (all atoms in their ground state
 # with ``\langle S_z\rangle = -S``, and an empty cavity) we expand the spin in a
 # new bosonic mode ``b`` via the
-# [Holstein-Primakoff transformation](https://en.wikipedia.org/wiki/Holstein-Primakoff_transformation),
+# [Holstein-Primakoff transformation](https://en.wikipedia.org/wiki/Holstein-Primakoff_transformation)
+# [Holstein1940](@cite),
 #
 # ```math
 # S_+ \approx \sqrt{2 S}\, b^\dagger, \quad

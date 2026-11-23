@@ -57,7 +57,7 @@ Line numbers refer to the state of the branch after the typo pass.
 - [ ] **4.2** Expand [tavis_cummings.jl](examples/tavis_cummings.jl) with an intro, sections, output, a plot and a closing paragraph, or merge it with two_atom's N-atom part
 - [ ] **4.3** Add closing paragraphs to schrieffer_wolff and differentiable_control
 - [ ] **4.4** two_atom: use `to_numeric` instead of building the operators by hand three times, and fix the "no bookkeeping" claims (lines 131, 151, 322)
-- [ ] **4.5** Add citations through `refs.bib`: Schrieffer–Wolff, Emary–Brandes, Holstein–Primakoff, Aspelmeyer RMP, Polkovnikov
+- [x] **4.5** Add citations through `refs.bib`: Schrieffer–Wolff, Emary–Brandes, Holstein–Primakoff, Aspelmeyer RMP, Polkovnikov
 - [ ] **4.6** Unify plot sizes, label style (LaTeXStrings), title case, and `# hide` vs `#hide`
 - [ ] **4.7** Use symbol levels (`:g, :e`) everywhere, including schrieffer_wolff
 - [ ] **4.8** Tone down "story", "The star of this example", and the heavy bolding

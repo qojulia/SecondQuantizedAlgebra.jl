@@ -1,6 +1,7 @@
 # # Truncated Wigner for a Driven-Dissipative Bose-Hubbard Dimer
 #
-# The **truncated Wigner approximation** (TWA) maps a driven-dissipative
+# The **truncated Wigner approximation** (TWA) [Polkovnikov2010](@cite) maps a
+# driven-dissipative
 # quantum system onto an ensemble of stochastic *classical* trajectories in
 # phase space. It keeps the leading quantum fluctuations that mean-field theory
 # throws away, at the cost of a classical Langevin equation rather than a full

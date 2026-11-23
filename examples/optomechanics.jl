@@ -1,7 +1,7 @@
 # # Cavity Optomechanics and the Polaron Transformation
 #
 # A single optical cavity coupled to a mechanical oscillator by radiation
-# pressure has the Hamiltonian
+# pressure has the Hamiltonian [Aspelmeyer2014](@cite)
 #
 # ```math
 # H = \omega_0\, a^\dagger a + \omega_m\, b^\dagger b
