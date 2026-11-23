@@ -5,8 +5,7 @@
 # manifold into a symmetric (bright, superradiant) and antisymmetric (dark,
 # subradiant) eigenstate.  This is the elementary building block of
 # *collective* atomic physics and the simplest non-trivial setting for the
-# package's index machinery: two indexed atomic operators on the same
-# Hilbert subspace, kept distinct via [`assume_distinct_index`](@ref).
+# package's index machinery.
 
 # ## Setup
 #
