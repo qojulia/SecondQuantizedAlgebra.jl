@@ -256,14 +256,14 @@ end
             ) +
                 sum(
                 Σ(
-                    0.5 * rates[channel] *
+                        0.5 * rates[channel] *
                         (
-                        2 * adjoints[channel] * op * jumps[channel] -
+                            2 * adjoints[channel] * op * jumps[channel] -
                             adjoints[channel] * jumps[channel] * op -
                             op * adjoints[channel] * jumps[channel]
-                    ),
-                    i,
-                ) for channel in 2:length(jumps)
+                        ),
+                        i,
+                    ) for channel in 2:length(jumps)
             ),
         ),
     )

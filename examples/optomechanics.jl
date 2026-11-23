@@ -78,7 +78,7 @@ H = ω₀ * a' * a + ωₘ * b' * b + g * a' * a * (b + b')
 # \tilde b^\dagger = b^\dagger - \tfrac{g}{\omega_m}\,a^\dagger a,
 # ```
 #
-# where the first identity holds because the generator is a 
+# where the first identity holds because the generator is a
 # function of ``a^\dagger a``.  The field ``a`` itself
 # picks up a mechanical displacement factor, but ``H`` contains the cavity
 # only through ``a^\dagger a``.  Substitute these into ``H`` and the package

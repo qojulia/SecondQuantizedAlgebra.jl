@@ -132,4 +132,4 @@ V4 = taylor(V, 0:4)
 ]
 ```
 
-[`numeric_average`](@ref), `expect` and [`average`](@ref) still need the polynomial from `taylor`. So do a symbolic [`Σ`](@ref) over a formal function and conversion between normal and symmetric order with [`normal_to_symmetric`](@ref) and [`symmetric_to_normal`](@ref). Perturbative frame changes such as Schrieffer–Wolff or van Vleck transformations are a separate problem of effective Hamiltonians and are not part of the formal functions.
+[`numeric_average`](@ref), `expect` and [`average`](@ref) still need the polynomial from `taylor`. So do a symbolic [`Σ`](@ref) over a formal function and conversion between normal and symmetric order with [`normal_to_symmetric`](@ref) and [`symmetric_to_normal`](@ref). Perturbative frame changes such as [Schrieffer–Wolff](../examples/schrieffer_wolff.md) or van Vleck transformations are a separate problem of effective Hamiltonians and are not part of the formal functions.

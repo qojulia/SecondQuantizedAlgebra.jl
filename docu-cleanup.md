@@ -67,14 +67,13 @@ Line numbers refer to the state of the branch after the typo pass.
 
 - [ ] **5.1** [comparison.md](docs/src/comparison.md): rerun or relabel the results (they say SQA 0.10.0; the package is now 0.15.0), and change the sneg link to https
 - [ ] **5.2** [many_body.md:183](docs/src/manual/many_body.md#L183): add the machine and version to the timing table, or drop the absolute numbers
-- [ ] **5.3** Delete the unused [docs/src/assets/eager_vs_lazy.svg](docs/src/assets/eager_vs_lazy.svg)
-- [ ] **5.4** [index.md](docs/src/index.md):
-  - [ ] **5.4a** replace the hot-linked SciML icon
-  - [ ] **5.4b** move the citation next to QuantumCumulants
-  - [ ] **5.4c** rename `:atoms` to `:atom` (also in the README)
-- [ ] **5.5** README: use consistent heading levels, put `pkg>` in a `julia-repl` block, and drop the redundant `simplify`
-- [ ] **5.6** [getting_started.md:7](docs/src/manual/getting_started.md#L7): remove "We use units with ℏ=1."
-- [ ] **5.7** [operator_functions.md:135](docs/src/manual/operator_functions.md#L135): link the Schrieffer–Wolff example
+- [x] **5.4** [index.md](docs/src/index.md):
+  - [x] **5.4a** replace the hot-linked SciML icon
+  - [x] **5.4b** move the citation next to QuantumCumulants
+  - [x] **5.4c** rename `:atoms` to `:atom` (also in the README)
+- [x] **5.5** README: use consistent heading levels, put `pkg>` in a `julia-repl` block, and drop the redundant `simplify`
+- [x] **5.6** [getting_started.md:7](docs/src/manual/getting_started.md#L7): remove "We use units with ℏ=1."
+- [x] **5.7** [operator_functions.md:135](docs/src/manual/operator_functions.md#L135): link the Schrieffer–Wolff example
 
 ## 6. Before the PR
 
