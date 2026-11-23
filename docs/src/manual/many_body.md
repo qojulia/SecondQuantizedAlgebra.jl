@@ -137,6 +137,13 @@ get_indices(a' * σ(1, 2, i) * σ(2, 1, j))
 index_name(i), index_range(i)
 ```
 
+`get_sum_indices` reads only the bound summation indices, and returns an empty vector for an unsummed expression.
+
+```@example tc
+using SecondQuantizedAlgebra: get_sum_indices
+get_sum_indices(Σ(σ(2, 2, i), i) * σ(2, 1, j)), get_sum_indices(σ(2, 1, j))
+```
+
 ```@docs
 get_indices
 has_index
@@ -146,6 +153,7 @@ index_slot
 index_sym
 rename
 constraint_pairs
+get_sum_indices
 ```
 
 ## Explicit sites
@@ -252,10 +260,3 @@ to_numeric(S(:g, :g) + S(:e, :e), b) ≈ N * identityoperator(b)
 ```
 
 For two levels this is the collective spin of length ``N/2``. With ``e`` as the upper level, ``S^{eg} = S_+``, ``S^{ge} = S_-`` and ``S_z = (S^{ee} - S^{gg})/2``. In the ordering of the `SpinBasis` of QuantumOpticsBase, where level 1 is spin up, the same identification reads ``S^{12} = S_+``.
-
-
-`get_sum_indices(expr)` reads only the bound summation indices. It returns an empty vector for an unsummed expression.
-
-```@docs
-get_sum_indices(::SecondQuantizedAlgebra.QAdd)
-```

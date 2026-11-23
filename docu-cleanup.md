@@ -36,7 +36,7 @@ Line numbers refer to the state of the branch after the typo pass.
   - [x] **2.2b** drop the unused `ω t` and the unused `harmonic` import (the import itself is needed: the functions are public, not exported)
   - [x] **2.2c** link to the Rotating frames section
 - [x] **2.3** [coefficients.md:240-250](docs/src/manual/coefficients.md#L240-L250): move `map_coefficients` and `coefficient` to "Taking expressions apart", with examples
-- [ ] **2.4** [many_body.md:257-260](docs/src/manual/many_body.md#L257-L260): move `get_sum_indices` to "Inspecting indices"
+- [x] **2.4** [many_body.md:257-260](docs/src/manual/many_body.md#L257-L260): move `get_sum_indices` to "Inspecting indices"
 - [ ] **2.5** [unitary_transformations.md:194-202](docs/src/manual/unitary_transformations.md#L194-L202): fold `displacement` into the Displacements section, with an example
 - [ ] **2.6** [open_systems.md:334-345](docs/src/manual/open_systems.md#L334-L345): move "Secular projection" after "Rotating frame" (keep the `import`: `secular` is public, not exported)
 - [ ] **2.7** [averages_numerics.md:145-205](docs/src/manual/averages_numerics.md#L145-L205): rewrite "Bases and levels" with executed `@example` blocks, removing the duplication with line 129 and the QuantumToolbox-callback detour
