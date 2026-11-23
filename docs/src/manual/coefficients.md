@@ -219,11 +219,7 @@ map_coefficients
 
 ## Harmonic projection
 
-[`harmonics`](@ref) splits an expression into its Fourier components in a base frequency
-`ω`, the step behind a rotating-wave or secular approximation. [`harmonic`](@ref) returns one
-component, the coefficient of `expim(n * ω * t)`, and [`secular`](@ref) the static one.
-The example below first moves to a rotating frame, which is described under
-[Rotating frames](@ref):
+[`harmonics`](@ref) splits an expression into its Fourier components in a base frequency `ω`, the step behind a rotating-wave or secular approximation. [`harmonic`](@ref) returns one component, the coefficient of `expim(n * ω * t)`, and [`secular`](@ref) the static one. The example below first moves to a rotating frame, which is described under [Rotating frames](@ref):
 
 ```@example harmonics
 using SecondQuantizedAlgebra
@@ -240,13 +236,7 @@ harmonics(Hrot, ωd, τ)
 secular(Hrot, ωd, τ)
 ```
 
-The decomposition is exact: summing `harmonic(x, ω, t, n) * expim(n * ω * t)` over the
-returned orders gives `exponential_form(x)`. A phase that is not an exact integer multiple of
-`ω * t` plus a constant, or a time dependence outside a phase, throws an `ArgumentError`
-rather than being dropped, because assigning it would assume a relation between frequencies.
-The same functions act on [`SuperOperator`](@ref)s and [`Lindbladian`](@ref)s.
-
-
+The decomposition is exact: summing `harmonic(x, ω, t, n) * expim(n * ω * t)` over the returned orders gives `exponential_form(x)`. A phase that is not an exact integer multiple of `ω * t` plus a constant, or a time dependence outside a phase, throws an `ArgumentError` rather than being dropped, because assigning it would assume a relation between frequencies. The same functions act on [`SuperOperator`](@ref)s and [`Lindbladian`](@ref)s.
 
 ```@docs
 harmonics

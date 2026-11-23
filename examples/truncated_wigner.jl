@@ -1,4 +1,4 @@
-# # Truncated Wigner for a Driven-Dissipative Bose-Hubbard Dimer
+# # Truncated Wigner for a Driven-Dissipative Bose–Hubbard Dimer
 #
 # The **truncated Wigner approximation** (TWA) [Polkovnikov2010](@cite) maps a
 # driven-dissipative
@@ -10,7 +10,7 @@
 # joint Fock space grows as the *product* of the per-mode cutoffs, in a regime
 # where the drive populates each mode with many photons.
 #
-# The physical system is a **Bose-Hubbard dimer**: two lossy Kerr modes
+# The physical system is a **Bose–Hubbard dimer**: two lossy Kerr modes
 # ``a_1, a_2`` connected by tunneling ``J``, with a coherent drive ``F`` on the
 # first site. In the frame rotating at the drive frequency (detuning ``\Delta``),
 #
@@ -72,7 +72,7 @@ normal_to_symmetric(a' * a)
 
 # ## From operators to a c-number drift
 #
-# The TWA drift for each mode is the Heisenberg-Langevin equation, symmetrized,
+# The TWA drift for each mode is the Heisenberg–Langevin equation, symmetrized,
 # averaged, then factorized to first order (the mean-field truncation). The
 # factorization ``\langle a^\dagger a a\rangle \to \langle a^\dagger\rangle
 # \langle a\rangle \langle a\rangle`` is the one step SecondQuantizedAlgebra

@@ -13,7 +13,7 @@
 # Although ``H`` is non-linear, it has a hidden structure: the cavity photon
 # number ``a^\dagger a`` commutes with every term in ``H``, so each
 # photon-number sector sees the mechanical mode as a *displaced* harmonic
-# oscillator.  The polaron (Lang-Firsov) transformation makes this exact and
+# oscillator.  The polaron (Lang–Firsov) transformation makes this exact and
 # yields an effective **Kerr** nonlinearity for the cavity.
 #
 # The corresponding unitary is

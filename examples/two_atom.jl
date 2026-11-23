@@ -1,7 +1,7 @@
-# # Two-Atom Dipole-Dipole Interaction: Bright and Dark States
+# # Two-Atom Dipole–Dipole Interaction: Bright and Dark States
 #
 # Two identical two-level atoms in close proximity exchange virtual photons,
-# giving rise to a dipole-dipole interaction that splits the single-excitation
+# giving rise to a dipole–dipole interaction that splits the single-excitation
 # manifold into a symmetric (bright, superradiant) and antisymmetric (dark,
 # subradiant) eigenstate.  This is the elementary building block of
 # *collective* atomic physics and the simplest non-trivial setting for the
@@ -29,7 +29,7 @@ j = Index(ha, :j, 2, ha)
 # ## Hamiltonian
 #
 # Two identical atoms at frequency ``\omega`` exchange excitations through a
-# coherent dipole-dipole coupling ``J``:
+# coherent dipole–dipole coupling ``J``:
 #
 # ```math
 # H = \omega\,(\sigma_i^{ee} + \sigma_j^{ee})
@@ -238,14 +238,14 @@ println(
 # result predicts: a lower polariton at ``\omega_0 - g\sqrt{2}``, the
 # untouched dark state at ``\omega - J``, and an upper polariton at
 # ``\omega_0 + g\sqrt{2}``.  Dropping a single atom from this experiment
-# would leave only the ordinary Jaynes-Cummings splitting ``2g``; the
+# would leave only the ordinary Jaynes–Cummings splitting ``2g``; the
 # ``\sqrt{2}`` is the collective enhancement.
 
 # ## Generalizing to N atoms with `Σ`
 #
 # Stepping up to ``N`` identical atoms uses the same operator
 # constructions, but now with a *symbolic* range ``N`` and explicit
-# [`Σ`](@ref) sums.  The dipole-dipole term becomes
+# [`Σ`](@ref) sums.  The dipole–dipole term becomes
 # ``J\sum_{i \neq j} \sigma_i^{eg}\sigma_j^{ge}`` and the cavity coupling
 # becomes ``g\sum_i (a^\dagger \sigma_i^{ge} + a\,\sigma_i^{eg})``:
 
@@ -323,4 +323,4 @@ end
 # remains at ``\omega - J`` regardless of how many atoms join.  All of
 # this came from the same indexed `NLevelSpace`, a single ``\Sigma`` for the
 # atom-cavity coupling, and a doubly nested ``\Sigma`` (with ``i \neq j``) for
-# the dipole-dipole term, with no per-atom Hilbert-space bookkeeping.
+# the dipole–dipole term, with no per-atom Hilbert-space bookkeeping.

@@ -9,7 +9,7 @@
 #
 # arises whenever a quadratic bosonic system mixes particles and holes: in
 # parametric down-conversion, in the Bogoliubov–de Gennes treatment of weakly
-# interacting Bose-Einstein condensates, and in the linearized dynamics of any
+# interacting Bose–Einstein condensates, and in the linearized dynamics of any
 # optomechanical or polariton system above its Hopf bifurcation.  A canonical
 # transformation
 #
@@ -186,7 +186,7 @@ P_plus * P_plus
 # ## Weyl symbol and the zero-point energy
 #
 # The package also gives explicit access to the
-# Wigner-Weyl symbol via [`normal_to_symmetric`](@ref).  Applied to the
+# Wigner–Weyl symbol via [`normal_to_symmetric`](@ref).  Applied to the
 # normal-ordered Hamiltonian:
 
 normal_to_symmetric(H)

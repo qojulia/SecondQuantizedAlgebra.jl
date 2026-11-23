@@ -40,14 +40,13 @@ Line numbers refer to the state of the branch after the typo pass.
 - [x] **2.5** [unitary_transformations.md:194-202](docs/src/manual/unitary_transformations.md#L194-L202): fold `displacement` into the Displacements section, with an example
 - [x] **2.6** [open_systems.md:334-345](docs/src/manual/open_systems.md#L334-L345): move "Secular projection" after "Rotating frame" (keep the `import`: `secular` is public, not exported)
 - [ ] **2.7** [averages_numerics.md:145-205](docs/src/manual/averages_numerics.md#L145-L205): rewrite "Bases and levels" with executed `@example` blocks, removing the duplication with line 129 and the QuantumToolbox-callback detour
-- [ ] **2.8** [extending.md:134-140](docs/src/dev/extending.md#L134-L140): move the accumulation paragraph up next to its table row
 
 ## 3. Formatting consistency
 
-- [ ] **3.1** Join hard-wrapped paragraphs into one line per paragraph, as on the rest of the manual
-- [ ] **3.2** Remove the double blank lines (coefficients, many_body, unitary_transformations, open_systems)
+- [x] **3.1** Join hard-wrapped paragraphs into one line per paragraph, as on the rest of the manual
+- [x] **3.2** Remove the double blank lines (coefficients, many_body, unitary_transformations, open_systems)
 - [ ] **3.3** Decide on `CollapsedDocStrings`: set it on every page or on none (currently only open_systems)
-- [ ] **3.4** Use hyphens or en dashes consistently in names (Jaynes–Cummings, Holstein–Primakoff, Bose–Hubbard, …)
+- [x] **3.4** Use hyphens or en dashes consistently in names (Jaynes–Cummings, Holstein–Primakoff, Bose–Hubbard, …)
 
 ## 4. Examples as a set
 

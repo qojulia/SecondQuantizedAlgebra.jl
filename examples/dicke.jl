@@ -2,7 +2,7 @@
 #
 # The [Dicke model](https://en.wikipedia.org/wiki/Dicke_model) describes ``N``
 # two-level atoms collectively coupled to a single cavity mode, retaining the
-# counter-rotating terms that the Tavis-Cummings rotating-wave approximation
+# counter-rotating terms that the Tavis–Cummings rotating-wave approximation
 # drops.  In the thermodynamic limit ``N \to \infty`` it exhibits a quantum
 # phase transition from a normal phase with ``\langle a\rangle = 0`` to a
 # *superradiant* phase with a macroscopically occupied cavity at the critical
@@ -19,7 +19,7 @@
 # the ``2/\sqrt{N}`` normalization keeps ``\lambda_c`` finite as ``N\to\infty``.
 # This example walks through every step that turns the operator Hamiltonian
 # into the textbook result: built-in SU(2) algebra, Heisenberg equations of
-# motion, Holstein-Primakoff bosonization in the normal phase, the resulting
+# motion, Holstein–Primakoff bosonization in the normal phase, the resulting
 # polariton spectrum from a symbolic Bogoliubov–de Gennes determinant and again
 # from a beamsplitter frame change, the critical coupling from gap closing, and a
 # numerical comparison at finite ``S``.
@@ -90,12 +90,12 @@ commutator(Sz, Sx)
 # \end{aligned}
 # ```
 
-# ## Holstein-Primakoff bosonization in the normal phase
+# ## Holstein–Primakoff bosonization in the normal phase
 #
 # Around the normal-phase fixed point (all atoms in their ground state
 # with ``\langle S_z\rangle = -S``, and an empty cavity) we expand the spin in a
 # new bosonic mode ``b`` via the
-# [Holstein-Primakoff transformation](https://en.wikipedia.org/wiki/Holstein-Primakoff_transformation)
+# [Holstein–Primakoff transformation](https://en.wikipedia.org/wiki/Holstein-Primakoff_transformation)
 # [Holstein1940](@cite),
 #
 # ```math
@@ -224,7 +224,7 @@ conjugate(H_res, Rotation(a_pol, b_pol, θ))
 # ```
 #
 # For ``\lambda > \lambda_c`` the lower polariton frequency becomes imaginary
-# and the normal-phase Holstein-Primakoff vacuum is dynamically unstable.
+# and the normal-phase Holstein–Primakoff vacuum is dynamically unstable.
 # The macroscopic occupation of the cavity that defines the superradiant
 # phase arises precisely to restabilize the spectrum around a shifted fixed
 # point.
@@ -302,7 +302,7 @@ fig
 # approaches the mean-field curve quickly thereafter.  The right panel
 # overlays the analytical polariton frequencies (dashed) on the numerical
 # excitation gaps (markers): well below ``\lambda_c`` they agree closely, and the
-# Holstein-Primakoff polariton spectrum describes the low-lying excitation
+# Holstein–Primakoff polariton spectrum describes the low-lying excitation
 # structure.  At ``\lambda_c`` the lower branch ``\varepsilon_-`` softens to
 # zero, signaling the dynamical instability of the normal-phase vacuum.
 # Above ``\lambda_c`` the analytical ``\varepsilon_-`` is undefined while

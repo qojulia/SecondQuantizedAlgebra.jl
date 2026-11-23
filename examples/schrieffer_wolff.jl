@@ -1,16 +1,16 @@
-# # Schrieffer-Wolff Transformation
+# # Schrieffer–Wolff Transformation
 #
-# The [Schrieffer-Wolff transformation](https://en.wikipedia.org/wiki/Schrieffer%E2%80%93Wolff_transformation)
+# The [Schrieffer–Wolff transformation](https://en.wikipedia.org/wiki/Schrieffer%E2%80%93Wolff_transformation)
 # [Schrieffer1966](@cite) is a perturbative unitary transformation that block-diagonalizes a Hamiltonian
 # order by order in a small parameter.  It is widely used to derive effective
 # low-energy Hamiltonians, for example the **dispersive Hamiltonian** of
-# circuit QED from the Jaynes-Cummings model.
+# circuit QED from the Jaynes–Cummings model.
 #
 # Given a Hamiltonian ``H = H_0 + V`` split into a solvable diagonal part ``H_0``
 # and a small off-diagonal perturbation ``V``, one seeks an anti-Hermitian
 # generator ``S`` so that the transformed Hamiltonian
 # ``\tilde{H} = e^{S} H\, e^{-S}`` is block-diagonal.
-# Expanding the Baker-Campbell-Hausdorff series and choosing ``S`` order by order
+# Expanding the Baker–Campbell–Hausdorff series and choosing ``S`` order by order
 # to cancel off-diagonal terms, the effective Hamiltonian becomes
 #
 # ```math
@@ -30,7 +30,7 @@
 # ## Setup
 #
 # We consider a single cavity mode coupled to a two-level atom
-# (Jaynes-Cummings model).  Working in the interaction picture with respect
+# (Jaynes–Cummings model).  Working in the interaction picture with respect
 # to the cavity frequency ``\omega_0``, the only energy scale in ``H_0`` is the
 # detuning ``\Delta = \omega_a - \omega_0``.  This eliminates ``\omega_0`` from
 # all intermediate expressions and keeps the algebra clean.
@@ -49,7 +49,7 @@ h = hc ⊗ ha
 
 @variables g Δ
 
-# ## Jaynes-Cummings Hamiltonian (interaction picture)
+# ## Jaynes–Cummings Hamiltonian (interaction picture)
 #
 # In the rotating-wave approximation the Hamiltonian splits into:
 #
@@ -64,7 +64,7 @@ V = g * (a' * σge + a * σeg)
 # ## Second order: dispersive shift
 #
 # The first-order generator satisfies ``[S_1, H_0] = -V``.  For the
-# Jaynes-Cummings interaction the solution is:
+# Jaynes–Cummings interaction the solution is:
 #
 # ```math
 # S_1 = -\frac{g}{\Delta}\bigl(a^\dagger |g\rangle\!\langle e|
@@ -144,10 +144,10 @@ H_eff_4 = H_eff + comm_S2_V // 2 - C // 24
 
 # ## Numerical verification
 #
-# We verify the symbolic effective Hamiltonians against the exact Jaynes-Cummings
+# We verify the symbolic effective Hamiltonians against the exact Jaynes–Cummings
 # eigenvalues using [`numeric_average`](@ref) and [`substitute`](@ref).
 # For each Fock state ``|n, g\rangle`` we compute the expectation value
-# ``\langle n,g| H_{\mathrm{eff}} |n,g\rangle``.  Since the Schrieffer-Wolff
+# ``\langle n,g| H_{\mathrm{eff}} |n,g\rangle``.  Since the Schrieffer–Wolff
 # transformation block-diagonalizes the Hamiltonian, this directly gives the
 # dressed-state energy at each order.
 
