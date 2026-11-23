@@ -98,12 +98,14 @@ commutator(Sz, Sx)
 # [Holstein-Primakoff transformation](https://en.wikipedia.org/wiki/Holstein-Primakoff_transformation),
 #
 # ```math
-# S_+ \approx \sqrt{2 S}\, b, \quad
-# S_- \approx \sqrt{2 S}\, b^\dagger, \quad
+# S_+ \approx \sqrt{2 S}\, b^\dagger, \quad
+# S_- \approx \sqrt{2 S}\, b, \quad
 # S_z = b^\dagger b - S,
 # ```
 #
-# valid for low excitation ``\langle b^\dagger b \rangle \ll 2 S``.  Then
+# taken around the lowest-weight state ``S_z = -S`` (rather than
+# ``S_z = +S``), so that ``b^\dagger`` raises ``S_z``.  It is valid for low
+# excitation ``\langle b^\dagger b \rangle \ll 2 S``.  Then
 # ``S_x = (S_+ + S_-)/2 \approx \sqrt{S/2}\,(b + b^\dagger)`` and inserting
 # ``g = 2\lambda/\sqrt{2S}`` into the Dicke Hamiltonian yields the **polariton
 # Hamiltonian**
@@ -175,7 +177,7 @@ simplify(det(M - x * I))
 # \varepsilon_\pm^2
 # = \tfrac{1}{2}\Bigl[
 #    (\omega_a^2 + \omega_0^2)
-#    \mp \sqrt{(\omega_a^2 - \omega_0^2)^2 + 16\,\lambda^2\,\omega_a\,\omega_0}
+#    \pm \sqrt{(\omega_a^2 - \omega_0^2)^2 + 16\,\lambda^2\,\omega_a\,\omega_0}
 # \Bigr].
 # ```
 
@@ -298,8 +300,8 @@ fig
 # (left) rounds the onset of the order parameter on a scale set by ``1/S`` and
 # approaches the mean-field curve quickly thereafter.  The right panel
 # overlays the analytical polariton frequencies (dashed) on the numerical
-# excitation gaps (markers): below ``\lambda_c`` they coincide exactly, and the
-# Holstein-Primakoff polariton spectrum *is* the low-lying excitation
+# excitation gaps (markers): well below ``\lambda_c`` they agree closely, and the
+# Holstein-Primakoff polariton spectrum describes the low-lying excitation
 # structure.  At ``\lambda_c`` the lower branch ``\varepsilon_-`` softens to
 # zero, signaling the dynamical instability of the normal-phase vacuum.
 # Above ``\lambda_c`` the analytical ``\varepsilon_-`` is undefined while
