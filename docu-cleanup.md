@@ -30,15 +30,15 @@ Line numbers refer to the state of the branch after the typo pass.
 
 ## 2. Integrate the sections appended by recent PRs
 
-- [ ] **2.1** [coefficients.md:190-202](docs/src/manual/coefficients.md#L190-L202): delete the orphan `pr305` paragraph, which repeats line 46
-- [ ] **2.2** [coefficients.md:204-238](docs/src/manual/coefficients.md#L204-L238), harmonic projection:
-  - [ ] **2.2a** rename the `pr311` block
-  - [ ] **2.2b** drop the unused `ω t` and the unneeded `import`
-  - [ ] **2.2c** move it after unitary transformations, or link there
-- [ ] **2.3** [coefficients.md:240-250](docs/src/manual/coefficients.md#L240-L250): move `map_coefficients` and `coefficient` to "Taking expressions apart", with examples
+- [x] **2.1** [coefficients.md:190-202](docs/src/manual/coefficients.md#L190-L202): delete the orphan `pr305` paragraph, which repeats line 46
+- [x] **2.2** [coefficients.md:204-238](docs/src/manual/coefficients.md#L204-L238), harmonic projection:
+  - [x] **2.2a** rename the `pr311` block
+  - [x] **2.2b** drop the unused `ω t` and the unused `harmonic` import (the import itself is needed: the functions are public, not exported)
+  - [x] **2.2c** link to the Rotating frames section
+- [x] **2.3** [coefficients.md:240-250](docs/src/manual/coefficients.md#L240-L250): move `map_coefficients` and `coefficient` to "Taking expressions apart", with examples
 - [ ] **2.4** [many_body.md:257-260](docs/src/manual/many_body.md#L257-L260): move `get_sum_indices` to "Inspecting indices"
 - [ ] **2.5** [unitary_transformations.md:194-202](docs/src/manual/unitary_transformations.md#L194-L202): fold `displacement` into the Displacements section, with an example
-- [ ] **2.6** [open_systems.md:334-345](docs/src/manual/open_systems.md#L334-L345): move "Secular projection" after "Rotating frame", and drop the unneeded `import`
+- [ ] **2.6** [open_systems.md:334-345](docs/src/manual/open_systems.md#L334-L345): move "Secular projection" after "Rotating frame" (keep the `import`: `secular` is public, not exported)
 - [ ] **2.7** [averages_numerics.md:145-205](docs/src/manual/averages_numerics.md#L145-L205): rewrite "Bases and levels" with executed `@example` blocks, removing the duplication with line 129 and the QuantumToolbox-callback detour
 - [ ] **2.8** [extending.md:134-140](docs/src/dev/extending.md#L134-L140): move the accumulation paragraph up next to its table row
 
