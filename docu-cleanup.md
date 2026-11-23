@@ -60,7 +60,7 @@ Line numbers refer to the state of the branch after the typo pass.
 - [x] **4.5** Add citations through `refs.bib`: Schrieffer–Wolff, Emary–Brandes, Holstein–Primakoff, Aspelmeyer RMP, Polkovnikov
 - [ ] **4.6** Unify plot sizes, label style (LaTeXStrings), title case, and `# hide` vs `#hide`
 - [x] **4.8** Tone down "story", "The star of this example", and the heavy bolding
-- [ ] **4.9** differentiable_control: remove the unused `using Symbolics`, deduplicate the plotting code, and fix the "near unity" comment
+- [x] **4.9** differentiable_control: remove the unused `using Symbolics`, and fix the "near unity" comment
 
 ## 5. Small items
 

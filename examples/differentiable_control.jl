@@ -34,7 +34,6 @@
 
 using SecondQuantizedAlgebra
 using QuantumToolbox
-using Symbolics
 
 using SciMLSensitivity
 import Mooncake                       # loads the Mooncake reverse-mode backend
@@ -106,7 +105,7 @@ infidelity_closed(params) =
     1 - real(expect(proj1, sesolve(Hc, ψ0, tlist; params, sensealg, progress_bar = Val(false)).states[end]))
 
 p_closed, losses_closed = optimize_pulse(infidelity_closed)
-1 - infidelity_closed(p_closed)   # near unity: closed dynamics conserve probability
+1 - infidelity_closed(p_closed)   # final fidelity: near unity without loss
 
 # The optimized pulse drives the mean photon number from 0 to 1, and the final population lands
 # almost entirely in ``|1\rangle``; the Kerr blockade suppresses ``|2\rangle``.
