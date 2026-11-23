@@ -72,15 +72,16 @@ H = ω₀ * a' * a + ωₘ * b' * b + g * a' * a * (b + b')
 # U^\dagger O U``.  Here that means
 #
 # ```math
-# \tilde a = a, \qquad
+# \tilde a^\dagger \tilde a = a^\dagger a, \qquad
 # \tilde b = b - \tfrac{g}{\omega_m}\,a^\dagger a,
 # \qquad
 # \tilde b^\dagger = b^\dagger - \tfrac{g}{\omega_m}\,a^\dagger a,
 # ```
 #
-# where the first identity holds because ``a^\dagger a`` is the generator
-# of the transformation and commutes with ``a`` up to scalars that cancel
-# (cf. the Hadamard series).  Substitute these into ``H`` and the package
+# where the first identity holds because the generator is a 
+# function of ``a^\dagger a``.  The field ``a`` itself
+# picks up a mechanical displacement factor, but ``H`` contains the cavity
+# only through ``a^\dagger a``.  Substitute these into ``H`` and the package
 # canonicalizes the result:
 
 α = g / ωₘ
@@ -155,7 +156,7 @@ fig
 # Markers: exact diagonalization of the full radiation-pressure
 # Hamiltonian.  They agree to truncation error across the whole coupling
 # range, since the polaron substitution is exact and the package's eager
-# canonicalization reproduced the textbook derivation in three operator
+# canonicalization reproduced the textbook derivation in two operator
 # substitutions.
 
 # ## Membrane-in-the-middle: quadratic coupling
@@ -189,8 +190,8 @@ H_mim = ω₀ * a' * a + ωₘ * b' * b + g₂ * a' * a * (b + b')^2
 #   + g_2 n\,(b^2 + b^{\dagger 2}) + (\omega_0 + g_2)\,n
 # ```
 #
-# This is precisely the single-mode squeezing Hamiltonian solved in the
-# [Bogoliubov example](bogoliubov.md), with effective oscillator frequency
+# This is the single-mode analogue of the two-mode squeezing Hamiltonian
+# solved in the [Bogoliubov example](bogoliubov.md), with effective oscillator frequency
 # ``\omega(n) = \omega_m + 2 g_2 n`` and parametric drive
 # ``\kappa(n) = 2 g_2 n``.  The Bogoliubov dispersion gives a
 # **photon-number-conditional mechanical frequency**
@@ -241,10 +242,10 @@ end
 
 # Every level matches the closed-form prediction to truncation precision.
 # The first few photon-conditional mechanical frequencies are
-# ``\varepsilon(0) = \omega_m``, ``\varepsilon(1) \approx 1.0954\,\omega_m``,
-# ``\varepsilon(2) \approx 1.1832\,\omega_m``.  The **mechanical mode is
+# ``\varepsilon(0) = \omega_m``, ``\varepsilon(1) \approx 1.1832\,\omega_m``,
+# ``\varepsilon(2) \approx 1.3416\,\omega_m``.  The **mechanical mode is
 # stiffer in every higher-photon sector**, with the stiffening predictable
-# in closed form.  This number-state-conditional spring constant is what
-# makes the membrane-in-the-middle a QND phonon-counter: by reading the
-# cavity transmission's frequency-tracked sidebands one literally counts
-# mechanical quanta.
+# in closed form.  Read the other way, the same ``2 g_2\, a^\dagger a\,
+# b^\dagger b`` term shifts the cavity frequency by ``2 g_2`` per phonon.
+# This is what makes the membrane-in-the-middle a QND phonon counter:
+# tracking the cavity resonance counts mechanical quanta.

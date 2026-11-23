@@ -13,9 +13,9 @@ Line numbers refer to the state of the branch after the typo pass.
 - [x] **1.2** [dicke.jl:180](examples/dicke.jl#L180): change `\mp` to `\pm` so that ε₋ is the lower branch
 - [ ] **1.3** [dicke.jl:205-206](examples/dicke.jl#L205-L206): point the `Squeeze` cross-link to the parametric oscillator example instead of optomechanics
 - [x] **1.4** [dicke.jl:302-304](examples/dicke.jl#L302-L304): soften "below λ_c they coincide exactly"
-- [ ] **1.5** [optomechanics.jl:244-245](examples/optomechanics.jl#L244-L245): change ε(1), ε(2) to ≈ 1.1832 and 1.3416
-- [ ] **1.6** [optomechanics.jl:75-83](examples/optomechanics.jl#L75-L83): fix the "ã = a" justification (only ã†ã = a†a holds), and change "three substitutions" to two
-- [ ] **1.7** [optomechanics.jl:192-193, 246-250](examples/optomechanics.jl#L192): describe it as the single-mode analogue of the Bogoliubov example, and fix the phonon-counting logic
+- [x] **1.5** [optomechanics.jl:244-245](examples/optomechanics.jl#L244-L245): change ε(1), ε(2) to ≈ 1.1832 and 1.3416
+- [x] **1.6** [optomechanics.jl:75-83](examples/optomechanics.jl#L75-L83): fix the "ã = a" justification (only ã†ã = a†a holds), and change "three substitutions" to two
+- [x] **1.7** [optomechanics.jl:192-193, 246-250](examples/optomechanics.jl#L192): describe it as the single-mode analogue of the Bogoliubov example, and fix the phonon-counting logic
 - [ ] **1.8** [schrieffer_wolff.jl:131-139](examples/schrieffer_wolff.jl#L131-L139): fix χ_eff for the excited branch, and add a check on |n,e⟩
 - [ ] **1.9** [parametric_oscillator.jl:165-169](examples/parametric_oscillator.jl#L165-L169): define M and det, or derive the result from ε = √(δ²−κ²)
 - [ ] **1.10** [parametric_oscillator.jl:182, 195](examples/parametric_oscillator.jl#L182): Wigner prefactor 2/π → 1/π
