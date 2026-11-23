@@ -131,10 +131,4 @@ numeric_matrix
 numeric_scaled_td
 ```
 
-Eager indexed sums call `numeric_zero(backend, basis)` once, then
-`numeric_add_term!(accumulator, coefficient, operators, context)` for each allowed
-index assignment. The accumulator must own its storage. Add the scaled product in
-place without mutating supplied replacements or retaining a cache of full-space
-operators across summands. Multiple bound indices are enumerated jointly, including
-their inequality constraints. Lazy and time-dependent representations may retain
-multiple operators; the eager streaming memory contract does not apply to them.
+Eager indexed sums call `numeric_zero(backend, basis)` once, then `numeric_add_term!(accumulator, coefficient, operators, context)` for each allowed index assignment. The accumulator must own its storage. Add the scaled product in place without mutating supplied replacements or retaining a cache of full-space operators across summands. Multiple bound indices are enumerated jointly, including their inequality constraints. Lazy and time-dependent representations may retain multiple operators; the eager streaming memory contract does not apply to them.

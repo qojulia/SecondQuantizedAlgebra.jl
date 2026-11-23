@@ -1,7 +1,7 @@
 # # Parametric Oscillator in the Phase-Space Representation
 #
 # The degenerate parametric oscillator (DPO), a single bosonic mode driven
-# by parametric pumping at twice its frequency, is the workhorse of
+# by parametric pumping at twice its frequency, is the standard source of
 # optical squeezing.  In the rotating frame at half the pump frequency its
 # effective Hamiltonian is
 #
@@ -19,7 +19,7 @@
 # below ``\tfrac{1}{2}`` while the other grows above it, with the product
 # saturating the Heisenberg bound.
 #
-# This example showcases the [`PhaseSpace`](@ref) hilbert space, the
+# This example showcases the [`PhaseSpace`](@ref) Hilbert space, the
 # canonical-commutator engine, and the squeeze transformation of a quadrature
 # pair: every step uses [`Position`](@ref) and [`Momentum`](@ref) directly,
 # without ever invoking Fock ladder operators.
@@ -64,7 +64,7 @@ H = (δ - κ) / 2 * x^2 + (δ + κ) / 2 * p^2
 #
 # Below threshold, the ground state is a single-mode squeezed vacuum.  Rather
 # than mapping to ladder operators and quoting the Bogoliubov result, we can
-# build the squeeze that diagonalises ``H`` directly on the canonical pair:
+# build the squeeze that diagonalizes ``H`` directly on the canonical pair:
 # [`Squeeze`](@ref) on a `(Position, Momentum)` pair is
 # ``e^{-i r (x p + p x)/2}``, which stretches one quadrature and shrinks the
 # other.
@@ -108,7 +108,7 @@ conjugate(x * x, U), conjugate(p * p, U)
 #
 # The package's numerical backend maps `Position` and `Momentum` onto a
 # Fock basis via ``x = (a + a^\dagger)/\sqrt 2``, ``p = i(a^\dagger -
-# a)/\sqrt 2``.  We diagonalise ``H`` on a wide Fock basis and read off the
+# a)/\sqrt 2``.  We diagonalize ``H`` on a wide Fock basis and read off the
 # ground-state variances directly.
 
 using QuantumOpticsBase, LinearAlgebra, Plots, LaTeXStrings
@@ -156,17 +156,18 @@ fig
 
 # ## Phase-space portrait
 #
-# All of the above is summarised cleanly in a single picture.  The
-# **classical phase portrait** of the rotated-frame Hamiltonian is the family
+# All of the above is summarized cleanly in a single picture.  The
+# **classical phase portrait** of the rotating-frame Hamiltonian is the family
 # of level curves ``H(x, p) = \mathrm{const}``, an ellipse below threshold
 # that elongates along the squeezed axis as ``\kappa \to \delta``.  Crossing
 # threshold the coefficient ``(\delta - \kappa)/2`` of ``x^2`` flips sign,
-# and the level curves become **hyperbolas**: bounded orbits give way to
-# unbounded exponential trajectories.  The symbolic determinant computed
-# earlier makes this transition exact:
+# and the level curves become hyperbolas: bounded orbits give way to
+# unbounded exponential trajectories.  The equation of motion derived
+# earlier, ``\ddot x = -(\delta^2 - \kappa^2)\,x``, makes this transition
+# exact: solutions evolve as ``e^{\lambda t}`` with
 #
 # ```math
-# \mathrm{eig}(M) = \pm\sqrt{-\det M} = \pm\sqrt{\kappa^2 - \delta^2}
+# \lambda = \pm\sqrt{\kappa^2 - \delta^2}
 # = \begin{cases}
 #   \pm i\,\sqrt{\delta^2 - \kappa^2} & \text{(oscillation, } \kappa < \delta\text{)}, \\
 #   0 & \text{(degenerate, } \kappa = \delta\text{)}, \\
@@ -225,6 +226,6 @@ fig2
 # saddle separatrix ``H = 0`` (black) splits phase space into four
 # hyperbolic sectors; the orbits run off to infinity along the unstable
 # manifold.  Everything in this figure (the threshold condition, the
-# variances, the Wigner shape) came out of a canonical
+# variances, the Wigner shape) follows from a canonical
 # [`Position`](@ref)/[`Momentum`](@ref) pair, the built-in commutator engine and
 # one [`Squeeze`](@ref), with no manual translation to ladder operators required.

@@ -4,7 +4,7 @@ CurrentModule = SecondQuantizedAlgebra
 
 # Getting started
 
-We use units with ``\hbar = 1``. Consider a cavity mode on resonance with a two-level atom, described by the Jaynes–Cummings Hamiltonian
+Consider a cavity mode on resonance with a two-level atom, described by the Jaynes–Cummings Hamiltonian
 
 ```math
 H = \omega a^\dagger a + \omega \sigma^{22} + g \left( a^\dagger \sigma^{12} + a \sigma^{21} \right).

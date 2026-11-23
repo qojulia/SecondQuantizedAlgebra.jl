@@ -66,6 +66,19 @@ The drive oscillates at ``\omega_d``. [`transform`](@ref) moves the generator in
 Lrot = transform(L, RotatingFrame(ωd * (a' * a + σ(:e, :e)), t))
 ```
 
+### Secular projection
+
+When phases remain after the transformation, [`secular`](@ref) keeps the time-independent part of the Hamiltonian, the rates and the jumps, and returns a `Lindbladian`. For a quadrature jump this is the rotating-wave dissipator:
+
+```@example secular-open
+using SecondQuantizedAlgebra
+@qnumbers b::Destroy(FockSpace(:secular_mode))
+@variables ω::Real κ::Real ωd::Real t::Real
+using SecondQuantizedAlgebra: secular
+Lx = hamiltonian_action(ω * b' * b) + κ * dissipator(b + b')
+secular(transform(Lx, Rotation(b, ωd * t, t)), ωd, t)
+```
+
 ## Equations of motion
 
 The transpose of a generator is its Heisenberg-picture form, ``\operatorname{Tr}(A\,\mathcal{L}\rho) = \operatorname{Tr}(\mathcal{L}^T\!A\,\rho)``, so ``\frac{d}{dt}\langle A \rangle = \langle \mathcal{L}^T A \rangle``. The field is damped at ``\kappa/2``, driven by ``\eta`` and coupled to the atomic coherence.
@@ -328,18 +341,4 @@ scope
 SuperTerm
 left_operator
 right_operator
-```
-
-
-## Secular projection
-
-When phases remain after the transformation, [`secular`](@ref) keeps the time-independent part of the Hamiltonian, the rates and the jumps, and returns a `Lindbladian`. For a quadrature jump this is the rotating-wave dissipator:
-
-```@example secular-open
-using SecondQuantizedAlgebra
-@qnumbers b::Destroy(FockSpace(:secular_mode))
-@variables ω::Real κ::Real ωd::Real t::Real
-import SecondQuantizedAlgebra: secular
-Lx = hamiltonian_action(ω * b' * b) + κ * dissipator(b + b')
-secular(transform(Lx, Rotation(b, ωd * t, t)), ωd, t)
 ```

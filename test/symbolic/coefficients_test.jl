@@ -393,7 +393,8 @@ import SecondQuantizedAlgebra: Coeff, CNum, to_cnum, to_num, Monomial, ExactComp
         # Two radical primes whose product exceeds Int stay separate roots.
         p, q = 4294967291, 4294967279
         wide = sqrt(Num(p)) * sqrt(Num(q)) * a
-        @test string(real(get_prefactor(wide))) == "sqrt($p)*sqrt($q)"
+        # The print order of the two factors depends on the SymbolicUtils version.
+        @test string(real(get_prefactor(wide))) in ("sqrt($p)*sqrt($q)", "sqrt($q)*sqrt($p)")
         @test roundtrip(wide)
         @test get_prefactor(wide * wide) == big(p) * q
 

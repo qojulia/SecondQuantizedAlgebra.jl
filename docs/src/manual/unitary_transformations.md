@@ -88,9 +88,16 @@ D = DisplacementFrame(a, Δ * a' * a + η * a' + conj(η) * a)
 conjugate(a, D)
 ```
 
+[`displacement`](@ref) reads the amplitude of a frame back. It returns the c-number part of `conjugate(a, U)` for a mode or a quadrature.
+
+```@example frames
+displacement(Displace(a, α), a)
+```
+
 ```@docs
 DisplacementFrame
 Displace
+displacement
 ```
 
 ## Squeezing and Bogoliubov transformations
@@ -166,7 +173,7 @@ The matrix must be unitary, which is not checked. With a time-dependent matrix, 
 
 ## General generators
 
-A transformation can also be given by its Hermitian generator ``G`` as ``U = e^{-i\theta G}``. The image of each operator is found by closing the commutators with ``G`` and exponentiating the resulting matrix exactly. The tunnelling term ``a^\dagger b + b^\dagger a`` between two modes generates a beam splitter with a phase.
+A transformation can also be given by its Hermitian generator ``G`` as ``U = e^{-i\theta G}``. The image of each operator is found by closing the commutators with ``G`` and exponentiating the resulting matrix exactly. The tunneling term ``a^\dagger b + b^\dagger a`` between two modes generates a beam splitter with a phase.
 
 ```@example generators
 using SecondQuantizedAlgebra
@@ -188,15 +195,4 @@ Formal operator functions are transformed through their arguments, so the result
 
 ```@example generators
 conjugate(cos(a + a'), Rotation(a, θ))
-```
-
-
-## Reading displacement amplitudes
-
-[`displacement(U, a)`](@ref displacement) returns the c-number part of
-`conjugate(a, U)`, i.e. the displacement amplitude of a Fock or phase-space frame.
-
-
-```@docs
-displacement
 ```

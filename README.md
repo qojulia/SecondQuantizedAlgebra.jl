@@ -24,20 +24,21 @@ The package provides:
 
 The code was refactored out of [QuantumCumulants.jl](https://github.com/qojulia/QuantumCumulants.jl).
 
-### Installation
+## Installation
 
 Install with Julia's package manager:
-```julia
+
+```julia-repl
 pkg> add SecondQuantizedAlgebra
 ```
 
-### Usage
+## Usage
 
 ```julia
 using SecondQuantizedAlgebra
 
 hc = FockSpace(:cavity)
-ha = NLevelSpace(:atoms, 2)
+ha = NLevelSpace(:atom, 2)
 h = hc ⊗ ha
 
 @qnumbers b::Destroy(h, 1)
@@ -50,7 +51,7 @@ H = Δ * b' * b + g * (b * σ(2, 1) + b' * σ(1, 2))
 @show b * b'
 @show σ(2, 1) * σ(1, 1)
 
-simplify(commutator(H, b))
+commutator(H, b)
 ```
 
 See the [documentation](https://qojulia.github.io/SecondQuantizedAlgebra.jl/) for more details and advanced usage.

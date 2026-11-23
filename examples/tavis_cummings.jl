@@ -1,4 +1,4 @@
-# # Exact finite-N Tavis–Cummings model in the symmetric subspace
+# # Exact Finite-N Tavis–Cummings Model in the Symmetric Subspace
 #
 # `CollectiveTransition` keeps the atomic Hilbert space polynomial in atom
 # number while retaining exact finite-N dynamics. For two-level atoms the

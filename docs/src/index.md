@@ -33,10 +33,7 @@ features:
   - icon: "🌀"
     title: Unitary transformations
     details: Construct displacement, rotation, squeezing, Bogoliubov, and generator-derived unitary transformations symbolically.
-  - icon:
-      src: https://sciml.ai/assets/favicon.png
-      alt: SciML logo
-      wrap: true
+  - icon: "▦"
     title: Numerical bridges
     details: Convert symbolic operators to QuantumOpticsBase or QuantumToolbox representations when numerical evaluation is needed.
 ---
@@ -46,7 +43,7 @@ features:
 CurrentModule = SecondQuantizedAlgebra
 ```
 
-`SecondQuantizedAlgebra.jl` provides the noncommutative symbolic layer used to build and transform quantum-operator expressions before numerical simulation. The algebra originated in [`QuantumCumulants.jl`](https://github.com/qojulia/QuantumCumulants.jl) and was separated into a reusable package as its scope expanded [Plankensteiner2022](@cite).
+`SecondQuantizedAlgebra.jl` provides the noncommutative symbolic layer used to build and transform quantum-operator expressions before numerical simulation. The algebra originated in [`QuantumCumulants.jl`](https://github.com/qojulia/QuantumCumulants.jl) [Plankensteiner2022](@cite) and was separated into a reusable package as its scope expanded.
 
 ## Quick start
 
@@ -62,7 +59,7 @@ Construct a composite cavity–atom space and manipulate its operators directly:
 using SecondQuantizedAlgebra
 
 hc = FockSpace(:cavity)
-ha = NLevelSpace(:atoms, 2)
+ha = NLevelSpace(:atom, 2)
 h = hc ⊗ ha
 
 @qnumbers b::Destroy(h, 1)
@@ -73,4 +70,3 @@ H = Δ * b' * b + g * (b * σ(2, 1) + b' * σ(1, 2))
 
 commutator(H, b)
 ```
-

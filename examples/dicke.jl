@@ -2,11 +2,11 @@
 #
 # The [Dicke model](https://en.wikipedia.org/wiki/Dicke_model) describes ``N``
 # two-level atoms collectively coupled to a single cavity mode, retaining the
-# counter-rotating terms that the Tavis-Cummings rotating-wave approximation
+# counter-rotating terms that the Tavis–Cummings rotating-wave approximation
 # drops.  In the thermodynamic limit ``N \to \infty`` it exhibits a quantum
 # phase transition from a normal phase with ``\langle a\rangle = 0`` to a
 # *superradiant* phase with a macroscopically occupied cavity at the critical
-# coupling ``\lambda_c = \sqrt{\omega_0\,\omega_a}/2``.
+# coupling ``\lambda_c = \sqrt{\omega_0\,\omega_a}/2`` [Emary2003](@cite).
 #
 # In the collective-spin form,
 #
@@ -16,11 +16,11 @@
 # \qquad N = 2S,
 # ```
 #
-# the ``2/\sqrt{N}`` normalisation keeps ``\lambda_c`` finite as ``N\to\infty``.
+# the ``2/\sqrt{N}`` normalization keeps ``\lambda_c`` finite as ``N\to\infty``.
 # This example walks through every step that turns the operator Hamiltonian
 # into the textbook result: built-in SU(2) algebra, Heisenberg equations of
-# motion, Holstein-Primakoff bosonisation in the normal phase, the resulting
-# polariton spectrum from a symbolic Bogoliubov-de-Gennes determinant and again
+# motion, Holstein–Primakoff bosonization in the normal phase, the resulting
+# polariton spectrum from a symbolic Bogoliubov–de Gennes determinant and again
 # from a beamsplitter frame change, the critical coupling from gap closing, and a
 # numerical comparison at finite ``S``.
 
@@ -47,7 +47,7 @@ H = ω₀ * a' * a + ωₐ * Sz + g * (a + a') * Sx
 
 # ## Built-in angular-momentum algebra
 #
-# Every product is eagerly canonicalised, so the SU(2) commutators fall out
+# Every product is eagerly canonicalized, so the SU(2) commutators follow
 # directly from `*`:
 
 commutator(Sx, Sy)
@@ -90,20 +90,23 @@ commutator(Sz, Sx)
 # \end{aligned}
 # ```
 
-# ## Holstein-Primakoff bosonisation in the normal phase
+# ## Holstein–Primakoff bosonization in the normal phase
 #
 # Around the normal-phase fixed point (all atoms in their ground state
 # with ``\langle S_z\rangle = -S``, and an empty cavity) we expand the spin in a
 # new bosonic mode ``b`` via the
-# [Holstein-Primakoff transformation](https://en.wikipedia.org/wiki/Holstein-Primakoff_transformation),
+# [Holstein–Primakoff transformation](https://en.wikipedia.org/wiki/Holstein-Primakoff_transformation)
+# [Holstein1940](@cite),
 #
 # ```math
-# S_+ \approx \sqrt{2 S}\, b, \quad
-# S_- \approx \sqrt{2 S}\, b^\dagger, \quad
+# S_+ \approx \sqrt{2 S}\, b^\dagger, \quad
+# S_- \approx \sqrt{2 S}\, b, \quad
 # S_z = b^\dagger b - S,
 # ```
 #
-# valid for low excitation ``\langle b^\dagger b \rangle \ll 2 S``.  Then
+# taken around the lowest-weight state ``S_z = -S`` (rather than
+# ``S_z = +S``), so that ``b^\dagger`` raises ``S_z``.  It is valid for low
+# excitation ``\langle b^\dagger b \rangle \ll 2 S``.  Then
 # ``S_x = (S_+ + S_-)/2 \approx \sqrt{S/2}\,(b + b^\dagger)`` and inserting
 # ``g = 2\lambda/\sqrt{2S}`` into the Dicke Hamiltonian yields the **polariton
 # Hamiltonian**
@@ -129,7 +132,7 @@ h_pol = ha2 ⊗ hb2
 H_pol = ω₀ * a_pol' * a_pol + ωₐ * b_pol' * b_pol +
     λ * (a_pol + a_pol') * (b_pol + b_pol')
 
-# ## Polariton spectrum from a Bogoliubov-de-Gennes determinant
+# ## Polariton spectrum from a Bogoliubov–de Gennes determinant
 #
 # The Heisenberg equations for ``\mathbf{v} = (a, b, a^\dagger, b^\dagger)^T``
 # close into a linear system ``\dot{\mathbf v} = M\,\mathbf v``.  Each row
@@ -175,14 +178,14 @@ simplify(det(M - x * I))
 # \varepsilon_\pm^2
 # = \tfrac{1}{2}\Bigl[
 #    (\omega_a^2 + \omega_0^2)
-#    \mp \sqrt{(\omega_a^2 - \omega_0^2)^2 + 16\,\lambda^2\,\omega_a\,\omega_0}
+#    \pm \sqrt{(\omega_a^2 - \omega_0^2)^2 + 16\,\lambda^2\,\omega_a\,\omega_0}
 # \Bigr].
 # ```
 
 # ## The same dispersion from a beamsplitter
 #
-# On resonance, ``\omega_a = \omega_0``, the two-mode problem factorises, and the
-# transformation that factorises it is a beamsplitter: [`Rotation`](@ref) of two
+# On resonance, ``\omega_a = \omega_0``, the two-mode problem factorizes, and the
+# transformation that factorizes it is a beamsplitter: [`Rotation`](@ref) of two
 # Fock modes acts as ``a \mapsto \cos\theta\,a + \sin\theta\,b``.
 
 @variables θ
@@ -200,7 +203,7 @@ conjugate(H_res, Rotation(a_pol, b_pol, θ))
 #   \mp \tfrac{\lambda}{2}\,\bigl(c_\mp^2 + c_\mp^{\dagger 2}\bigr),
 # ```
 #
-# each diagonalised by a single-mode [`Squeeze`](@ref) (see the
+# each diagonalized by a single-mode [`Squeeze`](@ref) (see the
 # [optomechanics example](optomechanics.md)) at
 #
 # ```math
@@ -221,14 +224,14 @@ conjugate(H_res, Rotation(a_pol, b_pol, θ))
 # ```
 #
 # For ``\lambda > \lambda_c`` the lower polariton frequency becomes imaginary
-# and the normal-phase Holstein-Primakoff vacuum is dynamically unstable.
+# and the normal-phase Holstein–Primakoff vacuum is dynamically unstable.
 # The macroscopic occupation of the cavity that defines the superradiant
-# phase arises precisely to restabilise the spectrum around a shifted fixed
+# phase arises precisely to restabilize the spectrum around a shifted fixed
 # point.
 
 # ## Numerical verification
 #
-# We diagonalise the finite-``S`` Dicke Hamiltonian (``S = 5/2``,
+# We diagonalize the finite-``S`` Dicke Hamiltonian (``S = 5/2``,
 # ``N = 5`` atoms) using [`numeric_average`](@ref) and [`substitute`](@ref),
 # and compare both observables to the analytical predictions: the cavity
 # occupation against the mean-field order parameter, and the gap of the
@@ -294,18 +297,18 @@ vline!(fig[2], [1.0]; color = :gray, linestyle = :dot, label = false)
 plot!(fig[2]; xlabel = L"\lambda / \lambda_c", ylabel = L"\Delta E / \omega", title = "Polariton frequencies", legend = :topright)
 fig
 
-# Both panels tell the same story.  The finite-``S`` cavity occupation
-# (left) rounds the order-parameter onset on a scale set by ``1/S`` and
+# Both panels show the same transition.  The finite-``S`` cavity occupation
+# (left) rounds the onset of the order parameter on a scale set by ``1/S`` and
 # approaches the mean-field curve quickly thereafter.  The right panel
 # overlays the analytical polariton frequencies (dashed) on the numerical
-# excitation gaps (markers): below ``\lambda_c`` they coincide exactly, and the
-# Holstein-Primakoff polariton spectrum *is* the low-lying excitation
+# excitation gaps (markers): well below ``\lambda_c`` they agree closely, and the
+# Holstein–Primakoff polariton spectrum describes the low-lying excitation
 # structure.  At ``\lambda_c`` the lower branch ``\varepsilon_-`` softens to
-# zero, signalling the dynamical instability of the normal-phase vacuum.
+# zero, signaling the dynamical instability of the normal-phase vacuum.
 # Above ``\lambda_c`` the analytical ``\varepsilon_-`` is undefined while
 # ``E_1 - E_0`` collapses into the parity-tunnel splitting (vanishing only
 # as ``S \to \infty``) and ``E_2 - E_0`` reveals the re-opened polariton
-# excitation around the displaced fixed point.  The entire story (SU(2)
+# excitation around the displaced fixed point.  The entire analysis (SU(2)
 # algebra, Heisenberg dynamics, polariton dispersion, and critical coupling)
-# came out of a handful of `commutator` calls, a single `det`, and one
+# followed from a few `commutator` calls, a single `det`, and one
 # beamsplitter.

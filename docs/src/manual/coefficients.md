@@ -99,6 +99,13 @@ A phase keeps the form it was written in, so positive and negative frequencies a
 (expim(ω * t) + expim(-ω * t)) * a
 ```
 
+A complex amplitude declared `::Number` stays a single symbol next to a phase, and its conjugate is the symbolic `conj(β)`.
+
+```@example phases
+@variables β::Number
+β * expim(ω * t) * a + conj(β) * expim(-ω * t) * a'
+```
+
 Switching between the exponential and the trigonometric form is explicit, in both directions. Neither conversion is applied by display or by [`simplify`](@ref), and `expim(cos(θ))` stands for ``e^{i\cos\theta}``, not for a conversion of the cosine.
 
 ```@docs
@@ -160,6 +167,18 @@ get_operators
 get_variables(::QAdd)
 ```
 
+[`coefficient`](@ref) reads the scalar that multiplies one operator product, and gives zero when the expression has no such term.
+
+```@example params
+using SecondQuantizedAlgebra: coefficient
+H = ω * a' * a + η * a
+coefficient(H, a' * a), coefficient(H, a), coefficient(H, a')
+```
+
+```@docs
+coefficient
+```
+
 Iterating an expression gives its terms as pairs of an operator product and a coefficient, kept in exact form. `to_num` converts a coefficient to Symbolics.
 
 ```@example params
@@ -187,64 +206,40 @@ coefficient_terms
 CoefficientTerm
 ```
 
+[`map_coefficients`](@ref) applies a function to every coefficient and keeps the operators as they are.
 
-A complex amplitude declared as `@variables β::Number` stays a single atom next to a phase,
-and its conjugate is the symbolic `conj(β)`. Prefer it over `::Complex`, which splits the
-parameter into `real(β) + im*imag(β)` in every coefficient:
-
-```@example pr305
-using SecondQuantizedAlgebra
-h = FockSpace(:harmonic_example)
-@qnumbers a::Destroy(h)
-@variables ω::Real t::Real
-@variables β::Number
-β * expim(ω * t) * a + conj(β) * expim(-ω * t) * a'
-```
-
-## Harmonic projection
-
-[`harmonics`](@ref) splits an expression into its Fourier components in a base frequency
-`ω`, the step behind a rotating-wave or secular approximation. [`harmonic`](@ref) returns one
-component, the coefficient of `expim(n * ω * t)`, and [`secular`](@ref) the static one:
-
-```@example pr311
-using SecondQuantizedAlgebra
-h = FockSpace(:harmonic_example)
-@qnumbers a::Destroy(h)
-@variables ω::Real t::Real
-import SecondQuantizedAlgebra: harmonic, harmonics, secular
-@variables ω0::Real ωd::Real F::Real τ::Real
-H = ω0 * a' * a - F * (a + a') * (expim(ωd * τ) + expim(-ωd * τ)) / 2
-Hrot = transform(H, Rotation(a, ωd * τ, τ))
-harmonics(Hrot, ωd, τ)
-```
-
-```@example pr311
-secular(Hrot, ωd, τ)
-```
-
-The decomposition is exact: summing `harmonic(x, ω, t, n) * expim(n * ω * t)` over the
-returned orders gives `exponential_form(x)`. A phase that is not an exact integer multiple of
-`ω * t` plus a constant, or a time dependence outside a phase, throws an `ArgumentError`
-rather than being dropped, because assigning it would assume a relation between frequencies.
-The same functions act on [`SuperOperator`](@ref)s and [`Lindbladian`](@ref)s.
-
-
-
-```@docs
-harmonics
-harmonic
-secular
+```@example params
+using SecondQuantizedAlgebra: map_coefficients
+map_coefficients(c -> substitute(c, Dict(ω => 2)), H)
 ```
 
 ```@docs
 map_coefficients
 ```
 
-`map_coefficients(f, expr)` applies `f` to every scalar coefficient while preserving the operator structure.
+## Harmonic projection
 
-```@docs
-coefficient
+[`harmonics`](@ref) splits an expression into its Fourier components in a base frequency `ω`, the step behind a rotating-wave or secular approximation. [`harmonic`](@ref) returns one component, the coefficient of `expim(n * ω * t)`, and [`secular`](@ref) the static one. The example below first moves to a rotating frame, which is described under [Rotating frames](@ref):
+
+```@example harmonics
+using SecondQuantizedAlgebra
+h = FockSpace(:harmonic_example)
+@qnumbers a::Destroy(h)
+import SecondQuantizedAlgebra: harmonics, secular
+@variables ω0::Real ωd::Real F::Real τ::Real
+H = ω0 * a' * a - F * (a + a') * (expim(ωd * τ) + expim(-ωd * τ)) / 2
+Hrot = transform(H, Rotation(a, ωd * τ, τ))
+harmonics(Hrot, ωd, τ)
 ```
 
-`coefficient(expr, product)` reads the scalar multiplying a canonical operator product.
+```@example harmonics
+secular(Hrot, ωd, τ)
+```
+
+The decomposition is exact: summing `harmonic(x, ω, t, n) * expim(n * ω * t)` over the returned orders gives `exponential_form(x)`. A phase that is not an exact integer multiple of `ω * t` plus a constant, or a time dependence outside a phase, throws an `ArgumentError` rather than being dropped, because assigning it would assume a relation between frequencies. The same functions act on [`SuperOperator`](@ref)s and [`Lindbladian`](@ref)s.
+
+```@docs
+harmonics
+harmonic
+secular
+```

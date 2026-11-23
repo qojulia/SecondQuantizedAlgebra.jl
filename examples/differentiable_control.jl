@@ -34,7 +34,6 @@
 
 using SecondQuantizedAlgebra
 using QuantumToolbox
-using Symbolics
 
 using SciMLSensitivity
 import Mooncake                       # loads the Mooncake reverse-mode backend
@@ -98,15 +97,14 @@ nothing # hide
 #
 # With no dissipation the state stays pure. The cost is the infidelity
 # ``1 - |\langle 1 | \psi(T) \rangle|^2``, one minus the population in ``|1\rangle`` at the
-# final time. `sesolve` receives `params` and the adjoint chosen for correct gradients here,
-# `BacksolveAdjoint` with the Mooncake vector-Jacobian product; Enzyme works too, while Zygote
-# returns silently wrong gradients for time evolution.
+# final time. `sesolve` receives `params` and a `sensealg`. We use `BacksolveAdjoint` with the Mooncake
+# vector-Jacobian product, which gives correct gradients; Enzyme works too.
 
 infidelity_closed(params) =
     1 - real(expect(proj1, sesolve(Hc, ψ0, tlist; params, sensealg, progress_bar = Val(false)).states[end]))
 
 p_closed, losses_closed = optimize_pulse(infidelity_closed)
-1 - infidelity_closed(p_closed)   # near unity: closed dynamics conserve probability
+1 - infidelity_closed(p_closed)   # final fidelity: near unity without loss
 
 # The optimized pulse drives the mean photon number from 0 to 1, and the final population lands
 # almost entirely in ``|1\rangle``; the Kerr blockade suppresses ``|2\rangle``.
@@ -126,7 +124,7 @@ plot!(fig_closed[1], 1:length(losses_closed), losses_closed; xlabel = "iteration
 plot!(fig_closed[2], tlist, nt_closed; xlabel = "t", ylabel = "⟨n⟩ / ε(t)", title = "optimized pulse & dynamics", label = "⟨n⟩(t)", color = :navy, legend = :topleft)
 plot!(fig_closed[2], tlist, εt_closed; label = "ε(t)", color = :darkorange, linestyle = :dash)
 
-plot!(fig_closed[3], 0:4, finalpops_closed; xlabel = "Fock state n", ylabel = "population", title = "final state", xticks = 0:4, color = :seagreen, label = false, seriestype = :bar)
+plot!(fig_closed[3], 0:4, finalpops_closed; xlabel = "Fock state n", ylabel = "population", title = "final state", xticks = 0:4, ylims = (0, 1), color = :seagreen, label = false, seriestype = :bar)
 
 fig_closed
 
@@ -166,11 +164,11 @@ nt_open = real.(sol_open.expect[1, :])
 finalpops_open = [real(expect(fock(N + 1, n) * fock(N + 1, n)', sol_open.states[end])) for n in 0:4]
 
 fig_open = plot(; layout = (1, 3), size = (1050, 320), margin = 5Plots.mm)
-plot!(fig_open[1], 1:length(losses_open), losses_open; xlabel = "iteration", ylabel = "infidelity 1 − F", yscale = :log10, title = "LBFGS convergence", color = :crimson, label = false)
+plot!(fig_open[1], 1:length(losses_open), losses_open; xlabel = "iteration", ylabel = "infidelity 1 − F", ylims = (0, 1), title = "LBFGS convergence", color = :crimson, label = false)
 
 plot!(fig_open[2], tlist, nt_open; xlabel = "t", ylabel = "⟨n⟩ / ε(t)", title = "optimized pulse & dynamics", label = "⟨n⟩(t)", color = :navy, legend = :topleft)
 plot!(fig_open[2], tlist, εt_open; label = "ε(t)", color = :darkorange, linestyle = :dash)
 
-plot!(fig_open[3], 0:4, finalpops_open; xlabel = "Fock state n", ylabel = "population", title = "final state", xticks = 0:4, color = :seagreen, label = false, seriestype = :bar)
+plot!(fig_open[3], 0:4, finalpops_open; xlabel = "Fock state n", ylabel = "population", title = "final state", xticks = 0:4, ylims = (0, 1), color = :seagreen, label = false, seriestype = :bar)
 
 fig_open

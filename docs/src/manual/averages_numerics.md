@@ -144,9 +144,7 @@ QuantumToolboxBackend
 
 ### Bases and levels
 
-For an `NLevelSpace`, a `PauliSpace`, or a product of these, dimensions can be omitted
-with either `QuantumOpticsBackend()` or `QuantumToolboxBackend()`. The N-level state
-count comes from the space, and a Pauli space has two states.
+For an `NLevelSpace`, a `PauliSpace`, or a product of these, dimensions can be omitted with either `QuantumOpticsBackend()` or `QuantumToolboxBackend()`. The N-level state count comes from the space, and a Pauli space has two states.
 
 ```julia
 import QuantumOpticsBase
@@ -173,12 +171,7 @@ Hp = to_numeric(λ * cos(P), atom;
 Hp(Dict(λ => 0.5), 0.7)
 ```
 
-Both Hilbert-space forms accept `default_time_dependence`. This keyword affects only
-QuantumToolbox: the default `true` uses `p[λ](t)`, and `false` uses `p[λ]`.
-QuantumOptics continues to use explicit `parameter` and `time_parameter` mappings;
-`default_time_dependence` has no effect on that backend. The supplied Hilbert space
-retains every tensor factor, including spectator subsystems absent from the expression.
-Fock and phase spaces still need a cutoff, and spin spaces need a spin length.
+Both Hilbert-space forms accept `default_time_dependence`. This keyword affects only QuantumToolbox: the default `true` uses `p[λ](t)`, and `false` uses `p[λ]`. QuantumOptics continues to use explicit `parameter` and `time_parameter` mappings; `default_time_dependence` has no effect on that backend. The supplied Hilbert space retains every tensor factor, including spectator subsystems absent from the expression. Fock and phase spaces still need a cutoff, and spin spaces need a spin length.
 
 A basis of the backend can be passed in place of the space and its truncation, and then also fixes the backend. Symbolic level names map to basis indices in the order of the levels of the [`NLevelSpace`](@ref), so ``g`` is the first basis state and ``e`` the second.
 
