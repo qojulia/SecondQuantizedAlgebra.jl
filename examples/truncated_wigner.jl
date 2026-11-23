@@ -254,9 +254,9 @@ re2 = [real(traj[k][2, end]) for k in 1:ntraj]
 im2 = [imag(traj[k][2, end]) for k in 1:ntraj]
 hist = Hist2D((re2, im2); binedges = (-8:0.2:8, -8:0.2:8))
 
-fig2 = plot(; size = (940, 820), xlabel = L"\mathrm{Re}\,\alpha_2", ylabel = L"\mathrm{Im}\,\alpha_2", aspect_ratio = :equal, title = "Wigner samples, site 2 (t = 200)", xlims = (-8, 8), ylims = (-8, 8), xticks = -8:2:8, yticks = -8:2:8, margin = 5Plots.mm)
+fig2 = plot(; size = (940, 820), xlabel = L"\mathrm{Re}\,\alpha_2", ylabel = L"\mathrm{Im}\,\alpha_2", aspect_ratio = :equal, title = "Wigner samples, site 2 (t = 400)", xlims = (-8, 8), ylims = (-8, 8), xticks = -8:2:8, yticks = -8:2:8, margin = 5Plots.mm)
 nothing #hide
-# Makie and Plots use opposite matrix-axis conventions for heatmaps.
+## Plots' heatmap expects z[y, x]; the FHist counts are indexed [x, y].
 counts = Matrix(adjoint(bincounts(hist)))
 heatmap!(fig2, bincenters(hist)..., counts; color = :magma, colorbar = false, label = false)
 scatter!(fig2, [real(αlo[2])], [imag(αlo[2])]; color = :cyan, marker = :xcross, markersize = 16, label = "mean-field (lower)")
