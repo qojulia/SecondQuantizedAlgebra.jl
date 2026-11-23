@@ -88,9 +88,16 @@ D = DisplacementFrame(a, Δ * a' * a + η * a' + conj(η) * a)
 conjugate(a, D)
 ```
 
+[`displacement`](@ref) reads the amplitude of a frame back. It returns the c-number part of `conjugate(a, U)` for a mode or a quadrature.
+
+```@example frames
+displacement(Displace(a, α), a)
+```
+
 ```@docs
 DisplacementFrame
 Displace
+displacement
 ```
 
 ## Squeezing and Bogoliubov transformations
@@ -188,15 +195,4 @@ Formal operator functions are transformed through their arguments, so the result
 
 ```@example generators
 conjugate(cos(a + a'), Rotation(a, θ))
-```
-
-
-## Reading displacement amplitudes
-
-[`displacement(U, a)`](@ref displacement) returns the c-number part of
-`conjugate(a, U)`, i.e. the displacement amplitude of a Fock or phase-space frame.
-
-
-```@docs
-displacement
 ```
