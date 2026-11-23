@@ -53,7 +53,7 @@ Line numbers refer to the state of the branch after the typo pass.
 
 ## 4. Examples as a set
 
-- [ ] **4.1** Align the nine `# # Title` headings with [pages.jl](docs/pages.jl)
+- [x] **4.1** Example titles vs [pages.jl](docs/pages.jl): keep short sidebar labels; fix the Tavis–Cummings title case and the two wording mismatches (two_atom, differentiable_control)
 - [ ] **4.2** Expand [tavis_cummings.jl](examples/tavis_cummings.jl) with an intro, sections, output, a plot and a closing paragraph, or merge it with two_atom's N-atom part
 - [ ] **4.3** Add closing paragraphs to schrieffer_wolff and differentiable_control
 - [ ] **4.4** two_atom: use `to_numeric` instead of building the operators by hand three times, and fix the "no bookkeeping" claims (lines 131, 151, 322)

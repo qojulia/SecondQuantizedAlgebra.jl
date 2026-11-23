@@ -20,7 +20,7 @@ pages = [
         "Parametric Oscillator" => "examples/parametric_oscillator.md",
         "Truncated Wigner Approximation" => "examples/truncated_wigner.md",
         "Tavis–Cummings Model" => "examples/tavis_cummings.md",
-        "Differentiable Quantum Control" => "examples/differentiable_control.md",
+        "Differentiable Quantum Optimal Control" => "examples/differentiable_control.md",
     ],
     "Comparison with other packages" => "comparison.md",
     "Developer manual" => [

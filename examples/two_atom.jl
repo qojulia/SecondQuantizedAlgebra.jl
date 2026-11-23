@@ -1,4 +1,4 @@
-# # Two-Atom Dipole-Dipole: Bright and Dark States
+# # Two-Atom Dipole-Dipole Interaction: Bright and Dark States
 #
 # Two identical two-level atoms in close proximity exchange virtual photons,
 # giving rise to a dipole-dipole interaction that splits the single-excitation
