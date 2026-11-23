@@ -48,7 +48,8 @@ d = u * b + v * a'
 commutator(c, c')
 
 # So ``[c, c^\dagger] = u^2 - v^2``: a proper bosonic mode requires
-# ``u^2 - v^2 = 1``.  The two new modes commute among themselves:
+# ``u^2 - v^2 = 1``, parametrized as ``u = \cosh r``, ``v = \sinh r`` with the
+# squeezing parameter ``r``.  The two new modes commute among themselves:
 
 commutator(c, d), commutator(c, d')
 
@@ -172,7 +173,7 @@ P_plus * P_plus
 # \mathrm{Var}(P_+) = (u + v)^2 = e^{+2 r},
 # ```
 #
-# where ``u = \cosh r``, ``v = \sinh r``.  The product
+# using ``u = \cosh r``, ``v = \sinh r``.  The product
 #
 # ```math
 # \mathrm{Var}(Q_+)\,\mathrm{Var}(P_+) = (u^2 - v^2)^2 = 1
