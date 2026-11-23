@@ -130,12 +130,13 @@ H_eff_4 = H_eff + comm_S2_V // 2 - C // 24
 # ```math
 # H_{\mathrm{eff}} = \Bigl(\Delta + \frac{g^2}{\Delta} - \frac{g^4}{\Delta^3}\Bigr)
 #   |e\rangle\!\langle e|
-#   + \chi_{\mathrm{eff}}\, a^\dagger a\,\bigl(|e\rangle\!\langle e| - |g\rangle\!\langle g|\bigr)
+#   + \chi_e\, a^\dagger a\, |e\rangle\!\langle e|
+#   - \chi_g\, a^\dagger a\, |g\rangle\!\langle g|
 #   + K\, (a^\dagger)^2 a^2\,\bigl(|g\rangle\!\langle g| - |e\rangle\!\langle e|\bigr)
-#   + \text{const.}
 # ```
 #
-# with the effective dispersive shift ``\chi_{\mathrm{eff}} = g^2/\Delta - g^4/\Delta^3``
+# with the effective dispersive shifts ``\chi_g = g^2/\Delta - g^4/\Delta^3`` and
+# ``\chi_e = g^2/\Delta - 3 g^4/\Delta^3``,
 # and the **Kerr nonlinearity** ``K = g^4/\Delta^3``.
 # The Kerr term ``(a^\dagger)^2 a^2 = \hat{n}(\hat{n}-1)`` introduces an
 # anharmonic, photon-number-dependent level spacing and represents the leading
