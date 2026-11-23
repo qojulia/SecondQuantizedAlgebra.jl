@@ -1,7 +1,7 @@
 # # Parametric Oscillator in the Phase-Space Representation
 #
 # The degenerate parametric oscillator (DPO), a single bosonic mode driven
-# by parametric pumping at twice its frequency, is the workhorse of
+# by parametric pumping at twice its frequency, is the standard source of
 # optical squeezing.  In the rotating frame at half the pump frequency its
 # effective Hamiltonian is
 #
@@ -161,7 +161,7 @@ fig
 # of level curves ``H(x, p) = \mathrm{const}``, an ellipse below threshold
 # that elongates along the squeezed axis as ``\kappa \to \delta``.  Crossing
 # threshold the coefficient ``(\delta - \kappa)/2`` of ``x^2`` flips sign,
-# and the level curves become **hyperbolas**: bounded orbits give way to
+# and the level curves become hyperbolas: bounded orbits give way to
 # unbounded exponential trajectories.  The equation of motion derived
 # earlier, ``\ddot x = -(\delta^2 - \kappa^2)\,x``, makes this transition
 # exact: solutions evolve as ``e^{\lambda t}`` with
@@ -226,6 +226,6 @@ fig2
 # saddle separatrix ``H = 0`` (black) splits phase space into four
 # hyperbolic sectors; the orbits run off to infinity along the unstable
 # manifold.  Everything in this figure (the threshold condition, the
-# variances, the Wigner shape) came out of a canonical
+# variances, the Wigner shape) follows from a canonical
 # [`Position`](@ref)/[`Momentum`](@ref) pair, the built-in commutator engine and
 # one [`Squeeze`](@ref), with no manual translation to ladder operators required.

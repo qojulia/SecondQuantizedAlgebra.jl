@@ -188,7 +188,7 @@ S_dark_c = assume_distinct_index(σeg_c(ic) - σeg_c(jc), [(ic, jc)])
 commutator(H_int, S_dark_c)
 
 # The output is supported only on two-excitation operators of the form
-# ``\sigma^{ee}\sigma^{eg}`` that **annihilate the ground state**.  Acting
+# ``\sigma^{ee}\sigma^{eg}`` that annihilate the ground state.  Acting
 # on ``|0_c, gg\rangle``, ``[H_\mathrm{int}, S_-^\dagger]`` therefore returns
 # zero, so the dark single-excitation state is invisible to the cavity.
 #
@@ -232,8 +232,8 @@ println(
     round.(sort([pol_lower, dark_lvl, pol_upper]); digits = 4)
 )
 
-# The three single-excitation eigenvalues fall right where the analytic
-# story predicts: a lower polariton at ``\omega_0 - g\sqrt{2}``, the
+# The three single-excitation eigenvalues lie where the analytic
+# result predicts: a lower polariton at ``\omega_0 - g\sqrt{2}``, the
 # untouched dark state at ``\omega - J``, and an upper polariton at
 # ``\omega_0 + g\sqrt{2}``.  Dropping a single atom from this experiment
 # would leave only the ordinary Jaynes-Cummings ``g`` splitting; the

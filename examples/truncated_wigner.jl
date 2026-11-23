@@ -4,8 +4,8 @@
 # driven-dissipative
 # quantum system onto an ensemble of stochastic *classical* trajectories in
 # phase space. It keeps the leading quantum fluctuations that mean-field theory
-# throws away, at the cost of a classical Langevin equation rather than a full
-# master equation. TWA earns its keep precisely when the Hilbert space is too
+# neglects, at the cost of a classical Langevin equation rather than a full
+# master equation. TWA is most useful when the Hilbert space is too
 # large to integrate directly: here we take two coupled bosonic modes, whose
 # joint Fock space grows as the *product* of the per-mode cutoffs, in a regime
 # where the drive populates each mode with many photons.
@@ -29,8 +29,8 @@
 # high-amplitude branch. That switching is invisible to any single classical
 # trajectory.
 #
-# The star of this example is [`normal_to_symmetric`](@ref). Wigner-function
-# moments are exactly the **symmetrically-ordered** operator averages, so the
+# The central tool of this example is [`normal_to_symmetric`](@ref). Wigner-function
+# moments are exactly the symmetrically-ordered operator averages, so the
 # TWA c-number equations follow from one uniform recipe:
 #
 # > rewrite the Heisenberg drift in symmetric order, take the [`average`](@ref),
@@ -56,12 +56,12 @@ H = -Δ * (a' * a + b' * b) +
 
 # ## The Wigner shift comes out of `normal_to_symmetric`
 #
-# The whole approximation hinges on one algebraic fact. The normal-ordered Kerr
-# product, rewritten in symmetric (Weyl) order, picks up a shift:
+# The approximation rests on one algebraic fact. The normal-ordered Kerr
+# product, rewritten in symmetric (Weyl) order, acquires a shift:
 
 normal_to_symmetric(a' * a * a)
 
-# The trailing ``-a`` is the Wigner correction. Under TWA it becomes the famous
+# The trailing ``-a`` is the Wigner correction. Under TWA it becomes the
 # ``(|\alpha|^2 - 1)\,\alpha`` term. The same mechanism corrects observables:
 # the occupation operator ``a^\dagger a`` maps to ``|\alpha|^2 - \tfrac12``,
 
@@ -117,7 +117,7 @@ Symbolics.expand(twa_drift(a) - meanfield_drift(a))
 # lifts ``\langle a_j\rangle`` into ModelingToolkit unknowns
 # ``\langle a_j\rangle(t)``, and the conjugate average ``\langle a_j^\dagger\rangle``
 # becomes ``\mathrm{conj}(\langle a_j\rangle(t))``. We keep the unknowns
-# **complex** and let StochasticDiffEq carry complex state, so no real/imaginary
+# complex and let StochasticDiffEq carry complex state, so no real/imaginary
 # split is needed.
 
 using ModelingToolkit
@@ -197,7 +197,7 @@ mfsolve(α0) = solve(ODEProblem(mf, merge(Dict(αa => α0, αb => α0), params),
 # ## Solving the TWA ensemble
 #
 # TWA replaces that one trajectory by an ensemble. Each realization starts from
-# a **vacuum-sampled** initial condition (the Wigner distribution of the vacuum
+# a vacuum-sampled initial condition (the Wigner distribution of the vacuum
 # is a complex Gaussian with ``\langle|\alpha|^2\rangle = \tfrac12``) and is
 # driven by the loss noise. The drift is reused verbatim from the deterministic
 # problem via `SDEFunction`.
@@ -237,10 +237,10 @@ end
 fig
 
 # Mean-field launched from vacuum sits forever on the lower branch (dashed). The
-# TWA ensemble mean (red) climbs well above it: quantum fluctuations kick a
+# TWA ensemble mean (red) climbs well above it: quantum fluctuations carry a
 # growing fraction of trajectories over the barrier onto the upper branch
-# (dotted), and the ensemble average settles between the two. Nothing in the
-# deterministic dynamics from vacuum could produce this.
+# (dotted), and the ensemble average settles between the two. The
+# deterministic dynamics from vacuum cannot produce this.
 
 # ## The phase-space (Wigner) distribution
 #
@@ -265,14 +265,14 @@ scatter!(fig2, [real(αhi[2])], [imag(αhi[2])]; color = :lime, marker = :cross,
 plot!(fig2; legend = :bottomright)
 fig2
 
-# The distribution is unmistakably **bimodal**: one lobe sits on each mean-field
-# branch, joined by a bridge of trajectories caught mid-switch. This is the
-# picture mean-field cannot draw. A direct master-equation solve would need a
+# The distribution is clearly bimodal: one lobe sits on each mean-field
+# branch, joined by a bridge of trajectories caught mid-switch. Mean-field theory
+# cannot capture this. A direct master-equation solve would need a
 # Fock cutoff comfortably above the upper-branch occupation on *both* modes, a
 # joint space of many hundreds of states, whereas TWA needed only classical
 # trajectories.
 #
 # Every ingredient downstream of the Hamiltonian, the drift, the observable map
 # ``\langle n\rangle = \langle|\alpha|^2\rangle - \tfrac12``, and even the sign
-# of the Kerr shift, came out of symmetric ordering plus `average`, with no hand
+# of the Kerr shift, followed from symmetric ordering plus `average`, with no manual
 # conversion from operators to c-numbers.

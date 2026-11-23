@@ -24,13 +24,13 @@
 # coupling ``g``.
 #
 # In this example we carry out the transformation symbolically with
-# SecondQuantizedAlgebra.jl, deriving both the **dispersive shift** ``\chi``
-# (second order) and the **Kerr nonlinearity** ``K`` (fourth order).
+# SecondQuantizedAlgebra.jl, deriving both the dispersive shift ``\chi``
+# (second order) and the Kerr nonlinearity ``K`` (fourth order).
 
 # ## Setup
 #
 # We consider a single cavity mode coupled to a two-level atom
-# (Jaynes-Cummings model).  Working in the **interaction picture** with respect
+# (Jaynes-Cummings model).  Working in the interaction picture with respect
 # to the cavity frequency ``\omega_0``, the only energy scale in ``H_0`` is the
 # detuning ``\Delta = \omega_a - \omega_0``.  This eliminates ``\omega_0`` from
 # all intermediate expressions and keeps the algebra clean.
@@ -105,7 +105,7 @@ B = commutator(S1, commutator(S1, V))
 # \bigr).
 # ```
 #
-# Note how ``S_2`` contains terms with **three** ladder operators; these
+# Note how ``S_2`` contains terms with three ladder operators; these
 # generate photon-number-dependent corrections.
 
 S2 = ((4 // 3) * g^3 / Δ^3) * (a' * σge - a * σeg + a' * a' * a * σge - a' * a * a * σeg)

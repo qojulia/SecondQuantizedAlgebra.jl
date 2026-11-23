@@ -59,8 +59,7 @@ Line numbers refer to the state of the branch after the typo pass.
 - [ ] **4.4** two_atom: use `to_numeric` instead of building the operators by hand three times, and fix the "no bookkeeping" claims (lines 131, 151, 322)
 - [x] **4.5** Add citations through `refs.bib`: Schrieffer–Wolff, Emary–Brandes, Holstein–Primakoff, Aspelmeyer RMP, Polkovnikov
 - [ ] **4.6** Unify plot sizes, label style (LaTeXStrings), title case, and `# hide` vs `#hide`
-- [ ] **4.7** Use symbol levels (`:g, :e`) everywhere, including schrieffer_wolff
-- [ ] **4.8** Tone down "story", "The star of this example", and the heavy bolding
+- [x] **4.8** Tone down "story", "The star of this example", and the heavy bolding
 - [ ] **4.9** differentiable_control: remove the unused `using Symbolics`, deduplicate the plotting code, and fix the "near unity" comment
 
 ## 5. Small items

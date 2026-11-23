@@ -18,8 +18,8 @@
 # ```
 #
 # brings ``H`` into diagonal form when ``u`` and ``v`` are chosen correctly.
-# In this example we use SecondQuantizedAlgebra.jl to drive this story end to
-# end without ever resorting to a pen-and-paper expansion: symbolic
+# In this example we use SecondQuantizedAlgebra.jl to carry out the derivation
+# end to end without resorting to a pen-and-paper expansion: symbolic
 # commutators, Heisenberg dynamics, vacuum expectation values, EPR squeezing,
 # and the Weyl (Wigner) symbol.
 
@@ -109,12 +109,12 @@ tr(M), simplify(det(M))
 
 # ## Vacuum expectations from the inverse transformation
 #
-# A different trick (also handled fully symbolically) gives the vacuum
+# A second approach (also fully symbolic) gives the vacuum
 # correlation functions of the Bogoliubov ground state without diagonalizing
 # anything numerically.  Treat the Bogoliubov modes as the fundamental Fock
 # operators, and rebuild the *physical* operators on top of them via the
 # inverse transformation ``a = u c - v d^\dagger``, ``b = u d - v c^\dagger``.
-# Then the package's eager normal ordering does all of the work: any
+# The package's eager normal ordering then does the rest: any
 # remaining c-number term in the canonical form is automatically the BdG
 # vacuum expectation value.
 
@@ -179,13 +179,13 @@ P_plus * P_plus
 # \mathrm{Var}(Q_+)\,\mathrm{Var}(P_+) = (u^2 - v^2)^2 = 1
 # ```
 #
-# saturates the Heisenberg bound, and one quadrature drops **below** the
+# saturates the Heisenberg bound, and one quadrature drops below the
 # single-mode shot-noise level ``1``, the defining signature of two-mode
 # squeezing.
 
 # ## Weyl symbol and the zero-point energy
 #
-# A perhaps less expected payoff is the explicit access to the
+# The package also gives explicit access to the
 # Wigner-Weyl symbol via [`normal_to_symmetric`](@ref).  Applied to the
 # normal-ordered Hamiltonian:
 
@@ -258,6 +258,6 @@ plot!(fig[2]; xlabel = L"\kappa / \omega", ylabel = L"\langle a^\dagger a \rangl
 fig
 
 # Both observables match the closed-form predictions to truncation error: the
-# entire Bogoliubov story (dispersion, vacuum correlations, EPR squeezing,
-# and zero-point energy) emerged from a handful of symbolic manipulations
+# entire Bogoliubov analysis (dispersion, vacuum correlations, EPR squeezing,
+# and zero-point energy) followed from a few symbolic manipulations
 # carried out by the eager canonicalization built into the package.

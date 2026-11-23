@@ -11,12 +11,12 @@
 # where ``a, a^\dagger`` are cavity (optical) ladder operators, ``b, b^\dagger``
 # the mechanical mode, and ``g`` the single-photon optomechanical coupling.
 # Although ``H`` is non-linear, it has a hidden structure: the cavity photon
-# number ``a^\dagger a`` commutes with everything in sight, so each
+# number ``a^\dagger a`` commutes with every term in ``H``, so each
 # photon-number sector sees the mechanical mode as a *displaced* harmonic
 # oscillator.  The polaron (Lang-Firsov) transformation makes this exact and
 # yields an effective **Kerr** nonlinearity for the cavity.
 #
-# The unitary that does the job is
+# The corresponding unitary is
 #
 # ```math
 # U = \exp\!\left[\tfrac{g}{\omega_m}\,a^\dagger a\,(b - b^\dagger)\right].
@@ -24,7 +24,7 @@
 #
 # Because ``a^\dagger a`` commutes with the displacement generator,
 # ``U^\dagger b U = b - (g/\omega_m)\,a^\dagger a`` is exact, since the Hadamard
-# series truncates at first order.  We exploit that by simply *substituting*
+# series truncates at first order.  We exploit that by *substituting*
 # the displaced operators into ``H`` and letting the package's eager
 # normal-ordering do the bookkeeping.
 
@@ -62,7 +62,7 @@ H = ω₀ * a' * a + ωₘ * b' * b + g * a' * a * (b + b')
 # \dot a = -i\,\omega_0\, a - i\, g\, a\,(b + b^\dagger).
 # ```
 #
-# The first equation makes the **displacement** structure explicit: at fixed
+# The first equation makes the displacement structure explicit: at fixed
 # ``a^\dagger a = n``, the mechanical mode oscillates around a shifted origin
 # ``\langle b\rangle_\text{eq} = -(g/\omega_m)\,n``.
 
@@ -103,7 +103,7 @@ H_pol = ω₀ * a' * a + ωₘ * bd_tilde * b_tilde + g * a' * a * (b_tilde + bd
 # \;}
 # ```
 #
-# The optomechanical coupling has been **eliminated entirely** in favor of
+# The optomechanical coupling has been eliminated entirely in favor of
 # a Kerr nonlinearity of strength ``K = g^2/\omega_m`` on the cavity mode.
 # Photons attract each other with energy ``-K\,n(n-1)``, a self-Kerr
 # anharmonicity that is now routinely measured in superconducting and
@@ -177,10 +177,10 @@ fig
 @variables g₂
 H_mim = ω₀ * a' * a + ωₘ * b' * b + g₂ * a' * a * (b + b')^2
 
-# Three distinct effects fall out: a constant cavity-frequency renormalization
-# ``+g_2``, a **photon-number-dependent mechanical frequency** ``2 g_2\,
-# a^\dagger a`` accompanying ``b^\dagger b``, and a **photon-number-dependent
-# two-phonon drive** ``g_2\, a^\dagger a\,(b^2 + b^{\dagger 2})``.  Restricting
+# Three distinct effects appear: a constant cavity-frequency renormalization
+# ``+g_2``, a photon-number-dependent mechanical frequency ``2 g_2\,
+# a^\dagger a`` accompanying ``b^\dagger b``, and a photon-number-dependent
+# two-phonon drive ``g_2\, a^\dagger a\,(b^2 + b^{\dagger 2})``.  Restricting
 # to a cavity Fock sector ``|n\rangle_c`` (which is preserved because
 # ``a^\dagger a`` commutes with everything in ``H_\mathrm{mim}``), the
 # mechanical Hamiltonian is
@@ -243,8 +243,8 @@ end
 # Every level matches the closed-form prediction to truncation precision.
 # The first few photon-conditional mechanical frequencies are
 # ``\varepsilon(0) = \omega_m``, ``\varepsilon(1) \approx 1.1832\,\omega_m``,
-# ``\varepsilon(2) \approx 1.3416\,\omega_m``.  The **mechanical mode is
-# stiffer in every higher-photon sector**, with the stiffening predictable
+# ``\varepsilon(2) \approx 1.3416\,\omega_m``.  The mechanical mode is
+# stiffer in every higher-photon sector, with the stiffening predictable
 # in closed form.  Read the other way, the same ``2 g_2\, a^\dagger a\,
 # b^\dagger b`` term shifts the cavity frequency by ``2 g_2`` per phonon.
 # This is what makes the membrane-in-the-middle a QND phonon counter:

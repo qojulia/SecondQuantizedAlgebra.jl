@@ -47,7 +47,7 @@ H = ω₀ * a' * a + ωₐ * Sz + g * (a + a') * Sx
 
 # ## Built-in angular-momentum algebra
 #
-# Every product is eagerly canonicalized, so the SU(2) commutators fall out
+# Every product is eagerly canonicalized, so the SU(2) commutators follow
 # directly from `*`:
 
 commutator(Sx, Sy)
@@ -297,7 +297,7 @@ vline!(fig[2], [1.0]; color = :gray, linestyle = :dot, label = false)
 plot!(fig[2]; xlabel = L"\lambda / \lambda_c", ylabel = L"\Delta E / \omega", title = "Polariton frequencies", legend = :topright)
 fig
 
-# Both panels tell the same story.  The finite-``S`` cavity occupation
+# Both panels show the same transition.  The finite-``S`` cavity occupation
 # (left) rounds the onset of the order parameter on a scale set by ``1/S`` and
 # approaches the mean-field curve quickly thereafter.  The right panel
 # overlays the analytical polariton frequencies (dashed) on the numerical
@@ -308,7 +308,7 @@ fig
 # Above ``\lambda_c`` the analytical ``\varepsilon_-`` is undefined while
 # ``E_1 - E_0`` collapses into the parity-tunnel splitting (vanishing only
 # as ``S \to \infty``) and ``E_2 - E_0`` reveals the re-opened polariton
-# excitation around the displaced fixed point.  The entire story (SU(2)
+# excitation around the displaced fixed point.  The entire analysis (SU(2)
 # algebra, Heisenberg dynamics, polariton dispersion, and critical coupling)
-# came out of a handful of `commutator` calls, a single `det`, and one
+# followed from a few `commutator` calls, a single `det`, and one
 # beamsplitter.
