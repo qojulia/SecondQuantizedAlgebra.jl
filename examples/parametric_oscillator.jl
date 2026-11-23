@@ -162,11 +162,12 @@ fig
 # that elongates along the squeezed axis as ``\kappa \to \delta``.  Crossing
 # threshold the coefficient ``(\delta - \kappa)/2`` of ``x^2`` flips sign,
 # and the level curves become **hyperbolas**: bounded orbits give way to
-# unbounded exponential trajectories.  The symbolic determinant computed
-# earlier makes this transition exact:
+# unbounded exponential trajectories.  The equation of motion derived
+# earlier, ``\ddot x = -(\delta^2 - \kappa^2)\,x``, makes this transition
+# exact: solutions evolve as ``e^{\lambda t}`` with
 #
 # ```math
-# \mathrm{eig}(M) = \pm\sqrt{-\det M} = \pm\sqrt{\kappa^2 - \delta^2}
+# \lambda = \pm\sqrt{\kappa^2 - \delta^2}
 # = \begin{cases}
 #   \pm i\,\sqrt{\delta^2 - \kappa^2} & \text{(oscillation, } \kappa < \delta\text{)}, \\
 #   0 & \text{(degenerate, } \kappa = \delta\text{)}, \\

@@ -17,8 +17,7 @@ Line numbers refer to the state of the branch after the typo pass.
 - [x] **1.6** [optomechanics.jl:75-83](examples/optomechanics.jl#L75-L83): fix the "ã = a" justification (only ã†ã = a†a holds), and change "three substitutions" to two
 - [x] **1.7** [optomechanics.jl:192-193, 246-250](examples/optomechanics.jl#L192): describe it as the single-mode analogue of the Bogoliubov example, and fix the phonon-counting logic
 - [x] **1.8** [schrieffer_wolff.jl:131-139](examples/schrieffer_wolff.jl#L131-L139): fix χ_eff for the excited branch (the extra |n,e⟩ check was left out on purpose)
-- [ ] **1.9** [parametric_oscillator.jl:165-169](examples/parametric_oscillator.jl#L165-L169): define M and det, or derive the result from ε = √(δ²−κ²)
-- [ ] **1.10** [parametric_oscillator.jl:182, 195](examples/parametric_oscillator.jl#L182): Wigner prefactor 2/π → 1/π
+- [x] **1.9** [parametric_oscillator.jl:165-169](examples/parametric_oscillator.jl#L165-L169): define M and det, or derive the result from ε = √(δ²−κ²)
 - [ ] **1.11** [two_atom.jl](examples/two_atom.jl):
   - [ ] **1.11a** lines 71-72: say that distinct sites commute exactly
   - [ ] **1.11b** lines 191-194: describe the actual commutator output, or apply `expand_completeness`
